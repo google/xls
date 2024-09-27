@@ -1,0 +1,106 @@
+package pkg;
+  typedef struct packed {
+    logic [31:0][5] data;
+  } small_arr_t;
+  typedef struct packed {
+    logic [31:0][10] data;
+  } big_arr_t;
+endpackage : pkg
+
+module shifter5(
+  input wire [159:0] array,
+  output wire [159:0] shifted
+);
+  wire [31:0] array_unflattened[5];
+  assign array_unflattened[0] = array[31:0];
+  assign array_unflattened[1] = array[63:32];
+  assign array_unflattened[2] = array[95:64];
+  assign array_unflattened[3] = array[127:96];
+  assign array_unflattened[4] = array[159:128];
+  wire [31:0] array_12[5];
+  assign array_12[0] = array_unflattened[3'h1];
+  assign array_12[1] = array_unflattened[3'h2];
+  assign array_12[2] = array_unflattened[3'h3];
+  assign array_12[3] = array_unflattened[3'h4];
+  assign array_12[4] = array_unflattened[3'h0];
+  assign shifted = {array_12[4], array_12[3], array_12[2], array_12[1], array_12[0]};
+endmodule
+
+
+module shifter10(
+  input wire [319:0] array,
+  output wire [319:0] shifted
+);
+  wire [31:0] array_unflattened[10];
+  assign array_unflattened[0] = array[31:0];
+  assign array_unflattened[1] = array[63:32];
+  assign array_unflattened[2] = array[95:64];
+  assign array_unflattened[3] = array[127:96];
+  assign array_unflattened[4] = array[159:128];
+  assign array_unflattened[5] = array[191:160];
+  assign array_unflattened[6] = array[223:192];
+  assign array_unflattened[7] = array[255:224];
+  assign array_unflattened[8] = array[287:256];
+  assign array_unflattened[9] = array[319:288];
+  wire [31:0] array_35[10];
+  assign array_35[0] = array_unflattened[4'h1];
+  assign array_35[1] = array_unflattened[4'h2];
+  assign array_35[2] = array_unflattened[4'h3];
+  assign array_35[3] = array_unflattened[4'h4];
+  assign array_35[4] = array_unflattened[4'h5];
+  assign array_35[5] = array_unflattened[4'h6];
+  assign array_35[6] = array_unflattened[4'h7];
+  assign array_35[7] = array_unflattened[4'h8];
+  assign array_35[8] = array_unflattened[4'h9];
+  assign array_35[9] = array_unflattened[4'h0];
+  assign shifted = {array_35[9], array_35[8], array_35[7], array_35[6], array_35[5], array_35[4], array_35[3], array_35[2], array_35[1], array_35[0]};
+endmodule
+
+
+module my_block(
+  input  pkg::small_arr_t x,
+  input  pkg::small_arr_t y,
+  output  pkg::big_arr_t out
+);
+  wire [31:0] instantiation_output_43[5];
+  wire [31:0] instantiation_output_44[5];
+  wire [31:0] instantiation_output_47[10];
+  wire [31:0] tuple_index_38[5];
+  wire [31:0] tuple_index_40[5];
+  wire [31:0] array_concat_45[10];
+
+  assign tuple_index_38[0] = x[31:0];
+  assign tuple_index_38[1] = x[63:32];
+  assign tuple_index_38[2] = x[95:64];
+  assign tuple_index_38[3] = x[127:96];
+  assign tuple_index_38[4] = x[159:128];
+  assign tuple_index_40[0] = y[31:0];
+  assign tuple_index_40[1] = y[63:32];
+  assign tuple_index_40[2] = y[95:64];
+  assign tuple_index_40[3] = y[127:96];
+  assign tuple_index_40[4] = y[159:128];
+  assign array_concat_45[0] = instantiation_output_43[0];
+  assign array_concat_45[1] = instantiation_output_43[1];
+  assign array_concat_45[2] = instantiation_output_43[2];
+  assign array_concat_45[3] = instantiation_output_43[3];
+  assign array_concat_45[4] = instantiation_output_43[4];
+  assign array_concat_45[5] = instantiation_output_44[0];
+  assign array_concat_45[6] = instantiation_output_44[1];
+  assign array_concat_45[7] = instantiation_output_44[2];
+  assign array_concat_45[8] = instantiation_output_44[3];
+  assign array_concat_45[9] = instantiation_output_44[4];
+  // ===== Instantiations
+  shifter5 shifter5_inst0 (
+    .array({tuple_index_38[4], tuple_index_38[3], tuple_index_38[2], tuple_index_38[1], tuple_index_38[0]}),
+    .shifted({instantiation_output_43[4], instantiation_output_43[3], instantiation_output_43[2], instantiation_output_43[1], instantiation_output_43[0]})
+  );
+  shifter5 shifter5_inst1 (
+    .array({tuple_index_40[4], tuple_index_40[3], tuple_index_40[2], tuple_index_40[1], tuple_index_40[0]}),
+    .shifted({instantiation_output_44[4], instantiation_output_44[3], instantiation_output_44[2], instantiation_output_44[1], instantiation_output_44[0]})
+  );
+  shifter10 sub (
+    .array({array_concat_45[9], array_concat_45[8], array_concat_45[7], array_concat_45[6], array_concat_45[5], array_concat_45[4], array_concat_45[3], array_concat_45[2], array_concat_45[1], array_concat_45[0]}),
+    .shifted({instantiation_output_47[9], instantiation_output_47[8], instantiation_output_47[7], instantiation_output_47[6], instantiation_output_47[5], instantiation_output_47[4], instantiation_output_47[3], instantiation_output_47[2], instantiation_output_47[1], instantiation_output_47[0]})
+  );
+  assign out = {{instantiation_output_47[9], instantiation_output_47[8], instantiation_output_47[7], instantiation_output_47[6], instantiation_output_47[5], instantiation_output_47[4], instantiation_output_47[3], instantiation_output_47[2], instantiation_output_47[1], instantiation_output_47[0]}};
+endmodule

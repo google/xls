@@ -1070,6 +1070,7 @@ cc_test(
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
+        "//xls/ir:bit_push_buffer",
         "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:channel_ops",

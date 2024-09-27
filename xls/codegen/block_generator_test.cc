@@ -48,6 +48,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/estimators/delay_model/delay_estimators.h"
+#include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -197,6 +198,27 @@ class BlockGeneratorTest : public VerilogTestBase {
     bb.OutputPort("z", result);
     return bb.Build();
   }
+
+  absl::StatusOr<Block*> MakeArrayShiftBy1Block(std::string_view name,
+                                                int64_t array_size,
+                                                Package* package) {
+    Type* array_type =
+        package->GetArrayType(array_size, package->GetBitsType(32));
+    BlockBuilder bb(name, package);
+    BValue array = bb.InputPort("array", array_type);
+    std::vector<BValue> shifted_elements;
+    shifted_elements.reserve(array_size);
+    for (int64_t i = 1; i < array_size; ++i) {
+      shifted_elements.push_back(
+          bb.ArrayIndex(array, {bb.Literal(UBits(i, 32))}));
+    }
+    shifted_elements.push_back(
+        bb.ArrayIndex(array, {bb.Literal(UBits(0, 32))}));
+    BValue shifted = bb.Array(shifted_elements, package->GetBitsType(32));
+    bb.OutputPort("shifted", shifted);
+    return bb.Build();
+  }
+
   absl::StatusOr<CodegenResult> MakeMultiProc(FifoConfig fifo_config) {
     Package package(TestName());
     Type* u32 = package.GetBitsType(32);
@@ -280,8 +302,8 @@ TEST_P(BlockGeneratorTest, AandB) {
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("sum");
-  // The combinational module doesn't a connected clock, but the clock can still
-  // be used to sequence events in time.
+  // The combinational module doesn't have a connected clock, but the clock can
+  // still be used to sequence events in time.
   seq.Set("a", 0).Set("b", 0);
   seq.AtEndOfCycle().ExpectEq("sum", 0);
   seq.Set("a", 0x11ff).Set("b", 0x77bb);
@@ -1039,7 +1061,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlock) {
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.AtEndOfCycle().ExpectX("out");
-  // The module doesn't a connected clock, but the clock can still
+  // The module doesn't have a connected clock, but the clock can still
   // be used to sequence events in time.
   // `out` should be: ((x + 1) - (y - 1)) << 1
   seq.Set("x", 0).Set("y", 0);
@@ -1180,7 +1202,7 @@ TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
       .ExpectX("y_minus_x")
       .ExpectX("x_minus_x");
 
-  // The module doesn't a connected clock, but the clock can still
+  // The module doesn't have a connected clock, but the clock can still
   // be used to sequence events in time.
   seq.NextCycle();
   seq.Set("x", 0).Set("y", 0);
@@ -1195,6 +1217,221 @@ TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
       .ExpectEq("x_minus_y", 0x698b)
       .ExpectEq("y_minus_x", 0xffff9675)
       .ExpectEq("x_minus_x", 0);
+
+  XLS_ASSERT_OK(tb->Run());
+}
+
+TEST_P(BlockGeneratorTest, InstantiatedBlockWithArrayPorts) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * shifter5_block,
+                           MakeArrayShiftBy1Block("shifter5", 5, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * shifter10_block,
+                           MakeArrayShiftBy1Block("shifter10", 10, &package));
+
+  BlockBuilder bb("my_block", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * shifter5_inst0,
+      bb.block()->AddBlockInstantiation("shifter5_inst0", shifter5_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * shifter5_inst1,
+      bb.block()->AddBlockInstantiation("shifter5_inst1", shifter5_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * shifter10_inst,
+      bb.block()->AddBlockInstantiation("sub", shifter10_block));
+  BValue x = bb.InputPort("x", u32);
+  BValue y = bb.InputPort("y", u32);
+  BValue z = bb.InputPort("z", u32);
+
+  std::vector<BValue> x_inputs;
+  std::vector<BValue> y_inputs;
+  x_inputs.reserve(5);
+  y_inputs.reserve(5);
+  for (int64_t i = 0; i < 5; ++i) {
+    // The length-5 shifters get [x+i/y+i for i in range(5)] as their inputs.
+    x_inputs.push_back(bb.Add(x, bb.Literal(UBits(i, 32))));
+    y_inputs.push_back(bb.Add(y, bb.Literal(UBits(i, 32))));
+  }
+  bb.InstantiationInput(shifter5_inst0, "array", bb.Array(x_inputs, u32));
+  bb.InstantiationInput(shifter5_inst1, "array", bb.Array(y_inputs, u32));
+  // Concat the outputs of the two length-5 shifters to get the inputs to the
+  // length-10 shifter.
+  BValue x_concat_y =
+      bb.ArrayConcat({bb.InstantiationOutput(shifter5_inst0, "shifted"),
+                      bb.InstantiationOutput(shifter5_inst1, "shifted")});
+  bb.InstantiationInput(shifter10_inst, "array", x_concat_y);
+  BValue big_shifted = bb.InstantiationOutput(shifter10_inst, "shifted");
+  // Select the z'th output of the big shifter as the output of the block.
+  bb.OutputPort("out", bb.ArrayIndex(big_shifted, {z}));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(codegen_options(), block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
+  SequentialBlock& seq = tbt->MainBlock();
+
+  seq.AtEndOfCycle().ExpectX("out");
+  // The module doesn't have a connected clock, but the clock can still be used
+  // to sequence events in time.
+  // shift(shift([0, 1, 2, 3, 4]) ++ shift([0, 1, 2, 3, 4]))
+  // = shift([1, 2, 3, 4, 0] ++ [1, 2, 3, 4, 0])
+  // = [2, 3, 4, 0, 1, 2, 3, 4, 0, 1]
+  // For z=0 `out` should be: 2
+  seq.Set("x", 0).Set("y", 0).Set("z", 0);
+  seq.AtEndOfCycle().ExpectEq("out", 2);
+  // For z=5 `out` should be: 2+5=7
+  seq.Set("x", 0).Set("y", 5).Set("z", 5);
+  seq.AtEndOfCycle().ExpectEq("out", 7);
+
+  XLS_ASSERT_OK(tb->Run());
+}
+
+TEST_P(BlockGeneratorTest, InstantiatedBlockWithExternStructPorts) {
+  if (!GetParam().use_system_verilog) {
+    GTEST_SKIP() << "Typedefs and packages are SystemVerilog only.";
+  }
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+  Type* u32_5 = package.GetArrayType(5, u32);
+  Type* u32_5_tuple = package.GetTupleType({u32_5});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * shifter5_block,
+                           MakeArrayShiftBy1Block("shifter5", 5, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * shifter10_block,
+                           MakeArrayShiftBy1Block("shifter10", 10, &package));
+
+  BlockBuilder bb("my_block", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * shifter5_inst0,
+      bb.block()->AddBlockInstantiation("shifter5_inst0", shifter5_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * shifter5_inst1,
+      bb.block()->AddBlockInstantiation("shifter5_inst1", shifter5_block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * shifter10_inst,
+      bb.block()->AddBlockInstantiation("sub", shifter10_block));
+  BValue x = bb.TupleIndex(bb.InputPort("x", u32_5_tuple), 0);
+  BValue y = bb.TupleIndex(bb.InputPort("y", u32_5_tuple), 0);
+
+  bb.InstantiationInput(shifter5_inst0, "array", x);
+  bb.InstantiationInput(shifter5_inst1, "array", y);
+  // Concat the outputs of the two length-5 shifters to get the inputs to the
+  // length-10 shifter.
+  BValue x_concat_y =
+      bb.ArrayConcat({bb.InstantiationOutput(shifter5_inst0, "shifted"),
+                      bb.InstantiationOutput(shifter5_inst1, "shifted")});
+  bb.InstantiationInput(shifter10_inst, "array", x_concat_y);
+  BValue big_shifted =
+      bb.Tuple({bb.InstantiationOutput(shifter10_inst, "shifted")});
+  bb.OutputPort("out", big_shifted);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(InputPort * x_port, block->GetInputPort("x"));
+  XLS_ASSERT_OK_AND_ASSIGN(InputPort * y_port, block->GetInputPort("y"));
+  absl::flat_hash_map<InputPort*, std::string> input_port_sv_types = {
+      {x_port, "pkg::small_arr_t"},
+      {y_port, "pkg::small_arr_t"},
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(OutputPort * out_port, block->GetOutputPort("out"));
+  absl::flat_hash_map<OutputPort*, std::string> output_port_sv_types = {
+      {out_port, "pkg::big_arr_t"},
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string verilog,
+      GenerateVerilog(block, codegen_options(), /*verilog_line_map=*/nullptr,
+                      /*input_port_sv_types=*/input_port_sv_types,
+                      /*output_port_sv_types=*/output_port_sv_types));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(codegen_options(), block));
+
+  // Append the needed typedefs to the beginning.
+  constexpr std::string_view typedefs = R"(package pkg;
+  typedef struct packed {
+    logic [31:0][5] data;
+  } small_arr_t;
+  typedef struct packed {
+    logic [31:0][10] data;
+  } big_arr_t;
+endpackage : pkg
+
+)";
+  verilog = absl::StrCat(typedefs, verilog);
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
+                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
+  SequentialBlock& seq = tbt->MainBlock();
+
+  seq.AtEndOfCycle().ExpectX("out");
+  // The module doesn't have a connected clock, but the clock can still be used
+  // to sequence events in time.
+  // shift(shift([0, 1, 2, 3, 4]) ++ shift([5, 6, 7, 8, 9]))
+  // = shift([1, 2, 3, 4, 0] ++ [6, 7, 8, 9, 5])
+  // = [2, 3, 4, 0, 6, 7, 8, 9, 5, 1]
+  Bits x_bits;
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto x_value, Value::Array({
+                                               Value(UBits(0, 32)),
+                                               Value(UBits(1, 32)),
+                                               Value(UBits(2, 32)),
+                                               Value(UBits(3, 32)),
+                                               Value(UBits(4, 32)),
+                                           }));
+    BitPushBuffer buffer;
+    x_value.FlattenTo(&buffer);
+    x_bits = Bits::FromBytes(buffer.GetUint8Data(), 5 * 32);
+  }
+  Bits y_bits;
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto y_value, Value::Array({
+                                               Value(UBits(5, 32)),
+                                               Value(UBits(6, 32)),
+                                               Value(UBits(7, 32)),
+                                               Value(UBits(8, 32)),
+                                               Value(UBits(9, 32)),
+                                           }));
+    BitPushBuffer buffer;
+    y_value.FlattenTo(&buffer);
+    y_bits = Bits::FromBytes(buffer.GetUint8Data(), 5 * 32);
+  }
+  Bits out_bits;
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(auto out_value, Value::Array({
+                                                 Value(UBits(2, 32)),
+                                                 Value(UBits(3, 32)),
+                                                 Value(UBits(4, 32)),
+                                                 Value(UBits(0, 32)),
+                                                 Value(UBits(6, 32)),
+                                                 Value(UBits(7, 32)),
+                                                 Value(UBits(8, 32)),
+                                                 Value(UBits(9, 32)),
+                                                 Value(UBits(5, 32)),
+                                                 Value(UBits(1, 32)),
+                                             }));
+    BitPushBuffer buffer;
+    out_value.FlattenTo(&buffer);
+    out_bits = Bits::FromBytes(buffer.GetUint8Data(), 10 * 32);
+  }
+
+  seq.Set("x", x_bits).Set("y", y_bits);
+  seq.AtEndOfCycle().ExpectEq("out", out_bits);
 
   XLS_ASSERT_OK(tb->Run());
 }
@@ -1253,7 +1490,7 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
 
   seq.AtEndOfCycle().ExpectX("j_minus_k").ExpectX("k_minus_j");
 
-  // The module doesn't a connected clock, but the clock can still
+  // The module doesn't have a connected clock, but the clock can still
   // be used to sequence events in time.
   seq.NextCycle();
   seq.Set("j", 0).Set("k", 0);

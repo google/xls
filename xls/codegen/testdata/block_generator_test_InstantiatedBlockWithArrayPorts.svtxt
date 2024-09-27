@@ -1,0 +1,118 @@
+module shifter5(
+  input wire [159:0] array,
+  output wire [159:0] shifted
+);
+  wire [31:0] array_unflattened[5];
+  assign array_unflattened[0] = array[31:0];
+  assign array_unflattened[1] = array[63:32];
+  assign array_unflattened[2] = array[95:64];
+  assign array_unflattened[3] = array[127:96];
+  assign array_unflattened[4] = array[159:128];
+  wire [31:0] array_12[5];
+  assign array_12[0] = array_unflattened[3'h1];
+  assign array_12[1] = array_unflattened[3'h2];
+  assign array_12[2] = array_unflattened[3'h3];
+  assign array_12[3] = array_unflattened[3'h4];
+  assign array_12[4] = array_unflattened[3'h0];
+  assign shifted = {array_12[4], array_12[3], array_12[2], array_12[1], array_12[0]};
+endmodule
+
+
+module shifter10(
+  input wire [319:0] array,
+  output wire [319:0] shifted
+);
+  wire [31:0] array_unflattened[10];
+  assign array_unflattened[0] = array[31:0];
+  assign array_unflattened[1] = array[63:32];
+  assign array_unflattened[2] = array[95:64];
+  assign array_unflattened[3] = array[127:96];
+  assign array_unflattened[4] = array[159:128];
+  assign array_unflattened[5] = array[191:160];
+  assign array_unflattened[6] = array[223:192];
+  assign array_unflattened[7] = array[255:224];
+  assign array_unflattened[8] = array[287:256];
+  assign array_unflattened[9] = array[319:288];
+  wire [31:0] array_35[10];
+  assign array_35[0] = array_unflattened[4'h1];
+  assign array_35[1] = array_unflattened[4'h2];
+  assign array_35[2] = array_unflattened[4'h3];
+  assign array_35[3] = array_unflattened[4'h4];
+  assign array_35[4] = array_unflattened[4'h5];
+  assign array_35[5] = array_unflattened[4'h6];
+  assign array_35[6] = array_unflattened[4'h7];
+  assign array_35[7] = array_unflattened[4'h8];
+  assign array_35[8] = array_unflattened[4'h9];
+  assign array_35[9] = array_unflattened[4'h0];
+  assign shifted = {array_35[9], array_35[8], array_35[7], array_35[6], array_35[5], array_35[4], array_35[3], array_35[2], array_35[1], array_35[0]};
+endmodule
+
+
+module my_block(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  input wire [31:0] z,
+  output wire [31:0] out
+);
+  wire [31:0] instantiation_output_64[5];
+  wire [31:0] instantiation_output_65[5];
+  wire [31:0] instantiation_output_68[10];
+  wire [31:0] add_41;
+  wire [31:0] add_45;
+  wire [31:0] add_49;
+  wire [31:0] add_53;
+  wire [31:0] add_57;
+  wire [31:0] add_43;
+  wire [31:0] add_47;
+  wire [31:0] add_51;
+  wire [31:0] add_55;
+  wire [31:0] add_59;
+  wire [31:0] array_60[5];
+  wire [31:0] array_62[5];
+  wire [31:0] array_concat_66[10];
+
+  assign add_41 = x + 32'h0000_0000;
+  assign add_45 = x + 32'h0000_0001;
+  assign add_49 = x + 32'h0000_0002;
+  assign add_53 = x + 32'h0000_0003;
+  assign add_57 = x + 32'h0000_0004;
+  assign add_43 = y + 32'h0000_0000;
+  assign add_47 = y + 32'h0000_0001;
+  assign add_51 = y + 32'h0000_0002;
+  assign add_55 = y + 32'h0000_0003;
+  assign add_59 = y + 32'h0000_0004;
+  assign array_60[0] = add_41;
+  assign array_60[1] = add_45;
+  assign array_60[2] = add_49;
+  assign array_60[3] = add_53;
+  assign array_60[4] = add_57;
+  assign array_62[0] = add_43;
+  assign array_62[1] = add_47;
+  assign array_62[2] = add_51;
+  assign array_62[3] = add_55;
+  assign array_62[4] = add_59;
+  assign array_concat_66[0] = instantiation_output_64[0];
+  assign array_concat_66[1] = instantiation_output_64[1];
+  assign array_concat_66[2] = instantiation_output_64[2];
+  assign array_concat_66[3] = instantiation_output_64[3];
+  assign array_concat_66[4] = instantiation_output_64[4];
+  assign array_concat_66[5] = instantiation_output_65[0];
+  assign array_concat_66[6] = instantiation_output_65[1];
+  assign array_concat_66[7] = instantiation_output_65[2];
+  assign array_concat_66[8] = instantiation_output_65[3];
+  assign array_concat_66[9] = instantiation_output_65[4];
+  // ===== Instantiations
+  shifter5 shifter5_inst0 (
+    .array({array_60[4], array_60[3], array_60[2], array_60[1], array_60[0]}),
+    .shifted({instantiation_output_64[4], instantiation_output_64[3], instantiation_output_64[2], instantiation_output_64[1], instantiation_output_64[0]})
+  );
+  shifter5 shifter5_inst1 (
+    .array({array_62[4], array_62[3], array_62[2], array_62[1], array_62[0]}),
+    .shifted({instantiation_output_65[4], instantiation_output_65[3], instantiation_output_65[2], instantiation_output_65[1], instantiation_output_65[0]})
+  );
+  shifter10 sub (
+    .array({array_concat_66[9], array_concat_66[8], array_concat_66[7], array_concat_66[6], array_concat_66[5], array_concat_66[4], array_concat_66[3], array_concat_66[2], array_concat_66[1], array_concat_66[0]}),
+    .shifted({instantiation_output_68[9], instantiation_output_68[8], instantiation_output_68[7], instantiation_output_68[6], instantiation_output_68[5], instantiation_output_68[4], instantiation_output_68[3], instantiation_output_68[2], instantiation_output_68[1], instantiation_output_68[0]})
+  );
+  assign out = instantiation_output_68[z > 32'h0000_0009 ? 4'h9 : z[3:0]];
+endmodule

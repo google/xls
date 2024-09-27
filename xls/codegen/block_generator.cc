@@ -770,21 +770,45 @@ class BlockGenerator {
       mb_.instantiation_section()->Add<Comment>(SourceInfo(),
                                                 "===== Instantiations");
     }
+
+    // Because we flatten arrays at module ports but otherwise use unpacked
+    // arrays internally, we may need to make an expression that packs/unpacks
+    // the port connection.
+    // TODO(google/xls#320): This can be much simpler if we don't use unpacked
+    // arrays.
+    auto connection_expression =
+        [this](const NodeRepresentation& expr,
+               Type* type) -> absl::StatusOr<Expression*> {
+      XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
+      Expression* to_connect = std::get<Expression*>(expr);
+      if (type->IsArray()) {
+        to_connect =
+            FlattenArray(to_connect->AsIndexableExpressionOrDie(),
+                         type->AsArrayOrDie(), mb_.file(), SourceInfo());
+      }
+      return to_connect;
+    };
     for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
       std::vector<Connection> connections;
       for (InstantiationInput* input :
            block_->GetInstantiationInputs(instantiation)) {
+        XLS_RET_CHECK(input->operand_count() > 0);
         const NodeRepresentation& expr = node_exprs_.at(input->operand(0));
         XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
-        connections.push_back(
-            Connection{input->port_name(), std::get<Expression*>(expr)});
+        XLS_ASSIGN_OR_RETURN(
+            Expression * to_connect,
+            connection_expression(expr, input->operand(0)->GetType()));
+        connections.push_back(Connection{.port_name = input->port_name(),
+                                         .expression = to_connect});
       }
       for (InstantiationOutput* output :
            block_->GetInstantiationOutputs(instantiation)) {
         const NodeRepresentation& expr = node_exprs_.at(output);
         XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
-        connections.push_back(
-            Connection{output->port_name(), std::get<Expression*>(expr)});
+        XLS_ASSIGN_OR_RETURN(Expression * to_connect,
+                             connection_expression(expr, output->GetType()));
+        connections.push_back(Connection{.port_name = output->port_name(),
+                                         .expression = to_connect});
       }
 
       if (xls::BlockInstantiation* block_instantiation =
@@ -871,7 +895,7 @@ class BlockGenerator {
                                                        const Connection& b) {
           for (const std::string_view& port_name : kFifoPortPriority) {
             if (a.port_name == b.port_name) {
-              // We dont' want compare(x, x) == true.
+              // We don't want compare(x, x) == true.
               return false;
             }
             if (a.port_name == port_name) {
