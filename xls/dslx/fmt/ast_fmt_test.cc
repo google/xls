@@ -1410,6 +1410,13 @@ TEST_F(ModuleFmtTest, StructDefTwoParametrics) {
   Run(kProgram, kWantMultiline, 35);
 }
 
+// TODO: https://github.com/google/xls/issues/1277 - Support impl.
+TEST_F(ModuleFmtTest, DISABLED_ImplSimple) {
+  const std::string kInput = "pub impl {} \n";
+
+  Run(kInput);
+}
+
 TEST_F(ModuleFmtTest, SimpleTestFunction) {
   Run(
       R"(fn id(x: u32) -> u32 { x }

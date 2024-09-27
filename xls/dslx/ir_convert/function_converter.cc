@@ -368,6 +368,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(Spawn)
   INVALID(StructDef)
+  INVALID(Impl)
   INVALID(ProcMember)
 
  private:

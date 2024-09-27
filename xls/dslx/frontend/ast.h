@@ -86,6 +86,7 @@
   X(EnumDef)                      \
   X(Function)                     \
   X(Import)                       \
+  X(Impl)                         \
   X(MatchArm)                     \
   X(Module)                       \
   X(NameDef)                      \
@@ -2308,6 +2309,37 @@ class StructDef : public AstNode {
   bool public_;
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
+};
+
+// Represents an impl for a struct.
+class Impl : public AstNode {
+ public:
+  Impl(Module* owner, Span span, TypeAnnotation* struct_ref, bool is_public);
+
+  ~Impl() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kImpl; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return absl::UnimplementedError("impl not yet implemented");
+  }
+
+  std::string_view GetNodeTypeName() const override { return "Impl"; }
+
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  };
+
+  bool is_public() const { return public_; }
+  const Span& span() const { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
+
+ private:
+  Span span_;
+  TypeAnnotation* struct_ref_;
+  bool public_;
 };
 
 // Represents instantiation of a struct via member expressions.

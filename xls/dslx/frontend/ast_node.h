@@ -47,6 +47,7 @@ enum class AstNodeKind : uint8_t {
   kFor,
   kFormatMacro,
   kFunction,
+  kImpl,
   kImport,
   kIndex,
   kInstantiation,

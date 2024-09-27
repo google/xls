@@ -177,6 +177,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_PROC_MEMBER;
     case AstNodeKind::kRestOfTuple:
       return AST_NODE_KIND_REST_OF_TUPLE;
+    case AstNodeKind::kImpl:
+      return AST_NODE_KIND_IMPL;
   }
   // Fatal since enum class values should not be out of range.
   LOG(FATAL) << "Out of range AstNodeKind: " << static_cast<int64_t>(kind);
@@ -766,6 +768,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kProcMember;
     case AST_NODE_KIND_REST_OF_TUPLE:
       return AstNodeKind::kRestOfTuple;
+    case AST_NODE_KIND_IMPL:
+      return AstNodeKind::kImpl;
     // Note: since this is a proto enum there are sentinel values defined in
     // addition to the "real" above. Return an invalid argument error.
     case AST_NODE_KIND_INVALID:

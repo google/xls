@@ -671,6 +671,10 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleImpl(const Impl* n) override {
+    return absl::UnimplementedError("impl not yet implemented");
+  }
+
   absl::Status HandleStructInstance(const StructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -983,6 +987,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module,
               XLS_RETURN_IF_ERROR(sd->Accept(&cloner));
               new_member = down_cast<StructDef*>(cloner.old_to_new().at(sd));
               return absl::OkStatus();
+            },
+            [&](Impl* _) -> absl::Status {
+              return absl::UnimplementedError("impl not yet implemented");
             },
             [&](ConstantDef* cd) -> absl::Status {
               XLS_RETURN_IF_ERROR(cd->Accept(&cloner));

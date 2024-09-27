@@ -2262,6 +2262,13 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
   return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
 }
 
+// TODO: https://github.com/google/xls/issues/1277 - Support impl.
+static DocRef Fmt(const Impl& n, const Comments& comments, DocArena& arena) {
+  std::vector<DocRef> pieces;
+  std::optional<DocRef> attr;
+  return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
+}
+
 static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,
                             DocArena& arena) {
   return ConcatNGroup(
@@ -2396,6 +2403,7 @@ static DocRef Fmt(const ModuleMember& n, const Comments& comments,
                 return arena.MakeConcat(Fmt(*n, comments, arena), arena.semi());
               },
               [&](const StructDef* n) { return Fmt(*n, comments, arena); },
+              [&](const Impl* n) { return Fmt(*n, comments, arena); },
               [&](const ConstantDef* n) { return Fmt(*n, comments, arena); },
               [&](const EnumDef* n) { return Fmt(*n, comments, arena); },
               [&](const Import* n) { return Fmt(*n, comments, arena); },

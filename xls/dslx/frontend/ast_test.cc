@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -47,6 +48,42 @@ TEST(AstTest, ModuleWithConstant) {
   XLS_ASSERT_OK(m.AddTop(constant_def, /*make_collision_error=*/nullptr));
 
   EXPECT_EQ(m.ToString(), "const MOL = 42;");
+}
+
+TEST(AstTest, ModuleWithStructAndImpl) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+  const std::vector<ParametricBinding*> empty_binding;
+
+  // One member var: `member_var: bool`.
+  BuiltinType bool_type = BuiltinTypeFromString("bool").value();
+  TypeAnnotation* bool_type_annot = m.Make<BuiltinTypeAnnotation>(
+      Span::Fake(), bool_type, m.GetOrCreateBuiltinNameDef(bool_type));
+  std::vector<StructMember> members{
+      StructMember(fake_span, "member_var", bool_type_annot)};
+
+  // Struct definition.
+  NameDef* name_def =
+      m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
+  StructDef* struct_def =
+      m.Make<StructDef>(fake_span, name_def, empty_binding, members, false);
+  name_def->set_definer(struct_def);
+  XLS_ASSERT_OK(m.AddTop(struct_def, /*make_collision_error=*/nullptr));
+
+  // Impl definition.
+  TypeRef* type_ref = m.Make<TypeRef>(fake_span, TypeDefinition(struct_def));
+  TypeAnnotation* type_annot = m.Make<TypeRefTypeAnnotation>(
+      fake_span, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
+  Impl* impl = m.Make<Impl>(fake_span, type_annot, /*is_public=*/false);
+  XLS_ASSERT_OK(m.AddTop(impl, /*make_collision_error=*/nullptr));
+
+  constexpr std::string_view kExpected = R"(struct MyStruct {
+    member_var: bool,
+}
+impl MyStruct {})";
+
+  EXPECT_EQ(m.ToString(), kExpected);
 }
 
 TEST(AstTest, GetNumberAsInt64) {

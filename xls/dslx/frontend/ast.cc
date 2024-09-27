@@ -205,6 +205,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "type reference";
     case AstNodeKind::kImport:
       return "import";
+    case AstNodeKind::kImpl:
+      return "impl";
     case AstNodeKind::kUnop:
       return "unary op";
     case AstNodeKind::kBinop:
@@ -1292,6 +1294,21 @@ std::vector<std::string> StructDef::GetMemberNames() const {
     names.push_back(item.name);
   }
   return names;
+}
+
+// -- class Impl
+
+Impl::Impl(Module* owner, Span span, TypeAnnotation* struct_ref, bool is_public)
+    : AstNode(owner),
+      span_(span),
+      struct_ref_(struct_ref),
+      public_(is_public) {}
+
+Impl::~Impl() = default;
+
+std::string Impl::ToString() const {
+  std::string type_name = ToAstNode(struct_ref_)->ToString();
+  return absl::StrFormat("%simpl %s {}", public_ ? "pub " : "", type_name);
 }
 
 // -- class StructInstance

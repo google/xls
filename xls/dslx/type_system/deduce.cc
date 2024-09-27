@@ -2115,6 +2115,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstRef(const ConstRef* node,
   return type;
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceImpl(const Impl* node,
+                                                 DeduceCtx* ctx) {
+  return absl::UnimplementedError("impl not yet implemented");
+}
+
 class DeduceVisitor : public AstNodeVisitor {
  public:
   explicit DeduceVisitor(DeduceCtx* ctx) : ctx_(ctx) {}
@@ -2142,6 +2147,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Cast, DeduceCast)
   DEDUCE_DISPATCH(ConstAssert, DeduceConstAssert)
   DEDUCE_DISPATCH(StructDef, DeduceStructDef)
+  DEDUCE_DISPATCH(Impl, DeduceImpl)
   DEDUCE_DISPATCH(Array, DeduceArray)
   DEDUCE_DISPATCH(Attr, DeduceAttr)
   DEDUCE_DISPATCH(StatementBlock, DeduceStatementBlock)
