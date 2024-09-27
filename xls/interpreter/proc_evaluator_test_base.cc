@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/proc_evaluator_test_base.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -24,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -31,6 +33,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 
@@ -39,9 +42,12 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Optional;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 TEST_P(ProcEvaluatorTestBase, EmptyProc) {
   auto package = CreatePackage();
@@ -375,6 +381,61 @@ TEST_P(ProcEvaluatorTestBase, MultipleReceives) {
   EXPECT_TRUE(continuation->AtStartOfTick());
 
   EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(123, 32))));
+}
+
+TEST_P(ProcEvaluatorTestBase, ObserverTest) {
+  if (!GetParam().supports_observers()) {
+    GTEST_SKIP() << "Observers not supported.";
+  }
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in, p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                                 p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                                  p->GetBitsType(32)));
+  BValue st = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue tok_lit = pb.Literal(Value::Token());
+  BValue res_tup = pb.ReceiveNonBlocking(ch_in, tok_lit);
+  BValue send_tok = pb.Send(ch_out, tok_lit, st);
+  BValue res_tok = pb.TupleIndex(res_tup, 0);
+  BValue res_val = pb.TupleIndex(res_tup, 1);
+  BValue add = pb.Add(res_val, st);
+  BValue nxt = pb.Next(st, add);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(p.get());
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get());
+  CollectingEvaluationObserver observer;
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation(
+      queue_manager->elaboration().GetUniqueInstance(proc).value());
+  XLS_ASSERT_OK(continuation->SetObserver(&observer));
+  XLS_ASSERT_OK(queue_manager->GetQueue(ch_in).Write(Value(UBits(1, 32))));
+  XLS_ASSERT_OK(queue_manager->GetQueue(ch_in).Write(Value(UBits(2, 32))));
+  for (int64_t i = 0; i < 4; ++i) {
+    do {
+      XLS_ASSERT_OK(evaluator->Tick(*continuation));
+    } while (!continuation->AtStartOfTick());
+  }
+  EXPECT_THAT(
+      observer.values(),
+      UnorderedElementsAre(
+          Pair(res_tup.node(), _), Pair(res_tok.node(), _),
+          Pair(send_tok.node(), _), Pair(nxt.node(), _),
+          Pair(tok_lit.node(), ElementsAre(Value::Token(), Value::Token(),
+                                           Value::Token(), Value::Token())),
+          Pair(res_val.node(),
+               ElementsAre(Value(UBits(1, 32)), Value(UBits(2, 32)),
+                           Value(UBits(0, 32)), Value(UBits(0, 32)))),
+          Pair(add.node(),
+               ElementsAre(Value(UBits(1, 32)), Value(UBits(3, 32)),
+                           Value(UBits(3, 32)), Value(UBits(3, 32)))),
+          Pair(st.node(),
+               ElementsAre(Value(UBits(0, 32)), Value(UBits(1, 32)),
+                           Value(UBits(3, 32)), Value(UBits(3, 32))))));
 }
 
 TEST_P(ProcEvaluatorTestBase, ConditionalReceiveProc) {

@@ -890,6 +890,9 @@ absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
         "Expected value %s to match type %s of node %s", result.ToString(),
         node->GetType()->ToString(), node->GetName()));
   }
+  if (observer_) {
+    (*observer_)->NodeEvaluated(node, result);
+  }
   NodeValuesMap()[node] = std::move(result);
   return absl::OkStatus();
 }

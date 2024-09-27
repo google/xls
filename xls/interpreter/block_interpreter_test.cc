@@ -23,7 +23,9 @@ namespace xls {
 namespace {
 
 inline constexpr BlockEvaluatorTestParam kBlockInterpreterTestParam = {
-    .evaluator = &kInterpreterBlockEvaluator, .supports_fifos = true};
+    .evaluator = &kInterpreterBlockEvaluator,
+    .supports_fifos = true,
+    .supports_observer = true};
 
 INSTANTIATE_TEST_SUITE_P(BlockInterpreterTest, BlockEvaluatorTest,
                          testing::Values(kBlockInterpreterTestParam),

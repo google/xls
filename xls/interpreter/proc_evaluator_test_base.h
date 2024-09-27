@@ -33,9 +33,11 @@ class ProcEvaluatorTestParam {
       std::function<std::unique_ptr<ProcEvaluator>(Proc*, ChannelQueueManager*)>
           evaluator_factory,
       std::function<std::unique_ptr<ChannelQueueManager>(Package*)>
-          queue_manager_factory)
+          queue_manager_factory,
+      bool supports_observers = true)
       : evaluator_factory_(std::move(evaluator_factory)),
-        queue_manager_factory_(std::move(queue_manager_factory)) {}
+        queue_manager_factory_(std::move(queue_manager_factory)),
+        supports_observers_(supports_observers) {}
   ProcEvaluatorTestParam() = default;
 
   std::unique_ptr<ChannelQueueManager> CreateQueueManager(
@@ -48,11 +50,14 @@ class ProcEvaluatorTestParam {
     return evaluator_factory_(proc, queue_manager);
   }
 
+  bool supports_observers() const { return supports_observers_; }
+
  private:
   std::function<std::unique_ptr<ProcEvaluator>(Proc*, ChannelQueueManager*)>
       evaluator_factory_;
   std::function<std::unique_ptr<ChannelQueueManager>(Package*)>
       queue_manager_factory_;
+  bool supports_observers_;
 };
 
 // A suite of test which can be run against arbitrary ProcEvaluator

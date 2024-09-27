@@ -15,6 +15,7 @@
 #include "xls/interpreter/function_interpreter.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,6 +28,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/events.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/nodes.h"
@@ -39,8 +41,9 @@ namespace {
 // An interpreter for XLS functions.
 class FunctionInterpreter final : public IrInterpreter {
  public:
-  explicit FunctionInterpreter(absl::Span<const Value> args)
-      : args_(args.begin(), args.end()) {}
+  FunctionInterpreter(absl::Span<const Value> args,
+                      std::optional<EvaluationObserver*> observer)
+      : IrInterpreter(observer), args_(args.begin(), args.end()) {}
 
   absl::Status HandleParam(Param* param) override {
     XLS_ASSIGN_OR_RETURN(int64_t index,
@@ -61,7 +64,8 @@ class FunctionInterpreter final : public IrInterpreter {
 }  // namespace
 
 absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
-    Function* function, absl::Span<const Value> args) {
+    Function* function, absl::Span<const Value> args,
+    std::optional<EvaluationObserver*> observer) {
   VLOG(3) << "Interpreting function " << function->name();
   if (args.size() != function->params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -80,7 +84,7 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
           value.ToString(), argno, param_type->ToString()));
     }
   }
-  FunctionInterpreter visitor(args);
+  FunctionInterpreter visitor(args, observer);
   XLS_RETURN_IF_ERROR(function->Accept(&visitor));
   Value result = visitor.ResolveAsValue(function->return_value());
   VLOG(2) << "Result = " << result;
@@ -89,11 +93,12 @@ absl::StatusOr<InterpreterResult<Value>> InterpretFunction(
 }
 
 /* static */ absl::StatusOr<InterpreterResult<Value>> InterpretFunctionKwargs(
-    Function* function, const absl::flat_hash_map<std::string, Value>& args) {
+    Function* function, const absl::flat_hash_map<std::string, Value>& args,
+    std::optional<EvaluationObserver*> observer) {
   VLOG(2) << "Interpreting function " << function->name() << " with arguments:";
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
                        KeywordArgsToPositional(*function, args));
-  return InterpretFunction(function, positional_args);
+  return InterpretFunction(function, positional_args, observer);
 }
 
 }  // namespace xls

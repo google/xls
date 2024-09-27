@@ -28,6 +28,7 @@
 #include "absl/synchronization/mutex.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
@@ -128,6 +129,18 @@ class ProcRuntime {
 
   Package* package() const { return elaboration().package(); }
 
+  void ClearObserver();
+
+  // Set the callbacks for node calculation. Only one may be set at a time. If
+  // this execution environment cannot support the observer api an
+  // absl::UnimplementedError will be returned.
+  absl::Status SetObserver(EvaluationObserver* obs);
+
+  // Does this execution environment support the observer api. If false then
+  // setting an observer might fail and callbacks might not always occur or
+  // could cause crashes.
+  bool SupportsObservers() const;
+
  protected:
   friend class ChannelTraceRecorder;
   void AddTraceMessage(TraceMessage message);
@@ -153,6 +166,7 @@ class ProcRuntime {
   InterpreterEvents global_events_ ABSL_GUARDED_BY(global_events_mutex_);
 
   EvaluatorOptions options_;
+  std::optional<EvaluationObserver*> observer_ = std::nullopt;
 };
 
 }  // namespace xls

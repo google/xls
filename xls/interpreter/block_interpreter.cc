@@ -37,6 +37,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
@@ -60,8 +61,9 @@ class BlockInterpreter final : public IrInterpreter {
   BlockInterpreter(Block* block, InterpreterEvents* events,
                    std::string_view register_prefix,
                    const absl::flat_hash_map<std::string, Value>& reg_state,
-                   absl::flat_hash_map<std::string, Value>& next_reg_state)
-      : IrInterpreter(nullptr, events),
+                   absl::flat_hash_map<std::string, Value>& next_reg_state,
+                   std::optional<EvaluationObserver*> observer)
+      : IrInterpreter(nullptr, events, observer),
         register_prefix_(register_prefix),
         reg_state_(reg_state),
         next_reg_state_(next_reg_state) {
@@ -319,7 +321,8 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
   ElaboratedBlockInterpreter(
       const BlockElaboration& elaboration,
       const absl::flat_hash_map<std::string, Value>& inputs,
-      const absl::flat_hash_map<std::string, Value>& reg_state)
+      const absl::flat_hash_map<std::string, Value>& reg_state,
+      std::optional<EvaluationObserver*> observer)
       : inputs_(inputs), reg_state_(reg_state) {
     next_reg_state_.reserve(reg_state_.size());
 
@@ -339,7 +342,7 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
             {instance,
              BlockInterpreter(*instance->block(), &interpreter_events_,
                               instance->RegisterPrefix(), reg_state_,
-                              next_reg_state_)});
+                              next_reg_state_, observer)});
       }
     }
     CHECK_OK(SetInstance(elaboration.top()));
@@ -797,7 +800,8 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
 absl::StatusOr<BlockRunResult> BlockRun(
     const absl::flat_hash_map<std::string, Value>& inputs,
     const absl::flat_hash_map<std::string, Value>& reg_state,
-    const BlockElaboration& elaboration) {
+    const BlockElaboration& elaboration,
+    std::optional<EvaluationObserver*> observer) {
   Block* top_block = *elaboration.top()->block();
   // Verify each input corresponds to an input port. The reverse check (each
   // input port has a corresponding value in `inputs`) is checked in
@@ -843,7 +847,8 @@ absl::StatusOr<BlockRunResult> BlockRun(
     }
   }
 
-  ElaboratedBlockInterpreter interpreter(elaboration, inputs, reg_state);
+  ElaboratedBlockInterpreter interpreter(elaboration, inputs, reg_state,
+                                         observer);
   XLS_RETURN_IF_ERROR(elaboration.Accept(interpreter));
 
   BlockRunResult result;
@@ -866,10 +871,10 @@ absl::StatusOr<BlockRunResult> BlockRun(
 template <typename Evaluate>
   requires std::is_same_v<
       absl::StatusOr<BlockRunResult>,
-      std::invoke_result_t<Evaluate,
-                           const absl::flat_hash_map<std::string, Value>&,
-                           const absl::flat_hash_map<std::string, Value>&,
-                           const BlockElaboration&>>
+      std::invoke_result_t<
+          Evaluate, const absl::flat_hash_map<std::string, Value>&,
+          const absl::flat_hash_map<std::string, Value>&,
+          const BlockElaboration&, std::optional<EvaluationObserver*>>>
 class StatelessBlockContinuation final : public BlockContinuation {
  public:
   StatelessBlockContinuation(BlockElaboration&& block,
@@ -894,7 +899,8 @@ class StatelessBlockContinuation final : public BlockContinuation {
   absl::Status RunOneCycle(
       const absl::flat_hash_map<std::string, Value>& inputs) final {
     XLS_ASSIGN_OR_RETURN(
-        last_result_, evaluator_(inputs, last_result_.reg_state, elaboration_));
+        last_result_,
+        evaluator_(inputs, last_result_.reg_state, elaboration_, observer_));
     return absl::OkStatus();
   }
 
@@ -912,10 +918,17 @@ class StatelessBlockContinuation final : public BlockContinuation {
     return absl::OkStatus();
   }
 
+  absl::Status SetObserver(EvaluationObserver* obs) override {
+    observer_ = obs;
+    return absl::OkStatus();
+  }
+  void ClearObserver() override { observer_.reset(); }
+
  private:
   BlockElaboration elaboration_;
   BlockRunResult last_result_;
   Evaluate evaluator_;
+  std::optional<EvaluationObserver*> observer_;
 };
 
 template <typename Evaluate>

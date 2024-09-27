@@ -38,10 +38,12 @@ class ProcRuntimeTestParam {
           package_runtime_factory,
       std::function<std::unique_ptr<ProcRuntime>(Proc*,
                                                  const EvaluatorOptions&)>
-          proc_runtime_factory)
+          proc_runtime_factory,
+      bool supports_observers)
       : name_(name),
         package_runtime_factory_(std::move(package_runtime_factory)),
-        proc_runtime_factory_(std::move(proc_runtime_factory)) {}
+        proc_runtime_factory_(std::move(proc_runtime_factory)),
+        supports_observers_(supports_observers) {}
   ProcRuntimeTestParam() = default;
 
   // Creates a runtime for the given package. This supports old-style procs
@@ -59,6 +61,8 @@ class ProcRuntimeTestParam {
     return proc_runtime_factory_(proc, options);
   }
 
+  bool supports_observers() const { return supports_observers_; }
+
   std::string name() const { return name_; }
 
  private:
@@ -67,6 +71,7 @@ class ProcRuntimeTestParam {
       package_runtime_factory_;
   std::function<std::unique_ptr<ProcRuntime>(Proc*, const EvaluatorOptions&)>
       proc_runtime_factory_;
+  bool supports_observers_;
 };
 
 template <typename TestT>

@@ -17,22 +17,17 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -125,8 +120,9 @@ class ProcIrInterpreter : public IrInterpreter {
       ProcInstance* proc_instance, absl::Span<const Value> state,
       absl::flat_hash_map<Node*, Value>* node_values, InterpreterEvents* events,
       ChannelQueueManager* queue_manager,
-      absl::flat_hash_map<Param*, std::vector<Next*>>* active_next_values)
-      : IrInterpreter(node_values, events),
+      absl::flat_hash_map<Param*, std::vector<Next*>>* active_next_values,
+      std::optional<EvaluationObserver*> observer)
+      : IrInterpreter(node_values, events, observer),
         proc_instance_(proc_instance),
         state_(state.begin(), state.end()),
         queue_manager_(queue_manager),
@@ -197,11 +193,11 @@ class ProcIrInterpreter : public IrInterpreter {
       XLS_RET_CHECK_EQ(predicate.bits().bit_count(), 1);
       if (predicate.bits().IsZero()) {
         // No change.
-        return absl::OkStatus();
+        return SetValueResult(next, Value::Tuple({}));
       }
     }
     (*active_next_values_)[next->param()->As<Param>()].push_back(next);
-    return absl::OkStatus();
+    return SetValueResult(next, Value::Tuple({}));
   }
 
   // Executes a single node and return whether the node is blocked on a channel
@@ -265,9 +261,10 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
   XLS_RET_CHECK_NE(cont, nullptr) << "ProcInterpreter requires a continuation "
                                      "of type ProcInterpreterContinuation";
 
-  ProcIrInterpreter ir_interpreter(
-      cont->proc_instance(), cont->GetState(), &cont->GetNodeValues(),
-      &cont->GetEvents(), queue_manager_, &cont->GetActiveNextValues());
+  ProcIrInterpreter ir_interpreter(cont->proc_instance(), cont->GetState(),
+                                   &cont->GetNodeValues(), &cont->GetEvents(),
+                                   queue_manager_, &cont->GetActiveNextValues(),
+                                   continuation.GetObserver());
 
   // Resume execution at the node indicated in the continuation
   // (NodeExecutionIndex).

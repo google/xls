@@ -255,7 +255,10 @@ IrInterpreterTestRunner::CreateTestRunner(ImportData* import_data,
                                           TypeInfo* type_info,
                                           Module* module) const {
   return MakeRunner(
-      import_data, type_info, module, InterpretFunction,
+      import_data, type_info, module,
+      [&](xls::Function* f, absl::Span<Value const> args) {
+        return InterpretFunction(f, args);
+      },
       [](xls::Package* p) -> absl::StatusOr<std::unique_ptr<ProcRuntime>> {
         return CreateInterpreterSerialProcRuntime(p, EvaluatorOptions());
       });

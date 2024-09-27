@@ -34,6 +34,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
@@ -41,6 +42,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -49,6 +51,7 @@ namespace xls {
 namespace {
 
 using ::testing::_;
+using ::testing::A;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
@@ -61,6 +64,56 @@ using ::testing::UnorderedElementsAre;
 using ::xls::status_testing::IsOk;
 using ::xls::status_testing::IsOkAndHolds;
 using ::xls::status_testing::StatusIs;
+
+TEST_P(BlockEvaluatorTest, ObserverSeesValues) {
+  if (!SupportsObserver()) {
+    GTEST_SKIP() << "Observers unsupported";
+  }
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  BValue foo_inp = bb.InputPort("foo", p->GetBitsType(32));
+  BValue enable = bb.InputPort("enable", p->GetBitsType(1));
+  BValue rhs_inp = bb.InputPort("rhs", p->GetBitsType(32));
+  BValue delay = bb.InsertRegister("delay", foo_inp, enable);
+  BValue add_res = bb.Add(delay, rhs_inp);
+  BValue out = bb.OutputPort("res", add_res);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
+  CollectingEvaluationObserver observer;
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, evaluator().NewContinuation(b));
+  XLS_ASSERT_OK(cont->SetObserver(&observer));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(1, 32))},
+                                   {"enable", Value(UBits(0, 1))},
+                                   {"rhs", Value(UBits(2, 32))}}));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(2, 32))},
+                                   {"enable", Value(UBits(1, 1))},
+                                   {"rhs", Value(UBits(3, 32))}}));
+  XLS_ASSERT_OK(cont->RunOneCycle({{"foo", Value(UBits(0, 32))},
+                                   {"enable", Value(UBits(0, 1))},
+                                   {"rhs", Value(UBits(4, 32))}}));
+  EXPECT_THAT(
+      observer.values(),
+      UnorderedElementsAre(
+          Pair(foo_inp.node(),
+               ElementsAre(Value(UBits(1, 32)), Value(UBits(2, 32)),
+                           Value(UBits(0, 32)))),
+          Pair(enable.node(),
+               ElementsAre(Value(UBits(0, 1)), Value(UBits(1, 1)),
+                           Value(UBits(0, 1)))),
+          Pair(rhs_inp.node(),
+               ElementsAre(Value(UBits(2, 32)), Value(UBits(3, 32)),
+                           Value(UBits(4, 32)))),
+          Pair(add_res.node(),
+               ElementsAre(Value(UBits(2, 32)), Value(UBits(3, 32)),
+                           Value(UBits(6, 32)))),
+          Pair(out.node(), ElementsAre(Value::Tuple({}), Value::Tuple({}),
+                                       Value::Tuple({}))),
+          Pair(A<Node*>(), ElementsAre(Value(UBits(0, 32)), Value(UBits(0, 32)),
+                                       Value(UBits(2, 32)))),
+          Pair(A<Node*>(),
+               testing::SizeIs(3))  // The write side of the register
+          ));
+}
 
 TEST_P(BlockEvaluatorTest, PackagesAreIndependent) {
   auto p1 = CreatePackage();

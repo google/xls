@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -47,10 +48,13 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::_;
 using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Optional;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 // Creates a proc which has a single send operation using the given channel
 // which sends a sequence of U32 values starting at 'starting_value' and
@@ -163,6 +167,57 @@ TEST_P(ProcRuntimeTestBase, EmptyProc) {
   // Ticking until blocked should immediately return because `TickUntilBlocked`
   // only considers procs with IO to determine if the system is blocked.
   XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
+}
+
+TEST_P(ProcRuntimeTestBase, ObserverTest) {
+  if (!GetParam().supports_observers()) {
+    GTEST_SKIP() << "Observers not supported.";
+  }
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in, p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                                 p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                                  p->GetBitsType(32)));
+  BValue st = pb.StateElement("st", Value(UBits(0, 32)));
+  BValue tok_lit = pb.Literal(Value::Token());
+  BValue res_tup = pb.ReceiveNonBlocking(ch_in, tok_lit);
+  BValue send_tok = pb.Send(ch_out, tok_lit, st);
+  BValue res_tok = pb.TupleIndex(res_tup, 0);
+  BValue res_val = pb.TupleIndex(res_tup, 1);
+  BValue add = pb.Add(res_val, st);
+  BValue nxt = pb.Next(st, add);
+  XLS_ASSERT_OK(pb.Build().status());
+
+  CollectingEvaluationObserver observer;
+  std::unique_ptr<ProcRuntime> runtime =
+      GetParam().CreateRuntime(p.get(), EvaluatorOptions());
+  XLS_ASSERT_OK(runtime->SetObserver(&observer));
+  XLS_ASSERT_OK(
+      runtime->queue_manager().GetQueue(ch_in).Write(Value(UBits(1, 32))));
+  XLS_ASSERT_OK(
+      runtime->queue_manager().GetQueue(ch_in).Write(Value(UBits(2, 32))));
+  for (int64_t i = 0; i < 4; ++i) {
+    XLS_ASSERT_OK(runtime->Tick());
+  }
+  EXPECT_THAT(
+      observer.values(),
+      UnorderedElementsAre(
+          Pair(res_tup.node(), _), Pair(res_tok.node(), _),
+          Pair(send_tok.node(), _), Pair(nxt.node(), _),
+          Pair(tok_lit.node(), ElementsAre(Value::Token(), Value::Token(),
+                                           Value::Token(), Value::Token())),
+          Pair(res_val.node(),
+               ElementsAre(Value(UBits(1, 32)), Value(UBits(2, 32)),
+                           Value(UBits(0, 32)), Value(UBits(0, 32)))),
+          Pair(add.node(),
+               ElementsAre(Value(UBits(1, 32)), Value(UBits(3, 32)),
+                           Value(UBits(3, 32)), Value(UBits(3, 32)))),
+          Pair(st.node(),
+               ElementsAre(Value(UBits(0, 32)), Value(UBits(1, 32)),
+                           Value(UBits(3, 32)), Value(UBits(3, 32))))));
 }
 
 TEST_P(ProcRuntimeTestBase, EmptyProcAndPassThroughProc) {

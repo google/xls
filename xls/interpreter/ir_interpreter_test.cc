@@ -14,6 +14,7 @@
 
 #include "xls/interpreter/ir_interpreter.h"
 
+#include <optional>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -24,6 +25,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/ir_evaluator_test_base.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
@@ -47,13 +49,16 @@ using ::xls::status_testing::StatusIs;
 INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
-        [](Function* function, absl::Span<const Value> args) {
-          return InterpretFunction(function, args);
+        [](Function* function, absl::Span<const Value> args,
+           std::optional<EvaluationObserver*> obs) {
+          return InterpretFunction(function, args, obs);
         },
         [](Function* function,
-           const absl::flat_hash_map<std::string, Value>& kwargs) {
-          return InterpretFunctionKwargs(function, kwargs);
-        })));
+           const absl::flat_hash_map<std::string, Value>& kwargs,
+           std::optional<EvaluationObserver*> obs) {
+          return InterpretFunctionKwargs(function, kwargs, obs);
+        },
+        true)));
 
 // Fixture for IrInterpreter-only tests (i.e., those that aren't common to all
 // IR evaluators).

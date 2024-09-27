@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -32,6 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/evaluator_options.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -73,6 +75,32 @@ class ChannelTraceRecorder : public ChannelQueueCallback {
   ProcRuntime* runtime_;
   FormatPreference format_preference_;
 };
+
+void ProcRuntime::ClearObserver() {
+  if (!observer_) {
+    return;
+  }
+  for (const auto& [_, cont] : continuations_) {
+    cont->ClearObserver();
+  }
+  observer_.reset();
+}
+absl::Status ProcRuntime::SetObserver(EvaluationObserver* obs) {
+  for (const auto& [inst, cont] : continuations_) {
+    XLS_RETURN_IF_ERROR(cont->SetObserver(obs));
+  }
+  observer_ = obs;
+  return absl::OkStatus();
+}
+
+bool ProcRuntime::SupportsObservers() const {
+  for (const auto& [inst, cont] : continuations_) {
+    if (!cont->SupportsObservers()) {
+      return false;
+    }
+  }
+  return true;
+}
 
 ProcRuntime::ProcRuntime(
     absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
@@ -200,6 +228,10 @@ void ProcRuntime::ResetState() {
   for (ProcInstance* instance : elaboration().proc_instances()) {
     continuations_[instance] =
         evaluators_.at(instance->proc())->NewContinuation(instance);
+    if (observer_) {
+      // We must have called this successfully at least once.
+      CHECK_OK(continuations_[instance]->SetObserver(*observer_));
+    }
   }
 }
 

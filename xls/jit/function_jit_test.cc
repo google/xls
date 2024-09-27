@@ -49,6 +49,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/ir_evaluator_test_base.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -84,17 +85,20 @@ using testing::Values;
 INSTANTIATE_TEST_SUITE_P(
     FunctionJitTest, IrEvaluatorTestBase,
     Values(IrEvaluatorTestParam(
-        [](Function* function, absl::Span<const Value> args)
+        [](Function* function, absl::Span<const Value> args,
+           std::optional<EvaluationObserver*> obs)
             -> absl::StatusOr<InterpreterResult<Value>> {
           XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
           return jit->Run(args);
         },
         [](Function* function,
-           const absl::flat_hash_map<std::string, Value>& kwargs)
+           const absl::flat_hash_map<std::string, Value>& kwargs,
+           std::optional<EvaluationObserver*> obs)
             -> absl::StatusOr<InterpreterResult<Value>> {
           XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
           return jit->Run(kwargs);
-        })));
+        },
+        false)));
 
 absl::StatusOr<Value> RunJitNoEvents(FunctionJit* jit,
                                      absl::Span<const Value> args) {

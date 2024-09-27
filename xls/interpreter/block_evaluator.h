@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/events.h"
@@ -389,6 +390,11 @@ class BlockContinuation {
   // Update the registers to the give values.
   virtual absl::Status SetRegisters(
       const absl::flat_hash_map<std::string, Value>& regs) = 0;
+
+  // Set an evaluation observer to get reports of the value of each node.
+  virtual absl::Status SetObserver(EvaluationObserver* obs) = 0;
+  // Clear any evaluation observer
+  virtual void ClearObserver() = 0;
 };
 
 }  // namespace xls

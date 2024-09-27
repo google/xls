@@ -38,6 +38,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/block.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/clone_package.h"
@@ -568,6 +569,11 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
   absl::Status SetRegisters(
       const absl::flat_hash_map<std::string, Value>& regs) final {
     return continuation_->SetRegisters(regs);
+  }
+
+  void ClearObserver() override {}
+  absl::Status SetObserver(EvaluationObserver* obs) override {
+    return absl::UnimplementedError("not supported by jit yet.");
   }
 
  private:

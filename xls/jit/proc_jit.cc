@@ -35,6 +35,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/observer.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/events.h"
@@ -100,6 +101,10 @@ class ProcJitContinuation : public ProcContinuation {
 
   InstanceContext* instance_context() { return &instance_context_; }
 
+  absl::Status SetObserver(EvaluationObserver* obs) override;
+  void ClearObserver() override;
+  bool SupportsObservers() const override { return false; }
+
  private:
   int64_t continuation_point_;
   JitRuntime* jit_runtime_;
@@ -139,6 +144,12 @@ ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
             input_.pointers()[param_index],
             jit_runtime_->GetTypeByteSize(state_param->GetType())));
   }
+}
+
+void ProcJitContinuation::ClearObserver() {}
+
+absl::Status ProcJitContinuation::SetObserver(EvaluationObserver* obs) {
+  return absl::UnimplementedError("not supported by jit yet.");
 }
 
 std::vector<Value> ProcJitContinuation::GetState() const {

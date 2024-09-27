@@ -161,7 +161,8 @@ INSTANTIATE_TEST_SUITE_P(
             [](Proc* top, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
               return CreateInterpreterSerialProcRuntime(top, options).value();
-            }),
+            },
+            /*supports_observers=*/true),
         ProcRuntimeTestParam(
             "jit",
             [](Package* package, const EvaluatorOptions& options)
@@ -171,7 +172,8 @@ INSTANTIATE_TEST_SUITE_P(
             [](Proc* top, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
               return CreateJitSerialProcRuntime(top, options).value();
-            }),
+            },
+            /*supports_observers=*/false),
         ProcRuntimeTestParam(
             "mixed",
             [](Package* package, const EvaluatorOptions& options)
@@ -181,7 +183,8 @@ INSTANTIATE_TEST_SUITE_P(
             [](Proc* top, const EvaluatorOptions& options)
                 -> std::unique_ptr<ProcRuntime> {
               return CreateMixedSerialProcRuntime(top, options).value();
-            })),
+            },
+            /*supports_observers=*/false)),
     [](const testing::TestParamInfo<ProcRuntimeTestBase::ParamType>& info) {
       return info.param.name();
     });

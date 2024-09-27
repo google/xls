@@ -54,7 +54,8 @@ INSTANTIATE_TEST_SUITE_P(
                      package, std::make_unique<JitRuntime>(
                                   GetJitRuntime()->data_layout()))
               .value();
-        })));
+        },
+        /*supports_observers=*/false)));
 
 }  // namespace
 }  // namespace xls

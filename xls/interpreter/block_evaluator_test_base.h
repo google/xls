@@ -30,6 +30,7 @@ namespace xls {
 struct BlockEvaluatorTestParam {
   const BlockEvaluator* evaluator;
   bool supports_fifos;
+  bool supports_observer;
 };
 
 class BlockEvaluatorTest
@@ -39,6 +40,7 @@ class BlockEvaluatorTest
   const BlockEvaluator& evaluator() { return *GetParam().evaluator; }
 
   bool SupportsFifos() { return GetParam().supports_fifos; }
+  bool SupportsObserver() { return GetParam().supports_observer; }
 };
 
 struct FifoTestParam {

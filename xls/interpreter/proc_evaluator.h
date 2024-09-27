@@ -22,8 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
@@ -62,11 +64,34 @@ class ProcContinuation {
   ProcInstance* proc_instance() const { return proc_instance_; }
   Proc* proc() const { return proc_instance_->proc(); }
 
+  const std::optional<EvaluationObserver*>& GetObserver() const {
+    return observer_;
+  }
+
+  virtual void ClearObserver() { observer_ = std::nullopt; }
+
+  // Set the callbacks for node calculation. Only one may be set at a time. If
+  // this execution environment cannot support the observer api an
+  // absl::UnimplementedError will be returned.
+  virtual absl::Status SetObserver(EvaluationObserver* observer) {
+    CHECK(observer != nullptr);
+    observer_ = observer;
+    return absl::OkStatus();
+  }
+
+  // Does this execution environment support the observer api. If false then
+  // setting an observer might fail and callbacks might not always occur or
+  // could cause crashes.
+  virtual bool SupportsObservers() const { return true; }
+
  protected:
   absl::Status CheckConformsToStateType(const std::vector<Value>& v) const;
 
  private:
   ProcInstance* proc_instance_;
+
+  // If not-null an observer for each node in the proc being evaluated.
+  std::optional<EvaluationObserver*> observer_ = std::nullopt;
 };
 
 // The execution state that a proc may be left in after callin Tick.

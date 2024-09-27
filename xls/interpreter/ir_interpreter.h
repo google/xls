@@ -16,12 +16,14 @@
 #define XLS_INTERPRETER_IR_INTERPRETER_H_
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/interpreter/observer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
@@ -41,13 +43,18 @@ absl::StatusOr<Value> InterpretNode(Node* node,
 class IrInterpreter : public DfsVisitor {
  public:
   IrInterpreter() : node_values_ptr_(nullptr), events_ptr_(nullptr) {}
+  explicit IrInterpreter(std::optional<EvaluationObserver*> observer)
+      : node_values_ptr_(nullptr), events_ptr_(nullptr), observer_(observer) {}
 
   // Constructor which takes an existing map of node values and events. Used for
   // continuations to enable stopping and restarting execution of a
   // FunctionBase.
   IrInterpreter(absl::flat_hash_map<Node*, Value>* node_values,
-                InterpreterEvents* events)
-      : node_values_ptr_(node_values), events_ptr_(events) {}
+                InterpreterEvents* events,
+                std::optional<EvaluationObserver*> observer = std::nullopt)
+      : node_values_ptr_(node_values),
+        events_ptr_(events),
+        observer_(observer) {}
 
   // Sets the evaluated value for 'node' to the given Value. 'value' must be
   // passed in by value (ha!) because a use case is passing in a previously
@@ -208,6 +215,7 @@ class IrInterpreter : public DfsVisitor {
   // used (`events_ptr` is null).
   InterpreterEvents* events_ptr_;
   InterpreterEvents events_;
+  std::optional<EvaluationObserver*> observer_;
 };
 
 }  // namespace xls
