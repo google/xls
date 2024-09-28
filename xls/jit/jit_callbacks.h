@@ -18,7 +18,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,6 +34,7 @@
 #include "xls/ir/type_manager.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/observer.h"
 
 namespace xls {
 
@@ -88,6 +91,17 @@ struct InstanceContextVTable {
   // This is a shim to let JIT code record the activation of a `next_value`
   // node.
   const RecordActiveNextValueFn record_active_next_value;
+
+  using RecordNodeResultFn = void (*)(InstanceContext* thiz, int64_t node_ptr,
+                                      const uint8_t* data);
+  // This is a shim to let JIT record what data was recorded for each node. The
+  // 'node_ptr' is the constant pointer value of the node at the time the jitted
+  // code was created. Whether it is a valid pointer to dereference depends on
+  // execution context. It will be globally unique and consistent however.
+  //
+  // Data is in JIT data format and can be read using the appropriate type
+  // information for the node.
+  const RecordNodeResultFn record_node_result;
 };
 
 // Data structure passed to the JITted function which contains instance-specific
@@ -121,14 +135,17 @@ struct InstanceContext {
       offsetof(InstanceContextVTable, queue_send_wrapper);
   static constexpr int64_t kRecordActiveNextValueOffset =
       offsetof(InstanceContextVTable, record_active_next_value);
-  static constexpr int64_t kVTableLength = 8;
+  static constexpr int64_t kRecordNodeResultOffset =
+      offsetof(InstanceContextVTable, record_node_result);
+  static constexpr int64_t kVTableLength = 9;
   using VTableArrayType = std::array<void (*)(), kVTableLength>;
 
   static constexpr bool IsVtableOffset(int64_t v) {
     return v == kPerformFormatStepOffset || v == kPerformStringStepOffset ||
            v == kRecordTraceOffset || v == kCreateTraceBufferOffset ||
            v == kRecordAssertionOffset || v == kQueueReceiveWrapperOffset ||
-           v == kQueueSendWrapperOffset || v == kRecordActiveNextValueOffset;
+           v == kQueueSendWrapperOffset || v == kRecordActiveNextValueOffset ||
+           v == kRecordNodeResultOffset;
   }
 
   Type* ParseTypeFromProto(absl::Span<uint8_t const> data);
@@ -149,6 +166,8 @@ struct InstanceContext {
 
   // Arena used to materialize types that are passed to callbacks.
   std::unique_ptr<TypeManager> type_manager = std::make_unique<TypeManager>();
+
+  RuntimeObserver* observer = nullptr;
 };
 
 static_assert(offsetof(InstanceContext, vtable) == 0);

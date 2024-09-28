@@ -192,8 +192,8 @@ TEST_P(ProcRuntimeTestBase, ObserverTest) {
   XLS_ASSERT_OK(pb.Build().status());
 
   CollectingEvaluationObserver observer;
-  std::unique_ptr<ProcRuntime> runtime =
-      GetParam().CreateRuntime(p.get(), EvaluatorOptions());
+  std::unique_ptr<ProcRuntime> runtime = GetParam().CreateRuntime(
+      p.get(), EvaluatorOptions().set_support_observers(true));
   XLS_ASSERT_OK(runtime->SetObserver(&observer));
   XLS_ASSERT_OK(
       runtime->queue_manager().GetQueue(ch_in).Write(Value(UBits(1, 32))));

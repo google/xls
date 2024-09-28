@@ -66,8 +66,12 @@ class AotCompiler final : public LlvmCompiler {
   absl::Status InitInternal() override;
 
  private:
+  // TODO(https://github.com/google/xls/issues/1639): It would be nice to
+  // support runtime observer callbacks in aot'd code.
   AotCompiler(int64_t opt_level, bool include_msan, JitObserver* observer)
-      : LlvmCompiler(opt_level, include_msan), jit_observer_(observer) {}
+      : LlvmCompiler(opt_level, include_msan,
+                     /*include_observer_callbacks=*/false),
+        jit_observer_(observer) {}
 
   std::unique_ptr<llvm::LLVMContext> context_ =
       std::make_unique<llvm::LLVMContext>();

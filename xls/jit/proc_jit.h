@@ -43,7 +43,7 @@ class ProcJit : public ProcEvaluator {
   // proc.
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
       Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
-      JitObserver* observer = nullptr);
+      bool include_observer_callbacks = false, JitObserver* observer = nullptr);
 
   static absl::StatusOr<std::unique_ptr<ProcJit>> CreateFromAot(
       Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
@@ -64,16 +64,20 @@ class ProcJit : public ProcEvaluator {
  private:
   explicit ProcJit(Proc* proc, JitRuntime* jit_runtime,
                    JitChannelQueueManager* queue_mgr,
-                   std::unique_ptr<OrcJit> orc_jit)
+                   std::unique_ptr<OrcJit> orc_jit, bool has_observer_callbacks)
       : ProcEvaluator(proc),
         jit_runtime_(jit_runtime),
         queue_mgr_(queue_mgr),
-        orc_jit_(std::move(orc_jit)) {}
+        orc_jit_(std::move(orc_jit)),
+        has_observer_callbacks_(has_observer_callbacks) {}
 
   JitRuntime* jit_runtime_;
   JitChannelQueueManager* queue_mgr_;
   std::unique_ptr<OrcJit> orc_jit_;
   JittedFunctionBase jitted_function_base_;
+  // We need to have compiled in the callbacks in order to support the
+  // Evaluation/RuntimeObserver apis.
+  bool has_observer_callbacks_;
 
   // The set of channel queues used in each proc instance. The vector is in a
   // predetermined order assigned at JIT compile time. The JITted code looks for

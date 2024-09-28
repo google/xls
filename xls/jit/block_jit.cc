@@ -46,6 +46,7 @@
 #include "xls/ir/events.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/register.h"
@@ -56,6 +57,8 @@
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/llvm_compiler.h"
+#include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -169,9 +172,9 @@ class ElaboratedBlockJit : public BlockJit {
       absl::flat_hash_map<std::string, std::string> reg_rename_map,
       absl::flat_hash_map<std::string, Type*> materialized_impl_regs,
       std::unique_ptr<JitRuntime> runtime, std::unique_ptr<OrcJit> jit,
-      JittedFunctionBase function)
-      : BlockJit(block, std::move(runtime), std::move(jit),
-                 std::move(function)),
+      JittedFunctionBase function, bool support_observer_callbacks)
+      : BlockJit(block, std::move(runtime), std::move(jit), std::move(function),
+                 support_observer_callbacks),
         jit_pkg_(std::move(jit_pkg)),
         reg_rename_map_(std::move(reg_rename_map)),
         materialized_impl_regs_(std::move(materialized_impl_regs)) {}
@@ -184,17 +187,22 @@ class ElaboratedBlockJit : public BlockJit {
 };
 }  // namespace
 
-absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(Block* block) {
+absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
+    Block* block, bool support_observer_callbacks) {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                        BlockElaboration::Elaborate(block));
-  return BlockJit::Create(elab);
+  return BlockJit::Create(elab, support_observer_callbacks);
 }
 
 absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    const BlockElaboration& elab) {
+    const BlockElaboration& elab, bool support_observer_callbacks) {
   Block* block;
   absl::flat_hash_map<std::string, std::string> reg_aliases;
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<OrcJit> orc_jit,
+      OrcJit::Create(
+          LlvmCompiler::kDefaultOptLevel,
+          /*include_observer_callbacks=*/support_observer_callbacks));
   XLS_ASSIGN_OR_RETURN(auto data_layout, orc_jit->CreateDataLayout());
   auto jit_runtime = std::make_unique<JitRuntime>(data_layout);
   if (elab.top()->block() &&
@@ -202,9 +210,9 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
     block = elab.blocks().front();
     XLS_ASSIGN_OR_RETURN(auto function,
                          JittedFunctionBase::Build(block, *orc_jit));
-    return std::unique_ptr<BlockJit>(new BlockJit(block, std::move(jit_runtime),
-                                                  std::move(orc_jit),
-                                                  std::move(function)));
+    return std::unique_ptr<BlockJit>(
+        new BlockJit(block, std::move(jit_runtime), std::move(orc_jit),
+                     std::move(function), support_observer_callbacks));
   }
   std::string_view top_name = elab.top()->block().value()->name();
   XLS_RET_CHECK(elab.top()->block())
@@ -237,7 +245,8 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
       std::move(jit_package), jit_block, std::move(results.register_renames),
       std::move(results.inserted_registers), std::move(jit_runtime),
-      std::move(orc_jit), std::move(jit_entrypoint)));
+      std::move(orc_jit), std::move(jit_entrypoint),
+      support_observer_callbacks));
 }
 
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
@@ -246,6 +255,24 @@ std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
+  if (continuation.observer() != nullptr) {
+    int64_t ip_idx = 0;
+    for (Node* ip : continuation.block_->GetInputPorts()) {
+      continuation.observer()->RecordNodeValue(
+          static_cast<int64_t>(reinterpret_cast<intptr_t>(ip)),
+          continuation.input_port_pointers()[ip_idx]);
+      ip_idx++;
+    }
+    int64_t reg_idx = 0;
+    for (Register* reg : continuation.block_->GetRegisters()) {
+      XLS_ASSIGN_OR_RETURN(Node * read,
+                           continuation.block_->GetRegisterRead(reg));
+      continuation.observer()->RecordNodeValue(
+          static_cast<int64_t>(reinterpret_cast<intptr_t>(read)),
+          continuation.register_pointers()[reg_idx]);
+      reg_idx++;
+    }
+  }
   function_.RunJittedFunction(
       continuation.input_buffers_.current(),
       continuation.output_buffers_.current(), continuation.temp_buffer_,
@@ -571,9 +598,19 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
     return continuation_->SetRegisters(regs);
   }
 
-  void ClearObserver() override {}
+  void ClearObserver() override {
+    continuation_->ClearObserver();
+    eval_observer_.reset();
+  }
   absl::Status SetObserver(EvaluationObserver* obs) override {
-    return absl::UnimplementedError("not supported by jit yet.");
+    ClearObserver();
+    eval_observer_.emplace(
+        obs,
+        [](int64_t ptr) -> Node* {
+          return reinterpret_cast<Node*>(static_cast<intptr_t>(ptr));
+        },
+        jit_->runtime());
+    return continuation_->SetObserver(&eval_observer_.value());
   }
 
  private:
@@ -585,6 +622,9 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
   // Holder for the data we return out of registers so that we can reduce
   // copying.
   std::optional<absl::flat_hash_map<std::string, Value>> temporary_regs_;
+
+  // Node value observer adapter from jit api to Value.
+  std::optional<RuntimeEvaluationObserverAdapter> eval_observer_;
 };
 }  // namespace
 
@@ -592,7 +632,10 @@ absl::StatusOr<std::unique_ptr<BlockContinuation>>
 JitBlockEvaluator::MakeNewContinuation(
     BlockElaboration&& elaboration,
     const absl::flat_hash_map<std::string, Value>& initial_registers) const {
-  XLS_ASSIGN_OR_RETURN(auto jit, BlockJit::Create(elaboration));
+  XLS_ASSIGN_OR_RETURN(
+      auto jit,
+      BlockJit::Create(elaboration,
+                       /*support_observer_callbacks=*/supports_observer_));
   auto jit_cont = jit->NewContinuation();
   XLS_RETURN_IF_ERROR(jit_cont->SetRegisters(initial_registers));
   return std::make_unique<BlockContinuationJitWrapper>(std::move(jit_cont),

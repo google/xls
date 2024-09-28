@@ -36,9 +36,16 @@ class EvaluatorOptions {
   }
   FormatPreference format_preference() const { return format_preference_; }
 
+  EvaluatorOptions& set_support_observers(bool value) {
+    support_observers_ = value;
+    return *this;
+  }
+  bool support_observers() const { return support_observers_; }
+
  private:
   bool trace_channels_ = false;
   FormatPreference format_preference_ = FormatPreference::kDefault;
+  bool support_observers_ = false;
 };
 
 }  // namespace xls

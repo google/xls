@@ -60,8 +60,9 @@
 
 namespace xls {
 
-OrcJit::OrcJit(int64_t opt_level, bool include_msan)
-    : LlvmCompiler(opt_level, include_msan),
+OrcJit::OrcJit(int64_t opt_level, bool include_msan,
+               bool include_observer_callbacks)
+    : LlvmCompiler(opt_level, include_msan, include_observer_callbacks),
       context_(std::make_unique<llvm::LLVMContext>()),
       execution_session_(
           std::make_unique<llvm::orc::UnsupportedExecutorProcessControl>()),
@@ -128,16 +129,16 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
   return module;
 }
 
-absl::StatusOr<std::unique_ptr<OrcJit>> OrcJit::Create(int64_t opt_level,
-                                                       JitObserver* observer) {
+absl::StatusOr<std::unique_ptr<OrcJit>> OrcJit::Create(
+    int64_t opt_level, bool include_observer_callbacks, JitObserver* observer) {
   LlvmCompiler::InitializeLlvm();
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
   constexpr bool kHasMsan = true;
 #else
   constexpr bool kHasMsan = false;
 #endif
-  std::unique_ptr<OrcJit> jit =
-      absl::WrapUnique(new OrcJit(opt_level, kHasMsan));
+  std::unique_ptr<OrcJit> jit = absl::WrapUnique(
+      new OrcJit(opt_level, kHasMsan, include_observer_callbacks));
   jit->SetJitObserver(observer);
   XLS_RETURN_IF_ERROR(jit->Init());
   return std::move(jit);

@@ -51,7 +51,8 @@ class FunctionJit {
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> Create(
       Function* xls_function, int64_t opt_level = 3,
-      JitObserver* observer = nullptr);
+      bool include_observer_callbacks = false,
+      JitObserver* jit_observer = nullptr);
 
   // Returns an object containing an AOT-compiled version of the specified XLS
   // function.
@@ -191,9 +192,25 @@ class FunctionJit {
 
   JitRuntime* runtime() const { return jit_runtime_.get(); }
 
+  RuntimeObserver* CurrentRuntimeObserver() const {
+    return callbacks_.observer;
+  }
+
+  void ClearRuntimeObserver() { callbacks_.observer = nullptr; }
+  // Set a callback to get notified on each node's evaluation.
+  absl::Status SetRuntimeObserver(RuntimeObserver* observer) {
+    if (!has_observer_callbacks_) {
+      return absl::UnimplementedError("Observer callbacks not supported.");
+    }
+    callbacks_.observer = observer;
+    return absl::OkStatus();
+  }
+  bool SupportsObservers() const { return has_observer_callbacks_; }
+
  private:
   FunctionJit(Function* xls_function, std::unique_ptr<OrcJit>&& orc_jit,
               JittedFunctionBase&& jitted_function_base,
+              bool has_observer_callbacks,
               std::unique_ptr<JitRuntime>&& runtime)
       : xls_function_(xls_function),
         orc_jit_(std::move(orc_jit)),
@@ -201,10 +218,12 @@ class FunctionJit {
         arg_buffers_(jitted_function_base_.CreateInputBuffer()),
         result_buffers_(jitted_function_base_.CreateOutputBuffer()),
         temp_buffer_(jitted_function_base_.CreateTempBuffer()),
-        jit_runtime_(std::move(runtime)) {}
+        jit_runtime_(std::move(runtime)),
+        has_observer_callbacks_(has_observer_callbacks) {}
 
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateInternal(
-      Function* xls_function, int64_t opt_level, JitObserver* observer);
+      Function* xls_function, int64_t opt_level,
+      bool include_observer_callbacks, JitObserver* jit_observer);
 
   template <bool kForceZeroCopy, typename... ArgsT>
   absl::Status RunWithUnpackedViewsCommon(ArgsT... args) {
@@ -281,6 +300,9 @@ class FunctionJit {
   InstanceContext callbacks_ = InstanceContext::CreateForFunc();
 
   std::unique_ptr<JitRuntime> jit_runtime_;
+
+  // Are callbacks for node-values compiled in.
+  bool has_observer_callbacks_;
 };
 
 }  // namespace xls

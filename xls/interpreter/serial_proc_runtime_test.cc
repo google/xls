@@ -69,9 +69,11 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateMixedSerialProcRuntime(
   bool use_jit = true;
   for (Proc* proc : queue_manager->elaboration().procs()) {
     if (use_jit) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcJit> proc_jit,
-                           ProcJit::Create(proc, &queue_manager->runtime(),
-                                           queue_manager.get()));
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<ProcJit> proc_jit,
+          ProcJit::Create(
+              proc, &queue_manager->runtime(), queue_manager.get(),
+              /*include_observer_callbacks=*/options.support_observers()));
       proc_evaluators.push_back(std::move(proc_jit));
     } else {
       proc_evaluators.push_back(
@@ -173,7 +175,7 @@ INSTANTIATE_TEST_SUITE_P(
                 -> std::unique_ptr<ProcRuntime> {
               return CreateJitSerialProcRuntime(top, options).value();
             },
-            /*supports_observers=*/false),
+            /*supports_observers=*/true),
         ProcRuntimeTestParam(
             "mixed",
             [](Package* package, const EvaluatorOptions& options)
@@ -184,7 +186,7 @@ INSTANTIATE_TEST_SUITE_P(
                 -> std::unique_ptr<ProcRuntime> {
               return CreateMixedSerialProcRuntime(top, options).value();
             },
-            /*supports_observers=*/false)),
+            /*supports_observers=*/true)),
     [](const testing::TestParamInfo<ProcRuntimeTestBase::ParamType>& info) {
       return info.param.name();
     });

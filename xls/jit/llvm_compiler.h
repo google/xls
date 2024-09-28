@@ -88,6 +88,9 @@ class LlvmCompiler {
 
   int64_t opt_level() const { return opt_level_; }
   bool include_msan() const { return include_msan_; }
+  bool include_observer_callbacks() const {
+    return include_observer_callbacks_;
+  }
 
  protected:
   absl::Status Init();
@@ -98,16 +101,22 @@ class LlvmCompiler {
 
   llvm::Error PerformStandardOptimization(llvm::Module* module);
 
-  LlvmCompiler(int64_t opt_level, bool include_msan)
-      : data_layout_(""), opt_level_(opt_level), include_msan_(include_msan) {}
+  LlvmCompiler(int64_t opt_level, bool include_msan,
+               bool include_observer_callbacks)
+      : data_layout_(""),
+        opt_level_(opt_level),
+        include_msan_(include_msan),
+        include_observer_callbacks_(include_observer_callbacks) {}
 
   // Constructor to manually setup the compiler without Init.
   LlvmCompiler(std::unique_ptr<llvm::TargetMachine> target,
-               llvm::DataLayout&& layout, int64_t opt_level, bool include_msan)
+               llvm::DataLayout&& layout, int64_t opt_level, bool include_msan,
+               bool include_observer_callbacks)
       : target_machine_(std::move(target)),
         data_layout_(layout),
         opt_level_(opt_level),
-        include_msan_(include_msan) {}
+        include_msan_(include_msan),
+        include_observer_callbacks_(include_observer_callbacks) {}
 
   // Setup by Init
   std::unique_ptr<llvm::TargetMachine> target_machine_;
@@ -118,6 +127,10 @@ class LlvmCompiler {
   // If the jitted code should include msan calls. Defaults to whatever 'this'
   // process is doing and should only be overridden for AOT generators.
   const bool include_msan_;
+
+  // If the jitted/compiled code should include calls to the RecordNodeResult
+  // callback.
+  const bool include_observer_callbacks_;
 
   bool module_created_ = false;
 };

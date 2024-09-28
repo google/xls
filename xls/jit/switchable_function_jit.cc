@@ -51,8 +51,10 @@ constexpr ExecutionType kRealDefaultExecutionType = ExecutionType::kJit;
 absl::StatusOr<std::unique_ptr<SwitchableFunctionJit>>
 SwitchableFunctionJit::CreateJit(Function* xls_function, int64_t opt_level,
                                  JitObserver* observer) {
-  XLS_ASSIGN_OR_RETURN(auto jit,
-                       FunctionJit::Create(xls_function, opt_level, observer));
+  XLS_ASSIGN_OR_RETURN(
+      auto jit,
+      FunctionJit::Create(xls_function, opt_level,
+                          /*include_observer_callbacks=*/false, observer));
   return std::unique_ptr<SwitchableFunctionJit>(new SwitchableFunctionJit(
       xls_function, /*use_jit=*/true, std::move(jit)));
 }

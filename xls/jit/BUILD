@@ -54,9 +54,12 @@ cc_library(
     srcs = ["observer.cc"],
     hdrs = ["observer.h"],
     deps = [
+        ":jit_runtime",
+        "//xls/interpreter:observer",
+        "//xls/ir",
+        "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/types:span",
-        "@llvm-project//llvm:Core",
     ],
 )
 
@@ -67,6 +70,7 @@ cc_library(
     deps = [
         ":jit_channel_queue",
         ":jit_runtime",
+        ":observer",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:proc_elaboration",
@@ -421,6 +425,8 @@ cc_test(
         ":function_jit",
         ":jit_buffer",
         ":jit_runtime",
+        ":llvm_compiler",
+        ":observer",
         ":orc_jit",
         "//xls/common:bits_util",
         "//xls/common:math_util",
@@ -700,6 +706,8 @@ cc_library(
         ":jit_buffer",
         ":jit_callbacks",
         ":jit_runtime",
+        ":llvm_compiler",
+        ":observer",
         ":orc_jit",
         "//xls/codegen:block_inlining_pass",
         "//xls/codegen:codegen_options",
@@ -767,6 +775,7 @@ cc_library(
         ":jit_callbacks",
         ":jit_channel_queue",
         ":jit_runtime",
+        ":llvm_compiler",
         ":observer",
         ":orc_jit",
         "//xls/common/status:ret_check",

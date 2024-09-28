@@ -789,8 +789,10 @@ class NodeIrContext {
     return llvm_function_->getArg(llvm_function_->arg_size() - 3);
   }
   llvm::Value* GetInstanceContextArg() const {
-    CHECK(has_metadata_args_);
-    return llvm_function_->getArg(llvm_function_->arg_size() - 2);
+    if (has_metadata_args_) {
+      return llvm_function_->getArg(llvm_function_->arg_size() - 2);
+    }
+    return llvm_function_->getArg(llvm_function_->arg_size() - 1);
   }
   llvm::Value* GetJitRuntimeArg() const {
     CHECK(has_metadata_args_);
@@ -862,6 +864,9 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   int64_t param_count = nc.operand_args_.size() + output_arg_count;
   if (include_wrapper_args) {
     param_count += 6;
+  } else {
+    // Instance context is always passed.
+    param_count += 1;
   }
   std::vector<llvm::Type*> param_types(
       param_count,
@@ -900,6 +905,8 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     nc.llvm_function_->getArg(arg_no++)->setName("events");
     nc.llvm_function_->getArg(arg_no++)->setName("instance_context");
     nc.llvm_function_->getArg(arg_no++)->setName("jit_runtime");
+  } else {
+    nc.llvm_function_->getArg(arg_no++)->setName("instance_context");
   }
 
   nc.entry_builder_ =
@@ -1004,15 +1011,44 @@ void NodeIrContext::FinalizeWithPointerToValue(
     std::optional<Type*> result_type) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &entry_builder();
+  llvm::IRBuilder<>* final_exit_block;
+  std::optional<llvm::IRBuilder<>> build;
+  if (jit_context_.llvm_compiler().include_observer_callbacks()) {
+    // Add in a call to any observers of the values.
+    llvm::Value* node_ptr_val = llvm::ConstantInt::get(
+        llvm::Type::getInt64Ty(jit_context_.context()),
+        static_cast<uint64_t>(reinterpret_cast<uintptr_t>(node())));
+    llvm::BasicBlock* record_result_blk = llvm::BasicBlock::Create(
+        jit_context_.context(), "record_result_callback", llvm_function_);
+    llvm::BasicBlock* cpy_result_out_blk = llvm::BasicBlock::Create(
+        jit_context_.context(), "copy_result_out", llvm_function_);
+
+    llvm::IRBuilder<> record_result(record_result_blk);
+    InvokeCallback<InstanceContext::kRecordNodeResultOffset>(
+        &record_result, record_result.getVoidTy(), GetInstanceContextArg(),
+        {node_ptr_val, result_buffer});
+    record_result.CreateBr(cpy_result_out_blk);
+
+    llvm::Value* has_instance_callbacks = b->CreateICmpNE(
+        b->CreatePtrToInt(GetInstanceContextArg(), b->getInt64Ty()),
+        b->getInt64(0));
+    b->CreateCondBr(has_instance_callbacks, record_result_blk,
+                    cpy_result_out_blk);
+    build.emplace(cpy_result_out_blk);
+    final_exit_block = &*build;
+  } else {
+    final_exit_block = b;
+  }
   for (int64_t i = 0; i < output_ptrs_.size(); ++i) {
     if (output_ptrs_[i] != result_buffer) {
       LlvmMemcpy(output_ptrs_[i], result_buffer,
                  type_converter().GetTypeByteSize(
                      result_type.value_or(node()->GetType())),
-                 *b);
+                 *final_exit_block);
     }
   }
-  b->CreateRet(return_value.has_value() ? *return_value : b->getFalse());
+  final_exit_block->CreateRet(return_value.has_value() ? *return_value
+                                                       : b->getFalse());
 }
 
 // Visitor to construct and LLVM function implementing an XLS IR node.

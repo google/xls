@@ -65,6 +65,8 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/llvm_compiler.h"
+#include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -88,14 +90,42 @@ INSTANTIATE_TEST_SUITE_P(
         [](Function* function, absl::Span<const Value> args,
            std::optional<EvaluationObserver*> obs)
             -> absl::StatusOr<InterpreterResult<Value>> {
-          XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
+          XLS_ASSIGN_OR_RETURN(
+              auto jit,
+              FunctionJit::Create(
+                  function, /*opt_level=*/LlvmCompiler::kDefaultOptLevel,
+                  /*include_observer_callbacks=*/obs.has_value()));
+          std::optional<RuntimeEvaluationObserverAdapter> run_obs;
+          if (obs) {
+            run_obs.emplace(
+                *obs,
+                [](uint64_t idx) -> Node* {
+                  return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
+                },
+                jit->runtime());
+            XLS_EXPECT_OK(jit->SetRuntimeObserver(&*run_obs));
+          }
           return jit->Run(args);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs,
            std::optional<EvaluationObserver*> obs)
             -> absl::StatusOr<InterpreterResult<Value>> {
-          XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
+          XLS_ASSIGN_OR_RETURN(
+              auto jit,
+              FunctionJit::Create(
+                  function, /*opt_level=*/LlvmCompiler::kDefaultOptLevel,
+                  /*include_observer_callbacks=*/obs.has_value()));
+          std::optional<RuntimeEvaluationObserverAdapter> run_obs;
+          if (obs) {
+            run_obs.emplace(
+                *obs,
+                [](uint64_t idx) -> Node* {
+                  return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
+                },
+                jit->runtime());
+            XLS_EXPECT_OK(jit->SetRuntimeObserver(&*run_obs));
+          }
           return jit->Run(kwargs);
         },
         false)));
@@ -1134,8 +1164,10 @@ void TestPackedBitsWithType(const TypeProto& type_proto) {
   b.Select(x_lt_y, {y, x});
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
   constexpr int64_t opt_level = 3;
-  XLS_ASSERT_OK_AND_ASSIGN(auto orc_jit,
-                           OrcJit::Create(opt_level, /*observer=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto orc_jit,
+      OrcJit::Create(opt_level, /*include_observer_callbacks=*/false,
+                     /*observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
@@ -1197,8 +1229,10 @@ void TestPackedTupleWithType(const TypeProto& type_proto) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
   constexpr int64_t opt_level = 3;
-  XLS_ASSERT_OK_AND_ASSIGN(auto orc_jit,
-                           OrcJit::Create(opt_level, /*observer=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto orc_jit,
+      OrcJit::Create(opt_level, /*include_observer_callbacks=*/false,
+                     /*observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
@@ -1265,8 +1299,10 @@ void TestPackedArrayWithType(const TypeProto& type_proto) {
   b.ArrayUpdate(array, new_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * function, b.Build());
   constexpr int64_t opt_level = 3;
-  XLS_ASSERT_OK_AND_ASSIGN(auto orc_jit,
-                           OrcJit::Create(opt_level, /*observer=*/nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto orc_jit,
+      OrcJit::Create(opt_level, /*include_observer_callbacks=*/false,
+                     /*observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,

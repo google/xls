@@ -50,6 +50,7 @@
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
@@ -69,7 +70,8 @@ class ProcJitContinuation : public ProcContinuation {
   explicit ProcJitContinuation(ProcInstance* proc_instance,
                                JitRuntime* jit_runtime,
                                std::vector<JitChannelQueue*> queues,
-                               const JittedFunctionBase& jit_func);
+                               const JittedFunctionBase& jit_func,
+                               bool has_observer_callbacks);
 
   ~ProcJitContinuation() override = default;
 
@@ -103,9 +105,30 @@ class ProcJitContinuation : public ProcContinuation {
 
   absl::Status SetObserver(EvaluationObserver* obs) override;
   void ClearObserver() override;
-  bool SupportsObservers() const override { return false; }
+  bool SupportsObservers() const override { return has_observer_callbacks_; }
 
  private:
+  class RuntimeObserverShim : public RuntimeObserver {
+   public:
+    explicit RuntimeObserverShim(ProcJitContinuation* owner) : owner_(owner) {}
+
+    void RecordNodeValue(int64_t node_ptr, const uint8_t* data) override {
+      if (!owner_->GetObserver()) {
+        return;
+      }
+      CHECK(owner_->has_observer_callbacks_)
+          << "observer callbacks will never be called";
+      // TODO(allight): Currently we only support these callbacks in the jit
+      // case but it would be nice to support for AOT too but that would need to
+      // translate the pointers.
+      Node* node = reinterpret_cast<Node*>(static_cast<intptr_t>(node_ptr));
+      Value val = owner_->jit_runtime_->UnpackBuffer(data, node->GetType());
+      owner_->GetObserver().value()->NodeEvaluated(node, val);
+    }
+
+   private:
+    ProcJitContinuation* owner_;
+  };
   int64_t continuation_point_;
   JitRuntime* jit_runtime_;
 
@@ -120,12 +143,18 @@ class ProcJitContinuation : public ProcContinuation {
   // Data structure passed to the JIT function which holds instance related
   // information.
   InstanceContext instance_context_;
+
+  RuntimeObserverShim observer_shim_;
+
+  // if the code has observer callbacks compiled in.
+  bool has_observer_callbacks_;
 };
 
 ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
                                          JitRuntime* jit_runtime,
                                          std::vector<JitChannelQueue*> queues,
-                                         const JittedFunctionBase& jit_func)
+                                         const JittedFunctionBase& jit_func,
+                                         bool has_observer_callbacks)
     : ProcContinuation(proc_instance),
       continuation_point_(0),
       jit_runtime_(jit_runtime),
@@ -133,7 +162,9 @@ ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
       output_(jit_func.CreateInputOutputBuffer().value()),
       temp_buffer_(jit_func.CreateTempBuffer()),
       instance_context_(
-          InstanceContext::CreateForProc(proc_instance, std::move(queues))) {
+          InstanceContext::CreateForProc(proc_instance, std::move(queues))),
+      observer_shim_(this),
+      has_observer_callbacks_(has_observer_callbacks) {
   // Write initial state value to the input_buffer.
   for (Param* state_param : proc()->StateParams()) {
     int64_t param_index = proc()->GetParamIndex(state_param).value();
@@ -146,10 +177,19 @@ ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
   }
 }
 
-void ProcJitContinuation::ClearObserver() {}
+void ProcJitContinuation::ClearObserver() {
+  instance_context_.observer = nullptr;
+  ProcContinuation::ClearObserver();
+}
 
 absl::Status ProcJitContinuation::SetObserver(EvaluationObserver* obs) {
-  return absl::UnimplementedError("not supported by jit yet.");
+  if (!has_observer_callbacks_) {
+    return absl::UnimplementedError(
+        "Observers are not supported on this compilation.");
+  }
+  XLS_RETURN_IF_ERROR(ProcContinuation::SetObserver(obs));
+  instance_context_.observer = &observer_shim_;
+  return absl::OkStatus();
 }
 
 std::vector<Value> ProcJitContinuation::GetState() const {
@@ -271,8 +311,10 @@ absl::Status InitializeChannelQueues(
     Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
     const AotEntrypointProto& entrypoint, JitFunctionType unpacked,
     std::optional<JitFunctionType> packed) {
+  // TODO(allight): Supporting observer callbacks in aot would be nice.
   auto jit = std::unique_ptr<ProcJit>(
-      new ProcJit(proc, jit_runtime, queue_mgr, /*orc_jit=*/nullptr));
+      new ProcJit(proc, jit_runtime, queue_mgr, /*orc_jit=*/nullptr,
+                  /*has_observer_callbacks=*/false));
   XLS_ASSIGN_OR_RETURN(
       jit->jitted_function_base_,
       JittedFunctionBase::BuildFromAot(proc, entrypoint, unpacked, packed));
@@ -284,11 +326,14 @@ absl::Status InitializeChannelQueues(
 
 absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
     Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr,
-    JitObserver* observer) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
-  orc_jit->SetJitObserver(observer);
+    bool include_observer_callbacks, JitObserver* jit_observer) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<OrcJit> orc_jit,
+      OrcJit::Create(LlvmCompiler::kDefaultOptLevel, include_observer_callbacks,
+                     jit_observer));
   auto jit = absl::WrapUnique(
-      new ProcJit(proc, jit_runtime, queue_mgr, std::move(orc_jit)));
+      new ProcJit(proc, jit_runtime, queue_mgr, std::move(orc_jit),
+                  /*has_observer_callbacks=*/include_observer_callbacks));
   XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
                        JittedFunctionBase::Build(proc, jit->GetOrcJit()));
   XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
@@ -304,7 +349,7 @@ std::unique_ptr<ProcContinuation> ProcJit::NewContinuation(
   CHECK_EQ(proc_instance->proc(), proc());
   return std::make_unique<ProcJitContinuation>(
       proc_instance, jit_runtime_, channel_queues_.at(proc_instance),
-      jitted_function_base_);
+      jitted_function_base_, has_observer_callbacks_);
 }
 
 absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
@@ -312,6 +357,16 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   XLS_RET_CHECK_NE(cont, nullptr)
       << "ProcJit requires a continuation of type ProcJitContinuation";
   int64_t start_continuation_point = cont->GetContinuationPoint();
+  if (start_continuation_point == 0) {
+    // notify the value of all state params
+    if (cont->GetObserver()) {
+      auto it = cont->proc()->StateParams().begin();
+      for (const Value& v : cont->GetState()) {
+        cont->GetObserver().value()->NodeEvaluated(*it, v);
+        ++it;
+      }
+    }
+  }
 
   // The jitted function returns the early exit point at which execution
   // halted. A return value of zero indicates that the tick completed.

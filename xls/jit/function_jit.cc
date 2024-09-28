@@ -49,8 +49,10 @@
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
-    Function* xls_function, int64_t opt_level, JitObserver* observer) {
-  return CreateInternal(xls_function, opt_level, observer);
+    Function* xls_function, int64_t opt_level, bool include_observer_callbacks,
+    JitObserver* jit_observer) {
+  return CreateInternal(xls_function, opt_level, include_observer_callbacks,
+                        jit_observer);
 }
 
 // Returns an object containing an AOT-compiled version of the specified XLS
@@ -74,9 +76,9 @@ FunctionJit::CreateFromAot(Function* xls_function,
   // TODO(allight): Ideally we wouldn't even need to link in the llvm stuff if
   // we go down this path, that's a larger refactor however and just carrying
   // around some extra .so's isn't a huge deal.
-  return std::unique_ptr<FunctionJit>(
-      new FunctionJit(xls_function, std::unique_ptr<OrcJit>(nullptr),
-                      std::move(jfb), std::make_unique<JitRuntime>(*layout)));
+  return std::unique_ptr<FunctionJit>(new FunctionJit(
+      xls_function, std::unique_ptr<OrcJit>(nullptr), std::move(jfb),
+      /*has_observer_callbacks=*/false, std::make_unique<JitRuntime>(*layout)));
 }
 
 absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
@@ -100,8 +102,11 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
-    Function* xls_function, int64_t opt_level, JitObserver* observer) {
-  XLS_ASSIGN_OR_RETURN(auto orc_jit, OrcJit::Create(opt_level, observer));
+    Function* xls_function, int64_t opt_level, bool has_observer_callbacks,
+    JitObserver* jit_observer) {
+  XLS_ASSIGN_OR_RETURN(
+      auto orc_jit,
+      OrcJit::Create(opt_level, has_observer_callbacks, jit_observer));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
                        orc_jit->CreateDataLayout());
   XLS_ASSIGN_OR_RETURN(auto function_base,
@@ -109,7 +114,7 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
 
   return std::unique_ptr<FunctionJit>(new FunctionJit(
       xls_function, std::move(orc_jit), std::move(function_base),
-      std::make_unique<JitRuntime>(data_layout)));
+      has_observer_callbacks, std::make_unique<JitRuntime>(data_layout)));
 }
 
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
@@ -138,6 +143,15 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
   XLS_RETURN_IF_ERROR(
       jit_runtime_->PackArgs(args, param_types, arg_buffers_.pointers()));
 
+  // Call observers with function params.
+  if (CurrentRuntimeObserver() != nullptr) {
+    for (int64_t i = 0; i < function()->params().size(); ++i) {
+      CurrentRuntimeObserver()->RecordNodeValue(
+          static_cast<int64_t>(
+              reinterpret_cast<intptr_t>(function()->params()[i])),
+          arg_buffers_.pointers()[i]);
+    }
+  }
   InterpreterEvents events;
   jitted_function_base_.RunJittedFunction(
       arg_buffers_, result_buffers_, temp_buffer_, &events,

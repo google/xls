@@ -77,6 +77,13 @@ void RecordActiveNextValue(InstanceContext* thiz, int64_t param_id,
                            int64_t next_id) {
   thiz->active_next_values[param_id].insert(next_id);
 }
+
+void RecordNodeResult(InstanceContext* thiz, int64_t node_ptr,
+                      const uint8_t* data) {
+  if (thiz->observer != nullptr) {
+    thiz->observer->RecordNodeValue(node_ptr, data);
+  }
+}
 }  // namespace
 
 InstanceContextVTable::InstanceContextVTable()
@@ -87,7 +94,8 @@ InstanceContextVTable::InstanceContextVTable()
       record_assertion(&RecordAssertion),
       queue_receive_wrapper(&QueueReceiveWrapper),
       queue_send_wrapper(&QueueSendWrapper),
-      record_active_next_value(&RecordActiveNextValue) {}
+      record_active_next_value(&RecordActiveNextValue),
+      record_node_result(&RecordNodeResult) {}
 
 Type* InstanceContext::ParseTypeFromProto(absl::Span<uint8_t const> data) {
   TypeProto proto;

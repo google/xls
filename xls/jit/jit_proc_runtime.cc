@@ -77,7 +77,8 @@ class SharedCompiler final : public LlvmCompiler {
                           std::unique_ptr<llvm::TargetMachine> target,
                           llvm::DataLayout data_layout)
       : LlvmCompiler(std::move(target), std::move(data_layout),
-                     underlying->opt_level(), underlying->include_msan()),
+                     underlying->opt_level(), underlying->include_msan(),
+                     /*include_observer_callbacks=*/false),
         underlying_(underlying),
         the_module_(underlying_->NewModule(
             absl::StrFormat("__shared_module_for_%s", name))) {}
@@ -229,7 +230,11 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
     ProcElaboration elaboration, const EvaluatorOptions& options) {
   // We use the compiler to know the data layout.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> comp, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<OrcJit> comp,
+      OrcJit::Create(
+          LlvmCompiler::kDefaultOptLevel,
+          /*include_observer_callbacks=*/options.support_observers()));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout layout, comp->CreateDataLayout());
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
@@ -243,7 +248,9 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
   for (Proc* proc : queue_manager->elaboration().procs()) {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<ProcJit> proc_jit,
-        ProcJit::Create(proc, &queue_manager->runtime(), queue_manager.get()));
+        ProcJit::Create(
+            proc, &queue_manager->runtime(), queue_manager.get(),
+            /*include_observer_callbacks=*/options.support_observers()));
     proc_jits.push_back(std::move(proc_jit));
   }
 

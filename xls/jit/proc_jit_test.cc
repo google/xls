@@ -37,25 +37,32 @@ JitRuntime* GetJitRuntime() {
   return jit_runtime.get();
 }
 
+template <bool kWithObserver>
+std::unique_ptr<ProcEvaluator> EvaluatorFromProc(
+    Proc* proc, ChannelQueueManager* queue_manager) {
+  JitChannelQueueManager* jit_queue_manager =
+      dynamic_cast<JitChannelQueueManager*>(queue_manager);
+  CHECK(jit_queue_manager != nullptr);
+  return ProcJit::Create(proc, GetJitRuntime(), jit_queue_manager,
+                         /*include_observer_callbacks=*/kWithObserver)
+      .value();
+}
+
+std::unique_ptr<ChannelQueueManager> QueueManagerForPackage(Package* package) {
+  return JitChannelQueueManager::CreateThreadSafe(
+             package,
+             std::make_unique<JitRuntime>(GetJitRuntime()->data_layout()))
+      .value();
+}
 // Instantiate and run all the tests in proc_evaluator_test_base.cc.
 INSTANTIATE_TEST_SUITE_P(
     ProcJitTest, ProcEvaluatorTestBase,
-    testing::Values(ProcEvaluatorTestParam(
-        [](Proc* proc, ChannelQueueManager* queue_manager)
-            -> std::unique_ptr<ProcEvaluator> {
-          JitChannelQueueManager* jit_queue_manager =
-              dynamic_cast<JitChannelQueueManager*>(queue_manager);
-          CHECK(jit_queue_manager != nullptr);
-          return ProcJit::Create(proc, GetJitRuntime(), jit_queue_manager)
-              .value();
-        },
-        [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
-          return JitChannelQueueManager::CreateThreadSafe(
-                     package, std::make_unique<JitRuntime>(
-                                  GetJitRuntime()->data_layout()))
-              .value();
-        },
-        /*supports_observers=*/false)));
+    testing::Values(ProcEvaluatorTestParam(EvaluatorFromProc<false>,
+                                           QueueManagerForPackage,
+                                           /*supports_observers=*/false),
+                    ProcEvaluatorTestParam(EvaluatorFromProc<true>,
+                                           QueueManagerForPackage,
+                                           /*supports_observers=*/true)));
 
 }  // namespace
 }  // namespace xls

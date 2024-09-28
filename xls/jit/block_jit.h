@@ -39,6 +39,7 @@
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/observer.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -46,9 +47,10 @@ namespace xls {
 class BlockJitContinuation;
 class BlockJit {
  public:
-  static absl::StatusOr<std::unique_ptr<BlockJit>> Create(Block* block);
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
-      const BlockElaboration& elab);
+      Block* block, bool support_observer_callbacks = false);
+  static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
+      const BlockElaboration& elab, bool support_observer_callbacks = false);
   virtual ~BlockJit() = default;
 
   // Create a new blank block with no registers or ports set. Can be cycled
@@ -74,18 +76,23 @@ class BlockJit {
         .subspan(block_->GetInputPorts().size());
   }
 
+  bool supports_observer() const { return supports_observer_; }
+
  protected:
   BlockJit(Block* block, std::unique_ptr<JitRuntime> runtime,
-           std::unique_ptr<OrcJit> jit, JittedFunctionBase function)
+           std::unique_ptr<OrcJit> jit, JittedFunctionBase function,
+           bool supports_observer)
       : block_(block),
         runtime_(std::move(runtime)),
         jit_(std::move(jit)),
-        function_(std::move(function)) {}
+        function_(std::move(function)),
+        supports_observer_(supports_observer) {}
 
   Block* block_;
   std::unique_ptr<JitRuntime> runtime_;
   std::unique_ptr<OrcJit> jit_;
   JittedFunctionBase function_;
+  bool supports_observer_;
 };
 
 class BlockJitContinuation {
@@ -194,6 +201,16 @@ class BlockJitContinuation {
 
   const JitTempBuffer& temp_buffer() const { return temp_buffer_; }
 
+  absl::Status SetObserver(RuntimeObserver* obs) {
+    if (!block_jit_->supports_observer()) {
+      return absl::UnimplementedError("runtime observer not supported");
+    }
+    callbacks_.observer = obs;
+    return absl::OkStatus();
+  }
+  void ClearObserver() { callbacks_.observer = nullptr; }
+  RuntimeObserver* observer() const { return callbacks_.observer; }
+
  protected:
   BlockJitContinuation(Block* block, BlockJit* jit,
                        const JittedFunctionBase& jit_func);
@@ -265,16 +282,22 @@ class BlockJitContinuation {
 // possible.
 class JitBlockEvaluator : public BlockEvaluator {
  public:
-  constexpr JitBlockEvaluator() : BlockEvaluator("Jit") {}
+  explicit constexpr JitBlockEvaluator(bool supports_observer = false)
+      : BlockEvaluator(supports_observer ? "ObservableJit" : "Jit"),
+        supports_observer_(supports_observer) {}
 
  protected:
   absl::StatusOr<std::unique_ptr<BlockContinuation>> MakeNewContinuation(
       BlockElaboration&& elaboration,
       const absl::flat_hash_map<std::string, Value>& initial_registers)
       const override;
+
+ private:
+  bool supports_observer_;
 };
 
 static const JitBlockEvaluator kJitBlockEvaluator;
+static const JitBlockEvaluator kObservableJitBlockEvaluator(true);
 
 }  // namespace xls
 

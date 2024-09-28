@@ -14,18 +14,21 @@
 
 #include "xls/jit/observer.h"
 
+#include <cstdint>
 #include <string_view>
 
 #include "absl/algorithm/container.h"
 #include "absl/types/span.h"
-#include "llvm/include/llvm/IR/Module.h"
+#include "xls/ir/node.h"
+#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 
-CompoundObserver::CompoundObserver(absl::Span<JitObserver* const> observers)
+CompoundJitObserver::CompoundJitObserver(
+    absl::Span<JitObserver* const> observers)
     : observers_(observers.begin(), observers.end()) {}
 
-JitObserverRequests CompoundObserver::GetNotificationOptions() const {
+JitObserverRequests CompoundJitObserver::GetNotificationOptions() const {
   return JitObserverRequests{
       .unoptimized_module = absl::c_any_of(
           observers_,
@@ -42,22 +45,22 @@ JitObserverRequests CompoundObserver::GetNotificationOptions() const {
                          }),
   };
 }
-void CompoundObserver::UnoptimizedModule(const llvm::Module* module) {
+void CompoundJitObserver::UnoptimizedModule(const llvm::Module* module) {
   for (auto* o : observers_) {
     if (o->GetNotificationOptions().unoptimized_module) {
       o->UnoptimizedModule(module);
     }
   }
 }
-void CompoundObserver::OptimizedModule(const llvm::Module* module) {
+void CompoundJitObserver::OptimizedModule(const llvm::Module* module) {
   for (auto* o : observers_) {
     if (o->GetNotificationOptions().optimized_module) {
       o->OptimizedModule(module);
     }
   }
 }
-void CompoundObserver::AssemblyCodeString(const llvm::Module* module,
-                                          std::string_view asm_code) {
+void CompoundJitObserver::AssemblyCodeString(const llvm::Module* module,
+                                             std::string_view asm_code) {
   for (auto* o : observers_) {
     if (o->GetNotificationOptions().assembly_code_str) {
       o->AssemblyCodeString(module, asm_code);
@@ -65,5 +68,14 @@ void CompoundObserver::AssemblyCodeString(const llvm::Module* module,
   }
 }
 
-void CompoundObserver::AddObserver(JitObserver* o) { observers_.push_back(o); }
+void CompoundJitObserver::AddObserver(JitObserver* o) {
+  observers_.push_back(o);
+}
+
+void RuntimeEvaluationObserver::RecordNodeValue(int64_t node_ptr,
+                                                const uint8_t* data) {
+  Node* node = to_node_(node_ptr);
+  this->NodeEvaluated(node, runtime_->UnpackBuffer(data, node->GetType()));
+}
+
 }  // namespace xls

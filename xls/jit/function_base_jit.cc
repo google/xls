@@ -666,7 +666,11 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       args.push_back(wrapper.GetInterpreterEventsArg());
       args.push_back(wrapper.GetInstanceContextArg());
       args.push_back(wrapper.GetJitRuntimeArg());
+    } else {
+      // The instance context is always passed so the node can upcall.
+      args.push_back(wrapper.GetInstanceContextArg());
     }
+    XLS_RET_CHECK_EQ(node_function.function->arg_size(), args.size());
     llvm::CallInst* node_blocked = b.CreateCall(node_function.function, args);
 
     if (partition.early_exit_point.has_value()) {

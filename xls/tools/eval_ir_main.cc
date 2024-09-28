@@ -355,7 +355,8 @@ absl::StatusOr<std::vector<Value>> Eval(
     // No support for procs yet.
     XLS_ASSIGN_OR_RETURN(
         jit,
-        FunctionJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level), &observer));
+        FunctionJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level),
+                            /*include_observer_callbacks=*/false, &observer));
   }
 
   std::vector<Value> results;

@@ -39,7 +39,7 @@ namespace xls {
 // interface.
 class OrcJit : public LlvmCompiler {
  public:
-  static constexpr int64_t kDefaultOptLevel = 3;
+  static constexpr int64_t kDefaultOptLevel = 2;
 
   ~OrcJit() override;
 
@@ -51,7 +51,9 @@ class OrcJit : public LlvmCompiler {
   // emit_msan directs the jit to use MSAN if the running binary is MSAN and
   // vice-versa.
   static absl::StatusOr<std::unique_ptr<OrcJit>> Create(
-      int64_t opt_level = kDefaultOptLevel, JitObserver* observer = nullptr);
+      int64_t opt_level = kDefaultOptLevel,
+      bool include_observer_callbacks = false,
+      JitObserver* jit_observer = nullptr);
 
   void SetJitObserver(JitObserver* o) { jit_observer_ = o; }
 
@@ -74,7 +76,7 @@ class OrcJit : public LlvmCompiler {
   absl::Status InitInternal() override;
 
  private:
-  OrcJit(int64_t opt_level, bool include_msan);
+  OrcJit(int64_t opt_level, bool include_msan, bool include_observer_callbacks);
 
   // Method which optimizes the given module. Used within the JIT to form an IR
   // transform layer.

@@ -292,12 +292,19 @@ FUZZ_TEST(BlockJitFuzz, RegisterResetBehavior)
                      .WithMaxSize(20));
 
 inline constexpr BlockEvaluatorTestParam kJitTestParam = {
+    .evaluator = &kObservableJitBlockEvaluator,
+    .supports_fifos = true,
+    .supports_observer = true};
+
+inline constexpr BlockEvaluatorTestParam kJitTestNoObserverParam = {
     .evaluator = &kJitBlockEvaluator,
     .supports_fifos = true,
     .supports_observer = false};
 
 INSTANTIATE_TEST_SUITE_P(JitBlockCommonTest, BlockEvaluatorTest,
-                         testing::Values(kJitTestParam), [](const auto& v) {
+                         testing::Values(kJitTestParam,
+                                         kJitTestNoObserverParam),
+                         [](const auto& v) {
                            return std::string(v.param.evaluator->name());
                          });
 
