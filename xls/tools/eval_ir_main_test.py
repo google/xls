@@ -14,11 +14,14 @@
 # limitations under the License.
 
 import ctypes
+import struct
 import subprocess
 
-from absl.testing import absltest
+from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base
+from xls.ir import xls_value_pb2
+from xls.tools import node_coverage_stats_pb2
 
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
 
@@ -43,7 +46,22 @@ top fn foo(x: bits[32], y:bits[32]) -> bits[64] {
 """
 
 
-class EvalMainTest(absltest.TestCase):
+def _value_32_bits(v: int) -> xls_value_pb2.ValueProto:
+  return xls_value_pb2.ValueProto(
+      bits=xls_value_pb2.ValueProto.Bits(
+          bit_count=32, data=struct.pack('<i', v)
+      )
+  )
+
+
+def parameterized_proc_backends(func):
+  return parameterized.named_parameters(
+      ('jit', ['--use_llvm_jit']),
+      ('interpreter', ['--nouse_llvm_jit']),
+  )(func)
+
+
+class EvalMainTest(parameterized.TestCase):
 
   def test_one_input_jit(self):
     ir_file = self.create_tempfile(content=ADD_IR)
@@ -330,6 +348,55 @@ class EvalMainTest(absltest.TestCase):
     )
     self.assertNotEqual(comp.returncode, 0)
     self.assertIn('Unable to generate valid input', comp.stderr.decode('utf-8'))
+
+  @parameterized_proc_backends
+  def test_coverage(self, backend):
+    ir_file = self.create_tempfile(content=ADD_IR)
+    cov = self.create_tempfile()
+    subprocess.run(
+        [
+            EVAL_IR_MAIN_PATH,
+            ir_file.full_path,
+            '--input',
+            'bits[32]:0x5; bits[32]:0xC',
+            '--expected=bits[32]:0x11',
+            '--alsologtostderr',
+            f'--output_node_coverage_stats_proto={cov.full_path}',
+        ]
+        + backend,
+        check=True,
+    )
+    node_coverage = node_coverage_stats_pb2.NodeCoverageStatsProto.FromString(
+        cov.read_bytes()
+    )
+    node_stats = node_coverage_stats_pb2.NodeCoverageStatsProto.NodeStats
+    node_coverage.nodes.sort(key=lambda n: n.node_id)
+    self.assertEqual(
+        node_coverage.nodes,
+        [
+            node_stats(
+                node_id=1,
+                node_text='add.1: bits[32] = add(x, y, id=1)',
+                set_bits=_value_32_bits(0x11),
+                unset_bit_count=30,
+                total_bit_count=32,
+            ),
+            node_stats(
+                node_id=4,
+                node_text='x: bits[32] = param(name=x, id=4)',
+                set_bits=_value_32_bits(0x5),
+                unset_bit_count=30,
+                total_bit_count=32,
+            ),
+            node_stats(
+                node_id=5,
+                node_text='y: bits[32] = param(name=y, id=5)',
+                set_bits=_value_32_bits(0xC),
+                unset_bit_count=30,
+                total_bit_count=32,
+            ),
+        ],
+    )
 
 
 if __name__ == '__main__':
