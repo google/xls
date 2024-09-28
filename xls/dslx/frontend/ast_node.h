@@ -149,7 +149,8 @@ class AstNode {
 
   Module* owner() const { return owner_; }
 
-  // Marks this node as the parent of all its child nodes.
+  // Marks this node as the parent of all its child nodes as given by
+  // `GetChildren()`.
   void SetParentage();
 
   // Warning: try to avoid using this in any new code!

@@ -41,7 +41,8 @@ namespace xls::dslx {
 // colon-reference to a construct in another module will return nullopt.
 std::optional<Span> FindDefinition(const Module& m, const Pos& selected,
                                    const TypeInfo& type_info,
-                                   ImportData& import_data);
+                                   ImportData& import_data,
+                                   const NameDef** name_def_out = nullptr);
 
 }  // namespace xls::dslx
 

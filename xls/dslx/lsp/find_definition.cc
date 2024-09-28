@@ -56,7 +56,8 @@ const NameDef* GetNameDef(
 
 std::optional<Span> FindDefinition(const Module& m, const Pos& selected,
                                    const TypeInfo& type_info,
-                                   ImportData& import_data) {
+                                   ImportData& import_data,
+                                   const NameDef** name_def) {
   std::vector<const AstNode*> intercepting = m.FindIntercepting(selected);
   VLOG(3) << "Found " << intercepting.size()
           << " nodes intercepting selected position: " << selected;
@@ -102,10 +103,18 @@ std::optional<Span> FindDefinition(const Module& m, const Pos& selected,
         defs.push_back(Reference{type_ref->span(),
                                  std::get<const NameDef*>(type_definer)});
       }
+    } else if (auto* name_def = dynamic_cast<const NameDef*>(node)) {
+      defs.push_back(Reference{name_def->span(), name_def});
     }
   }
 
+  VLOG(3) << "Found " << defs.size() << " definitions intercepting position "
+          << selected;
+
   if (defs.size() == 1) {
+    if (name_def != nullptr) {
+      *name_def = defs.at(0).to;
+    }
     return defs.at(0).to->GetSpan();
   }
   if (defs.size() > 1) {
@@ -129,6 +138,9 @@ std::optional<Span> FindDefinition(const Module& m, const Pos& selected,
     VLOG(3) << "Most containing; reference is to: `" << reference.to->ToString()
             << "` @ "
             << reference.to->span().ToString(import_data.file_table());
+    if (name_def != nullptr) {
+      *name_def = reference.to;
+    }
     return reference.to->GetSpan();
   }
 

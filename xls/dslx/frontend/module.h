@@ -179,6 +179,9 @@ class Module : public AstNode {
   // an identifier.
   std::optional<ModuleMember*> FindMemberWithName(std::string_view target);
 
+  // Returns whether the given node is a public member of this module.
+  bool IsPublicMember(const AstNode& node) const;
+
   const StructDef* FindStructDef(const Span& span) const;
 
   const EnumDef* FindEnumDef(const Span& span) const;
