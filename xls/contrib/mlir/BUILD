@@ -19,6 +19,10 @@ package(
     default_visibility = [
         "//xls:xls_mlir_users",
     ],
+    features = [
+        "layering_check",
+        "parse_headers",
+    ],
 )
 
 td_library(
