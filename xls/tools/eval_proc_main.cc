@@ -75,6 +75,7 @@
 #include "xls/jit/block_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/tools/eval_utils.h"
+#include "xls/tools/node_coverage_utils.h"
 
 static constexpr std::string_view kUsage = R"(
 Evaluates an IR file containing Procs, or a Block generated from them.
@@ -187,8 +188,18 @@ ABSL_FLAG(std::vector<std::string>, model_memories, {},
 ABSL_FLAG(bool, fail_on_assert, false,
           "When set to true, the simulation fails on the activation or cycle "
           "in which an assertion fires.");
+ABSL_FLAG(std::optional<std::string>, output_node_coverage_stats_proto,
+          std::nullopt,
+          "File to write a (binary) NodeCoverageStatsProto showing which bits "
+          "in the run were actually set for each node.");
+ABSL_FLAG(std::optional<std::string>, output_node_coverage_stats_textproto,
+          std::nullopt,
+          "File to write a (text) NodeCoverageStatsProto showing which bits "
+          "in the run were actually set for each node.");
 
 namespace xls {
+
+namespace {
 
 static absl::Status LogInterpreterEvents(std::string_view entity_name,
                                          const InterpreterEvents& events) {
@@ -223,14 +234,22 @@ static absl::Status EvaluateProcs(
         expected_outputs_for_channels,
     const EvaluateProcsOptions& options = {}) {
   std::unique_ptr<SerialProcRuntime> runtime;
+  ScopedRecordNodeCoverage cov(
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
   EvaluatorOptions evaluator_options;
-  evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels));
+  evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels))
+      .set_support_observers(cov.observer().has_value());
   if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(
         runtime, CreateJitSerialProcRuntime(package, evaluator_options));
   } else {
     XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(
                                       package, evaluator_options));
+  }
+  if (cov.observer()) {
+    XLS_RETURN_IF_ERROR(runtime->SetObserver(*cov.observer()));
+    LOG(ERROR) << "Set observer!";
   }
 
   ChannelQueueManager& queue_manager = runtime->queue_manager();
@@ -711,6 +730,10 @@ static absl::Status RunBlock(
         "Input IR should contain exactly one block");
   }
 
+  ScopedRecordNodeCoverage cov(
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
+
   std::mt19937_64 bit_gen(options.random_seed);
 
   Block* block = package->blocks()[0].get();
@@ -764,11 +787,17 @@ static absl::Status RunBlock(
 
   const BlockEvaluator& continuation_factory =
       options.use_jit
-          ? reinterpret_cast<const BlockEvaluator&>(kJitBlockEvaluator)
+          ? reinterpret_cast<const BlockEvaluator&>(
+                cov.observer() ? kObservableJitBlockEvaluator
+                               : kJitBlockEvaluator)
           : reinterpret_cast<const BlockEvaluator&>(kInterpreterBlockEvaluator);
 
   XLS_ASSIGN_OR_RETURN(auto continuation,
                        continuation_factory.NewContinuation(block, reg_state));
+
+  if (cov.observer()) {
+    XLS_RETURN_IF_ERROR(continuation->SetObserver(*cov.observer()));
+  }
 
   int64_t last_output_cycle = 0;
   int64_t matched_outputs = 0;
@@ -776,6 +805,9 @@ static absl::Status RunBlock(
   for (int64_t cycle = 0;; ++cycle) {
     // Idealized reset behavior
     const bool resetting = (cycle == 0);
+    // We don't want the cycle where we are initially resetting the registers to
+    // be counted in coverage since its unlikely to be valuable.
+    cov.SetPaused(resetting);
 
     if (options.show_trace && ((cycle < 30) || (cycle % 100 == 0))) {
       LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting
@@ -1195,6 +1227,7 @@ static absl::Status RealMain(
                        expected_outputs_for_channels, evaluate_procs_options);
 }
 
+}  // namespace
 }  // namespace xls
 
 int main(int argc, char* argv[]) {
