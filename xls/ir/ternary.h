@@ -31,7 +31,9 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/iterator_range.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
@@ -194,7 +196,7 @@ class RealizedTernaryIterator {
     return value_;
   }
 
-  const Bits& operator->() const { return **this; }
+  const Bits* operator->() const { return &**this; }
 
   bool operator==(const RealizedTernaryIterator& o) const {
     if (finished_ != o.finished_) {
@@ -281,6 +283,12 @@ inline xabsl::iterator_range<RealizedTernaryIterator> AllBitsValues(
   static_assert(std::forward_iterator<RealizedTernaryIterator>);
   return {RealizedTernaryIterator(span), RealizedTernaryIterator()};
 }
+
+// Make an iterator range that enumerates all possible values which match the
+// given tree of ternaries. The values are produced in order from smallest to
+// largest at each position; no guarantee is made about the order beyond this.
+absl::StatusOr<std::vector<Value>> AllValues(
+    LeafTypeTreeView<TernaryVector> ltt);
 
 }  // namespace ternary_ops
 }  // namespace xls

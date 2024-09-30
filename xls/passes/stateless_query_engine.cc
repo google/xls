@@ -81,6 +81,9 @@ std::optional<LeafTypeTree<TernaryVector>> StatelessQueryEngine::GetTernary(
             .value();
     return leaf_type_tree::Map<TernaryVector, Value>(
         values.AsView(), [](const Value& v) -> TernaryVector {
+          if (v.IsToken()) {
+            return TernaryVector();
+          }
           return ternary_ops::BitsToTernary(v.bits());
         });
   }

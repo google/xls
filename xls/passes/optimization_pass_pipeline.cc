@@ -52,6 +52,7 @@
 #include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/label_recovery_pass.h"
+#include "xls/passes/lut_conversion_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
 #include "xls/passes/next_value_optimization_pass.h"
@@ -100,6 +101,8 @@ void AddSimplificationPasses(OptimizationCompoundPass& pass,
   pass.Add<ReceiveDefaultValueSimplificationPass>();
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<SelectSimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<LutConversionPass>(opt_level);
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
   pass.Add<DeadCodeEliminationPass>();

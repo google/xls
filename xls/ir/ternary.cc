@@ -30,8 +30,15 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/iter_util.h"
+#include "xls/common/iterator_range.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 
@@ -363,6 +370,48 @@ void RealizedTernaryIterator::Advance(int64_t amnt) {
     }
   }
   value_ = Bits::FromBitmap(std::move(bm));
+}
+
+absl::StatusOr<std::vector<Value>> AllValues(
+    LeafTypeTreeView<TernaryVector> ltt) {
+  using AccessibleRange =
+      xabsl::iterator_range<ternary_ops::RealizedTernaryIterator>;
+  LeafTypeTree<AccessibleRange> iterators =
+      leaf_type_tree::Map<AccessibleRange, TernaryVector>(
+          ltt, [](const TernaryVector& ternary) {
+            return ternary_ops::AllBitsValues(ternary);
+          });
+  absl::Span<Type* const> types = iterators.leaf_types();
+
+  absl::StatusOr<std::vector<Value>> values = std::vector<Value>();
+  bool failed = IteratorProduct<AccessibleRange>(
+      iterators.elements(),
+      [&](absl::Span<ternary_ops::RealizedTernaryIterator const> its) {
+        std::vector<Value> elements;
+        elements.reserve(its.size());
+        for (int64_t i = 0; i < its.size(); ++i) {
+          if (types[i]->IsToken()) {
+            if (its[i]->bit_count() != 0) {
+              values = absl::InternalError("Non-empty value given for token");
+              return true;
+            }
+            elements.push_back(Value::Token());
+            continue;
+          }
+
+          elements.push_back(Value(*its[i]));
+        }
+        LeafTypeTree<Value> value_ltt(ltt.type(), elements);
+        absl::StatusOr<Value> value = LeafTypeTreeToValue(value_ltt.AsView());
+        if (!value.ok()) {
+          values = std::move(value).status();
+          return true;
+        }
+        values->push_back(*value);
+        return false;
+      });
+  XLS_RET_CHECK(failed != values.ok());
+  return values;
 }
 
 }  // namespace ternary_ops

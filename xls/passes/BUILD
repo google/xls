@@ -49,6 +49,7 @@ cc_library(
         ":identity_removal_pass",
         ":inlining_pass",
         ":label_recovery_pass",
+        ":lut_conversion_pass",
         ":map_inlining_pass",
         ":narrowing_pass",
         ":next_value_optimization_pass",
@@ -919,6 +920,22 @@ cc_library(
         "//xls/ir:abstract_evaluator",
         "//xls/ir:ternary",
         "@com_google_absl//absl/log",
+    ],
+)
+
+cc_library(
+    name = "dataflow_dominator_analysis",
+    srcs = ["dataflow_dominator_analysis.cc"],
+    hdrs = ["dataflow_dominator_analysis.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -2348,6 +2365,23 @@ cc_test(
 )
 
 cc_test(
+    name = "dataflow_dominator_analysis_test",
+    srcs = ["dataflow_dominator_analysis_test.cc"],
+    deps = [
+        ":dataflow_dominator_analysis",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "post_dominator_analysis_test",
     srcs = ["post_dominator_analysis_test.cc"],
     deps = [
@@ -3205,6 +3239,58 @@ cc_test(
         "//xls/ir:value",
         "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/log:globals",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "lut_conversion_pass",
+    srcs = ["lut_conversion_pass.cc"],
+    hdrs = ["lut_conversion_pass.h"],
+    deps = [
+        ":dataflow_dominator_analysis",
+        ":optimization_pass",
+        ":optimization_pass_registry",
+        ":pass_base",
+        ":query_engine",
+        ":stateless_query_engine",
+        ":ternary_query_engine",
+        ":union_query_engine",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "lut_conversion_pass_test",
+    srcs = ["lut_conversion_pass_test.cc"],
+    deps = [
+        ":lut_conversion_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],

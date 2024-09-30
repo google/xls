@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
@@ -137,14 +138,25 @@ inline bool IsNotOf(const Node* node, const Node* inverted) {
   return node->op() == Op::kNot && node->operand(0) == inverted;
 }
 
-// Returns an IR expression whose value is equal to the bits of 'operand' at the
-// given indices concated together. All 'indices' must be unique.
+// Returns an IR expression whose value is equal to the bits of 'node' at the
+// given bit positions concated together. All 'indices' must be unique.
 absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64_t const> indices);
+
+// Returns an IR expression whose value is equal to the bits of 'node' at the
+// given bit positions concated together. Each entry of 'positions' must contain
+// no repeats.
+absl::StatusOr<Node*> GatherBits(
+    Node* node, LeafTypeTreeView<std::vector<int64_t>> positions);
 
 // Returns an IR expression whose value is equal to the bits of 'node' at the
 // indices where 'mask' is true, discarding all bits where 'mask' is false.
 // 'node' must be bits-typed, and 'mask' must have the same bit count as 'node'.
 absl::StatusOr<Node*> GatherBits(Node* node, const Bits& mask);
+
+// Returns an IR expression whose value is a flattened concatenation of the bits
+// of 'node' at the indices where 'mask' is true, discarding all bits where
+// 'mask' is false. 'mask' must have the same type as 'node'.
+absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask);
 
 // Returns an IR expression whose bits is equal to the values in 'pattern' where
 // known, and otherwise fills in with the bits from 'node' (both going in
