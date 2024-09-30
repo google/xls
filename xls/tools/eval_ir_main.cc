@@ -76,14 +76,12 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/interpreter/function_interpreter.h"
-#include "xls/interpreter/observer.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
@@ -95,7 +93,6 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
-#include "xls/tools/node_coverage_utils.h"
 
 static constexpr std::string_view kUsage = R"(
 Evaluates an IR file with user-specified or random inputs using the IR
@@ -200,20 +197,6 @@ ABSL_FLAG(
     "Test-only flag for injecting the result produced by the JIT. Used to "
     "force mismatches between JIT and interpreter for testing purposed.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
-
-// TODO(allight): It might be nice to allow one to specify these in build files.
-// Right now if you want this report you need to run eval_ir_main on the command
-// line. Being able to use generate it with a xls_eval_ir_test target could
-// conceivably be useful.
-ABSL_FLAG(std::optional<std::string>, output_node_coverage_stats_proto,
-          std::nullopt,
-          "File to write a (binary) NodeCoverageStatsProto showing which bits "
-          "in the run were actually set for each node.");
-// TODO(allight): It might be nice to allow one to specify these in build files.
-ABSL_FLAG(std::optional<std::string>, output_node_coverage_stats_textproto,
-          std::nullopt,
-          "File to write a (text) NodeCoverageStatsProto showing which bits "
-          "in the run were actually set for each node.");
 
 // TODO(allight): It would be nice to enable doing this automatically if the
 // llvm jit code crashes or something.
@@ -364,7 +347,6 @@ absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
 // results, respectively. These strings are included in error messages.
 absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
-    std::optional<EvaluationObserver*> eval_observer = std::nullopt,
     std::string_view actual_src = "actual",
     std::string_view expected_src = "expected") {
   EvalIrJitObserver observer(absl::GetFlag(FLAGS_use_llvm_jit_interpreter));
@@ -372,10 +354,9 @@ absl::StatusOr<std::vector<Value>> Eval(
   if (use_jit) {
     // No support for procs yet.
     XLS_ASSIGN_OR_RETURN(
-        jit, FunctionJit::Create(
-                 f, absl::GetFlag(FLAGS_llvm_opt_level),
-                 /*include_observer_callbacks=*/eval_observer.has_value(),
-                 &observer));
+        jit,
+        FunctionJit::Create(f, absl::GetFlag(FLAGS_llvm_opt_level),
+                            /*include_observer_callbacks=*/false, &observer));
   }
 
   std::vector<Value> results;
@@ -384,25 +365,12 @@ absl::StatusOr<std::vector<Value>> Eval(
     if (use_jit) {
       if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
         if (absl::GetFlag(FLAGS_use_llvm_jit_interpreter)) {
-          XLS_RET_CHECK(!eval_observer)
-              << "Observer not supported with llvm interpreter.";
           XLS_ASSIGN_OR_RETURN(
               result, DropInterpreterEvents(RunLlvmInterpreter(
                           observer.saved_opt_ir(), jit.get(), arg_set.args)));
         } else {
-          std::optional<RuntimeEvaluationObserverAdapter> adapt;
-          if (eval_observer) {
-            adapt.emplace(
-                eval_observer.value(),
-                [](int64_t v) -> Node* {
-                  return reinterpret_cast<Node*>(static_cast<intptr_t>(v));
-                },
-                jit->runtime());
-            XLS_RETURN_IF_ERROR(jit->SetRuntimeObserver(&adapt.value()));
-          }
           XLS_ASSIGN_OR_RETURN(result,
                                DropInterpreterEvents(jit->Run(arg_set.args)));
-          jit->ClearRuntimeObserver();
         }
       } else {
         XLS_ASSIGN_OR_RETURN(result, Parser::ParseTypedValue(absl::GetFlag(
@@ -413,8 +381,8 @@ absl::StatusOr<std::vector<Value>> Eval(
       // resulting events once the JIT fully supports events. Note: This will
       // require rethinking some of the control flow because event comparison
       // only makes sense for certain modes (optimize_ir and test_llvm_jit).
-      XLS_ASSIGN_OR_RETURN(result, DropInterpreterEvents(InterpretFunction(
-                                       f, arg_set.args, eval_observer)));
+      XLS_ASSIGN_OR_RETURN(
+          result, DropInterpreterEvents(InterpretFunction(f, arg_set.args)));
     }
     std::cout << result.ToString(FormatPreference::kHex) << '\n';
 
@@ -448,9 +416,6 @@ class EvalInvariantChecker : public OptimizationInvariantChecker {
     }
     XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets_, use_jit_,
-                             // Runs between passes don't give useful coverage
-                             // information.
-                             /*eval_observer=*/std::nullopt,
                              /*actual_src=*/results->invocations.empty()
                                  ? std::string("start of pipeline")
                                  : results->invocations.back().pass_name,
@@ -469,9 +434,6 @@ class EvalInvariantChecker : public OptimizationInvariantChecker {
 // after optimizations.
 absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
-  ScopedRecordNodeCoverage cov(
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
   // Copy the input ArgSets because we want to write in expected values if they
   // do not exist.
   std::vector<ArgSet> arg_sets(arg_sets_in.begin(), arg_sets_in.end());
@@ -479,28 +441,22 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   if (absl::GetFlag(FLAGS_test_llvm_jit)) {
     QCHECK(!absl::GetFlag(FLAGS_optimize_ir))
         << "Cannot specify both --test_llvm_jit and --optimize_ir";
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<Value> interpreter_results,
-        Eval(f, arg_sets, /*use_jit=*/false, /*eval_observer=*/std::nullopt));
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> interpreter_results,
+                         Eval(f, arg_sets, /*use_jit=*/false));
     for (int64_t i = 0; i < arg_sets.size(); ++i) {
       QCHECK(!arg_sets[i].expected.has_value())
           << "Cannot specify expected values when using --test_llvm_jit";
       arg_sets[i].expected = interpreter_results[i];
     }
-    XLS_RETURN_IF_ERROR(Eval(f, arg_sets, /*use_jit=*/true,
-                             /*eval_observer=*/cov.observer(), "JIT",
-                             "interpreter")
-                            .status());
-    return absl::OkStatus();
+    return Eval(f, arg_sets, /*use_jit=*/true, "JIT", "interpreter").status();
   }
 
   // Run the argsets through the IR before any optimizations. Write in the
   // results as the expected values if the expected value is not already
   // set. These expected values are used in any later evaluation after
   // optimizations.
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<Value> results,
-      Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit), cov.observer()));
+  XLS_ASSIGN_OR_RETURN(std::vector<Value> results,
+                       Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit)));
   for (int64_t i = 0; i < arg_sets.size(); ++i) {
     if (!arg_sets[i].expected.has_value()) {
       arg_sets[i].expected = results[i];
@@ -522,8 +478,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
         pipeline->Run(package, OptimizationPassOptions(), &results).status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
-                             cov.observer(), "after optimizations",
-                             "before optimizations")
+                             "after optimizations", "before optimizations")
                             .status());
   } else {
     XLS_RET_CHECK(!absl::GetFlag(FLAGS_eval_after_each_pass))
