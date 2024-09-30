@@ -207,6 +207,7 @@ filegroup(
         "synth_only/cstdint",
         "synth_only/cstdio",
         "synth_only/cstdlib",
+        "synth_only/fstream",
         "synth_only/inttypes.h",
         "synth_only/iomanip",
         "synth_only/iostream",
