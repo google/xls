@@ -21,6 +21,7 @@
 #include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
@@ -81,6 +82,22 @@ class IndexTypeConverter : public TypeConverter {
       bool b = isa<IndexType, ArrayType, TupleType>(ty);
       return b ? std::nullopt : std::optional<Type>(ty);
     });
+  }
+
+  // We should not need this function, but it is required for resolving the
+  // overloaded method.
+  bool isLegal(Region *region) const { return TypeConverter::isLegal(region); }
+
+  bool isLegal(mlir::Operation *op) const {
+    // An non-function XlsRegionOp is legal always (reminder: meaning that it
+    // has legal operand and result types) as we will not do any conversion on
+    // these. Functions or any other op needs to have their types converted.
+    if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
+      if (interface.isSupportedRegion() && !mlir::isa<mlir::func::FuncOp>(op)) {
+        return true;
+      }
+    }
+    return TypeConverter::isLegal(op);
   }
 
   MLIRContext &getContext() const { return ctx; }
@@ -210,6 +227,18 @@ class IndexTypeConversionPass
   using IndexTypeConversionPassBase::IndexTypeConversionPassBase;
 
   void runOnOperation() override {
+    getOperation()->walk([&](Operation *op) {
+      if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
+        if (interface.isSupportedRegion()) {
+          runOnOperation(interface);
+          return WalkResult::skip();
+        }
+      }
+      return WalkResult::advance();
+    });
+  }
+
+  void runOnOperation(XlsRegionOpInterface op) {
     MLIRContext &ctx = getContext();
     IndexTypeConverter typeConverter(ctx, indexTypeBitWidth);
     ConversionTarget target(ctx);
@@ -224,8 +253,7 @@ class IndexTypeConversionPass
     patterns
         .add<LegalizeIndexCastOp, LegalizeConstantIndex, LegalizeGeneralOps>(
             typeConverter, &ctx);
-    if (failed(mlir::applyFullConversion(getOperation(), target,
-                                         std::move(patterns)))) {
+    if (failed(mlir::applyFullConversion(op, target, std::move(patterns)))) {
       signalPassFailure();
     }
   }
