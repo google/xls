@@ -65,11 +65,15 @@ class Comments {
 
 DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
 
-DocRef FmtStatement(const Statement& n, const Comments& comments,
-                    DocArena& arena, bool trailing_semi);
+// Create a pretty-printable document from the given AST Statement node `n`.
+// If `trailing_semi` is true, then a trailing semicolon will also be emitted.
+DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
+           bool trailing_semi);
 
-DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
-                      bool trailing_semi);
+// Create a pretty-printable document from the given AST Let node `n`.
+// If `trailing_semi` is true, then a trailing semicolon will also be emitted.
+DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
+           bool trailing_semi);
 
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
 

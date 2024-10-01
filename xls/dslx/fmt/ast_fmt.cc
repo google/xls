@@ -653,8 +653,8 @@ static DocRef FmtSingleStatementBlockInline(const StatementBlock& n,
     pieces = {arena.ocurl(), arena.break1()};
   }
 
-  pieces.push_back(FmtStatement(*n.statements()[0], comments, arena,
-                                /*trailing_semi=*/n.trailing_semi()));
+  pieces.push_back(Fmt(*n.statements()[0], comments, arena,
+                       /*trailing_semi=*/n.trailing_semi()));
 
   if (add_curls) {
     pieces.push_back(arena.break1());
@@ -751,7 +751,7 @@ static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
     // Here we emit the formatted statement.
     bool last_stmt = i + 1 == n.statements().size();
     std::vector<DocRef> stmt_semi = {
-        FmtStatement(*stmt, comments, arena, n.trailing_semi() || !last_stmt)};
+        Fmt(*stmt, comments, arena, n.trailing_semi() || !last_stmt)};
 
     // Now we reflect the emission of the statement.
     last_entity_pos = stmt_limit;
@@ -1481,7 +1481,7 @@ DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena);
 // Default formatting for let-as-expression is to not emit the RHS with a
 // semicolon on it.
 DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
-  return FmtLetWithSemi(n, comments, arena, /*trailing_semi=*/false);
+  return Fmt(n, comments, arena, /*trailing_semi=*/false);
 }
 
 class FmtExprVisitor : public ExprVisitor {
@@ -1628,8 +1628,8 @@ DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
 
 }  // namespace
 
-DocRef FmtLetWithSemi(const Let& n, const Comments& comments, DocArena& arena,
-                      bool trailing_semi) {
+DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
+           bool trailing_semi) {
   std::vector<DocRef> leader_pieces = {
       arena.MakeText(n.is_const() ? "const" : "let"), arena.space(),
       Fmt(*n.name_def_tree(), comments, arena)};
@@ -1758,30 +1758,28 @@ std::vector<const CommentData*> Comments::GetComments(
   return results;
 }
 
-DocRef FmtStatement(const Statement& n, const Comments& comments,
-                    DocArena& arena, bool trailing_semi) {
+DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
+           bool trailing_semi) {
   auto maybe_concat_semi = [&](DocRef d) {
     if (trailing_semi) {
       return arena.MakeConcat(d, arena.semi());
     }
     return d;
   };
-  return absl::visit(Visitor{
-                         [&](const Expr* n) {
-                           return maybe_concat_semi(Fmt(*n, comments, arena));
-                         },
-                         [&](const TypeAlias* n) {
-                           return maybe_concat_semi(Fmt(*n, comments, arena));
-                         },
-                         [&](const Let* n) {
-                           return FmtLetWithSemi(*n, comments, arena,
-                                                 trailing_semi);
-                         },
-                         [&](const ConstAssert* n) {
-                           return maybe_concat_semi(Fmt(*n, comments, arena));
-                         },
-                     },
-                     n.wrapped());
+  return absl::visit(
+      Visitor{
+          [&](const Expr* n) {
+            return maybe_concat_semi(Fmt(*n, comments, arena));
+          },
+          [&](const TypeAlias* n) {
+            return maybe_concat_semi(Fmt(*n, comments, arena));
+          },
+          [&](const Let* n) { return Fmt(*n, comments, arena, trailing_semi); },
+          [&](const ConstAssert* n) {
+            return maybe_concat_semi(Fmt(*n, comments, arena));
+          },
+      },
+      n.wrapped());
 }
 
 // Formats parameters (i.e. function parameters) with leading '(' and trailing

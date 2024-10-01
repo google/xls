@@ -163,7 +163,7 @@ TEST(AstFmtTest, FormatLet) {
   Comments comments = Comments::Create(s.comments());
 
   DocArena arena(file_table);
-  DocRef doc = FmtStatement(*stmt, comments, arena, /*trailing_semi=*/false);
+  DocRef doc = Fmt(*stmt, comments, arena, /*trailing_semi=*/false);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
