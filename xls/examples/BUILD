@@ -779,6 +779,12 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "delay_ir",
     dslx_top = "Delay32x2048_init3",
+    ir_conv_args = {
+        # Set fifo config for multi-proc codegen.
+        # It needs to know what configuration to use for the fifo.
+        "default_fifo_config": "depth: 0, bypass: true, " +
+                               "register_push_outputs: false, register_pop_outputs: false",
+    },
     ir_file = "delay.ir",
     library = ":delay_dslx",
 )
@@ -786,7 +792,6 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "delay_opt_ir",
     src = "delay.ir",
-    top = "__delay__Delay32x2048_init3__Delay_0__DelayInternal_0__10_32_2048_64_1024_3_next",
 )
 
 xls_ir_verilog(
@@ -816,6 +821,7 @@ xls_ir_verilog(
         "flop_single_value_channels": "false",
         "flop_outputs": "false",
         "add_idle_output": "false",
+        "multi_proc": "true",
         "streaming_channel_data_suffix": "_data",
         "streaming_channel_ready_suffix": "_ready",
         "streaming_channel_valid_suffix": "_valid",
