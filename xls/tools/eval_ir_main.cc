@@ -469,6 +469,7 @@ class EvalInvariantChecker : public OptimizationInvariantChecker {
 // after optimizations.
 absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
+  // TODO(allight): Use the specialized jit-abi coverage observer.
   ScopedRecordNodeCoverage cov(
       absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
       absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));

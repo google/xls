@@ -285,6 +285,7 @@ class JitBlockEvaluator : public BlockEvaluator {
   explicit constexpr JitBlockEvaluator(bool supports_observer = false)
       : BlockEvaluator(supports_observer ? "ObservableJit" : "Jit"),
         supports_observer_(supports_observer) {}
+  absl::StatusOr<JitRuntime*> GetRuntime(BlockContinuation* cont) const;
 
  protected:
   absl::StatusOr<std::unique_ptr<BlockContinuation>> MakeNewContinuation(

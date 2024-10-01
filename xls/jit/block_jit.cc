@@ -35,6 +35,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/materialize_fifos_pass.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_evaluator.h"
@@ -572,6 +573,7 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
   BlockContinuationJitWrapper(std::unique_ptr<BlockJitContinuation>&& cont,
                               std::unique_ptr<BlockJit>&& jit)
       : continuation_(std::move(cont)), jit_(std::move(jit)) {}
+  JitRuntime* runtime() const { return jit_->runtime(); }
   const absl::flat_hash_map<std::string, Value>& output_ports() final {
     if (!temporary_outputs_) {
       temporary_outputs_.emplace(continuation_->GetOutputPortsMap());
@@ -604,6 +606,10 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
   }
   absl::Status SetObserver(EvaluationObserver* obs) override {
     ClearObserver();
+    std::optional<RuntimeObserver*> run = obs->AsRawObserver();
+    if (run) {
+      return continuation_->SetObserver(*run);
+    }
     eval_observer_.emplace(
         obs,
         [](int64_t ptr) -> Node* {
@@ -640,6 +646,16 @@ JitBlockEvaluator::MakeNewContinuation(
   XLS_RETURN_IF_ERROR(jit_cont->SetRegisters(initial_registers));
   return std::make_unique<BlockContinuationJitWrapper>(std::move(jit_cont),
                                                        std::move(jit));
+}
+
+absl::StatusOr<JitRuntime*> JitBlockEvaluator::GetRuntime(
+    BlockContinuation* cont) const {
+  BlockContinuationJitWrapper* cont_wrap =
+      dynamic_cast<BlockContinuationJitWrapper*>(cont);
+  if (cont_wrap == nullptr) {
+    return absl::InvalidArgumentError("Not a jit continuation");
+  }
+  return cont_wrap->runtime();
 }
 
 }  // namespace xls

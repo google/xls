@@ -188,7 +188,12 @@ absl::Status ProcJitContinuation::SetObserver(EvaluationObserver* obs) {
         "Observers are not supported on this compilation.");
   }
   XLS_RETURN_IF_ERROR(ProcContinuation::SetObserver(obs));
-  instance_context_.observer = &observer_shim_;
+  auto runtime_obs = obs->AsRawObserver();
+  if (runtime_obs) {
+    instance_context_.observer = *runtime_obs;
+  } else {
+    instance_context_.observer = &observer_shim_;
+  }
   return absl::OkStatus();
 }
 

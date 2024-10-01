@@ -15,6 +15,8 @@
 #ifndef XLS_INTERPRETER_OBSERVER_H_
 #define XLS_INTERPRETER_OBSERVER_H_
 
+#include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -23,11 +25,16 @@
 
 namespace xls {
 
+class RuntimeObserver;
 // An observer which can be called for each node evaluated.
 class EvaluationObserver {
  public:
   virtual ~EvaluationObserver() = default;
   virtual void NodeEvaluated(Node* n, const Value& v) = 0;
+  // Convert this to an observer capable of accepting jit values if possible.
+  virtual std::optional<RuntimeObserver*> AsRawObserver() {
+    return std::nullopt;
+  }
 };
 
 // Test observer that just collects every node value.

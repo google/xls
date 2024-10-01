@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -36,6 +37,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/tools/node_coverage_stats.pb.h"
 
 namespace xls {
@@ -101,7 +103,21 @@ void CoverageEvalObserver::NodeEvaluated(Node* n, const Value& v) {
   coverage_[n] = bitmap.value();
 }
 
+absl::Status CoverageEvalObserver::Finalize() {
+  if (!jit_) {
+    XLS_RET_CHECK(raw_coverage_.empty()) << "no jit but raw data was present.";
+    return absl::OkStatus();
+  }
+  for (const auto& [node, data] : raw_coverage_) {
+    NodeEvaluated(node,
+                  jit_.value()->UnpackBuffer(data.data(), node->GetType()));
+  }
+  raw_coverage_.clear();
+  return absl::OkStatus();
+}
+
 absl::StatusOr<NodeCoverageStatsProto> CoverageEvalObserver::proto() const {
+  XLS_RET_CHECK(raw_coverage_.empty()) << "Need to call finalize first";
   NodeCoverageStatsProto res;
   if (coverage_.empty()) {
     LOG(WARNING) << "No coverage information collected.";
@@ -145,11 +161,32 @@ absl::StatusOr<NodeCoverageStatsProto> CoverageEvalObserver::proto() const {
 
   return res;
 }
+void CoverageEvalObserver::RecordNodeValue(int64_t node_ptr,
+                                           const uint8_t* data) {
+  CHECK(jit_);
+  if (paused_) {
+    VLOG(2) << "Ignoring " << node_ptr << " due to pause.";
+    return;
+  }
+  Node* node = reinterpret_cast<Node*>(static_cast<intptr_t>(node_ptr));
+  if (!raw_coverage_.contains(node)) {
+    raw_coverage_[node] =
+        std::vector<uint8_t>(jit_.value()->GetTypeByteSize(node->GetType()), 0);
+  }
+  if (node->GetType()->GetFlatBitCount() == 0) {
+    return;
+  }
+  std::vector<uint8_t>& bits = raw_coverage_[node];
+  for (int64_t i = 0; i < bits.size(); ++i) {
+    bits[i] = bits[i] | data[i];
+  }
+}
 
 ScopedRecordNodeCoverage::~ScopedRecordNodeCoverage() {
   if (!txtproto_ && !binproto_) {
     return;
   }
+  CHECK_OK(obs_.Finalize());
   absl::StatusOr<NodeCoverageStatsProto> proto = obs_.proto();
   if (!proto.ok()) {
     LOG(ERROR) << "Unable to turn coverage stats to proto: " << proto.status();

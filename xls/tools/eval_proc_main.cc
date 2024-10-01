@@ -74,6 +74,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/tools/eval_utils.h"
 #include "xls/tools/node_coverage_utils.h"
 
@@ -234,19 +235,25 @@ static absl::Status EvaluateProcs(
         expected_outputs_for_channels,
     const EvaluateProcsOptions& options = {}) {
   std::unique_ptr<SerialProcRuntime> runtime;
-  ScopedRecordNodeCoverage cov(
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
+  std::optional<JitRuntime*> jit;
   EvaluatorOptions evaluator_options;
-  evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels))
-      .set_support_observers(cov.observer().has_value());
+  evaluator_options.set_trace_channels(absl::GetFlag(FLAGS_trace_channels));
+  bool uses_observers =
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
+  evaluator_options.set_support_observers(uses_observers);
   if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(
         runtime, CreateJitSerialProcRuntime(package, evaluator_options));
+    XLS_ASSIGN_OR_RETURN(auto jit_queue, runtime->GetJitChannelQueueManager());
+    jit = &jit_queue->runtime();
   } else {
     XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(
                                       package, evaluator_options));
   }
+  ScopedRecordNodeCoverage cov(
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto), jit);
   if (cov.observer()) {
     XLS_RETURN_IF_ERROR(runtime->SetObserver(*cov.observer()));
     LOG(ERROR) << "Set observer!";
@@ -730,10 +737,6 @@ static absl::Status RunBlock(
         "Input IR should contain exactly one block");
   }
 
-  ScopedRecordNodeCoverage cov(
-      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
-      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto));
-
   std::mt19937_64 bit_gen(options.random_seed);
 
   Block* block = package->blocks()[0].get();
@@ -785,15 +788,25 @@ static absl::Status RunBlock(
     reg_state[reg->name()] = XsOfType(reg->type());
   }
 
+  bool needs_observer =
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
   const BlockEvaluator& continuation_factory =
       options.use_jit
           ? reinterpret_cast<const BlockEvaluator&>(
-                cov.observer() ? kObservableJitBlockEvaluator
+                needs_observer ? kObservableJitBlockEvaluator
                                : kJitBlockEvaluator)
           : reinterpret_cast<const BlockEvaluator&>(kInterpreterBlockEvaluator);
-
   XLS_ASSIGN_OR_RETURN(auto continuation,
                        continuation_factory.NewContinuation(block, reg_state));
+  std::optional<JitRuntime*> jit;
+  if (options.use_jit) {
+    XLS_ASSIGN_OR_RETURN(jit,
+                         kJitBlockEvaluator.GetRuntime(continuation.get()));
+  }
+  ScopedRecordNodeCoverage cov(
+      absl::GetFlag(FLAGS_output_node_coverage_stats_proto),
+      absl::GetFlag(FLAGS_output_node_coverage_stats_textproto), jit);
 
   if (cov.observer()) {
     XLS_RETURN_IF_ERROR(continuation->SetObserver(*cov.observer()));
