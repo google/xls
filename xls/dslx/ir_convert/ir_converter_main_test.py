@@ -767,6 +767,14 @@ class IrConverterMainTest(test_base.TestCase):
           {"main.x": program},
           extra_flags=[f'--dslx_stdlib_path={stdlib_dir}'],
       )
+      self.assertIn(
+          textwrap.dedent("""\
+      fn __std__my_stdlib_func(x: bits[32] id=1) -> bits[32] {
+        ret x: bits[32] = param(name=x, id=1)
+      }
+      """),
+          result.ir,
+      )
 
 
 if __name__ == "__main__":
