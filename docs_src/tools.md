@@ -23,7 +23,7 @@ Rewrites an XLS IR function in terms of its ops' fundamental AND/OR/NOT
 constituents, i.e., makes all operations boolean, thus it's "booleanifying" the
 function.
 
-## [`codegen_main`](https://github.com/google/xls/tree/main/xls/tools/codegen_main.cc)
+## [`codegen_main`](https://github.com/google/xls/tree/main/xls/tools/codegen_main.cc) {#codegen-main}
 
 Lowers an XLS IR file into Verilog. Options include emitting a feedforward
 pipeline or a purely combinational block. Emits both a Verilog file and a module
@@ -39,7 +39,14 @@ visit the [codegen options](codegen_options.md) page.
 Dumps delay information about an XLS function including per-node delay
 information and critical-path.
 
-## [`eval_ir_main`](https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc)
+## Ir Evaluation
+
+There are two different programs that can be used to simulate XLS designs
+depending on the type of design. `eval_ir_main` is used to simulate `fn`
+designs and `eval_proc_main` is used to simulate `proc` and `block` irs. Both
+binaries support running using the JIT to simulate at high performance.
+
+### [`eval_ir_main`](https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc)
 
 Evaluates an XLS IR file with user-specified or random inputs. Includes features
 for evaluating the IR before and after optimizations which makes this tool very
@@ -54,6 +61,23 @@ return true if the inputs are valid for the function and false otherwise.
 `--input_validator_expr` lists the function as an inline command-line argument,
 whereas `--input_validator_path` holds the path to a .x file containing the
 validation function.
+
+### [`eval_proc_main`](https://github.com/google/xls/tree/main/xls/tools/eval_proc_main.cc)
+
+Simulates an XLS IR `proc` network or `block`. The tool accepts a list of inputs
+to provide to the channels of the proc/ports of the block and a list of expected
+outputs. One can also specify how many cycles to simulate the block/proc for,
+including simulating to input exhaustion. Port naming options like those of
+[`codegen_main`](#codegen-main) are also present to encode how to translate
+channel names into the block ready/valid/data ports.
+
+### Node Coverage
+
+`eval_ir_main` and `eval_proc_main` can generate data coverage reports using the
+`--output_node_coverage_stats_[text]proto={file}` flag. This generates a
+[`NodeCoverageStatsProto`](https://github.com/google/xls/tree/main/xls/tools/node_coverage_stats.proto)
+with information about which bits of every node were observed set. This can be
+used to validate transformations and gain insights into how the code performs.
 
 ## Jit Inspection {#jit-inspect}
 
