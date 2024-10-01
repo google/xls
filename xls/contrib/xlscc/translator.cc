@@ -4600,17 +4600,6 @@ class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
     return std::nullopt;
   }
 
-  absl::Status HandleParam(xls::Param* param) final {
-    // Don't bother evaluating parameters as it will always fail.
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleLiteral(xls::Literal* literal) final {
-    // Don't bother evaluating literals as we'd just replace them with another
-    // literal.
-    return absl::OkStatus();
-  }
-
   absl::Status HandleNaryAnd(xls::NaryOp* op) final {
     xls::IrInterpreter ir_interpreter;
     absl::Status status = op->Accept(&ir_interpreter);
@@ -4698,18 +4687,6 @@ class ShortCircuitVisitor : public xls::DfsVisitorWithDefault {
     return absl::OkStatus();
   }
   absl::Status DefaultHandler(xls::Node* node) final {
-    if (node->users().empty()) {
-      // Don't bother evaluating nodes with no users
-      return absl::OkStatus();
-    }
-    xls::IrInterpreter ir_interpreter;
-    absl::Status status = node->Accept(&ir_interpreter);
-    if (status.ok()) {
-      const xls::Value& value = ir_interpreter.ResolveAsValue(node);
-      XLS_ASSIGN_OR_RETURN(xls::Node * replacement,
-                           node->ReplaceUsesWithNew<xls::Literal>(value));
-      rewrites_[node] = replacement;
-    }
     return absl::OkStatus();
   }
 
