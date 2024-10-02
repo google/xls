@@ -347,8 +347,10 @@ absl::Status RealMain(std::string_view ir_path) {
   XLS_RETURN_IF_ERROR(VerifyPackage(p.get()));
 
   std::string top_str = absl::GetFlag(FLAGS_top);
-  std::optional<std::string_view> maybe_top_str =
-      top_str.empty() ? std::nullopt : std::make_optional(top_str);
+  std::optional<std::string_view> maybe_top_str;
+  if (!top_str.empty()) {
+    maybe_top_str = top_str;
+  }
   XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindTop(p.get(), maybe_top_str));
 
   XLS_ASSIGN_OR_RETURN(
