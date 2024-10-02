@@ -24,7 +24,9 @@ load("@rules_7zip//:setup.bzl", "setup_7zip")  # needed by rules_hdl
 load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
 load("@rules_hdl//dependency_support:dependency_support.bzl", rules_hdl_dependency_support = "dependency_support")
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
-load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
+load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies")
+load("@rules_proto//proto:setup.bzl", "rules_proto_setup")
+load("@rules_proto//proto:toolchains.bzl", "rules_proto_toolchains")
 load("@rules_python//python:pip.bzl", "pip_parse")
 load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
 load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
@@ -39,6 +41,7 @@ def initialize_external_repositories():
     rules_closure_dependencies()
     rules_closure_toolchains()
     rules_proto_dependencies()
+    rules_proto_setup()
     rules_proto_toolchains()
     pip_parse(
         name = "xls_pip_deps",

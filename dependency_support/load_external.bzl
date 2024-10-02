@@ -136,25 +136,30 @@ def load_external_repositories():
         },
     )
 
-    # Released on 2022-12-27.
-    # Current as of 2024-06-26 would be 6.0.2, but that does not work yet
-    # with rules_hdl (it assumes rules_proto_toolchains is in repositories.bzl)
-    # https://github.com/bazelbuild/rules_proto/releases/tag/5.3.0-21.7
+    # Release on 2024-09-13, current as of 2024-10-01
+    http_archive(
+        name = "bazel_features",
+        sha256 = "bdc12fcbe6076180d835c9dd5b3685d509966191760a0eb10b276025fcb76158",
+        strip_prefix = "bazel_features-1.17.0",
+        url = "https://github.com/bazel-contrib/bazel_features/releases/download/v1.17.0/bazel_features-v1.17.0.tar.gz",
+    )
+
+    # Release on 2024-06-17, current as of 2024-10-01
     http_archive(
         name = "rules_proto",
-        sha256 = "dc3fb206a2cb3441b485eb1e423165b231235a1ea9b031b4433cf7bc1fa460dd",
-        strip_prefix = "rules_proto-5.3.0-21.7",
+        sha256 = "6fb6767d1bef535310547e03247f7518b03487740c11b6c6adb7952033fe1295",
+        strip_prefix = "rules_proto-6.0.2",
         urls = [
-            "https://github.com/bazelbuild/rules_proto/archive/refs/tags/5.3.0-21.7.tar.gz",
+            "https://github.com/bazelbuild/rules_proto/releases/download/6.0.2/rules_proto-6.0.2.tar.gz",
         ],
     )
 
-    # Released on 2024-06-19, current as of 2024-06-26
+    # Released on 2024-09-24, current as of 2024-10-01
     http_archive(
         name = "rules_python",
-        sha256 = "e3f1cc7a04d9b09635afb3130731ed82b5f58eadc8233d4efb59944d92ffc06f",
-        strip_prefix = "rules_python-0.33.2",
-        url = "https://github.com/bazelbuild/rules_python/releases/download/0.33.2/rules_python-0.33.2.tar.gz",
+        sha256 = "ca77768989a7f311186a29747e3e95c936a41dffac779aff6b443db22290d913",
+        strip_prefix = "rules_python-0.36.0",
+        url = "https://github.com/bazelbuild/rules_python/releases/download/0.36.0/rules_python-0.36.0.tar.gz",
     )
 
     http_archive(

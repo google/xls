@@ -37,9 +37,30 @@ def repo():
         sha256 = "fd9e99f6ccb9e946755f9bc444abefbdd1eedb32c372c56dcacc7eb486aed178",
     )
 
-    # Current as of 2024-04-01
-    git_hash = "3481036a33ea237c4c9c3baeffd5050eedd9f840"
-    archive_sha256 = "238020f945949459ca7d1ab7cb480e8d4a31048909d8674e564684f82dd0110a"
+    # Required to support rules_hdl.
+    http_archive(
+        name = "rules_m4",
+        sha256 = "10ce41f150ccfbfddc9d2394ee680eb984dc8a3dfea613afd013cfb22ea7445c",
+        urls = ["https://github.com/jmillikin/rules_m4/releases/download/v0.2.3/rules_m4-v0.2.3.tar.xz"],
+    )
+
+    # Required to support rules_hdl.
+    http_archive(
+        name = "rules_flex",
+        sha256 = "8929fedc40909d19a4b42548d0785f796c7677dcef8b5d1600b415e5a4a7749f",
+        urls = ["https://github.com/jmillikin/rules_flex/releases/download/v0.2.1/rules_flex-v0.2.1.tar.xz"],
+    )
+
+    # Required to support rules_hdl.
+    http_archive(
+        name = "rules_bison",
+        sha256 = "2279183430e438b2dc77cacd7b1dbb63438971b2411406570f1ddd920b7c9145",
+        urls = ["https://github.com/jmillikin/rules_bison/releases/download/v0.2.2/rules_bison-v0.2.2.tar.xz"],
+    )
+
+    # Current as of 2024-10-01
+    git_hash = "5023590057a3a83a98be7b6f3aa79eed47daf0e1"
+    archive_sha256 = "4dd1cf51573798da825717d8fbebdb390260d533b76fef908cbceb7bddea1302"
 
     maybe(
         http_archive,
