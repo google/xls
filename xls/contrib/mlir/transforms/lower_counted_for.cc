@@ -71,7 +71,6 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
     auto forOp = rewriter.create<ForOp>(
         op->getLoc(), tupleOp.getType(), tupleOp->getResults(),
         op.getInvariants(), op.getTripCountAttr());
-    //    forOp.getBody().takeBody(op.getBody());
     forOp->setAttr(kPreferredNameAttr, op->getAttr(kPreferredNameAttr));
 
     SmallVector<Value> results;
@@ -119,8 +118,11 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
 };
 
 std::string createUniqueName(Operation* op, std::string prefix) {
-  mlir::ModuleOp module = op->getParentOfType<mlir::ModuleOp>();
-  if (module.lookupSymbol(prefix) == nullptr) {
+  // TODO(jpienaar): This could be made more efficient. Current approach does
+  // work that could be cached and reused.
+  mlir::Operation* symbolTableOp =
+      op->getParentWithTrait<mlir::OpTrait::SymbolTable>();
+  if (mlir::SymbolTable::lookupSymbolIn(symbolTableOp, prefix) == nullptr) {
     return prefix;
   }
 
@@ -128,7 +130,8 @@ std::string createUniqueName(Operation* op, std::string prefix) {
   llvm::SmallString<128> name = SymbolTable::generateSymbolName<128>(
       prefix,
       [&](llvm::StringRef candidate) {
-        return module.lookupSymbol(candidate) != nullptr;
+        return mlir::SymbolTable::lookupSymbolIn(symbolTableOp, candidate) !=
+               nullptr;
       },
       uniquingCounter);
   return std::string(name.str());
@@ -163,12 +166,11 @@ class ForToCountedForRewrite : public OpConversionPattern<ForOp> {
       return rewriter.notifyMatchFailure(op, "Failed to outline body");
     }
     (*func)->setAttr("xls", rewriter.getBoolAttr(true));
-    auto countedFor = rewriter.replaceOpWithNewOp<CountedForOp>(
+    rewriter.replaceOpWithNewOp<CountedForOp>(
         op, op->getResultTypes(), adaptor.getInits().front(),
         adaptor.getInvariants(), adaptor.getTripCountAttr(),
         SymbolRefAttr::get(*func),
         /*stride=*/rewriter.getI64IntegerAttr(1));
-    (void)countedFor;
     return success();
   }
 };
