@@ -142,8 +142,10 @@ def : MinMaxPatBase<(Arith_MinSIOp:$op $a, $b), (Xls_SltOp $a, $b)>;
 def : MinMaxPatBase<(Arith_MaxUIOp:$op $a, $b), (Xls_UgtOp $a, $b)>;
 def : MinMaxPatBase<(Arith_MinUIOp:$op $a, $b), (Xls_UltOp $a, $b)>;
 
+// SelOp will return cases[0] if selector is false and the default value if
+// selector is true (because 1 is out of bound of cases).
 def : Pat<(SelectOp $selector, $a, $b),
-          (Xls_SelOp $selector, /*otherwise=*/$b, /*cases=*/(variadic $a))>;
+          (Xls_SelOp $selector, /*otherwise=*/$a, /*cases=*/(variadic $b))>;
 
 def GetBitwidthAsI64Attr : NativeCodeCall<
   "$_builder.getI64IntegerAttr(cast<IntegerType>($0.getType()).getWidth())"
