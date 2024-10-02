@@ -49,6 +49,26 @@
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
+namespace {
+
+ParametricExpression::EnvValue TypeDimToEnvValue(const TypeDim& dim) {
+  if (std::holds_alternative<InterpValue>(dim.value())) {
+    return std::get<InterpValue>(dim.value());
+  }
+  return ParametricExpression::EnvValue(&dim.parametric());
+}
+
+std::vector<std::unique_ptr<Type>> CloneStructMembers(
+    const std::vector<std::unique_ptr<Type>>& members) {
+  std::vector<std::unique_ptr<Type>> cloned_members;
+  cloned_members.reserve(members.size());
+  for (auto& next : members) {
+    cloned_members.push_back(next->CloneToUnique());
+  }
+  return cloned_members;
+}
+
+}  // namespace
 
 Type::~Type() = default;
 
@@ -285,6 +305,21 @@ absl::StatusOr<bool> TypeDim::GetAsBool() const {
   return absl::InvalidArgumentError(
       absl::StrCat("Expected concrete type dimension to be integral; got: ",
                    std::get<OwnedParametric>(value_)->ToString()));
+}
+
+// -- TypeDimMap
+
+void TypeDimMap::Insert(std::string_view identifier, TypeDim dim) {
+  const TypeDim& stored_dim =
+      dims_.insert_or_assign(identifier, std::move(dim)).first->second;
+  env_.insert_or_assign(identifier, TypeDimToEnvValue(stored_dim));
+}
+
+TypeDimMap::TypeDimMap(
+    const absl::flat_hash_map<std::string, InterpValue>& values) {
+  for (const auto& [key, value] : values) {
+    Insert(key, TypeDim(value));
+  }
 }
 
 // -- Type
@@ -562,36 +597,31 @@ std::vector<TypeDim> StructType::GetAllDims() const {
 }
 
 std::unique_ptr<Type> StructType::AddNominalTypeDims(
-    const absl::flat_hash_map<std::string, TypeDim>& added_dims_by_identifier)
-    const {
-  absl::flat_hash_map<std::string, TypeDim> combined_dims =
-      nominal_type_dims_by_identifier_;
+    const absl::flat_hash_map<std::string, TypeDim>& dims) const {
+  CHECK(nominal_type_dims_by_identifier_.empty());
+  absl::flat_hash_map<std::string, TypeDim> new_dims;
   for (const ParametricBinding* binding : struct_def_.parametric_bindings()) {
-    const auto existing_it = combined_dims.find(binding->identifier());
-    // Don't overwrite a dim that already has a concrete value, because that
-    // could lead to the parametric instantiator mis-attributing the `X` in
-    // `foo` to the unrelated `X` in `Bar` for something like:
-    //   `struct Bar<X:u32> { ... }
-    //    fn foo<X:u32> { Bar<u32:8>{...} }`
-    // Really the instantiator should eventually be re-factored to not even come
-    // close to doing this.
-    if (existing_it != combined_dims.end() &&
-        !std::holds_alternative<TypeDim::OwnedParametric>(
-            existing_it->second.value())) {
-      continue;
-    }
-    const auto it = added_dims_by_identifier.find(binding->identifier());
-    if (it != added_dims_by_identifier.end()) {
-      combined_dims.insert_or_assign(binding->identifier(), it->second.Clone());
+    const auto it = dims.find(binding->identifier());
+    if (it != dims.end()) {
+      new_dims.emplace(binding->identifier(), it->second);
     }
   }
-  std::vector<std::unique_ptr<Type>> cloned_members;
-  cloned_members.reserve(members_.size());
-  for (auto& next : members_) {
-    cloned_members.push_back(next->CloneToUnique());
+  return std::make_unique<StructType>(CloneStructMembers(members_), struct_def_,
+                                      std::move(new_dims));
+}
+
+std::unique_ptr<Type> StructType::ResolveNominalTypeDims(
+    const ParametricExpression::Env& env) const {
+  absl::flat_hash_map<std::string, TypeDim> new_dims =
+      nominal_type_dims_by_identifier_;
+  for (auto& [key, dim] : new_dims) {
+    if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
+      dim = TypeDim(
+          std::get<TypeDim::OwnedParametric>(dim.value())->Evaluate(env));
+    }
   }
-  return std::make_unique<StructType>(std::move(cloned_members), struct_def_,
-                                      std::move(combined_dims));
+  return std::make_unique<StructType>(CloneStructMembers(members_), struct_def_,
+                                      std::move(new_dims));
 }
 
 absl::StatusOr<TypeDim> StructType::GetTotalBitCount() const {

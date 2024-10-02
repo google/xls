@@ -951,6 +951,46 @@ fn extract_field() -> u16 {
 )"));
 }
 
+// See https://github.com/google/xls/issues/1615
+TEST(TypecheckTest, ParametricStructWithWrongOrderParametricValues) {
+  EXPECT_THAT(Typecheck(R"(
+struct StructFoo<A: u32, B: u32> {
+  x: uN[A],
+  y: uN[B],
+}
+
+fn wrong_order<A: u32, B: u32>(x:uN[A], y:uN[B]) -> StructFoo<B, A> {
+  StructFoo<B, A>{x, y}
+}
+
+fn test() -> StructFoo<u32:32, u32:33> {
+  wrong_order<u32:32, u32:33>(u32:2, u33:3)
+}
+
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("uN[33] vs uN[32]: Mismatch between member "
+                                 "and argument types.")));
+}
+
+TEST(TypecheckTest, ParametricStructWithCorrectReverseOrderParametricValues) {
+  XLS_EXPECT_OK(Typecheck(R"(
+struct StructFoo<A: u32, B: u32> {
+  x: uN[A],
+  y: uN[B],
+}
+
+fn wrong_order<A: u32, B: u32>(x:uN[A], y:uN[B]) -> StructFoo<B, A> {
+  StructFoo<B, A>{x:y, y:x}
+}
+
+fn test() -> StructFoo<u32:33, u32:32> {
+  wrong_order<u32:32, u32:33>(u32:2, u33:3)
+}
+
+)"));
+}
+
 TEST(TypecheckTest, DerivedExprTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(

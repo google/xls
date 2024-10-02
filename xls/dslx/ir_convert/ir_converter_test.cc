@@ -887,9 +887,10 @@ fn f(outer_thing_1: u32, outer_thing_2: u32) -> u32 {
 
 TEST(IrConverterTest, ParametricDefaultInStruct) {
   const char* kProgram = R"(
-struct Foo <X: u32, Y: u32 = {X + u32:1}> {
+struct Foo <X: u32, Y: u32 = {X + u32:1}, Z: u32 = {Y + u32:1}> {
     a: uN[X],
     b: uN[Y],
+    c: uN[Z]
 }
 
 fn make_zero_foo<X: u32>() -> Foo<X> {
@@ -898,6 +899,30 @@ fn make_zero_foo<X: u32>() -> Foo<X> {
 
 fn test() -> Foo<u32:5> {
  make_zero_foo<u32:5>()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+// See https://github.com/google/xls/issues/1615
+TEST(IrConverterTest, ParametricStructReverseOrderParametrics) {
+  const char* kProgram = R"(
+struct Foo<X: u32, Y: u32, Z:u32 = {X}> {
+    a: uN[X],
+    b: uN[Y],
+    c: uN[Z],
+}
+
+fn make_zero_foo<X: u32, Y: u32>() -> Foo<Y, X> {
+  Foo<Y, X> { a: zero!<uN[Y]>(), b: zero!<uN[X]>(), c: zero!<uN[Y]>() }
+}
+
+fn test() -> Foo<u32:6, u32:5> {
+ make_zero_foo<u32:5, u32:6>()
 }
 )";
 

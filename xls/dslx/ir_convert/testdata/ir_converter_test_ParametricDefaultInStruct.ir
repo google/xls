@@ -2,11 +2,11 @@ package test_module
 
 file_number 0 "test_module.x"
 
-fn __test_module__make_zero_foo__5() -> (bits[5], bits[6]) {
+fn __test_module__make_zero_foo__5() -> (bits[5], bits[6], bits[7]) {
   X: bits[32] = literal(value=5, id=1)
-  ret literal.2: (bits[5], bits[6]) = literal(value=(0, 0), id=2)
+  ret literal.2: (bits[5], bits[6], bits[7]) = literal(value=(0, 0, 0), id=2)
 }
 
-fn __test_module__test() -> (bits[5], bits[6]) {
-  ret invoke.3: (bits[5], bits[6]) = invoke(to_apply=__test_module__make_zero_foo__5, id=3)
+fn __test_module__test() -> (bits[5], bits[6], bits[7]) {
+  ret invoke.3: (bits[5], bits[6], bits[7]) = invoke(to_apply=__test_module__make_zero_foo__5, id=3)
 }

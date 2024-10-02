@@ -81,17 +81,14 @@ absl::StatusOr<std::unique_ptr<Type>> ResolveInternal(
         return TypeDim(std::move(evaluated));
       }));
   if (!parametric_env_map.empty()) {
-    // We need to add nominal dims upon parametric instantiation, in order for
-    // e.g. the return type of `bar` to get 8 rather than a meaningless `N` as
-    // the nominal dim in:
+    // We need to resolve nominal dims upon parametric instantiation, in order
+    // for e.g. the return type of `bar` to get 8 rather than a meaningless `N`
+    // as the nominal dim in:
     //    `struct S<N:u32> { ... }
     //     fn foo<N: u32>() -> S<N> { ... }
     //     fn bar() -> S<u32:8> { foo<u32:8>() }`
-    absl::flat_hash_map<std::string, TypeDim> nominal_dims;
-    for (const auto& [key, interp_value] : parametric_env_map) {
-      nominal_dims.emplace(key, TypeDim(interp_value));
-    }
-    resolved = resolved->AddNominalTypeDims(nominal_dims);
+    resolved =
+        resolved->ResolveNominalTypeDims(TypeDimMap(parametric_env_map).env());
   }
   VLOG(5) << "Resolved " << annotated.ToString() << " to "
           << resolved->ToString();
