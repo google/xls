@@ -149,7 +149,11 @@ absl::StatusOr<bool> StrengthReduceNode(
     return false;
   }
 
-  if (NarrowingEnabled(opt_level) && !node->Is<Literal>() &&
+  if (NarrowingEnabled(opt_level) &&
+      // Don't replace unused nodes. We don't want to add nodes when they will
+      // get DCEd later. This can lead to an infinite loop between strength
+      // reduction and DCE.
+      !node->users().empty() && !node->Is<Literal>() &&
       query_engine.IsFullyKnown(node)) {
     VLOG(2) << "Replacing node with its (entirely known) value: " << node
             << " as " << query_engine.KnownValue(node)->ToString();

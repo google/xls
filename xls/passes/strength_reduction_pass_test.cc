@@ -39,7 +39,10 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+
 using ::testing::_;
+using ::testing::Each;
+using ::testing::UnorderedElementsAre;
 using ::testing::VariantWith;
 
 class StrengthReductionPassTest : public IrTestBase {
@@ -416,7 +419,7 @@ TEST_F(StrengthReductionPassTest, ArithToSelect) {
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   // Actual verification of result is done by semantics test.
   EXPECT_THAT(f->return_value()->operands(),
-              testing::Each(m::Select(m::Eq(), {m::Literal(), m::Literal()})));
+              Each(m::Select(m::Eq(), {m::Literal(), m::Literal()})));
 }
 
 TEST_F(StrengthReductionPassTest, ArithToSelectOnlyWithOneBit) {
@@ -474,6 +477,36 @@ TEST_F(StrengthReductionPassTest, DoNotPushDownMultipleSelects) {
                 {fb.Literal(UBits(33, 32)), fb.Literal(UBits(45, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ASSERT_THAT(Run(f), IsOkAndHolds(false)) << f->DumpIr();
+}
+
+TEST_F(StrengthReductionPassTest, ReplaceWidth0Param) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue ret = fb.Or(fb.ZeroExtend(fb.Param("x", p->GetBitsType(0)), 1),
+                     fb.Param("y", p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
+  EXPECT_THAT(f->nodes(), UnorderedElementsAre(
+                              m::Param("x"), m::Param("y"), m::ZeroExt(),
+                              m::Or(m::ZeroExt(m::Param("x")), m::Param("y"))));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->nodes(),
+              UnorderedElementsAre(m::Param("x"), m::Param("y"), m::Literal(),
+                                   m::Or(m::Literal(0), m::Param("y"))));
+}
+
+TEST_F(StrengthReductionPassTest, DoNotReplaceUnusedWidth0Param) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Param("x", p->GetBitsType(0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Param("y", p->GetBitsType(1))));
+  EXPECT_THAT(f->nodes(), UnorderedElementsAre(m::Param("x"), m::Param("y")));
+  // Normally, the empty param would be replaced with a literal, but since it
+  // is unused, it doesn't get replaced.
+  // Replacing unused params with literals can lead to an infinite loop with
+  // strength reduction adding the literal and DCE removing it.
+  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  EXPECT_THAT(f->nodes(), UnorderedElementsAre(m::Param("x"), m::Param("y")));
 }
 
 }  // namespace
