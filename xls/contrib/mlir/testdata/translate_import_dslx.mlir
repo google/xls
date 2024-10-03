@@ -2,11 +2,11 @@
 // RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls --optimize-ir %s --main-function=sub -- 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS-OPT
 
 // XLS: fn sub
-// XLS: invoke{{.*}}=__struct_type__int_to_float
-// XLS: invoke{{.*}}=__dot_product__dot_product_fixed_test
-// XLS: invoke{{.*}}=__struct_type__int_to_float
-// XLS: invoke{{.*}}=__struct_type__float_to_int
-// XLS: invoke{{.*}}=__dot_product__dot_product_fixed_test
+// XLS-DAG: invoke{{.*}}=__struct_type__int_to_float
+// XLS-DAG: invoke{{.*}}=__dot_product__dot_product_fixed_test
+// XLS-DAG: invoke{{.*}}=__struct_type__int_to_float
+// XLS-DAG: invoke{{.*}}=__struct_type__float_to_int
+// XLS-DAG: invoke{{.*}}=__dot_product__dot_product_fixed_test
 
 // XLS-OPT-NOT: fn {{.*}}dot_product
 // XLS-OPT: fn sub

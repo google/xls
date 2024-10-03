@@ -977,8 +977,17 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // Debugging ops
             TraceOp>(
             [&](auto t) { return convertOp(t, translation_state, fb); })
-        .Case<mlir::func::ReturnOp, YieldOp>(
-            [&](auto ret) { return out = value_map[ret.getOperand(0)]; })
+        .Case<mlir::func::ReturnOp, YieldOp>([&](auto ret) {
+          if (ret.getNumOperands() == 1) {
+            return out = value_map[ret.getOperand(0)];
+          }
+          std::vector<BValue> operands;
+          operands.reserve(ret.getNumOperands());
+          for (auto operand : ret.getOperands()) {
+            operands.push_back(value_map[operand]);
+          }
+          return out = fb.Tuple(operands);
+        })
         .Case<CallDslxOp>([&](CallDslxOp call) {
           llvm::errs() << "Call remaining, call pass normalize-xls-calls "
                           "before translation\n";
