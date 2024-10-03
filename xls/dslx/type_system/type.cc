@@ -374,9 +374,13 @@ bool Type::IsToken() const {
   return dynamic_cast<const TokenType*>(this) != nullptr;
 }
 
+bool Type::IsTuple() const {
+  return dynamic_cast<const TupleType*>(this) != nullptr;
+}
+
 const EnumType& Type::AsEnum() const {
   auto* s = dynamic_cast<const EnumType*>(this);
-  CHECK(s != nullptr) << "Type is not a enum: " << *this;
+  CHECK(s != nullptr) << "Type is not an enum: " << *this;
   return *s;
 }
 
@@ -386,9 +390,21 @@ const StructType& Type::AsStruct() const {
   return *s;
 }
 
+const MetaType& Type::AsMeta() const {
+  auto* s = dynamic_cast<const MetaType*>(this);
+  CHECK(s != nullptr) << "Type is not a MetaType: " << *this;
+  return *s;
+}
+
 const ArrayType& Type::AsArray() const {
   auto* s = dynamic_cast<const ArrayType*>(this);
   CHECK(s != nullptr) << "Type is not an array: " << *this;
+  return *s;
+}
+
+const TupleType& Type::AsTuple() const {
+  auto* s = dynamic_cast<const TupleType*>(this);
+  CHECK(s != nullptr) << "Type is not a tuple: " << *this;
   return *s;
 }
 

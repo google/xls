@@ -1632,6 +1632,20 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
 
 Function::~Function() = default;
 
+absl::StatusOr<Param*> Function::GetParamByName(
+    std::string_view param_name) const {
+  auto i = std::find_if(params_.begin(), params_.end(), [=](Param* p) -> bool {
+    return (p != nullptr) && (p->name_def()->identifier() == param_name);
+  });
+
+  if (i == params_.end()) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Param '%s' not a parameter of function %s", param_name, ToString()));
+  }
+
+  return *i;
+}
+
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   results.push_back(name_def());

@@ -205,5 +205,42 @@ TEST(AstTest, ToStringCastWithinLtComparison) {
   EXPECT_EQ(lt->ToString(), "(x as t) < x");
 }
 
+TEST(AstTest, GetFuncParam) {
+  // Create an empty function
+  //  fn f(p: u32) -> u32 {}
+
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  BuiltinNameDef* builtin_name_def = m.GetOrCreateBuiltinNameDef("u32");
+  BuiltinTypeAnnotation* u32_type_annotation = m.Make<BuiltinTypeAnnotation>(
+      fake_span, BuiltinType::kU32, builtin_name_def);
+
+  NameDef* func_name_def =
+      m.Make<NameDef>(fake_span, std::string("f"), nullptr);
+  NameDef* param_name_def =
+      m.Make<NameDef>(fake_span, std::string("p"), nullptr);
+
+  std::vector<Param*> params;
+  params.push_back(m.Make<Param>(param_name_def, u32_type_annotation));
+
+  std::vector<ParametricBinding*> parametric_bindings;
+
+  StatementBlock* block =
+      m.Make<StatementBlock>(fake_span, std::vector<Statement*>{}, true);
+
+  Function* f =
+      m.Make<Function>(fake_span, func_name_def, parametric_bindings, params,
+                       u32_type_annotation, block, FunctionTag::kNormal, false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Param * found_param, f->GetParamByName("p"));
+  EXPECT_EQ(found_param, params[0]);
+
+  EXPECT_THAT(f->GetParamByName("not_a_param"),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("Param 'not_a_param' not a parameter")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

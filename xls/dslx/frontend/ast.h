@@ -136,13 +136,18 @@ class AstNodeVisitor {
 
 // Subtype of abstract AstNodeVisitor that returns ok status (does nothing) for
 // every node type.
+//
+// Users can override the default behavior by overriding the DefaultHandler()
+// method.
 class AstNodeVisitorWithDefault : public AstNodeVisitor {
  public:
   ~AstNodeVisitorWithDefault() override = default;
 
+  virtual absl::Status DefaultHandler() { return absl::OkStatus(); }
+
 #define DECLARE_HANDLER(__type)                           \
   absl::Status Handle##__type(const __type* n) override { \
-    return absl::OkStatus();                              \
+    return DefaultHandler();                              \
   }
   XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)
 #undef DECLARE_HANDLER
@@ -1656,6 +1661,7 @@ class Function : public AstNode {
     return parametric_bindings_;
   }
   const std::vector<Param*>& params() const { return params_; }
+  absl::StatusOr<Param*> GetParamByName(std::string_view param_name) const;
 
   // The body of the function is a block (sequence of statements that yields a
   // final expression).

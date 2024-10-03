@@ -388,10 +388,13 @@ class Type {
   bool IsEnum() const;
   bool IsArray() const;
   bool IsMeta() const;
+  bool IsTuple() const;
 
   const StructType& AsStruct() const;
   const EnumType& AsEnum() const;
   const ArrayType& AsArray() const;
+  const MetaType& AsMeta() const;
+  const TupleType& AsTuple() const;
 
  protected:
   static std::vector<std::unique_ptr<Type>> CloneSpan(
