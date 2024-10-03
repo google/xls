@@ -4,6 +4,11 @@ include "mlir/Dialect/Func/IR/FuncOps.td"
 include "mlir/Dialect/Math/IR/MathOps.td"
 include "mlir/IR/PatternBase.td"
 
+def FloatLib : NativeCodeCall<"getFloatLib($0.getType())">;
+
+// Shorthand for a constant string attribute.
+class CS<string s> : ConstantStrAttr<StrAttr, s>;
+
 class BinaryOpPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b), (b $a, $b)>;
 class BinaryOpOverflowPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b, $_), (b $a, $b)>;
 class BinaryVariadicOpPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b), (b (variadic $a, $b))>;
@@ -39,6 +44,26 @@ def : CmpPat<"uge", Xls_UgeOp>;
 def : CmpPat<"ugt", Xls_UgtOp>;
 def : CmpPat<"ule", Xls_UleOp>;
 def : CmpPat<"ult", Xls_UltOp>;
+
+class FCmpPat<string s, dag target> :
+    Pat<(Arith_CmpFOp:$op ConstantEnumCase<Arith_CmpFPredicateAttr, s>, $lhs, $rhs, $fmf),
+        target>;
+
+def : FCmpPat<"oeq", (Xls_CallDslxOp (FloatLib $lhs), CS<"eq_2">,
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
+def : FCmpPat<"ogt", (Xls_CallDslxOp (FloatLib $lhs), CS<"gt_2">,
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
+def : FCmpPat<"oge", (Xls_CallDslxOp (FloatLib $lhs), CS<"gte_2">,
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
+def : FCmpPat<"olt", (Xls_CallDslxOp (FloatLib $lhs), CS<"lt_2">,
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
+def : FCmpPat<"ole", (Xls_CallDslxOp (FloatLib $lhs), CS<"lte_2">,
+                                     (variadic $lhs, $rhs), ConstUnitAttr)>;
+
+// Define unordered(x, y) = is_nan(x + y)
+def : FCmpPat<"uno", (Xls_CallDslxOp (FloatLib $lhs), CS<"is_nan">,
+                                     (variadic (Arith_AddFOp $lhs, $rhs, $fmf)),
+                                     ConstUnitAttr)>;
 
 def : BinaryOpOverflowPat<Arith_ShLIOp, Xls_ShllOp>;
 def : BinaryOpPat<Arith_ShRUIOp, Xls_ShrlOp>;
@@ -86,12 +111,6 @@ def : Pat<(Arith_ConstantOp NonIndexElementsAttr:$val),
 def : Pat<(Arith_ConstantOp NonIndexAttr:$val),
           (Xls_ConstantScalarOp $val)>;
 
-// Shorthand for a constant string attribute.
-class CS<string s> : ConstantStrAttr<StrAttr, s>;
-
-// Returns the float library for the type of the given value.
-def FloatLib : NativeCodeCall<"getFloatLib($0.getType())">;
-
 // The extension and truncation library.
 defvar ExtLib = CS<"xls/contrib/mlir/stdlib/fp_ext_trunc.x">;
 
@@ -109,6 +128,30 @@ def : Pat<(Arith_ExtFOp:$op $a, /*FastMathFlags=*/$_),
 
 def : Pat<(Arith_TruncFOp:$op $a, /*RoundingMode=*/$_, /*FastMathFlags=*/$_),
           (Xls_CallDslxOp ExtLib, CS<"trunc">, (variadic $a), ConstUnitAttr)>;
+
+def : Pat<(Arith_SIToFPOp:$op I32:$a),
+          (Xls_CallDslxOp (FloatLib $op), CS<"from_int32">, (variadic $a), ConstUnitAttr),
+          [(F32 $op)]>;
+
+def : Pat<(Arith_SIToFPOp:$op I8:$a),
+          (Xls_CallDslxOp (FloatLib $op), CS<"from_int8">, (variadic $a), ConstUnitAttr),
+          [(BF16 $op)]>;
+
+def : Pat<(Arith_FPToSIOp:$op F32:$a),
+          (Xls_CallDslxOp (FloatLib $a), CS<"to_int32">, (variadic $a), ConstUnitAttr),
+          [(I32 $op)]>;
+
+def : Pat<(Arith_FPToSIOp:$op BF16:$a),
+          (Xls_CallDslxOp (FloatLib $a), CS<"to_int16">, (variadic $a), ConstUnitAttr),
+          [(I16 $op)]>;
+
+// TODO(jmolloy): to_int8 doesn't exist, so truncating the result of to_int16
+// seems like a reasonable approximation but I don't know if it's bit accurate.
+def : Pat<(Arith_FPToSIOp:$op BF16:$a),
+          (Arith_TruncIOp
+            (Xls_CallDslxOp (FloatLib $a), CS<"to_int16">, (variadic $a),
+                            ConstUnitAttr, (returnType "$_builder.getI16Type()"))),
+          [(I8 $op)]>;
 
 // The expansion is a little tricky to read due to the one-hot select with the
 // default case being the first argument.

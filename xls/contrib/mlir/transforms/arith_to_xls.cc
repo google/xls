@@ -124,7 +124,8 @@ class ArithToXlsPass : public impl::ArithToXlsPassBase<ArithToXlsPass> {
     target.addIllegalDialect<mlir::arith::ArithDialect>();
     target.addLegalDialect<mlir::func::FuncDialect, mlir::tensor::TensorDialect,
                            XlsDialect>();
-    target.addLegalOp<mlir::arith::BitcastOp, mlir::arith::IndexCastOp>();
+    target.addLegalOp<mlir::arith::BitcastOp, mlir::arith::IndexCastOp,
+                      mlir::arith::IndexCastUIOp>();
     // `ConstantOp` with index value is allowed, as it is required by
     // `tensor.extract`/`insert`.
     target.addDynamicallyLegalOp<mlir::arith::ConstantOp>(
