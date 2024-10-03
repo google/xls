@@ -35,14 +35,14 @@ proto_library(
     deps = ["//xls/ir:xls_value_proto"],
 )
 
-cc_proto_library(
-    name = "node_coverage_stats_cc_proto",
+py_proto_library(
+    name = "node_coverage_stats_py_pb2",
     visibility = ["//xls:xls_users"],
     deps = [":node_coverage_stats_proto"],
 )
 
-py_proto_library(
-    name = "node_coverage_stats_py_pb2",
+cc_proto_library(
+    name = "node_coverage_stats_cc_proto",
     visibility = ["//xls:xls_users"],
     deps = [":node_coverage_stats_proto"],
 )
@@ -299,6 +299,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel",
+        "//xls/ir:channel_cc_proto",
         "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
@@ -392,7 +393,10 @@ py_test(
     name = "mul_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/mul_folding_overlarge.ir"],
-    data = [":opt_main"] + glob(["testdata/*.ir"]),
+    data = [
+        ":opt_main",
+        "//xls/tools/testdata:static_ir_files",
+    ],
     main = "run_opt_main.py",
     python_version = "PY3",
     deps = [
@@ -406,7 +410,10 @@ py_test(
     name = "sub_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/sub_folding_overlarge.ir"],
-    data = [":opt_main"] + glob(["testdata/*.ir"]),
+    data = [
+        ":opt_main",
+        "//xls/tools/testdata:static_ir_files",
+    ],
     main = "run_opt_main.py",
     python_version = "PY3",
     deps = [
@@ -420,7 +427,10 @@ py_test(
     name = "sub_add_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/sub_add_folding_overlarge.ir"],
-    data = [":opt_main"] + glob(["testdata/*.ir"]),
+    data = [
+        ":opt_main",
+        "//xls/tools/testdata:static_ir_files",
+    ],
     main = "run_opt_main.py",
     python_version = "PY3",
     deps = [
@@ -434,7 +444,10 @@ py_test(
     name = "shll_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/shll_folding_overlarge.ir"],
-    data = [":opt_main"] + glob(["testdata/*.ir"]),
+    data = [
+        ":opt_main",
+        "//xls/tools/testdata:static_ir_files",
+    ],
     main = "run_opt_main.py",
     python_version = "PY3",
     deps = [
@@ -448,7 +461,10 @@ py_test(
     name = "add_folding_overlarge",
     srcs = ["run_opt_main.py"],
     args = ["xls/tools/testdata/add_folding_overlarge.ir"],
-    data = [":opt_main"] + glob(["testdata/*.ir"]),
+    data = [
+        ":opt_main",
+        "//xls/tools/testdata:static_ir_files",
+    ],
     main = "run_opt_main.py",
     python_version = "PY3",
     deps = [
@@ -463,6 +479,12 @@ proto_library(
     srcs = ["proc_channel_values.proto"],
     visibility = ["//xls:xls_users"],
     deps = ["//xls/ir:xls_value_proto"],
+)
+
+py_proto_library(
+    name = "proc_channel_values_py_pb2",
+    visibility = ["//xls:xls_users"],
+    deps = [":proc_channel_values_proto"],
 )
 
 cc_proto_library(
@@ -698,7 +720,8 @@ py_test(
     data = [
         ":codegen_main",
         "//xls/examples:sha256.opt.ir",
-    ] + glob(["testdata/*.vtxt"]),
+        "//xls/tools/testdata:static_vtxt_files",
+    ],
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
@@ -757,8 +780,17 @@ py_test(
     name = "eval_proc_main_test",
     srcs = ["eval_proc_main_test.py"],
     data = [
-        "testdata/eval_proc_main_test_block_memory.ir",
-        "testdata/eval_proc_main_test_block_memory.sig.textproto",
+        #TODO(allight): These two files (block_memory) should be generated from DSLX code.
+        "//xls/tools/testdata:eval_proc_main_test_block_memory.ir",
+        "//xls/tools/testdata:eval_proc_main_test_block_memory.sig.textproto",
+        "//xls/tools/testdata:eval_proc_main_test.opt.ir",
+        "//xls/tools/testdata:eval_proc_main_test_with_trace.block.ir",
+        "//xls/tools/testdata:eval_proc_main_test_broken.block.ir",
+        "//xls/tools/testdata:eval_proc_main_test.sig.textproto",
+        "//xls/tools/testdata:eval_proc_main_conditional_test.opt.ir",
+        "//xls/tools/testdata:eval_proc_main_zero_size_test.opt.ir",
+        "//xls/tools/testdata:eval_proc_main_zero_size_test.block.ir",
+        "//xls/tools/testdata:eval_proc_main_zero_size_test.sig.textproto",
         ":eval_proc_main",
     ],
     python_version = "PY3",
@@ -795,7 +827,7 @@ cc_library(
 cc_test(
     name = "bom_test",
     srcs = ["bom_test.cc"],
-    data = ["testdata/bom.sig.textproto"],
+    data = ["//xls/tools/testdata:bom.sig.textproto"],
     deps = [
         ":bom",
         "//xls/common:xls_gunit_main",
@@ -916,10 +948,10 @@ py_test(
     name = "gather_design_stats_test",
     srcs = ["gather_design_stats_test.py"],
     data = [
-        "testdata/find_index_5ps_model_unit_expected.textproto",
-        "testdata/find_index_5ps_model_unit_verilog_sta_by_stage_sta.log",
-        "testdata/find_index_5ps_model_unit_verilog_synth_by_stage_yosys_output.log.gz",
         ":gather_design_stats",
+        "//xls/tools/testdata:find_index_5ps_model_unit_expected.textproto",
+        "//xls/tools/testdata:find_index_5ps_model_unit_verilog_sta_by_stage_sta.log",
+        "//xls/tools/testdata:find_index_5ps_model_unit_verilog_synth_by_stage_yosys_output.log.gz",
     ],
     python_version = "PY3",
     srcs_version = "PY3",

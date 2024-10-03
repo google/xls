@@ -41,7 +41,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
-#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -64,6 +63,7 @@
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
@@ -151,24 +151,6 @@ ABSL_FLAG(
     std::string, expected_proto_outputs_for_all_channels, "",
     "Path to file containing ProcChannelValuesProto binary proto of outputs "
     "for all channels.");
-ABSL_FLAG(std::string, streaming_channel_data_suffix, "_data",
-          "Suffix to data signals for streaming channels.");
-ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
-          "Suffix to valid signals for streaming channels.");
-ABSL_FLAG(std::string, streaming_channel_ready_suffix, "_rdy",
-          "Suffix to ready signals for streaming channels.");
-ABSL_FLAG(std::string, memory_read_enable_suffix, "_rd_en",
-          "Suffix to memory port for read enable.");
-ABSL_FLAG(std::string, memory_read_address_suffix, "_rd_addr",
-          "Suffix to memory port for read address.");
-ABSL_FLAG(std::string, memory_read_data_suffix, "_rd_data",
-          "Suffix to memory port for read data.");
-ABSL_FLAG(std::string, memory_write_enable_suffix, "_wr_en",
-          "Suffix to memory port for write enable.");
-ABSL_FLAG(std::string, memory_write_address_suffix, "_wr_addr",
-          "Suffix to memory port for write address.");
-ABSL_FLAG(std::string, memory_write_data_suffix, "_wr_data",
-          "Suffix to memory port for write data.");
 ABSL_FLAG(std::string, idle_channel_name, "idle", "Name of idle channel.");
 ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
@@ -467,8 +449,8 @@ static absl::Status EvaluateProcs(
 struct ChannelInfo {
   int64_t width = -1;
   bool port_input = false;
-  // Exactly 2 for ready/valid
-  int ready_valid = 0;
+  // Is this ready-valid?
+  bool ready_valid = 0;
 
   // Precalculated channel names
   std::string channel_ready;
@@ -476,114 +458,99 @@ struct ChannelInfo {
   std::string channel_data;
 };
 
-static absl::StatusOr<absl::flat_hash_map<std::string, ChannelInfo>>
+absl::StatusOr<absl::flat_hash_map<std::string, ChannelInfo>>
 InterpretBlockSignature(
-    Block* block, const verilog::ModuleSignatureProto& signature,
+    const verilog::ModuleSignatureProto& signature,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     const absl::btree_map<std::string, std::vector<Value>>&
-        expected_outputs_for_channels,
-    const absl::flat_hash_map<std::string, std::pair<int64_t, Value>>&
-        model_memories,
-    std::string_view streaming_channel_data_suffix,
-    std::string_view streaming_channel_ready_suffix,
-    std::string_view streaming_channel_valid_suffix,
-    std::string_view memory_read_enable_suffix,
-    std::string_view memory_read_address_suffix,
-    std::string_view memory_read_data_suffix,
-    std::string_view memory_write_enable_suffix,
-    std::string_view memory_write_address_suffix,
-    std::string_view memory_write_data_suffix,
-    std::string_view idle_channel_name) {
-  absl::flat_hash_set<std::string> memory_port_names;
-  for (const auto& [name, _] : model_memories) {
-    memory_port_names.insert(name + std::string(memory_read_enable_suffix));
-    memory_port_names.insert(name + std::string(memory_read_address_suffix));
-    memory_port_names.insert(name + std::string(memory_read_data_suffix));
-    memory_port_names.insert(name + std::string(memory_write_enable_suffix));
-    memory_port_names.insert(name + std::string(memory_write_address_suffix));
-    memory_port_names.insert(name + std::string(memory_write_data_suffix));
+        expected_outputs_for_channels) {
+  absl::flat_hash_map<std::string, ChannelInfo> channel_info;
+  // Pull the information out of the channel_protos
+  for (const verilog::ChannelProto& channel : signature.data_channels()) {
+    if (channel.supported_ops() == verilog::CHANNEL_OPS_SEND_RECEIVE) {
+      // Internal channel, no input/output.
+      continue;
+    }
+    if (channel.metadata().block_ports_size() < 1) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Channel '%s' has no associated ports", channel.name()));
+    }
+    const BlockPortMappingProto& port_mapping =
+        channel.metadata().block_ports().at(0);
+    if (!absl::c_all_of(
+            channel.metadata().block_ports(),
+            [&](const BlockPortMappingProto& port) -> bool {
+              return port.data_port_name() == port_mapping.data_port_name() &&
+                     port.ready_port_name() == port_mapping.ready_port_name() &&
+                     port.valid_port_name() == port_mapping.valid_port_name();
+            })) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("A single channel '%s' being mapped to multiple "
+                          "ports is not supported",
+                          channel.name()));
+    }
+    const auto& data_port_it = absl::c_find_if(
+        signature.data_ports(), [&](const verilog::PortProto& port) {
+          return port.name() == port_mapping.data_port_name();
+        });
+    if (data_port_it == signature.data_ports().cend()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Channel '%s' names its data port as '%s' but no such port exists.",
+          channel.name(), port_mapping.data_port_name()));
+    }
+    ChannelInfo info{
+        .width = data_port_it->width(),
+        .ready_valid =
+            channel.flow_control() == verilog::CHANNEL_FLOW_CONTROL_READY_VALID,
+        .channel_data = port_mapping.data_port_name(),
+    };
+    if (channel.supported_ops() == verilog::CHANNEL_OPS_SEND_ONLY) {
+      // Output channel
+      info.port_input = false;
+    } else if (channel.supported_ops() == verilog::CHANNEL_OPS_RECEIVE_ONLY) {
+      // Input channel
+      info.port_input = true;
+    } else {
+      XLS_RET_CHECK_FAIL() << "Internal/send&recv channel '"
+                           << channel.DebugString()
+                           << "' ended up in block signature.";
+    }
+    if (info.ready_valid) {
+      if (!port_mapping.has_ready_port_name()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Ready/valid channel '%s' has no ready port.", channel.name()));
+      }
+      if (!port_mapping.has_valid_port_name()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Ready/valid channel '%s' has no valid port.", channel.name()));
+      }
+      info.channel_valid = port_mapping.valid_port_name();
+      info.channel_ready = port_mapping.ready_port_name();
+    }
+    channel_info[channel.name()] = std::move(info);
   }
 
-  absl::flat_hash_map<std::string, ChannelInfo> channel_info;
-
-  for (const xls::verilog::PortProto& port : signature.data_ports()) {
-    if (memory_port_names.contains(port.name())) {
-      continue;
-    }
-
-    if (absl::EndsWith(port.name(), streaming_channel_data_suffix)) {
-      std::string port_name = port.name().substr(0, port.name().size() - 5);
-      CHECK(!channel_info.contains(port_name));
-      channel_info[port_name].width = port.width();
-      if (port.direction() == verilog::DIRECTION_INPUT) {
-        channel_info[port_name].port_input = true;
-      } else if (port.direction() == verilog::DIRECTION_OUTPUT) {
-        channel_info[port_name].port_input = false;
-      } else {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Don't understand port direction: %i", port.direction()));
-      }
-    }
-
-    bool this_port_input;
-
-    if (port.direction() == verilog::DIRECTION_INPUT) {
-      this_port_input = true;
-    } else if (port.direction() == verilog::DIRECTION_OUTPUT) {
-      this_port_input = false;
-    } else {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Don't understand port direction: %i", port.direction()));
-    }
-
-    bool ready_valid = false;
-
-    std::string port_name;
-    if (absl::EndsWith(port.name(), streaming_channel_data_suffix)) {
-      port_name = port.name().substr(
-          0, port.name().size() - streaming_channel_data_suffix.size());
-    } else if (absl::EndsWith(port.name(), streaming_channel_ready_suffix)) {
-      port_name = port.name().substr(
-          0, port.name().size() - streaming_channel_ready_suffix.size());
-      ready_valid = true;
-      CHECK(channel_info.contains(port_name));
-      CHECK(this_port_input != channel_info.at(port_name).port_input);
-    } else if (absl::EndsWith(port.name(), streaming_channel_valid_suffix)) {
-      port_name = port.name().substr(
-          0, port.name().size() - streaming_channel_valid_suffix.size());
-      ready_valid = true;
-      CHECK(channel_info.contains(port_name));
-      CHECK(this_port_input == channel_info.at(port_name).port_input);
-    } else if (port.name() == idle_channel_name) {
-      continue;
-    } else {
-      port_name = port.name();
-      LOG(WARNING) << "Warning: Assuming port " << port_name
-                   << " is single value, or direct, input";
-      CHECK(this_port_input);
-      ready_valid = false;
-      channel_info[port_name].port_input = true;
-      channel_info[port_name].width = port.width();
-    }
-
-    CHECK(channel_info.contains(port_name));
-    if (ready_valid) {
-      ++channel_info[port_name].ready_valid;
+  // If channels aren't around we are interpreting a 'fn' so need to get the
+  // inputs directly from the data ports. Luckily we don't need to worry about
+  // R/V signaling for fns.
+  if (channel_info.empty()) {
+    for (const verilog::PortProto& port : signature.data_ports()) {
+      channel_info[port.name()] = ChannelInfo{
+          .width = port.width(),
+          .port_input = port.direction() == verilog::DIRECTION_INPUT,
+          .ready_valid = false,
+          .channel_data = port.name()};
     }
   }
 
   for (auto& [name, info] : channel_info) {
-    CHECK(info.ready_valid == 0 || info.ready_valid == 2);
-
     if (info.port_input) {
-      CHECK(inputs_for_channels.contains(name));
+      XLS_RET_CHECK(inputs_for_channels.contains(name))
+          << "missing port " << name;
     } else {
-      CHECK(expected_outputs_for_channels.contains(name));
+      XLS_RET_CHECK(expected_outputs_for_channels.contains(name))
+          << "Missing port " << name;
     }
-
-    info.channel_ready = name + std::string(streaming_channel_ready_suffix);
-    info.channel_valid = name + std::string(streaming_channel_valid_suffix);
-    info.channel_data = name + std::string(streaming_channel_data_suffix);
   }
 
   for (const auto& [name, _] : inputs_for_channels) {
@@ -708,21 +675,58 @@ struct RunBlockOptions {
   bool use_jit = false;
   std::vector<int64_t> ticks = {-1};
   int64_t max_cycles_no_output = 100;
-  std::string_view streaming_channel_data_suffix;
-  std::string_view streaming_channel_ready_suffix;
-  std::string_view streaming_channel_valid_suffix;
-  std::string_view memory_read_enable_suffix;
-  std::string_view memory_read_address_suffix;
-  std::string_view memory_read_data_suffix;
-  std::string_view memory_write_enable_suffix;
-  std::string_view memory_write_address_suffix;
-  std::string_view memory_write_data_suffix;
   std::string_view idle_channel_name;
   int random_seed;
   double prob_input_valid_assert;
   bool show_trace;
   bool fail_on_assert;
 };
+
+// Helper to hold various commonly needed port names for a particular ram.
+struct StandardRamInfo {
+  std::string_view rd_addr;
+  std::string_view rd_en;
+  std::string_view rd_data;
+  std::string_view wr_addr;
+  std::string_view wr_en;
+  std::string_view wr_data;
+};
+
+absl::StatusOr<absl::flat_hash_map<std::string, StandardRamInfo>> GetRamInfoMap(
+    const verilog::ModuleSignatureProto& sig) {
+  absl::flat_hash_map<std::string, StandardRamInfo> all_infos;
+  all_infos.reserve(sig.rams_size());
+  for (const verilog::RamProto& ram_info : sig.rams()) {
+    StandardRamInfo info;
+    switch (ram_info.ram_oneof_case()) {
+      case xls::verilog::RamProto::RamOneofCase::kRam1Rw:
+        info.rd_addr = ram_info.ram_1rw().rw_port().request().address().name();
+        info.rd_en =
+            ram_info.ram_1rw().rw_port().request().read_enable().name();
+        info.rd_data =
+            ram_info.ram_1rw().rw_port().response().read_data().name();
+        info.wr_addr = ram_info.ram_1rw().rw_port().request().address().name();
+        info.wr_data =
+            ram_info.ram_1rw().rw_port().request().write_data().name();
+        info.wr_en =
+            ram_info.ram_1rw().rw_port().request().write_enable().name();
+        break;
+      case xls::verilog::RamProto::RamOneofCase::kRam1R1W:
+        info.wr_addr = ram_info.ram_1r1w().w_port().request().address().name();
+        info.wr_data = ram_info.ram_1r1w().w_port().request().data().name();
+        info.wr_en = ram_info.ram_1r1w().w_port().request().enable().name();
+        info.rd_addr = ram_info.ram_1r1w().r_port().request().address().name();
+        info.rd_data = ram_info.ram_1r1w().r_port().response().data().name();
+        info.rd_en = ram_info.ram_1r1w().r_port().request().enable().name();
+        break;
+      case xls::verilog::RamProto::RamOneofCase::RAM_ONEOF_NOT_SET:
+        XLS_RET_CHECK_FAIL() << "Ram request '" << ram_info.name()
+                             << "' does not include read/write info";
+    }
+    all_infos[ram_info.name()] = std::move(info);
+  }
+  return all_infos;
+}
 
 static absl::Status RunBlock(
     Package* package, const verilog::ModuleSignatureProto& signature,
@@ -744,18 +748,14 @@ static absl::Status RunBlock(
   // TODO: Support multiple resets
   CHECK_EQ(options.ticks.size(), 1);
 
-  absl::flat_hash_map<std::string, ChannelInfo> channel_info;
   XLS_ASSIGN_OR_RETURN(
-      channel_info,
-      InterpretBlockSignature(
-          block, signature, inputs_for_channels, expected_outputs_for_channels,
-          model_memories_param, options.streaming_channel_data_suffix,
-          options.streaming_channel_ready_suffix,
-          options.streaming_channel_valid_suffix,
-          options.memory_read_enable_suffix, options.memory_read_address_suffix,
-          options.memory_read_data_suffix, options.memory_write_enable_suffix,
-          options.memory_write_address_suffix, options.memory_write_data_suffix,
-          options.idle_channel_name));
+      (absl::flat_hash_map<std::string, ChannelInfo> channel_info),
+      InterpretBlockSignature(signature, inputs_for_channels,
+                              expected_outputs_for_channels),
+      _ << "signature was: " << signature.DebugString());
+  XLS_ASSIGN_OR_RETURN(
+      (absl::flat_hash_map<std::string, StandardRamInfo> ram_info),
+      GetRamInfoMap(signature));
 
   // Prepare values in queue format
   absl::flat_hash_map<std::string, std::deque<Value>> channel_value_queues;
@@ -771,8 +771,8 @@ static absl::Status RunBlock(
   absl::flat_hash_map<std::string, std::unique_ptr<MemoryModel>> model_memories;
 
   for (const auto& [name, model_pair] : model_memories_param) {
-    const std::string rd_data =
-        name + std::string(options.memory_read_data_suffix);
+    XLS_RET_CHECK(ram_info.contains(name));
+    std::string_view rd_data = ram_info.at(name).rd_data;
     XLS_ASSIGN_OR_RETURN(const InputPort* port, block->GetInputPort(rd_data));
     model_memories[name] = std::make_unique<MemoryModel>(
         name, model_pair.first, model_pair.second,
@@ -840,7 +840,7 @@ static absl::Status RunBlock(
     for (const auto& [name, _] : inputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
       const std::deque<Value>& queue = channel_value_queues.at(name);
-      if (info.ready_valid != 0) {
+      if (info.ready_valid) {
         // Don't bring valid low without a transaction
         const bool asserted_valid = asserted_valids.contains(name);
         const bool random_go_head =
@@ -853,8 +853,9 @@ static absl::Status RunBlock(
         input_set[info.channel_valid] =
             Value(xls::UBits(this_valid ? 1 : 0, 1));
         // Channels without data port will return nullptr
-        xls::Type* port_type = GetPortTypeOrNull(
-            block, name + options.streaming_channel_data_suffix.data());
+        xls::Type* port_type = info.width != 0
+                                   ? GetPortTypeOrNull(block, info.channel_data)
+                                   : nullptr;
 
         if (port_type != nullptr) {
           input_set[info.channel_data] =
@@ -867,12 +868,13 @@ static absl::Status RunBlock(
       }
     }
     for (const auto& [name, model] : model_memories) {
-      const std::string rd_data =
-          name + std::string(options.memory_read_data_suffix);
+      XLS_RET_CHECK(ram_info.contains(name));
+      std::string_view rd_data = ram_info.at(name).rd_data;
       input_set[rd_data] = model->GetValueReadLastTick();
     }
     for (const auto& [name, _] : expected_outputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
+      // TODO(allight): Support simulating fns which aren't ready-valid.
       CHECK(info.ready_valid);
       input_set[info.channel_ready] = Value(xls::UBits(1, 1));
     }
@@ -898,7 +900,7 @@ static absl::Status RunBlock(
     for (const auto& [name, _] : inputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
 
-      if (info.ready_valid == 0) {
+      if (!info.ready_valid) {
         continue;
       }
 
@@ -933,17 +935,27 @@ static absl::Status RunBlock(
                               name, outputs.at(info.channel_data).ToString()));
           continue;
         }
-        const Value& data_value = outputs.at(info.channel_data);
-        const Value& match_value = queue.front();
-        if (options.show_trace) {
-          LOG(INFO) << "Channel Model: Consuming output for " << name << ": "
-                    << data_value << ", remaining " << queue.size();
-        }
-        if (match_value != data_value) {
+        if (info.width != 0) {
+          const Value& data_value = outputs.at(info.channel_data);
+          const Value& match_value = queue.front();
+          if (options.show_trace) {
+            LOG(INFO) << "Channel Model: Consuming output for " << name << ": "
+                      << data_value << ", remaining " << queue.size();
+          }
+          if (match_value != data_value) {
+            errors.push_back(absl::StrFormat(
+                "Output mismatched for channel %s: expected %s, block "
+                "outputted "
+                "%s",
+                name, match_value.ToString(), data_value.ToString()));
+            continue;
+          }
+        } else if (queue.front().GetFlatBitCount() != 0) {
+          // TODO(allight): Actually check the types match up too.
           errors.push_back(absl::StrFormat(
               "Output mismatched for channel %s: expected %s, block outputted "
-              "%s",
-              name, match_value.ToString(), data_value.ToString()));
+              "zero-len data",
+              name, queue.front().ToString()));
           continue;
         }
         ++matched_outputs;
@@ -959,19 +971,15 @@ static absl::Status RunBlock(
 
     // Memory model outputs
     for (const auto& [name, model] : model_memories) {
+      XLS_RET_CHECK(ram_info.contains(name));
+      const StandardRamInfo info = ram_info.at(name);
       // Write handling
       {
-        const std::string wr_addr =
-            name + std::string(options.memory_write_address_suffix);
-        const std::string wr_data =
-            name + std::string(options.memory_write_data_suffix);
-        const std::string wr_en =
-            name + std::string(options.memory_write_enable_suffix);
-        const Value wr_en_val = outputs.at(wr_en);
+        const Value wr_en_val = outputs.at(info.wr_en);
         CHECK(wr_en_val.IsBits());
         if (wr_en_val.IsAllOnes()) {
-          const Value wr_addr_val = outputs.at(wr_addr);
-          const Value wr_data_val = outputs.at(wr_data);
+          const Value wr_addr_val = outputs.at(info.wr_addr);
+          const Value wr_data_val = outputs.at(info.wr_data);
           CHECK(wr_addr_val.IsBits());
           CHECK(wr_data_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, wr_addr_val.bits().ToUint64());
@@ -980,14 +988,10 @@ static absl::Status RunBlock(
       }
       // Read handling
       {
-        const std::string rd_addr =
-            name + std::string(options.memory_read_address_suffix);
-        const std::string rd_en =
-            name + std::string(options.memory_read_enable_suffix);
-        const Value rd_en_val = outputs.at(rd_en);
+        const Value rd_en_val = outputs.at(info.rd_en);
         CHECK(rd_en_val.IsBits());
         if (rd_en_val.IsAllOnes()) {
-          const Value rd_addr_val = outputs.at(rd_addr);
+          const Value rd_addr_val = outputs.at(info.rd_addr);
           CHECK(rd_addr_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, rd_addr_val.bits().ToUint64());
           XLS_RETURN_IF_ERROR(model->Read(addr));
@@ -999,7 +1003,7 @@ static absl::Status RunBlock(
     for (const auto& [name, _] : expected_outputs_for_channels) {
       // Ignore single value channels in this check
       const ChannelInfo& info = channel_info.at(name);
-      if (info.ready_valid == 0) {
+      if (!info.ready_valid) {
         continue;
       }
 
@@ -1031,7 +1035,7 @@ static absl::Status RunBlock(
   for (const auto& [channel_name, _] : inputs_for_channels) {
     // Ignore single value channels in this check
     const ChannelInfo& info = channel_info.at(channel_name);
-    if (info.ready_valid == 0) {
+    if (!info.ready_valid) {
       continue;
     }
 
@@ -1125,15 +1129,6 @@ static absl::Status RealMain(
     const std::string& expected_outputs_for_all_channels_text,
     const std::string& proto_inputs_for_all_channels,
     const std::string& expected_proto_outputs_for_all_channels,
-    std::string_view streaming_channel_data_suffix,
-    std::string_view streaming_channel_ready_suffix,
-    std::string_view streaming_channel_valid_suffix,
-    std::string_view memory_read_enable_suffix,
-    std::string_view memory_read_address_suffix,
-    std::string_view memory_read_data_suffix,
-    std::string_view memory_write_enable_suffix,
-    std::string_view memory_write_address_suffix,
-    std::string_view memory_write_data_suffix,
     std::string_view idle_channel_name, const int random_seed,
     const double prob_input_valid_assert, bool show_trace,
     std::string_view output_stats_path, bool fail_on_assert) {
@@ -1195,15 +1190,6 @@ static absl::Status RealMain(
     RunBlockOptions block_options = {
         .ticks = ticks,
         .max_cycles_no_output = max_cycles_no_output,
-        .streaming_channel_data_suffix = streaming_channel_data_suffix,
-        .streaming_channel_ready_suffix = streaming_channel_ready_suffix,
-        .streaming_channel_valid_suffix = streaming_channel_valid_suffix,
-        .memory_read_enable_suffix = memory_read_enable_suffix,
-        .memory_read_address_suffix = memory_read_address_suffix,
-        .memory_read_data_suffix = memory_read_data_suffix,
-        .memory_write_enable_suffix = memory_write_enable_suffix,
-        .memory_write_address_suffix = memory_write_address_suffix,
-        .memory_write_data_suffix = memory_write_data_suffix,
         .idle_channel_name = idle_channel_name,
         .random_seed = random_seed,
         .prob_input_valid_assert = prob_input_valid_assert,
@@ -1306,15 +1292,6 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_expected_outputs_for_all_channels),
       absl::GetFlag(FLAGS_proto_inputs_for_all_channels),
       absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels),
-      absl::GetFlag(FLAGS_streaming_channel_data_suffix),
-      absl::GetFlag(FLAGS_streaming_channel_ready_suffix),
-      absl::GetFlag(FLAGS_streaming_channel_valid_suffix),
-      absl::GetFlag(FLAGS_memory_read_enable_suffix),
-      absl::GetFlag(FLAGS_memory_read_address_suffix),
-      absl::GetFlag(FLAGS_memory_read_data_suffix),
-      absl::GetFlag(FLAGS_memory_write_enable_suffix),
-      absl::GetFlag(FLAGS_memory_write_address_suffix),
-      absl::GetFlag(FLAGS_memory_write_data_suffix),
       absl::GetFlag(FLAGS_idle_channel_name), absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
       absl::GetFlag(FLAGS_show_trace), absl::GetFlag(FLAGS_output_stats_path),
