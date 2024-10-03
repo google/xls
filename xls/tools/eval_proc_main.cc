@@ -151,7 +151,6 @@ ABSL_FLAG(
     std::string, expected_proto_outputs_for_all_channels, "",
     "Path to file containing ProcChannelValuesProto binary proto of outputs "
     "for all channels.");
-ABSL_FLAG(std::string, idle_channel_name, "idle", "Name of idle channel.");
 ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
@@ -675,7 +674,6 @@ struct RunBlockOptions {
   bool use_jit = false;
   std::vector<int64_t> ticks = {-1};
   int64_t max_cycles_no_output = 100;
-  std::string_view idle_channel_name;
   int random_seed;
   double prob_input_valid_assert;
   bool show_trace;
@@ -1129,9 +1127,8 @@ static absl::Status RealMain(
     const std::string& expected_outputs_for_all_channels_text,
     const std::string& proto_inputs_for_all_channels,
     const std::string& expected_proto_outputs_for_all_channels,
-    std::string_view idle_channel_name, const int random_seed,
-    const double prob_input_valid_assert, bool show_trace,
-    std::string_view output_stats_path, bool fail_on_assert) {
+    const int random_seed, const double prob_input_valid_assert,
+    bool show_trace, std::string_view output_stats_path, bool fail_on_assert) {
   auto timeout = StartTimeoutTimer();
   // Don't waste time and memory parsing more input than can possibly be
   // consumed.
@@ -1190,7 +1187,6 @@ static absl::Status RealMain(
     RunBlockOptions block_options = {
         .ticks = ticks,
         .max_cycles_no_output = max_cycles_no_output,
-        .idle_channel_name = idle_channel_name,
         .random_seed = random_seed,
         .prob_input_valid_assert = prob_input_valid_assert,
         .show_trace = show_trace,
@@ -1292,7 +1288,7 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_expected_outputs_for_all_channels),
       absl::GetFlag(FLAGS_proto_inputs_for_all_channels),
       absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels),
-      absl::GetFlag(FLAGS_idle_channel_name), absl::GetFlag(FLAGS_random_seed),
+      absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
       absl::GetFlag(FLAGS_show_trace), absl::GetFlag(FLAGS_output_stats_path),
       absl::GetFlag(FLAGS_fail_on_assert)));
