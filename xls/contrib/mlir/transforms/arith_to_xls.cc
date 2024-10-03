@@ -14,8 +14,8 @@
 
 #include <optional>
 #include <string>
-#include <utility>
 #include <string_view>
+#include <utility>
 
 #include "absl/strings/str_cat.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
@@ -48,6 +48,7 @@ namespace mlir::xls {
 namespace {
 
 using ::llvm::SmallVector;
+using ::mlir::StringAttr;
 using ::mlir::func::FuncOp;
 
 FuncOp maybeDeclareDslxFn(SymbolTable& symtab, OpBuilder builder,
@@ -81,71 +82,25 @@ xls::ImportDslxFilePackageOp maybeImportDslxFilePackage(
       builder.getStringAttr(symbolName));
 }
 
-struct FloatLib {
-  std::string_view packageName;
-  std::string_view symbolName;
-};
-
-constexpr FloatLib kExtTruncLib = {
-    .packageName = "xls/contrib/mlir/stdlib/fp_ext_trunc.x",
-    .symbolName = "ext_trunclib"};
-
-constexpr std::string_view kUnknownType = "UNKNOWN_TYPE";
-
-FloatLib getFloatLib(Type type) {
+StringAttr getFloatLib(Type type) {
   if (auto tensorType = dyn_cast<TensorType>(type)) {
     type = tensorType.getElementType();
   }
-  return llvm::TypeSwitch<Type, FloatLib>(type)
-      .Case<mlir::Float32Type>([](mlir::Float32Type) {
-        return FloatLib{.packageName = "xls/dslx/stdlib/float32.x",
-                        .symbolName = "f32lib"};
-      })
-      .Case<BFloat16Type>([](BFloat16Type) {
-        return FloatLib{.packageName = "xls/dslx/stdlib/bfloat16.x",
-                        .symbolName = "bf16lib"};
-      })
-      .Case<mlir::Float64Type>([](mlir::Float64Type) {
-        return FloatLib{.packageName = "xls/dslx/stdlib/float64.x",
-                        .symbolName = "f64lib"};
-      })
-      .Default([](Type) {
-        return FloatLib{.packageName = kUnknownType,
-                        .symbolName = kUnknownType};
-      });
-}
-
-FuncOp getOrCreateFloatLibcallSymbol(PatternRewriter& rewriter, StringAttr name,
-                                     OpResult opResult,
-                                     bool returnsBool = false,
-                                     bool useExtTruncStdlib = false) {
-  (void)rewriter;
-  Operation* op = opResult.getOwner();
-  auto module = op->getParentOfType<mlir::ModuleOp>();
-
-  auto floatLib =
-      useExtTruncStdlib ? kExtTruncLib : getFloatLib(opResult.getType());
-  std::string symName = absl::StrCat(floatLib.symbolName, "_", name.str());
-
-  OpBuilder builder(module.getBodyRegion());
-  SymbolTable symtab(module);
-  xls::ImportDslxFilePackageOp importOp = maybeImportDslxFilePackage(
-      symtab, builder, floatLib.packageName, floatLib.symbolName);
-  builder.setInsertionPointAfter(importOp);
-
-  // We scalarize all operands and the result type.
-  SmallVector<Type> operandTypes;
-  for (Type operand : op->getOperandTypes()) {
-    operandTypes.push_back(mlir::getElementTypeOrSelf(operand));
+  std::string s = llvm::TypeSwitch<Type, std::string>(type)
+                      .Case<mlir::Float32Type>([](mlir::Float32Type) {
+                        return "xls/dslx/stdlib/float32.x";
+                      })
+                      .Case<BFloat16Type>([](BFloat16Type) {
+                        return "xls/dslx/stdlib/bfloat16.x";
+                      })
+                      .Case<mlir::Float64Type>([](mlir::Float64Type) {
+                        return "xls/dslx/stdlib/float64.x";
+                      })
+                      .Default([](Type) { return ""; });
+  if (!s.empty()) {
+    return StringAttr::get(type.getContext(), s);
   }
-  Type resultType = mlir::getElementTypeOrSelf(opResult.getType());
-  if (returnsBool) {
-    resultType = builder.getI1Type();
-  }
-
-  std::string dslxName = name.str();
-  return maybeDeclareDslxFn(symtab, builder, symName, dslxName, importOp,
-                            {resultType}, operandTypes);
+  return {};
 }
 
 #include "xls/contrib/mlir/transforms/arith_to_xls_patterns.inc"

@@ -50,21 +50,24 @@ func.func @and(%arg0: tensor<3x3xi32>, %arg1: tensor<3x3xi32>) -> tensor<3x3xi32
 }
 
 // CHECK-LABEL: addf
-// CHECK: call @f32lib_add
+// CHECK: call_dslx
+// CHECK-SAME: "add"
 func.func @addf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.addf %arg0, %arg1 : tensor<3x3xf32>
   return %0 : tensor<3x3xf32>
 }
 
 // CHECK-LABEL: subf
-// CHECK: vectorized_call @f32lib_sub
+// CHECK: call_dslx
+// CHECK-SAME: "sub"
 func.func @subf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.subf %arg0, %arg1 : tensor<3x3xf32>
   return %0 : tensor<3x3xf32>
 }
 
 // CHECK-LABEL: mulf
-// CHECK: vectorized_call @f32lib_mul
+// CHECK: call_dslx
+// CHECK-SAME: "mul"
 func.func @mulf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.mulf %arg0, %arg1 : tensor<3x3xf32>
   return %0 : tensor<3x3xf32>
@@ -72,14 +75,16 @@ func.func @mulf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf3
 
 // TODO(jmolloy): Should be calling "div" but div doesn't exist yet.
 // CHECK-LABEL: divf
-// CHECK: vectorized_call @f32lib_add
+// CHECK: call_dslx
+// CHECK-SAME: "add"
 func.func @divf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.divf %arg0, %arg1 : tensor<3x3xf32>
   return %0 : tensor<3x3xf32>
 }
 
 // CHECK-LABEL: maxf
-// CHECK: vectorized_call @f32lib_gt_2
+// CHECK: call_dslx
+// CHECK-SAME: "gt_2"
 // CHECK: xls.sel
 func.func @maxf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.maximumf %arg0, %arg1 : tensor<3x3xf32>
@@ -87,7 +92,8 @@ func.func @maxf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf3
 }
 
 // CHECK-LABEL: minf
-// CHECK: vectorized_call @f32lib_lt_2
+// CHECK: call_dslx
+// CHECK-SAME: "lt_2"
 // CHECK: xls.sel
 func.func @minf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.minimumf %arg0, %arg1 : tensor<3x3xf32>
@@ -104,14 +110,16 @@ func.func @ext(%arg0: i32) -> (i64, i64) attributes { "xls" = true } {
 }
 
 // CHECK-LABEL: @extf(
-// CHECK: xls.vectorized_call @ext_trunclib_ext
+// CHECK: call_dslx
+// CHECK-SAME: "ext"
 func.func @extf(%arg0: bf16) -> f32 attributes { "xls" = true } {
   %0 = arith.extf %arg0 : bf16 to f32
   return %0 : f32
 }
 
 // CHECK-LABEL: @truncf(
-// CHECK: xls.vectorized_call @ext_trunclib_trunc
+// CHECK: call_dslx
+// CHECK-SAME: "trunc"
 func.func @truncf(%arg0: f32) -> bf16 attributes { "xls" = true } {
   %0 = arith.truncf %arg0 : f32 to bf16
   return %0 : bf16

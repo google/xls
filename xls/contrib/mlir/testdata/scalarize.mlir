@@ -194,3 +194,23 @@ xls.eproc @eproc(%arg: i32) zeroinitializer {
   %tkn3, %val = xls.blocking_receive %tkn1, @mychan : tensor<3xi8>
   xls.yield %arg : i32
 }
+
+// CHECK-LABEL: @call_dslx
+func.func @call_dslx(%arg0: tensor<4xi32>) -> tensor<4xf32> attributes {xls = true} {
+  // CHECK: xls.call_dslx "foo.x" : "f"(%0) : (i32) -> f32
+  // CHECK: xls.call_dslx "foo.x" : "f"
+  // CHECK: xls.call_dslx "foo.x" : "f"
+  // CHECK: xls.call_dslx "foo.x" : "f"
+  %0 = xls.call_dslx "foo.x": "f"(%arg0) : (tensor<4xi32>) -> tensor<4xf32>
+  return %0 : tensor<4xf32>
+}
+
+// CHECK-LABEL: @call_dslx_with_splat
+func.func @call_dslx_with_splat(%arg0: tensor<4xi32>, %arg1: i32) -> tensor<4xf32> attributes {xls = true} {
+  // CHECK: xls.call_dslx "foo.x" : "f"(%0, %arg1) : (i32, i32) -> f32
+  // CHECK: xls.call_dslx "foo.x" : "f"
+  // CHECK: xls.call_dslx "foo.x" : "f"
+  // CHECK: xls.call_dslx "foo.x" : "f"
+  %0 = xls.call_dslx "foo.x": "f"(%arg0, %arg1) : (tensor<4xi32>, i32) -> tensor<4xf32>
+  return %0 : tensor<4xf32>
+}

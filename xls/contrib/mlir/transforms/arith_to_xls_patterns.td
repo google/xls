@@ -86,37 +86,29 @@ def : Pat<(Arith_ConstantOp NonIndexElementsAttr:$val),
 def : Pat<(Arith_ConstantOp NonIndexAttr:$val),
           (Xls_ConstantScalarOp $val)>;
 
-def FloatLibcallSymbol :
-    NativeCodeCall<"getOrCreateFloatLibcallSymbol($_builder, $0, $1)">;
-def FloatLibcallSymbolReturningBool :
-    NativeCodeCall<"getOrCreateFloatLibcallSymbol($_builder, $0, $1, true)">;
-def FloatLibcallSymbol_ExtTrunc :
-    NativeCodeCall<"getOrCreateFloatLibcallSymbol($_builder, $0, $1, false, true)">;
+// Shorthand for a constant string attribute.
+class CS<string s> : ConstantStrAttr<StrAttr, s>;
 
-def FirstResult : NativeCodeCall<"$0->getResult(0)">;
+// Returns the float library for the type of the given value.
+def FloatLib : NativeCodeCall<"getFloatLib($0.getType())">;
 
+// The extension and truncation library.
+defvar ExtLib = CS<"xls/contrib/mlir/stdlib/fp_ext_trunc.x">;
+
+// Emits a binary float library call.
 class FloatLibcall<Op Op, string Name> :
     Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_),
-          (FirstResult
-            (VectorizedCallOp
-              (FloatLibcallSymbol ConstantStrAttr<StrAttr, Name>, $op),
-              (variadic $a, $b)))>;
+        (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr)>;
 
 def : FloatLibcall<Arith_AddFOp, "add">;
 def : FloatLibcall<Arith_MulFOp, "mul">;
 def : FloatLibcall<Arith_SubFOp, "sub">;
 
 def : Pat<(Arith_ExtFOp:$op $a, /*FastMathFlags=*/$_),
-          (FirstResult
-            (VectorizedCallOp
-              (FloatLibcallSymbol_ExtTrunc ConstantStrAttr<StrAttr, "ext">, $op),
-              (variadic $a)))>;
+          (Xls_CallDslxOp ExtLib, CS<"ext">, (variadic $a), ConstUnitAttr)>;
 
 def : Pat<(Arith_TruncFOp:$op $a, /*RoundingMode=*/$_, /*FastMathFlags=*/$_),
-          (FirstResult
-            (VectorizedCallOp
-              (FloatLibcallSymbol_ExtTrunc ConstantStrAttr<StrAttr, "trunc">, $op),
-              (variadic $a)))>;
+          (Xls_CallDslxOp ExtLib, CS<"trunc">, (variadic $a), ConstUnitAttr)>;
 
 // The expansion is a little tricky to read due to the one-hot select with the
 // default case being the first argument.
@@ -129,10 +121,7 @@ class MinMaxPatBase<dag Matcher, dag Predicate> : Pat<
 
 class FPMinMaxPat<Op Op, string Name> : MinMaxPatBase<
   (Op:$op $a, $b, /*FastMathFlags=*/$_),
-  (FirstResult
-    (VectorizedCallOp
-      (FloatLibcallSymbolReturningBool ConstantStrAttr<StrAttr, Name>, $op),
-      (variadic $a, $b)))>;
+  (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr, (returnType $op))>;
 
 def : FPMinMaxPat<Arith_MaximumFOp, "gt_2">;
 def : FPMinMaxPat<Arith_MinimumFOp, "lt_2">;
@@ -163,7 +152,4 @@ def : Pat<
 // TODO(jmolloy): Support Div and Exp in the standard library.
 def : FloatLibcall<Arith_DivFOp, "add">;
 def : Pat<(Math_ExpOp:$op $a, /*FastMathFlags=*/$_),
-          (FirstResult
-            (VectorizedCallOp
-              (FloatLibcallSymbol ConstantStrAttr<StrAttr, "ceil">, $op),
-              (variadic $a)))>;
+          (Xls_CallDslxOp (FloatLib $a), CS<"ceil">, (variadic $a), ConstUnitAttr)>;

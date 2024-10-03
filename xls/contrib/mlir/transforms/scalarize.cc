@@ -680,8 +680,53 @@ class LegalizeCallDslxPattern : public OpConversionPattern<CallDslxOp> {
             typeConverter->convertTypes(op->getResultTypes(), resultTypes))) {
       return failure();
     }
-    rewriter.replaceOpWithNewOp<CallDslxOp>(
-        op, resultTypes, adaptor.getOperands(), op->getAttrs());
+
+    int size = getArraySize(adaptor.getOperands());
+    if (size == 0) {
+      // No vectors to unwrap - just call.
+      rewriter.replaceOpWithNewOp<CallDslxOp>(
+          op, resultTypes, adaptor.getOperands(), op->getAttrs());
+      return success();
+    }
+
+    std::map<int, SmallVector<Value>> resultArrayMembers;
+    for (int i = 0; i < size; ++i) {
+      mlir::IRMapping mapping;
+      SmallVector<Value> newOperands;
+      for (Value operand : adaptor.getOperands()) {
+        if (ArrayType vtype = dyn_cast<ArrayType>(operand.getType())) {
+          newOperands.push_back(rewriter.create<ArrayIndexStaticOp>(
+              op->getLoc(), vtype.getElementType(), operand,
+              rewriter.getI64IntegerAttr(i)));
+        } else {
+          newOperands.push_back(operand);
+        }
+      }
+      SmallVector<Type> thisResultTypes;
+      for (Type resultType : resultTypes) {
+        if (ArrayType vtype = dyn_cast<ArrayType>(resultType)) {
+          thisResultTypes.push_back(vtype.getElementType());
+        } else {
+          thisResultTypes.push_back(resultType);
+        }
+      }
+      Operation* newOp = rewriter.create<CallDslxOp>(
+          op->getLoc(), thisResultTypes, newOperands, op->getAttrs());
+      for (int j = 0, e = newOp->getResultTypes().size(); j < e; ++j) {
+        resultArrayMembers[j].push_back(newOp->getResult(j));
+      }
+    }
+
+    SmallVector<Value> newResultArrays;
+    for (auto [i, result_array] : resultArrayMembers) {
+      newResultArrays.push_back(rewriter.create<ArrayOp>(
+          op->getLoc(),
+          ArrayType::get(rewriter.getContext(), result_array.size(),
+                         result_array.front().getType()),
+          result_array));
+    }
+
+    rewriter.replaceOp(op, newResultArrays);
     return success();
   }
 };
