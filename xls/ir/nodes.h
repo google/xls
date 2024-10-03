@@ -715,6 +715,12 @@ class OutputPort final : public Node {
   OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
              FunctionBase* function);
 
+  // Get the value that this port sends.
+  Node* output_source() const { return operand(kOperandOperand); }
+
+  // Get the type that drives this port.
+  Type* output_type() const { return output_source()->GetType(); }
+
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;

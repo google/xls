@@ -1441,6 +1441,7 @@ cc_test(
         ":ram_configuration",
         ":ram_rewrite_pass",
         "//xls/common:casts",
+        "//xls/common:proto_test_utils",
         "//xls/common:visitor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

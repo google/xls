@@ -44,6 +44,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/common/casts.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -67,12 +68,14 @@ namespace {
 
 namespace m = xls::op_matchers;
 
+using proto_testing::EqualsProto;
 using status_testing::StatusIs;
 using testing::AllOf;
 using testing::AnyOf;
 using testing::Contains;
 using testing::Eq;
 using testing::HasSubstr;
+using ::testing::IsSupersetOf;
 using testing::Not;
 
 class PortByNameMatcher : public ::testing::MatcherInterface<Block::Port> {
@@ -472,6 +475,17 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
                 ram1rw_config->rw_port_configuration().response_channel_name) {
           found = true;
         }
+        // Check the port information matches.
+        EXPECT_THAT(
+            unit.metadata.at(unit.top_block).signature->proto().data_ports(),
+            IsSupersetOf({
+                EqualsProto(ram.ram_1rw().rw_port().response().read_data()),
+                EqualsProto(ram.ram_1rw().rw_port().request().address()),
+                EqualsProto(ram.ram_1rw().rw_port().request().read_enable()),
+                EqualsProto(ram.ram_1rw().rw_port().request().write_data()),
+                EqualsProto(ram.ram_1rw().rw_port().request().write_enable()),
+            }))
+            << "missing 1rw ports";
       }
       EXPECT_TRUE(found);
       channel_names.insert(
@@ -529,6 +543,18 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
                 ram1r1w_config->r_port_configuration().response_channel_name) {
           found = true;
         }
+        // Check the port information matches.
+        EXPECT_THAT(
+            unit.metadata.at(unit.top_block).signature->proto().data_ports(),
+            IsSupersetOf({
+                EqualsProto(ram.ram_1r1w().r_port().response().data()),
+                EqualsProto(ram.ram_1r1w().r_port().request().address()),
+                EqualsProto(ram.ram_1r1w().r_port().request().enable()),
+                EqualsProto(ram.ram_1r1w().w_port().request().data()),
+                EqualsProto(ram.ram_1r1w().w_port().request().address()),
+                EqualsProto(ram.ram_1r1w().w_port().request().enable()),
+            }))
+            << "missing 1r1w ports";
       }
       EXPECT_TRUE(found);
       channel_names.insert(
