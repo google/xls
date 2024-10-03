@@ -23,6 +23,7 @@ import xls.modules.zstd.common as common;
 type Buffer = buff::Buffer;
 type BufferStatus = buff::BufferStatus;
 type BlockType = common::BlockType;
+type BlockSize = common::BlockSize;
 
 // Status values reported by the block header parsing function
 pub enum BlockHeaderStatus: u2 {
@@ -35,7 +36,7 @@ pub enum BlockHeaderStatus: u2 {
 pub struct BlockHeader {
     last: bool,
     btype: BlockType,
-    size: u21,
+    size: BlockSize,
 }
 
 // Structure for returning results of block header parsing
@@ -86,7 +87,7 @@ fn test_parse_block_header() {
   let result = parse_block_header(buffer);
   assert_eq(result, BlockHeaderResult {
       status: BlockHeaderStatus::OK,
-      header: BlockHeader { last: u1:1, btype: BlockType::RAW, size: u21:0x1000 },
+      header: BlockHeader { last: u1:1, btype: BlockType::RAW, size: BlockSize:0x1000 },
       buffer: Buffer { content: u32:0, length: u32:0 }
   });
 
@@ -94,7 +95,7 @@ fn test_parse_block_header() {
   let result = parse_block_header(buffer);
   assert_eq(result, BlockHeaderResult {
       status: BlockHeaderStatus::OK,
-      header: BlockHeader { last: u1:0, btype: BlockType::RLE, size: u21:0x1234 },
+      header: BlockHeader { last: u1:0, btype: BlockType::RLE, size: BlockSize:0x1234 },
       buffer: Buffer { content: u32:0, length: u32:0 }
   });
 
