@@ -490,12 +490,22 @@ absl::StatusOr<bool> Ram1RWRewrite(
   // Make a new response port with a new name.
   std::string resp_rd_data_name =
       block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_data"));
+  // Make the actual input port. Destructure the response type. (NB The bits are
+  // identical but other parts expect the wr_data and rd_data ports to have the
+  // same type).
+  XLS_ASSIGN_OR_RETURN(
+      TupleType * orig_port_type,
+      rw_block_ports.resp_ports.resp_data->GetType()->AsTuple());
+  XLS_RET_CHECK_EQ(orig_port_type->size(), 1)
+      << "Unexpected extra elements in ram rd_data port type "
+      << orig_port_type;
   XLS_ASSIGN_OR_RETURN(
       InputPort * resp_rd_data_port,
-      block->AddInputPort(resp_rd_data_name,
-                          rw_block_ports.resp_ports.resp_data->GetType()));
-  XLS_RETURN_IF_ERROR(
-      rw_block_ports.resp_ports.resp_data->ReplaceUsesWith(resp_rd_data_port));
+      block->AddInputPort(resp_rd_data_name, orig_port_type->element_type(0)));
+  XLS_RETURN_IF_ERROR(rw_block_ports.resp_ports.resp_data
+                          ->ReplaceUsesWithNew<Tuple>(
+                              absl::Span<Node* const>{resp_rd_data_port})
+                          .status());
 
   // Add buffer before resp_ready
   std::string resp_ready_port_buf_name = absl::StrFormat(

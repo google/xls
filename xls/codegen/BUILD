@@ -1449,6 +1449,7 @@ cc_test(
         "//xls/estimators/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:channel",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_parser",
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",

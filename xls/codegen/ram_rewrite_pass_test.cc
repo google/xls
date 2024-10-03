@@ -14,6 +14,7 @@
 
 #include "xls/codegen/ram_rewrite_pass.h"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -50,6 +51,7 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -62,6 +64,8 @@
 namespace xls {
 namespace verilog {
 namespace {
+
+namespace m = xls::op_matchers;
 
 using status_testing::StatusIs;
 using testing::AllOf;
@@ -183,6 +187,8 @@ struct RamChannelRewriteTestParam {
   absl::Span<const std::string_view> ram_config_strings;
   bool expect_read_mask;
   bool expect_write_mask;
+  // Type of data held by each ram in the same order as ram_config_strings
+  absl::Span<const std::string_view> ram_contents;
 };
 
 class RamRewritePassTest
@@ -286,6 +292,17 @@ class RamRewritePassTest
 
     return FunctionBaseToPipelinedBlock(schedule, codegen_options, proc);
   }
+
+  std::string_view TypeOfRam(std::string_view ram_name) const {
+    auto& param = std::get<0>(GetParam());
+    for (int64_t i = 0; i < param.ram_config_strings.size(); ++i) {
+      if (param.ram_config_strings[i].starts_with(ram_name)) {
+        return param.ram_contents[i];
+      }
+    }
+    ADD_FAILURE() << "Unable to find configuration for " << ram_name;
+    return "";
+  }
 };
 
 TEST_P(RamRewritePassTest, PortsUpdated) {
@@ -323,6 +340,15 @@ TEST_P(RamRewritePassTest, PortsUpdated) {
                     absl::StrFormat("%s_wr_data", config->ram_name()))),
                 Contains(
                     PortByName(absl::StrFormat("%s_we", config->ram_name())))));
+      XLS_ASSERT_OK_AND_ASSIGN(InputPort * rd_input,
+                               unit.top_block->GetInputPort(absl::StrFormat(
+                                   "%s_rd_data", config->ram_name())));
+      EXPECT_THAT(rd_input->GetType(), m::Type(TypeOfRam(config->ram_name())));
+      XLS_ASSERT_OK_AND_ASSIGN(OutputPort * wr_output,
+                               unit.top_block->GetOutputPort(absl::StrFormat(
+                                   "%s_wr_data", config->ram_name())));
+      EXPECT_THAT(wr_output->operand(0)->GetType(),
+                  m::Type(TypeOfRam(config->ram_name())));
       if (ExpectReadMask()) {
         EXPECT_THAT(unit.top_block->GetPorts(),
                     Contains(PortByName(
@@ -641,6 +667,11 @@ constexpr std::string_view k1RWAnd1R1W[] = {
     std::string_view("ram1:1R1W:rd_req1:rd_resp1:wr_req1:wr_comp1"),
 };
 
+constexpr std::array<std::string_view, 1> k1Ram32Bit{"bits[32]"};
+constexpr std::array<std::string_view, 2> k2Ram32Bit{"bits[32]", "bits[32]"};
+constexpr std::array<std::string_view, 3> k3Ram32Bit{"bits[32]", "bits[32]",
+                                                     "bits[32]"};
+
 constexpr RamChannelRewriteTestParam kTestParameters[] = {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RW",
@@ -666,6 +697,7 @@ proc my_proc(__state: bits[32], init={0}) {
   )",
         .pipeline_stages = 2,
         .ram_config_strings = kSingle1RW,
+        .ram_contents = k1Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RWWithMask",
@@ -694,6 +726,7 @@ proc my_proc(__state: bits[32], init={0}) {
         .ram_config_strings = kSingle1RW,
         .expect_read_mask = true,
         .expect_write_mask = true,
+        .ram_contents = k1Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RWWithExtraneousChannels",
@@ -725,6 +758,7 @@ proc my_proc(__state: bits[32], init={0}) {
   )",
         .pipeline_stages = 4,
         .ram_config_strings = kSingle1RW,
+        .ram_contents = k1Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "32BitWithThree1RWRams",
@@ -769,6 +803,7 @@ proc my_proc(__state: (), init={()}) {
   )",
         .pipeline_stages = 20,
         .ram_config_strings = kThree1RW,
+        .ram_contents = k3Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1R1W",
@@ -795,6 +830,7 @@ proc my_proc(__state: bits[32], init={0}) {
   )",
         .pipeline_stages = 3,
         .ram_config_strings = kSingle1R1W,
+        .ram_contents = k1Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1R1WWithMask",
@@ -824,6 +860,7 @@ proc my_proc(__state: bits[32], init={0}) {
         .ram_config_strings = kSingle1R1W,
         .expect_read_mask = true,
         .expect_write_mask = true,
+        .ram_contents = k1Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1R1WWithExtraneousChannels",
@@ -856,6 +893,7 @@ proc my_proc(__state: bits[32], init={0}) {
   )",
         .pipeline_stages = 3,
         .ram_config_strings = kSingle1R1W,
+        .ram_contents = k1Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "32BitWithThree1R1WRams",
@@ -902,6 +940,7 @@ proc my_proc(__state: bits[32], init={0}) {
   )",
         .pipeline_stages = 20,
         .ram_config_strings = kThree1R1W,
+        .ram_contents = k3Ram32Bit,
     },
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RWAnd1R1W",
@@ -939,6 +978,7 @@ proc my_proc(__state: bits[32], init={0}) {
   )",
         .pipeline_stages = 4,
         .ram_config_strings = k1RWAnd1R1W,
+        .ram_contents = k2Ram32Bit,
     },
 };
 
