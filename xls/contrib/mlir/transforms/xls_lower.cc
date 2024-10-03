@@ -25,8 +25,8 @@ void XlsLowerPassPipeline(OpPassManager& pm) {
   pm.addPass(createProcElaborationPass());
   pm.addPass(createScfToXlsPass());
   pm.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(createArithToXlsPass());
   pm.addPass(createMathToXlsPass());
+  pm.addPass(createArithToXlsPass());
   pm.addPass(createScalarizePass());
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(createIndexTypeConversionPass());
