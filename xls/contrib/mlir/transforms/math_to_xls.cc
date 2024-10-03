@@ -16,9 +16,10 @@
 
 #include <utility>
 
-#include "llvm/include/llvm/Support/LogicalResult.h"
-#include "mlir/include/mlir/Dialect/Math/IR/Math.h"
-#include "mlir/include/mlir/IR/Builders.h"
+#include "llvm/include/llvm/Support/LogicalResult.h"  // IWYU pragma: keep
+#include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"  // IWYU pragma: keep
+#include "mlir/include/mlir/Dialect/Math/IR/Math.h"  // IWYU pragma: keep
+#include "mlir/include/mlir/IR/Builders.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
@@ -26,7 +27,7 @@
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/include/mlir/Support/LLVM.h"
-#include "mlir/include/mlir/Transforms/DialectConversion.h"
+#include "mlir/include/mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 
 namespace mlir::xls {
@@ -57,14 +58,10 @@ LogicalResult MathToXlsPass::initialize(MLIRContext *context) {
 }
 
 void MathToXlsPass::runOnOperation() {
-  ConversionTarget target(getContext());
-  target.addLegalDialect<XlsDialect>();
-  target.addIllegalDialect<mlir::math::MathDialect>();
-
   auto result = getOperation()->walk([&](Operation *op) {
     if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
       if (interface.isSupportedRegion()) {
-        if (failed(mlir::applyPartialConversion(op, target, patterns)))
+        if (failed(applyPatternsAndFoldGreedily(op, patterns)))
           return WalkResult::interrupt();
       }
     }
