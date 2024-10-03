@@ -262,6 +262,115 @@ TEST_F(ParserTest, TestTokenIdentity) {
 })");
 }
 
+TEST_F(ParserTest, ImplDefRoundTrip) {
+  RoundTrip(R"(pub struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+})");
+}
+
+TEST_F(ParserTest, ImplWithConstRoundTrip) {
+  RoundTrip(R"(pub struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    const FOO_VAL = u32:5;
+    const FOO_STRING = "foo";
+})");
+}
+
+TEST_F(ParserTest, PublicImplWithConstRoundTrip) {
+  RoundTrip(R"(pub struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+pub impl foo {
+    const FOO_VAL = u32:5;
+    const FOO_STRING = "foo";
+})");
+}
+
+// TODO: https://github.com/google/xls/issues/1277 - Parse parametrics.
+TEST_F(ParserTest, DISABLED_ImplWithParametricsRoundTrip) {
+  RoundTrip(R"(pub struct foo<N: u32> {
+    a: bits[9],
+    b: bits[16],
+}
+impl<N: u32> foo<N> {
+    const FOO_VAL = N;
+    const FOO_STRING = "foo";
+})");
+}
+
+// TODO: https://github.com/google/xls/issues/1277 - Parse parametrics.
+TEST(ParserErrorTest, DISABLED_ImplWithMissingParametricsRoundTrip) {
+  constexpr std::string_view kProgram = R"(pub struct foo<N: u32> {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    const FOO_VAL = u32:5;
+    const FOO_STRING = "foo";
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or.status(),
+              IsPosError("ParseError", HasSubstr("missing parametric")));
+}
+
+TEST_F(ParserTest, ImplUseConstantDefRoundTrip) {
+  RoundTrip(R"(pub struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    const FOO_VAL = u32:5;
+    const FOO_STRING = "foo";
+}
+fn f(my_foo: foo) -> u32 {
+    my_foo::FOO_VAL
+})");
+}
+
+TEST(ParserErrorTest, ParseErrorForImplWithFunc) {
+  constexpr std::string_view kProgram = R"(pub struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+
+impl foo {
+    fn f() -> u32 {
+        u32:5
+    }
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError", HasSubstr("Only constants are supported")));
+}
+
+TEST(ParserErrorTest, ParseErrorForImplWithoutStructDef) {
+  constexpr std::string_view kProgram = (R"(impl foo {
+    const FOO_VAL = u32:5;
+    const FOO_STRING = "foo";
+})");
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError", HasSubstr("Cannot find a definition for name")));
+}
+
 TEST_F(ParserTest, StructDefRoundTrip) {
   RoundTrip(R"(pub struct foo<A: u32, B: bits[16]> {
     a: bits[A],

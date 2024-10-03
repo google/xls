@@ -2260,10 +2260,50 @@ static DocRef Fmt(const StructDef& n, const Comments& comments,
   return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
 }
 
-// TODO: https://github.com/google/xls/issues/1277 - Support impl.
 static DocRef Fmt(const Impl& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   std::optional<DocRef> attr;
+  if (n.is_public()) {
+    pieces.push_back(arena.Make(Keyword::kPub));
+    pieces.push_back(arena.space());
+  }
+  pieces.push_back(arena.Make(Keyword::kImpl));
+  pieces.push_back(arena.space());
+  pieces.push_back(Fmt(*n.struct_ref(), comments, arena));
+  pieces.push_back(arena.space());
+  pieces.push_back(arena.ocurl());
+  if (!n.constants().empty()) {
+    pieces.push_back(arena.break1());
+  }
+  std::vector<DocRef> body_pieces;
+  Pos last_constant_pos = n.span().start();
+  for (const auto& constant : n.constants()) {
+    // See if there are comments between the last constant and the start of this
+    // constant.
+    std::optional<Span> last_comment_span;
+    if (std::optional<DocRef> comments_doc =
+            EmitCommentsBetween(last_constant_pos, constant->span().start(),
+                                comments, arena, &last_comment_span)) {
+      body_pieces.push_back(comments_doc.value());
+      body_pieces.push_back(arena.hard_line());
+    }
+    body_pieces.push_back(Fmt(*constant, comments, arena));
+    last_constant_pos = constant->span().limit();
+
+    last_constant_pos =
+        CollectInlineComments(constant->span().limit(), last_constant_pos,
+                              comments, arena, body_pieces, last_comment_span);
+
+    body_pieces.push_back(arena.hard_line());
+  }
+  if (!body_pieces.empty()) {
+    // Remove last line break.
+    body_pieces.pop_back();
+    pieces.push_back(arena.MakeNest(ConcatN(arena, body_pieces)));
+    pieces.push_back(arena.hard_line());
+  }
+  pieces.push_back(arena.ccurl());
+
   return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
 }
 

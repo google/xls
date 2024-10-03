@@ -1049,8 +1049,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('ParseError:', stderr)
     self.assertIn(
-        '`impl` is not yet implemented in DSLX, please use stand-alone'
-        ' functions that take the struct as a value instead',
+        'Only constants are supported',
         stderr,
     )
 

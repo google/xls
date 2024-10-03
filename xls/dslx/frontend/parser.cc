@@ -317,6 +317,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         continue;
       }
 
+      if (peek->IsKeyword(Keyword::kImpl)) {
+        XLS_ASSIGN_OR_RETURN(Impl * impl,
+                             ParseImpl(/*is_public=*/true, *bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(impl, make_collision_error));
+        continue;
+      }
+
       if (peek->IsKeyword(Keyword::kEnum)) {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
                              ParseEnumDef(/*is_public=*/true, *bindings));
@@ -463,11 +470,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kImpl: {
-        return ParseErrorStatus(
-            peek->span(),
-            "`impl` is not yet implemented in DSLX, please use stand-alone "
-            "functions that take the struct as a value instead");
+        XLS_ASSIGN_OR_RETURN(Impl * impl,
+                             ParseImpl(/*is_public=*/false, *bindings));
+
+        XLS_RETURN_IF_ERROR(module_->AddTop(impl, make_collision_error));
+        break;
       }
+
       default:
         return top_level_error();
     }
@@ -3018,6 +3027,7 @@ absl::StatusOr<Number*> Parser::ParseNumber(Bindings& bindings) {
 
 absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
                                                Bindings& bindings) {
+  VLOG(5) << "ParseStruct @ " << GetPos();
   const Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kStruct));
 
@@ -3056,6 +3066,34 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
 
   bindings.Add(name_def->identifier(), struct_def);
   return struct_def;
+}
+
+absl::StatusOr<Impl*> Parser::ParseImpl(bool is_public, Bindings& bindings) {
+  VLOG(5) << "ParseImpl @ " << GetPos();
+  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kImpl));
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+  const Pos start_pos = GetPos();
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
+                                       "Opening brace for impl."));
+
+  std::vector<ConstantDef*> constants;
+  while (true) {
+    XLS_ASSIGN_OR_RETURN(bool found_cbrace, TryDropToken(TokenKind::kCBrace));
+    if (found_cbrace) {
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(bool next_is_public, TryDropKeyword(Keyword::kPub));
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (!peek->IsKeyword(Keyword::kConst)) {
+      return ParseErrorStatus(peek->span(),
+                              "Only constants are supported in impl");
+    }
+    XLS_ASSIGN_OR_RETURN(ConstantDef * constant,
+                         ParseConstantDef(next_is_public, bindings));
+    constants.push_back(constant);
+  }
+  Span span(start_pos, GetPos());
+  return module_->Make<Impl>(span, type, std::move(constants), is_public);
 }
 
 absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,

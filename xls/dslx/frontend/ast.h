@@ -2320,7 +2320,8 @@ class StructDef : public AstNode {
 // Represents an impl for a struct.
 class Impl : public AstNode {
  public:
-  Impl(Module* owner, Span span, TypeAnnotation* struct_ref, bool is_public);
+  Impl(Module* owner, Span span, TypeAnnotation* struct_ref,
+       const std::vector<ConstantDef*> constants, bool is_public);
 
   ~Impl() override;
 
@@ -2332,6 +2333,9 @@ class Impl : public AstNode {
 
   std::string_view GetNodeTypeName() const override { return "Impl"; }
 
+  // An AST node that refers to the struct being implemented.
+  TypeAnnotation* struct_ref() const { return struct_ref_; }
+
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2342,9 +2346,12 @@ class Impl : public AstNode {
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
+  const std::vector<ConstantDef*>& constants() const { return constants_; }
+
  private:
   Span span_;
   TypeAnnotation* struct_ref_;
+  std::vector<ConstantDef*> constants_;
   bool public_;
 };
 

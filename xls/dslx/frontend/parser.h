@@ -507,6 +507,8 @@ class Parser : public TokenParser {
 
   absl::StatusOr<StructDef*> ParseStruct(bool is_public, Bindings& bindings);
 
+  absl::StatusOr<Impl*> ParseImpl(bool is_public, Bindings& bindings);
+
   // Parses parametric bindings that lead a function.
   //
   // For example:

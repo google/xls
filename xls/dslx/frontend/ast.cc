@@ -1298,17 +1298,26 @@ std::vector<std::string> StructDef::GetMemberNames() const {
 
 // -- class Impl
 
-Impl::Impl(Module* owner, Span span, TypeAnnotation* struct_ref, bool is_public)
+Impl::Impl(Module* owner, Span span, TypeAnnotation* struct_ref,
+           const std::vector<ConstantDef*> constants, bool is_public)
     : AstNode(owner),
-      span_(span),
+      span_(std::move(span)),
       struct_ref_(struct_ref),
+      constants_(std::move(constants)),
       public_(is_public) {}
 
 Impl::~Impl() = default;
 
 std::string Impl::ToString() const {
   std::string type_name = ToAstNode(struct_ref_)->ToString();
-  return absl::StrFormat("%simpl %s {}", public_ ? "pub " : "", type_name);
+  std::string result =
+      absl::StrFormat("%simpl %s {\n", public_ ? "pub " : "", type_name);
+  for (const auto& constant : constants_) {
+    absl::StrAppendFormat(&result, "%s%s\n", kRustOneIndent,
+                          constant->ToString());
+  }
+  absl::StrAppend(&result, "}");
+  return result;
 }
 
 // -- class StructInstance

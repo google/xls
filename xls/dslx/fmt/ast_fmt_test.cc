@@ -1410,11 +1410,36 @@ TEST_F(ModuleFmtTest, StructDefTwoParametrics) {
   Run(kProgram, kWantMultiline, 35);
 }
 
-// TODO: https://github.com/google/xls/issues/1277 - Support impl.
-TEST_F(ModuleFmtTest, DISABLED_ImplSimple) {
-  const std::string kInput = "pub impl {} \n";
+TEST_F(ModuleFmtTest, ImplSimple) {
+  Run(
+      R"(struct MyStruct {}
 
-  Run(kInput);
+impl MyStruct {}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplWithConstants) {
+  Run(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    const SOME_CONST = u32:3;
+    // Always include this value.
+    const ANOTHER = "another";
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplWithInlineComment) {
+  Run(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    const SOME_CONST = u32:3;  // three
+    // Something else.
+    const ANOTHER = "another";
+}
+)");
 }
 
 TEST_F(ModuleFmtTest, SimpleTestFunction) {
