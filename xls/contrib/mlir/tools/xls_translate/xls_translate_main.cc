@@ -62,6 +62,13 @@ llvm::cl::opt<std::string> dslxSearchPath(
     "dslx-search-path", llvm::cl::desc("Search path for DSLX files"),
     llvm::cl::init(""));
 
+// NOLINTNEXTLINE
+llvm::cl::opt<bool> privatizeAndDceFunctions(
+    "privatize-and-dce-functions",
+    llvm::cl::desc("Whether to privatize all non-top functions and run "
+                   "SymbolDCE first"),
+    llvm::cl::init(false));
+
 void registerInputDialects(DialectRegistry& registry) {
   // TODO(jpienaar): Registering all as start/prototyping.
   mlir::registerAllDialects(registry);
@@ -74,6 +81,7 @@ void registerInputDialects(DialectRegistry& registry) {
 LogicalResult mlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output) {
   MlirXlsToXlsTranslateOptions options;
   options.main_function = mainFunction;
+  options.privatize_and_dce_functions = privatizeAndDceFunctions;
   options.optimize_ir = optimizeIr;
   options.dslx_search_path = dslxSearchPath;
   return MlirXlsToXlsTranslate(op, output, options);
@@ -83,6 +91,7 @@ LogicalResult mlirXlsToVerilogTranslate(Operation* op,
                                         llvm::raw_ostream& output) {
   MlirXlsToXlsTranslateOptions options;
   options.main_function = mainFunction;
+  options.privatize_and_dce_functions = privatizeAndDceFunctions;
   options.optimize_ir = optimizeIr;
   options.dslx_search_path = dslxSearchPath;
   options.generate_verilog = true;

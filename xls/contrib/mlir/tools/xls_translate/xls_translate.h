@@ -40,6 +40,9 @@ struct MlirXlsToXlsTranslateOptions {
 
   // Whether to generate Verilog.
   bool generate_verilog = false;
+
+  // Whether to privatize all non-top functions and run SymbolDCE first.
+  bool privatize_and_dce_functions = false;
 };
 
 // Translates an operation with XLS dialect to DSLX.
