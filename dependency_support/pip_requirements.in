@@ -12,6 +12,7 @@ pytest==8.2.2
 cocotb==1.9.0
 cocotbext-axi==0.1.24
 cocotb_bus==0.2.1
+zstandard==0.23.0
 
 # Note: numpy and scipy version availability seems to differ between Ubuntu
 # versions that we want to support (e.g. 18.04 vs 20.04), so we accept a
