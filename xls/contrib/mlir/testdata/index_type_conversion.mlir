@@ -42,7 +42,7 @@ func.func @i32_to_index(%lhs : i32, %rhs : i32) -> i32 attributes {xls = true} {
   %add = xls.add %lhs_index, %rhs_index : index
 
   // INDEX64:           %[[ret:.*]] = xls.bit_slice %[[add]] {start = 0 : i64, width = 32 : i64} : (i64) -> i32
-  %ret = arith.index_cast %add: index to i32
+  %ret = arith.index_castui %add: index to i32
 
   // INDEX32:           return %[[add]] : i32
   // INDEX64:           return %[[ret]] : i32

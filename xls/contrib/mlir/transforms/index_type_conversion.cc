@@ -133,12 +133,12 @@ class LegalizeConstantIndex
   }
 };
 
-class LegalizeIndexCastOp
-    : public OpConversionPattern<mlir::arith::IndexCastOp> {
-  using OpConversionPattern::OpConversionPattern;
+template <typename IndexCastOpTy, typename XlsCastOpTy>
+class LegalizeIndexCastOp : public OpConversionPattern<IndexCastOpTy> {
+  using OpConversionPattern<IndexCastOpTy>::OpConversionPattern;
 
   LogicalResult matchAndRewrite(
-      mlir::arith::IndexCastOp op, OpAdaptor adaptor,
+      IndexCastOpTy op, OpConversionPattern<IndexCastOpTy>::OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     Type outType = op.getOut().getType();
     if (!isa<IndexType, IntegerType>(outType))
@@ -148,7 +148,7 @@ class LegalizeIndexCastOp
     unsigned srcBitWidth;
     unsigned resBitWidth;
     const IndexTypeConverter *typeConverter =
-        static_cast<const IndexTypeConverter *>(getTypeConverter());
+        static_cast<const IndexTypeConverter *>(this->getTypeConverter());
     if (isCastToIndex) {
       srcBitWidth = op.getIn().getType().getIntOrFloatBitWidth();
       resBitWidth = typeConverter->getIndexTypeBitwidth();
@@ -160,7 +160,7 @@ class LegalizeIndexCastOp
 
     Value in = adaptor.getIn();
     if (srcBitWidth < resBitWidth) {
-      rewriter.replaceOpWithNewOp<xls::SignExtOp>(
+      rewriter.replaceOpWithNewOp<XlsCastOpTy>(
           op, IntegerType::get(op.getContext(), resBitWidth), in);
     } else if (srcBitWidth > resBitWidth) {
       rewriter.replaceOpWithNewOp<xls::BitSliceOp>(
@@ -173,6 +173,11 @@ class LegalizeIndexCastOp
     return success();
   }
 };
+
+using LegalizeIndexCast =
+    LegalizeIndexCastOp<mlir::arith::IndexCastOp, xls::SignExtOp>;
+using LegalizeIndexCastUI =
+    LegalizeIndexCastOp<mlir::arith::IndexCastUIOp, xls::ZeroExtOp>;
 
 class LegalizeGeneralOps : public ConversionPattern {
  public:
@@ -250,9 +255,8 @@ class IndexTypeConversionPass
     });
 
     RewritePatternSet patterns(&getContext());
-    patterns
-        .add<LegalizeIndexCastOp, LegalizeConstantIndex, LegalizeGeneralOps>(
-            typeConverter, &ctx);
+    patterns.add<LegalizeIndexCast, LegalizeIndexCastUI, LegalizeConstantIndex,
+                 LegalizeGeneralOps>(typeConverter, &ctx);
     if (failed(mlir::applyFullConversion(op, target, std::move(patterns)))) {
       signalPassFailure();
     }
