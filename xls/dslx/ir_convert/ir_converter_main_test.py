@@ -17,6 +17,7 @@
 import dataclasses
 import os
 import subprocess
+import tempfile
 import textwrap
 from typing import Dict, Iterable, Optional
 
@@ -748,6 +749,32 @@ class IrConverterMainTest(test_base.TestCase):
             ],
         ),
     )
+
+  def test_alternative_stdlib_path(self):
+    with tempfile.TemporaryDirectory(suffix="stdlib") as stdlib_dir:
+      # Make a std.x file in our fake stdlib.
+      with open(os.path.join(stdlib_dir, "std.x"), "w") as fake_std:
+        print("pub fn my_stdlib_func(x: u32) -> u32 { x }", file=fake_std)
+
+      # Invoke the function in our fake std.x which should be appropriately
+      # resolved via the dslx_stdlib_path flag.
+      program = """
+      import std;
+
+      fn main() -> u32 { std::my_stdlib_func(u32:42) }
+      """
+      result = self._ir_convert(
+          {"main.x": program},
+          extra_flags=[f"--dslx_stdlib_path={stdlib_dir}"],
+      )
+      self.assertIn(
+          textwrap.dedent("""\
+      fn __std__my_stdlib_func(x: bits[32] id=1) -> bits[32] {
+        ret x: bits[32] = param(name=x, id=1)
+      }
+      """),
+          result.ir,
+      )
 
 
 if __name__ == "__main__":

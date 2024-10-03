@@ -25,7 +25,7 @@ import "xls/ir/channel.proto";
 message IrConverterOptionsFlagsProto {
   optional string output_file = 1;
   optional string top = 2;
-  optional string stdlib_path = 3;
+  optional string dslx_stdlib_path = 3;
   optional string dslx_path = 4;
   optional string package_name = 5;
   optional bool emit_fail_as_assert = 6;

@@ -69,7 +69,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
                 ir_converter_options.output_file())
           : std::nullopt;
 
-  std::string_view stdlib_path = ir_converter_options.stdlib_path();
+  std::string_view dslx_stdlib_path = ir_converter_options.dslx_stdlib_path();
   std::string_view dslx_path = ir_converter_options.dslx_path();
   std::vector<std::string_view> dslx_path_strs = absl::StrSplit(dslx_path, ':');
 
@@ -126,11 +126,11 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   }
 
   bool printed_error = false;
-  XLS_ASSIGN_OR_RETURN(
-      PackageConversionData result,
-      ConvertFilesToPackage(paths, stdlib_path, dslx_paths, convert_options,
-                            /*top=*/top,
-                            /*package_name=*/package_name, &printed_error));
+  XLS_ASSIGN_OR_RETURN(PackageConversionData result,
+                       ConvertFilesToPackage(
+                           paths, dslx_stdlib_path, dslx_paths, convert_options,
+                           /*top=*/top,
+                           /*package_name=*/package_name, &printed_error));
   if (output_file) {
     XLS_RETURN_IF_ERROR(SetFileContents(*output_file, result.DumpIr()));
   } else {
