@@ -166,6 +166,7 @@ class ForToCountedForRewrite : public OpConversionPattern<ForOp> {
       return rewriter.notifyMatchFailure(op, "Failed to outline body");
     }
     (*func)->setAttr("xls", rewriter.getBoolAttr(true));
+    (*func).setPrivate();
     rewriter.replaceOpWithNewOp<CountedForOp>(
         op, op->getResultTypes(), adaptor.getInits().front(),
         adaptor.getInvariants(), adaptor.getTripCountAttr(),
