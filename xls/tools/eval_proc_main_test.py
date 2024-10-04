@@ -24,6 +24,7 @@ from absl.testing import parameterized
 from xls.common import runfiles
 from xls.ir import xls_value_pb2
 from xls.tools import node_coverage_stats_pb2
+from xls.tools import proc_channel_values_pb2
 
 
 EVAL_PROC_MAIN_PATH = runfiles.get_path("xls/tools/eval_proc_main")
@@ -255,6 +256,69 @@ out: {
   bits[32]:3
 }
 """
+
+MULTI_BLOCK_IR_FILE = runfiles.get_path(
+    "xls/examples/dslx_module/manual_chan_caps_streaming_configured_multiproc.block.ir"
+)
+MULTI_BLOCK_SIG_FILE = runfiles.get_path(
+    "xls/examples/dslx_module/manual_chan_caps_streaming_configured_multiproc.sig.textproto"
+)
+MULTI_BLOCK_MEMORY_IR_FILE = runfiles.get_path("xls/examples/delay.block.ir")
+MULTI_BLOCK_MEMORY_SIG_FILE = runfiles.get_path(
+    "xls/examples/delay.sig.textproto"
+)
+
+
+def _eight_chars(val: bytes) -> xls_value_pb2.ValueProto:
+  assert len(val) == 8
+  return xls_value_pb2.ValueProto(
+      array=xls_value_pb2.ValueProto.Array(
+          elements=[
+              xls_value_pb2.ValueProto(
+                  bits=xls_value_pb2.ValueProto.Bits(
+                      bit_count=8, data=bytes([v])
+                  )
+              )
+              for v in val
+          ]
+      )
+  )
+
+
+MULTI_BLOCK_INPUT_CHANNEL_VALUES = (
+    proc_channel_values_pb2.ProcChannelValuesProto(
+        channels=[
+            proc_channel_values_pb2.ProcChannelValuesProto.Channel(
+                name="some_caps_streaming_configured__external_input_wire",
+                entry=[
+                    _eight_chars(b"abcdabcd"),
+                    _eight_chars(b"abcdabcd"),
+                    _eight_chars(b"abcdabcd"),
+                    _eight_chars(b"abcdabcd"),
+                    _eight_chars(b"abcdabcd"),
+                    _eight_chars(b"abcdabcd"),
+                ],
+            )
+        ]
+    )
+)
+MULTI_BLOCK_OUTPUT_CHANNEL_VALUES = (
+    proc_channel_values_pb2.ProcChannelValuesProto(
+        channels=[
+            proc_channel_values_pb2.ProcChannelValuesProto.Channel(
+                name="some_caps_streaming_configured__external_output_wire",
+                entry=[
+                    _eight_chars(b"ABCDABCD"),
+                    _eight_chars(b"abcdabcd"),
+                    _eight_chars(b"AbCdAbCd"),
+                    _eight_chars(b"ABCDABCD"),
+                    _eight_chars(b"abcdabcd"),
+                    _eight_chars(b"AbCdAbCd"),
+                ],
+            )
+        ]
+    )
+)
 
 TOKEN = xls_value_pb2.ValueProto(token=xls_value_pb2.ValueProto.Token())
 _ONE_BIT_TRUE = xls_value_pb2.ValueProto(
@@ -837,6 +901,59 @@ class EvalProcTest(parameterized.TestCase):
     )
 
   @parameterized_block_backends
+  def test_multi_block_memory(self, backend):
+    tick_count = 3 * 2048
+    ir_file = MULTI_BLOCK_MEMORY_IR_FILE
+    signature_file = MULTI_BLOCK_MEMORY_SIG_FILE
+    input_channel = proc_channel_values_pb2.ProcChannelValuesProto.Channel(
+        name="delay__data_in"
+    )
+    output_channel = proc_channel_values_pb2.ProcChannelValuesProto.Channel(
+        name="delay__data_out"
+    )
+    # Make a little oracle to get the results.
+    buffer = [3] * 2048
+    for t in range(tick_count):
+      input_channel.entry.append(_value_32_bits(t))
+      buffer.append(t)
+      output_channel.entry.append(_value_32_bits(buffer.pop(0)))
+
+    # Create input and output args
+    input_data = proc_channel_values_pb2.ProcChannelValuesProto(
+        channels=[input_channel]
+    )
+    output_data = proc_channel_values_pb2.ProcChannelValuesProto(
+        channels=[output_channel]
+    )
+    channels_in_ir_file = self.create_tempfile(
+        content=input_data.SerializeToString()
+    )
+    channels_out_ir_file = self.create_tempfile(
+        content=output_data.SerializeToString()
+    )
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_file,
+        "--top=delay_top",
+        "--proto_inputs_for_all_channels",
+        channels_in_ir_file,
+        "--expected_proto_outputs_for_all_channels",
+        channels_out_ir_file,
+        "--block_signature_proto",
+        signature_file,
+        "--model_memories",
+        "ram=1024/(bits[64]:0)",
+        "--alsologtostderr",
+        "--show_trace",
+        "--ticks",
+        "-1",
+        # f"{tick_count + 1}",
+    ] + backend
+
+    run_command(shared_args)
+
+  @parameterized_block_backends
   def test_observe_block(self, backend):
     ir_file = self.create_tempfile(content=OBSERVER_IR)
     sig_file = self.create_tempfile(content=OBSERVER_BLOCK_SIG)
@@ -951,6 +1068,53 @@ class EvalProcTest(parameterized.TestCase):
         ],
     )
     self.assertLen(node_coverage.nodes, 7)
+
+  @parameterized_proc_backends
+  def test_multi_proc(self, backend):
+    ir_file = MULTI_BLOCK_IR_FILE
+    channels_in_file = self.create_tempfile(
+        content=MULTI_BLOCK_INPUT_CHANNEL_VALUES.SerializeToString()
+    )
+    channels_out_file = self.create_tempfile(
+        content=MULTI_BLOCK_OUTPUT_CHANNEL_VALUES.SerializeToString()
+    )
+    run_command(
+        [
+            EVAL_PROC_MAIN_PATH,
+            ir_file,
+            f"--proto_inputs_for_all_channels={channels_in_file.full_path}",
+            f"--expected_proto_outputs_for_all_channels={channels_out_file.full_path}",
+            "--alsologtostderr",
+            "--show_trace",
+            "--ticks=6",
+        ]
+        + backend
+    )
+
+  @parameterized_block_backends
+  def test_multi_block(self, backend):
+    ir_file = MULTI_BLOCK_IR_FILE
+    sig_file = MULTI_BLOCK_SIG_FILE
+    channels_in_file = self.create_tempfile(
+        content=MULTI_BLOCK_INPUT_CHANNEL_VALUES.SerializeToString()
+    )
+    channels_out_file = self.create_tempfile(
+        content=MULTI_BLOCK_OUTPUT_CHANNEL_VALUES.SerializeToString()
+    )
+    run_command(
+        [
+            EVAL_PROC_MAIN_PATH,
+            ir_file,
+            f"--block_signature_proto={sig_file}",
+            "--top=manual_chan_caps_streaming",
+            f"--proto_inputs_for_all_channels={channels_in_file.full_path}",
+            f"--expected_proto_outputs_for_all_channels={channels_out_file.full_path}",
+            "--alsologtostderr",
+            "--show_trace",
+            "--ticks=6",
+        ]
+        + backend
+    )
 
   @parameterized_proc_backends
   def test_zero_size_proc(self, backend):

@@ -42,6 +42,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -62,6 +63,8 @@
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
+#include "xls/ir/block_elaboration.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/events.h"
@@ -69,6 +72,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -87,6 +91,12 @@ value of each proc will be printed to the terminal upon completion.
 Initial states are set according to their declarations inside the IR itself.
 )";
 
+ABSL_FLAG(
+    std::optional<std::string>, top, std::nullopt,
+    "If present the top construct to simulate. Must be an exact match to "
+    "the name of an appropriate proc/block. Until new-style-procs are "
+    "available this is mostly just to support module-name for block "
+    "simulations as the specified top must be the actual top of the design.");
 ABSL_FLAG(std::vector<std::string>, ticks, {},
           "Can be a comma-separated list of runs. "
           "Number of clock ticks to execute for each, with proc state "
@@ -207,6 +217,7 @@ struct EvaluateProcsOptions {
   bool use_jit = false;
   bool fail_on_assert = false;
   std::vector<int64_t> ticks = {-1};
+  std::optional<std::string> top = std::nullopt;
 };
 
 static absl::Status EvaluateProcs(
@@ -222,6 +233,13 @@ static absl::Status EvaluateProcs(
   bool uses_observers =
       absl::GetFlag(FLAGS_output_node_coverage_stats_proto).has_value() ||
       absl::GetFlag(FLAGS_output_node_coverage_stats_textproto).has_value();
+  if (options.top) {
+    XLS_ASSIGN_OR_RETURN(Proc * proc, package->GetProc(*options.top));
+    if (proc != package->GetTop()) {
+      return absl::UnimplementedError(
+          "Simulating subsets of the proc network is not implemented yet.");
+    }
+  }
   evaluator_options.set_support_observers(uses_observers);
   if (options.use_jit) {
     XLS_ASSIGN_OR_RETURN(
@@ -674,6 +692,7 @@ struct RunBlockOptions {
   bool use_jit = false;
   std::vector<int64_t> ticks = {-1};
   int64_t max_cycles_no_output = 100;
+  std::optional<std::string> top;
   int random_seed;
   double prob_input_valid_assert;
   bool show_trace;
@@ -734,14 +753,30 @@ static absl::Status RunBlock(
     const absl::flat_hash_map<std::string, std::pair<int64_t, Value>>&
         model_memories_param,
     std::string_view output_stats_path, const RunBlockOptions& options = {}) {
-  if (package->blocks().size() != 1) {
+  Block* block;
+  if (options.top) {
+    XLS_ASSIGN_OR_RETURN(block, package->GetBlock(*options.top));
+  } else if (package->HasTop()) {
+    if (package->GetTop().value()->IsBlock()) {
+      XLS_ASSIGN_OR_RETURN(block, package->GetTopAsBlock());
+    } else if (package->blocks().size() == 1) {
+      block = package->blocks().front().get();
+    } else {
+      // This is result of codegen-ing a proc so use the block for the top proc
+      // as top.
+      XLS_ASSIGN_OR_RETURN(Proc * top_proc, package->GetTopAsProc());
+      XLS_ASSIGN_OR_RETURN(
+          block, package->GetBlock(top_proc->name()),
+          _ << "Unable to determine top. Pass --top to select one manually.");
+    }
+  } else if (package->blocks().size() == 1) {
+    block = package->blocks().front().get();
+  } else {
     return absl::InvalidArgumentError(
-        "Input IR should contain exactly one block");
+        "Input IR should contain exactly one block or a top");
   }
 
   std::mt19937_64 bit_gen(options.random_seed);
-
-  Block* block = package->blocks()[0].get();
 
   // TODO: Support multiple resets
   CHECK_EQ(options.ticks.size(), 1);
@@ -777,13 +812,23 @@ static absl::Status RunBlock(
         /*read_disabled_value=*/XsOfType(port->GetType()), options.show_trace);
   }
 
-  // Initial register state is one for all registers.
-  // Ideally this would be randomized, but at least 1s are more likely to
-  //  expose bad behavior than 0s.
   absl::flat_hash_map<std::string, Value> reg_state;
-  for (Register* reg : block->GetRegisters()) {
-    Value def = ZeroOfType(reg->type());
-    reg_state[reg->name()] = XsOfType(reg->type());
+  {
+    XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
+                         BlockElaboration::Elaborate(block));
+    for (BlockInstance* inst : elab.instances()) {
+      if (!inst->block()) {
+        // Actually a fifo or something without real registers.
+        continue;
+      }
+      for (Register* reg : (*inst->block())->GetRegisters()) {
+        // Initial register state is one for all registers.
+        // Ideally this would be randomized, but at least 1s are more likely to
+        //  expose bad behavior than 0s.
+        reg_state[absl::StrCat(inst->RegisterPrefix(), reg->name())] =
+            XsOfType(reg->type());
+      }
+    }
   }
 
   bool needs_observer =
@@ -1187,6 +1232,7 @@ static absl::Status RealMain(
     RunBlockOptions block_options = {
         .ticks = ticks,
         .max_cycles_no_output = max_cycles_no_output,
+        .top = absl::GetFlag(FLAGS_top),
         .random_seed = random_seed,
         .prob_input_valid_assert = prob_input_valid_assert,
         .show_trace = show_trace,
@@ -1209,6 +1255,7 @@ static absl::Status RealMain(
   EvaluateProcsOptions evaluate_procs_options = {
       .fail_on_assert = fail_on_assert,
       .ticks = ticks,
+      .top = absl::GetFlag(FLAGS_top),
   };
 
   if (backend == "serial_jit") {

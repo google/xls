@@ -1109,6 +1109,17 @@ TEST(FunctionBuilderTest, NaryBitwiseAnd) {
               m::And(m::Param("a"), m::Param("b"), m::Param("c")));
 }
 
+TEST(FunctionBuilderTest, Ports) {
+  Package p("p");
+  BlockBuilder b("b", &p);
+  b.OutputPort("bar", b.InputPort("foo", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * blk, b.Build());
+  EXPECT_TRUE(blk->HasInputPort("foo"));
+  EXPECT_FALSE(blk->HasOutputPort("foo"));
+  EXPECT_TRUE(blk->HasOutputPort("bar"));
+  EXPECT_FALSE(blk->HasInputPort("bar"));
+}
+
 TEST(FunctionBuilderTest, Registers) {
   Package p("p");
   BlockBuilder b("b", &p);

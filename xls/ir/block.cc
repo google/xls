@@ -284,6 +284,15 @@ absl::Status Block::SetPortNameExactly(std::string_view name, Node* node) {
   return absl::OkStatus();
 }
 
+bool Block::HasInputPort(std::string_view name) const {
+  return ports_by_name_.contains(name) &&
+         std::holds_alternative<InputPort*>(ports_by_name_.at(name));
+}
+bool Block::HasOutputPort(std::string_view name) const {
+  return ports_by_name_.contains(name) &&
+         std::holds_alternative<OutputPort*>(ports_by_name_.at(name));
+}
+
 absl::StatusOr<InputPort*> Block::GetInputPort(std::string_view name) const {
   auto port_iter = ports_by_name_.find(name);
   if (port_iter == ports_by_name_.end()) {

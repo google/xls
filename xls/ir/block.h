@@ -78,7 +78,9 @@ class Block : public FunctionBase {
 
   // Returns a given input/output port by name.
   absl::StatusOr<InputPort*> GetInputPort(std::string_view name) const;
+  bool HasInputPort(std::string_view name) const;
   absl::StatusOr<OutputPort*> GetOutputPort(std::string_view name) const;
+  bool HasOutputPort(std::string_view name) const;
 
   // Adds an input/output port to the block. These methods should be used to add
   // ports rather than FunctionBase::AddNode and FunctionBase::MakeNode (checked
