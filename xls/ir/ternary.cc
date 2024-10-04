@@ -33,6 +33,7 @@
 #include "xls/common/iter_util.h"
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
@@ -374,6 +375,14 @@ void RealizedTernaryIterator::Advance(int64_t amnt) {
 
 absl::StatusOr<std::vector<Value>> AllValues(
     LeafTypeTreeView<TernaryVector> ltt) {
+  if (ltt.leaf_types().empty()) {
+    // This type has no leaf types, so it consists entirely of empty tuples or
+    // arrays; as such, it has only one possible value.
+    LeafTypeTree<Value> value_ltt(ltt.type(), Value());
+    XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_ltt.AsView()));
+    return std::vector<Value>({std::move(value)});
+  }
+
   using AccessibleRange =
       xabsl::iterator_range<ternary_ops::RealizedTernaryIterator>;
   LeafTypeTree<AccessibleRange> iterators =

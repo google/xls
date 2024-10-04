@@ -16,18 +16,28 @@
 
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
+
+using status_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
 
 TEST(Ternary, FromKnownBits) {
   // Basic test of functionality
@@ -221,6 +231,66 @@ TEST(TernaryIterator, HugeValues) {
                          UBits(0, 128), UBits(1, 128),
                          bits_ops::Concat({UBits(1, 1), UBits(0, 127)}),
                          bits_ops::Concat({UBits(1, 1), UBits(1, 127)})));
+}
+
+class AllValuesTest : public ::testing::Test {
+ protected:
+  AllValuesTest() : package_("AllValuesTest") {}
+
+  // Parse and return the given string as an XLS type.
+  Type* AsType(std::string_view s) {
+    return Parser::ParseType(s, &package_).value();
+  }
+
+  Value AsValue(std::string_view s, Type* t) {
+    return *Parser::ParseValue(s, t);
+  }
+
+ private:
+  Package package_;
+};
+
+TEST_F(AllValuesTest, AllValues) {
+  Type* type = AsType("(bits[2], (), bits[3][4])");
+  auto ternary_ltt = LeafTypeTree<TernaryVector>::CreateFromVector(
+      type, {{*StringToTernaryVector("0b1X"), *StringToTernaryVector("0b000"),
+              *StringToTernaryVector("0bXX1"), *StringToTernaryVector("0b010"),
+              *StringToTernaryVector("0b011")}});
+  EXPECT_THAT(ternary_ops::AllValues(ternary_ltt.AsView()),
+              IsOkAndHolds(ElementsAre(
+                  AsValue("(0b10, (), [0b000, 0b001, 0b010, 0b011])", type),
+                  AsValue("(0b11, (), [0b000, 0b001, 0b010, 0b011])", type),
+                  AsValue("(0b10, (), [0b000, 0b011, 0b010, 0b011])", type),
+                  AsValue("(0b11, (), [0b000, 0b011, 0b010, 0b011])", type),
+                  AsValue("(0b10, (), [0b000, 0b101, 0b010, 0b011])", type),
+                  AsValue("(0b11, (), [0b000, 0b101, 0b010, 0b011])", type),
+                  AsValue("(0b10, (), [0b000, 0b111, 0b010, 0b011])", type),
+                  AsValue("(0b11, (), [0b000, 0b111, 0b010, 0b011])", type))));
+}
+
+TEST_F(AllValuesTest, AllValuesEmptyTypes) {
+  auto empty_tuple_ltt =
+      LeafTypeTree<TernaryVector>::CreateFromVector(AsType("()"), {});
+  EXPECT_THAT(ternary_ops::AllValues(empty_tuple_ltt.AsView()),
+              IsOkAndHolds(ElementsAre(Value::Tuple({}))));
+
+  auto empty_array_ltt =
+      LeafTypeTree<TernaryVector>::CreateFromVector(AsType("()[2]"), {});
+  EXPECT_THAT(ternary_ops::AllValues(empty_array_ltt.AsView()),
+              IsOkAndHolds(ElementsAre(
+                  *Value::Array({Value::Tuple({}), Value::Tuple({})}))));
+
+  Type* complex_empty_type = AsType("(()[2], (), ()[2], ((), (), ()[3][2]))");
+  auto complex_empty_ltt =
+      LeafTypeTree<TernaryVector>::CreateFromVector(complex_empty_type, {});
+  EXPECT_THAT(
+      ternary_ops::AllValues(complex_empty_ltt.AsView()),
+      IsOkAndHolds(ElementsAre(AsValue("([(), ()],"
+                                       " (),"
+                                       " [(), ()],"
+                                       " ((), (), [[(), (), ()], [(), (), ()]])"
+                                       ")",
+                                       complex_empty_type))));
 }
 
 }  // namespace
