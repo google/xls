@@ -9,6 +9,9 @@ def FloatLib : NativeCodeCall<"getFloatLib($0.getType())">;
 // Shorthand for a constant string attribute.
 class CS<string s> : ConstantStrAttr<StrAttr, s>;
 
+class ScalarOrTensorOf<Type element> :
+    AnyTypeOf<[element, TensorOf<[element]>]>;
+
 class BinaryOpPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b), (b $a, $b)>;
 class BinaryOpOverflowPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b, $_), (b $a, $b)>;
 class BinaryVariadicOpPat<Arith_Op a, Xls_Op b> : Pat<(a $a, $b), (b (variadic $a, $b))>;
@@ -131,19 +134,19 @@ def : Pat<(Arith_TruncFOp:$op $a, /*RoundingMode=*/$_, /*FastMathFlags=*/$_),
 
 def : Pat<(Arith_SIToFPOp:$op I32:$a),
           (Xls_CallDslxOp (FloatLib $op), CS<"from_int32">, (variadic $a), ConstUnitAttr),
-          [(F32 $op)]>;
+          [(ScalarOrTensorOf<F32> $op)]>;
 
 def : Pat<(Arith_SIToFPOp:$op I8:$a),
           (Xls_CallDslxOp (FloatLib $op), CS<"from_int8">, (variadic $a), ConstUnitAttr),
-          [(BF16 $op)]>;
+          [(ScalarOrTensorOf<BF16> $op)]>;
 
 def : Pat<(Arith_FPToSIOp:$op F32:$a),
           (Xls_CallDslxOp (FloatLib $a), CS<"to_int32">, (variadic $a), ConstUnitAttr),
-          [(I32 $op)]>;
+          [(ScalarOrTensorOf<I32> $op)]>;
 
 def : Pat<(Arith_FPToSIOp:$op BF16:$a),
           (Xls_CallDslxOp (FloatLib $a), CS<"to_int16">, (variadic $a), ConstUnitAttr),
-          [(I16 $op)]>;
+          [(ScalarOrTensorOf<I16> $op)]>;
 
 // TODO(jmolloy): to_int8 doesn't exist, so truncating the result of to_int16
 // seems like a reasonable approximation but I don't know if it's bit accurate.
@@ -151,7 +154,7 @@ def : Pat<(Arith_FPToSIOp:$op BF16:$a),
           (Arith_TruncIOp
             (Xls_CallDslxOp (FloatLib $a), CS<"to_int16">, (variadic $a),
                             ConstUnitAttr, (returnType "$_builder.getI16Type()"))),
-          [(I8 $op)]>;
+          [(ScalarOrTensorOf<I8> $op)]>;
 
 // The expansion is a little tricky to read due to the one-hot select with the
 // default case being the first argument.

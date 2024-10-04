@@ -112,9 +112,9 @@ func.func @ext(%arg0: i32) -> (i64, i64) attributes { "xls" = true } {
 // CHECK-LABEL: @extf(
 // CHECK: call_dslx
 // CHECK-SAME: "ext"
-func.func @extf(%arg0: bf16) -> f32 attributes { "xls" = true } {
-  %0 = arith.extf %arg0 : bf16 to f32
-  return %0 : f32
+func.func @extf(%arg0: tensor<3x3xbf16>) -> tensor<3x3xf32> attributes { "xls" = true } {
+  %0 = arith.extf %arg0 : tensor<3x3xbf16> to tensor<3x3xf32>
+  return %0 : tensor<3x3xf32>
 }
 
 // CHECK-LABEL: @truncf(
