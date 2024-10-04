@@ -429,6 +429,43 @@ absl::Status VerifyElaboration(Package* package) {
                    bound_channel->name(),
                    ChannelKindToString(channel_reference->kind()),
                    ChannelKindToString(bound_channel->kind()));
+        if (auto streaming_bound_channel =
+                dynamic_cast<StreamingChannel*>(bound_channel)) {
+          XLS_RET_CHECK(channel_reference->strictness().has_value())
+              << absl::StreamFormat(
+                     "ChannelReference `%s` in proc `%s` is streaming but has "
+                     "no strictness value",
+                     channel_reference->name(), proc->name());
+          XLS_RET_CHECK_EQ(channel_reference->strictness().value(),
+                           streaming_bound_channel->GetStrictness())
+              << absl::StreamFormat(
+                     "Strictness of ChannelReference `%s` in proc `%s` does "
+                     "not match  the strictness of channel `%s` to which it is "
+                     "bound: %s vs %s",
+                     channel_reference->name(), proc->name(),
+                     bound_channel->name(),
+                     ChannelStrictnessToString(
+                         channel_reference->strictness().value()),
+                     ChannelStrictnessToString(
+                         streaming_bound_channel->GetStrictness()));
+
+        } else {
+          XLS_RET_CHECK(!channel_reference->strictness().has_value())
+              << absl::StreamFormat(
+                     "ChannelReference `%s` in proc `%s` is not streaming but "
+                     "has  a strictness value",
+                     channel_reference->name(), proc->name());
+        }
+
+        XLS_RET_CHECK_EQ(channel_reference->kind(), bound_channel->kind())
+            << absl::StreamFormat(
+                   "Kind of ChannelReference `%s` in proc `%s` does not match "
+                   "the kind of channel `%s` to which it is bound: %s vs %s",
+                   channel_reference->name(), proc->name(),
+                   bound_channel->name(),
+                   ChannelKindToString(channel_reference->kind()),
+                   ChannelKindToString(bound_channel->kind()));
+
         if (!channel.has_value()) {
           channel = bound_channel;
           continue;

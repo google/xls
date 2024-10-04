@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -247,9 +248,16 @@ ChannelKind ChannelRefKind(ChannelRef ref) {
 }
 
 std::string ChannelReference::ToString() const {
+  std::vector<std::string> keyword_strs;
+  keyword_strs.push_back(
+      absl::StrFormat("kind=%s", ChannelKindToString(kind())));
+  if (strictness_.has_value()) {
+    keyword_strs.push_back(absl::StrFormat(
+        "strictness=%s", ChannelStrictnessToString(strictness_.value())));
+  }
   return absl::StrFormat("%s: %s %s %s", name(), type()->ToString(),
-                         ChannelKindToString(kind()),
-                         direction() == Direction::kSend ? "out" : "in");
+                         direction() == Direction::kSend ? "out" : "in",
+                         absl::StrJoin(keyword_strs, " "));
 }
 
 }  // namespace xls

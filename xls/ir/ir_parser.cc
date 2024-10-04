@@ -1896,7 +1896,8 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
   //
   // OR for "new-style" procs with proc-scoped channels:
   //
-  //   proc foo<in_ch: bits[32] streaming in: out_ch: bits[8] single_value out>
+  //   proc foo<in_ch: bits[32] in kind=streaming strictness=total_order,
+  //            out_ch: bits[8] out kind=streaming strictness=total_order>
   //           (tok: token, state0: bits[32], state1: bits[42], init={42, 33}) {
   //     ...
   //
@@ -1916,32 +1917,73 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         XLS_RETURN_IF_ERROR(
             scanner_.DropTokenOrError(LexicalTokenType::kColon));
         XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
-        XLS_ASSIGN_OR_RETURN(
-            Token kind_token,
-            scanner_.PopTokenOrError(LexicalTokenType::kIdent, "channel kind"));
-        absl::StatusOr<ChannelKind> kind_status =
-            StringToChannelKind(kind_token.value());
-        if (!kind_status.ok()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid channel kind \"%s\" @ %s", kind_token.value(),
-              kind_token.pos().ToHumanString()));
-        }
-        ChannelKind kind = kind_status.value();
 
         XLS_ASSIGN_OR_RETURN(Token direction_token,
                              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
                                                       "channel direction"));
+        Direction direction;
         if (direction_token.value() == "in") {
-          interface_channels.push_back(
-              std::make_unique<ReceiveChannelReference>(channel_name.value(),
-                                                        type, kind));
+          direction = Direction::kReceive;
         } else if (direction_token.value() == "out") {
-          interface_channels.push_back(std::make_unique<SendChannelReference>(
-              channel_name.value(), type, kind));
+          direction = Direction::kSend;
         } else {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid direction string `%s`, expected `in` or `out`",
               direction_token.value()));
+        }
+
+        ChannelKind kind = ChannelKind::kStreaming;
+        std::optional<ChannelStrictness> strictness;
+
+        // Parse keywords like "kind=streaming", etc.
+        while (!scanner_.PeekTokenIs(LexicalTokenType::kComma) &&
+               !scanner_.PeekTokenIs(LexicalTokenType::kGt)) {
+          XLS_ASSIGN_OR_RETURN(
+              Token keyword_token,
+              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                       "channel reference keyword"));
+          XLS_RETURN_IF_ERROR(
+              scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+          XLS_ASSIGN_OR_RETURN(
+              Token value_token,
+              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                       "channel reference keyword"));
+
+          if (keyword_token.value() == "kind") {
+            absl::StatusOr<ChannelKind> kind_status =
+                StringToChannelKind(value_token.value());
+            if (!kind_status.ok()) {
+              return absl::InvalidArgumentError(absl::StrFormat(
+                  "Invalid channel kind \"%s\" @ %s", value_token.value(),
+                  value_token.pos().ToHumanString()));
+            }
+            kind = kind_status.value();
+          } else if (keyword_token.value() == "strictness") {
+            absl::StatusOr<ChannelStrictness> strictness_status =
+                ChannelStrictnessFromString(value_token.value());
+            if (!strictness_status.ok()) {
+              return absl::InvalidArgumentError(absl::StrFormat(
+                  "Invalid channel strictness \"%s\" @ %s", value_token.value(),
+                  value_token.pos().ToHumanString()));
+            }
+            strictness = strictness_status.value();
+          } else {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Invalid channel keyword \"%s\" @ %s", keyword_token.value(),
+                keyword_token.pos().ToHumanString()));
+          }
+        }
+
+        switch (direction) {
+          case Direction::kSend:
+            interface_channels.push_back(std::make_unique<SendChannelReference>(
+                channel_name.value(), type, kind, strictness));
+            break;
+          case Direction::kReceive:
+            interface_channels.push_back(
+                std::make_unique<ReceiveChannelReference>(
+                    channel_name.value(), type, kind, strictness));
+            break;
         }
       } while (scanner_.TryDropToken(LexicalTokenType::kComma));
       XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kGt));
@@ -2010,13 +2052,15 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         XLS_RETURN_IF_ERROR(builder
                                 ->AddInputChannel(channel_ref->name(),
                                                   channel_ref->type(),
-                                                  channel_ref->kind())
+                                                  channel_ref->kind(),
+                                                  channel_ref->strictness())
                                 .status());
       } else {
         XLS_RETURN_IF_ERROR(builder
                                 ->AddOutputChannel(channel_ref->name(),
                                                    channel_ref->type(),
-                                                   channel_ref->kind())
+                                                   channel_ref->kind(),
+                                                   channel_ref->strictness())
                                 .status());
       }
     }

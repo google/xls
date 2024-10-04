@@ -294,8 +294,7 @@ class Package {
       absl::Span<const Value> initial_values = {},
       std::optional<FifoConfig> fifo_config = std::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
-      ChannelStrictness strictness =
-          ChannelStrictness::kProvenMutuallyExclusive,
+      ChannelStrictness strictness = kDefaultChannelStrictness,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
 
@@ -312,8 +311,7 @@ class Package {
       absl::Span<const Value> initial_values = {},
       std::optional<FifoConfig> fifo_config = std::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
-      ChannelStrictness strictness =
-          ChannelStrictness::kProvenMutuallyExclusive,
+      ChannelStrictness strictness = kDefaultChannelStrictness,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannelInProc(

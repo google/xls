@@ -15,6 +15,7 @@
 #include "xls/ir/proc_conversion.h"
 
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -104,13 +105,18 @@ absl::Status DeclareChannelInProc(Proc* proc, Channel* channel) {
 
 absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
                                  Direction direction) {
+  std::optional<ChannelStrictness> strictness;
+  if (StreamingChannel* streaming_channel =
+          dynamic_cast<StreamingChannel*>(channel)) {
+    strictness = streaming_channel->GetStrictness();
+  }
   std::unique_ptr<ChannelReference> channel_ref;
   if (direction == Direction::kSend) {
     channel_ref = std::make_unique<SendChannelReference>(
-        channel->name(), channel->type(), channel->kind());
+        channel->name(), channel->type(), channel->kind(), strictness);
   } else {
     channel_ref = std::make_unique<ReceiveChannelReference>(
-        channel->name(), channel->type(), channel->kind());
+        channel->name(), channel->type(), channel->kind(), strictness);
   }
   return proc->AddInterfaceChannelReference(std::move(channel_ref)).status();
 }

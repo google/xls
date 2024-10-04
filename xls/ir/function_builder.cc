@@ -1089,17 +1089,26 @@ absl::StatusOr<ChannelReferences> ProcBuilder::AddChannel(
 }
 
 absl::StatusOr<ReceiveChannelReference*> ProcBuilder::AddInputChannel(
-    std::string_view name, Type* type, ChannelKind kind) {
+    std::string_view name, Type* type, ChannelKind kind,
+    std::optional<ChannelStrictness> strictness) {
+  if (kind == ChannelKind::kStreaming && !strictness.has_value()) {
+    strictness = kDefaultChannelStrictness;
+  }
   XLS_RET_CHECK(proc()->is_new_style_proc());
   auto channel_ref =
-      std::make_unique<ReceiveChannelReference>(name, type, kind);
+      std::make_unique<ReceiveChannelReference>(name, type, kind, strictness);
   return proc()->AddInputChannelReference(std::move(channel_ref));
 }
 
 absl::StatusOr<SendChannelReference*> ProcBuilder::AddOutputChannel(
-    std::string_view name, Type* type, ChannelKind kind) {
+    std::string_view name, Type* type, ChannelKind kind,
+    std::optional<ChannelStrictness> strictness) {
+  if (kind == ChannelKind::kStreaming && !strictness.has_value()) {
+    strictness = kDefaultChannelStrictness;
+  }
   XLS_RET_CHECK(proc()->is_new_style_proc());
-  auto channel_ref = std::make_unique<SendChannelReference>(name, type, kind);
+  auto channel_ref =
+      std::make_unique<SendChannelReference>(name, type, kind, strictness);
   return proc()->AddOutputChannelReference(std::move(channel_ref));
 }
 

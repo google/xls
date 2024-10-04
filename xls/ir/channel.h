@@ -244,6 +244,9 @@ enum class ChannelStrictness : uint8_t {
   kArbitraryStaticOrder,
 };
 
+constexpr ChannelStrictness kDefaultChannelStrictness =
+    ChannelStrictness::kProvenMutuallyExclusive;
+
 absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
     std::string_view text);
 std::string ChannelStrictnessToString(ChannelStrictness in);
@@ -350,10 +353,17 @@ std::ostream& operator<<(std::ostream& os, Direction direction);
 // style procs), channel-using operations such as send/receive refer to
 // channel references rather than channel objects. In elaboration these
 // channel references are bound to channel objects.
+//
+// TODO(https://github.com/google/xls/issues/869): Reconsider whether channel
+// kind and strictness should be held by the channel reference. This is required
+// for storing these properties on the interface of new-style procs. An
+// alternative would be to have a separate data structure for interface
+// channels.
 class ChannelReference {
  public:
-  ChannelReference(std::string_view name, Type* type, ChannelKind kind)
-      : name_(name), type_(type), kind_(kind) {}
+  ChannelReference(std::string_view name, Type* type, ChannelKind kind,
+                   std::optional<ChannelStrictness> strictness)
+      : name_(name), type_(type), kind_(kind), strictness_(strictness) {}
   virtual ~ChannelReference() {}
 
   // Like most IR constructs, ChannelReferences are passed around by pointer
@@ -364,6 +374,7 @@ class ChannelReference {
   std::string_view name() const { return name_; }
   Type* type() const { return type_; }
   ChannelKind kind() const { return kind_; }
+  std::optional<ChannelStrictness> strictness() const { return strictness_; }
   virtual Direction direction() const = 0;
 
   std::string ToString() const;
@@ -372,20 +383,23 @@ class ChannelReference {
   std::string name_;
   Type* type_;
   ChannelKind kind_;
+  std::optional<ChannelStrictness> strictness_;
 };
 
 class SendChannelReference : public ChannelReference {
  public:
-  SendChannelReference(std::string_view name, Type* type, ChannelKind kind)
-      : ChannelReference(name, type, kind) {}
+  SendChannelReference(std::string_view name, Type* type, ChannelKind kind,
+                       std::optional<ChannelStrictness> strictness)
+      : ChannelReference(name, type, kind, strictness) {}
   ~SendChannelReference() override {}
   Direction direction() const override { return Direction::kSend; }
 };
 
 class ReceiveChannelReference : public ChannelReference {
  public:
-  ReceiveChannelReference(std::string_view name, Type* type, ChannelKind kind)
-      : ChannelReference(name, type, kind) {}
+  ReceiveChannelReference(std::string_view name, Type* type, ChannelKind kind,
+                          std::optional<ChannelStrictness> strictness)
+      : ChannelReference(name, type, kind, strictness) {}
   ~ReceiveChannelReference() override {}
   Direction direction() const override { return Direction::kReceive; }
 };

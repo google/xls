@@ -378,7 +378,7 @@ TEST_F(ProcTest, CloneNewStyle) {
 
   EXPECT_EQ(
       clone->DumpIr(),
-      R"(proc cloned<foo: bits[32] streaming in, bar: bits[32] streaming out>(state: bits[32], init={42}) {
+      R"(proc cloned<foo: bits[32] in kind=streaming strictness=proven_mutually_exclusive, bar: bits[32] out kind=streaming strictness=proven_mutually_exclusive>(state: bits[32], init={42}) {
   chan baz(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
   tkn: token = literal(value=token, id=13)
   receive_3: (token, bits[32]) = receive(tkn, channel=foo, id=14)

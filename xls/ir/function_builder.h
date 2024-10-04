@@ -741,10 +741,12 @@ class ProcBuilder : public BuilderBase {
   // procs.
   absl::StatusOr<ReceiveChannelReference*> AddInputChannel(
       std::string_view name, Type* type,
-      ChannelKind kind = ChannelKind::kStreaming);
+      ChannelKind kind = ChannelKind::kStreaming,
+      std::optional<ChannelStrictness> strictness = std::nullopt);
   absl::StatusOr<SendChannelReference*> AddOutputChannel(
       std::string_view name, Type* type,
-      ChannelKind kind = ChannelKind::kStreaming);
+      ChannelKind kind = ChannelKind::kStreaming,
+      std::optional<ChannelStrictness> strictness = std::nullopt);
 
   // Returns true if there is an channel entity (a xls::Channel object for
   // old-style proc or a proc-scoped channel or interface channel for new style

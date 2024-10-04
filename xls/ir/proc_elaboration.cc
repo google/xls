@@ -265,7 +265,8 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
               /*intial_values=*/absl::Span<const Value>(),
               /*fifo_config=*/std::nullopt,
               /*flow_control=*/FlowControl::kReadyValid,
-              /*strictness=*/ChannelStrictness::kProvenMutuallyExclusive,
+              /*strictness=*/
+              channel_ref->strictness().value_or(kDefaultChannelStrictness),
               ChannelMetadataProto()));
     } else {
       XLS_RET_CHECK_EQ(channel_ref->kind(), ChannelKind::kSingleValue);

@@ -168,6 +168,11 @@ class ProcInstance {
     return channel_bindings_.at(channel);
   }
 
+  // Return the binding for the given ChannelRef.
+  ChannelBinding GetChannelBinding(ChannelRef channel_ref) const {
+    return channel_bindings_.at(channel_ref);
+  }
+
   // Returns a unique name for this proc instantiation. For new-style procs this
   // includes the proc name and the instantiation path. For old-style procs this
   // is simply the proc name.

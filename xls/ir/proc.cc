@@ -375,7 +375,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                 ->AddOutputChannelReference(
                     std::make_unique<SendChannelReference>(
                         new_chan_name(channel_ref->name()), channel_ref->type(),
-                        channel_ref->kind()))
+                        channel_ref->kind(), channel_ref->strictness()))
                 .status());
       } else {
         XLS_RETURN_IF_ERROR(
@@ -383,7 +383,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                 ->AddInputChannelReference(
                     std::make_unique<ReceiveChannelReference>(
                         new_chan_name(channel_ref->name()), channel_ref->type(),
-                        channel_ref->kind()))
+                        channel_ref->kind(), channel_ref->strictness()))
                 .status());
       }
     }
@@ -594,11 +594,18 @@ absl::StatusOr<ChannelReferences> Proc::AddChannel(
   }
 
   channel_vec_.push_back(channel_ptr);
+  std::optional<ChannelStrictness> strictness;
+  if (StreamingChannel* streaming_channel =
+          dynamic_cast<StreamingChannel*>(channel_ptr)) {
+    strictness = streaming_channel->GetStrictness();
+  }
 
   auto send_channel_ref = std::make_unique<SendChannelReference>(
-      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
+      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind(),
+      strictness);
   auto receive_channel_ref = std::make_unique<ReceiveChannelReference>(
-      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind());
+      channel_ptr->name(), channel_ptr->type(), channel_ptr->kind(),
+      strictness);
 
   ChannelReferences channel_refs{.channel = channel_ptr,
                                  .send_ref = send_channel_ref.get(),
