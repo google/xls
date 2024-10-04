@@ -49,6 +49,7 @@
 #include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
+#include "xls/tests/testvector.pb.h"
 
 namespace xls {
 
@@ -252,7 +253,7 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
   std::vector<std::string> ir_channel_names;
   std::vector<std::vector<InterpValue>> args_batch;
   if (proto.sample_options().sample_type() == fuzzer::SAMPLE_TYPE_PROC) {
-    for (const fuzzer::ChannelInputProto& channel_input :
+    for (const testvector::ChannelInputProto& channel_input :
          proto.inputs().channel_inputs().inputs()) {
       ir_channel_names.push_back(channel_input.channel_name());
       for (int i = 0; i < channel_input.values().size(); ++i) {
@@ -291,17 +292,17 @@ std::string Sample::Serialize(
                    "SUBMIT Insert link to GitHub issue here.");
   *config.mutable_sample_options() = options().proto();
   if (options().IsFunctionSample()) {
-    fuzzer::FunctionArgsProto* args_proto =
+    testvector::FunctionArgsProto* args_proto =
         config.mutable_inputs()->mutable_function_args();
     for (const std::vector<InterpValue>& args : args_batch_) {
       args_proto->add_args(InterpValueListToString(args));
     }
   } else {
     CHECK(options().IsProcSample());
-    fuzzer::ChannelInputsProto* inputs_proto =
+    testvector::ChannelInputsProto* inputs_proto =
         config.mutable_inputs()->mutable_channel_inputs();
     for (int64_t i = 0; i < ir_channel_names_.size(); ++i) {
-      fuzzer::ChannelInputProto* input_proto = inputs_proto->add_inputs();
+      testvector::ChannelInputProto* input_proto = inputs_proto->add_inputs();
       input_proto->set_channel_name(ir_channel_names_[i]);
       for (const std::vector<InterpValue>& args : args_batch_) {
         input_proto->add_values(ToArgString(args[i]));

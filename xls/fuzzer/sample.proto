@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package xls.fuzzer;
 
+import "xls/tests/testvector.proto";
+
 enum SampleType {
   SAMPLE_TYPE_UNKNOWN = 0;
   SAMPLE_TYPE_FUNCTION = 1;
@@ -90,33 +92,6 @@ message SampleOptionsProto {
   repeated KnownFailure known_failure = 15;
 }
 
-// Inputs fed to a single input channel of the sample proc.
-message ChannelInputProto {
-  optional string channel_name = 1;
-
-  // Values to feed into the channel. Each entry is a single xls::Value.
-  repeated string values = 2;
-}
-
-// Inputs fed to all channels of the sample proc.
-message ChannelInputsProto {
-  repeated ChannelInputProto inputs = 1;
-}
-
-// Inputs fed to as arguments to the sample function.
-message FunctionArgsProto {
-  // Each entry is a semicolon-separated list of xls::Values with one Value per
-  // function parameter. Example entry: "bits[1]:0; bits[32]:0x42"
-  repeated string args = 1;
-}
-
-message SampleInputsProto {
-  oneof input_oneof {
-    ChannelInputsProto channel_inputs = 1;
-    FunctionArgsProto function_args = 2;
-  }
-}
-
 message CrasherConfigurationProto {
   // The error message (exception) which the crasher sample produces.
   optional string exception = 1;
@@ -126,5 +101,5 @@ message CrasherConfigurationProto {
 
   optional SampleOptionsProto sample_options = 3;
 
-  SampleInputsProto inputs = 4;
+  xls.testvector.SampleInputsProto inputs = 4;
 }

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # pytype tests are present in this file
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -154,4 +155,14 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/synchronization",
     ],
+)
+
+proto_library(
+    name = "testvector_proto",
+    srcs = ["testvector.proto"],
+)
+
+cc_proto_library(
+    name = "testvector_cc_proto",
+    deps = [":testvector_proto"],
 )

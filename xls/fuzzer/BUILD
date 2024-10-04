@@ -502,6 +502,7 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
+        "//xls/tests:testvector_cc_proto",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1030,4 +1031,5 @@ py_proto_library(
 proto_library(
     name = "sample_proto",
     srcs = ["sample.proto"],
+    deps = ["//xls/tests:testvector_proto"],
 )

@@ -1,0 +1,49 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls.testvector;
+
+// TODO(google/xls#1645) As a first step, this is lifted out of
+//      fuzzer/sample.proto without change; more refactoring steps follow here.
+
+// Inputs fed to a single input channel of the sample proc.
+message ChannelInputProto {
+  optional string channel_name = 1;
+
+  // Values to feed into the channel. Each entry is a single xls::Value.
+  repeated string values = 2;
+}
+
+// Inputs fed to all channels of the sample proc.
+message ChannelInputsProto {
+  repeated ChannelInputProto inputs = 1;
+}
+
+// Inputs fed to as arguments to the sample function.
+message FunctionArgsProto {
+  // Each entry is a semicolon-separated list of xls::Values with one Value per
+  // function parameter. Example entry: "bits[1]:0; bits[32]:0x42"
+  // TODO(google/xls#1645) instead of the semicolon-separation, this should be
+  //      repeated field of values.
+  repeated string args = 1;
+}
+
+message SampleInputsProto {
+  oneof input_oneof {
+    ChannelInputsProto channel_inputs = 1;
+    FunctionArgsProto function_args = 2;
+  }
+}
