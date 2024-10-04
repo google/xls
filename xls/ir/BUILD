@@ -247,6 +247,7 @@ cc_test(
     srcs = [
         "interval_ops_test.cc",
     ],
+    shard_count = 5,
     deps = [
         ":bits",
         ":function_builder",
