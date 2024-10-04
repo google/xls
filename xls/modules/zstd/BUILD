@@ -847,7 +847,7 @@ place_and_route(
     name = "sequence_executor_place_and_route",
     clock_period = "750",
     core_padding_microns = 2,
-    min_pin_distance = "0.5",
+    min_pin_distance = "0.4",
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":sequence_executor_asap7",
