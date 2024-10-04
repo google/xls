@@ -246,6 +246,9 @@ fn main() -> u32[ARRAY_SIZE] {
     u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
 })";
 
+  constexpr std::string_view kExpectedConstant =
+      R"(const ARRAY_SIZE = uN[32]:5;)";
+
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
@@ -253,6 +256,12 @@ fn main() -> u32[ARRAY_SIZE] {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant,
+                           module->GetConstantDef("ARRAY_SIZE"));
+  XLS_ASSERT_OK_AND_ASSIGN(clone, CloneAst(constant));
+  EXPECT_EQ(kExpectedConstant, clone->ToString());
+
   XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 

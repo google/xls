@@ -234,10 +234,15 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleConstantDef(const ConstantDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
+    TypeAnnotation* new_type_annotation = nullptr;
+    if (n->type_annotation() != nullptr) {
+      new_type_annotation =
+          down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
+    }
     old_to_new_[n] = module_->Make<ConstantDef>(
         n->span(), down_cast<NameDef*>(old_to_new_.at(n->name_def())),
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
-        down_cast<Expr*>(old_to_new_.at(n->value())), n->is_public());
+        new_type_annotation, down_cast<Expr*>(old_to_new_.at(n->value())),
+        n->is_public());
     return absl::OkStatus();
   }
 
