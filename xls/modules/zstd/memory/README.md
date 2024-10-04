@@ -87,3 +87,43 @@ The list below shows the usage of the `MemWriter` proc:
 
 3. Wait for the response submitted on the `resp_s` channel, which indicates
    if the write operation was successful or an error occurred.
+
+# Cocotb Simulation
+
+This directory also contains Verilog simulations of the created modules,
+which test their interaction with RAM attached to the AXI bus. These Verilog
+simulations provide insight into the design's latency and achievable throughput.
+
+The simulation interacts with verilog file generated from the particular DSLX proc
+through a verilog wrapper. The wrapper is used to create an interface that is
+compliant with the AXI specification so that the cocotb testbench can interact
+with the DUT with the help of an extension tailored for handling the AXI bus.
+
+## Usage
+
+1. Run the simulation with the following command:
+
+```
+bazel run -c opt //xls/modules/zstd/memory:<module_name>_cocotb_test  -- --logtostderr
+```
+
+2. Observe simulation results, e.g. for `mem_writer_cocotb_test`:
+
+```
+*************************************************************************************************************************************************************
+** TEST                                                                                                 STATUS  SIM TIME (ns)  REAL TIME (s)  RATIO (ns/s) **
+*************************************************************************************************************************************************************
+** mem_writer_cocotb_test.ram_test_single_burst_1_transfer                                               PASS     1970000.00           0.05   40004933.01  **
+** mem_writer_cocotb_test.ram_test_single_burst_2_transfers                                              PASS     2140000.00           0.04   52208013.80  **
+** mem_writer_cocotb_test.ram_test_single_burst_almost_max_burst_transfer                                PASS    42620000.00           1.00   42734572.11  **
+** mem_writer_cocotb_test.ram_test_single_burst_max_burst_transfer                                       PASS    43380000.00           1.03   42245987.95  **
+** mem_writer_cocotb_test.ram_test_multiburst_2_full_bursts                                              PASS    85940000.00           2.00   42978720.13  **
+** mem_writer_cocotb_test.ram_test_multiburst_1_full_burst_and_single_transfer                           PASS    44510000.00           1.02   43487911.16  **
+** mem_writer_cocotb_test.ram_test_multiburst_crossing_4kb_boundary                                      PASS     3740000.00           0.06   60190612.91  **
+** mem_writer_cocotb_test.ram_test_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts   PASS    21440000.00           0.50   42469371.00  **
+** mem_writer_cocotb_test.ram_test_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer    PASS    87070000.00           2.01   43348812.05  **
+** mem_writer_cocotb_test.ram_test_random                                                                PASS   4491230000.00         109.05   41184670.96  **
+*************************************************************************************************************************************************************
+** TESTS=10 PASS=10 FAIL=0 SKIP=0                                                                               4824040000.01         116.82   41296261.92  **
+*************************************************************************************************************************************************************
+```
