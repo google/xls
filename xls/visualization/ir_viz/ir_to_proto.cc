@@ -37,8 +37,6 @@
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/block.h"  // IWYU pragma: keep
-#include "xls/ir/dfs_visitor.h"
-#include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
@@ -51,6 +49,7 @@
 #include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/visualization/ir_viz/node_attribute_visitor.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"
 #include "re2/re2.h"
 
@@ -85,35 +84,6 @@ absl::flat_hash_map<FunctionBase*, std::string> GetFunctionIds(
   }
   return function_ids;
 }
-
-// Visitor which constructs the attributes (if any) of a node and returns them
-// as a JSON object.
-class AttributeVisitor : public DfsVisitorWithDefault {
- public:
-  absl::Status DefaultHandler(Node* node) override { return absl::OkStatus(); }
-
-  absl::Status HandleLiteral(Literal* literal) override {
-    attributes_.set_value(
-        literal->value().ToHumanString(FormatPreference::kHex));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleBitSlice(BitSlice* bit_slice) override {
-    attributes_.set_start(bit_slice->start());
-    attributes_.set_width(bit_slice->width());
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleTupleIndex(TupleIndex* tuple_index) override {
-    attributes_.set_index(tuple_index->index());
-    return absl::OkStatus();
-  }
-
-  const viz::NodeAttributes& attributes() const { return attributes_; }
-
- private:
-  viz::NodeAttributes attributes_;
-};
 
 std::vector<int64_t> GetAssociatedStateIndices(Node* node) {
   if (!node->function_base()->IsProc()) {

@@ -90,10 +90,25 @@ proto_library(
 )
 
 cc_library(
+    name = "node_attribute_visitor",
+    srcs = ["node_attribute_visitor.cc"],
+    hdrs = ["node_attribute_visitor.h"],
+    visibility = ["//xls:xls_internal"],
+    deps = [
+        ":visualization_cc_proto",
+        "//xls/ir",
+        "//xls/ir:format_preference",
+        "//xls/ir:format_strings",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "ir_to_proto",
     srcs = ["ir_to_proto.cc"],
     hdrs = ["ir_to_proto.h"],
     deps = [
+        ":node_attribute_visitor",
         ":visualization_cc_proto",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -101,7 +116,6 @@ cc_library(
         "//xls/estimators/delay_model:analyze_critical_path",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
-        "//xls/ir:format_preference",
         "//xls/ir:op",
         "//xls/passes:bdd_function",
         "//xls/passes:bdd_query_engine",

@@ -44,8 +44,29 @@ message NodeAttributes {
   optional double width = 3;
   optional double index = 4;
   optional double delay_ps = 5;
+  optional bool lsb_prio = 12;
+  optional int64 new_bit_count = 13;
+  optional string channel = 14;
+  optional bool blocking = 15;
+  optional string to_apply = 16;
   optional string known_bits = 6;
   optional bool on_critical_path = 7;
+  optional int64 trip_count = 17;
+  optional int64 stride = 18;
+  optional string body = 19;
+  optional bool has_default = 20;
+  optional int64 delay = 21;
+  optional string message_ = 22;
+  optional string label = 23;
+  optional string format = 24;
+  optional int64 verbosity = 25;
+  optional string name = 26;
+  optional string register_ = 27;
+  optional bool has_load_enable = 28;
+  optional bool has_reset = 29;
+  optional string instantiation = 30;
+  optional string port_name = 31;
+
   optional double cycle = 8;
   // If this node is a state parameter of a proc these fields hold the index
   // and initial value.
