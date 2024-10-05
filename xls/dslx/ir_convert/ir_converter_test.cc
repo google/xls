@@ -2402,6 +2402,110 @@ TEST(IrConverterTest, BoundaryChannels) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, PassChannelAcrossMultipleSpawns) {
+  constexpr std::string_view kProgram = R"(
+  proc SomeProc {
+    input: chan<u32> in;
+    init { () }
+    config(input: chan<u32> in) {
+      (input,)
+    }
+    next(state: ()) {
+      let (_, v) = recv(token(), input);
+      trace_fmt!("recv: {}", v);
+      state
+    }
+  }
+
+  proc SomeOtherProc {
+    init { () }
+    config(input: chan<u32> in) {
+      spawn SomeProc(input);
+    }
+    next(state: ()) {
+      ()
+    }
+  }
+
+  proc YetAnotherProc {
+    output: chan<u32> out;
+    init { () }
+    config() {
+      let (output, input) = chan<u32>("in_out");
+      spawn SomeOtherProc(input);
+      (output,)
+    }
+    next(state: ()) {
+      send(token(), output, u32:0);
+      state
+    }
+  }
+  )";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "YetAnotherProc",
+                                                     import_data, options));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, PassChannelArraysAcrossMultipleSpawns) {
+  constexpr std::string_view kProgram = R"(
+  proc SomeProc<N: u32> {
+    ins: chan<u32>[N] in;
+    init { () }
+    config(ins: chan<u32>[N] in) {
+      (ins,)
+    }
+    next(state: ()) {
+      unroll_for! (i, ()): (u32, ()) in u32:0..u32:4 {
+        let (_, v) = recv(token(), ins[i]);
+        trace_fmt!("recv: {}", v);
+      }(());
+      state
+    }
+  }
+
+  proc SomeOtherProc<N: u32> {
+    init { () }
+    config(ins: chan<u32>[N] in) {
+      spawn SomeProc<N>(ins);
+    }
+    next(state: ()) {
+      ()
+    }
+  }
+
+  proc YetAnotherProc {
+    outs: chan<u32>[4] out;
+    init { () }
+    config() {
+      let (outs, ins) =  chan<u32>[4]("ins_outs");
+      spawn SomeOtherProc<u32:4>(ins);
+      (outs,)
+    }
+    next(state: ()) {
+      unroll_for! (i, ()): (u32, ()) in u32:0..u32:4 {
+        send(token(), outs[i], i);
+      }(());
+      state
+    }
+  }
+  )";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "YetAnotherProc",
+                                                     import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, TopProcWithState) {
   constexpr std::string_view kProgram = R"(
 proc main {

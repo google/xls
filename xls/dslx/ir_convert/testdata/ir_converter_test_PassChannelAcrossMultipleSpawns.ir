@@ -1,0 +1,41 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+chan test_module__in_out(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+fn __test_module__SomeProc.init() -> () {
+  ret tuple.1: () = tuple(id=1)
+}
+
+fn __test_module__SomeOtherProc.init() -> () {
+  ret tuple.2: () = tuple(id=2)
+}
+
+top proc __test_module__YetAnotherProc_0_next(__state: (), init={()}) {
+  literal.6: token = literal(value=token, id=6)
+  literal.7: bits[32] = literal(value=0, id=7)
+  literal.5: bits[1] = literal(value=1, id=5)
+  __token: token = literal(value=token, id=3)
+  send.8: token = send(literal.6, literal.7, predicate=literal.5, channel=test_module__in_out, id=8)
+  next (__state)
+}
+
+proc __test_module__YetAnotherProc__SomeOtherProc_0__SomeProc_0_next(__state: (), init={()}) {
+  literal.12: token = literal(value=token, id=12)
+  literal.11: bits[1] = literal(value=1, id=11)
+  receive.13: (token, bits[32]) = receive(literal.12, predicate=literal.11, channel=test_module__in_out, id=13)
+  __token: token = literal(value=token, id=9)
+  v: bits[32] = tuple_index(receive.13, index=1, id=16)
+  tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
+  tuple_index.15: token = tuple_index(receive.13, index=0, id=15)
+  trace.17: token = trace(__token, literal.11, format="recv: {}", data_operands=[v], id=17)
+  next (__state)
+}
+
+proc __test_module__YetAnotherProc__SomeOtherProc_0_next(__state: (), init={()}) {
+  __token: token = literal(value=token, id=18)
+  literal.20: bits[1] = literal(value=1, id=20)
+  tuple.21: () = tuple(id=21)
+  next (tuple.21)
+}

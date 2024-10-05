@@ -192,10 +192,17 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceParam(const Param* node,
   // Stack depth 2: Module "<top>" + the config function being looked at.
   bool is_root_proc =
       f->tag() == FunctionTag::kProcConfig && ctx->fn_stack().size() == 2;
-  bool is_channel_param =
+  bool is_channel_like_param =
       dynamic_cast<ChannelType*>(param_type.get()) != nullptr;
+  if (!is_channel_like_param) {
+    ArrayType* array_type = dynamic_cast<ArrayType*>(param_type.get());
+    is_channel_like_param = array_type != nullptr &&
+                            dynamic_cast<const ChannelType*>(
+                                &array_type->element_type()) != nullptr &&
+                            array_type->size().GetAsInt64().ok();
+  }
   bool is_param_constexpr = ctx->type_info()->IsKnownConstExpr(node);
-  if (is_root_proc && is_channel_param && !is_param_constexpr) {
+  if (is_root_proc && is_channel_like_param && !is_param_constexpr) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::CreateChannelValue(param_type.get()));
