@@ -766,6 +766,46 @@ TEST_P(ModuleBuilderTest, DifferentArrayPrioritySelects) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, ShraAsFunction) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue x_param = fb.Param("x", u32);
+  BValue y_param = fb.Param("y", u32);
+  BValue x_shra_y = fb.Shra(x_param, y_param);
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
+  XLS_ASSERT_OK(
+      mb.EmitAsAssignment("x_smul_y", x_shra_y.node(), {x, y}).status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, ShraAsFunctionSingleBit) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u1 = package.GetBitsType(1);
+  BValue x_param = fb.Param("x", u1);
+  BValue y_param = fb.Param("y", u1);
+  BValue x_shra_y = fb.Shra(x_param, y_param);
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u1));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u1));
+  XLS_ASSERT_OK(
+      mb.EmitAsAssignment("x_smul_y", x_shra_y.node(), {x, y}).status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
 INSTANTIATE_TEST_SUITE_P(ModuleBuilderTestInstantiation, ModuleBuilderTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ModuleBuilderTest>);

@@ -1,0 +1,16 @@
+module ShraAsFunctionSingleBit(
+  input wire x,
+  input wire y
+);
+  // lint_off SIGNED_TYPE
+  function automatic shra_1b_by_1b (input reg to_shift, input reg shift_amount);
+    reg signed signed_result;
+    begin
+      signed_result = $signed(to_shift) >>> shift_amount;
+      shra_1b_by_1b = $unsigned(signed_result);
+    end
+  endfunction
+  // lint_on SIGNED_TYPE
+  wire x_smul_y;
+  assign x_smul_y = shra_1b_by_1b(x, y);
+endmodule

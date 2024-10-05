@@ -281,6 +281,8 @@ cc_library(
     deps = [
         "//xls/codegen/vast",
         "//xls/ir:source_location",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
     ],
 )

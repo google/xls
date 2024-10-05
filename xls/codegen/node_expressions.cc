@@ -310,25 +310,9 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
                                       Expression* shift_amount,
                                       VerilogFile* file) {
   Expression* shifted_operand;
-  if (shift->op() == Op::kShra) {
-    // To perform an arithmetic shift right the left operand must be cast to a
-    // signed value, ie:
-    //
-    //   $signed(x) >>> y
-    //
-    // Also, wrap the expression in $unsigned to prevent the signed property
-    // from leaking out into the rest of the expression.
-    //
-    //   $unsigned($signed(x) >>> y) op ...
-    //
-    // Without the unsigned the '>>>' expression would be treated as a signed
-    // value potentially affecting the evaluation of 'op'.  This unsigned cast
-    // is also necessary for correctness of the shift evaluation when the shift
-    // appears in a ternary expression because of Verilog type rules.
-    shifted_operand = file->Make<UnsignedCast>(
-        shift->loc(), file->Shra(file->Make<SignedCast>(shift->loc(), operand),
-                                 shift_amount, shift->loc()));
-  } else if (shift->op() == Op::kShrl) {
+  XLS_RET_CHECK_NE(shift->op(), Op::kShra)
+      << absl::StreamFormat("Shra is handled by emitting a function.");
+  if (shift->op() == Op::kShrl) {
     shifted_operand = file->Shrl(operand, shift_amount, shift->loc());
   } else {
     CHECK_EQ(shift->op(), Op::kShll);

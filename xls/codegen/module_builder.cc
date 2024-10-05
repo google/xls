@@ -1437,6 +1437,7 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
     case Op::kBitSliceUpdate:
     case Op::kSDiv:
     case Op::kUDiv:
+    case Op::kShra:
       return true;
     case Op::kPrioritySel:
       return node->As<PrioritySelect>()->cases().size() > 1;
@@ -1486,6 +1487,11 @@ absl::StatusOr<std::string> ModuleBuilder::VerilogFunctionName(Node* node) {
       CHECK_EQ(node->BitCountOrDie(), node->operand(1)->BitCountOrDie());
       return absl::StrFormat("%s_%db", OpToString(node->op()),
                              node->BitCountOrDie());
+    case Op::kShra:
+      CHECK_EQ(node->BitCountOrDie(), node->operand(0)->BitCountOrDie());
+      return absl::StrFormat("%s_%db_by_%db", OpToString(node->op()),
+                             node->BitCountOrDie(),
+                             node->operand(1)->BitCountOrDie());
     default:
       LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
@@ -1905,6 +1911,68 @@ VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
   return func;
 }
 
+VerilogFunction* DefineShraFunction(Node* node, std::string_view function_name,
+                                    ModuleSection* section) {
+  CHECK_EQ(node->op(), Op::kShra);
+  VerilogFile* file = section->file();
+
+  // Disable lint for the signed_result reg, which is declared signed to catch
+  // the output of `$signed(to_shift) >> amount`.
+  ScopedLintDisable lint_disable(section, {Lint::kSignedType});
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      node->loc(), function_name,
+      file->BitVectorType(node->BitCountOrDie(), node->loc()));
+  CHECK_EQ(node->operand_count(), 2);
+
+  IndexableExpression* to_shift = func->AddArgument(
+      "to_shift",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
+  IndexableExpression* shift_amount = func->AddArgument(
+      "shift_amount",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+
+  LogicRef* signed_result =
+      func->AddRegDef(node->loc(), "signed_result",
+                      file->BitVectorType(node->BitCountOrDie(), node->loc(),
+                                          /*is_signed=*/true),
+                      /*init=*/nullptr);
+
+  // To perform an arithmetic shift right the left operand must be cast to a
+  // signed value, ie:
+  //
+  //   signed_result := $signed(x) >>> y
+  //
+  // We bind the intermediate result to a variable to prevent the signed
+  // result from having a self-determined width. Self-determined widths of
+  // signed values is normally suspicious because it can result in accidentally
+  // dropping sign-extended bits. In our case, it should be safe because we'll
+  // immediately cast to unsigned, but linters can still flag this. When we bind
+  // the signed result to a variable, the width is no longer self-determined.
+  //
+  // Ultimately, we cast the expression with $unsigned and return the value as
+  // an unsigned type to prevent usages from leaking the signed property.
+  //
+  //   $unsigned(signed_result)
+  //
+  // Without the unsigned, the '>>>' expression would be treated as a signed
+  // value potentially affecting the evaluation of 'op'.  This unsigned cast
+  // is also necessary for correctness of the shift evaluation when the shift
+  // appears in a ternary expression because of Verilog type rules.
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), signed_result,
+      file->Shra(file->Make<SignedCast>(node->loc(), to_shift), shift_amount,
+                 node->loc()));
+
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Make<UnsignedCast>(node->loc(), signed_result));
+
+  return func;
+}
+
 }  // namespace
 
 absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
@@ -1956,6 +2024,9 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       break;
     case Op::kSDiv:
       func = DefineSDivFunction(node, function_name, functions_section_);
+      break;
+    case Op::kShra:
+      func = DefineShraFunction(node, function_name, functions_section_);
       break;
     default:
       LOG(FATAL) << "Cannot define node as function: " << node->ToString();
