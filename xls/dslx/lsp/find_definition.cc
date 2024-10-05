@@ -54,9 +54,10 @@ const NameDef* GetNameDef(
 
 }  // namespace
 
-std::optional<const NameDef*> FindDefinition(const Module& m, const Pos& selected,
-                                   const TypeInfo& type_info,
-                                   ImportData& import_data) {
+std::optional<const NameDef*> FindDefinition(const Module& m,
+                                             const Pos& selected,
+                                             const TypeInfo& type_info,
+                                             ImportData& import_data) {
   std::vector<const AstNode*> intercepting = m.FindIntercepting(selected);
   VLOG(3) << "Found " << intercepting.size()
           << " nodes intercepting selected position: " << selected;

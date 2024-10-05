@@ -362,8 +362,8 @@ LanguageServerAdapter::Rename(std::string_view uri,
 
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
     VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
-    std::optional<const NameDef*> maybe_name_def = xls::dslx::FindDefinition(parsed->module(), pos, parsed->type_info(),
-                              parsed->import_data);
+    std::optional<const NameDef*> maybe_name_def = xls::dslx::FindDefinition(
+        parsed->module(), pos, parsed->type_info(), parsed->import_data);
     if (!maybe_name_def.has_value()) {
       VLOG(1) << "No definition found for attempted rename to: `" << new_name
               << "`";
