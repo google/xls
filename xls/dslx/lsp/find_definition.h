@@ -27,12 +27,12 @@ namespace xls::dslx {
 
 // Looks up what (if any) reference is present in the module at position
 // "selected", and, if there is one present, resolve it to a defining construct,
-// and returns the span of that name definition.
+// and returns that name definition.
 //
 // For example:
 //
 //    fn f() -> u32 { u32:42 }
-//    ---^ found definition
+//    ---^ found definition (returned NameDef)
 //
 //    fn main() -> u32 { f() }
 //    -------------------^ selected pos
