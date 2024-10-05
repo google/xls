@@ -39,10 +39,9 @@ namespace xls::dslx {
 //
 // Note that this currently only supports resolution in a single file, e.g. a
 // colon-reference to a construct in another module will return nullopt.
-std::optional<Span> FindDefinition(const Module& m, const Pos& selected,
+std::optional<const NameDef*> FindDefinition(const Module& m, const Pos& selected,
                                    const TypeInfo& type_info,
-                                   ImportData& import_data,
-                                   const NameDef** name_def_out = nullptr);
+                                   ImportData& import_data);
 
 }  // namespace xls::dslx
 

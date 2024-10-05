@@ -220,15 +220,16 @@ LanguageServerAdapter::FindDefinitions(
     FileTable& file_table = parsed->import_data.file_table();
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
     VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
-    std::optional<Span> maybe_definition_span = xls::dslx::FindDefinition(
+    std::optional<const NameDef*> maybe_definition = xls::dslx::FindDefinition(
         parsed->module(), pos, parsed->type_info(), parsed->import_data);
-    if (maybe_definition_span.has_value()) {
+    if (maybe_definition.has_value()) {
+      const Span& definition_span = maybe_definition.value()->span();
       VLOG(1) << "FindDefinition; span: "
-              << maybe_definition_span.value().ToString(file_table);
+              << definition_span.ToString(file_table);
       verible::lsp::Location location =
-          ConvertSpanToLspLocation(maybe_definition_span.value());
+          ConvertSpanToLspLocation(definition_span);
       XLS_ASSIGN_OR_RETURN(
-          location.uri, MaybeRelpathToUri(maybe_definition_span->GetFilename(
+          location.uri, MaybeRelpathToUri(definition_span.GetFilename(
                                               parsed->import_data.file_table()),
                                           dslx_paths_));
       return std::vector<verible::lsp::Location>{location};
@@ -322,10 +323,10 @@ LanguageServerAdapter::PrepareRename(
 
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
     VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
-    std::optional<Span> maybe_definition_span = xls::dslx::FindDefinition(
+    std::optional<const NameDef*> maybe_definition = xls::dslx::FindDefinition(
         parsed->module(), pos, parsed->type_info(), parsed->import_data);
-    if (maybe_definition_span.has_value()) {
-      return ConvertSpanToLspRange(maybe_definition_span.value());
+    if (maybe_definition.has_value()) {
+      return ConvertSpanToLspRange(maybe_definition.value()->span());
     }
   }
   return std::nullopt;
@@ -361,14 +362,15 @@ LanguageServerAdapter::Rename(std::string_view uri,
 
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
     VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
-    const NameDef* name_def = nullptr;
-    xls::dslx::FindDefinition(parsed->module(), pos, parsed->type_info(),
-                              parsed->import_data, &name_def);
-    if (name_def == nullptr) {
+    std::optional<const NameDef*> maybe_name_def = xls::dslx::FindDefinition(parsed->module(), pos, parsed->type_info(),
+                              parsed->import_data);
+    if (!maybe_name_def.has_value()) {
       VLOG(1) << "No definition found for attempted rename to: `" << new_name
               << "`";
       return std::nullopt;
     }
+
+    const NameDef* name_def = maybe_name_def.value();
 
     // We always want to edit the original name definition to the new name.
     edits.push_back(verible::lsp::TextEdit{
