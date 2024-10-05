@@ -88,7 +88,7 @@ TEST_P(VastTest, DataTypes) {
 
   DataType* s1 = f.BitVectorType(1, SourceInfo(), /*is_signed=*/true);
   EXPECT_FALSE(s1->IsUserDefined());
-  EXPECT_EQ(s1->EmitWithIdentifier(nullptr, "foo"), " signed [0:0] foo");
+  EXPECT_EQ(s1->EmitWithIdentifier(nullptr, "foo"), " signed foo");
   EXPECT_THAT(s1->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(s1->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_TRUE(s1->is_signed());

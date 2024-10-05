@@ -242,13 +242,20 @@ class DataType : public VastNode {
 //   wire foo;
 class ScalarType final : public DataType {
  public:
-  ScalarType(VerilogFile* file, const SourceInfo& loc) : DataType(file, loc) {}
+  ScalarType(VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc), is_signed_(false) {}
+  ScalarType(bool is_signed, VerilogFile* file, const SourceInfo& loc)
+      : DataType(file, loc), is_signed_(is_signed) {}
 
   bool IsScalar() const final { return true; }
+  bool is_signed() const final { return is_signed_; }
   absl::StatusOr<int64_t> WidthAsInt64() const final { return 1; }
   absl::StatusOr<int64_t> FlatBitCountAsInt64() const final { return 1; }
   std::optional<Expression*> width() const final { return std::nullopt; }
   std::string Emit(LineInfo* line_info) const final;
+
+ private:
+  bool is_signed_;
 };
 
 // Represents an integer type. Example:

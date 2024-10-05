@@ -302,7 +302,12 @@ std::string ToString(Direction direction) {
 
 std::string ScalarType::Emit(LineInfo* line_info) const {
   // The `DataKind` preceding the type is enough.
-  return EmitNothing(this, line_info);
+  if (!is_signed_) {
+    return EmitNothing(this, line_info);
+  }
+  LineInfoStart(line_info, this);
+  LineInfoEnd(line_info, this);
+  return " signed";
 }
 
 std::string IntegerType::Emit(LineInfo* line_info) const {
@@ -345,8 +350,8 @@ BitVectorType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
 DataType* VerilogFile::BitVectorType(int64_t bit_count, const SourceInfo& loc,
                                      bool is_signed) {
   CHECK_GT(bit_count, 0);
-  if (bit_count == 1 && !is_signed) {
-    return ScalarType(loc);
+  if (bit_count == 1) {
+    return Make<verilog::ScalarType>(loc, is_signed);
   }
   return BitVectorTypeNoScalar(bit_count, loc, is_signed);
 }
