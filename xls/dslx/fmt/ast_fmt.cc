@@ -1319,6 +1319,14 @@ static DocRef FmtStructMembersBreak(
 
         DocRef field_expr = Fmt(*expr, comments, arena);
 
+        // This is the document we want to emit both when we:
+        // - Know it fits in flat mode
+        // - Know the start of the document (i.e. the leader on the RHS
+        //   expression) can be emitted in flat mode
+        //
+        // That's why it has a `break1` in it (instead of a space) and a
+        // reassessment of whether to enter break mode for the field
+        // expression.
         DocRef on_flat =
             ConcatN(arena, {arena.MakeText(name), arena.colon(), arena.break1(),
                             arena.MakeGroup(field_expr)});
