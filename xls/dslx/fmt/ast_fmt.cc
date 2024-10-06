@@ -52,6 +52,9 @@
 namespace xls::dslx {
 namespace {
 
+DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
+                            DocArena& arena);
+
 // Note: if a comment doc is emitted (i.e. return value has_value()) it does not
 // have a trailing hard-line. This is for consistency with other emission
 // routines which generally don't emit any whitespace afterwards, just their
@@ -1314,9 +1317,26 @@ static DocRef FmtStructMembersBreak(
           return arena.MakeText(name);
         }
 
-        return ConcatNGroup(arena,
-                            {arena.MakeText(name), arena.colon(), arena.space(),
-                             arena.MakeGroup(Fmt(*expr, comments, arena))});
+        DocRef field_expr = Fmt(*expr, comments, arena);
+
+        DocRef on_flat =
+            ConcatN(arena, {arena.MakeText(name), arena.colon(), arena.break1(),
+                            arena.MakeGroup(field_expr)});
+        DocRef nest_field_expr =
+            ConcatN(arena, {arena.MakeText(name), arena.colon(),
+                            arena.hard_line(), arena.MakeNest(field_expr)});
+
+        DocRef on_other;
+        if (expr->IsBlockedExprWithLeader()) {
+          DocRef leader = arena.MakeConcat(
+              arena.space(), FmtBlockedExprLeader(*expr, comments, arena));
+          on_other = arena.MakeModeSelect(leader, /*on_flat=*/on_flat,
+                                          /*on_break=*/nest_field_expr);
+        } else {
+          on_other = arena.MakeFlatChoice(on_flat, nest_field_expr);
+        }
+
+        return arena.MakeNestIfFlatFits(on_flat, on_other);
       },
       comments, arena);
 }

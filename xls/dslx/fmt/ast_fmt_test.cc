@@ -2348,5 +2348,22 @@ pub fn f(a: A) -> A { if a.B[0].value == u32:0 { zero!<A>() } else { a } }
 )");
 }
 
+TEST_F(ModuleFmtTest, LongStructInstanceFieldExpr) {
+  Run(R"(struct X { xxxxxxxxxxxxxxxxxxx: bool, yyyyyyyyyyyyyyyyyyy: u32 }
+
+const aaaaaaaaaaaaaaaaaaaaaaaaa = u32:0;
+const bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb = u32:0;
+const ccccccccccccccccccccccccc = bool:false;
+
+fn f() -> X {
+    X {
+        xxxxxxxxxxxxxxxxxxx:
+            aaaaaaaaaaaaaaaaaaaaaaaaa == bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,
+        yyyyyyyyyyyyyyyyyyy: u32:0,
+    }
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx
