@@ -140,7 +140,8 @@ class TypeDimMap {
   // For the use case where the caller is starting with a map of known concrete
   // values, or has nothing but that. Equivalent to constructing and then
   // `Insert()`ing them all.
-  TypeDimMap(const absl::flat_hash_map<std::string, InterpValue>& values);
+  explicit TypeDimMap(
+      const absl::flat_hash_map<std::string, InterpValue>& values);
 
   // Disallow copy; if we wanted this to work, we'd need to fix up `env_` in the
   // copy to point to its own `dims_`.

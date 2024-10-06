@@ -287,4 +287,19 @@ bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
   return true;
 }
 
+bool xls_dslx_type_is_signed_bits(const struct xls_dslx_type* type,
+                                  char** error_out, bool* result_out) {
+  const auto* cpp_type = reinterpret_cast<const xls::dslx::Type*>(type);
+  absl::StatusOr<bool> is_signed_or = xls::dslx::IsSigned(*cpp_type);
+  if (!is_signed_or.ok()) {
+    *error_out = xls::ToOwnedCString(is_signed_or.status().ToString());
+    *result_out = false;
+    return false;
+  }
+
+  *error_out = nullptr;
+  *result_out = is_signed_or.value();
+  return true;
+}
+
 }  // extern "C"

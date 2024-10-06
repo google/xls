@@ -146,8 +146,14 @@ bool xls_dslx_type_info_get_const_expr(
     struct xls_dslx_type_info* type_info, struct xls_dslx_expr* expr,
     char** error_out, struct xls_dslx_interp_value** result_out);
 
+// -- type
+
 bool xls_dslx_type_get_total_bit_count(const struct xls_dslx_type*,
                                        char** error_out, int64_t* result_out);
+
+// Returns whether the given type is a bits-like type with signedness 'true'.
+bool xls_dslx_type_is_signed_bits(const struct xls_dslx_type*, char** error_out,
+                                  bool* result_out);
 
 }  // extern "C"
 
