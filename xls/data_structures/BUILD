@@ -203,23 +203,6 @@ cc_library(
 )
 
 cc_library(
-    name = "path_cut",
-    srcs = ["path_cut.cc"],
-    hdrs = ["path_cut.h"],
-    deps = [
-        "//xls/common:strong_int",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
     name = "binary_search",
     srcs = ["binary_search.cc"],
     hdrs = ["binary_search.h"],
@@ -313,21 +296,6 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "path_cut_test",
-    srcs = ["path_cut_test.cc"],
-    deps = [
-        ":path_cut",
-        "//xls/common:strong_int",
-        "//xls/common:xls_gunit_main",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )
