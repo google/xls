@@ -494,7 +494,7 @@ TEST(XlsCApiTest, DslxInspectTypeDefinitions) {
   const char kProgram[] = R"(const EIGHT = u5:8;
 
 struct MyStruct {
-    some_field: u42,
+    some_field: s42,
     other_field: u64,
 }
 
@@ -577,6 +577,12 @@ enum MyEnum : u5 {
         xls_dslx_type_info_get_type_type_annotation(type_info,
                                                     member1_type_annotation);
 
+    bool is_signed;
+    ASSERT_TRUE(xls_dslx_type_is_signed_bits(member0_type, &error, &is_signed));
+    EXPECT_TRUE(is_signed);
+    ASSERT_TRUE(xls_dslx_type_is_signed_bits(member1_type, &error, &is_signed));
+    EXPECT_FALSE(is_signed);
+
     ASSERT_TRUE(xls_dslx_type_get_total_bit_count(member0_type, &error,
                                                   &total_bit_count));
     EXPECT_EQ(total_bit_count, 42);
@@ -631,6 +637,13 @@ enum MyEnum : u5 {
         << "got not-ok result from get-total-bit-count; error: " << error;
     ASSERT_EQ(error, nullptr);
     EXPECT_EQ(total_bit_count, 5);
+
+    // Check the signedness of the underlying type.
+    bool is_signed = true;
+    ASSERT_TRUE(
+        xls_dslx_type_is_signed_bits(enum_def_type, &error, &is_signed));
+    ASSERT_EQ(error, nullptr);
+    EXPECT_FALSE(is_signed);
   }
 }
 
