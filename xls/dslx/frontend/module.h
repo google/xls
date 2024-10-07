@@ -215,6 +215,8 @@ class Module : public AstNode {
   }
   std::vector<Proc*> GetProcs() const { return GetTopWithT<Proc>(); }
 
+  std::vector<Impl*> GetImpls() const { return GetTopWithT<Impl>(); }
+
   // Returns the identifiers for all functions within this module (in the order
   // in which they are defined).
   std::vector<std::string> GetFunctionNames() const;

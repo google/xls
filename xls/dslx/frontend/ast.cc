@@ -1320,6 +1320,15 @@ std::string Impl::ToString() const {
   return result;
 }
 
+std::vector<AstNode*> Impl::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results;
+  results.reserve(constants_.size());
+  for (auto& constant : constants_) {
+    results.push_back(constant);
+  }
+  return results;
+}
+
 // -- class StructInstance
 
 StructInstance::StructInstance(

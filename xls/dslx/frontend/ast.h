@@ -2307,6 +2307,10 @@ class StructDef : public AstNode {
                 parametric_bindings_.back()->span().limit());
   }
 
+  void set_impl(Impl* impl) { impl_ = impl; }
+
+  std::optional<Impl*> impl() const { return impl_; }
+
  private:
   Span span_;
   NameDef* name_def_;
@@ -2315,6 +2319,7 @@ class StructDef : public AstNode {
   bool public_;
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
+  std::optional<Impl*> impl_;
 };
 
 // Represents an impl for a struct.
@@ -2328,7 +2333,7 @@ class Impl : public AstNode {
   AstNodeKind kind() const override { return AstNodeKind::kImpl; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return absl::UnimplementedError("impl not yet implemented");
+    return v->HandleImpl(this);
   }
 
   std::string_view GetNodeTypeName() const override { return "Impl"; }
@@ -2336,11 +2341,11 @@ class Impl : public AstNode {
   // An AST node that refers to the struct being implemented.
   TypeAnnotation* struct_ref() const { return struct_ref_; }
 
+  void set_struct_ref(TypeAnnotation* struct_ref) { struct_ref_ = struct_ref; }
+
   std::string ToString() const override;
 
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {};
-  };
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
