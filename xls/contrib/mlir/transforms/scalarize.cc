@@ -140,16 +140,19 @@ Value castTo(OpBuilder& builder, Type type, Value value) {
   if (type.isIntOrIndexOrFloat()) {
     uint32_t dstBitWidth = type.getIntOrFloatBitWidth();
     uint32_t srcBitWidth = value.getType().getIntOrFloatBitWidth();
-    if (dstBitWidth == srcBitWidth)
+    if (dstBitWidth == srcBitWidth) {
       return builder.createOrFold<mlir::arith::BitcastOp>(value.getLoc(), type,
                                                           value);
-    if (dstBitWidth < srcBitWidth)
+    }
+    if (dstBitWidth < srcBitWidth) {
       return builder.createOrFold<mlir::arith::TruncIOp>(value.getLoc(), type,
                                                          value);
+    }
     assert(dstBitWidth > srcBitWidth);
-    if (type.isSignedInteger())
+    if (type.isSignedInteger()) {
       return builder.createOrFold<mlir::arith::ExtSIOp>(value.getLoc(), type,
                                                         value);
+    }
     assert(type.isUnsignedInteger());
     return builder.createOrFold<mlir::arith::ExtUIOp>(value.getLoc(), type,
                                                       value);
@@ -254,8 +257,9 @@ class LegalizeTensorExtractSingleSlicePattern
     }
 
     for (int64_t size : op.getStaticStrides()) {
-      if (size != 1)
+      if (size != 1) {
         return rewriter.notifyMatchFailure(op, "only unit strides supported");
+      }
     }
 
     // Compute number of unit sizes in the front.
@@ -269,9 +273,10 @@ class LegalizeTensorExtractSingleSlicePattern
     {
       int64_t numDroppedDims = std::min(numUnitSizes + 1, staticSizes.size());
       if (staticSizes.drop_front(numDroppedDims) !=
-          sourceType.getShape().drop_front(numDroppedDims))
+          sourceType.getShape().drop_front(numDroppedDims)) {
         return rewriter.notifyMatchFailure(
             op, "does not extract a single contiguous slice");
+      }
     }
 
     Location loc = op.getLoc();
@@ -290,7 +295,9 @@ class LegalizeTensorExtractSingleSlicePattern
     // Calculate the `width`. This is simply the product of the sizes of the
     // dimensions that we are extracting since we only have a single slice.
     int64_t width = 1;
-    for (int64_t size : staticSizes) width *= size;
+    for (int64_t size : staticSizes) {
+      width *= size;
+    }
 
     // Replace the op with a single `array_slice` op.
     auto resultType =
@@ -323,8 +330,9 @@ class LegalizeTensorExtractSliceUnrollPattern
     }
 
     for (int64_t size : op.getStaticStrides()) {
-      if (size != 1)
+      if (size != 1) {
         return rewriter.notifyMatchFailure(op, "only unit strides supported");
+      }
     }
 
     Location loc = op.getLoc();
@@ -575,8 +583,9 @@ class ConvertForOpTypes : public OpConversionPattern<ForOp> {
   LogicalResult matchAndRewrite(
       ForOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    if (failed(rewriter.convertRegionTypes(&op.getRegion(), *typeConverter)))
+    if (failed(rewriter.convertRegionTypes(&op.getRegion(), *typeConverter))) {
       return failure();
+    }
 
     SmallVector<Type> resultTypes;
     if (failed(

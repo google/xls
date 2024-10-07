@@ -199,7 +199,9 @@ void ProcElaborationPass::runOnOperation() {
   // Elaborate all sprocs marked "top". Elaboration traverses a potentially
   // cyclical graph of sprocs, so we delay removing the sprocs until the end.
   for (auto sproc : module.getOps<SprocOp>()) {
-    if (!sproc.getIsTop()) continue;
+    if (!sproc.getIsTop()) {
+      continue;
+    }
 
     OpBuilder builder(sproc);
     SmallVector<ChanOp> boundaryChannels;

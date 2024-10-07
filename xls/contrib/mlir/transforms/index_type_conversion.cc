@@ -141,8 +141,9 @@ class LegalizeIndexCastOp : public OpConversionPattern<IndexCastOpTy> {
       IndexCastOpTy op, OpConversionPattern<IndexCastOpTy>::OpAdaptor adaptor,
       ConversionPatternRewriter &rewriter) const override {
     Type outType = op.getOut().getType();
-    if (!isa<IndexType, IntegerType>(outType))
+    if (!isa<IndexType, IntegerType>(outType)) {
       return rewriter.notifyMatchFailure(op, "only scalar type is supported");
+    }
 
     bool isCastToIndex = outType.isIndex();
     unsigned srcBitWidth;
@@ -215,8 +216,9 @@ class LegalizeGeneralOps : public ConversionPattern {
       TypeConverter::SignatureConversion signatureConv(
           newRegion->getNumArguments());
       if (failed(typeConverter->convertSignatureArgs(
-              newRegion->getArgumentTypes(), signatureConv)))
+              newRegion->getArgumentTypes(), signatureConv))) {
         return failure();
+      }
       rewriter.applySignatureConversion(&newRegion->front(), signatureConv);
     }
 

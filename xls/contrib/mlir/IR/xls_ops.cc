@@ -60,7 +60,9 @@ class ShapeOrBad {
   // Compares two ShapeOrBads. "bad" is poison - if either this or other are bad
   // then false is returned.
   bool operator==(const ShapeOrBad& other) const {
-    if (bad || other.bad) return false;
+    if (bad || other.bad) {
+      return false;
+    }
     return shape == other.shape;
   }
 
@@ -102,7 +104,9 @@ ShapeOrBad getShapeSplat(Operation::operand_type_range range) {
 
 void CallDslxOp::getEffects(
     llvm::SmallVectorImpl<mlir::MemoryEffects::EffectInstance>& effects) {
-  if (getIsPure()) return;
+  if (getIsPure()) {
+    return;
+  }
 
   // By default, conservatively assume all side effects.
   effects.emplace_back(mlir::MemoryEffects::Allocate::get());
@@ -342,15 +346,19 @@ ParseResult EprocOp::parse(OpAsmParser& parser, OperationState& result) {
   // Parse the name as a symbol.
   StringAttr nameAttr;
   if (parser.parseSymbolName(nameAttr, SymbolTable::getSymbolAttrName(),
-                             result.attributes))
+                             result.attributes)) {
     return failure();
+  }
 
   SmallVector<OpAsmParser::Argument> args;
   if (parser.parseArgumentList(args, OpAsmParser::Delimiter::Paren,
-                               /*allowType=*/true))
+                               /*allowType=*/true)) {
     return failure();
+  }
 
-  if (parser.parseKeyword("zeroinitializer")) return failure();
+  if (parser.parseKeyword("zeroinitializer")) {
+    return failure();
+  }
 
   Region* body = result.addRegion();
   return parser.parseRegion(*body, args);
@@ -372,12 +380,16 @@ LogicalResult EprocOp::verify() {
 ParseResult SchanOp::parse(OpAsmParser& parser, OperationState& result) {
   Type type;
   if (parser.parseLess() || parser.parseType(type) || parser.parseGreater() ||
-      parser.parseLParen())
+      parser.parseLParen()) {
     return failure();
+  }
   StringAttr nameAttr;
-  if (parser.parseAttribute(nameAttr, "name", result.attributes))
+  if (parser.parseAttribute(nameAttr, "name", result.attributes)) {
     return failure();
-  if (parser.parseRParen()) return failure();
+  }
+  if (parser.parseRParen()) {
+    return failure();
+  }
   result.addAttribute("type", TypeAttr::get(type));
   result.types.push_back(SchanType::get(parser.getContext(), type, false));
   result.types.push_back(SchanType::get(parser.getContext(), type, true));
@@ -400,7 +412,9 @@ void SprocOp::print(OpAsmPrinter& printer) {
   llvm::interleaveComma(getSpawns().getArguments(), printer.getStream(),
                         [&](auto arg) { printer.printRegionArgument(arg); });
   printer << ")";
-  if (getIsTop()) printer << " top";
+  if (getIsTop()) {
+    printer << " top";
+  }
   printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
                                            {"sym_name", "is_top"});
   printer << " {";
@@ -423,13 +437,15 @@ ParseResult SprocOp::parse(OpAsmParser& parser, OperationState& result) {
   // Parse the name as a symbol.
   StringAttr nameAttr;
   if (parser.parseSymbolName(nameAttr, SymbolTable::getSymbolAttrName(),
-                             result.attributes))
+                             result.attributes)) {
     return failure();
+  }
 
   SmallVector<OpAsmParser::Argument> spawnsArgs;
   if (parser.parseArgumentList(spawnsArgs, OpAsmParser::Delimiter::Paren,
-                               /*allowType=*/true))
+                               /*allowType=*/true)) {
     return failure();
+  }
 
   bool top = false;
   if (succeeded(parser.parseOptionalKeyword("top"))) {
@@ -437,13 +453,15 @@ ParseResult SprocOp::parse(OpAsmParser& parser, OperationState& result) {
   }
   result.addAttribute("is_top", BoolAttr::get(parser.getContext(), top));
 
-  if (parser.parseOptionalAttrDictWithKeyword(result.attributes))
+  if (parser.parseOptionalAttrDictWithKeyword(result.attributes)) {
     return failure();
+  }
 
   Region* spawns = result.addRegion();
   if (parser.parseLBrace() || parser.parseKeyword("spawns") ||
-      parser.parseRegion(*spawns, spawnsArgs))
+      parser.parseRegion(*spawns, spawnsArgs)) {
     return failure();
+  }
 
   Region* next = result.addRegion();
   SmallVector<OpAsmParser::Argument> nextArgs;
@@ -451,8 +469,9 @@ ParseResult SprocOp::parse(OpAsmParser& parser, OperationState& result) {
       parser.parseArgumentList(nextArgs, OpAsmParser::Delimiter::Paren,
                                /*allowType=*/true) ||
       parser.parseKeyword("zeroinitializer") ||
-      parser.parseRegion(*next, nextArgs) || parser.parseRBrace())
+      parser.parseRegion(*next, nextArgs) || parser.parseRBrace()) {
     return failure();
+  }
   return success();
 }
 
@@ -486,9 +505,10 @@ LogicalResult SprocOp::verify() {
 }
 
 SprocOp SpawnOp::resolveCallee(SymbolTableCollection* symbolTable) {
-  if (symbolTable)
+  if (symbolTable) {
     return symbolTable->lookupNearestSymbolFrom<SprocOp>(getOperation(),
                                                          getCallee());
+  }
   return SymbolTable::lookupNearestSymbolFrom<SprocOp>(getOperation(),
                                                        getCallee());
 }

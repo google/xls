@@ -330,7 +330,9 @@ template <typename Derived, typename Context, typename ValueType,
 mlir::Liveness* Interpreter<Derived, Context, ValueType,
                             DerivedOps...>::GetOrCreateLiveness(Operation* op) {
   auto it = liveness_.find(op);
-  if (it != liveness_.end()) return it->second.get();
+  if (it != liveness_.end()) {
+    return it->second.get();
+  }
   return (liveness_[op] = std::make_shared<mlir::Liveness>(op)).get();
 }
 

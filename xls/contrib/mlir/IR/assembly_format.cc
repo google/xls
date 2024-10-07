@@ -43,18 +43,21 @@ ParseResult assignFromFunctionType(OpAsmParser& parser, llvm::SMLoc loc,
                                    ArrayRef<Type*> operands, Type& result,
                                    FunctionType& fnType) {
   assert(fnType);
-  if (fnType.getInputs().size() != operands.size())
+  if (fnType.getInputs().size() != operands.size()) {
     return parser.emitError(loc)
            << operands.size() << " operands present, but expected "
            << fnType.getInputs().size();
+  }
 
   // Set operand types to function input types
-  for (auto [operand, input] : llvm::zip(operands, fnType.getInputs()))
+  for (auto [operand, input] : llvm::zip(operands, fnType.getInputs())) {
     *operand = input;
+  }
 
   // Set result type
-  if (fnType.getResults().size() != 1)
+  if (fnType.getResults().size() != 1) {
     return parser.emitError(loc, "expected single output");
+  }
   result = fnType.getResults()[0];
 
   return success();
@@ -87,14 +90,19 @@ ParseResult parseSameOperandsAndResultTypeImpl(OpAsmParser& parser,
                                                Type& result) {
   llvm::SMLoc loc = parser.getCurrentLocation();
   Type type;
-  if (parser.parseType(type)) return failure();
+  if (parser.parseType(type)) {
+    return failure();
+  }
 
   // Handle if function type, all operand types did not match result type.
-  if (auto fnType = dyn_cast<FunctionType>(type))
+  if (auto fnType = dyn_cast<FunctionType>(type)) {
     return assignFromFunctionType(parser, loc, operands, result, fnType);
+  }
 
   // Handle bare types. ` : type` indicating all input/output types match.
-  for (Type* t : operands) *t = type;
+  for (Type* t : operands) {
+    *t = type;
+  }
   result = type;
   return success();
 }
@@ -118,7 +126,9 @@ ParseResult parseVariadicSameOperandsAndResultType(
   // Make a pointer list to the operands
   SmallVector<Type*> typePtrs;
   typePtrs.reserve(opTypes.size());
-  for (Type& t : opTypes) typePtrs.push_back(&t);
+  for (Type& t : opTypes) {
+    typePtrs.push_back(&t);
+  }
 
   return detail::parseSameOperandsAndResultTypeImpl(parser, typePtrs, result);
 }
@@ -136,7 +146,9 @@ ParseResult parseInOutSpecifier(mlir::AsmParser& parser, bool& isInput) {
     isInput = true;
     return success();
   }
-  if (failed(parser.parseKeyword("out"))) return failure();
+  if (failed(parser.parseKeyword("out"))) {
+    return failure();
+  }
   isInput = false;
   return success();
 }
@@ -149,7 +161,9 @@ ParseResult parseArrayUpdateSliceBrackets(mlir::AsmParser& parser,
                                           Type& sliceType) {
   // We must derive sliceType based on array and width.
   auto arrayTypeAsArray = dyn_cast<ArrayType>(arrayType);
-  if (!arrayTypeAsArray) return failure();
+  if (!arrayTypeAsArray) {
+    return failure();
+  }
   sliceType = ArrayType::get(parser.getContext(), width.getInt(),
                              arrayTypeAsArray.getElementType());
   return ParseResult::success();
