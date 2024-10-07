@@ -60,8 +60,6 @@ class SampleOptions {
 
   // Convert to/from text serialized SampleOptionsProto.
   static absl::StatusOr<SampleOptions> FromPbtxt(std::string_view text);
-  std::string ToPbtxt() const;
-
   static absl::StatusOr<SampleOptions> FromProto(
       fuzzer::SampleOptionsProto proto);
 

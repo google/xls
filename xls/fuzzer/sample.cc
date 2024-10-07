@@ -112,12 +112,6 @@ std::vector<std::string> ParseIrChannelNames(
   return FromProto(proto);
 }
 
-std::string SampleOptions::ToPbtxt() const {
-  std::string pbtxt;
-  CHECK(google::protobuf::TextFormat::PrintToString(proto_, &pbtxt));
-  return pbtxt;
-}
-
 /* static */ absl::StatusOr<SampleOptions> SampleOptions::FromProto(
     fuzzer::SampleOptionsProto proto) {
   SampleOptions options;

@@ -202,7 +202,7 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
 
   std::filesystem::path options_file_name = run_dir / "options.pbtxt";
   XLS_RETURN_IF_ERROR(
-      SetFileContents(options_file_name, smp.options().ToPbtxt()));
+      SetTextProtoFile(options_file_name, smp.options().proto()));
   argv.push_back("--options_file=options.pbtxt");
 
   std::filesystem::path args_file_name = run_dir / "args.txt";
