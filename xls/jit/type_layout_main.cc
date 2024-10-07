@@ -112,9 +112,15 @@ absl::Status RealMain(const std::optional<std::string>& layout_proto,
     XLS_ASSIGN_OR_RETURN(std::string raw, GetFileContents("/dev/stdin"));
     XLS_ASSIGN_OR_RETURN(out, Decode(layout, raw));
   }
-  // TODO(allight): Technically not posix since write can write only part of the
-  // data or be interrupted but generally that won't happen with our hosts.
-  write(STDOUT_FILENO, out.data(), out.size());
+
+  std::string_view out_data = out;
+  while (!out_data.empty()) {
+    ssize_t written = write(STDOUT_FILENO, out_data.data(), out_data.size());
+    if (written < 0) {
+      return absl::DataLossError("Writing to stdout");
+    }
+    out_data.remove_prefix(written);
+  }
   return absl::OkStatus();
 }
 
