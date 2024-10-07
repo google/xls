@@ -19,7 +19,6 @@
 #define XLS_SOLVERS_Z3_IR_TRANSLATOR_H_
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>

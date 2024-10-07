@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_FUNCTION_INTERPRETER_H_
 #define XLS_INTERPRETER_FUNCTION_INTERPRETER_H_
 
+#include <optional>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"

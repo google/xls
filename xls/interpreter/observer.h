@@ -15,7 +15,6 @@
 #ifndef XLS_INTERPRETER_OBSERVER_H_
 #define XLS_INTERPRETER_OBSERVER_H_
 
-#include <cstdint>
 #include <optional>
 #include <vector>
 

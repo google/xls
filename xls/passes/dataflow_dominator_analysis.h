@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_DATAFLOW_DOMINATOR_ANALYSIS_H_
 #define XLS_PASSES_DATAFLOW_DOMINATOR_ANALYSIS_H_
 
-#include <memory>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

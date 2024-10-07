@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "absl/types/span.h"
-#include "xls/ir/bits.h"
 #include "external/z3/src/api/z3.h"  // IWYU pragma: keep
 #include "external/z3/src/api/z3_api.h"
 

@@ -15,7 +15,6 @@
 #include "xls/solvers/z3_ir_translator.h"
 
 #include <algorithm>
-#include <compare>
 #include <cstdint>
 #include <functional>
 #include <iterator>

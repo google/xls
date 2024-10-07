@@ -29,7 +29,6 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/value.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
