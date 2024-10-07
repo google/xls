@@ -81,11 +81,6 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelect(
     Select* select, const QueryEngine& query_engine, int64_t opt_level,
     const DataflowDominatorAnalysis& dataflow_dominator_analysis) {
   Node* selector = select->selector();
-  int64_t num_cases = select->cases().size();
-  if (select->default_value().has_value()) {
-    ++num_cases;
-  }
-
   absl::Span<Node* const> dominators =
       dataflow_dominator_analysis.GetDominatorsOfNode(selector);
 
