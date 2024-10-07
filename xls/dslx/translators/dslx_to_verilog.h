@@ -85,7 +85,7 @@ class DslxTypeToVerilogManager {
   std::string Emit() const { return file_->Emit(); }
 
  private:
-  DslxTypeToVerilogManager(std::string_view package_name);
+  explicit DslxTypeToVerilogManager(std::string_view package_name);
 
   absl::StatusOr<verilog::DataType*> TypeAnnotationToVastType(
       const Type* type, const TypeAnnotation* type_annotation);
