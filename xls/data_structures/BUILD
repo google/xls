@@ -94,32 +94,6 @@ cc_test(
 )
 
 cc_library(
-    name = "maximum_clique",
-    hdrs = ["maximum_clique.h"],
-    deps = [
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_ortools//ortools/linear_solver",
-    ],
-)
-
-cc_test(
-    name = "maximum_clique_test",
-    srcs = ["maximum_clique_test.cc"],
-    deps = [
-        ":maximum_clique",
-        "//xls/common:xls_gunit_main",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/random:distributions",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "transitive_closure",
     hdrs = ["transitive_closure.h"],
     deps = [
