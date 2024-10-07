@@ -3070,8 +3070,10 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
 
 absl::StatusOr<Impl*> Parser::ParseImpl(bool is_public, Bindings& bindings) {
   VLOG(5) << "ParseImpl @ " << GetPos();
+  Bindings impl_bindings(&bindings);
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kImpl));
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
+                       ParseTypeAnnotation(impl_bindings));
 
   absl::Status wrong_type_error = ParseErrorStatus(
       type->span(), "'impl' can only be defined for a 'struct'");
@@ -3108,7 +3110,7 @@ absl::StatusOr<Impl*> Parser::ParseImpl(bool is_public, Bindings& bindings) {
                               "Only constants are supported in impl");
     }
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant,
-                         ParseConstantDef(next_is_public, bindings));
+                         ParseConstantDef(next_is_public, impl_bindings));
     constants.push_back(constant);
   }
   Span span(start_pos, GetPos());

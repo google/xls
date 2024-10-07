@@ -376,6 +376,27 @@ impl foo {
       IsPosError("ParseError", HasSubstr("Only constants are supported")));
 }
 
+TEST(ParserErrorTest, ParseErrorForUseOutsideStruct) {
+  constexpr std::string_view kProgram = R"(pub struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+
+impl foo {
+    const FOO_VAL = u32:5;
+}
+
+const MY_FOO = FOO_VAL;
+)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError", HasSubstr("Cannot find a definition for name")));
+}
+
 TEST(ParserErrorTest, ParseErrorForImplOnBuiltin) {
   constexpr std::string_view kProgram = R"(impl u32 {
     const ONE = u32:1;
