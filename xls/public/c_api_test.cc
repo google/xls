@@ -14,6 +14,7 @@
 
 #include "xls/public/c_api.h"
 
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <string>
 #include <string_view>
@@ -25,6 +26,7 @@
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_vast.h"
 
