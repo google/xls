@@ -15,19 +15,22 @@
 #include "xls/scheduling/function_partition.h"
 
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/types/span.h"
-#include "xls/data_structures/min_cut.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "ortools/graph/ebert_graph.h"
+#include "ortools/graph/max_flow.h"
 
 namespace xls {
 namespace sched {
@@ -46,29 +49,34 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
       partitionable_nodes.begin(), partitionable_nodes.end());
   CHECK_EQ(partitionable_nodes_set.size(), partitionable_nodes.size());
 
-  min_cut::Graph graph;
-  auto source = graph.AddNode("source");
-  auto sink = graph.AddNode("sink");
+  operations_research::SimpleMaxFlow max_flow;
+  using NodeId = operations_research::NodeIndex;
+
+  const NodeId source = 0;
+  const NodeId sink = 1;
+
+  NodeId num_nodes = 2;
+  auto next_node_id = [&]() { return num_nodes++; };
+
   std::vector<Node*> xls_nodes_in_mincut_graph;
 
   // Maps to/from XLS Nodes to nodes in the mincut graph.
-  absl::flat_hash_map<Node*, min_cut::NodeId> xls_to_mincut_node;
-  absl::flat_hash_map<min_cut::NodeId, Node*> mincut_to_xls_node;
+  absl::flat_hash_map<Node*, NodeId> xls_to_mincut_node;
+  absl::flat_hash_map<NodeId, Node*> mincut_to_xls_node;
 
   const int64_t kMaxWeight = std::numeric_limits<int64_t>::max();
 
   // Adds an edge to the mincut graph. To enforce that the cut is a dicut (no
   // circular dependencies between the two partitions), add an opposing edge of
   // maximum weight.
-  auto add_edge = [&](min_cut::NodeId src, min_cut::NodeId tgt,
-                      int64_t weight) {
-    graph.AddEdge(src, tgt, weight);
-    graph.AddEdge(tgt, src, kMaxWeight);
+  auto add_edge = [&](NodeId src, NodeId tgt, int64_t weight) {
+    max_flow.AddArcWithCapacity(src, tgt, weight);
+    max_flow.AddArcWithCapacity(tgt, src, kMaxWeight);
   };
 
   auto add_node_to_mincut_graph = [&](Node* node) {
     CHECK(!xls_to_mincut_node.contains(node));
-    min_cut::NodeId graph_node_id = graph.AddNode(node->GetName());
+    NodeId graph_node_id = next_node_id();
     xls_to_mincut_node[node] = graph_node_id;
     mincut_to_xls_node[graph_node_id] = node;
     xls_nodes_in_mincut_graph.push_back(node);
@@ -76,7 +84,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
   };
 
   for (Node* node : partitionable_nodes) {
-    min_cut::NodeId node_id = add_node_to_mincut_graph(node);
+    NodeId node_id = add_node_to_mincut_graph(node);
     if (node->Is<Param>()) {
       // Add a maximum weight edge from the artificial source node to each
       // parameter node. This forces the cut to be below the parameter nodes.
@@ -91,7 +99,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
     for (Node* operand : node->operands()) {
       if (!partitionable_nodes_set.contains(operand) &&
           !xls_to_mincut_node.contains(operand)) {
-        min_cut::NodeId operand_node = add_node_to_mincut_graph(operand);
+        NodeId operand_node = add_node_to_mincut_graph(operand);
         add_edge(source, operand_node, kMaxWeight);
       }
     }
@@ -104,7 +112,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
     for (Node* user : node->users()) {
       if (!partitionable_nodes_set.contains(user) &&
           !xls_to_mincut_node.contains(user)) {
-        min_cut::NodeId user_node = add_node_to_mincut_graph(user);
+        NodeId user_node = add_node_to_mincut_graph(user);
         add_edge(user_node, sink, kMaxWeight);
       }
     }
@@ -124,7 +132,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
   // reduce rounding error because bit-widths are divided by fan-out to avoid
   // double-counting non-unit fanout nodes in the min-cut cost computation.
   for (Node* node : xls_nodes_in_mincut_graph) {
-    std::vector<min_cut::NodeId> successors;
+    std::vector<NodeId> successors;
     for (Node* user : node->users()) {
       if (xls_to_mincut_node.contains(user)) {
         successors.push_back(xls_to_mincut_node.at(user));
@@ -159,32 +167,38 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
     //      \ | / kWeightFactor * C/3
     //     x_fanin
     //
-    min_cut::NodeId node_sink = graph.AddNode(node->GetName() + "_fanin");
+    NodeId node_sink = next_node_id();
     int64_t weight = edge_weight(node, /*fan_out=*/successors.size());
-    for (min_cut::NodeId successor : successors) {
+    for (NodeId successor : successors) {
       add_edge(xls_to_mincut_node.at(node), successor, weight);
       add_edge(successor, node_sink, weight);
     }
   }
 
-  min_cut::GraphCut graph_cut =
-      min_cut::MinCutBetweenNodes(graph, source, sink);
+  CHECK_EQ(max_flow.Solve(source, sink),
+           operations_research::SimpleMaxFlow::OPTIMAL);
 
   // Map the mincut graph partition back to the XLS graph.
   std::pair<std::vector<Node*>, std::vector<Node*>> partitions;
-  for (min_cut::NodeId node_id : graph_cut.source_partition) {
-    if (mincut_to_xls_node.contains(node_id)) {
-      Node* node = mincut_to_xls_node.at(node_id);
-      if (partitionable_nodes_set.contains(node)) {
-        partitions.first.push_back(node);
-      }
-    }
+  auto& [source_partition, sink_partition] = partitions;
+
+  absl::flat_hash_set<NodeId> source_partition_id_set;
+  {
+    std::vector<NodeId> source_partition_ids;
+    max_flow.GetSourceSideMinCut(&source_partition_ids);
+    absl::c_move(source_partition_ids,
+                 std::inserter(source_partition_id_set,
+                               source_partition_id_set.begin()));
   }
-  for (min_cut::NodeId node_id : graph_cut.sink_partition) {
-    if (mincut_to_xls_node.contains(node_id)) {
-      Node* node = mincut_to_xls_node.at(node_id);
+  for (NodeId id = 0; id < num_nodes; ++id) {
+    if (mincut_to_xls_node.contains(id)) {
+      Node* node = mincut_to_xls_node.at(id);
       if (partitionable_nodes_set.contains(node)) {
-        partitions.second.push_back(node);
+        if (source_partition_id_set.contains(id)) {
+          source_partition.push_back(node);
+        } else {
+          sink_partition.push_back(node);
+        }
       }
     }
   }
