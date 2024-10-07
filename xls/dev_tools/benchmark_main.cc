@@ -722,6 +722,34 @@ absl::Status RunInterpreterAndJit(FunctionBase* function_base,
   return RunProcInterpreterAndJit(proc, description, rng_engine);
 }
 
+absl::Status AnalyzeAndPrintCriticalPath(
+    FunctionBase* f, std::optional<int64_t> effective_clock_period_ps,
+    const DelayEstimator& delay_estimator, const QueryEngine& query_engine,
+    PipelineScheduleOrGroup* schedules, synthesis::Synthesizer* synthesizer) {
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<CriticalPathEntry> critical_path,
+      AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
+  synthesis::SynthesizedDelayDiffByStage delay_diff;
+  if (synthesizer) {
+    if (schedules) {
+      XLS_ASSIGN_OR_RETURN(
+          delay_diff,
+          CreateDelayDiffByStage(f, std::get<PipelineSchedule>(*schedules),
+                                 delay_estimator, synthesizer));
+      delay_diff.total_diff.critical_path = std::move(critical_path);
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          delay_diff.total_diff,
+          SynthesizeAndGetDelayDiff(f, critical_path, synthesizer));
+    }
+  } else {
+    delay_diff.total_diff.critical_path = std::move(critical_path);
+  }
+  XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_diff));
+  XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
+  return absl::OkStatus();
+}
+
 absl::Status RealMain(std::string_view path) {
   VLOG(1) << "Reading contents at path: " << path;
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
@@ -778,9 +806,6 @@ absl::Status RealMain(std::string_view path) {
         GetDelayEstimator(scheduling_options_flags_proto.delay_model()));
   }
   const auto& delay_estimator = *pdelay_estimator;
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<CriticalPathEntry> critical_path,
-      AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
   std::unique_ptr<synthesis::Synthesizer> synthesizer;
   if (absl::GetFlag(FLAGS_compare_delay_to_synthesis)) {
     synthesis::GrpcSynthesizerParameters parameters(
@@ -797,61 +822,52 @@ absl::Status RealMain(std::string_view path) {
       scheduling_options_flags_proto.clock_period_ps() > 0 ||
       scheduling_options_flags_proto.pipeline_stages() > 0;
   if (!f->IsProc() && !benchmark_codegen) {
-    synthesis::SynthesizedDelayDiff delay_diff;
-    if (synthesizer) {
-      XLS_ASSIGN_OR_RETURN(
-          delay_diff,
-          SynthesizeAndGetDelayDiff(f, critical_path, synthesizer.get()));
-    } else {
-      delay_diff.critical_path = std::move(critical_path);
-    }
-    XLS_RETURN_IF_ERROR(PrintCriticalPath(
-        f, query_engine, {.total_diff = std::move(delay_diff)}));
-    XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
+    XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
+        f, effective_clock_period_ps, delay_estimator, query_engine,
+        /*schedules=*/nullptr, synthesizer.get()));
   } else if (benchmark_codegen) {
-    TimingReport timing_report;
     PipelineScheduleOrGroup schedules = PackagePipelineSchedules();
-    XLS_ASSIGN_OR_RETURN(
-        CodegenResult codegen_result,
-        ScheduleAndCodegen(package.get(), scheduling_options_flags_proto,
-                           codegen_flags_proto, delay_model_flag_passed,
-                           &timing_report, &schedules));
-    synthesis::SynthesizedDelayDiffByStage delay_diff;
-    if (synthesizer) {
-      XLS_ASSIGN_OR_RETURN(
-          delay_diff,
-          CreateDelayDiffByStage(f, std::get<PipelineSchedule>(schedules),
-                                 *pdelay_estimator, synthesizer.get()));
+    PipelineScheduleOrGroup* schedules_ptr = nullptr;
+    if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
+      XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
+                           SetUpSchedulingOptions(
+                               scheduling_options_flags_proto, package.get()));
+      absl::Duration scheduling_time;
+      XLS_ASSIGN_OR_RETURN(schedules,
+                           Schedule(package.get(), scheduling_options,
+                                    &delay_estimator, &scheduling_time));
+      std::cout << absl::StreamFormat("Scheduling time: %dms\n",
+                                      scheduling_time / absl::Milliseconds(1));
+      XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
+          f, effective_clock_period_ps, delay_estimator, query_engine,
+          &schedules, synthesizer.get()));
+      schedules_ptr = &schedules;
+
+      // Scheduling can change the nodes in f slightly so we need to recompute
+      // the bdd.
+      BddQueryEngine sched_qe(BddFunction::kDefaultPathLimit);
+      XLS_RETURN_IF_ERROR(sched_qe.Populate(f).status());
+      XLS_RETURN_IF_ERROR(PrintScheduleInfo(
+          f, schedules, sched_qe, delay_estimator,
+          scheduling_options_flags_proto.has_clock_period_ps()
+              ? std::make_optional(
+                    scheduling_options_flags_proto.clock_period_ps())
+              : std::nullopt));
     }
-    delay_diff.total_diff.critical_path = std::move(critical_path);
-    XLS_RETURN_IF_ERROR(PrintCriticalPath(f, query_engine, delay_diff));
-    XLS_RETURN_IF_ERROR(PrintTotalDelay(f, delay_estimator));
+    absl::Duration codegen_time;
+    XLS_ASSIGN_OR_RETURN(CodegenResult codegen_result,
+                         Codegen(package.get(), scheduling_options_flags_proto,
+                                 codegen_flags_proto, delay_model_flag_passed,
+                                 &schedules, &codegen_time));
+    std::cout << absl::StreamFormat("Codegen time: %dms\n",
+                                    codegen_time / absl::Milliseconds(1));
 
-    std::cout << absl::StreamFormat(
-        "Scheduling time: %dms\n",
-        timing_report.scheduling_time / absl::Milliseconds(1));
-    std::cout << absl::StreamFormat(
-        "Codegen time: %dms\n",
-        timing_report.codegen_time / absl::Milliseconds(1));
-
-    // TODO(meheff): Add an estimate of total number of gates.
     std::cout << absl::StreamFormat(
         "Lines of Verilog: %d\n",
         std::vector<std::string>(
             absl::StrSplit(codegen_result.module_generator_result.verilog_text,
                            '\n'))
             .size());
-
-    // Scheduling can change the nodes in f slightly so we need to recompute the
-    // bdd.
-    BddQueryEngine sched_qe(BddFunction::kDefaultPathLimit);
-    XLS_RETURN_IF_ERROR(sched_qe.Populate(f).status());
-    XLS_RETURN_IF_ERROR(PrintScheduleInfo(
-        f, schedules, sched_qe, delay_estimator,
-        scheduling_options_flags_proto.has_clock_period_ps()
-            ? std::make_optional(
-                  scheduling_options_flags_proto.clock_period_ps())
-            : std::nullopt));
 
     // Print out state information for procs.
     if (f->IsProc()) {

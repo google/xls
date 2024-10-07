@@ -54,6 +54,110 @@
 namespace xls {
 namespace {
 
+// Set the top of the package from the given codegen flags. Returns an error if
+// the top is not set either by the flags or by the IR initially.
+absl::Status MaybeSetTop(Package* p,
+                         const CodegenFlagsProto& codegen_flags_proto) {
+  if (!codegen_flags_proto.top().empty()) {
+    XLS_RETURN_IF_ERROR(p->SetTopByName(codegen_flags_proto.top()));
+  }
+  XLS_RET_CHECK(p->GetTop().has_value())
+      << "Package " << p->name() << " needs a top function/proc.";
+  return absl::OkStatus();
+}
+
+// Data structure holding all the options and metadata for codegen and
+// scheduling. This is complicated because codegen options depend on scheduling
+// flags and scheduling options depend on codegen flags, plus multiple delay
+// estimators are required which contain references to each other. This data
+// structure puts them all in one place so the logic can be reused.
+struct CodegenMetadata {
+  SchedulingOptions scheduling_options;
+  verilog::CodegenOptions codegen_options;
+  const DelayEstimator* base_estimator = nullptr;
+  std::unique_ptr<FfiDelayEstimator> ffi_estimator;
+  std::unique_ptr<FirstMatchDelayEstimator> first_match_estimator;
+  DelayEstimator* delay_estimator = nullptr;
+
+  static absl::StatusOr<CodegenMetadata> Create(
+      Package* package,
+      const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+      const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
+    CodegenMetadata metadata;
+    XLS_ASSIGN_OR_RETURN(metadata.codegen_options,
+                         CodegenOptionsFromProto(codegen_flags_proto));
+
+    if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
+      if (with_delay_model) {
+        XLS_ASSIGN_OR_RETURN(
+            metadata.delay_estimator,
+            SetUpDelayEstimator(scheduling_options_flags_proto));
+      }
+      return metadata;
+    }
+
+    // Note: this should already be validated by CodegenFlagsFromAbslFlags().
+    CHECK_EQ(codegen_flags_proto.generator(), GENERATOR_KIND_PIPELINE)
+        << "Invalid generator kind: "
+        << static_cast<int>(codegen_flags_proto.generator());
+
+    XLS_ASSIGN_OR_RETURN(
+        metadata.scheduling_options,
+        SetUpSchedulingOptions(scheduling_options_flags_proto, package));
+
+    QCHECK(metadata.scheduling_options.pipeline_stages() != 0 ||
+           metadata.scheduling_options.clock_period_ps() != 0)
+        << "Must specify --pipeline_stages or --clock_period_ps (or both).";
+
+    // Add IO constraints for RAMs.
+    for (const std::unique_ptr<xls::verilog::RamConfiguration>& ram_config :
+         metadata.codegen_options.ram_configurations()) {
+      for (const IOConstraint& ram_constraint :
+           ram_config->GetIOConstraints()) {
+        metadata.scheduling_options.add_constraint(ram_constraint);
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(metadata.base_estimator,
+                         SetUpDelayEstimator(scheduling_options_flags_proto));
+    metadata.ffi_estimator = std::make_unique<FfiDelayEstimator>(
+        metadata.scheduling_options.ffi_fallback_delay_ps());
+    metadata.first_match_estimator = std::make_unique<FirstMatchDelayEstimator>(
+        "combined_estimator",
+        std::vector<const DelayEstimator*>(
+            {metadata.base_estimator, metadata.ffi_estimator.get()}));
+    metadata.delay_estimator = metadata.first_match_estimator.get();
+
+    if (package->GetTop().value()->IsProc()) {
+      // Force using non-pretty printed codegen when generating procs.
+      // TODO(tedhong): 2021-09-25 - Update pretty-printer to support
+      //  blocks with flow control.
+      metadata.codegen_options.emit_as_pipeline(false);
+    }
+    return metadata;
+  }
+};
+
+absl::StatusOr<PipelineScheduleOrGroup> ScheduleFromMetadata(
+    Package* p, const CodegenMetadata& metadata,
+    absl::Duration* scheduling_time) {
+  return Schedule(p, metadata.scheduling_options, metadata.delay_estimator,
+                  scheduling_time);
+}
+
+absl::StatusOr<CodegenResult> CodegenFromMetadata(
+    Package* p, GeneratorKind generator_kind, const CodegenMetadata& metadata,
+    const PipelineScheduleOrGroup* schedules, absl::Duration* codegen_time) {
+  if (generator_kind == GENERATOR_KIND_COMBINATIONAL) {
+    return CodegenCombinational(p, metadata.codegen_options,
+                                metadata.delay_estimator, codegen_time);
+  }
+  XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_PIPELINE);
+  XLS_RET_CHECK(schedules != nullptr);
+  return CodegenPipeline(p, *schedules, metadata.codegen_options,
+                         metadata.delay_estimator, codegen_time);
+}
+
 verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
   switch (p) {
     case IO_KIND_INVALID:
@@ -310,76 +414,58 @@ absl::StatusOr<CodegenResult> CodegenCombinational(
   return CodegenResult{.module_generator_result = result};
 }
 
+absl::StatusOr<PipelineScheduleOrGroup> Schedule(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto,
+    absl::Duration* scheduling_time) {
+  XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
+  XLS_ASSIGN_OR_RETURN(
+      CodegenMetadata metadata,
+      CodegenMetadata::Create(p, scheduling_options_flags_proto,
+                              codegen_flags_proto, /*with_delay_model=*/true));
+  return ScheduleFromMetadata(p, metadata, scheduling_time);
+}
+
+absl::StatusOr<CodegenResult> Codegen(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
+    const PipelineScheduleOrGroup* schedules, absl::Duration* codegen_time) {
+  XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
+  XLS_ASSIGN_OR_RETURN(
+      CodegenMetadata metadata,
+      CodegenMetadata::Create(p, scheduling_options_flags_proto,
+                              codegen_flags_proto, with_delay_model));
+  return CodegenFromMetadata(p, codegen_flags_proto.generator(), metadata,
+                             schedules, codegen_time);
+}
+
 absl::StatusOr<CodegenResult> ScheduleAndCodegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    TimingReport* timing_report, PipelineScheduleOrGroup* schedules) {
-  if (!codegen_flags_proto.top().empty()) {
-    XLS_RETURN_IF_ERROR(p->SetTopByName(codegen_flags_proto.top()));
-  }
-  XLS_RET_CHECK(p->GetTop().has_value())
-      << "Package " << p->name() << " needs a top function/proc.";
-
-  XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
-                       CodegenOptionsFromProto(codegen_flags_proto));
-
-  if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
-    const DelayEstimator* delay_estimator = nullptr;
-    if (with_delay_model) {
-      XLS_ASSIGN_OR_RETURN(delay_estimator,
-                           SetUpDelayEstimator(scheduling_options_flags_proto));
-    }
-    return CodegenCombinational(
-        p, codegen_options, delay_estimator,
-        timing_report ? &timing_report->codegen_time : nullptr);
-  }
-
-  // Note: this should already be validated by CodegenFlagsFromAbslFlags().
-  CHECK_EQ(codegen_flags_proto.generator(), GENERATOR_KIND_PIPELINE)
-      << "Invalid generator kind: "
-      << static_cast<int>(codegen_flags_proto.generator());
-
+    TimingReport* timing_report) {
+  XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
   XLS_ASSIGN_OR_RETURN(
-      SchedulingOptions scheduling_options,
-      SetUpSchedulingOptions(scheduling_options_flags_proto, p));
+      CodegenMetadata metadata,
+      CodegenMetadata::Create(p, scheduling_options_flags_proto,
+                              codegen_flags_proto, with_delay_model));
 
-  QCHECK(scheduling_options.pipeline_stages() != 0 ||
-         scheduling_options.clock_period_ps() != 0)
-      << "Must specify --pipeline_stages or --clock_period_ps (or both).";
+  XLS_RETURN_IF_ERROR(MaybeSetTop(p, codegen_flags_proto));
 
-  // Add IO constraints for RAMs.
-  for (const std::unique_ptr<xls::verilog::RamConfiguration>& ram_config :
-       codegen_options.ram_configurations()) {
-    for (const IOConstraint& ram_constraint : ram_config->GetIOConstraints()) {
-      scheduling_options.add_constraint(ram_constraint);
-    }
+  PipelineScheduleOrGroup schedules = PackagePipelineSchedules();
+  PipelineScheduleOrGroup* schedules_ptr = nullptr;
+  if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
+    XLS_ASSIGN_OR_RETURN(
+        schedules,
+        ScheduleFromMetadata(
+            p, metadata,
+            timing_report ? &timing_report->scheduling_time : nullptr));
+    schedules_ptr = &schedules;
   }
-
-  XLS_ASSIGN_OR_RETURN(const DelayEstimator* base_estimator,
-                       SetUpDelayEstimator(scheduling_options_flags_proto));
-  const FfiDelayEstimator ffi_estimator(
-      scheduling_options.ffi_fallback_delay_ps());
-  FirstMatchDelayEstimator delay_estimator("combined_estimator",
-                                           {base_estimator, &ffi_estimator});
-
-  PipelineScheduleOrGroup temp_schedules = PackagePipelineSchedules();
-  if (schedules == nullptr) {
-    schedules = &temp_schedules;
-  }
-  XLS_ASSIGN_OR_RETURN(
-      *schedules,
-      Schedule(p, scheduling_options, &delay_estimator,
-               timing_report ? &timing_report->scheduling_time : nullptr));
-
-  if (p->GetTop().value()->IsProc()) {
-    // Force using non-pretty printed codegen when generating procs.
-    // TODO(tedhong): 2021-09-25 - Update pretty-printer to support
-    //  blocks with flow control.
-    codegen_options.emit_as_pipeline(false);
-  }
-  return CodegenPipeline(
-      p, *schedules, codegen_options, &delay_estimator,
+  return CodegenFromMetadata(
+      p, codegen_flags_proto.generator(), metadata, schedules_ptr,
       timing_report ? &timing_report->codegen_time : nullptr);
 }
 

@@ -65,12 +65,22 @@ struct TimingReport {
   absl::Duration codegen_time;
 };
 
+// Run scheduling and/or codegen based on options from the given flags protos.
+absl::StatusOr<PipelineScheduleOrGroup> Schedule(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto,
+    absl::Duration* scheduling_time);
+absl::StatusOr<CodegenResult> Codegen(
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
+    const PipelineScheduleOrGroup* schedules, absl::Duration* codegen_time);
 absl::StatusOr<CodegenResult> ScheduleAndCodegen(
     Package* p,
     const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
     const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model,
-    TimingReport* timing_report = nullptr,
-    PipelineScheduleOrGroup* schedules = nullptr);
+    TimingReport* timing_report = nullptr);
 
 }  // namespace xls
 
