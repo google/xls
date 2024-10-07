@@ -885,7 +885,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/apfloat_struct_constant.x'
     )
     self.assertIn(
-        "Struct definitions (e.g. 'APFloat') cannot have constant items.",
+        "Struct 'APFloat' has no impl defining"
+        " 'SOME_CONSTANT_THAT_DOES_NOT_EXIST'",
         stderr,
     )
 
@@ -1130,8 +1131,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run('xls/dslx/tests/errors/gh1373.x')
     self.assertIn('TypeInferenceError:', stderr)
     self.assertIn(
-        'Cannot resolve `::` subject `X` -- subject must be a module or enum'
-        ' definition; subject is a struct',
+        "Struct 'X' has no impl defining 'Y0'",
         stderr,
     )
 

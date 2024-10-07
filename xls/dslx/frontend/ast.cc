@@ -1329,6 +1329,15 @@ std::vector<AstNode*> Impl::GetChildren(bool want_types) const {
   return results;
 }
 
+std::optional<ConstantDef*> Impl::GetConstant(std::string_view name) const {
+  for (ConstantDef* constant : constants_) {
+    if (constant->name_def()->identifier() == name) {
+      return constant;
+    }
+  }
+  return std::nullopt;
+}
+
 // -- class StructInstance
 
 StructInstance::StructInstance(

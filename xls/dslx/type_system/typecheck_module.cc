@@ -293,6 +293,8 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
     VLOG(2) << "Finished typechecking type alias: " << type_alias->ToString();
   } else if (std::holds_alternative<ConstAssert*>(member)) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
+  } else if (std::holds_alternative<Impl*>(member)) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
   } else {
     return absl::InvalidArgumentError(
         absl::StrCat("Unimplemented node for module-level typechecking: ",

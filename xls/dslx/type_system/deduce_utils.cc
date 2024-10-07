@@ -252,6 +252,32 @@ absl::Status ValidateNumber(const Number& number, const Type& type) {
       file_table);
 }
 
+static std::optional<StructDef*> TryResolveStructDefFromNode(AstNode* definer) {
+  if (StructDef* struct_def = dynamic_cast<StructDef*>(definer);
+      struct_def != nullptr) {
+    return struct_def;
+  }
+
+  TypeRefTypeAnnotation* type_ref = nullptr;
+  if (Param* param = dynamic_cast<Param*>(definer); param != nullptr) {
+    type_ref = dynamic_cast<TypeRefTypeAnnotation*>(param->type_annotation());
+  } else if (StructInstance* struct_instance =
+                 dynamic_cast<StructInstance*>(definer);
+             struct_instance != nullptr) {
+    type_ref =
+        dynamic_cast<TypeRefTypeAnnotation*>(struct_instance->struct_ref());
+  }
+
+  if (type_ref != nullptr) {
+    if (absl::StatusOr<StructDef*> struct_def =
+            ResolveLocalStructDef(type_ref->type_ref()->type_definition());
+        struct_def.ok()) {
+      return struct_def.value();
+    }
+  }
+  return std::nullopt;
+}
+
 // When a ColonRef's subject is a NameRef, this resolves the entity referred to
 // by that ColonRef. In a valid program that can only be a limited set of
 // things, which is reflected in the return type provided.
@@ -326,8 +352,12 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
     return enum_def;
   }
 
-  TypeAlias* type_alias = dynamic_cast<TypeAlias*>(definer);
+  std::optional<StructDef*> struct_def = TryResolveStructDefFromNode(definer);
+  if (struct_def.has_value()) {
+    return struct_def.value();
+  }
 
+  TypeAlias* type_alias = dynamic_cast<TypeAlias*>(definer);
   if (type_alias == nullptr) {
     return make_subject_error();
   }

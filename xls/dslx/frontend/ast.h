@@ -2326,7 +2326,7 @@ class StructDef : public AstNode {
 class Impl : public AstNode {
  public:
   Impl(Module* owner, Span span, TypeAnnotation* struct_ref,
-       const std::vector<ConstantDef*> constants, bool is_public);
+       std::vector<ConstantDef*> constants, bool is_public);
 
   ~Impl() override;
 
@@ -2352,6 +2352,9 @@ class Impl : public AstNode {
   std::optional<Span> GetSpan() const override { return span_; }
 
   const std::vector<ConstantDef*>& constants() const { return constants_; }
+
+  // Returns the constant with the given name if present.
+  std::optional<ConstantDef*> GetConstant(std::string_view name) const;
 
  private:
   Span span_;
