@@ -19,9 +19,30 @@ build --copt "-D_DEFAULT_SOURCE=1"     --host_copt "-D_DEFAULT_SOURCE=1"
 # Tell that auto_ptr<> is not available. Needed for boost (still needed ?)
 build --copt "-D_HAS_AUTO_PTR_ETC=0"   --host_copt "-D_HAS_AUTO_PTR_ETC=0"
 
-# Disable a couple of warnings we're not interested in.
+# Turn warnings on...
+build --copt "-Wall"                   --host_copt "-Wall"
+build --copt "-Wextra"                 --host_copt "-Wextra"
+
+# ... and disable the warnings we're not interested in.
 build --copt "-Wno-sign-compare"       --host_copt "-Wno-sign-compare"
 build --copt "-Wno-comment"            --host_copt "-Wno-comment"
+build --copt "-Wno-unused-parameter"   --host_copt "-Wno-unused-parameter"
+build --copt "-Wno-unknown-pragmas"    --host_copt "-Wno-unknown-pragmas"
+build --copt "-Wno-missing-field-initializers" --host_copt "-Wno-missing-field-initializers"
+build --copt "-Wno-bitwise-instead-of-logical" --host_copt "-Wno-bitwise-instead-of-logical"
+
+# For 3rd party code: Disable warnings entirely.
+# They are not actionable and just create noise.
+build --per_file_copt=external/.*@-w
+build --host_per_file_copt=external/.*@-w
+
+# These warnings show up in 3rd party code headers that are included by
+# our targets and thus are reported even with -w. Explicitly disable.
+# Protobuf.
+build --copt "-Wno-deprecated-declarations" --host_copt "-Wno-deprecated-declarations"
+
+# OrTools. Can be removed once synced or-tools version >= 2024-07-30
+build --copt "-Wno-range-loop-construct"    --host_copt "-Wno-range-loop-construct"
 
 # Use absl in googletest to work around
 # https://github.com/google/googletest/issues/4383
