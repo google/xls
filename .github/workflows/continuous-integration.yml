@@ -42,3 +42,16 @@ jobs:
       - name: Bazel Test All (opt)
         run: |
           bazel test -c opt --noshow_progress --test_output=errors -- //...
+
+      - name: Create compilation DB
+        run: |
+          xls/dev_tools/make-compilation-db.sh
+          ls -l compile_commands.json
+
+      - name: Run clang-tidy on changes and report in PR
+        uses: ZedThree/clang-tidy-review@v0.19.0
+        with:
+          clang_tidy_version: 17
+          config_file: ".clang-tidy"
+
+        id: review

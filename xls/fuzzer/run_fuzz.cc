@@ -189,9 +189,9 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   };
 
   // Pass on verbosity flags if available.
-  if (int64_t verbosity = absl::GetFlag(FLAGS_v); verbosity > 0) {
-    argv.push_back(absl::StrCat("--v=", verbosity));
-  }
+  if (int64_t verbosity = absl::GetFlag(FLAGS_v); verbosity > 0)
+    argv.push_back(absl::StrCat("--v=", verbosity));  // testing clang-tidy
+
   if (std::string vmodule = absl::GetFlag(FLAGS_vmodule); !vmodule.empty()) {
     argv.push_back(absl::StrCat("--vmodule=", absl::GetFlag(FLAGS_vmodule)));
   }
