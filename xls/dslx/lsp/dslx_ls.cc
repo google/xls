@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <iostream>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -79,6 +80,10 @@ InitializeResult InitializeServer(const nlohmann::json& params) {
   capabilities["documentLinkProvider"] = {
       {"dynamicRegistration", false},
       {"tooltipSupport", false},
+  };
+  capabilities["renameProvider"] = {
+      {"dynamicRegistration", false},
+      {"prepareSupport", true},
   };
   capabilities["documentFormattingProvider"] = true;
   return InitializeResult{
@@ -209,6 +214,26 @@ absl::Status RealMain() {
       [&](const verible::lsp::DocumentLinkParams& params) {
         return language_server_adapter.ProvideImportLinks(
             params.textDocument.uri);
+      });
+
+  dispatcher.AddRequestHandler(
+      "textDocument/rename",
+      [&](const verible::lsp::RenameParams& params) -> nlohmann::json {
+        auto edit_or = language_server_adapter.Rename(
+            params.textDocument.uri, params.position, params.newName);
+        if (!edit_or.ok()) {
+          LspLog() << "could not determine rename edit; status: "
+                   << edit_or.status() << "\n";
+          return nlohmann::json();
+        }
+        std::optional<verible::lsp::WorkspaceEdit> edit =
+            std::move(edit_or).value();
+        if (edit.has_value()) {
+          nlohmann::json o;
+          verible::lsp::to_json(o, edit.value());
+          return o;
+        }
+        return nlohmann::json();
       });
 
   dispatcher.AddRequestHandler(

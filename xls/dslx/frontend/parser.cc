@@ -332,9 +332,10 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       }
 
       if (peek->IsKeyword(Keyword::kConst)) {
-        XLS_ASSIGN_OR_RETURN(ConstantDef * def,
+        XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
                              ParseConstantDef(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(def, make_collision_error));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(constant_def, make_collision_error));
         continue;
       }
 
@@ -452,15 +453,15 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kStruct: {
-        XLS_ASSIGN_OR_RETURN(StructDef * struct_,
+        XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                              ParseStruct(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(struct_, make_collision_error));
+        XLS_RETURN_IF_ERROR(module_->AddTop(struct_def, make_collision_error));
         break;
       }
       case Keyword::kEnum: {
-        XLS_ASSIGN_OR_RETURN(EnumDef * enum_,
+        XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
                              ParseEnumDef(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(enum_, make_collision_error));
+        XLS_RETURN_IF_ERROR(module_->AddTop(enum_def, make_collision_error));
         break;
       }
       case Keyword::kConst: {

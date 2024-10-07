@@ -202,6 +202,16 @@ const EnumDef* Module::FindEnumDef(const Span& span) const {
   return down_cast<const EnumDef*>(FindNode(AstNodeKind::kEnumDef, span));
 }
 
+bool Module::IsPublicMember(const AstNode& node) const {
+  for (const ModuleMember& member : top_) {
+    const AstNode* member_node = ToAstNode(member);
+    if (member_node == &node) {
+      return IsPublic(member);
+    }
+  }
+  return false;
+}
+
 std::optional<ModuleMember*> Module::FindMemberWithName(
     std::string_view target) {
   for (ModuleMember& member : top_) {

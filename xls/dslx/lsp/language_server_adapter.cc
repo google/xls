@@ -32,6 +32,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "nlohmann/json.hpp"
 #include "external/verible/common/lsp/lsp-file-utils.h"
 #include "external/verible/common/lsp/lsp-protocol-enums.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
@@ -41,6 +42,7 @@
 #include "xls/dslx/extract_module_name.h"
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
@@ -219,15 +221,16 @@ LanguageServerAdapter::FindDefinitions(
     FileTable& file_table = parsed->import_data.file_table();
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
     VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
-    std::optional<Span> maybe_definition_span = xls::dslx::FindDefinition(
+    std::optional<const NameDef*> maybe_definition = xls::dslx::FindDefinition(
         parsed->module(), pos, parsed->type_info(), parsed->import_data);
-    if (maybe_definition_span.has_value()) {
+    if (maybe_definition.has_value()) {
+      const Span& definition_span = maybe_definition.value()->span();
       VLOG(1) << "FindDefinition; span: "
-              << maybe_definition_span.value().ToString(file_table);
+              << definition_span.ToString(file_table);
       verible::lsp::Location location =
-          ConvertSpanToLspLocation(maybe_definition_span.value());
+          ConvertSpanToLspLocation(definition_span);
       XLS_ASSIGN_OR_RETURN(
-          location.uri, MaybeRelpathToUri(maybe_definition_span->GetFilename(
+          location.uri, MaybeRelpathToUri(definition_span.GetFilename(
                                               parsed->import_data.file_table()),
                                           dslx_paths_));
       return std::vector<verible::lsp::Location>{location};
@@ -311,6 +314,111 @@ LanguageServerAdapter::InlayHint(std::string_view uri,
     }
   }
   return results;
+}
+
+absl::StatusOr<std::optional<verible::lsp::Range>>
+LanguageServerAdapter::PrepareRename(
+    std::string_view uri, const verible::lsp::Position& position) const {
+  if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    FileTable& file_table = parsed->import_data.file_table();
+
+    const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
+    VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
+    std::optional<const NameDef*> maybe_definition = xls::dslx::FindDefinition(
+        parsed->module(), pos, parsed->type_info(), parsed->import_data);
+    if (maybe_definition.has_value()) {
+      return ConvertSpanToLspRange(maybe_definition.value()->span());
+    }
+  }
+  return std::nullopt;
+}
+
+// Generic function that renames all `NameRefs` that point at `name_def`, as
+// well as `name_def` itself, under `container`.
+//
+// Implementation note: since `name_def` does not currently have "use" links
+// maintained, this is linear in the number of nodes in `container`.
+static absl::Status RenameInGeneric(
+    const AstNode& container, const NameDef& name_def,
+    std::string_view new_name, std::vector<verible::lsp::TextEdit>& edits) {
+  // Get all the references to the name def and rename them all.
+  XLS_ASSIGN_OR_RETURN(std::vector<const NameRef*> name_refs,
+                       CollectNameRefsUnder(&container, &name_def));
+  for (const NameRef* name_ref : name_refs) {
+    edits.push_back(verible::lsp::TextEdit{
+        .range = ConvertSpanToLspRange(name_ref->span()),
+        .newText = std::string{new_name},
+    });
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::optional<verible::lsp::WorkspaceEdit>>
+LanguageServerAdapter::Rename(std::string_view uri,
+                              const verible::lsp::Position& position,
+                              std::string_view new_name) const {
+  std::vector<verible::lsp::TextEdit> edits;
+  if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    FileTable& file_table = parsed->import_data.file_table();
+
+    const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
+    VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
+    std::optional<const NameDef*> maybe_name_def = xls::dslx::FindDefinition(
+        parsed->module(), pos, parsed->type_info(), parsed->import_data);
+    if (!maybe_name_def.has_value()) {
+      VLOG(1) << "No definition found for attempted rename to: `" << new_name
+              << "`";
+      return std::nullopt;
+    }
+
+    const NameDef* name_def = maybe_name_def.value();
+
+    // We always want to edit the original name definition to the new name.
+    edits.push_back(verible::lsp::TextEdit{
+        .range = ConvertSpanToLspRange(name_def->span()),
+        .newText = std::string{new_name},
+    });
+
+    const auto* module = name_def->owner();
+    if (AstNode* definer = name_def->definer();
+        definer != nullptr && !module->IsPublicMember(*definer)) {
+      // For non-public module members we can rename -- public may require
+      // cross-file edits.
+      XLS_RETURN_IF_ERROR(RenameInGeneric(*module, *name_def, new_name, edits));
+    } else {
+      // Traverse up parent links until we find a container node of interest;
+      // i.e. function/module.
+      const AstNode* node = name_def;
+      while (true) {
+        node = node->parent();
+        VLOG(3) << absl::StreamFormat("Traversed to parent AST node: `%s`",
+                                      node->ToString());
+        if (node == nullptr) {
+          return std::nullopt;
+        }
+        if (node->kind() == AstNodeKind::kFunction) {
+          const auto* function = down_cast<const Function*>(node);
+          XLS_RETURN_IF_ERROR(
+              RenameInGeneric(*function, *name_def, new_name, edits));
+          break;
+        }
+      }
+    }
+
+    nlohmann::json edits_json;
+    for (const auto& edit : edits) {
+      nlohmann::json o;
+      verible::lsp::to_json(o, edit);
+      edits_json.push_back(o);
+    }
+
+    return verible::lsp::WorkspaceEdit{
+        .changes = nlohmann::json::object({
+            {std::string{uri}, edits_json},
+        }),
+    };
+  }
+  return std::nullopt;
 }
 
 }  // namespace xls::dslx

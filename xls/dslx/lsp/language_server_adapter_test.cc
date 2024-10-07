@@ -14,6 +14,7 @@
 
 #include "xls/dslx/lsp/language_server_adapter.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -262,6 +263,92 @@ fn main() { imported::f() }
       .end = verible::lsp::Position{0, 8},
   };
   EXPECT_TRUE(definition_location.range == kWantRange);
+}
+
+TEST(LanguageServerAdapterTest, RenameForParameter) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr char kUri[] = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f(x: u32) -> u32 {
+  let y = x;
+  let z = y;
+  z
+})"));
+
+  const auto kWantRange =
+      verible::lsp::Range{.start = verible::lsp::Position{0, 5},
+                          .end = verible::lsp::Position{0, 6}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::Range> to_rename,
+                           adapter.PrepareRename(kUri, kWantRange.start));
+  ASSERT_TRUE(to_rename.has_value());
+  EXPECT_TRUE(kWantRange == to_rename.value());
+
+  // Rename from the use position should also work and resolve to the same
+  // definition span.
+  verible::lsp::Position use_pos{1, 10};
+  XLS_ASSERT_OK_AND_ASSIGN(to_rename, adapter.PrepareRename(kUri, use_pos));
+  ASSERT_TRUE(to_rename.has_value());
+  EXPECT_TRUE(kWantRange == to_rename.value());
+
+  // See what edits come out.
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::WorkspaceEdit> edit,
+                           adapter.Rename(kUri, kWantRange.start, "foo"));
+  ASSERT_TRUE(edit.has_value());
+
+  EXPECT_EQ(edit->changes.at(kUri).size(), 2);
+}
+
+TEST(LanguageServerAdapterTest, RenameForModuleScopedConstant) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr char kUri[] = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(const FOO = u32:42;
+
+const BAR: u32 = FOO + FOO;)"));
+
+  const auto kWantRange =
+      verible::lsp::Range{.start = verible::lsp::Position{0, 6},
+                          .end = verible::lsp::Position{0, 9}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::Range> to_rename,
+                           adapter.PrepareRename(kUri, kWantRange.start));
+  ASSERT_TRUE(to_rename.has_value());
+  EXPECT_TRUE(kWantRange == to_rename.value());
+
+  // Rename from the use position should also work and resolve to the same
+  // definition span.
+  verible::lsp::Position use_pos{2, 17};
+  XLS_ASSERT_OK_AND_ASSIGN(to_rename, adapter.PrepareRename(kUri, use_pos));
+  ASSERT_TRUE(to_rename.has_value());
+  EXPECT_TRUE(kWantRange == to_rename.value());
+
+  // See what edits come out.
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::WorkspaceEdit> edit,
+                           adapter.Rename(kUri, kWantRange.start, "FT"));
+  ASSERT_TRUE(edit.has_value());
+
+  EXPECT_EQ(edit->changes.at(kUri).size(), 3);
+}
+
+// Currently we cannot rename across files so we refuse to rename `pub`
+// visibility members.
+TEST(LanguageServerAdapterTest, RenameForPublicModuleScopedConstant) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(pub const FOO = u32:42;
+
+const BAR: u32 = FOO + FOO;)"));
+
+  const auto kWantRange =
+      verible::lsp::Range{.start = verible::lsp::Position{0, 10},
+                          .end = verible::lsp::Position{0, 13}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<verible::lsp::Range> to_rename,
+                           adapter.PrepareRename(kUri, kWantRange.start));
+  ASSERT_TRUE(to_rename.has_value());
+  EXPECT_TRUE(kWantRange == to_rename.value());
+
+  // See what edits come out.
+  absl::StatusOr<std::optional<verible::lsp::WorkspaceEdit>> edit =
+      adapter.Rename(kUri, kWantRange.start, "FT");
+  XLS_EXPECT_OK(edit.status());
+  EXPECT_EQ(edit.value(), std::nullopt);
 }
 
 }  // namespace
