@@ -130,23 +130,6 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
-xls_dslx_library(
-    name = "magic_dslx",
-    srcs = [
-        "magic.x",
-    ],
-    deps = [
-        ":buffer_dslx",
-    ],
-)
-
-xls_dslx_test(
-    name = "magic_dslx_test",
-    dslx_test_args = {"compare": "jit"},
-    library = ":magic_dslx",
-    tags = ["manual"],
-)
-
 cc_library(
     name = "data_generator",
     srcs = ["data_generator.cc"],
@@ -949,7 +932,6 @@ xls_dslx_library(
         ":common_dslx",
         ":frame_header_dslx",
         ":frame_header_test_dslx",
-        ":magic_dslx",
         ":ram_printer_dslx",
         ":repacketizer_dslx",
         ":sequence_executor_dslx",
