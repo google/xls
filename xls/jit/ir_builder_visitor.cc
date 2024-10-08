@@ -38,6 +38,7 @@
 #include "llvm/include/llvm/IR/BasicBlock.h"
 #include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/IR/GEPNoWrapFlags.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/Instructions.h"
 #include "llvm/include/llvm/IR/Intrinsics.h"
@@ -576,7 +577,7 @@ llvm::Value* InvokeCallback(llvm::IRBuilder<>* builder, llvm::Type* return_type,
                     [](llvm::Value* v) { return v->getType(); });
   llvm::Value* fn_ptr_ptr =
       builder->CreateGEP(builder->getInt8Ty(), instance_ptr, fn_offset,
-                         "callback_ptr_ptr", /*IsInBounds=*/true);
+                         "callback_ptr_ptr", llvm::GEPNoWrapFlags::inBounds());
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(return_type, params_types, /*isVarArg=*/false);
   llvm::Value* fn_ptr =
