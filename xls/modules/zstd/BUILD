@@ -161,16 +161,6 @@ cc_library(
 )
 
 xls_dslx_library(
-    name = "frame_header_dslx",
-    srcs = [
-        "frame_header.x",
-    ],
-    deps = [
-        ":buffer_dslx",
-    ],
-)
-
-xls_dslx_library(
     name = "common_dslx",
     srcs = [
         "common.x",
@@ -178,116 +168,80 @@ xls_dslx_library(
     deps = [],
 )
 
+xls_dslx_library(
+    name = "frame_header_dec_dslx",
+    srcs = [
+        "frame_header_dec.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+    ],
+)
+
 xls_dslx_test(
-    name = "frame_header_dslx_test",
-    dslx_test_args = {"compare": "jit"},
-    library = ":frame_header_dslx",
+    name = "frame_header_dec_dslx_test",
+    library = ":frame_header_dec_dslx",
     tags = ["manual"],
 )
 
-xls_dslx_library(
-    name = "frame_header_test_dslx",
-    srcs = [
-        "frame_header_test.x",
-    ],
-    deps = [
-        ":buffer_dslx",
-        ":frame_header_dslx",
-    ],
-)
-
-cc_test(
-    name = "frame_header_cc_test",
-    srcs = [
-        "frame_header_test.cc",
-    ],
-    data = [
-        ":frame_header_test_dslx",
-    ],
-    shard_count = 50,
-    deps = [
-        ":data_generator",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/fuzzing:fuzztest",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/dslx:create_import_data",
-        "//xls/dslx:import_data",
-        "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx/ir_convert:convert_options",
-        "//xls/dslx/ir_convert:ir_converter",
-        "//xls/dslx/type_system:parametric_env",
-        "//xls/ir:bits",
-        "//xls/ir:value",
-        "//xls/simulation:sim_test_base",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
-        "@zstd",
-    ],
-)
+frame_header_dec_codegen_args = common_codegen_args | {
+    "module_name": "FrameHeaderDecoder",
+    "clock_period_ps": "0",
+    "pipeline_stages": "6",
+}
 
 xls_dslx_verilog(
-    name = "frame_header_verilog",
-    codegen_args = {
-        "module_name": "FrameHeaderDecoder",
-        "delay_model": "asap7",
-        "pipeline_stages": "9",
-        "reset": "rst",
-        "reset_data_path": "false",
-        "use_system_verilog": "false",
-    },
-    dslx_top = "parse_frame_header_128",
-    library = ":frame_header_test_dslx",
+    name = "frame_header_dec_verilog",
+    codegen_args = frame_header_dec_codegen_args,
+    dslx_top = "FrameHeaderDecoderInst",
+    library = ":frame_header_dec_dslx",
     tags = ["manual"],
-    verilog_file = "frame_header.v",
+    verilog_file = "frame_header_dec.v",
 )
 
 xls_benchmark_ir(
-    name = "frame_header_opt_ir_benchmark",
-    src = ":frame_header_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "9",
-        "delay_model": "asap7",
+    name = "frame_header_dec_opt_ir_benchmark",
+    src = ":frame_header_dec_verilog.opt.ir",
+    benchmark_ir_args = frame_header_dec_codegen_args | {
+        "top": "__frame_header_dec__FrameHeaderDecoderInst__FrameHeaderDecoder_0__16_32_30_5_next",
+        "pipeline_stages": "10",
     },
     tags = ["manual"],
 )
 
 verilog_library(
-    name = "frame_header_verilog_lib",
+    name = "frame_header_dec_verilog_lib",
     srcs = [
-        ":frame_header.v",
+        ":frame_header_dec.v",
     ],
     tags = ["manual"],
 )
 
 synthesize_rtl(
-    name = "frame_header_synth_asap7",
+    name = "frame_header_dec_synth_asap7",
     standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
     tags = ["manual"],
     top_module = "FrameHeaderDecoder",
     deps = [
-        ":frame_header_verilog_lib",
+        ":frame_header_dec_verilog_lib",
     ],
 )
 
 benchmark_synth(
-    name = "frame_header_benchmark_synth",
-    synth_target = ":frame_header_synth_asap7",
+    name = "frame_header_dec_benchmark_synth",
+    synth_target = ":frame_header_dec_synth_asap7",
     tags = ["manual"],
 )
 
 place_and_route(
-    name = "frame_header_place_and_route",
-    clock_period = "750",
+    name = "frame_header_dec_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
     stop_after_step = "global_routing",
-    synthesized_rtl = ":frame_header_synth_asap7",
+    synthesized_rtl = ":frame_header_dec_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
