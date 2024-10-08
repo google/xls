@@ -33,7 +33,6 @@ cc_library(
     hdrs = ["channel_scope.h"],
     deps = [
         ":conversion_info",
-        ":convert_options",
         ":ir_conversion_utils",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",

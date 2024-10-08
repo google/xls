@@ -422,7 +422,6 @@ cc_library(
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:pos",
-        "//xls/dslx/type_system:deduce",
         "//xls/dslx/type_system:deduce_ctx",
         "//xls/dslx/type_system:parametric_instantiator",
         "//xls/dslx/type_system:parametric_with_type",

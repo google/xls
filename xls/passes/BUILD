@@ -837,7 +837,6 @@ cc_library(
         "//xls/ir:interval_set",
         "//xls/ir:ternary",
         "//xls/ir:type",
-        "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

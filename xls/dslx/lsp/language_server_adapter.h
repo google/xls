@@ -18,6 +18,7 @@
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>

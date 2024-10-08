@@ -47,7 +47,6 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/ast_env.h"
-#include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/instantiate_parametric_function.h"

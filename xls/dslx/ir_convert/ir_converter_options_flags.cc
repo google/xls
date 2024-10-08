@@ -24,6 +24,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/ir_convert/ir_converter_options_flags.pb.h"
 #include "xls/ir/channel.pb.h"
 
 // LINT.IfChange

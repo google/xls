@@ -15,6 +15,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>

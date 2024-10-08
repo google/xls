@@ -16,6 +16,7 @@
 #define XLS_DSLX_IR_CONVERT_IR_CONVERTER_OPTIONS_FLAGS_H_
 
 #include <optional>
+#include <string>
 
 #include "absl/flags/declare.h"
 #include "absl/status/statusor.h"

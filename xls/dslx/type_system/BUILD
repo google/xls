@@ -317,7 +317,6 @@ cc_library(
     hdrs = ["typecheck_invocation.h"],
     deps = [
         ":ast_env",
-        ":deduce",
         ":deduce_ctx",
         ":deduce_utils",
         ":instantiate_parametric_function",
