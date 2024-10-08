@@ -5,15 +5,15 @@
 A _k_-ary _n_-fly butterfly topology type is a multistage logarithm network. It
 is implemented using _n_ stages of identical routers, where _k_ is the number of
 channels of a router that connect to the previous and/or to the next stage. For
-example, a 2-ary 3-tree butterfly topology has three stages composed of routers
+example, a 2-ary 3-fly butterfly topology has three stages composed of routers
 with two channels connect to the routers of the previous and/or the next stage
 (see Figure Butterfly_Topology_Example).
 
-Each endpoint node and channel has an _n_-digit radix-_k_ identifier,
+Each endpoint node and channel has an _n_-digit radix\-_k_ identifier,
 {d<sub>n−1</sub>, d<sub>n−2</sub>, ..., d<sub>0</sub>}. The first _n−1_ digits
 {d<sub>n−1</sub>, d<sub>n−2</sub>, ..., d<sub>1</sub>} of the identifier
 corresponds to the router that it is connected to. Each router node has an
-_n−1_-digit radix-_k_ identifier. To distinguish nodes and channels from
+_n−1_-digit radix\-_k_ identifier. To distinguish nodes and channels from
 different stages, the stage number is appended to their identifier separated by
 a period. For example, for a 2-ary 4-fly butterfly network: 2.1010<sub>2</sub>
 is channel 10<sub>10</sub> from stage 2. **[Butterfly_Ref_0](#butterfly_ref_0)**
@@ -30,10 +30,10 @@ _i_ &lt; n. For example, for a 2-ary 4-fly butterfly network: channel
 ![drawing](./butterfly_topology.png)
 
 **Figure Butterfly_Topology_Example<a id="butterfly_topology_example"></a>. The
-router nodes of a 2-ary 3-tree butterfly topology.**
+router nodes of a 2-ary 3-fly butterfly topology.**
 
 Figure [Butterfly_Topology_Example](#butterfly_topology_example) shows the
-router nodes of a 2-ary 3-tree butterfly topology. The routers are labelled with
+router nodes of a 2-ary 3-fly butterfly topology. The routers are labelled with
 an **S.I** format where **S** is the stage identifier and **I** is the router
 identifier. For example, router 0.2 is router 2 from stage 0. Channel 0.6 is
 connected to router 3 [0.<strong>11</strong>0<sub>2</sub>] of stage 0 and router
