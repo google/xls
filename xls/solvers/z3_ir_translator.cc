@@ -553,6 +553,19 @@ absl::Status IrTranslator::HandleNe(CompareOp* ne) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleGate(Gate* gate) {
+  Z3OpTranslator t(ctx_);
+  ScopedErrorHandler seh(ctx_);
+  XLS_ASSIGN_OR_RETURN(
+      Z3_ast zero,
+      TranslateLiteralValue(/*has_nonconcat_uses=*/true, gate->GetType(),
+                            ZeroOfType(gate->GetType())));
+  NoteTranslation(gate,
+                  Z3_mk_ite(ctx_, t.NeZeroBool(GetValue(gate->condition())),
+                            GetValue(gate->data()), zero));
+  return seh.status();
+}
+
 template <typename FnT>
 absl::Status IrTranslator::HandleShift(BinOp* shift, FnT fshift) {
   auto f = [shift, fshift](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {

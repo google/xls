@@ -163,6 +163,7 @@ class IrTranslator : public DfsVisitorWithDefault {
       DynamicBitSlice* dynamic_bit_slice) override;
   absl::Status HandleEncode(Encode* encode) override;
   absl::Status HandleEq(CompareOp* eq) override;
+  absl::Status HandleGate(Gate* gate) override;
   absl::Status HandleIdentity(UnOp* identity) override;
   absl::Status HandleLiteral(Literal* literal) override;
   absl::Status HandleNaryAnd(NaryOp* and_op) override;
