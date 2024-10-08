@@ -21,7 +21,6 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
     "xls_benchmark_verilog",
-    "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_test",
     "xls_dslx_verilog",
@@ -1070,6 +1069,148 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":csr_config_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "zstd_dec_dslx",
+    srcs = [
+        "zstd_dec.x",
+    ],
+    deps = [
+        ":axi_csr_accessor_dslx",
+        ":block_header_dec_dslx",
+        ":block_header_dslx",
+        ":common_dslx",
+        ":csr_config_dslx",
+        ":dec_mux_dslx",
+        ":frame_header_dec_dslx",
+        ":raw_block_dec_dslx",
+        ":repacketizer_dslx",
+        ":rle_block_dec_dslx",
+        ":sequence_executor_dslx",
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "zstd_dec_dslx_test",
+    library = ":zstd_dec_dslx",
+    tags = ["manual"],
+)
+
+zstd_dec_codegen_args = common_codegen_args | {
+    "module_name": "ZstdDecoder",
+    "clock_period_ps": "0",
+    "pipeline_stages": "10",
+    "flop_inputs_kind": "skid",
+    "flop_outputs_kind": "skid",
+}
+
+xls_dslx_verilog(
+    name = "zstd_dec_verilog",
+    codegen_args = zstd_dec_codegen_args,
+    dslx_top = "ZstdDecoderInst",
+    library = ":zstd_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "zstd_dec.v",
+)
+
+zstd_dec_internal_codegen_args = common_codegen_args | {
+    "module_name": "ZstdDecoderInternal",
+    "pipeline_stages": "2",
+}
+
+xls_dslx_verilog(
+    name = "zstd_dec_internal_verilog",
+    codegen_args = zstd_dec_internal_codegen_args,
+    dslx_top = "ZstdDecoderInternalInst",
+    library = ":zstd_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "zstd_dec_internal.v",
+)
+
+xls_benchmark_ir(
+    name = "zstd_dec_internal_opt_ir_benchmark",
+    src = ":zstd_dec_internal_verilog.opt.ir",
+    benchmark_ir_args = {
+        "top": "__zstd_dec__ZstdDecoderInternalInst__ZstdDecoderInternal_0__16_64_8_4_16_next",
+        "pipeline_stages": "10",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "zstd_dec_internal_verilog_lib",
+    srcs = [
+        ":zstd_dec_internal.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "zstd_dec_internal_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "ZstdDecoderInternal",
+    deps = [
+        ":zstd_dec_internal_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "zstd_dec_internal_benchmark_synth",
+    synth_target = ":zstd_dec_internal_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "zstd_dec_internal_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.35",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":zstd_dec_internal_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+verilog_library(
+    name = "zstd_dec_verilog_lib",
+    srcs = [
+        ":xls_fifo_wrapper.v",
+        ":zstd_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "zstd_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "ZstdDecoder",
+    deps = [
+        ":zstd_dec_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "zstd_dec_benchmark_synth",
+    synth_target = ":zstd_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "zstd_dec_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.4",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":zstd_dec_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
