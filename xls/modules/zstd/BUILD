@@ -17,6 +17,7 @@
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -1213,4 +1214,39 @@ place_and_route(
     synthesized_rtl = ":zstd_dec_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "zstd_dec_cocotb_test",
+    srcs = ["zstd_dec_cocotb_test.py"],
+    data = [
+        ":arbiter.v",
+        ":axi_interconnect.v",
+        ":axi_interconnect_wrapper.v",
+        ":priority_encoder.v",
+        ":xls_fifo_wrapper.v",
+        ":zstd_dec.v",
+        ":zstd_dec_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        requirement("zstandard"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
