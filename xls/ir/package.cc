@@ -768,6 +768,7 @@ absl::Status Package::AddChannel(std::unique_ptr<Channel> channel, Proc* proc) {
 }
 
 absl::StatusOr<Channel*> Package::GetChannel(int64_t id) const {
+  XLS_RET_CHECK(!ChannelsAreProcScoped());
   for (Channel* ch : channels()) {
     if (ch->id() == id) {
       return ch;
@@ -777,6 +778,7 @@ absl::StatusOr<Channel*> Package::GetChannel(int64_t id) const {
 }
 
 std::vector<std::string> Package::GetChannelNames() const {
+  CHECK(!ChannelsAreProcScoped());
   std::vector<std::string> names;
   names.reserve(channels().size());
   for (Channel* ch : channels()) {
@@ -786,6 +788,7 @@ std::vector<std::string> Package::GetChannelNames() const {
 }
 
 absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
+  XLS_RET_CHECK(!ChannelsAreProcScoped());
   auto it = channels_.find(name);
   if (it != channels_.end()) {
     return it->second.get();

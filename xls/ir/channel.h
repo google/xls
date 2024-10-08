@@ -420,10 +420,20 @@ using ChannelRef = std::variant<Channel*, ChannelReference*>;
 using SendChannelRef = std::variant<Channel*, SendChannelReference*>;
 using ReceiveChannelRef = std::variant<Channel*, ReceiveChannelReference*>;
 
+// Converts a send/receive ChannelRef into a generic ChannelRef.
+ChannelRef AsChannelRef(SendChannelRef ref);
+ChannelRef AsChannelRef(ReceiveChannelRef ref);
+
+// Converts a base ChannelRef into a send/receive form. CHECK fails if the
+// ChannelRef is not of the appropriate direction.
+SendChannelRef AsSendChannelRefOrDie(ChannelRef ref);
+ReceiveChannelRef AsReceiveChannelRefOrDie(ChannelRef ref);
+
 // Return the name/type/kind of a channel reference.
 std::string_view ChannelRefName(ChannelRef ref);
 Type* ChannelRefType(ChannelRef ref);
 ChannelKind ChannelRefKind(ChannelRef ref);
+std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref);
 
 }  // namespace xls
 

@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -229,6 +230,38 @@ std::ostream& operator<<(std::ostream& os, Direction direction) {
   return os;
 }
 
+ChannelRef AsChannelRef(SendChannelRef ref) {
+  if (std::holds_alternative<SendChannelReference*>(ref)) {
+    return std::get<SendChannelReference*>(ref);
+  }
+  return std::get<Channel*>(ref);
+}
+
+ChannelRef AsChannelRef(ReceiveChannelRef ref) {
+  if (std::holds_alternative<ReceiveChannelReference*>(ref)) {
+    return std::get<ReceiveChannelReference*>(ref);
+  }
+  return std::get<Channel*>(ref);
+}
+
+SendChannelRef AsSendChannelRefOrDie(ChannelRef ref) {
+  if (std::holds_alternative<ChannelReference*>(ref)) {
+    ChannelReference* cref = std::get<ChannelReference*>(ref);
+    CHECK_EQ(cref->direction(), Direction::kSend);
+    return down_cast<SendChannelReference*>(cref);
+  }
+  return std::get<Channel*>(ref);
+}
+
+ReceiveChannelRef AsReceiveChannelRefOrDie(ChannelRef ref) {
+  if (std::holds_alternative<ChannelReference*>(ref)) {
+    ChannelReference* cref = std::get<ChannelReference*>(ref);
+    CHECK_EQ(cref->direction(), Direction::kReceive);
+    return down_cast<ReceiveChannelReference*>(cref);
+  }
+  return std::get<Channel*>(ref);
+}
+
 std::string_view ChannelRefName(ChannelRef ref) {
   return absl::visit([](const auto& ch) { return ch->name(); }, ref);
 }
@@ -245,6 +278,17 @@ ChannelKind ChannelRefKind(ChannelRef ref) {
     return std::get<ChannelReference*>(ref)->kind();
   }
   return std::get<Channel*>(ref)->kind();
+}
+
+std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref) {
+  if (std::holds_alternative<ChannelReference*>(ref)) {
+    return std::get<ChannelReference*>(ref)->strictness();
+  }
+  if (auto streaming_channel =
+          down_cast<StreamingChannel*>(std::get<Channel*>(ref))) {
+    return streaming_channel->GetStrictness();
+  }
+  return std::nullopt;
 }
 
 std::string ChannelReference::ToString() const {

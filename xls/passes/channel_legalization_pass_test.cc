@@ -43,6 +43,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
@@ -68,6 +69,20 @@ using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 using ::testing::ValuesIn;
 
+// Create an interpreter runtime for evaluating procs. Automatically handles new
+// and old style procs.
+absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateRuntime(
+    Package* package) {
+  if (!package->HasTop()) {
+    return CreateInterpreterSerialProcRuntime(package);
+  }
+  XLS_ASSIGN_OR_RETURN(Proc * top, package->GetTopAsProc());
+  if (top->is_new_style_proc()) {
+    return CreateInterpreterSerialProcRuntime(top);
+  }
+  return CreateInterpreterSerialProcRuntime(package);
+}
+
 struct TestParam {
   using evaluation_function = std::function<absl::Status(
       SerialProcRuntime*, std::optional<ChannelStrictness>)>;
@@ -89,7 +104,10 @@ class ChannelLegalizationPassTest
  protected:
   absl::StatusOr<bool> Run(Package* package) {
     PassResults results;
-    return ChannelLegalizationPass().Run(package, {}, &results);
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         ChannelLegalizationPass().Run(package, {}, &results));
+    XLS_RETURN_IF_ERROR(VerifyPackage(package));
+    return changed;
   }
 };
 
@@ -860,6 +878,88 @@ top proc test_proc(state:(), init={()}) {
           return absl::OkStatus();
         },
     },
+    TestParam{
+        .test_name = "SingleNewStyleProc",
+        .ir_text = R"(package test
+
+top proc my_proc<
+    in: bits[32] in kind=streaming strictness=$0,
+    out: bits[32] out kind=streaming strictness=$0>() {
+  tok: token = literal(value=token)
+  recv0: (token, bits[32]) = receive(tok, channel=in)
+  recv0_tok: token = tuple_index(recv0, index=0)
+  recv0_data: bits[32] = tuple_index(recv0, index=1)
+  recv1: (token, bits[32]) = receive(recv0_tok, channel=in)
+  recv1_tok: token = tuple_index(recv1, index=0)
+  recv1_data: bits[32] = tuple_index(recv1, index=1)
+  send0: token = send(recv1_tok, recv1_data, channel=out)
+  send1: token = send(send0, recv0_data, channel=out)
+}
+    )",
+        .builder_matcher =
+            {
+                // For mutually exclusive channels, channel legalization does
+                // not change the IR, but other passes do. Just check OK.
+                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
+                {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
+                // Build should be OK, but will fail at runtime.
+                {ChannelStrictness::kRuntimeMutuallyExclusive,
+                 IsOkAndHolds(true)},
+                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
+            },
+        .evaluate =
+            [](SerialProcRuntime* interpreter,
+               std::optional<ChannelStrictness> strictness) -> absl::Status {
+          constexpr int64_t kMaxTicks = 1000;
+          constexpr int64_t kNumInputs = 32;
+
+          const ProcElaboration& elab =
+              interpreter->queue_manager().elaboration();
+
+          XLS_ASSIGN_OR_RETURN(ChannelInstance * in_instance,
+                               elab.GetChannelInstance("in", "my_proc"));
+          XLS_ASSIGN_OR_RETURN(ChannelInstance * out_instance,
+                               elab.GetChannelInstance("out", "my_proc"));
+          ChannelQueue& inq =
+              interpreter->queue_manager().GetQueue(in_instance);
+          ChannelQueue& outq =
+              interpreter->queue_manager().GetQueue(out_instance);
+
+          for (int64_t i = 0; i < kNumInputs; ++i) {
+            XLS_RETURN_IF_ERROR(inq.Write(Value(UBits(i, /*bit_count=*/32))));
+          }
+          absl::flat_hash_map<ChannelInstance*, int64_t> output_count{
+              {outq.channel_instance(), kNumInputs}};
+          absl::Status interpreter_status =
+              interpreter->TickUntilOutput(output_count, kMaxTicks).status();
+          if (strictness.has_value() &&
+              strictness.value() ==
+                  ChannelStrictness::kRuntimeMutuallyExclusive) {
+            EXPECT_THAT(
+                interpreter_status,
+                StatusIs(absl::StatusCode::kAborted,
+                         HasSubstr("predicate was not mutually exclusive")));
+            // Return early, we have no output to check.
+            return absl::OkStatus();
+          }
+          XLS_EXPECT_OK(interpreter_status);
+          for (int64_t i = 0; i < kNumInputs; ++i) {
+            EXPECT_FALSE(outq.IsEmpty());
+            int64_t flip_evens_and_odds = i;
+            if (i % 2 == 0) {
+              flip_evens_and_odds++;
+            } else {
+              flip_evens_and_odds--;
+            }
+            EXPECT_THAT(outq.Read(),
+                        Optional(Eq(Value(
+                            UBits(flip_evens_and_odds, /*bit_count=*/32)))));
+          }
+
+          return absl::OkStatus();
+        },
+    },
 };
 
 TEST_P(ChannelLegalizationPassTest, PassRuns) {
@@ -890,19 +990,19 @@ TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
                                std::get<0>(GetParam()).ir_text,
                                ChannelStrictnessToString(strictness))));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> interpreter,
-                           CreateInterpreterSerialProcRuntime(p.get()));
+                           CreateRuntime(p.get()));
 
   // Don't pass in strictness because the pass hasn't been run yet.
   XLS_EXPECT_OK(std::get<0>(GetParam())
                     .evaluate(interpreter.get(), /*strictness=*/std::nullopt));
 
   absl::StatusOr<bool> run_status = Run(p.get());
+
   if (!run_status.ok()) {
     GTEST_SKIP();
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(interpreter,
-                           CreateInterpreterSerialProcRuntime(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(interpreter, CreateRuntime(p.get()));
   XLS_EXPECT_OK(std::get<0>(GetParam())
                     .evaluate(interpreter.get(), std::get<1>(GetParam())));
 }
@@ -928,31 +1028,31 @@ TEST_F(ChannelLegalizationPassTest, NamesAreUniquified) {
   // makes new channels.
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * c_1,
-      p.CreateStreamingChannel("c__1", ChannelOps::kSendOnly,
+      p.CreateStreamingChannel("c__data_1", ChannelOps::kSendOnly,
                                p.GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * c_pred,
-      p.CreateStreamingChannel("c__pred", ChannelOps::kSendOnly,
+      p.CreateStreamingChannel("c__pred_0", ChannelOps::kSendOnly,
                                p.GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * c_2_completion,
-      p.CreateStreamingChannel("c__2__completion", ChannelOps::kSendOnly,
+      p.CreateStreamingChannel("c__completion_1", ChannelOps::kSendOnly,
                                p.GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * c_3_completion,
-      p.CreateStreamingChannel("c__3__completion", ChannelOps::kSendOnly,
+      p.CreateStreamingChannel("c__completion_2", ChannelOps::kSendOnly,
                                p.GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * d_1,
-      p.CreateStreamingChannel("d__1", ChannelOps::kSendOnly,
+      p.CreateStreamingChannel("d__data_1", ChannelOps::kSendOnly,
                                p.GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * d_pred,
-      p.CreateStreamingChannel("d__pred", ChannelOps::kSendOnly,
+      p.CreateStreamingChannel("d__pred_0", ChannelOps::kSendOnly,
                                p.GetBitsType(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * d_completion,
-      p.CreateStreamingChannel("d__completion", ChannelOps::kSendOnly,
+      p.CreateStreamingChannel("d__completion_0", ChannelOps::kSendOnly,
                                p.GetBitsType(1)));
   ProcBuilder b("proc0", &p);
   // Do multiple sends/receives on c/d to insert adapters and new channels.
@@ -973,19 +1073,21 @@ TEST_F(ChannelLegalizationPassTest, NamesAreUniquified) {
 
   EXPECT_THAT(Run(&p), IsOkAndHolds(true));
 
-  EXPECT_THAT(p.channels(),
-              UnorderedElementsAre(
-                  m::Channel("c"), m::Channel("d"),
-                  // Original "extra" names
-                  m::Channel("c__1"), m::Channel("d__1"), m::Channel("c__pred"),
-                  m::Channel("d__pred"), m::Channel("c__2__completion"),
-                  m::Channel("c__3__completion"), m::Channel("d__completion"),
-                  // New colliding names
-                  m::Channel("c__2"), m::Channel("c__3"), m::Channel("d__2"),
-                  m::Channel("d__3"), m::Channel("c__pred__1"),
-                  m::Channel("c__pred__2"), m::Channel("d__pred__1"),
-                  m::Channel("d__pred__2"), m::Channel("c__2__completion__1"),
-                  m::Channel("c__3__completion__1")));
+  EXPECT_THAT(
+      p.channels(),
+      UnorderedElementsAre(
+          m::Channel("c"), m::Channel("d"),
+          // Original "extra" names
+          m::Channel("c__data_1"), m::Channel("c__pred_0"),
+          m::Channel("c__completion_0"), m::Channel("c__completion_1"),
+          m::Channel("d__data_1"), m::Channel("d__pred_0"),
+          m::Channel("d__completion_0"),
+          // New colliding names
+          m::Channel("d__pred_0__1"), m::Channel("d__pred_1"),
+          m::Channel("d__data_0"), m::Channel("d__data_1__1"),
+          m::Channel("c__pred_0__1"), m::Channel("c__pred_1"),
+          m::Channel("c__data_0"), m::Channel("c__data_1__1"),
+          m::Channel("c__completion_1__1"), m::Channel("c__completion_2")));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1039,14 +1141,19 @@ class SingleValueChannelLegalizationPassTest : public TestWithParam<TestParam> {
   absl::StatusOr<bool> Run() {
     // Replace all streaming channels with single_value channels.
     std::string substituted_ir_text = absl::StrReplaceAll(
-        GetParam().ir_text, {
-                                {"kind=streaming, ops=send_only, "
-                                 "flow_control=ready_valid, strictness=$0, ",
-                                 "kind=single_value, ops=send_only, "},
-                                {"kind=streaming, ops=receive_only, "
-                                 "flow_control=ready_valid, strictness=$0, ",
-                                 "kind=single_value, ops=receive_only, "},
-                            });
+        GetParam().ir_text,
+        {
+            // Global channel form.
+            {"kind=streaming, ops=send_only, "
+             "flow_control=ready_valid, strictness=$0, ",
+             "kind=single_value, ops=send_only, "},
+            {"kind=streaming, ops=receive_only, "
+             "flow_control=ready_valid, strictness=$0, ",
+             "kind=single_value, ops=receive_only, "},
+            // Proc-scoped channel form.
+            {"kind=streaming strictness=$0", "kind=single_value"},
+            {"kind=streaming strictness=$0", "kind=single_value"},
+        });
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                          Parser::ParsePackage(substituted_ir_text));
