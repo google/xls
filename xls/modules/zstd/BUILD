@@ -283,6 +283,23 @@ place_and_route(
 )
 
 xls_dslx_library(
+    name = "block_header_dslx",
+    srcs = [
+        "block_header.x",
+    ],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "block_header_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":block_header_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
     name = "raw_block_dec_dslx",
     srcs = [
         "raw_block_dec.x",
@@ -447,24 +464,6 @@ place_and_route(
     synthesized_rtl = ":rle_block_dec_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
-)
-
-xls_dslx_library(
-    name = "block_header_dslx",
-    srcs = [
-        "block_header.x",
-    ],
-    deps = [
-        ":buffer_dslx",
-        ":common_dslx",
-    ],
-)
-
-xls_dslx_test(
-    name = "block_header_dslx_test",
-    dslx_test_args = {"compare": "jit"},
-    library = ":block_header_dslx",
-    tags = ["manual"],
 )
 
 xls_dslx_library(
