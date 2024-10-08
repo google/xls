@@ -100,6 +100,26 @@ pub fn is_neg_inf<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>
     is_inf(x) && x.sign
 }
 
+// Returns the absolute value of x unless it is a NaN, in which case it will
+// return a quiet NaN.
+pub fn abs<EXP_SZ: u32, FRACTION_SZ: u32>
+    (x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+    APFloat { sign: u1:0, bexp: x.bexp, fraction: x.fraction }
+}
+
+#[test]
+fn abs_test() {
+    let expected = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0x7f, fraction: u23:0x0 };
+    let actual =
+        abs<u32:8, u32:23>(APFloat<u32:8, u32:23> { sign: u1:1, bexp: u8:0x7f, fraction: u23:0x0 });
+    assert_eq(actual, expected);
+
+    let expected = APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0xff, fraction: u23:0x3645A2 };
+    let actual = abs<u32:8, u32:23>(
+        APFloat<u32:8, u32:23> { sign: u1:1, bexp: u8:0xff, fraction: u23:0x3645A2 });
+    assert_eq(actual, expected);
+}
+
 // Returns a positive or negative zero depending upon the given sign parameter.
 pub fn zero<EXP_SZ: u32, FRACTION_SZ: u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
     APFloat<EXP_SZ, FRACTION_SZ> { sign, bexp: bits[EXP_SZ]:0, fraction: bits[FRACTION_SZ]:0 }
