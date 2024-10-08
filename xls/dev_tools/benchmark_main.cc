@@ -256,8 +256,9 @@ absl::Status PrintCriticalPath(
     const synthesis::SynthesizedDelayDiffByStage& delay_diff) {
   const std::vector<CriticalPathEntry>& critical_path =
       delay_diff.total_diff.critical_path;
-  std::cout << absl::StrFormat("Critical path delay: %dps\n",
-                               critical_path.front().path_delay_ps);
+  int64_t total_delay =
+      critical_path.empty() ? 0 : critical_path.front().path_delay_ps;
+  std::cout << absl::StrFormat("Critical path delay: %dps\n", total_delay);
   std::cout << absl::StrFormat("Critical path entry count: %d\n",
                                critical_path.size());
 
@@ -283,7 +284,6 @@ absl::Status PrintCriticalPath(
     tally.second += 1;
   }
 
-  int64_t total_delay = critical_path.front().path_delay_ps;
   std::cout << absl::StrFormat("Contribution by op (total %dps):\n",
                                total_delay);
   std::vector<Op> ops(kAllOps.begin(), kAllOps.end());

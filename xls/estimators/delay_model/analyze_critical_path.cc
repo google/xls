@@ -101,10 +101,14 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     }
   }
 
-  // Starting with the operation with the longest pat hdelay, walk back up its
+  // `latest_entry` has no value for empty FunctionBases.
+  if (!latest_entry.has_value()) {
+    return std::vector<CriticalPathEntry>();
+  }
+
+  // Starting with the operation with the longest path delay, walk back up its
   // critical path constructing CriticalPathEntry's as we go.
   std::vector<CriticalPathEntry> critical_path;
-  XLS_RET_CHECK(latest_entry.has_value());
   NodeEntry* entry = &(latest_entry.value());
   while (true) {
     critical_path.push_back(CriticalPathEntry{

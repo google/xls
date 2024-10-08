@@ -160,5 +160,17 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithSendReceive) {
                               FieldsAre(m::Literal(Value::Token()), _, _, _)));
 }
 
+TEST_F(AnalyzeCriticalPathTest, EmptyProc) {
+  auto p = CreatePackage();
+  ProcBuilder b(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CriticalPathEntry> cp,
+      AnalyzeCriticalPath(proc, /*clock_period_ps=*/std::nullopt,
+                          *delay_estimator_));
+  EXPECT_TRUE(cp.empty());
+}
+
 }  // namespace
 }  // namespace xls
