@@ -252,6 +252,7 @@ cc_test(
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )

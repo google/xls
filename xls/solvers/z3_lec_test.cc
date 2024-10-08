@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
@@ -247,9 +248,9 @@ endmodule
   for (Node* node : entry_function->nodes()) {
     if (node->Is<Param>()) {
       cycle_map[node] = 0;
-    } else if (node->GetName().find("and") != std::string::npos) {
+    } else if (absl::StrContains(node->GetName(), "and")) {
       cycle_map[node] = 0;
-    } else if (node->GetName().find("or") != std::string::npos) {
+    } else if (absl::StrContains(node->GetName(), "or")) {
       cycle_map[node] = 1;
     } else {
       cycle_map[node] = 2;
@@ -336,9 +337,9 @@ endmodule
   for (Node* node : entry_function->nodes()) {
     if (node->Is<Param>()) {
       cycle_map[node] = 0;
-    } else if (node->GetName().find("and") != std::string::npos) {
+    } else if (absl::StrContains(node->GetName(), "and")) {
       cycle_map[node] = 0;
-    } else if (node->GetName().find("or") != std::string::npos) {
+    } else if (absl::StrContains(node->GetName(), "or")) {
       cycle_map[node] = 1;
     } else {
       cycle_map[node] = 2;
@@ -489,9 +490,9 @@ endmodule
   for (Node* node : entry_function->nodes()) {
     if (node->Is<Param>()) {
       cycle_map[node] = 0;
-    } else if (node->GetName().find("and") != std::string::npos) {
+    } else if (absl::StrContains(node->GetName(), "and")) {
       cycle_map[node] = 0;
-    } else if (node->GetName().find("or") != std::string::npos) {
+    } else if (absl::StrContains(node->GetName(), "or")) {
       cycle_map[node] = 1;
     } else {
       cycle_map[node] = 2;
