@@ -425,10 +425,7 @@ xls_dslx_library(
         "rle_block_dec.x",
     ],
     deps = [
-        ":buffer_dslx",
         ":common_dslx",
-        "//xls/modules/rle:rle_common_dslx",
-        "//xls/modules/rle:rle_dec_dslx",
     ],
 )
 
@@ -439,23 +436,16 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+rle_block_dec_codegen_args = common_codegen_args | {
+    "module_name": "RleBlockDecoder",
+    "pipeline_stages": "1",
+}
+
 xls_dslx_verilog(
     name = "rle_block_dec_verilog",
-    codegen_args = {
-        "module_name": "RleBlockDecoder",
-        "delay_model": "asap7",
-        "pipeline_stages": "3",
-        "reset": "rst",
-        "use_system_verilog": "false",
-    },
-    dslx_top = "RleBlockDecoder",
+    codegen_args = rle_block_dec_codegen_args,
+    dslx_top = "RleBlockDecoderInst",
     library = ":rle_block_dec_dslx",
-    # TODO: 2024-01-15: Workaround for https://github.com/google/xls/issues/869
-    # Force proc inlining and set last internal proc as top proc for IR optimization
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__rle_block_dec__RleBlockDecoder__BatchPacker_0_next",
-    },
     tags = ["manual"],
     verilog_file = "rle_block_dec.v",
 )
@@ -463,9 +453,9 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "rle_block_dec_opt_ir_benchmark",
     src = ":rle_block_dec_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "3",
-        "delay_model": "asap7",
+    benchmark_ir_args = rle_block_dec_codegen_args | {
+        "pipeline_stages": "10",
+        "top": "__rle_block_dec__RleBlockDecoderInst__RleBlockDecoder_0__64_next",
     },
     tags = ["manual"],
 )
@@ -496,7 +486,7 @@ benchmark_synth(
 
 place_and_route(
     name = "rle_block_dec_place_and_route",
-    clock_period = "750",
+    clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
