@@ -347,8 +347,8 @@ xls_dslx_library(
         "raw_block_dec.x",
     ],
     deps = [
-        ":buffer_dslx",
         ":common_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
@@ -359,16 +359,15 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+raw_block_dec_codegen_args = common_codegen_args | {
+    "module_name": "RawBlockDecoder",
+    "pipeline_stages": "1",
+}
+
 xls_dslx_verilog(
     name = "raw_block_dec_verilog",
-    codegen_args = {
-        "module_name": "RawBlockDecoder",
-        "delay_model": "asap7",
-        "pipeline_stages": "2",
-        "reset": "rst",
-        "use_system_verilog": "false",
-    },
-    dslx_top = "RawBlockDecoder",
+    codegen_args = raw_block_dec_codegen_args,
+    dslx_top = "RawBlockDecoderInst",
     library = ":raw_block_dec_dslx",
     tags = ["manual"],
     verilog_file = "raw_block_dec.v",
@@ -377,9 +376,9 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "raw_block_dec_opt_ir_benchmark",
     src = ":raw_block_dec_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "2",
-        "delay_model": "asap7",
+    benchmark_ir_args = raw_block_dec_codegen_args | {
+        "pipeline_stages": "10",
+        "top": "__raw_block_dec__RawBlockDecoderInst__RawBlockDecoder_0__32_32_next",
     },
     tags = ["manual"],
 )
@@ -410,7 +409,7 @@ benchmark_synth(
 
 place_and_route(
     name = "raw_block_dec_place_and_route",
-    clock_period = "750",
+    clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
