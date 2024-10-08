@@ -282,7 +282,7 @@ absl::StatusOr<Ast> Parser::ParseInvertNext() {
   // see if we have an odd or even count and apply after processing the
   // following term.
   XLS_ASSIGN_OR_RETURN(Token token, scanner_.Peek());
-  bool do_negate = 0;
+  bool do_negate = false;
   while (token.kind() == Token::Kind::kInvertFollowing) {
     XLS_RETURN_IF_ERROR(scanner_.Pop().status());
     do_negate = !do_negate;

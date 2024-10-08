@@ -467,7 +467,7 @@ struct ChannelInfo {
   int64_t width = -1;
   bool port_input = false;
   // Is this ready-valid?
-  bool ready_valid = 0;
+  bool ready_valid = false;
 
   // Precalculated channel names
   std::string channel_ready;
