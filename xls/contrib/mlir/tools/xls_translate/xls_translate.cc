@@ -581,17 +581,23 @@ absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
     return state.getPackage().GetFunction(func_name);
   }
 
-  if (auto it = package_info->merge_result.name_updates.find(func_name);
-      it != package_info->merge_result.name_updates.end()) {
-    func_name = it->second;
-  }
-  const auto& mangled_func_name_or =
+  // Use the mangled function name to find the XLS function in the package.
+  absl::StatusOr<std::string> mangled_func_name =
       ::xls::MangleDslxName(package_info->package->name(), func_name);
-  if (!mangled_func_name_or.ok()) {
+  if (!mangled_func_name.ok()) {
     return absl::InvalidArgumentError(absl::StrCat(
-        "Failed to mangle name: ", mangled_func_name_or.status().message()));
+        "Failed to mangle name: ", mangled_func_name.status().message()));
   }
-  auto fn = state.getPackage().GetFunction(mangled_func_name_or.value());
+  // Mangled name is possibly renamed in the merge result, if so, use the new
+  // name. This is for the case where one imported multiple packages with the
+  // same stem and that have functions with the same names.
+  if (auto it =
+          package_info->merge_result.name_updates.find(*mangled_func_name);
+      it != package_info->merge_result.name_updates.end()) {
+    mangled_func_name.emplace(it->second);
+  }
+
+  auto fn = state.getPackage().GetFunction(mangled_func_name.value());
   if (fn.ok()) {
     state.addFunction(fn_name, fn.value());
   }

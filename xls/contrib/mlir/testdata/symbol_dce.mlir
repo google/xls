@@ -3,4 +3,4 @@
 // CHECK-NOT: @mychan
 // CHECK-NOT: @dot_product
 xls.chan @mychan : i32
-xls.import_dslx_file_package "xls/contrib/mlir/testdata/dot_product.x" as @dot_product
+xls.import_dslx_file_package "xls/contrib/mlir/testdata/i32/dot_product.x" as @dot_product

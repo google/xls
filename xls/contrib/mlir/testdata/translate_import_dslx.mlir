@@ -12,7 +12,7 @@
 // XLS-OPT: fn sub
 
 module @pkg {
-xls.import_dslx_file_package "xls/contrib/mlir/testdata/dot_product.x" as @dot_product
+xls.import_dslx_file_package "xls/contrib/mlir/testdata/i32/dot_product.x" as @dot_product
 xls.import_dslx_file_package "xls/contrib/mlir/testdata/struct_type.x" as @struct_type
 
 // This maps a static function to static one.
