@@ -827,7 +827,6 @@ absl::Status RealMain(std::string_view path) {
         /*schedules=*/nullptr, synthesizer.get()));
   } else if (benchmark_codegen) {
     PipelineScheduleOrGroup schedules = PackagePipelineSchedules();
-    PipelineScheduleOrGroup* schedules_ptr = nullptr;
     if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
       XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                            SetUpSchedulingOptions(
@@ -841,7 +840,6 @@ absl::Status RealMain(std::string_view path) {
       XLS_RETURN_IF_ERROR(AnalyzeAndPrintCriticalPath(
           f, effective_clock_period_ps, delay_estimator, query_engine,
           &schedules, synthesizer.get()));
-      schedules_ptr = &schedules;
 
       // Scheduling can change the nodes in f slightly so we need to recompute
       // the bdd.
