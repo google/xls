@@ -2225,6 +2225,9 @@ class DeduceVisitor : public AstNodeVisitor {
   absl::Status HandleRestOfTuple(const RestOfTuple* n) override {
     return Fatal(n);
   }
+  absl::Status HandleVerbatimNode(const VerbatimNode* n) override {
+    return Fatal(n);
+  }
 
   absl::StatusOr<std::unique_ptr<Type>>& result() { return result_; }
 

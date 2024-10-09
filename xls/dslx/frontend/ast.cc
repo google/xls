@@ -309,6 +309,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "tuple index";
     case AstNodeKind::kUnrollFor:
       return "unroll-for";
+    case AstNodeKind::kVerbatimNode:
+      return "verbatim-node";
   }
   LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
@@ -1918,6 +1920,10 @@ WildcardPattern::~WildcardPattern() = default;
 // -- class RestOfTuple
 
 RestOfTuple::~RestOfTuple() = default;
+
+// -- class VerbatimNode
+
+VerbatimNode::~VerbatimNode() = default;
 
 // -- class QuickCheck
 

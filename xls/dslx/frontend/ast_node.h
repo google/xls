@@ -32,6 +32,7 @@ namespace xls::dslx {
 // primarily for convenience in tasks like serialization, for most purposes
 // visitors should be used (e.g. AstNodeVisitor, ExprVisitor).
 enum class AstNodeKind : uint8_t {
+  // keep-sorted start
   kAllOnesMacro,
   kArray,
   kAttr,
@@ -40,9 +41,10 @@ enum class AstNodeKind : uint8_t {
   kCast,
   kChannelDecl,
   kColonRef,
-  kConstantDef,
-  kConstRef,
+  kConditional,
   kConstAssert,
+  kConstRef,
+  kConstantDef,
   kEnumDef,
   kFor,
   kFormatMacro,
@@ -82,7 +84,6 @@ enum class AstNodeKind : uint8_t {
   kString,
   kStructDef,
   kStructInstance,
-  kConditional,
   kTestFunction,
   kTestProc,
   kTupleIndex,
@@ -91,10 +92,12 @@ enum class AstNodeKind : uint8_t {
   kTypeRef,
   kUnop,
   kUnrollFor,
+  kVerbatimNode,
   kWidthSlice,
   kWildcardPattern,
   kXlsTuple,
   kZeroMacro,
+  // keep-sorted end
 };
 
 std::string_view AstNodeKindToString(AstNodeKind kind);

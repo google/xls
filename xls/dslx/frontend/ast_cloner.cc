@@ -914,6 +914,11 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleVerbatimNode(const VerbatimNode* n) override {
+    old_to_new_[n] = module_->Make<VerbatimNode>(n->span(), n->text());
+    return absl::OkStatus();
+  }
+
   const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new() {
     return old_to_new_;
   }

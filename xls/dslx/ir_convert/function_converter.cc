@@ -339,37 +339,44 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // These are always custom-visited (i.e. traversed to in a specialized way
   // from their parent nodes).
+  // keep-sorted start
+  INVALID(MatchArm)
+  INVALID(NameDef)
   INVALID(NameDefTree)
   INVALID(ParametricBinding)
-  INVALID(MatchArm)
-  INVALID(WildcardPattern)
   INVALID(RestOfTuple)
-  INVALID(WidthSlice)
   INVALID(Slice)
-  INVALID(NameDef)
+  INVALID(TestFunction)
+  INVALID(TestProc)
   INVALID(TypeRef)
+  INVALID(VerbatimNode)
+  INVALID(WidthSlice)
+  INVALID(WildcardPattern)
+  // keep-sorted end
+  // keep-sorted start
   INVALID(ArrayTypeAnnotation)
   INVALID(BuiltinTypeAnnotation)
   INVALID(ChannelTypeAnnotation)
   INVALID(TupleTypeAnnotation)
   INVALID(TypeRefTypeAnnotation)
-  INVALID(TestFunction)
-  INVALID(TestProc)
+  // keep-sorted end
 
   // The visitor operates within a function, so none of these should be visible.
+  // keep-sorted start
   INVALID(BuiltinNameDef)
   INVALID(ChannelDecl)
   INVALID(EnumDef)
-  INVALID(Import)
   INVALID(Function)
-  INVALID(TypeAlias)
-  INVALID(Proc)
+  INVALID(Impl)
+  INVALID(Import)
   INVALID(Module)
+  INVALID(Proc)
+  INVALID(ProcMember)
   INVALID(QuickCheck)
   INVALID(Spawn)
   INVALID(StructDef)
-  INVALID(Impl)
-  INVALID(ProcMember)
+  INVALID(TypeAlias)
+  // keep-sorted end
 
  private:
   // Called when we visit a node we don't expect to observe in the traversal.

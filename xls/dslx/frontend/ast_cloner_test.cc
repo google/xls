@@ -823,5 +823,18 @@ fn bar() -> u32{
   EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());
 }
 
+TEST(AstClonerTest, ClonesVerbatimNode) {
+  constexpr std::string_view kProgram = "const FOO = u32:42;";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  VerbatimNode original(module.get(), Span(), "foo");
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(&original));
+  VerbatimNode* clone_node = down_cast<VerbatimNode*>(clone);
+  EXPECT_EQ(original.text(), clone_node->text());
+  EXPECT_EQ(original.span(), clone_node->span());
+}
+
 }  // namespace
 }  // namespace xls::dslx
