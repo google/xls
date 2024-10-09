@@ -307,6 +307,7 @@ class NocTrafficManager {
   // Retrieves all traffic flow ids.
   std::vector<TrafficFlowId> GetTrafficFlowIds() const {
     std::vector<TrafficFlowId> flows;
+    flows.reserve(traffic_flows_.size());
     for (const TrafficFlow& f : traffic_flows_) {
       flows.push_back(f.id());
     }

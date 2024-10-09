@@ -363,7 +363,7 @@ class ChannelReference {
   ChannelReference(std::string_view name, Type* type, ChannelKind kind,
                    std::optional<ChannelStrictness> strictness)
       : name_(name), type_(type), kind_(kind), strictness_(strictness) {}
-  virtual ~ChannelReference() {}
+  virtual ~ChannelReference() = default;
 
   // Like most IR constructs, ChannelReferences are passed around by pointer
   // and are not copyable.
@@ -390,7 +390,7 @@ class SendChannelReference : public ChannelReference {
   SendChannelReference(std::string_view name, Type* type, ChannelKind kind,
                        std::optional<ChannelStrictness> strictness)
       : ChannelReference(name, type, kind, strictness) {}
-  ~SendChannelReference() override {}
+  ~SendChannelReference() override = default;
   Direction direction() const override { return Direction::kSend; }
 };
 
@@ -399,7 +399,7 @@ class ReceiveChannelReference : public ChannelReference {
   ReceiveChannelReference(std::string_view name, Type* type, ChannelKind kind,
                           std::optional<ChannelStrictness> strictness)
       : ChannelReference(name, type, kind, strictness) {}
-  ~ReceiveChannelReference() override {}
+  ~ReceiveChannelReference() override = default;
   Direction direction() const override { return Direction::kReceive; }
 };
 

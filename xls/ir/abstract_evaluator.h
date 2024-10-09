@@ -379,7 +379,7 @@ class AbstractEvaluator {
   }
 
   Vector Neg(Span x) {
-    if (x.size() == 0) {
+    if (x.empty()) {
       return SpanToVec(x);
     }
     return Add(BitwiseNot(x), BitsToVector(UBits(1, x.size())));
@@ -568,8 +568,8 @@ class AbstractEvaluator {
   // Convention: remainder has the same sign as n.
   DivisionResult SDivMod(Span n, Span d) {
     Element nonzero_divisor = OrReduce(d).back();
-    Element n_negative = n.size() > 0 ? n.back() : Zero();
-    Element d_negative = d.size() > 0 ? d.back() : Zero();
+    Element n_negative = n.empty() ? Zero() : n.back();
+    Element d_negative = d.empty() ? Zero() : d.back();
     DivisionResult result = UDivMod(Abs(n), Abs(d));
     result.remainder =
         IfBits(n_negative, Neg(result.remainder), result.remainder);
