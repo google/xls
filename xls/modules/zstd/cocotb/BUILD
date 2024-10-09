@@ -64,3 +64,12 @@ py_library(
         requirement("cocotb"),
     ],
 )
+
+py_library(
+    name = "data_generator",
+    srcs = ["data_generator.py"],
+    deps = [
+        "//xls/common:runfiles",
+        "@zstd//:decodecorpus",
+    ],
+)
