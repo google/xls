@@ -13,15 +13,14 @@
 // limitations under the License.
 
 #include <cassert>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
+// Some of these need the keep IWYU pragma as they are required by *.inc files
+
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
-#include "llvm/include/llvm/Support/LogicalResult.h"
-#include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/include/mlir/IR/Builders.h"
@@ -33,8 +32,7 @@
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/ValueRange.h"
 #include "mlir/include/mlir/IR/Visitors.h"
-#include "mlir/include/mlir/Pass/Pass.h"
-#include "mlir/include/mlir/Pass/PassRegistry.h"
+#include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"
@@ -44,7 +42,7 @@
 namespace mlir::xls {
 
 #define GEN_PASS_DEF_LOWERCOUNTEDFORPASS
-#include "xls/contrib/mlir/transforms/passes.h.inc"
+#include "xls/contrib/mlir/transforms/passes.h.inc"  // IWYU pragma: keep
 
 using ::llvm::SmallVector;
 

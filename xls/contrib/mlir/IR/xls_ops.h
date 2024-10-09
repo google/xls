@@ -16,30 +16,25 @@
 #define GDM_HW_MLIR_XLS_IR_XLS_OPS_H_
 
 #include "llvm/include/llvm/ADT/StringRef.h"
-#include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/include/mlir/Dialect/Shape/IR/Shape.h"
+#include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/IR/Attributes.h"
-#include "mlir/include/mlir/IR/BuiltinTypes.h"
 #include "mlir/include/mlir/IR/Dialect.h"
 #include "mlir/include/mlir/IR/DialectImplementation.h"
 #include "mlir/include/mlir/IR/Location.h"
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OpDefinition.h"
 #include "mlir/include/mlir/IR/Operation.h"
-#include "mlir/include/mlir/IR/TensorEncoding.h"
 #include "mlir/include/mlir/IR/TypeUtilities.h"
 #include "mlir/include/mlir/IR/Types.h"
-#include "mlir/include/mlir/Interfaces/InferTypeOpInterface.h"
-#include "mlir/include/mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"
 
 // Include order below matters.
 #include "mlir/include/mlir/IR/Value.h"
-#include "xls/contrib/mlir/IR/xls_ops_enums.h.inc"
+#include "xls/contrib/mlir/IR/xls_ops_enums.h.inc"  // IWYU pragma: export
 #define GET_ATTRDEF_CLASSES
-#include "xls/contrib/mlir/IR/xls_ops_attrs.h.inc"
+#include "xls/contrib/mlir/IR/xls_ops_attrs.h.inc"  // IWYU pragma: export
 #define GET_TYPEDEF_CLASSES
-#include "xls/contrib/mlir/IR/xls_ops_typedefs.h.inc"
+#include "xls/contrib/mlir/IR/xls_ops_typedefs.h.inc"  // IWYU pragma: export
 
 namespace mlir::xls {
 

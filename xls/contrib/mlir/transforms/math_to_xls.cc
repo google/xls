@@ -25,6 +25,7 @@
 #include "mlir/include/mlir/IR/PatternMatch.h"
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/Visitors.h"
+#include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Transforms/GreedyPatternRewriteDriver.h"

@@ -15,10 +15,6 @@
 #ifndef GDM_HW_MLIR_XLS_TRANSFORMS_MATH_TO_XLS_H_
 #define GDM_HW_MLIR_XLS_TRANSFORMS_MATH_TO_XLS_H_
 
-#include <memory>
-
-#include "mlir/include/mlir/Pass/Pass.h"
-
 namespace mlir {
 class RewritePatternSet;
 }  // namespace mlir

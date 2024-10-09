@@ -18,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
@@ -29,7 +28,6 @@
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/DenseMap.h"
 #include "llvm/include/llvm/ADT/ScopedHashTable.h"
-#include "llvm/include/llvm/Support/Casting.h"
 #include "mlir/include/mlir/Analysis/Liveness.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"

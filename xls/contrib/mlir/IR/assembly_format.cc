@@ -17,7 +17,6 @@
 #include <cassert>
 
 #include "llvm/include/llvm/ADT/STLExtras.h"
-#include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "llvm/include/llvm/Support/SMLoc.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"

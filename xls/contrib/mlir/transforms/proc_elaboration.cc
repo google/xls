@@ -25,7 +25,6 @@
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/ADT/StringSet.h"
-#include "llvm/include/llvm/Support/Casting.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
@@ -34,10 +33,11 @@
 #include "mlir/include/mlir/IR/SymbolTable.h"
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/Visitors.h"
+#include "mlir/include/mlir/Support/LLVM.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/transforms/passes.h"  // IWYU pragma: keep
 #include "xls/contrib/mlir/util/interpreter.h"
-#include "xls/common/status/status_macros.h"
 
 namespace mlir::xls {
 

@@ -17,17 +17,13 @@
 #include <string_view>
 #include <utility>
 
-#include "absl/strings/str_cat.h"
-#include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"
-#include "llvm/include/llvm/Support/Casting.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/Math/IR/Math.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
-#include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
 #include "mlir/include/mlir/IR/SymbolTable.h"

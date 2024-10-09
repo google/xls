@@ -13,12 +13,11 @@
 // limitations under the License.
 
 #include <algorithm>
-#include <memory>
+#include <cstdint>
 #include <utility>
 
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
-#include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"
@@ -32,8 +31,7 @@
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/ValueRange.h"
 #include "mlir/include/mlir/IR/Visitors.h"
-#include "mlir/include/mlir/Pass/Pass.h"
-#include "mlir/include/mlir/Pass/PassRegistry.h"
+#include "mlir/include/mlir/Pass/Pass.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"

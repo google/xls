@@ -15,8 +15,6 @@
 #include <cstdint>
 #include <utility>
 
-#include "llvm/include/llvm/Support/Casting.h"
-#include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"

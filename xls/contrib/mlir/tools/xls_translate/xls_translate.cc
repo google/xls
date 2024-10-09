@@ -29,7 +29,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/APFloat.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
@@ -40,7 +39,6 @@
 #include "llvm/include/llvm/ADT/Twine.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"
 #include "llvm/include/llvm/Support/Casting.h"  // IWYU pragma: keep
-#include "llvm/include/llvm/Support/LogicalResult.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
@@ -62,11 +60,14 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
-#include "xls/public/c_api.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/source_location.h"
 #include "xls/public/function_builder.h"
 #include "xls/public/ir.h"
 #include "xls/public/ir_parser.h"
 #include "xls/public/runtime_build_actions.h"
+#include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace mlir::xls {
 namespace {

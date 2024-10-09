@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <optional>
 
+// Some of these need the keep IWYU pragma as they are required by *.inc files
+
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"  // IWYU pragma: keep
@@ -288,16 +290,16 @@ Type getI1TypeOf(Type type) {
 }  // namespace
 
 #define GET_OP_CLASSES
-#include "xls/contrib/mlir/IR/xls_ops.cc.inc"
+#include "xls/contrib/mlir/IR/xls_ops.cc.inc"  // IWYU pragma: keep
 
 #define GET_ATTRDEF_CLASSES
-#include "xls/contrib/mlir/IR/xls_ops_attrs.cc.inc"
+#include "xls/contrib/mlir/IR/xls_ops_attrs.cc.inc"  // IWYU pragma: keep
 
 #define GET_TYPEDEF_CLASSES
-#include "xls/contrib/mlir/IR/xls_ops_typedefs.cc.inc"
+#include "xls/contrib/mlir/IR/xls_ops_typedefs.cc.inc"  // IWYU pragma: keep
 
 #define GET_INTERFACE_CLASSES
-#include "xls/contrib/mlir/IR/interfaces.cc.inc"  // IWYU pragma: export
+#include "xls/contrib/mlir/IR/interfaces.cc.inc"  // IWYU pragma: keep
 
 namespace mlir::xls {
 
@@ -708,15 +710,15 @@ XlsDialect::XlsDialect(mlir::MLIRContext* ctx)
     : Dialect("xls", ctx, TypeID::get<XlsDialect>()) {
   addOperations<
 #define GET_OP_LIST
-#include "xls/contrib/mlir/IR/xls_ops.cc.inc"
+#include "xls/contrib/mlir/IR/xls_ops.cc.inc"  // IWYU pragma: keep
       >();
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "xls/contrib/mlir/IR/xls_ops_attrs.cc.inc"
+#include "xls/contrib/mlir/IR/xls_ops_attrs.cc.inc"  // IWYU pragma: keep
       >();
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "xls/contrib/mlir/IR/xls_ops_typedefs.cc.inc"
+#include "xls/contrib/mlir/IR/xls_ops_typedefs.cc.inc"  // IWYU pragma: keep
       >();
   addInterface<SupportsUnconditionalInliner>();
   // Ensure dialect is loaded before attaching interfaces.

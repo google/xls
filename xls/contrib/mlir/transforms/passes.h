@@ -20,11 +20,11 @@
 namespace mlir::xls {
 
 #define GEN_PASS_DECL
-#include "xls/contrib/mlir/transforms/passes.h.inc"
+#include "xls/contrib/mlir/transforms/passes.h.inc"  // IWYU pragma: export
 
 // Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION
-#include "xls/contrib/mlir/transforms/passes.h.inc"
+#include "xls/contrib/mlir/transforms/passes.h.inc"  // IWYU pragma: export
 
 }  // namespace mlir::xls
 
