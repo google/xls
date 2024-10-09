@@ -64,7 +64,7 @@ class CsePass : public OptimizationFunctionBasePass {
 
   // If `common_literals` is true then literals are included in the
   // transformations, otherwise literals are not commoned.
-  CsePass(bool common_literals = true)
+  explicit CsePass(bool common_literals = true)
       : OptimizationFunctionBasePass(kName, "Common subexpression elimination"),
         common_literals_(common_literals) {}
   ~CsePass() override = default;
