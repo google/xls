@@ -29,9 +29,11 @@
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 // LINT.IfChange
-ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
-          absl::StrFormat("Optimization level. Ranges from 1 to %d.",
-                          xls::kMaxOptLevel));
+ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
+  static const std::string kDescription = absl::StrFormat(
+      "Optimization level. Ranges from 1 to %d.", xls::kMaxOptLevel);
+  return kDescription;
+}());
 ABSL_FLAG(int64_t, clock_period_ps, 0,
           "Target clock period, in picoseconds. See "
           "https://google.github.io/xls/scheduling for details.");

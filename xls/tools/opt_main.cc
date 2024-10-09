@@ -81,9 +81,11 @@ ABSL_FLAG(
     "they have fewer than the given number of cases. This optimization is "
     "skipped for selects with more cases, since it can sometimes reduce output "
     "quality by replacing MUX trees with separate equality checks.");
-ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
-          absl::StrFormat("Optimization level. Ranges from 1 to %d.",
-                          xls::kMaxOptLevel));
+ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
+  static const std::string kDescription = absl::StrFormat(
+      "Optimization level. Ranges from 1 to %d.", xls::kMaxOptLevel);
+  return kDescription;
+}());
 ABSL_FLAG(bool, inline_procs, false,
           "Whether to inline all procs by calling the proc inlining pass.");
 ABSL_FLAG(std::string, ram_rewrites_pb, "",
