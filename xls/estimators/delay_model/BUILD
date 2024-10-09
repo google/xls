@@ -129,7 +129,6 @@ cc_library(
         ":delay_estimator",
         ":delay_info_cc_proto",
         "//xls/common:math_util",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
