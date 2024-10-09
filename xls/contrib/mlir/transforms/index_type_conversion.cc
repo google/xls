@@ -83,9 +83,7 @@ class IndexTypeConverter : public TypeConverter {
     });
   }
 
-  // We should not need this function, but it is required for resolving the
-  // overloaded method.
-  bool isLegal(Region *region) const { return TypeConverter::isLegal(region); }
+  using TypeConverter::isLegal;
 
   bool isLegal(mlir::Operation *op) const {
     // An non-function XlsRegionOp is legal always (reminder: meaning that it
