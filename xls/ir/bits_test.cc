@@ -535,12 +535,6 @@ TEST(BitsTest, ToBitVectorAndBack) {
   EXPECT_EQ(Bits(UBits(0b11001, 1234).ToBitVector()), UBits(0b11001, 1234));
 }
 
-static std::string BytesToHexString(absl::Span<const uint8_t> bytes) {
-  return "0x" + absl::StrJoin(bytes, "", [](std::string* out, uint8_t b) {
-           absl::StrAppendFormat(out, "%02x", b);
-         });
-}
-
 void RoundtripOneByte(uint8_t byte, int64_t bit_count) {
   EXPECT_THAT(Bits::FromBytes(std::vector<uint8_t>{byte}, bit_count).ToBytes(),
               ElementsAre(byte & Mask(bit_count)));

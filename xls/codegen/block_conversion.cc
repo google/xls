@@ -97,21 +97,7 @@ std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
   }
   return std::nullopt;
 }
-std::optional<PackageInterfaceProto::Proc> FindProcInterface(
-    const std::optional<PackageInterfaceProto>& src,
-    std::string_view proc_name) {
-  if (!src) {
-    return std::nullopt;
-  }
-  auto it =
-      absl::c_find_if(src->procs(), [&](const PackageInterfaceProto::Proc& f) {
-        return f.base().name() == proc_name;
-      });
-  if (it != src->procs().end()) {
-    return *it;
-  }
-  return std::nullopt;
-}
+
 std::optional<PackageInterfaceProto::Channel> FindChannelInterface(
     const std::optional<PackageInterfaceProto>& src,
     std::string_view chan_name) {

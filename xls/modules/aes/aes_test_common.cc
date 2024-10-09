@@ -106,13 +106,6 @@ absl::StatusOr<Block> ValueToBlock(const Value& value) {
   return result;
 }
 
-static void InitVectorToBuffer(const InitVector& iv,
-                               std::array<uint8_t, kInitVectorBytes>* buffer) {
-  for (int i = kInitVectorBytes - 1; i >= 0; i--) {
-    buffer->data()[i] = iv[kInitVectorBytes - 1 - i];
-  }
-}
-
 absl::StatusOr<Value> KeyToValue(const Key& key) {
   std::vector<Value> key_elements;
   key_elements.reserve(kMaxKeyBytes);

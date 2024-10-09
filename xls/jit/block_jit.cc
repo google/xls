@@ -547,23 +547,6 @@ absl::flat_hash_map<std::string, Value> BlockJitContinuation::GetRegistersMap()
 }
 
 namespace {
-absl::StatusOr<absl::flat_hash_map<std::string, Value>> GetZeroRegisterValues(
-    const BlockElaboration& elab) {
-  absl::flat_hash_map<std::string, Value> regs;
-  for (BlockInstance* inst : elab.instances()) {
-    if (!inst->block()) {
-      continue;
-    }
-    for (Register* reg : inst->block().value()->GetRegisters()) {
-      regs[absl::StrCat(inst->RegisterPrefix(), reg->name())] =
-          ZeroOfType(reg->type());
-    }
-  }
-  return regs;
-}
-}  // namespace
-
-namespace {
 // Helper adapter to implement the interpreter-focused block-continuation api
 // used by eval_proc_main. This holds live all the values needed to run the
 // block-jit.
