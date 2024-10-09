@@ -73,7 +73,7 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
       NewModuleTestbench(result.verilog_text, result.signature));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
-      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
+      tb->CreateThreadDrivingAllInputs("main", /*default_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   // The combinational module doesn't a connected clock, but the clock can still
@@ -136,7 +136,7 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
       NewModuleTestbench(result.verilog_text, result.signature));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
-      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
+      tb->CreateThreadDrivingAllInputs("main", /*default_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
 
   seq.NextCycle().Set("cond", 0);

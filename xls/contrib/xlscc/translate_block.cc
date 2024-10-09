@@ -1456,7 +1456,7 @@ absl::StatusOr<Translator::SubFSMReturn> Translator::GenerateSubFSM(
     origin_token =
         pb.Trace(origin_token, /*condition=*/literal_1,
                  /*args=*/{outer_state.in_this_state, enter_condition},
-                 /*format=*/
+                 /*format_string=*/
                  absl::StrFormat("SubFSM %s outer in state {:u} enter {:u}",
                                  sub_proc_invoked->name_prefix));
   }

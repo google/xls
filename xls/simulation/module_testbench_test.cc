@@ -508,7 +508,7 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
                            tb->CreateThreadDrivingAllInputs(
-                               "input driver", /*initial_value=*/ZeroOrX::kX));
+                               "input driver", /*default_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("x", 10);
   seq.Set("y", 123);
@@ -634,7 +634,7 @@ TEST_P(ModuleTestbenchTest, AssertTest) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleTestbenchThread * tbt,
         tb->CreateThreadDrivingAllInputs("input driver",
-                                         /*initial_value=*/ZeroOrX::kX));
+                                         /*default_value=*/ZeroOrX::kX));
     SequentialBlock& seq = tbt->MainBlock();
     seq.Set("a", 42);
     seq.Set("b", 100);
@@ -655,7 +655,7 @@ TEST_P(ModuleTestbenchTest, AssertTest) {
     XLS_ASSERT_OK_AND_ASSIGN(
         ModuleTestbenchThread * tbt,
         tb->CreateThreadDrivingAllInputs("input driver",
-                                         /*initial_value=*/ZeroOrX::kX));
+                                         /*default_value=*/ZeroOrX::kX));
     SequentialBlock& seq = tbt->MainBlock();
     seq.Set("a", 100);
     seq.Set("b", 10);
@@ -751,7 +751,7 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithExpectations) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
       tb->CreateThreadDrivingAllInputs("input driver",
-                                       /*initial_value=*/ZeroOrX::kZero));
+                                       /*default_value=*/ZeroOrX::kZero));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     seq.Set("reset", 0).Set("in", 42).NextCycle();
@@ -783,7 +783,7 @@ TEST_P(ModuleTestbenchTest, IdentityPipelineRepeatWithFailedExpectations) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
       tb->CreateThreadDrivingAllInputs("input driver",
-                                       /*initial_value=*/ZeroOrX::kZero));
+                                       /*default_value=*/ZeroOrX::kZero));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     seq.Set("reset", 0).Set("in", 42).AdvanceNCycles(5);
@@ -912,7 +912,7 @@ TEST_P(ModuleTestbenchTest, DrivingInvalidInputPort) {
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
-      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
+      tb->CreateThreadDrivingAllInputs("main", /*default_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   EXPECT_DEATH(seq.Set("not_a_port", 10),
                HasSubstr("'not_a_port' is not a signal that thread `main is "
@@ -938,7 +938,7 @@ TEST_P(ModuleTestbenchTest, StreamingIo) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
-      tb->CreateThreadDrivingAllInputs("input", /*initial_value=*/ZeroOrX::kX));
+      tb->CreateThreadDrivingAllInputs("input", /*default_value=*/ZeroOrX::kX));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     SequentialBlock& loop = seq.Repeat(kInputCount);
@@ -1033,7 +1033,7 @@ TEST_P(ModuleTestbenchTest, StreamingIoWithError) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * input_thread,
-      tb->CreateThreadDrivingAllInputs("input", /*initial_value=*/ZeroOrX::kX));
+      tb->CreateThreadDrivingAllInputs("input", /*default_value=*/ZeroOrX::kX));
   {
     SequentialBlock& seq = input_thread->MainBlock();
     SequentialBlock& loop = seq.Repeat(kInputCount);

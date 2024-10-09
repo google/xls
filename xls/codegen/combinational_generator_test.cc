@@ -998,7 +998,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
                                              result.signature, GetSimulator()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
-      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
+      tb->CreateThreadDrivingAllInputs("main", /*default_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("A", UBits(0xabcdef, 24));
   seq.Set("index", UBits(42, 8));
@@ -1042,7 +1042,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
                                              result.signature, GetSimulator()));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
-      tb->CreateThreadDrivingAllInputs("main", /*initial_value=*/ZeroOrX::kX));
+      tb->CreateThreadDrivingAllInputs("main", /*default_value=*/ZeroOrX::kX));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("A", UBits(0xabcdef, 24));
   seq.Set("index", UBits(3, 8));

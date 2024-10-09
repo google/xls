@@ -418,7 +418,7 @@ class TypeInferenceVisitor {
         bit_count += arg_bit_count;
       }
       return expr->file()->BitVectorType(bit_count, expr->loc(),
-                                         /*signed=*/false);
+                                         /*is_signed=*/false);
     }
     if (auto* ternary = dynamic_cast<Ternary*>(expr); ternary) {
       XLS_RETURN_IF_ERROR(TraverseExpression(ternary->test()));

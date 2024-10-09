@@ -102,7 +102,7 @@ TEST_P(WrapIOTest, WrapIOIncrement8b) {
       ModuleTestbench::CreateFromVastModule(m, GetSimulator(), "clk"));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleTestbenchThread * tbt,
                            tb->CreateThreadDrivingAllInputs(
-                               "main", /*initial_value=*/ZeroOrX::kZero));
+                               "main", /*default_value=*/ZeroOrX::kZero));
   SequentialBlock& seq = tbt->MainBlock();
   seq.Set("byte_out_ready", 0).Set("byte_in_valid", 1).Set("byte_in", 42);
   seq.WaitForCycleAfter("byte_in_ready");

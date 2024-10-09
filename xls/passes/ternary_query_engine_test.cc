@@ -1787,7 +1787,7 @@ void BM_ArrayIndexExactDeep(benchmark::State& state) {
   XLS_ASSERT_OK_AND_ASSIGN(
       BValue array,
       benchmark_support::GenerateFullyConnectedLayerGraph(
-          fb, state.range(0), /*fan_out=*/2, ArrayCreation(),
+          fb, state.range(0), /*width=*/2, ArrayCreation(),
           benchmark_support::strategy::SharedLiteral(UBits(0, 64))));
   std::vector<BValue> selectors;
   selectors.reserve(state.range(0));

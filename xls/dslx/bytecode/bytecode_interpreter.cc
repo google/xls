@@ -1631,7 +1631,7 @@ absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
                    /*caller_proc_id=*/std::nullopt, type_info,
                    /*caller_bindings=*/std::nullopt,
                    /*callee_bindings=*/std::nullopt,
-                   /*maybe_spawn=*/std::nullopt, root_proc,
+                   /*spawn_functions=*/std::nullopt, root_proc,
                    /*config_args=*/{terminator}, proc_instances, options);
 }
 

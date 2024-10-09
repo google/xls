@@ -75,7 +75,7 @@ fn main(i0: bits[3], i1: bits[3]) -> bits[3] {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Package> tmp_package,
-      ExtractNodes(nodes, "test", /*flop_inputs_outputs=*/false));
+      ExtractNodes(nodes, "test", /*return_all_liveouts=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * tmp_f,
                            tmp_package->GetFunction("test"));
   EXPECT_THAT(tmp_f->AsFunctionOrDie()->return_value(),

@@ -1167,7 +1167,7 @@ void TestPackedBitsWithType(const TypeProto& type_proto) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto orc_jit,
       OrcJit::Create(opt_level, /*include_observer_callbacks=*/false,
-                     /*observer=*/nullptr));
+                     /*jit_observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
@@ -1232,7 +1232,7 @@ void TestPackedTupleWithType(const TypeProto& type_proto) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto orc_jit,
       OrcJit::Create(opt_level, /*include_observer_callbacks=*/false,
-                     /*observer=*/nullptr));
+                     /*jit_observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,
@@ -1302,7 +1302,7 @@ void TestPackedArrayWithType(const TypeProto& type_proto) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto orc_jit,
       OrcJit::Create(opt_level, /*include_observer_callbacks=*/false,
-                     /*observer=*/nullptr));
+                     /*jit_observer=*/nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(llvm::DataLayout data_layout,
                            orc_jit->CreateDataLayout());
   XLS_ASSERT_OK_AND_ASSIGN(JittedFunctionBase jit,

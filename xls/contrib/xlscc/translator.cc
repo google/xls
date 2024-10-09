@@ -6171,7 +6171,7 @@ absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
         xls::solvers::z3::IrTranslator::CreateAndTranslate(
             // Don't preemptively convert everything as this is expensive and we
             // might get away with converting less.
-            /*function_base=*/nullptr, /*allow_unsupported=*/false));
+            /*source=*/nullptr, /*allow_unsupported=*/false));
   }
   return iter->second.get();
 }
