@@ -52,6 +52,7 @@ void NormalizeXlsCallsPass::runOnOperation() {
   llvm::DenseMap<std::pair<StringRef, StringRef>,
                  std::vector<mlir::func::FuncOp>>
       fnOps;
+  SymbolTable symbolTable(getOperation());
   OpBuilder builder(getOperation().getBodyRegion());
   getOperation()->walk([&](Operation* op) {
     if (auto import = dyn_cast<ImportDslxFilePackageOp>(op)) {
@@ -68,6 +69,8 @@ void NormalizeXlsCallsPass::runOnOperation() {
           auto pkgImport = builder.create<ImportDslxFilePackageOp>(
               op->getLoc(), call.getFilenameAttr(),
               builder.getStringAttr(path.stem().string()));
+          // Ensure unique symbol name.
+          symbolTable.insert(pkgImport);
           it->second.push_back(pkgImport);
         }
 
@@ -82,6 +85,8 @@ void NormalizeXlsCallsPass::runOnOperation() {
                                          builder.getContext(),
                                          SymbolRefAttr::get(it->second.front()),
                                          call.getFunctionAttr()));
+        // Ensure unique symbol name.
+        symbolTable.insert(func);
         fIt->second.push_back(func);
       }
 
