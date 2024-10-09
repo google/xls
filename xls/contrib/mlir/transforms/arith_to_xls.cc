@@ -47,6 +47,8 @@ using ::llvm::SmallVector;
 using ::mlir::StringAttr;
 using ::mlir::func::FuncOp;
 
+// clang-tidy fails to see that these are needed by the *.inc file below
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 FuncOp maybeDeclareDslxFn(SymbolTable& symtab, OpBuilder builder,
                           const std::string& symbolName,
                           const std::string& dslxName,
@@ -67,6 +69,8 @@ FuncOp maybeDeclareDslxFn(SymbolTable& symtab, OpBuilder builder,
   return fn;
 }
 
+// clang-tidy fails to see that these are needed by the *.inc file below
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 xls::ImportDslxFilePackageOp maybeImportDslxFilePackage(
     SymbolTable& symtab, OpBuilder builder, std::string_view packageName,
     std::string_view symbolName) {
