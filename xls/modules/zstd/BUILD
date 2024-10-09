@@ -33,6 +33,19 @@ package(
     licenses = ["notice"],
 )
 
+CLOCK_PERIOD_PS = "750"
+# Clock periods for modules that exceed the 750ps critical path in IR benchmark
+
+common_codegen_args = {
+    "delay_model": "asap7",
+    "reset": "rst",
+    "worst_case_throughput": "1",
+    "use_system_verilog": "false",
+    "clock_period_ps": CLOCK_PERIOD_PS,
+    "clock_margin_percent": "20",
+    "multi_proc": "true",
+}
+
 xls_dslx_library(
     name = "buffer_dslx",
     srcs = [
@@ -64,20 +77,17 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+window_buffer_codegen_args = common_codegen_args | {
+    "module_name": "WindowBuffer64",
+    "clock_period_ps": "0",
+    "pipeline_stages": "1",
+}
+
 xls_dslx_verilog(
     name = "window_buffer_verilog",
-    codegen_args = {
-        "module_name": "WindowBuffer64",
-        "delay_model": "asap7",
-        "pipeline_stages": "2",
-        "reset": "rst",
-        "use_system_verilog": "false",
-    },
+    codegen_args = window_buffer_codegen_args,
     dslx_top = "WindowBuffer64",
     library = ":window_buffer_dslx",
-    opt_ir_args = {
-        "top": "__window_buffer__WindowBuffer64__WindowBuffer_0__64_32_48_next",
-    },
     tags = ["manual"],
     verilog_file = "window_buffer.v",
 )
@@ -85,9 +95,9 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "window_buffer_opt_ir_benchmark",
     src = ":window_buffer_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "2",
-        "delay_model": "asap7",
+    benchmark_ir_args = window_buffer_codegen_args | {
+        "pipeline_stages": "10",
+        "top": "__window_buffer__WindowBuffer64__WindowBuffer_0__64_32_48_next",
     },
     tags = ["manual"],
 )
@@ -118,7 +128,7 @@ benchmark_synth(
 
 place_and_route(
     name = "window_buffer_place_and_route",
-    clock_period = "750",
+    clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -481,15 +491,15 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+dec_mux_codegen_args = common_codegen_args | {
+    "module_name": "DecoderMux",
+    "clock_period_ps": "0",
+    "pipeline_stages": "3",
+}
+
 xls_dslx_verilog(
     name = "dec_mux_verilog",
-    codegen_args = {
-        "module_name": "DecoderMux",
-        "delay_model": "asap7",
-        "pipeline_stages": "3",
-        "reset": "rst",
-        "use_system_verilog": "false",
-    },
+    codegen_args = dec_mux_codegen_args,
     dslx_top = "DecoderMux",
     library = ":dec_mux_dslx",
     tags = ["manual"],
@@ -499,9 +509,8 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "dec_mux_opt_ir_benchmark",
     src = ":dec_mux_verilog.opt.ir",
-    benchmark_ir_args = {
+    benchmark_ir_args = dec_mux_codegen_args | {
         "pipeline_stages": "10",
-        "delay_model": "asap7",
     },
     tags = ["manual"],
 )
@@ -532,7 +541,7 @@ benchmark_synth(
 
 place_and_route(
     name = "dec_mux_place_and_route",
-    clock_period = "750",
+    clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
@@ -578,36 +587,35 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+sequence_executor_codegen_args = common_codegen_args | {
+    "module_name": "sequence_executor",
+    "clock_period_ps": "0",
+    "generator": "pipeline",
+    "delay_model": "asap7",
+    "ram_configurations": ",".join([
+        "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            ram_name = "ram{}".format(num),
+            rd_req = "sequence_executor__rd_req_m{}_s".format(num),
+            rd_resp = "sequence_executor__rd_resp_m{}_r".format(num),
+            wr_req = "sequence_executor__wr_req_m{}_s".format(num),
+            wr_resp = "sequence_executor__wr_resp_m{}_r".format(num),
+        )
+        for num in range(7)
+    ]),
+    "pipeline_stages": "6",
+    "reset": "rst",
+    "reset_data_path": "true",
+    "reset_active_low": "false",
+    "reset_asynchronous": "true",
+    "flop_inputs": "false",
+    "flop_single_value_channels": "false",
+    "flop_outputs": "false",
+}
+
 xls_dslx_verilog(
     name = "sequence_executor_verilog",
-    codegen_args = {
-        "module_name": "sequence_executor",
-        "generator": "pipeline",
-        "delay_model": "asap7",
-        "ram_configurations": ",".join([
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "ram{}".format(num),
-                rd_req = "sequence_executor__rd_req_m{}_s".format(num),
-                rd_resp = "sequence_executor__rd_resp_m{}_r".format(num),
-                wr_req = "sequence_executor__wr_req_m{}_s".format(num),
-                wr_resp = "sequence_executor__wr_resp_m{}_r".format(num),
-            )
-            for num in range(7)
-        ]),
-        "pipeline_stages": "8",
-        "reset": "rst",
-        "reset_data_path": "true",
-        "reset_active_low": "false",
-        "reset_asynchronous": "true",
-        "flop_inputs": "false",
-        "flop_single_value_channels": "false",
-        "flop_outputs": "false",
-        "worst_case_throughput": "1",
-        "use_system_verilog": "false",
-        "fifo_module": "",
-        "materialize_internal_fifos": "true",
-    },
+    codegen_args = sequence_executor_codegen_args,
     dslx_top = "SequenceExecutorZstd",
     library = ":sequence_executor_dslx",
     opt_ir_args = {
@@ -618,13 +626,10 @@ xls_dslx_verilog(
 )
 
 xls_benchmark_ir(
-    name = "sequence_executor_ir_benchmark",
+    name = "sequence_executor_opt_ir_benchmark",
     src = ":sequence_executor_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "8",
-        "delay_model": "asap7",
-        "fifo_module": "",
-        "materialize_internal_fifos": "true",
+    benchmark_ir_args = sequence_executor_codegen_args | {
+        "pipeline_stages": "10",
     },
     tags = ["manual"],
 )
@@ -661,7 +666,7 @@ benchmark_synth(
 
 place_and_route(
     name = "sequence_executor_place_and_route",
-    clock_period = "750",
+    clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.4",
     placement_density = "0.30",
@@ -688,15 +693,15 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+repacketizer_codegen_args = common_codegen_args | {
+    "module_name": "Repacketizer",
+    "clock_period_ps": "0",
+    "pipeline_stages": "2",
+}
+
 xls_dslx_verilog(
     name = "repacketizer_verilog",
-    codegen_args = {
-        "module_name": "Repacketizer",
-        "delay_model": "asap7",
-        "pipeline_stages": "2",
-        "reset": "rst",
-        "use_system_verilog": "false",
-    },
+    codegen_args = repacketizer_codegen_args,
     dslx_top = "Repacketizer",
     library = ":repacketizer_dslx",
     tags = ["manual"],
@@ -706,9 +711,8 @@ xls_dslx_verilog(
 xls_benchmark_ir(
     name = "repacketizer_opt_ir_benchmark",
     src = ":repacketizer_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "2",
-        "delay_model": "asap7",
+    benchmark_ir_args = repacketizer_codegen_args | {
+        "pipeline_stages": "10",
     },
     tags = ["manual"],
 )
@@ -739,7 +743,7 @@ benchmark_synth(
 
 place_and_route(
     name = "repacketizer_place_and_route",
-    clock_period = "750",
+    clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.5",
     placement_density = "0.30",
