@@ -21,48 +21,48 @@
 namespace xls::jpeg {
 
 // An "MCU" is a "Minimum Coded Unit" which is an 8x8 grid of values.
-constexpr int kMcuHeight = 8;
-constexpr int kMcuWidth = 8;
-constexpr int kCoeffPerMcu = kMcuHeight * kMcuWidth;
+inline constexpr int kMcuHeight = 8;
+inline constexpr int kMcuWidth = 8;
+inline constexpr int kCoeffPerMcu = kMcuHeight * kMcuWidth;
 
 // The JPEG byte stream has "markers" that delimit the sections of the JPEG
 // (first metadata, then scan data). This all-bits-set byte is an escape that
 // notes that a marker identifier bytes (indicating what kind of section we're
 // decoding, e.g. kSof0Marker perhaps) will come next.
-constexpr uint8_t kMarkerStart = 0xff;
+inline constexpr uint8_t kMarkerStart = 0xff;
 
 // JPEG markers defined in the specification, see
 // https://www.w3.org/Graphics/JPEG/ -- for more details see the spec document.
-constexpr uint8_t kSof0Marker = 0xc0;  // Start of Frame (Baseline DCT)
-constexpr uint8_t kDhtMarker = 0xc4;   // Define Huffman Table(s)
-constexpr uint8_t kSoiMarker = 0xd8;   // Start of Image
-constexpr uint8_t kEoiMarker = 0xd9;   // End of Image
-constexpr uint8_t kSosMarker = 0xda;   // Start of Scan
-constexpr uint8_t kDqtMarker = 0xdb;   // Define Quantization Table(s)
-constexpr uint8_t kApp0Marker = 0xe0;  // "Application 0" (JFIF image metadata)
-constexpr uint8_t kComMarker = 0xfe;   // Comment
+inline constexpr uint8_t kSof0Marker = 0xc0;  // Start of Frame (Baseline DCT)
+inline constexpr uint8_t kDhtMarker = 0xc4;   // Define Huffman Table(s)
+inline constexpr uint8_t kSoiMarker = 0xd8;   // Start of Image
+inline constexpr uint8_t kEoiMarker = 0xd9;   // End of Image
+inline constexpr uint8_t kSosMarker = 0xda;   // Start of Scan
+inline constexpr uint8_t kDqtMarker = 0xdb;   // Define Quantization Table(s)
+inline constexpr uint8_t kApp0Marker = 0xe0;  // "Application 0" (JFIF metadata)
+inline constexpr uint8_t kComMarker = 0xfe;   // Comment
 
-constexpr uint8_t kChrominanceZero = 128;  // See internal::ToRgb().
+inline constexpr uint8_t kChrominanceZero = 128;  // See internal::ToRgb().
 
 // The prefix codes in the stream can be at most 16 bits long.
-constexpr uint8_t kHuffmanCodeSizeLimit = 16;
+inline constexpr uint8_t kHuffmanCodeSizeLimit = 16;
 
 // The number of bits that we need to pop after a given prefix code does not
 // exceed 11 bits. Technically there's encoding room in the DHT data for up to
 // 15 bits, but the values encoded in the stream can't exceed 1024, so 11 bits
 // is the max we'll observe.
-constexpr uint8_t kBitsToPopLimit = 11;
+inline constexpr uint8_t kBitsToPopLimit = 11;
 
 // Currently we only support 3 color comonents, since we assume YCbCr.
-constexpr uint8_t kColorLimit = 3;
+inline constexpr uint8_t kColorLimit = 3;
 
 // When the image uses three color components (without downsampling) this is the
 // order in which MCU components are interleaved in the stream.
-constexpr uint8_t kYIndex = 0;
-constexpr uint8_t kCbIndex = 1;
-constexpr uint8_t kCrIndex = 2;
+inline constexpr uint8_t kYIndex = 0;
+inline constexpr uint8_t kCbIndex = 1;
+inline constexpr uint8_t kCrIndex = 2;
 
-// Coefficients are encoded in the scan data in an order that should maximimize
+// Coefficients are encoded in the scan data in an order that should maximize
 // compression in frequency space; that is, the highest frequency components
 // should come at the end of the block so that we can easily squash them to zero
 // and say "end of block" as early as possible.
@@ -82,7 +82,7 @@ constexpr uint8_t kCrIndex = 2;
 //
 // For example, you can see the value at index 2 in the map below is "8", and 8
 // is the index of the value "2" in the map above.
-constexpr std::array<uint8_t, kCoeffPerMcu> kZigZagMap = {
+inline constexpr std::array<uint8_t, kCoeffPerMcu> kZigZagMap = {
     0,  1,  8,  16, 9,  2,  3,  10,  //
     17, 24, 32, 25, 18, 11, 4,  5,   //
     12, 19, 26, 33, 40, 48, 41, 34,  //

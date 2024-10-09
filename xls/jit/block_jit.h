@@ -297,8 +297,8 @@ class JitBlockEvaluator : public BlockEvaluator {
   bool supports_observer_;
 };
 
-static const JitBlockEvaluator kJitBlockEvaluator;
-static const JitBlockEvaluator kObservableJitBlockEvaluator(true);
+inline constexpr JitBlockEvaluator kJitBlockEvaluator(false);
+inline constexpr JitBlockEvaluator kObservableJitBlockEvaluator(true);
 
 }  // namespace xls
 

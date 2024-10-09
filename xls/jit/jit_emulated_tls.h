@@ -23,13 +23,13 @@ extern "C" void* c_export_xls_GetEmulatedMsanTLSAddr(void* selector);
 
 namespace xls {
 
-static constexpr std::string_view kExportedEmulatedMsanEntrypointName =
+inline constexpr std::string_view kExportedEmulatedMsanEntrypointName =
     "c_export_xls_GetEmulatedMsanTLSAddr";
 
 // Parameter used to call __emutls_get_address for param_tls
-static constexpr uintptr_t kParamTlsEntry = 1;
+inline constexpr uintptr_t kParamTlsEntry = 1;
 // Parameter used to call __emutls_get_address for retval_tls
-static constexpr uintptr_t kRetvalTlsEntry = 2;
+inline constexpr uintptr_t kRetvalTlsEntry = 2;
 
 // Implementation of emulated TLS for jit use. Defines an unmangled symbol for
 // jit.

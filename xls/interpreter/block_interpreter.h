@@ -114,7 +114,7 @@ InterpretChannelizedSequentialBlockWithUint64(
 }
 
 // A single evaluator which uses the interpreter.
-static const InterpreterBlockEvaluator kInterpreterBlockEvaluator;
+inline constexpr InterpreterBlockEvaluator kInterpreterBlockEvaluator;
 
 }  // namespace xls
 

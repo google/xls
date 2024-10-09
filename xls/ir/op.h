@@ -39,7 +39,7 @@ enum class Op : int8_t {
 };
 
 // List of all the operators for nodes in the IR.
-constexpr auto kAllOps = std::to_array<Op>({
+inline constexpr auto kAllOps = std::to_array<Op>({
 #define MAKE_ENUM_REF(name, a, b, c) Op::name,
     XLS_FOR_EACH_OP_TYPE(MAKE_ENUM_REF)
 #undef MAKE_ENUM_REF

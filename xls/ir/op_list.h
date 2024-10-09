@@ -19,12 +19,12 @@
 namespace xls {
 
 namespace op_types {
-static constexpr uint8_t kStandard = 0b00000000;
-static constexpr uint8_t kComparison = 0b00000001;
-static constexpr uint8_t kAssociative = 0b00000010;
-static constexpr uint8_t kCommutative = 0b00000100;
-static constexpr uint8_t kBitWise = 0b00001000;
-static constexpr uint8_t kSideEffecting = 0b00010000;
+inline constexpr uint8_t kStandard = 0b00000000;
+inline constexpr uint8_t kComparison = 0b00000001;
+inline constexpr uint8_t kAssociative = 0b00000010;
+inline constexpr uint8_t kCommutative = 0b00000100;
+inline constexpr uint8_t kBitWise = 0b00001000;
+inline constexpr uint8_t kSideEffecting = 0b00010000;
 }  // namespace op_types
 
 // Run a macro for each op type.

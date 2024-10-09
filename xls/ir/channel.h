@@ -243,7 +243,7 @@ enum class ChannelStrictness : uint8_t {
   kArbitraryStaticOrder,
 };
 
-constexpr ChannelStrictness kDefaultChannelStrictness =
+inline constexpr ChannelStrictness kDefaultChannelStrictness =
     ChannelStrictness::kProvenMutuallyExclusive;
 
 absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(

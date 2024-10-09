@@ -40,7 +40,7 @@ struct CappedOptLevel {
   decltype(kMaxOptLevel) cap;
 };
 
-static constexpr OptLevel kOptLevel{};
+inline constexpr OptLevel kOptLevel{};
 }  // namespace pass_config
 
 // Helpers to handle creating and configuring passes in a somewhat reasonable

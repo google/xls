@@ -50,8 +50,8 @@ struct Unit {
   int16_t data_volume_base;
 };
 
-constexpr Unit kUnitPsBits = Unit{-12, 0, 1};
-constexpr Unit kUnitSecBytes = Unit{0, 0, 8};
+inline constexpr Unit kUnitPsBits = Unit{-12, 0, 1};
+inline constexpr Unit kUnitSecBytes = Unit{0, 0, 8};
 
 // Convert a time measure from the "from" unit to the "to" unit.
 //

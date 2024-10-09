@@ -33,10 +33,11 @@ namespace verilog {
 // Name of the testbench internal signal which is asserted in the last cycle
 // that the DUT is in reset. This can be used to trigger the driving of signals
 // for the first cycle out of reset.
-constexpr std::string_view kLastResetCycleSignal = "__last_cycle_of_reset";
+inline constexpr std::string_view kLastResetCycleSignal =
+    "__last_cycle_of_reset";
 
 // Clock period in Verilog time units. Must be even number greater than 3.
-constexpr int64_t kClockPeriod = 10;
+inline constexpr int64_t kClockPeriod = 10;
 static_assert(kClockPeriod > 3);
 static_assert(kClockPeriod % 2 == 0);
 

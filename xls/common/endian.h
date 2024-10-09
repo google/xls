@@ -25,9 +25,9 @@ enum class Endianness {
 };
 
 #if defined(ABSL_IS_BIG_ENDIAN)
-constexpr Endianness kEndianness = Endianness::kBigEndian;
+inline constexpr Endianness kEndianness = Endianness::kBigEndian;
 #elif defined(ABSL_IS_LITTLE_ENDIAN)
-constexpr Endianness kEndianness = Endianness::kLittleEndian;
+inline constexpr Endianness kEndianness = Endianness::kLittleEndian;
 #else
 #error "Cannot determine endianness"
 #endif
