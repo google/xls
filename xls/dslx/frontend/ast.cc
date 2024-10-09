@@ -1296,6 +1296,14 @@ std::vector<std::string> StructDef::GetMemberNames() const {
   return names;
 }
 
+std::optional<ConstantDef*> StructDef::GetImplConstant(
+    std::string_view constant_name) {
+  if (!impl_.has_value()) {
+    return std::nullopt;
+  }
+  return impl_.value()->GetConstant(constant_name);
+}
+
 // -- class Impl
 
 Impl::Impl(Module* owner, Span span, TypeAnnotation* struct_ref,

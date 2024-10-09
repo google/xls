@@ -619,5 +619,65 @@ fn main() -> MyArray {
   EXPECT_THAT(value.GetLength(), IsOkAndHolds(4));
 }
 
+TEST(ConstexprEvaluatorTest, ImplWithConstantSimple) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct {}
+
+impl MyStruct {
+  const STRUCT_CONST = u32:7;
+}
+
+fn main() -> u32 {
+  MyStruct::STRUCT_CONST
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+  WarningCollector warnings(kAllWarningsSet);
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             &warnings, ParametricEnv(),
+                                             f->body(), nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(f->body()));
+  EXPECT_EQ(value.GetBitValueViaSign().value(), 7);
+}
+
+TEST(ConstexprEvaluatorTest, ImplWithConstantRefGlobal) {
+  constexpr std::string_view kProgram = R"(
+const SIZE = u32:4;
+
+struct MyStruct {}
+
+impl MyStruct {
+  const STRUCT_CONST = u32:2 * SIZE;
+}
+
+fn main() -> u32 {
+  MyStruct::STRUCT_CONST
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+  WarningCollector warnings(kAllWarningsSet);
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             &warnings, ParametricEnv(),
+                                             f->body(), nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(f->body()));
+  EXPECT_EQ(value.GetBitValueViaSign().value(), 8);
+}
+
 }  // namespace
 }  // namespace xls::dslx

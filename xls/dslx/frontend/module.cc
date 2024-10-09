@@ -257,6 +257,8 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
       }
     } else if (std::holds_alternative<ConstAssert*>(member)) {
       continue;  // These have no name / binding.
+    } else if (std::holds_alternative<Impl*>(member)) {
+      continue;  // These have no name / binding.
     } else {
       LOG(FATAL) << "Unhandled module member variant: "
                  << ToAstNode(member)->GetNodeTypeName();

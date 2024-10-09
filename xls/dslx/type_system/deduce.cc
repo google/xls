@@ -1044,7 +1044,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToImpl(
                         node->attr(), struct_def->identifier()),
         ctx->file_table());
   }
-  return DeduceConstantDef(constant.value(), ctx);
+  return ctx->Deduce(constant.value());
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,

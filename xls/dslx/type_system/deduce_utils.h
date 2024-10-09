@@ -66,9 +66,7 @@ absl::Status ValidateNumber(const Number& number, const Type& type);
 // * a module
 // * an enum definition
 // * a builtin type (with a constant item on it, a la `u7::MAX`)
-//
-// Struct definitions cannot currently have constant items on them, so this will
-// have to be flagged by the type checker.
+// * a constant defined via `impl` on a `StructDef`.
 absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
                             ArrayTypeAnnotation*, StructDef*, ColonRef*>>
 ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
@@ -78,8 +76,8 @@ ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
 // Implementation of the above that can be called after type checking has been
 // performed, in which case we can eliminate some of the (invalid) possibilities
 // so they no longer need to be handled.
-absl::StatusOr<
-    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
+                            ArrayTypeAnnotation*, StructDef*>>
 ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
                                         const TypeInfo* type_info,
                                         const ColonRef* colon_ref);

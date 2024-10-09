@@ -2311,6 +2311,8 @@ class StructDef : public AstNode {
 
   std::optional<Impl*> impl() const { return impl_; }
 
+  std::optional<ConstantDef*> GetImplConstant(std::string_view constant_name);
+
  private:
   Span span_;
   NameDef* name_def_;

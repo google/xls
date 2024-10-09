@@ -71,9 +71,7 @@ const GLOBAL_DIMS = NUM_DIMS;
                        HasSubstr("Cannot find a definition")));
 }
 
-// TODO: https://github.com/google/xls/issues/1277 - Support assignment in
-// expressions.
-TEST(TypecheckTest, DISABLED_ImplConstantExtracted) {
+TEST(TypecheckTest, ImplConstantExtracted) {
   constexpr std::string_view kProgram = R"(
 struct Point { x: u32, y: u32 }
 
@@ -84,6 +82,18 @@ impl Point {
 const GLOBAL_DIMS = Point::NUM_DIMS;
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, ConstantExtractionWithoutImpl) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+const GLOBAL_DIMS = Point::NUM_DIMS;
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Struct 'Point' has no impl defining 'NUM_DIMS'")));
 }
 
 TEST(TypecheckErrorTest, ConstantAccessWithoutImplDef) {

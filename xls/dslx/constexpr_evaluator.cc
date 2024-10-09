@@ -389,6 +389,24 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
                 expr, type_info->GetConstExpr(constant_def->value()).value());
             return absl::OkStatus();
           },
+          [&](StructDef* struct_def) -> absl::Status {
+            std::optional<ConstantDef*> constant_def =
+                struct_def->GetImplConstant(expr->attr());
+            if (!constant_def.has_value()) {
+              return absl::NotFoundError(absl::StrFormat(
+                  "No impl with constant '%s' defined for struct '%s'",
+                  expr->attr(), struct_def->identifier()));
+            }
+            XLS_RETURN_IF_ERROR(Evaluate(import_data_, type_info_,
+                                         warning_collector_, bindings_,
+                                         constant_def.value()->value()));
+            XLS_RET_CHECK(
+                type_info_->IsKnownConstExpr(constant_def.value()->value()));
+            type_info_->NoteConstExpr(
+                expr, type_info_->GetConstExpr(constant_def.value()->value())
+                          .value());
+            return absl::OkStatus();
+          },
       },
       subject);
 }

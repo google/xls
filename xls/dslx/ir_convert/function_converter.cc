@@ -2801,7 +2801,21 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
             DefConst(node, value);
             return absl::OkStatus();
           },
-      },
+          [&](StructDef* struct_def) -> absl::Status {
+            std::optional<ConstantDef*> constant_def =
+                struct_def->GetImplConstant(node->attr());
+            if (!constant_def.has_value()) {
+              return absl::NotFoundError(absl::StrFormat(
+                  "No impl with constant '%s' defined for struct '%s'",
+                  node->attr(), struct_def->identifier()));
+            }
+            XLS_ASSIGN_OR_RETURN(
+                InterpValue iv,
+                current_type_info_->GetConstExpr(constant_def.value()));
+            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+            DefConst(node, value);
+            return absl::OkStatus();
+          }},
       subject);
 }
 
