@@ -1176,6 +1176,10 @@ def Xls_ImportDslxFilePackageOp : Xls_Op<"import_dslx_file_package", [Symbol]> {
   let assemblyFormat = [{
     $filename `as` $sym_name attr-dict
   }];
+  let extraClassDeclaration = [{
+    // Imports can always be discarded if they are not used.
+    bool canDiscardOnUseEmpty() const { return true; }
+  }];
 }
 
 def Xls_CallDslxOp : Xls_Op<"call_dslx", [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
@@ -1270,6 +1274,11 @@ def Xls_ChanOp : Xls_Op<"chan", [Symbol]> {
   let assemblyFormat = [{
     $sym_name attr-dict `:` $type
   }];
+  let extraClassDeclaration = [{
+    // Channels can always be discarded if they are not used.
+    bool canDiscardOnUseEmpty() const { return true; }
+  }];
+
 }
 
 //===----------------------------------------------------------------------===//
