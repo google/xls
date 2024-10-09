@@ -38,6 +38,7 @@
 #include "xls/codegen/trace_verbosity_pass.h"
 #include "xls/ir/block.h"
 #include "xls/passes/basic_simplification_pass.h"
+#include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/pass_base.h"
@@ -101,6 +102,8 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Do some trivial simplifications to any flow control logic added during code
   // generation.
+  top->Add<CodegenWrapperPass>(
+      std::make_unique<CsePass>(/*common_literals=*/false));
   top->Add<CodegenWrapperPass>(std::make_unique<BasicSimplificationPass>());
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.

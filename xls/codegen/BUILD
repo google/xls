@@ -458,6 +458,7 @@ cc_library(
         ":trace_verbosity_pass",
         "//xls/ir",
         "//xls/passes:basic_simplification_pass",
+        "//xls/passes:cse_pass",
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
         "//xls/passes:pass_base",

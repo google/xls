@@ -33,7 +33,8 @@ namespace xls {
 // common uses of the `replacements` map, you'll want to compute the transitive
 // closure of the relation rather than using it as-is.
 absl::StatusOr<bool> RunCse(FunctionBase* f,
-                            absl::flat_hash_map<Node*, Node*>* replacements);
+                            absl::flat_hash_map<Node*, Node*>* replacements,
+                            bool common_literals = true);
 
 // Computes the fixed point of a strict partial order, i.e.: the relation that
 // solves the equation `F = R ∘ F` where `R` is the given strict partial order.
@@ -60,15 +61,20 @@ absl::flat_hash_map<T, T> FixedPointOfSPO(
 class CsePass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "cse";
-  CsePass()
-      : OptimizationFunctionBasePass(kName,
-                                     "Common subexpression elimination") {}
+
+  // If `common_literals` is true then literals are included in the
+  // transformations, otherwise literals are not commoned.
+  CsePass(bool common_literals = true)
+      : OptimizationFunctionBasePass(kName, "Common subexpression elimination"),
+        common_literals_(common_literals) {}
   ~CsePass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
+
+  bool common_literals_;
 };
 
 }  // namespace xls

@@ -101,6 +101,24 @@ TEST_F(CsePassTest, TwoIdenticalLiterals) {
   EXPECT_EQ(f->return_value()->operand(0), f->return_value()->operand(1));
 }
 
+TEST_F(CsePassTest, TwoIdenticalLiteralsNoLiteralCommoning) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn IdenticalLiterals() -> (bits[2], bits[2]) {
+        literal.1: bits[2] = literal(value=1)
+        literal.2: bits[2] = literal(value=1)
+        ret tuple.3: (bits[2], bits[2]) = tuple(literal.1, literal.2)
+     }
+  )",
+                                                       p.get()));
+  EXPECT_EQ(f->node_count(), 3);
+  PassResults results;
+  EXPECT_THAT(CsePass(/*common_literals=*/false)
+                  .RunOnFunctionBase(f, OptimizationPassOptions(), &results),
+              IsOkAndHolds(false));
+  EXPECT_EQ(f->node_count(), 3);
+}
+
 TEST_F(CsePassTest, NontrivialCommonSubexpressions) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
