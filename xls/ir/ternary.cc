@@ -346,7 +346,8 @@ void RealizedTernaryIterator::Advance(const Bits& amnt) {
        i < amnt.bit_count() - amnt.CountLeadingZeros() && !finished_; ++i) {
     if (amnt.Get(i)) {
       std::tie(finished_, bm) = IncrementOnOffsets(
-          std::move(bm), absl::MakeConstSpan(unknown_bit_offsets_).subspan(i));
+          std::move(bm),  // NOLINT(bugprone-use-after-move)
+          absl::MakeConstSpan(unknown_bit_offsets_).subspan(i));
     }
   }
   value_ = Bits::FromBitmap(std::move(bm));
@@ -367,7 +368,8 @@ void RealizedTernaryIterator::Advance(int64_t amnt) {
   for (int64_t i = 0; i < 64 && amnt != 0 && !finished_; ++i, amnt >>= 1) {
     if (amnt & 0b1) {
       std::tie(finished_, bm) = IncrementOnOffsets(
-          std::move(bm), absl::MakeConstSpan(unknown_bit_offsets_).subspan(i));
+          std::move(bm),  // NOLINT(bugprone-use-after-move)
+          absl::MakeConstSpan(unknown_bit_offsets_).subspan(i));
     }
   }
   value_ = Bits::FromBitmap(std::move(bm));

@@ -567,8 +567,7 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
   }
   XLS_RETURN_IF_ERROR(CheckPackageName(resolved_package_name));
   PackageConversionData conversion_data{
-      .package =
-          std::make_unique<xls::Package>(std::move(resolved_package_name))};
+      .package = std::make_unique<xls::Package>(resolved_package_name)};
   *conversion_data.interface.mutable_name() = resolved_package_name;
   for (std::string_view p : paths) {
     *conversion_data.interface.add_files() = p;
