@@ -27,6 +27,7 @@ class Explicit {
 };
 
 // Each case specified under each symbol must fail to compile.
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void MustNotCompile() {
   USD dollars(1);
   (void)dollars;  // Avoid unused variable warning.

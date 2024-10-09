@@ -105,6 +105,7 @@ Derived3 WontCompile(Base& r) { return down_cast<Derived3>(r); }
 // Finally, tests that good code does compile (i.e. the compiler is
 // not blindly failing everything).
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static int Identity(int x) { return x; }
 
 #endif
