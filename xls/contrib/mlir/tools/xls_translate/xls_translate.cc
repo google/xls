@@ -1205,7 +1205,11 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
 
 LogicalResult setTop(Operation* op, std::string_view name, Package* package) {
   if (!name.empty()) {
-    return success(package->SetTopByName(name).ok());
+    absl::Status status = package->SetTopByName(name);
+    if (!status.ok()) {
+      return op->emitError() << "failed to set top: " << status.message();
+    }
+    return success();
   }
 
   for (auto region_op :
