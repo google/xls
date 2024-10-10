@@ -422,9 +422,21 @@ LogicRef* ModuleBuilder::AddInputPort(std::string_view name, int64_t bit_count,
                                       std::optional<std::string_view> sv_type) {
   auto* raw_bits_type = file_->BitVectorType(bit_count, SourceInfo());
   if (sv_type && options_.emit_sv_types()) {
-    return module_->AddInput(
+    LogicRef* port = module_->AddInput(
         SanitizeIdentifier(name),
         file_->ExternType(raw_bits_type, *sv_type, SourceInfo()), SourceInfo());
+    if (!sv_type.has_value()) {
+      return port;
+    }
+    // If a SystemVerilog type is specified then create a flattened copy of the
+    // value for use inside the module because bit indexing into structs can
+    // cause lint warnings.
+    LogicRef* wire =
+        module_->AddWire(absl::StrCat(SanitizeIdentifier(name), "_flattened"),
+                         file_->BitVectorType(bit_count, SourceInfo()),
+                         SourceInfo(), input_section());
+    input_section()->Add<ContinuousAssignment>(SourceInfo(), wire, port);
+    return wire;
   }
   return module_->AddInput(SanitizeIdentifier(name), raw_bits_type,
                            SourceInfo());

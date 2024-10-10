@@ -62,6 +62,10 @@ module my_block(
   input  pkg::small_arr_t y,
   output  pkg::big_arr_t out
 );
+  wire [159:0] x_flattened;
+  assign x_flattened = x;
+  wire [159:0] y_flattened;
+  assign y_flattened = y;
   wire [31:0] instantiation_output_43[5];
   wire [31:0] instantiation_output_44[5];
   wire [31:0] instantiation_output_47[10];
@@ -69,16 +73,16 @@ module my_block(
   wire [31:0] tuple_index_40[5];
   wire [31:0] array_concat_45[10];
 
-  assign tuple_index_38[0] = x[31:0];
-  assign tuple_index_38[1] = x[63:32];
-  assign tuple_index_38[2] = x[95:64];
-  assign tuple_index_38[3] = x[127:96];
-  assign tuple_index_38[4] = x[159:128];
-  assign tuple_index_40[0] = y[31:0];
-  assign tuple_index_40[1] = y[63:32];
-  assign tuple_index_40[2] = y[95:64];
-  assign tuple_index_40[3] = y[127:96];
-  assign tuple_index_40[4] = y[159:128];
+  assign tuple_index_38[0] = x_flattened[31:0];
+  assign tuple_index_38[1] = x_flattened[63:32];
+  assign tuple_index_38[2] = x_flattened[95:64];
+  assign tuple_index_38[3] = x_flattened[127:96];
+  assign tuple_index_38[4] = x_flattened[159:128];
+  assign tuple_index_40[0] = y_flattened[31:0];
+  assign tuple_index_40[1] = y_flattened[63:32];
+  assign tuple_index_40[2] = y_flattened[95:64];
+  assign tuple_index_40[3] = y_flattened[127:96];
+  assign tuple_index_40[4] = y_flattened[159:128];
   assign array_concat_45[0] = instantiation_output_43[0];
   assign array_concat_45[1] = instantiation_output_43[1];
   assign array_concat_45[2] = instantiation_output_43[2];
