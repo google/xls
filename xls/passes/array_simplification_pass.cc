@@ -608,6 +608,30 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
     return SimplifyResult::Changed({array_update});
   }
 
+  // An array update with the update value being an 'array index' on the to
+  // update array at the same index as the update can be replaced with the
+  // original array.
+  //
+  // arr := ARRAY...
+  // idx := INDEX...
+  // array-update(arr, array-index(arr, idx) idx)) -> arr
+  if (array_update->update_value()->Is<ArrayIndex>() &&
+      array_update->update_value()->As<ArrayIndex>()->array() ==
+          array_update->array_to_update()) {
+    ArrayIndex* val = array_update->update_value()->As<ArrayIndex>();
+    bool indices_are_equal =
+        val->indices().size() == array_update->indices().size();
+    for (int64_t i = 0; indices_are_equal && i < val->indices().size(); ++i) {
+      indices_are_equal = query_engine.NodesKnownUnsignedEquals(
+          val->indices()[i], array_update->indices()[i]);
+    }
+    if (indices_are_equal) {
+      XLS_RETURN_IF_ERROR(
+          array_update->ReplaceUsesWith(array_update->array_to_update()));
+      return SimplifyResult::Changed({});
+    }
+  }
+
   // Try to simplify a kArray operation followed by an ArrayUpdate operation
   // into a single kArray operation which uses the updated value. For example:
   //

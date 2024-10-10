@@ -1413,5 +1413,21 @@ TEST_F(ArraySimplificationPassTest, RemovalOfUpdate) {
   EXPECT_THAT(f->nodes(), Each(Not(m::Array())));
 }
 
+TEST_F(ArraySimplificationPassTest, NoOpArrayUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue arr = fb.Param("array", p->GetArrayType(10, p->GetBitsType(32)));
+  BValue idx = fb.Param("upd_idx", p->GetBitsType(32));
+  BValue val_at_idx = fb.ArrayIndex(arr, {idx});
+  BValue update_arr = fb.ArrayUpdate(arr, val_at_idx, {idx});
+  fb.ArrayIndex(update_arr, {fb.Param("second_idx", p->GetBitsType(32))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(m::Param("array"), {m::Param("second_idx")}));
+}
+
 }  // namespace
 }  // namespace xls
