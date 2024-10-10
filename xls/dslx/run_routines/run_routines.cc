@@ -368,7 +368,7 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
                                   Package* ir_package, QuickCheck* quickcheck,
                                   TypeInfo* type_info, int64_t seed) {
   // Note: DSLX function.
-  Function* fn = quickcheck->f();
+  Function* fn = quickcheck->fn();
 
   XLS_ASSIGN_OR_RETURN(QuickcheckIrFn qc_fn,
                        FindQuickcheckIrFn(fn, ir_package));
@@ -523,7 +523,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
        entry_module->GetQuickCheckNames()) {
     QuickCheck* quickcheck = qcs.at(quickcheck_name);
     const Pos& start_pos = quickcheck->span().start();
-    Function* f = quickcheck->f();
+    Function* f = quickcheck->fn();
     VLOG(1) << "Found quickcheck function: " << f->identifier();
     std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name << '\n';
     absl::Status status;

@@ -1927,9 +1927,12 @@ VerbatimNode::~VerbatimNode() = default;
 
 // -- class QuickCheck
 
-QuickCheck::QuickCheck(Module* owner, Span span, Function* f,
+QuickCheck::QuickCheck(Module* owner, Span span, Function* fn,
                        std::optional<int64_t> test_count)
-    : AstNode(owner), span_(std::move(span)), f_(f), test_count_(test_count) {}
+    : AstNode(owner),
+      span_(std::move(span)),
+      fn_(fn),
+      test_count_(test_count) {}
 
 QuickCheck::~QuickCheck() = default;
 
@@ -1938,7 +1941,8 @@ std::string QuickCheck::ToString() const {
   if (test_count_.has_value()) {
     test_count_str = absl::StrFormat("(test_count=%d)", *test_count_);
   }
-  return absl::StrFormat("#[quickcheck%s]\n%s", test_count_str, f_->ToString());
+  return absl::StrFormat("#[quickcheck%s]\n%s", test_count_str,
+                         fn_->ToString());
 }
 
 // -- class TupleIndex

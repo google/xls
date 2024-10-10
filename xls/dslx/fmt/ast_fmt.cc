@@ -2229,7 +2229,7 @@ static DocRef Fmt(const QuickCheck& n, const Comments& comments,
     pieces.push_back(arena.MakeText("#[quickcheck]"));
   }
   pieces.push_back(arena.hard_line());
-  pieces.push_back(Fmt(*n.f(), comments, arena));
+  pieces.push_back(Fmt(*n.fn(), comments, arena));
   return ConcatN(arena, pieces);
 }
 

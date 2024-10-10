@@ -2671,13 +2671,13 @@ class QuickCheck : public AstNode {
 
   static constexpr int64_t kDefaultTestCount = 1000;
 
-  QuickCheck(Module* owner, Span span, Function* f,
+  QuickCheck(Module* owner, Span span, Function* fn,
              std::optional<int64_t> test_count = std::nullopt);
 
   ~QuickCheck() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kQuickCheck; }
-  NameDef* name_def() const { return f_->name_def(); }
+  NameDef* name_def() const { return fn_->name_def(); }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleQuickCheck(this);
@@ -2687,12 +2687,12 @@ class QuickCheck : public AstNode {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {f_};
+    return {fn_};
   }
 
-  const std::string& identifier() const { return f_->identifier(); }
+  const std::string& identifier() const { return fn_->identifier(); }
 
-  Function* f() const { return f_; }
+  Function* fn() const { return fn_; }
   int64_t GetTestCountOrDefault() const {
     return test_count_ ? *test_count_ : kDefaultTestCount;
   }
@@ -2702,7 +2702,7 @@ class QuickCheck : public AstNode {
 
  private:
   Span span_;
-  Function* f_;
+  Function* fn_;
   std::optional<int64_t> test_count_;
 };
 

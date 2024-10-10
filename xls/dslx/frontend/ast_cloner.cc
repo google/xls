@@ -577,7 +577,7 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleQuickCheck(const QuickCheck* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] = module_->Make<QuickCheck>(
-        n->GetSpan().value(), down_cast<Function*>(old_to_new_.at(n->f())),
+        n->GetSpan().value(), down_cast<Function*>(old_to_new_.at(n->fn())),
         n->test_count());
     return absl::OkStatus();
   }

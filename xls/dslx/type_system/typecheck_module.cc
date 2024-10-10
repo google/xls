@@ -174,7 +174,7 @@ static absl::Status TypecheckProcStmts(Proc* p, DeduceCtx* ctx) {
 }
 
 static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
-  Function* quickcheck_f_ptr = qc->f();
+  Function* quickcheck_f_ptr = qc->fn();
   XLS_RET_CHECK(quickcheck_f_ptr != nullptr);
   Function& quickcheck_f = *quickcheck_f_ptr;
 

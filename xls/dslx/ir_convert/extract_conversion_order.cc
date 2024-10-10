@@ -783,7 +783,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
         Visitor{
             handle_function,
             [&](QuickCheck* quickcheck) -> absl::Status {
-              Function* function = quickcheck->f();
+              Function* function = quickcheck->fn();
               XLS_RET_CHECK(!function->IsParametric()) << function->ToString();
 
               return AddToReady(function, /*invocation=*/nullptr, module,
