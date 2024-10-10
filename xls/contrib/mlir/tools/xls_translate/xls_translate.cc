@@ -85,11 +85,11 @@ using ValueMap = DenseMap<Value, BValue>;
 
 // Tracks imported package and the renaming due to import.
 struct PackageInfo {
-  PackageInfo(std::unique_ptr<Package> p, Package::PackageMergeResult m,
+  PackageInfo(std::shared_ptr<const Package> p, Package::PackageMergeResult m,
               ImportDslxFilePackageOp op)
       : package(std::move(p)), merge_result(std::move(m)), op(op) {}
 
-  std::unique_ptr<Package> package;
+  std::shared_ptr<const Package> package;
   Package::PackageMergeResult merge_result;
   ImportDslxFilePackageOp op;
 };
@@ -897,22 +897,16 @@ FailureOr<std::filesystem::path> findDslxFile(
 
 FailureOr<PackageInfo> importDslxFile(ImportDslxFilePackageOp file_import_op,
                                       Package& package,
-                                      llvm::StringRef dslx_search_path) {
+                                      llvm::StringRef dslx_search_path,
+                                      DslxPackageCache& dslx_cache) {
   auto file_name =
       findDslxFile(file_import_op.getFilename().str(), dslx_search_path);
   if (failed(file_name)) {
     return failure();
   }
 
-  absl::StatusOr<std::string> package_string_or = ::xls::ConvertDslxPathToIr(
-      *file_name, ::xls::GetDefaultDslxStdlibPath(), {});
-  if (!package_string_or.ok()) {
-    llvm::errs() << "Failed to convert DSLX to IR: "
-                 << package_string_or.status().message() << "\n";
-    return failure();
-  }
-  absl::StatusOr<std::unique_ptr<Package>> package_or =
-      ::xls::ParsePackage(package_string_or.value(), std::nullopt);
+  absl::StatusOr<std::shared_ptr<const Package>> package_or =
+      dslx_cache.import(*file_name);
   if (!package_or.ok()) {
     llvm::errs() << "Failed to parse package: " << package_or.status().message()
                  << "\n";
@@ -1066,7 +1060,8 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
 }
 
 FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
-    Operation* op, llvm::StringRef dslx_search_path) {
+    Operation* op, llvm::StringRef dslx_search_path,
+    DslxPackageCache& dslx_cache) {
   // Treating the outer most module as a package.
   ModuleOp module = dyn_cast<ModuleOp>(op);
   if (!module) {
@@ -1112,8 +1107,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
   for (auto& op : module.getBodyRegion().front()) {
     // Handle file imports.
     if (auto file_import_op = dyn_cast<ImportDslxFilePackageOp>(op)) {
-      auto package_or =
-          importDslxFile(file_import_op, *package, dslx_search_path);
+      auto package_or = importDslxFile(file_import_op, *package,
+                                       dslx_search_path, dslx_cache);
       if (failed(package_or)) {
         return failure();
       }
@@ -1237,6 +1232,10 @@ LogicalResult setTop(Operation* op, std::string_view name, Package* package) {
 
 LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
                                     MlirXlsToXlsTranslateOptions options) {
+  DslxPackageCache maybe_cache;
+  if (options.dslx_cache == nullptr) {
+    options.dslx_cache = &maybe_cache;
+  }
   if (!options.main_function.empty() && options.privatize_and_dce_functions) {
     op->walk([&](FuncOp func) {
       if (func.isPrivate() || func.getName() == options.main_function) {
@@ -1251,7 +1250,8 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
     }
   }
 
-  auto package = mlirXlsToXls(op, options.dslx_search_path);
+  auto package =
+      mlirXlsToXls(op, options.dslx_search_path, *options.dslx_cache);
   if (failed(package) ||
       failed(setTop(op, options.main_function, package->get()))) {
     return failure();
@@ -1291,6 +1291,28 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
 
   output << xls_codegen_results->module_generator_result.verilog_text;
   return success();
+}
+
+absl::StatusOr<std::shared_ptr<const Package>> DslxPackageCache::import(
+    const std::string& fileName) {
+  auto it = cache.find(fileName);
+  if (it != cache.end()) {
+    return it->second;
+  }
+  absl::StatusOr<std::string> package_string_or = ::xls::ConvertDslxPathToIr(
+      fileName, ::xls::GetDefaultDslxStdlibPath(), {});
+  if (!package_string_or.ok()) {
+    return package_string_or.status();
+  }
+  absl::StatusOr<std::unique_ptr<Package>> package_or =
+      ::xls::ParsePackage(package_string_or.value(), std::nullopt);
+  if (!package_or.ok()) {
+    return package_or.status();
+  }
+
+  std::shared_ptr<const Package> package = std::move(package_or.value());
+  cache[fileName] = package;
+  return package;
 }
 
 }  // namespace mlir::xls

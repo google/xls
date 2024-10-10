@@ -15,6 +15,11 @@
 #ifndef GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_H_
 #define GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_H_
 
+#include <memory>
+#include <string>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 
@@ -26,7 +31,24 @@ namespace llvm {
 class raw_ostream;
 }  // namespace llvm
 
+namespace xls {
+class Package;
+}  // namespace xls
+
 namespace mlir::xls {
+
+// Caches DSLX translation results. DSLX translation is expensive, so this
+// avoids re-translating the same file multiple times across calls to
+// MlirXlsToXlsTranslate.
+class DslxPackageCache {
+ public:
+  // Imports `fileName` as a DSLX file.
+  absl::StatusOr<std::shared_ptr<const ::xls::Package>> import(
+      const std::string& fileName);
+
+ private:
+  absl::flat_hash_map<std::string, std::shared_ptr<const ::xls::Package>> cache;
+};
 
 struct MlirXlsToXlsTranslateOptions {
   // The name of the main function to translate.
@@ -43,6 +65,9 @@ struct MlirXlsToXlsTranslateOptions {
 
   // Whether to privatize all non-top functions and run SymbolDCE first.
   bool privatize_and_dce_functions = false;
+
+  // Optional cache for DSLX translation results.
+  DslxPackageCache* dslx_cache = nullptr;
 };
 
 // Translates an operation with XLS dialect to DSLX.
