@@ -160,3 +160,8 @@ func.func @forloop(%arg0: i32, %arg1: i8, %arg2: i9) -> i32 attributes {xls = tr
   } { trip_count = 6 : i64 } : (i32, i8, i9) -> i32
   return %0 : i32
 }
+
+// INDEX32-LABEL:   xls.chan @mychan : i32
+// INDEX64-LABEL:   xls.chan @mychan : i64
+xls.chan @mychan : index
+

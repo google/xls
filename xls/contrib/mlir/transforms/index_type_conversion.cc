@@ -225,24 +225,27 @@ class LegalizeGeneralOps : public ConversionPattern {
   }
 };
 
+class LegalizeChanOp : public OpConversionPattern<ChanOp> {
+ public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      ChanOp op, OpAdaptor /*adaptor*/,
+      ConversionPatternRewriter &rewriter) const override {
+    Type resultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<xls::ChanOp>(op, op.getSymName(), resultType,
+                                             op.getSendSupported(),
+                                             op.getRecvSupported());
+    return success();
+  }
+};
+
 class IndexTypeConversionPass
     : public impl::IndexTypeConversionPassBase<IndexTypeConversionPass> {
  public:
   using IndexTypeConversionPassBase::IndexTypeConversionPassBase;
 
   void runOnOperation() override {
-    getOperation()->walk([&](Operation *op) {
-      if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
-        if (interface.isSupportedRegion()) {
-          runOnOperation(interface);
-          return WalkResult::skip();
-        }
-      }
-      return WalkResult::advance();
-    });
-  }
-
-  void runOnOperation(XlsRegionOpInterface op) {
     MLIRContext &ctx = getContext();
     IndexTypeConverter typeConverter(ctx, indexTypeBitWidth);
     ConversionTarget target(ctx);
@@ -252,11 +255,15 @@ class IndexTypeConversionPass
                return typeConverter.isLegal(&region);
              });
     });
+    target.addDynamicallyLegalOp<ChanOp>([&](ChanOp op) {
+      return typeConverter.convertType(op.getType()) == op.getType();
+    });
 
     RewritePatternSet patterns(&getContext());
     patterns.add<LegalizeIndexCast, LegalizeIndexCastUI, LegalizeConstantIndex,
-                 LegalizeGeneralOps>(typeConverter, &ctx);
-    if (failed(mlir::applyFullConversion(op, target, std::move(patterns)))) {
+                 LegalizeGeneralOps, LegalizeChanOp>(typeConverter, &ctx);
+    if (failed(mlir::applyFullConversion(getOperation(), target,
+                                         std::move(patterns)))) {
       signalPassFailure();
     }
   }
