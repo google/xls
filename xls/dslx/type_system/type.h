@@ -129,44 +129,6 @@ class TypeDim {
   std::variant<InterpValue, OwnedParametric> value_;
 };
 
-// A utility for building a `ParametricExpression::Env` using `TypeDim` objects.
-// Because a `ParametricExpression::Env` cannot own the `ParametricExpression`
-// objects in it, the `TypeDimMap` also contains a backing store which owns
-// those.
-class TypeDimMap {
- public:
-  TypeDimMap() = default;
-
-  // For the use case where the caller is starting with a map of known concrete
-  // values, or has nothing but that. Equivalent to constructing and then
-  // `Insert()`ing them all.
-  explicit TypeDimMap(
-      const absl::flat_hash_map<std::string, InterpValue>& values);
-
-  // Disallow copy; if we wanted this to work, we'd need to fix up `env_` in the
-  // copy to point to its own `dims_`.
-  TypeDimMap(const TypeDimMap&) = delete;
-  TypeDimMap& operator=(const TypeDimMap&) = delete;
-
-  // Inserts a `dim` that has the given `identifier` (according to e.g. the
-  // parametric bindings of a struct definition).
-  void Insert(std::string_view identifier, TypeDim dim);
-
-  // Returns an environment that can be used to evaluate a
-  // `ParametricExpression` against the values in this map. The returned object
-  // is only valid during the lifetime of this `TypeDimMap`.
-  const ParametricExpression::Env& env() const { return env_; }
-
-  // Returns a direct view of the dims that have been inserted.
-  const absl::flat_hash_map<std::string, TypeDim>& dims() const {
-    return dims_;
-  }
-
- private:
-  absl::flat_hash_map<std::string, TypeDim> dims_;
-  ParametricExpression::Env env_;
-};
-
 inline std::ostream& operator<<(std::ostream& os, const TypeDim& ctd) {
   os << ctd.ToString();
   return os;
@@ -373,13 +335,6 @@ class Type {
     return CloneToUnique();
   }
 
-  // Returns a clone of this type that has any previously added nominal type
-  // dims as resolved as possible using the given environment.
-  virtual std::unique_ptr<Type> ResolveNominalTypeDims(
-      const ParametricExpression::Env&) const {
-    return CloneToUnique();
-  }
-
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const Type& other) const;
 
@@ -447,13 +402,10 @@ class MetaType : public Type {
   }
 
   std::unique_ptr<Type> AddNominalTypeDims(
-      const absl::flat_hash_map<std::string, TypeDim>& dims) const override {
-    return std::make_unique<MetaType>(wrapped_->AddNominalTypeDims(dims));
-  }
-
-  std::unique_ptr<Type> ResolveNominalTypeDims(
-      const ParametricExpression::Env& env) const override {
-    return std::make_unique<MetaType>(wrapped_->ResolveNominalTypeDims(env));
+      const absl::flat_hash_map<std::string, TypeDim>& dims_by_identifier)
+      const override {
+    return std::make_unique<MetaType>(
+        wrapped_->AddNominalTypeDims(dims_by_identifier));
   }
 
   std::unique_ptr<Type> CloneToUnique() const override {
@@ -602,10 +554,8 @@ class StructType : public Type {
   const std::vector<std::unique_ptr<Type>>& members() const { return members_; }
 
   std::unique_ptr<Type> AddNominalTypeDims(
-      const absl::flat_hash_map<std::string, TypeDim>& dims) const override;
-
-  std::unique_ptr<Type> ResolveNominalTypeDims(
-      const ParametricExpression::Env&) const override;
+      const absl::flat_hash_map<std::string, TypeDim>& dims_by_identifier)
+      const override;
 
  private:
   std::vector<std::unique_ptr<Type>> members_;
