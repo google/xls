@@ -43,14 +43,6 @@
 namespace xls::dslx {
 namespace {
 
-ProcConfigValue ChannelOrArrayToProcConfigValue(
-    ChannelOrArray channel_or_array) {
-  if (std::holds_alternative<Channel*>(channel_or_array)) {
-    return std::get<Channel*>(channel_or_array);
-  }
-  return std::get<ChannelArray*>(channel_or_array);
-}
-
 std::optional<ChannelOrArray> ProcConfigValueToChannelOrArray(
     ProcConfigValue value) {
   if (std::holds_alternative<Channel*>(value)) {

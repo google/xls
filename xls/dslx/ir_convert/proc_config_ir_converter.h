@@ -37,6 +37,16 @@ namespace xls::dslx {
 using ProcConfigValue = std::variant<Value, Channel*, ChannelArray*>;
 using MemberNameToValue = absl::flat_hash_map<std::string, ProcConfigValue>;
 
+// Converts a `ChannelOrArray` dealt out by a `ChannelScope` into a
+// `ProcConfigValue` that is usable in IR conversion data structures.
+inline ProcConfigValue ChannelOrArrayToProcConfigValue(
+    ChannelOrArray channel_or_array) {
+  if (std::holds_alternative<Channel*>(channel_or_array)) {
+    return std::get<Channel*>(channel_or_array);
+  }
+  return std::get<ChannelArray*>(channel_or_array);
+}
+
 // ProcConversionData holds various information about individual proc instances
 // needed throughout the conversion process, packaged together to avoid
 // overcomplicating fn signatures.

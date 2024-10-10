@@ -45,7 +45,6 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/create_import_data.h"
@@ -62,7 +61,6 @@
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"
-#include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
@@ -70,8 +68,6 @@
 #include "xls/dslx/type_system/typecheck_module.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
-#include "xls/ir/channel.h"
-#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_scanner.h"
@@ -223,42 +219,16 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
 // needs to communicate with the outside world somehow.
 absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
                                     const ProcId& proc_id, TypeInfo* type_info,
-                                    const PackageData& package_data,
-                                    ProcConversionData* proc_data) {
+                                    ProcConversionData* proc_data,
+                                    ChannelScope* channel_scope) {
   for (const Param* param : params) {
     TypeAnnotation* type = param->type_annotation();
-    if (auto* channel_type = dynamic_cast<ChannelTypeAnnotation*>(type);
-        type != nullptr) {
-      auto maybe_type = type_info->GetItem(channel_type->payload());
-      XLS_RET_CHECK(maybe_type.has_value());
-      Type* ct = maybe_type.value();
-      XLS_ASSIGN_OR_RETURN(xls::Type * ir_type,
-                           TypeToIr(package_data.conversion_info->package.get(),
-                                    *ct, ParametricEnv()));
-      ChannelOps op = channel_type->direction() == ChannelDirection::kIn
-                          ? ChannelOps::kReceiveOnly
-                          : ChannelOps::kSendOnly;
-      std::string channel_name =
-          absl::StrCat(package_data.conversion_info->package->name(), "__",
-                       param->identifier());
+    if (dynamic_cast<ChannelTypeAnnotation*>(type) != nullptr) {
       XLS_ASSIGN_OR_RETURN(
-          StreamingChannel * channel,
-          package_data.conversion_info->package->CreateStreamingChannel(
-              channel_name, op, ir_type));
-      proc_data->id_to_config_args[proc_id].push_back(channel);
-      PackageInterfaceProto::Channel* proto_chan =
-          package_data.conversion_info->interface.add_channels();
-      *proto_chan->mutable_name() = channel_name;
-      *proto_chan->mutable_type() = ir_type->ToProto();
-      proto_chan->set_direction(channel_type->direction() ==
-                                        ChannelDirection::kIn
-                                    ? PackageInterfaceProto::Channel::IN
-                                    : PackageInterfaceProto::Channel::OUT);
-      XLS_ASSIGN_OR_RETURN(std::optional<std::string> first_sv_type,
-                           type_info->FindSvType(channel_type->payload()));
-      if (first_sv_type) {
-        *proto_chan->mutable_sv_type() = *first_sv_type;
-      }
+          ChannelOrArray channel_or_array,
+          channel_scope->DefineBoundaryChannelOrArray(param, type_info));
+      proc_data->id_to_config_args[proc_id].push_back(
+          ChannelOrArrayToProcConfigValue(channel_or_array));
     }
   }
   return absl::OkStatus();
@@ -341,9 +311,11 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   if (first_proc_config != nullptr) {
     XLS_RET_CHECK(first_proc_config->proc_id().has_value());
     ProcId proc_id = first_proc_config->proc_id().value();
+    channel_scope.EnterFunctionContext(first_proc_config->type_info(),
+                                       first_proc_config->parametric_env());
     XLS_RETURN_IF_ERROR(CreateBoundaryChannels(
         first_proc_config->f()->params(), proc_id,
-        first_proc_config->type_info(), package_data, &proc_data));
+        first_proc_config->type_info(), &proc_data, &channel_scope));
   }
 
   for (const ConversionRecord& record : order) {

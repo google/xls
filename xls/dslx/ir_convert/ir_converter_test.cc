@@ -2506,6 +2506,39 @@ TEST(IrConverterTest, PassChannelArraysAcrossMultipleSpawns) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ReceiveFromBoundaryChannelArrayElement) {
+  constexpr std::string_view kProgram = R"(
+  proc SomeProc {
+    some_chan_array: chan<u32>[2] in;
+
+    config(some_chan_array: chan<u32>[2] in) {
+        (
+            some_chan_array,
+        )
+    }
+
+    init {  }
+
+    next(state: ()) {
+        let some_tok = token();
+        let (tok_0, _) = recv(some_tok, some_chan_array[0]);
+        let (tok_1, _) = recv(some_tok, some_chan_array[1]);
+        join(tok_0, tok_1);
+    }
+  }
+  )";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "SomeProc", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, TopProcWithState) {
   constexpr std::string_view kProgram = R"(
 proc main {

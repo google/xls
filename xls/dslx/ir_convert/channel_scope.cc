@@ -33,6 +33,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
@@ -40,6 +41,8 @@
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -64,31 +67,105 @@ ChannelScope::ChannelScope(PackageConversionData* conversion_info,
 
 absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArray(
     const ChannelDecl* decl) {
-  VLOG(4) << "ChannelScope::HandleChannelDecl: " << decl->ToString();
+  VLOG(4) << "ChannelScope::DefineChannelOrArray: " << decl->ToString();
   CHECK(function_context_.has_value());
-  XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
-                       CreateBaseChannelName(decl));
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue name_interp_value,
+      ConstexprEvaluator::EvaluateToValue(
+          import_data_, function_context_->type_info,
+          /*warning_collector=*/nullptr, function_context_->bindings,
+          &decl->channel_name_expr()));
+  XLS_ASSIGN_OR_RETURN(std::string short_name,
+                       InterpValueAsString(name_interp_value));
   XLS_ASSIGN_OR_RETURN(xls::Type * type, GetChannelType(decl));
   XLS_ASSIGN_OR_RETURN(std::optional<FifoConfig> fifo_config,
                        CreateFifoConfig(decl));
+  XLS_ASSIGN_OR_RETURN(
+      ChannelOrArray channel_or_array,
+      DefineChannelOrArrayInternal(short_name, ChannelOps::kSendReceive, type,
+                                   std::move(fifo_config), decl->dims()));
+  decl_to_channel_or_array_[decl] = channel_or_array;
+  return channel_or_array;
+}
+
+absl::StatusOr<ChannelOrArray> ChannelScope::DefineChannelOrArrayInternal(
+    std::string_view short_name, ChannelOps ops, xls::Type* type,
+    std::optional<FifoConfig> fifo_config,
+    const std::optional<std::vector<Expr*>>& dims) {
+  XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
+                       CreateBaseChannelName(short_name));
   std::vector<std::string> channel_names;
-  if (!decl->dims().has_value()) {
-    XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         CreateChannel(base_channel_name, type, fifo_config));
-    decl_to_channel_or_array_[decl] = channel;
+  if (!dims.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        Channel * channel,
+        CreateChannel(base_channel_name, ops, type, fifo_config));
     return channel;
   }
   ChannelArray* array = &arrays_.emplace_back(ChannelArray(base_channel_name));
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> suffixes,
-                       CreateAllArrayElementSuffixes(*decl->dims()));
+                       CreateAllArrayElementSuffixes(*dims));
   for (const std::string& suffix : suffixes) {
     std::string channel_name = absl::StrCat(base_channel_name, "__", suffix);
     XLS_ASSIGN_OR_RETURN(Channel * channel,
-                         CreateChannel(channel_name, type, fifo_config));
+                         CreateChannel(channel_name, ops, type, fifo_config));
     array->AddChannel(channel_name, channel);
   }
-  decl_to_channel_or_array_[decl] = array;
   return array;
+}
+
+absl::StatusOr<ChannelOrArray> ChannelScope::DefineBoundaryChannelOrArray(
+    const Param* param, TypeInfo* type_info) {
+  VLOG(4) << "ChannelScope::DefineBoundaryChannelOrArray: "
+          << param->ToString();
+  auto* type_annot =
+      dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation());
+  XLS_RET_CHECK(type_annot != nullptr);
+  std::optional<Type*> type = type_info->GetItem(type_annot->payload());
+  XLS_RET_CHECK(type.has_value());
+  XLS_ASSIGN_OR_RETURN(
+      xls::Type * ir_type,
+      TypeToIr(conversion_info_->package.get(), **type, ParametricEnv()));
+  ChannelOps op = type_annot->direction() == ChannelDirection::kIn
+                      ? ChannelOps::kReceiveOnly
+                      : ChannelOps::kSendOnly;
+  XLS_ASSIGN_OR_RETURN(ChannelOrArray channel_or_array,
+                       DefineChannelOrArrayInternal(
+                           param->identifier(), op, ir_type,
+                           /*fifo_config=*/std::nullopt, type_annot->dims()));
+  XLS_RETURN_IF_ERROR(DefineProtoChannelOrArray(channel_or_array, type_annot,
+                                                ir_type, type_info));
+  return channel_or_array;
+}
+
+absl::Status ChannelScope::DefineProtoChannelOrArray(
+    ChannelOrArray channel_or_array, dslx::ChannelTypeAnnotation* type_annot,
+    xls::Type* ir_type, TypeInfo* type_info) {
+  if (std::holds_alternative<ChannelArray*>(channel_or_array)) {
+    auto* array = std::get<ChannelArray*>(channel_or_array);
+    for (const std::string& name : array->flattened_names_in_order()) {
+      std::optional<Channel*> channel = array->FindChannel(name);
+      XLS_RET_CHECK(channel.has_value());
+      XLS_RETURN_IF_ERROR(
+          DefineProtoChannelOrArray(*channel, type_annot, ir_type, type_info));
+    }
+    return absl::OkStatus();
+  }
+  Channel* channel = std::get<Channel*>(channel_or_array);
+  PackageInterfaceProto::Channel* proto_chan =
+      conversion_info_->interface.add_channels();
+  *proto_chan->mutable_name() = channel->name();
+  *proto_chan->mutable_type() = ir_type->ToProto();
+  // Channels at the boundary only have one direction, with the other direction
+  // being used externally to the DSLX code.
+  proto_chan->set_direction(type_annot->direction() == ChannelDirection::kIn
+                                ? PackageInterfaceProto::Channel::IN
+                                : PackageInterfaceProto::Channel::OUT);
+  XLS_ASSIGN_OR_RETURN(std::optional<std::string> first_sv_type,
+                       type_info->FindSvType(type_annot->payload()));
+  if (first_sv_type) {
+    *proto_chan->mutable_sv_type() = *first_sv_type;
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<ChannelOrArray>
@@ -110,7 +187,8 @@ absl::Status ChannelScope::AssociateWithExistingChannelOrArray(
     const NameDef* name_def, ChannelOrArray channel_or_array) {
   VLOG(4) << "ChannelScope::AssociateWithExistingChannelOrArray : "
           << name_def->ToString() << " -> "
-          << GetBaseNameForChannelOrArray(channel_or_array);
+          << GetBaseNameForChannelOrArray(channel_or_array) << " (array: "
+          << std::holds_alternative<ChannelArray*>(channel_or_array) << ")";
   name_def_to_channel_or_array_[name_def] = channel_or_array;
   return absl::OkStatus();
 }
@@ -200,24 +278,17 @@ ChannelScope::CreateAllArrayElementSuffixes(const std::vector<Expr*>& dims) {
 }
 
 absl::StatusOr<std::string> ChannelScope::CreateBaseChannelName(
-    const ChannelDecl* decl) {
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue name_interp_value,
-      ConstexprEvaluator::EvaluateToValue(
-          import_data_, function_context_->type_info,
-          /*warning_collector=*/nullptr, function_context_->bindings,
-          &decl->channel_name_expr()));
-  XLS_ASSIGN_OR_RETURN(std::string base_channel_name,
-                       InterpValueAsString(name_interp_value));
+    std::string_view short_name) {
   return channel_name_uniquer_.GetSanitizedUniqueName(
-      absl::StrCat(conversion_info_->package->name(), "__", base_channel_name));
+      absl::StrCat(conversion_info_->package->name(), "__", short_name));
 }
 
 absl::StatusOr<xls::Type*> ChannelScope::GetChannelType(
     const ChannelDecl* decl) const {
-  auto maybe_type = function_context_->type_info->GetItem(decl->type());
-  XLS_RET_CHECK(maybe_type.has_value());
-  return TypeToIr(conversion_info_->package.get(), *maybe_type.value(),
+  std::optional<Type*> type =
+      function_context_->type_info->GetItem(decl->type());
+  XLS_RET_CHECK(type.has_value());
+  return TypeToIr(conversion_info_->package.get(), **type,
                   function_context_->bindings);
 }
 
@@ -259,10 +330,10 @@ absl::StatusOr<std::optional<FifoConfig>> ChannelScope::CreateFifoConfig(
 }
 
 absl::StatusOr<Channel*> ChannelScope::CreateChannel(
-    std::string_view name, xls::Type* type,
+    std::string_view name, ChannelOps ops, xls::Type* type,
     std::optional<FifoConfig> fifo_config) {
   return conversion_info_->package->CreateStreamingChannel(
-      name, ChannelOps::kSendReceive, type,
+      name, ops, type,
       /*initial_values=*/{},
       /*fifo_config=*/fifo_config);
 }

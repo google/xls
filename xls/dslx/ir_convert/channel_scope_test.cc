@@ -25,7 +25,9 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -40,7 +42,9 @@
 namespace xls::dslx {
 namespace {
 
+using proto_testing::EqualsProto;
 using status_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 
 constexpr std::string_view kPackageName = "the_package";
@@ -75,6 +79,18 @@ class ChannelScopeTest : public ::testing::Test {
     String* name_expr = module_->Make<String>(Span::Fake(), name);
     return module_->Make<ChannelDecl>(Span::Fake(), data_type_annot, dims,
                                       /*fifo_depth=*/std::nullopt, *name_expr);
+  }
+
+  Param* MakeU32Param(
+      std::string_view name, ChannelDirection direction,
+      const std::optional<std::vector<Expr*>>& dims = std::nullopt) {
+    TypeAnnotation* data_type_annot = GetU32TypeAnnotation();
+    type_info_->SetItem(data_type_annot, MetaType(BitsType::MakeU32()));
+    NameDef* name_def =
+        module_->Make<NameDef>(Span::Fake(), std::string(name), nullptr);
+    TypeAnnotation* channel_type_annot = module_->Make<ChannelTypeAnnotation>(
+        Span::Fake(), direction, data_type_annot, dims);
+    return module_->Make<Param>(name_def, channel_type_annot);
   }
 
   Number* MakeU32(std::string_view value) {
@@ -125,6 +141,59 @@ TEST_F(ChannelScopeTest, DefineChannelArray) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
+}
+
+TEST_F(ChannelScopeTest, DefineBoundaryChannel) {
+  Param* param = MakeU32Param("the_channel", ChannelDirection::kIn);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelOrArray result,
+      scope_->DefineBoundaryChannelOrArray(param, type_info_));
+  EXPECT_TRUE(std::holds_alternative<Channel*>(result));
+  EXPECT_THAT(conv_.interface.channels(), ElementsAre(EqualsProto(R"pb(
+                name: "the_package__the_channel"
+                type { type_enum: BITS bit_count: 32 }
+                direction: IN
+              )pb")));
+}
+
+TEST_F(ChannelScopeTest, DefineBoundaryInputChannelArray) {
+  std::vector<Expr*> dims = {MakeU32("2")};
+  Param* param = MakeU32Param("the_channel", ChannelDirection::kIn, dims);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelOrArray result,
+      scope_->DefineBoundaryChannelOrArray(param, type_info_));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
+  EXPECT_THAT(conv_.interface.channels(),
+              ElementsAre(EqualsProto(R"pb(
+                            name: "the_package__the_channel__0"
+                            type { type_enum: BITS bit_count: 32 }
+                            direction: IN
+                          )pb"),
+                          EqualsProto(R"pb(
+                            name: "the_package__the_channel__1"
+                            type { type_enum: BITS bit_count: 32 }
+                            direction: IN
+                          )pb")));
+}
+
+TEST_F(ChannelScopeTest, DefineBoundaryOutputChannelArray) {
+  std::vector<Expr*> dims = {MakeU32("2")};
+  Param* param = MakeU32Param("the_channel", ChannelDirection::kOut, dims);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelOrArray result,
+      scope_->DefineBoundaryChannelOrArray(param, type_info_));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
+  EXPECT_THAT(conv_.interface.channels(),
+              ElementsAre(EqualsProto(R"pb(
+                            name: "the_package__the_channel__0"
+                            type { type_enum: BITS bit_count: 32 }
+                            direction: OUT
+                          )pb"),
+                          EqualsProto(R"pb(
+                            name: "the_package__the_channel__1"
+                            type { type_enum: BITS bit_count: 32 }
+                            direction: OUT
+                          )pb")));
 }
 
 TEST_F(ChannelScopeTest, AssociateWithExistingChannelDecl) {
