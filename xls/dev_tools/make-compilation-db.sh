@@ -19,7 +19,7 @@ set -e
 readonly OUTPUT_BASE="$(bazel info output_base)"
 
 readonly COMPDB_SCRIPT="${OUTPUT_BASE}/external/com_grail_bazel_compdb/generate.py"
-[ -r "${COMPDB_SCRIPT}" ] || bazel fetch @com_grail_bazel_compdb//...
+[ -r "${COMPDB_SCRIPT}" ] || bazel fetch --noshow_progress @com_grail_bazel_compdb//...
 
 python3 "${COMPDB_SCRIPT}"
 
@@ -33,4 +33,3 @@ s/ -f[^ ]*/ /g             # remove all -fxyz options
 s/ --target[^ ]*/ /g       # target platform not needed, might confuse
 s/ -stdlib=libc++/ /       # otherwise, clang-tidy does not find c++ headers
 EOF
-
