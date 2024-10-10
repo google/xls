@@ -1,0 +1,59 @@
+name: Auto Review Analyzers
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      # Do not trigger action when docs are updated.
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  clang-tidy:
+    runs-on:
+      labels: ubuntu-22.04-64core
+
+    permissions:
+      # Open PR comments
+      pull-requests: write
+      # OPTIONAL: auto-closing conversations requires the `contents` permission
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+
+    - name: Fetch base branch to compare to
+      run: |
+        git remote add review-base "https://github.com/${{ github.event.pull_request.base.repo.full_name }}"
+        git fetch --no-tags --no-recurse-submodules review-base "${{ github.event.pull_request.base.ref }}"
+
+    - name: Restore Nightly Bazel Cache
+      uses: actions/cache/restore@v4
+      with:
+        path: "~/.cache/bazel"
+        key: bazel-cache-nightly-${{ runner.os }}-${{ github.sha }}
+        restore-keys: bazel-cache-nightly-${{ runner.os }}-
+
+    - name: Create compilation DB
+      run: |
+        xls/dev_tools/make-compilation-db.sh
+
+    - name: Run clang-tidy on diff
+      run: |
+        mkdir clang-tidy-result
+        git diff -U1000 "$(git merge-base HEAD review-base/${{ github.event.pull_request.base.ref }})" | xls/dev_tools/run-clang-tidy-diff.sh -p1 -path build -export-fixes clang-tidy-result/fixes.yml
+
+    - name: Run clang-tidy-pr-comments action
+      uses: hzeller/clang-tidy-pr-comments@master
+      with:
+        # Token to allow commenting
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        clang_tidy_fixes: clang-tidy-result/fixes.yml
+        request_changes: true
+        suggestions_per_comment: 10
