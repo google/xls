@@ -50,6 +50,7 @@
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_builder.h"
 
 namespace xls {
 
@@ -315,6 +316,8 @@ class BuilderBase {
   // Turns a literal value into a handle that can be used in this function being
   // built.
   BValue Literal(Value value, const SourceInfo& loc = SourceInfo(),
+                 std::string_view name = "");
+  BValue Literal(ValueBuilder value, const SourceInfo& loc = SourceInfo(),
                  std::string_view name = "");
   BValue Literal(Bits bits, const SourceInfo& loc = SourceInfo(),
                  std::string_view name = "") {
@@ -786,6 +789,11 @@ class ProcBuilder : public BuilderBase {
   // Adds a state element to the proc with the given initial value. Returns the
   // newly added state parameter.
   BValue StateElement(std::string_view name, const Value& initial_value,
+                      const SourceInfo& loc = SourceInfo());
+
+  // Adds a state element to the proc with the given initial value. Returns the
+  // newly added state parameter.
+  BValue StateElement(std::string_view name, const ValueBuilder& initial_value,
                       const SourceInfo& loc = SourceInfo());
 
   // Adds a state element to the proc with the given initial value. Returns the

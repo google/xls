@@ -52,6 +52,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_builder.h"
 #include "xls/ir/verifier.h"
 #include "xls/ir/verify_node.h"
 
@@ -164,6 +165,20 @@ BValue BuilderBase::Literal(Value value, const SourceInfo& loc,
     return BValue();
   }
   return AddNode<xls::Literal>(loc, value, name);
+}
+
+BValue BuilderBase::Literal(ValueBuilder value, const SourceInfo& loc,
+                            std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  absl::StatusOr<Value> built = value.Build();
+  if (!built.ok()) {
+    return SetError(absl::StrFormat("Unable to build literal value due to %s",
+                                    built.status().ToString()),
+                    loc);
+  }
+  return AddNode<xls::Literal>(loc, *built, name);
 }
 
 BValue BuilderBase::Negate(BValue x, const SourceInfo& loc,
@@ -1195,6 +1210,18 @@ BValue ProcBuilder::StateElement(std::string_view name,
   }
   state_params_.push_back(CreateBValue(param_or.value(), loc));
   return state_params_.back();
+}
+
+BValue ProcBuilder::StateElement(std::string_view name,
+                                 const ValueBuilder& initial_value,
+                                 const SourceInfo& loc) {
+  absl::StatusOr<Value> built = initial_value.Build();
+  if (built.ok()) {
+    return StateElement(name, *built, loc);
+  }
+  return SetError(absl::StrFormat("Unable to create initial value due to %s",
+                                  built.status().ToString()),
+                  loc);
 }
 
 BValue ProcBuilder::Next(BValue param, BValue value, std::optional<BValue> pred,

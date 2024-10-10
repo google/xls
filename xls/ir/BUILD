@@ -688,6 +688,7 @@ cc_library(
         ":source_location",
         ":type",
         ":value",
+        ":value_builder",
         ":verifier",
         "//xls/common:casts",
         "//xls/common:symbolized_stacktrace",
