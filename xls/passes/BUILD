@@ -52,6 +52,7 @@ cc_library(
         ":lut_conversion_pass",
         ":map_inlining_pass",
         ":narrowing_pass",
+        ":next_node_modernize_pass",
         ":next_value_optimization_pass",
         ":optimization_pass",
         ":optimization_pass_registry",
@@ -3294,6 +3295,38 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "next_node_modernize_pass",
+    srcs = ["next_node_modernize_pass.cc"],
+    hdrs = ["next_node_modernize_pass.h"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_registry",
+        ":pass_base",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "next_node_modernize_pass_test",
+    srcs = ["next_node_modernize_pass_test.cc"],
+    deps = [
+        ":next_node_modernize_pass",
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )

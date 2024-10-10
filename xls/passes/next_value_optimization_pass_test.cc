@@ -70,20 +70,6 @@ TEST_F(NextValueOptimizationPassTest, StatelessProc) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
-TEST_F(NextValueOptimizationPassTest, LegacyNextValue) {
-  auto p = CreatePackage();
-  ProcBuilder pb("p", p.get());
-  pb.StateElement("x", Value(UBits(0, 32)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(5, 32))}));
-  ASSERT_THAT(proc->GetStateParam(0), m::Param("x"));
-  ASSERT_THAT(proc->GetNextStateElement(0), m::Literal(5));
-
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("x"));
-  EXPECT_THAT(proc->next_values(),
-              ElementsAre(m::Next(m::Param(), m::Literal(5))));
-}
-
 TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
@@ -126,32 +112,6 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
-
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(
-      proc->next_values(),
-      UnorderedElementsAre(
-          m::Next(m::Param(), m::Literal(2), m::BitSlice(m::Param(), 0, 1)),
-          m::Next(m::Param(), m::Literal(1),
-                  m::And(m::BitSlice(m::Param(), 1, 1),
-                         m::Not(m::BitSlice(m::Param(), 0, 1)))),
-          m::Next(m::Param(), m::Literal(2),
-                  m::And(m::BitSlice(m::Param(), 2, 1),
-                         m::Not(m::OrReduce(m::BitSlice(m::Param(), 0, 2))))),
-          m::Next(m::Param(), m::Literal(0),
-                  m::Eq(m::Param(), m::Literal(0)))));
-}
-
-TEST_F(NextValueOptimizationPassTest, PrioritySelectLegacyNextValue) {
-  auto p = CreatePackage();
-  ProcBuilder pb("p", p.get());
-  BValue x = pb.StateElement("x", Value(UBits(0, 3)));
-  BValue priority_select = pb.PrioritySelect(
-      x,
-      std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
-                   pb.Literal(UBits(2, 3))}),
-      pb.Literal(UBits(0, 3)));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({priority_select}));
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(

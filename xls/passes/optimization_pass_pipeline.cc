@@ -55,6 +55,7 @@
 #include "xls/passes/lut_conversion_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
+#include "xls/passes/next_node_modernize_pass.h"
 #include "xls/passes/next_value_optimization_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -229,6 +230,8 @@ PostInliningPassGroup::PostInliningPassGroup(int64_t opt_level)
   Add<ProcStateFlatteningFixedPointPass>();
   Add<IdentityRemovalPass>();
   Add<DataflowSimplificationPass>();
+  // TODO(allight): Remove once full transition to next-op is complete.
+  Add<NextNodeModernizePass>();
   Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
 
   Add<ProcStateNarrowingPass>();

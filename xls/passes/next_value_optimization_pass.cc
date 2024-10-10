@@ -49,28 +49,6 @@ namespace xls {
 
 namespace {
 
-absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
-  CHECK(proc->next_values().empty());
-
-  for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-    Param* param = proc->GetStateParam(index);
-    Node* next_value = proc->GetNextStateElement(index);
-    XLS_RETURN_IF_ERROR(
-        proc->MakeNodeWithName<Next>(param->loc(), /*param=*/param,
-                                     /*value=*/next_value,
-                                     /*predicate=*/std::nullopt,
-                                     absl::StrCat(param->name(), "_next"))
-            .status());
-
-    if (next_value != static_cast<Node*>(param)) {
-      // Nontrivial next-state element; remove it so we pass verification.
-      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, param));
-    }
-  }
-
-  return proc->GetStateElementCount() > 0;
-}
-
 absl::Status RemoveNextValue(Proc* proc, Next* next,
                              absl::flat_hash_map<Next*, int64_t>& split_depth) {
   XLS_RETURN_IF_ERROR(
@@ -344,11 +322,6 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options,
     PassResults* results) const {
   bool changed = false;
-
-  if (proc->next_values().empty()) {
-    XLS_ASSIGN_OR_RETURN(bool modernize_changed, ModernizeNextValues(proc));
-    changed = changed || modernize_changed;
-  }
 
   StatelessQueryEngine query_engine;
 
