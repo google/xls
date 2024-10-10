@@ -1153,7 +1153,8 @@ DocRef Fmt(const Spawn& n, const Comments& comments, DocArena& arena) {
   );
 }
 
-DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
+DocRef FmtTupleWithoutComments(const XlsTuple& n, const Comments& comments,
+                               DocArena& arena) {
   // 1-element tuples are a special case- we always want a trailing comma and
   // never want it to be broken up. Handle separately here.
   if (n.members().size() == 1) {
@@ -1182,6 +1183,85 @@ DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
                                                })),
                  arena.cparen(),
              });
+}
+
+static bool CommentsWithin(const Span& span, const Comments& comments) {
+  std::vector<const CommentData*> items = comments.GetComments(span);
+  return !items.empty();
+}
+
+DocRef FmtTuple(const XlsTuple& n, const Comments& comments, DocArena& arena) {
+  Span tuple_span = n.span();
+  // Detect if there are any comments in the span of the tuple.
+  bool any_comments = CommentsWithin(tuple_span, comments);
+
+  if (!any_comments) {
+    // Do it the old way.
+    return FmtTupleWithoutComments(n, comments, arena);
+  }
+
+  // The general algorithm is:
+  //  1. Before each element, prepend comments between the end of the previous
+  //  element and the start of this one.
+  //  2. At the end of the tuple, append comments between the last element and
+  //  the end of the tuple.
+
+  std::vector<DocRef> pieces = {};
+  absl::Span<Expr* const> items = n.members();
+  Pos last_tuple_element_span_limit = tuple_span.start();
+  for (size_t i = 0; i < items.size(); ++i) {
+    const Expr* item = items[i];
+    const bool first_element = i == 0;
+    const Span& span = item->span();
+
+    // If there are comments between end of the the last element we processed,
+    // and the start of this one, prepend them.
+    if (std::optional<DocRef> previous_comments =
+            EmitCommentsBetween(last_tuple_element_span_limit, span.start(),
+                                comments, arena, nullptr)) {
+      if (!first_element) {
+        pieces.push_back(arena.comma());
+        pieces.push_back(arena.space());
+      }
+      pieces.push_back(previous_comments.value());
+      pieces.push_back(arena.hard_line());
+    } else if (!first_element) {
+      // No comments between there and here; append a newline to "terminate" the
+      // previous element.
+      pieces.push_back(arena.comma());
+      pieces.push_back(arena.hard_line());
+    }
+
+    last_tuple_element_span_limit = span.limit();
+    // Format the element itself.
+    pieces.push_back(FmtExprPtr(item, comments, arena));
+  }
+
+  DocRef guts = ConcatN(arena, pieces);
+
+  // Append comments between the last element and the end of the tuple
+  if (std::optional<DocRef> terminal_comment =
+          EmitCommentsBetween(last_tuple_element_span_limit, tuple_span.limit(),
+                              comments, arena, nullptr)) {
+    // Add trailing comma before the terminal comment too.
+    guts = ConcatN(
+        arena, {guts, arena.comma(), arena.space(), terminal_comment.value()});
+  } else if (n.members().size() == 1) {
+    // No trailing comment, but add a comma if it's a singleton.
+    guts = ConcatN(arena, {guts, arena.comma()});
+  }
+
+  return ConcatN(arena, {
+                            arena.oparen(),
+                            arena.hard_line(),
+                            arena.MakeNest(guts),
+                            arena.hard_line(),
+                            arena.cparen(),
+                        });
+}
+
+DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
+  return FmtTuple(n, comments, arena);
 }
 
 // Note: this does not put any spacing characters after the '{' so we can

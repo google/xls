@@ -104,7 +104,7 @@ TEST(BuildAstFmtTest, FormatShortTupleWithTrailingComma) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
-TEST(BuildAstFmtTest, FormatLongTupleShouldTrailingComma) {
+TEST(BuildAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
   const Comments empty_comments = Comments::Create({});
   {
     auto [file_table, module, tuple] =
@@ -1006,7 +1006,7 @@ TEST_F(FunctionFmtTest, CommentParagraphThenStatement) {
   EXPECT_EQ(got, original);
 }
 
-TEST_F(FunctionFmtTest, LetRhsIsOverlongFor) {
+TEST_F(FunctionFmtTest, LetRhsIsOverLongFor) {
   const std::string_view original =
       R"(fn f() {
     let (_, _, _, div_result) =
@@ -1081,6 +1081,85 @@ TEST_F(FunctionFmtTest, InlineBlockExpression) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
   EXPECT_EQ(got, original);
+}
+
+// Regression test for https://github.com/google/xls/issues/1195
+TEST_F(FunctionFmtTest, TupleWithTrailingComment) {
+  const std::string_view original = R"(fn foo() {
+    let a = (
+        u32:1,
+        u32:2,
+        u32:3, // after third
+        // After last
+    );
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, TupleWithInternalComments) {
+  const std::string_view original = R"(fn foo() {
+    let a = (
+        u32:1,  // after first
+        u32:2,  // after second
+      // another after second
+        u32:3,  // after third
+    );
+})";
+  const std::string_view expected = R"(fn foo() {
+    let a = (
+        u32:1, // after first
+        u32:2, // after second
+        // another after second
+        u32:3, // after third
+    );
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string actual, DoFmt(original));
+  EXPECT_EQ(actual, expected);
+}
+
+TEST_F(FunctionFmtTest, TupleWithComments) {
+  const std::string_view original = R"(fn foo() {
+    let a = (
+        // Before first
+        u32:1, // after first
+        u32:2, // after second
+        u32:3, // after third
+        // After last
+    );
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, original);
+}
+
+TEST_F(FunctionFmtTest, SingletonTupleWithTrailingComment) {
+  const std::string_view original = R"(fn foo() {
+    let a = ( u32  :  1,
+    // after first
+    );
+})";
+  const std::string_view expected = R"(fn foo() {
+    let a = (
+        u32:1, // after first
+    );
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, expected);
+}
+
+TEST_F(FunctionFmtTest, SingletonTupleWithLeadingComment) {
+  const std::string_view original = R"(fn foo() {
+    let a = (// before first
+    u32  :  1,      );
+})";
+  const std::string_view expected = R"(fn foo() {
+    let a = (
+        // before first
+        u32:1,
+    );
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt(original));
+  EXPECT_EQ(got, expected);
 }
 
 // -- ModuleFmtTest cases, formatting entire modules
