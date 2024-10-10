@@ -613,17 +613,26 @@ std::vector<TypeDim> StructType::GetAllDims() const {
 }
 
 std::unique_ptr<Type> StructType::AddNominalTypeDims(
-    const absl::flat_hash_map<std::string, TypeDim>& dims) const {
-  CHECK(nominal_type_dims_by_identifier_.empty());
-  absl::flat_hash_map<std::string, TypeDim> new_dims;
+    const absl::flat_hash_map<std::string, TypeDim>& added_dims) const {
+  absl::flat_hash_map<std::string, TypeDim> combined_dims =
+      nominal_type_dims_by_identifier_;
   for (const ParametricBinding* binding : struct_def_.parametric_bindings()) {
-    const auto it = dims.find(binding->identifier());
-    if (it != dims.end()) {
-      new_dims.emplace(binding->identifier(), it->second);
+    const auto it = added_dims.find(binding->identifier());
+    if (it != added_dims.end()) {
+      const auto existing_it = combined_dims.find(binding->identifier());
+      if (existing_it != combined_dims.end()) {
+        // Don't overwrite a dim that already has a concrete value. We believe
+        // nothing will attempt this, now that resolution uses
+        // `ResolveNominalTypeDims` to have the `StructType` request the ones it
+        // wants.
+        CHECK(std::holds_alternative<TypeDim::OwnedParametric>(
+            existing_it->second.value()));
+      }
+      combined_dims.insert_or_assign(binding->identifier(), it->second.Clone());
     }
   }
   return std::make_unique<StructType>(CloneStructMembers(members_), struct_def_,
-                                      std::move(new_dims));
+                                      std::move(combined_dims));
 }
 
 std::unique_ptr<Type> StructType::ResolveNominalTypeDims(

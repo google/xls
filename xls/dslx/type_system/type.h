@@ -367,7 +367,9 @@ class Type {
   // implementation is a no-op clone). For example, if a parameterized type
   // `Foo<M: u32, N:u32>` is instantiated somewhere as `Foo<u32:5, u32:6>`, then
   // during the creation of that instance of the type, the deduction system
-  // would call this function with the `dims` being `5` and `6`, in that order.
+  // would call this function with the `dims` being `{{"M", 5}, {"N", 6}}`. This
+  // function can be used incrementally to populate more and more dims in
+  // successive calls, but it cannot be used to replace a prior concrete value.
   virtual std::unique_ptr<Type> AddNominalTypeDims(
       const absl::flat_hash_map<std::string, TypeDim>&) const {
     return CloneToUnique();
