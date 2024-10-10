@@ -316,7 +316,7 @@ LogicalResult TupleOp::inferReturnTypes(
 }
 
 void ForOp::getAsmBlockArgumentNames(Region& region,
-                                     OpAsmSetValueNameFn setFn) {
+                                     OpAsmSetValueNameFn setNameFn) {
   for (auto& block : region.getBlocks()) {
     if (block.getArguments().size() !=
         getInits().size() + getInvariants().size() + 1) {
@@ -324,12 +324,12 @@ void ForOp::getAsmBlockArgumentNames(Region& region,
       return;
     }
     int argNum = 0;
-    setFn(block.getArgument(argNum++), "indvar");
+    setNameFn(block.getArgument(argNum++), "indvar");
     for (auto _ : getInits()) {
-      setFn(block.getArgument(argNum++), "carry");
+      setNameFn(block.getArgument(argNum++), "carry");
     }
     for (auto _ : getInvariants()) {
-      setFn(block.getArgument(argNum++), "invariant");
+      setNameFn(block.getArgument(argNum++), "invariant");
     }
   }
 }

@@ -48,7 +48,7 @@ absl::StatusOr<PackageConversionData> ConvertModuleToPackage(
 // inside of it, it may not be nullptr.
 absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
                                       const ConvertOptions& options,
-                                      PackageConversionData* conv);
+                                      PackageConversionData* package);
 
 // Wrapper around ConvertModuleToPackage that converts to IR text.
 absl::StatusOr<std::string> ConvertModule(Module* module,

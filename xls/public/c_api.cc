@@ -324,15 +324,15 @@ bool xls_function_get_name(struct xls_function* function, char** error_out,
 }
 
 bool xls_function_get_type(struct xls_function* function, char** error_out,
-                           xls_function_type** result_out) {
+                           xls_function_type** xls_fn_type_out) {
   CHECK(function != nullptr);
   CHECK(error_out != nullptr);
-  CHECK(result_out != nullptr);
+  CHECK(xls_fn_type_out != nullptr);
   xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
   xls::FunctionType* type = xls_function->GetType();
 
   *error_out = nullptr;
-  *result_out = reinterpret_cast<xls_function_type*>(type);
+  *xls_fn_type_out = reinterpret_cast<xls_function_type*>(type);
   return true;
 }
 

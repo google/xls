@@ -727,7 +727,7 @@ class NodeIrContext {
   void FinalizeWithValue(llvm::Value* result,
                          std::optional<llvm::IRBuilder<>*> exit_builder,
                          std::optional<llvm::Value*> return_value,
-                         std::optional<Type*> result_type = std::nullopt);
+                         std::optional<Type*> return_type = std::nullopt);
   void FinalizeWithPointerToValue(
       llvm::Value* result_buffer,
       std::optional<llvm::IRBuilder<>*> exit_builder,

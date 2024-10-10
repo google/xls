@@ -102,11 +102,11 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
 }
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
-    Function* xls_function, int64_t opt_level, bool has_observer_callbacks,
+    Function* xls_function, int64_t opt_level, bool include_observer_callbacks,
     JitObserver* jit_observer) {
   XLS_ASSIGN_OR_RETURN(
       auto orc_jit,
-      OrcJit::Create(opt_level, has_observer_callbacks, jit_observer));
+      OrcJit::Create(opt_level, include_observer_callbacks, jit_observer));
   XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
                        orc_jit->CreateDataLayout());
   XLS_ASSIGN_OR_RETURN(auto function_base,
@@ -114,7 +114,7 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
 
   return std::unique_ptr<FunctionJit>(new FunctionJit(
       xls_function, std::move(orc_jit), std::move(function_base),
-      has_observer_callbacks, std::make_unique<JitRuntime>(data_layout)));
+      include_observer_callbacks, std::make_unique<JitRuntime>(data_layout)));
 }
 
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
