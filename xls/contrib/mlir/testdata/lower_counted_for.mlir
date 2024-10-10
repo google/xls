@@ -114,3 +114,25 @@ func.func @triple_nest(%arg0: i32) -> i32 attributes {xls = true} {
   } {trip_count = 1024 : i64} : (i32, i32) -> i32
   return %0 : i32
 }
+
+// CHECK-LABEL:   xls.eproc @proc_reduce(
+// CHECK-SAME:                      %[[VAL_0:.*]]: i32)
+// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 0 : index
+// CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 1024 : index
+// CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 1 : index
+// CHECK-DAG:       %[[VAL_4:.*]] = arith.constant 0 : i32
+// CHECK:           %[[VAL_5:.*]] = "xls.counted_for"(%[[VAL_4]], %[[VAL_0]]) <{stride = 1 : i64, to_apply = @for_body_4, trip_count = 1024 : i64}> : (i32, i32) -> i32
+// CHECK:           xls.yield %[[VAL_5]] : i32
+xls.eproc @proc_reduce(%arg0: i32) zeroinitializer  {
+  %c0 = arith.constant 0 : index
+  %c1024 = arith.constant 1024 : index
+  %c1 = arith.constant 1 : index
+  %c0_i32 = arith.constant 0 : i32
+  %0 = xls.for inits(%c0_i32) invariants(%arg0) {
+  ^bb0(%indvar: i32, %carry: i32, %invariant: i32):
+    %1 = arith.index_cast %indvar : i32 to index
+    %2 = arith.addi %carry, %invariant : i32
+    xls.yield %2 : i32
+  } {trip_count = 1024 : i64} : (i32, i32) -> i32
+  xls.yield %0 : i32
+}

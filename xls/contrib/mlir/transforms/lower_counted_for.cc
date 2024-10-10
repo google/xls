@@ -37,6 +37,7 @@
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Transforms/DialectConversion.h"
 #include "mlir/include/mlir/Transforms/FoldUtils.h"
+#include "mlir/include/mlir/Transforms/RegionUtils.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 
 namespace mlir::xls {
@@ -47,6 +48,112 @@ namespace mlir::xls {
 using ::llvm::SmallVector;
 
 namespace {
+
+namespace fixed {
+// TODO(jmolloy): This is a copy of the one in SCF utils. But that version is
+// hardcoded to assume the region comes from a FuncOp, whereas this one just
+// looks for the SymbolOpInterface, so it works with EprocOps too.
+FailureOr<func::FuncOp> outlineSingleBlockRegion(RewriterBase &rewriter,
+                                                 Location loc, Region &region,
+                                                 StringRef funcName,
+                                                 func::CallOp *callOp) {
+  assert(!funcName.empty() && "funcName cannot be empty");
+  if (!region.hasOneBlock()) return failure();
+
+  Block *originalBlock = &region.front();
+  Operation *originalTerminator = originalBlock->getTerminator();
+
+  // Outline before current function.
+  OpBuilder::InsertionGuard g(rewriter);
+  rewriter.setInsertionPoint(region.getParentOfType<SymbolOpInterface>());
+
+  SetVector<Value> captures;
+  mlir::getUsedValuesDefinedAbove(region, captures);
+
+  ValueRange outlinedValues(captures.getArrayRef());
+  SmallVector<Type> outlinedFuncArgTypes;
+  SmallVector<Location> outlinedFuncArgLocs;
+  // Region's arguments are exactly the first block's arguments as per
+  // Region::getArguments().
+  // Func's arguments are cat(regions's arguments, captures arguments).
+  for (BlockArgument arg : region.getArguments()) {
+    outlinedFuncArgTypes.push_back(arg.getType());
+    outlinedFuncArgLocs.push_back(arg.getLoc());
+  }
+  for (Value value : outlinedValues) {
+    outlinedFuncArgTypes.push_back(value.getType());
+    outlinedFuncArgLocs.push_back(value.getLoc());
+  }
+  FunctionType outlinedFuncType =
+      FunctionType::get(rewriter.getContext(), outlinedFuncArgTypes,
+                        originalTerminator->getOperandTypes());
+  auto outlinedFunc =
+      rewriter.create<func::FuncOp>(loc, funcName, outlinedFuncType);
+  Block *outlinedFuncBody = outlinedFunc.addEntryBlock();
+
+  // Merge blocks while replacing the original block operands.
+  // Warning: `mergeBlocks` erases the original block, reconstruct it later.
+  int64_t numOriginalBlockArguments = originalBlock->getNumArguments();
+  auto outlinedFuncBlockArgs = outlinedFuncBody->getArguments();
+  {
+    OpBuilder::InsertionGuard g(rewriter);
+    rewriter.setInsertionPointToEnd(outlinedFuncBody);
+    rewriter.mergeBlocks(
+        originalBlock, outlinedFuncBody,
+        outlinedFuncBlockArgs.take_front(numOriginalBlockArguments));
+    // Explicitly set up a new ReturnOp terminator.
+    rewriter.setInsertionPointToEnd(outlinedFuncBody);
+    rewriter.create<func::ReturnOp>(loc, originalTerminator->getResultTypes(),
+                                    originalTerminator->getOperands());
+  }
+
+  // Reconstruct the block that was deleted and add a
+  // terminator(call_results).
+  Block *newBlock = rewriter.createBlock(
+      &region, region.begin(),
+      TypeRange{outlinedFuncArgTypes}.take_front(numOriginalBlockArguments),
+      ArrayRef<Location>(outlinedFuncArgLocs)
+          .take_front(numOriginalBlockArguments));
+  {
+    OpBuilder::InsertionGuard g(rewriter);
+    rewriter.setInsertionPointToEnd(newBlock);
+    SmallVector<Value> callValues;
+    llvm::append_range(callValues, newBlock->getArguments());
+    llvm::append_range(callValues, outlinedValues);
+    auto call = rewriter.create<func::CallOp>(loc, outlinedFunc, callValues);
+    if (callOp) *callOp = call;
+
+    // `originalTerminator` was moved to `outlinedFuncBody` and is still valid.
+    // Clone `originalTerminator` to take the callOp results then erase it from
+    // `outlinedFuncBody`.
+    IRMapping bvm;
+    bvm.map(originalTerminator->getOperands(), call->getResults());
+    rewriter.clone(*originalTerminator, bvm);
+    rewriter.eraseOp(originalTerminator);
+  }
+
+  // Lastly, explicit RAUW outlinedValues, only for uses within `outlinedFunc`.
+  // Clone the `arith::ConstantIndexOp` at the start of `outlinedFuncBody`.
+  for (auto it : llvm::zip(outlinedValues, outlinedFuncBlockArgs.take_back(
+                                               outlinedValues.size()))) {
+    Value orig = std::get<0>(it);
+    Value repl = std::get<1>(it);
+    {
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPointToStart(outlinedFuncBody);
+      if (Operation *cst = orig.getDefiningOp<arith::ConstantIndexOp>()) {
+        IRMapping bvm;
+        repl = rewriter.clone(*cst, bvm)->getResult(0);
+      }
+    }
+    orig.replaceUsesWithIf(repl, [&](OpOperand &opOperand) {
+      return outlinedFunc->isProperAncestor(opOperand.getOwner());
+    });
+  }
+
+  return outlinedFunc;
+}
+}  // namespace fixed
 
 // Attribute name for the preferred name of the function.
 constexpr std::string_view kPreferredNameAttr = "_preferred_name";
@@ -59,7 +166,7 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
 
   LogicalResult matchAndRewrite(
       ForOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter& rewriter) const override {
+      ConversionPatternRewriter &rewriter) const override {
     if (adaptor.getInits().size() == 1) {
       return failure();
     }
@@ -80,7 +187,7 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
     // Modify the body to use the tuple.
     mlir::IRMapping mapping;
     auto oldArguments = op.getBody().getArguments();
-    Block* block = &forOp.getBody().emplaceBlock();
+    Block *block = &forOp.getBody().emplaceBlock();
     rewriter.setInsertionPointToStart(block);
     mapping.map(
         oldArguments.front(),
@@ -93,7 +200,7 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
           op->getLoc(), oldArg.getType(), newCarry, i);
       mapping.map(oldArg, tupleIndexOp);
     }
-    for (auto& invariant : oldArguments.take_back(op.getInvariants().size())) {
+    for (auto &invariant : oldArguments.take_back(op.getInvariants().size())) {
       mapping.map(invariant,
                   block->addArgument(invariant.getType(), op.getLoc()));
     }
@@ -115,10 +222,10 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
   }
 };
 
-std::string createUniqueName(Operation* op, std::string prefix) {
+std::string createUniqueName(Operation *op, std::string prefix) {
   // TODO(jpienaar): This could be made more efficient. Current approach does
   // work that could be cached and reused.
-  mlir::Operation* symbolTableOp =
+  mlir::Operation *symbolTableOp =
       op->getParentWithTrait<mlir::OpTrait::SymbolTable>();
   if (mlir::SymbolTable::lookupSymbolIn(symbolTableOp, prefix) == nullptr) {
     return prefix;
@@ -141,7 +248,7 @@ class ForToCountedForRewrite : public OpConversionPattern<ForOp> {
 
   LogicalResult matchAndRewrite(
       ForOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter& rewriter) const override {
+      ConversionPatternRewriter &rewriter) const override {
     if (adaptor.getInits().size() != 1) {
       // Needs to be tuplified first.
       return failure();
@@ -158,7 +265,7 @@ class ForToCountedForRewrite : public OpConversionPattern<ForOp> {
     std::string name = createUniqueName(op, preferredName);
 
     mlir::func::CallOp callOp;
-    auto func = mlir::outlineSingleBlockRegion(
+    auto func = fixed::outlineSingleBlockRegion(
         rewriter, op->getLoc(), op.getBodyRegion(), name, &callOp);
     if (failed(func)) {
       return rewriter.notifyMatchFailure(op, "Failed to outline body");
@@ -186,7 +293,7 @@ class LowerCountedForPass
     });
 
     ConversionTarget target(getContext());
-    target.markUnknownOpDynamicallyLegal([](Operation*) { return true; });
+    target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
     target.addIllegalOp<ForOp>();
     RewritePatternSet patterns(&getContext());
     patterns.add<TuplifyRewrite, ForToCountedForRewrite>(&getContext());
