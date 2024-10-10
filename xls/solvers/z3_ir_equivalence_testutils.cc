@@ -42,6 +42,8 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
+#include "xls/passes/next_node_modernize_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/solvers/z3_ir_equivalence.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
@@ -160,6 +162,18 @@ void ScopedVerifyProcEquivalence::RunProcVerification() {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * final_p_cloned,
                            p_->Clone(absl::StrFormat("%s_modified", p_->name()),
                                      clone_package_.get()));
+  auto is_old_next_proc = [](Proc* p) {
+    return p->next_values().empty() && !p->NextState().empty();
+  };
+  std::optional<std::string> original_ir;
+  if (is_old_next_proc(original_p_) || is_old_next_proc(final_p_cloned)) {
+    original_ir = original_p_->DumpIr();
+    PassResults res;
+    NextNodeModernizePass pass;
+    ASSERT_THAT(pass.Run(clone_package_.get(), {}, &res),
+                status_testing::IsOkAndHolds(true))
+        << "Unable to modernize proc.";
+  }
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * original_f,
       UnrollProcToFunction(original_p_, activation_count_, include_state_));
@@ -169,7 +183,8 @@ void ScopedVerifyProcEquivalence::RunProcVerification() {
   EXPECT_THAT(TryProveEquivalence(original_f, f, timeout_),
               IsOkAndHolds(IsProvenTrue()));
   if (testing::Test::HasFailure()) {
-    testing::Test::RecordProperty("original", original_p_->DumpIr());
+    testing::Test::RecordProperty("original",
+                                  original_ir.value_or(original_p_->DumpIr()));
     testing::Test::RecordProperty("final", p_->DumpIr());
   }
 }
