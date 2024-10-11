@@ -66,7 +66,10 @@
 #include "xls/public/ir.h"
 #include "xls/public/ir_parser.h"
 #include "xls/public/runtime_build_actions.h"
+#include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/opt.h"
+#include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace mlir::xls {
@@ -1261,31 +1264,51 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
     return failure();
   }
 
-  std::string out = (*package)->DumpIr();
   if (options.optimize_ir) {
-    auto optimized =
-        ::xls::OptimizeIr(out, (*package)->GetTop().value()->name());
-    if (!optimized.ok()) {
-      llvm::errs() << "Failed to optimize IR: " << optimized.status().message()
-                   << "\n";
+    ::xls::tools::OptOptions options = {
+        .opt_level = 1,
+        .top = (*package)->GetTop().value()->name(),
+    };
+    absl::Status status =
+        ::xls::tools::OptimizeIrForTop(package->get(), options);
+    if (!status.ok()) {
+      llvm::errs() << "Failed to optimize IR: " << status.ToString() << "\n";
       return failure();
     }
-    out = *optimized;
   }
 
   if (!options.generate_verilog) {
+    std::string out = (*package)->DumpIr();
     output << out;
     return success();
   }
 
-  ::xls::SchedulingOptionsFlagsProto scheduling_options_flags_proto;
-  ::xls::CodegenFlagsProto codegen_flags_proto;
-  codegen_flags_proto.set_generator(::xls::GENERATOR_KIND_COMBINATIONAL);
-  codegen_flags_proto.set_register_merge_strategy(
+  auto scheduling_options_flags_proto = ::xls::GetSchedulingOptionsFlagsProto();
+  if (!scheduling_options_flags_proto.ok()) {
+    llvm::errs() << "Failed to get scheduling options flags proto: "
+                 << scheduling_options_flags_proto.status().message() << "\n";
+    return failure();
+  }
+  auto codegen_flags_proto = ::xls::GetCodegenFlags();
+  if (!codegen_flags_proto.ok()) {
+    llvm::errs() << "Failed to get codegen flags proto: "
+                 << codegen_flags_proto.status().message() << "\n";
+    return failure();
+  }
+
+  if (options.pipeline_stages > 0) {
+    codegen_flags_proto->set_generator(::xls::GENERATOR_KIND_PIPELINE);
+  } else {
+    codegen_flags_proto->set_generator(::xls::GENERATOR_KIND_COMBINATIONAL);
+  }
+  codegen_flags_proto->set_register_merge_strategy(
       ::xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
+  scheduling_options_flags_proto->set_delay_model(options.delay_model);
+  scheduling_options_flags_proto->set_pipeline_stages(options.pipeline_stages);
+  codegen_flags_proto->set_reset(options.reset_signal_name);
 
   auto xls_codegen_results = ::xls::ScheduleAndCodegenPackage(
-      &**package, scheduling_options_flags_proto, codegen_flags_proto,
+      package->get(), *scheduling_options_flags_proto, *codegen_flags_proto,
       /*with_delay_model=*/false);
   if (!xls_codegen_results.ok()) {
     llvm::errs() << "Failed to codegen: "

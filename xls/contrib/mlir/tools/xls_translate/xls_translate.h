@@ -68,6 +68,18 @@ struct MlirXlsToXlsTranslateOptions {
 
   // Optional cache for DSLX translation results.
   DslxPackageCache* dslx_cache = nullptr;
+
+  // Verilog emission options.
+
+  // The number of pipeline stages to (attempt to) generate. If zero, the
+  // combinational generator will be used.
+  int pipeline_stages = 0;
+
+  // The delay model to use.
+  std::string delay_model = "asap7";
+
+  // The name of the reset signal.
+  std::string reset_signal_name = "rst";
 };
 
 // Translates an operation with XLS dialect to DSLX.
