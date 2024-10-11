@@ -858,11 +858,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
           [&](StructDef* struct_def) -> absl::StatusOr<InterpValue> {
             std::optional<ConstantDef*> constant_def =
                 struct_def->GetImplConstant(node->attr());
-            if (!constant_def.has_value()) {
-              return absl::NotFoundError(absl::StrFormat(
-                  "No impl with constant '%s' defined for struct '%s'",
-                  node->attr(), struct_def->identifier()));
-            }
+            XLS_RET_CHECK(constant_def.has_value());
             return type_info_->GetConstExpr(constant_def.value());
           },
       },

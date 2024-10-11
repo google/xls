@@ -130,5 +130,59 @@ fn point_dims() -> u32 {
               "'DIMENSIONS' is not defined by the impl for struct 'Point'")));
 }
 
+TEST(TypecheckTest, ImplWithTypeAlias) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    const NUM_DIMS = u32:2;
+}
+
+type ThisPoint = Point;
+
+fn use_point() -> u2 {
+    let size = ThisPoint::NUM_DIMS;
+    uN[size]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, ImplWithTypeAliasWrongType) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    const NUM_DIMS = u32:2;
+}
+
+type ThisPoint = Point;
+
+fn use_point() -> u4 {
+    let size = ThisPoint::NUM_DIMS;
+    uN[size]:0
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("did not match the annotated return type")));
+}
+
+TEST(TypecheckErrorTest, TypeAliasConstantAccessWithoutImplDef) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+type ThisPoint = Point;
+
+fn point_dims() -> u32 {
+    ThisPoint::NUM_DIMS
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Struct 'Point' has no impl defining 'NUM_DIMS'")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

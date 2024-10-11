@@ -2811,11 +2811,7 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
           [&](StructDef* struct_def) -> absl::Status {
             std::optional<ConstantDef*> constant_def =
                 struct_def->GetImplConstant(node->attr());
-            if (!constant_def.has_value()) {
-              return absl::NotFoundError(absl::StrFormat(
-                  "No impl with constant '%s' defined for struct '%s'",
-                  node->attr(), struct_def->identifier()));
-            }
+            XLS_RET_CHECK(constant_def.has_value());
             XLS_ASSIGN_OR_RETURN(
                 InterpValue iv,
                 current_type_info_->GetConstExpr(constant_def.value()));

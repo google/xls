@@ -392,11 +392,7 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
           [&](StructDef* struct_def) -> absl::Status {
             std::optional<ConstantDef*> constant_def =
                 struct_def->GetImplConstant(expr->attr());
-            if (!constant_def.has_value()) {
-              return absl::NotFoundError(absl::StrFormat(
-                  "No impl with constant '%s' defined for struct '%s'",
-                  expr->attr(), struct_def->identifier()));
-            }
+            XLS_RET_CHECK(constant_def.has_value());
             XLS_RETURN_IF_ERROR(Evaluate(import_data_, type_info_,
                                          warning_collector_, bindings_,
                                          constant_def.value()->value()));

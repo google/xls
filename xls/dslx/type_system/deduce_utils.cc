@@ -67,7 +67,7 @@ using ColonRefSubjectT =
 // Note: the returned AST node may not be from the same module that the
 // original `type_alias` was from.
 static absl::StatusOr<
-    std::variant<EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+    std::variant<EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*, StructDef*>>
 ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
                                         const TypeInfo* type_info,
                                         TypeAlias* type_alias) {
@@ -131,11 +131,14 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
     }
   }
 
+  if (std::holds_alternative<StructDef*>(current_type_definition)) {
+    return std::get<StructDef*>(current_type_definition);
+  }
+
   if (!std::holds_alternative<EnumDef*>(current_type_definition)) {
     return absl::InternalError(
         "ResolveTypeDefToDirectColonRefSubject() can only be called when the "
-        "TypeAlias "
-        "directory or indirectly refers to an EnumDef.");
+        "TypeAlias directly or indirectly refers to an EnumDef or StructDef.");
   }
 
   return std::get<EnumDef*>(current_type_definition);
