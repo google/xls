@@ -271,6 +271,7 @@ cc_binary(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

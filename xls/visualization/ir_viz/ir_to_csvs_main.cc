@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -93,7 +94,9 @@ constexpr riegeli::CsvHeaderConstant kNodeHeader = {"name",
                                                     "cycle",
                                                     "state_param_index",
                                                     "initial_value",
-                                                    "area_um"};
+                                                    "area_um",
+                                                    "file",
+                                                    "line"};
 riegeli::CsvRecord NodeRecord(const viz::Node& node) {
   return riegeli::CsvRecord(
       *kNodeHeader,
@@ -127,6 +130,15 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
           node.attributes().has_area_um()
               ? ToFieldValue(static_cast<int64_t>(node.attributes().area_um()))
               : "",
+          // TODO(allight): Handle nodes with multiple associated locations.
+          node.loc_size() >= 1 && absl::c_all_of(node.loc(),
+                                                 [&](auto loc) {
+                                                   return loc.file() ==
+                                                          node.loc()[0].file();
+                                                 })
+              ? node.loc()[0].file()
+              : "",
+          node.loc_size() == 1 ? ToFieldValue(node.loc()[0].line()) : "",
       });
 }
 
