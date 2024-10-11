@@ -823,7 +823,7 @@ fn bar() -> u32{
   EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());
 }
 
-TEST(AstClonerTest, ClonesVerbatimNode) {
+TEST(AstClonerTest, CloneAstClonesVerbatimNode) {
   constexpr std::string_view kProgram = "const FOO = u32:42;";
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
@@ -834,6 +834,29 @@ TEST(AstClonerTest, ClonesVerbatimNode) {
   VerbatimNode* clone_node = down_cast<VerbatimNode*>(clone);
   EXPECT_EQ(original.text(), clone_node->text());
   EXPECT_EQ(original.span(), clone_node->span());
+}
+
+TEST(AstClonerTest, CloneModuleClonesVerbatimNode) {
+  constexpr std::string_view kProgram = "const FOO = u32:42;";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+
+  VerbatimNode original(module.get(), Span(), "foo");
+  XLS_ASSERT_OK(
+      module.get()->AddTop(&original, /*make_collision_error=*/nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
+                           CloneModule(module.get()));
+  EXPECT_EQ(cloned_module->top().size(), 2);
+
+  VerbatimNode* cloned_verbatim_node =
+      std::get<VerbatimNode*>(cloned_module->top().at(1));
+  ASSERT_NE(cloned_verbatim_node, nullptr);
+
+  EXPECT_EQ(original.text(), cloned_verbatim_node->text());
+  EXPECT_EQ(original.span(), cloned_verbatim_node->span());
 }
 
 }  // namespace

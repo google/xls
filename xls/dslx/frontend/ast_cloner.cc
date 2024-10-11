@@ -1049,6 +1049,11 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module,
               new_member = down_cast<ConstAssert*>(cloner.old_to_new().at(n));
               return absl::OkStatus();
             },
+            [&](VerbatimNode* n) -> absl::Status {
+              XLS_RETURN_IF_ERROR(n->Accept(&cloner));
+              new_member = down_cast<VerbatimNode*>(cloner.old_to_new().at(n));
+              return absl::OkStatus();
+            },
         },
         member));
     XLS_RETURN_IF_ERROR(

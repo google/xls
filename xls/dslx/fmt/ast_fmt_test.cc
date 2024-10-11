@@ -167,6 +167,22 @@ TEST(AstFmtTest, FormatLet) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
+TEST(AstFmtTest, FormatVerbatimNode) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+  const Span fake_span;
+  const std::string_view verbatim_text = "anything // goes\n  even here";
+  VerbatimNode verbatim(&m, fake_span, verbatim_text);
+  XLS_ASSERT_OK(m.AddTop(&verbatim, /*make_collision_error=*/nullptr));
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena(file_table);
+  DocRef doc = Fmt(m, empty_comments, arena);
+  // TODO: google/xls#1320 - Format verbatim nodes properly. Until then,
+  // verbatim nodes are formatted as "empty".
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), "\n");
+}
+
 // Fixture for test that format entire (single) functions -- expected usage:
 //
 //  XLS_ASSERT_OK_AND_ASSIGN(std::string got, DoFmt("fn ..."));

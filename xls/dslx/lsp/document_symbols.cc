@@ -117,6 +117,10 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Module& m) {
                           // Note: no symbols are bound by a const assert.
                           return std::vector<verible::lsp::DocumentSymbol>{};
                         },
+                        [](VerbatimNode*) {
+                          // Note: no symbols are bound by a VerbatimNode.
+                          return std::vector<verible::lsp::DocumentSymbol>{};
+                        },
                     },
                     member);
     for (auto& ds : symbols) {

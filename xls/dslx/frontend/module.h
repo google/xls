@@ -43,7 +43,7 @@ namespace xls::dslx {
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
                  TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*,
-                 ConstAssert*, Impl*>;
+                 ConstAssert*, Impl*, VerbatimNode*>;
 
 // Note: this returns nullptr for constructs that do not define a name, e.g.
 // `ConstAssert`.
