@@ -22,6 +22,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -31,6 +32,7 @@
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/fmt/ast_fmt.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -106,29 +108,37 @@ class LanguageServerAdapter {
   // Everything relevant for a parsed editor buffer.
   // Note, each buffer independently currently keeps track of its import data.
   // This could maybe be considered to be put in a single place.
-  struct ParseData {
-    ImportData import_data;
-    absl::StatusOr<TypecheckedModuleWithComments> tmc;
+  class ParseData {
+   public:
+    ParseData(ImportData&& import_data,
+              absl::StatusOr<TypecheckedModuleWithComments> tmc)
+        : import_data_(std::move(import_data)), tmc_(std::move(tmc)) {}
 
-    bool ok() const { return tmc.ok(); }
-    absl::Status status() const { return tmc.status(); }
+    bool ok() const { return tmc_.ok(); }
+    absl::Status status() const { return tmc_.status(); }
 
+    ImportData& import_data() { return import_data_; }
+    FileTable& file_table() { return import_data_.file_table(); }
     const Module& module() const {
-      CHECK_OK(tmc.status());
-      return *tmc->tm.module;
+      CHECK_OK(tmc_.status());
+      return *tmc_->tm.module;
     }
     const TypeInfo& type_info() const {
-      CHECK_OK(tmc.status());
-      return *tmc->tm.type_info;
+      CHECK_OK(tmc_.status());
+      return *tmc_->tm.type_info;
     }
     const Comments& comments() const {
-      CHECK_OK(tmc.status());
-      return tmc->comments;
+      CHECK_OK(tmc_.status());
+      return tmc_->comments;
     }
     const TypecheckedModule& typechecked_module() const {
-      CHECK_OK(tmc.status());
-      return tmc->tm;
+      CHECK_OK(tmc_.status());
+      return tmc_->tm;
     }
+
+   private:
+    ImportData import_data_;
+    absl::StatusOr<TypecheckedModuleWithComments> tmc_;
   };
 
   const std::string stdlib_;
