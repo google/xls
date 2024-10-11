@@ -423,6 +423,7 @@ cc_binary(
     deps = [
         ":arith_to_xls",
         ":expand_macro_ops",
+        ":extraction_utils",
         ":mlir_xls",
         ":normalize_xls_calls",
         ":proc_elaboration",
@@ -535,5 +536,20 @@ cc_test(
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Parser",
+    ],
+)
+
+cc_library(
+    name = "extraction_utils",
+    srcs = ["util/extraction_utils.cc"],
+    hdrs = ["util/extraction_utils.h"],
+    deps = [
+        ":mlir_xls",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:Analysis",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
     ],
 )

@@ -22,6 +22,7 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"  // IWYU pragma: keep
 #include "xls/contrib/mlir/transforms/passes.h"
 #include "xls/contrib/mlir/transforms/xls_lower.h"
+#include "xls/contrib/mlir/util/extraction_utils.h"
 
 int main(int argc, char** argv) {
   mlir::registerAllPasses();
@@ -37,6 +38,7 @@ int main(int argc, char** argv) {
   mlir::registerPass(mlir::xls::createLowerCountedForPass);
   mlir::xls::registerXlsTransformsPasses();
   mlir::xls::RegisterXlsLowerPassPipeline();
+  mlir::xls::test::registerTestExtractAsTopLevelModulePass();
   return failed(
       mlir::MlirOptMain(argc, argv, "MLIR XLS pass driver\n", registry));
 }
