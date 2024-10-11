@@ -450,7 +450,6 @@ cc_library(
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/ir:bits",
-        "//xls/ir:ir_parser",
         "//xls/ir:source_location",
         "//xls/public:function_builder",
         "//xls/public:ir",

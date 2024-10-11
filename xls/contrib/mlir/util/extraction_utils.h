@@ -17,6 +17,7 @@
 
 #include "mlir/include/mlir/Analysis/CallGraph.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 
 namespace mlir::xls {
