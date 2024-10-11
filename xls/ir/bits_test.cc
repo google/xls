@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -25,8 +24,6 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/math_util.h"
