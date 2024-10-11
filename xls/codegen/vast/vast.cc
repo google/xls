@@ -1136,6 +1136,24 @@ std::string VerilogPackage::Emit(LineInfo* line_info) const {
 std::string Literal::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   LineInfoEnd(line_info, this);
+  // Large zero constants can be emitted as a simple zero-extend.
+  constexpr int64_t kLargeBitCount = 1024;
+  if (bits_.bit_count() > kLargeBitCount && bits_.IsZero()) {
+    std::string_view format_specifier;
+    switch (format_) {
+      case FormatPreference::kBinary:
+        format_specifier = "b";
+        break;
+      case FormatPreference::kHex:
+        format_specifier = declared_as_signed_ ? "sh" : "h";
+        break;
+      case FormatPreference::kUnsignedDecimal:
+      default:
+        format_specifier = "d";
+        break;
+    }
+    return absl::StrFormat("%d'%s0", bits_.bit_count(), format_specifier);
+  }
   if (format_ == FormatPreference::kDefault) {
     CHECK_LE(bits_.bit_count(), 32);
     return absl::StrFormat(
