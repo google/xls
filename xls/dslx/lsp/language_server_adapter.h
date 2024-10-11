@@ -95,7 +95,7 @@ class LanguageServerAdapter {
       std::string_view new_name) const;
 
  private:
-  struct ParseData;
+  class ParseData;
 
   // Find parse result of opened file with given URI or nullptr, if not opened.
   ParseData* FindParsedForUri(std::string_view uri) const;
