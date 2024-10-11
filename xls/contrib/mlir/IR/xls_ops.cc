@@ -15,6 +15,7 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -318,17 +319,18 @@ LogicalResult TupleOp::inferReturnTypes(
 void ForOp::getAsmBlockArgumentNames(Region& region,
                                      OpAsmSetValueNameFn setNameFn) {
   for (auto& block : region.getBlocks()) {
-    if (block.getArguments().size() !=
-        getInits().size() + getInvariants().size() + 1) {
+    const size_t initsCount = getInits().size();
+    const size_t invariantCount = getInvariants().size();
+    if (block.getArguments().size() != 1 + initsCount + invariantCount) {
       // Validation error.
       return;
     }
     int argNum = 0;
     setNameFn(block.getArgument(argNum++), "indvar");
-    for (auto _ : getInits()) {
+    for (size_t i = 0; i < initsCount; ++i) {
       setNameFn(block.getArgument(argNum++), "carry");
     }
-    for (auto _ : getInvariants()) {
+    for (size_t i = 0; i < invariantCount; ++i) {
       setNameFn(block.getArgument(argNum++), "invariant");
     }
   }
