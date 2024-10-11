@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cassert>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -21,6 +22,7 @@
 
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
+#include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/include/mlir/IR/Builders.h"
@@ -29,6 +31,7 @@
 #include "mlir/include/mlir/IR/OpDefinition.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
 #include "mlir/include/mlir/IR/SymbolTable.h"
+#include "mlir/include/mlir/IR/TypeRange.h"
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/ValueRange.h"
 #include "mlir/include/mlir/IR/Visitors.h"
@@ -58,7 +61,9 @@ FailureOr<func::FuncOp> outlineSingleBlockRegion(RewriterBase &rewriter,
                                                  StringRef funcName,
                                                  func::CallOp *callOp) {
   assert(!funcName.empty() && "funcName cannot be empty");
-  if (!region.hasOneBlock()) return failure();
+  if (!region.hasOneBlock()) {
+    return failure();
+  }
 
   Block *originalBlock = &region.front();
   Operation *originalTerminator = originalBlock->getTerminator();
@@ -121,7 +126,9 @@ FailureOr<func::FuncOp> outlineSingleBlockRegion(RewriterBase &rewriter,
     llvm::append_range(callValues, newBlock->getArguments());
     llvm::append_range(callValues, outlinedValues);
     auto call = rewriter.create<func::CallOp>(loc, outlinedFunc, callValues);
-    if (callOp) *callOp = call;
+    if (callOp) {
+      *callOp = call;
+    }
 
     // `originalTerminator` was moved to `outlinedFuncBody` and is still valid.
     // Clone `originalTerminator` to take the callOp results then erase it from

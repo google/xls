@@ -376,6 +376,7 @@ cc_library(
         ":mlir_xls",
         ":xls_transforms_passes_inc_gen",
         "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:ArithDialect",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
