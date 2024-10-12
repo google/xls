@@ -25,8 +25,10 @@ pub const F32_FRACTION_SZ = u32:23;  // Fraction bits
 type BF16 = apfloat::APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ>;
 type F32 = apfloat::APFloat<F32_EXP_SZ, F32_FRACTION_SZ>;
 
-// TODO(dvytin): replace with proper apfloat rounding when it lands.
-pub fn roundeven_f32(f: F32) -> F32 { f }
+pub fn roundeven_f32(f: F32) -> F32 {
+  apfloat::round<F32_EXP_SZ, F32_FRACTION_SZ>(f)
+}
 
-// TODO(dvytin): replace with proper apfloat rounding when it lands.
-pub fn roundeven_bf16(f: BF16) -> BF16 { f }
+pub fn roundeven_bf16(f: BF16) -> BF16 {
+  apfloat::round<BF16_EXP_SZ, BF16_FRACTION_SZ>(f)
+}
