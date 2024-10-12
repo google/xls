@@ -65,7 +65,7 @@ func.func @reduce_arity_2(%arg0: i32, %arg1: i32) -> i32 attributes {xls = true}
   return %0#0 : i32
 }
 
-// CHECK-LABEL:   func.func private @for_body_3(
+// CHECK-LABEL:   func.func private @for_body_1(
 // CHECK-SAME:      %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32, %[[VAL_3:.*]]: i32) -> i32
 // CHECK:           %[[VAL_4:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
 // CHECK:           %[[VAL_5:.*]] = arith.addi %[[VAL_2]], %[[VAL_3]] : i32
@@ -74,10 +74,10 @@ func.func @reduce_arity_2(%arg0: i32, %arg1: i32) -> i32 attributes {xls = true}
 // CHECK-LABEL:   func.func private @for_body_2(
 // CHECK-SAME:        %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32) -> i32
 // CHECK:           %[[VAL_3:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
-// CHECK:           %[[VAL_4:.*]] = "xls.counted_for"(%[[VAL_1]], %[[VAL_1]], %[[VAL_2]]) <{stride = 1 : i64, to_apply = @for_body_3, trip_count = 1024 : i64}> : (i32, i32, i32) -> i32
+// CHECK:           %[[VAL_4:.*]] = "xls.counted_for"(%[[VAL_1]], %[[VAL_1]], %[[VAL_2]]) <{stride = 1 : i64, to_apply = @for_body_1, trip_count = 1024 : i64}> : (i32, i32, i32) -> i32
 // CHECK:           return %[[VAL_4]] : i32
 
-// CHECK-LABEL:   func.func private @for_body_1(
+// CHECK-LABEL:   func.func private @for_body_3(
 // CHECK-SAME:        %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32) -> i32
 // CHECK:           %[[VAL_3:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
 // CHECK:           %[[VAL_4:.*]] = "xls.counted_for"(%[[VAL_1]], %[[VAL_2]]) <{stride = 1 : i64, to_apply = @for_body_2, trip_count = 1024 : i64}> : (i32, i32) -> i32
@@ -89,7 +89,7 @@ func.func @reduce_arity_2(%arg0: i32, %arg1: i32) -> i32 attributes {xls = true}
 // CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 1024 : index
 // CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 1 : index
 // CHECK-DAG:       %[[VAL_4:.*]] = arith.constant 0 : i32
-// CHECK:           %[[VAL_5:.*]] = "xls.counted_for"(%[[VAL_4]], %[[VAL_0]]) <{stride = 1 : i64, to_apply = @for_body_1, trip_count = 1024 : i64}> : (i32, i32) -> i32
+// CHECK:           %[[VAL_5:.*]] = "xls.counted_for"(%[[VAL_4]], %[[VAL_0]]) <{stride = 1 : i64, to_apply = @for_body_3, trip_count = 1024 : i64}> : (i32, i32) -> i32
 // CHECK:           return %[[VAL_5]] : i32
 func.func @triple_nest(%arg0: i32) -> i32 attributes {xls = true} {
   %c0 = arith.constant 0 : index

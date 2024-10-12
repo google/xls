@@ -48,9 +48,8 @@ namespace mlir::xls {
 #define GEN_PASS_DEF_LOWERCOUNTEDFORPASS
 #include "xls/contrib/mlir/transforms/passes.h.inc"  // IWYU pragma: keep
 
-using ::llvm::SmallVector;
-
 namespace {
+using ::llvm::SmallVector;
 
 namespace fixed {
 // TODO(jmolloy): This is a copy of the one in SCF utils. But that version is
@@ -229,24 +228,25 @@ class TuplifyRewrite : public OpConversionPattern<ForOp> {
   }
 };
 
-std::string createUniqueName(Operation *op, std::string prefix) {
-  // TODO(jpienaar): This could be made more efficient. Current approach does
-  // work that could be cached and reused.
-  mlir::Operation *symbolTableOp =
-      op->getParentWithTrait<mlir::OpTrait::SymbolTable>();
-  if (mlir::SymbolTable::lookupSymbolIn(symbolTableOp, prefix) == nullptr) {
-    return prefix;
+StringAttr createUniqueName(MLIRContext &context, SymbolTable &symbolTable,
+                            DenseSet<StringRef> &addedSymbols,
+                            StringRef prefix) {
+  if (symbolTable.lookup(prefix) == nullptr && !addedSymbols.contains(prefix)) {
+    addedSymbols.insert(prefix);
+    return StringAttr::get(&context, prefix);
   }
 
   unsigned uniquingCounter = 0;
   llvm::SmallString<128> name = SymbolTable::generateSymbolName<128>(
       prefix,
       [&](llvm::StringRef candidate) {
-        return mlir::SymbolTable::lookupSymbolIn(symbolTableOp, candidate) !=
-               nullptr;
+        return symbolTable.lookup(candidate) ||
+               addedSymbols.contains(candidate.str());
       },
       uniquingCounter);
-  return std::string(name.str());
+  auto result = StringAttr::get(&context, name);
+  addedSymbols.insert(result);
+  return result;
 }
 
 class ForToCountedForRewrite : public OpConversionPattern<ForOp> {
@@ -267,9 +267,7 @@ class ForToCountedForRewrite : public OpConversionPattern<ForOp> {
     // not be updated until after rewrites have completed (meaning
     // createUniqueName would always return the same value in the same rewrite
     // cycle causing clashes).
-    std::string preferredName =
-        cast<StringAttr>(op->getAttr(kPreferredNameAttr)).str();
-    std::string name = createUniqueName(op, preferredName);
+    std::string name = cast<StringAttr>(op->getAttr(kPreferredNameAttr)).str();
 
     mlir::func::CallOp callOp;
     auto func = fixed::outlineSingleBlockRegion(
@@ -293,10 +291,12 @@ class LowerCountedForPass
  private:
   void runOnOperation() override {
     // See comment in ForToCountedForRewrite for why we do this.
+    DenseSet<StringRef> addedSymbols;
+    SymbolTable symbolTable(getOperation());
     getOperation().walk([&](ForOp op) {
-      op->setAttr(
-          kPreferredNameAttr,
-          StringAttr::get(op->getContext(), createUniqueName(op, "for_body")));
+      op->setAttr(kPreferredNameAttr,
+                  createUniqueName(getContext(), symbolTable, addedSymbols,
+                                   "for_body"));
     });
 
     ConversionTarget target(getContext());
