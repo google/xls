@@ -352,5 +352,33 @@ const BAR: u32 = FOO + FOO;)"));
   EXPECT_EQ(edit.value(), std::nullopt);
 }
 
+TEST(LanguageServerAdapterTest, DocumentHighlight) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(pub const FOO = u32:42;
+
+const BAR: u32 = FOO + FOO;
+
+fn f() -> u32 { FOO })"));
+  const auto kTargetPos = verible::lsp::Position{4, 16};
+  absl::StatusOr<std::vector<verible::lsp::DocumentHighlight>> highlights_or =
+      adapter.DocumentHighlight(kUri, kTargetPos);
+  XLS_EXPECT_OK(highlights_or.status());
+  const auto& highlights = highlights_or.value();
+
+  // There are four instances in the document including the definition.
+  EXPECT_EQ(highlights.size(), 4);
+
+  // Definition comes first.
+  EXPECT_EQ(highlights[0].range.start.line, 0);
+
+  // Then uses in the const.
+  EXPECT_EQ(highlights[1].range.start.line, 2);
+  EXPECT_EQ(highlights[2].range.start.line, 2);
+
+  // Then use in the function definition.
+  EXPECT_EQ(highlights[3].range.start.line, 4);
+}
+
 }  // namespace
 }  // namespace xls::dslx

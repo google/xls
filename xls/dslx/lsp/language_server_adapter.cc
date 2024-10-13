@@ -421,4 +421,35 @@ LanguageServerAdapter::Rename(std::string_view uri,
   return std::nullopt;
 }
 
+absl::StatusOr<std::vector<verible::lsp::DocumentHighlight>>
+LanguageServerAdapter::DocumentHighlight(
+    std::string_view uri, const verible::lsp::Position& position) const {
+  if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    FileTable& file_table = parsed->file_table();
+    const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
+    VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
+    const Module& module = parsed->module();
+    std::optional<const NameDef*> maybe_definition = xls::dslx::FindDefinition(
+        module, pos, parsed->type_info(), parsed->import_data());
+    if (maybe_definition.has_value()) {
+      const NameDef* name_def = maybe_definition.value();
+      const Span& definition_span = name_def->span();
+      std::vector<verible::lsp::DocumentHighlight> highlights = {
+          verible::lsp::DocumentHighlight{
+              .range = ConvertSpanToLspRange(definition_span),
+          },
+      };
+      XLS_ASSIGN_OR_RETURN(std::vector<const NameRef*> refs,
+                           CollectNameRefsUnder(&module, name_def));
+      for (const NameRef* ref : refs) {
+        highlights.push_back(verible::lsp::DocumentHighlight{
+            .range = ConvertSpanToLspRange(ref->span()),
+        });
+      }
+      return highlights;
+    }
+  }
+  return std::vector<verible::lsp::DocumentHighlight>{};
+}
+
 }  // namespace xls::dslx
