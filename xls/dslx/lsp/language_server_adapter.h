@@ -94,6 +94,12 @@ class LanguageServerAdapter {
       std::string_view uri, const verible::lsp::Position& position,
       std::string_view new_name) const;
 
+  // See
+  // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentHighlight
+  absl::StatusOr<std::vector<verible::lsp::DocumentHighlight>>
+  DocumentHighlight(std::string_view uri,
+                    const verible::lsp::Position& position) const;
+
  private:
   class ParseData;
 
