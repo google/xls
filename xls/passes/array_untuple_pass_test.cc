@@ -15,6 +15,7 @@
 #include "xls/passes/array_untuple_pass.h"
 
 #include <cstdint>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

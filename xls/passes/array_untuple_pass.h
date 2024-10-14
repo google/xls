@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_ARRAY_UNTUPLE_PASS_H_
 #define XLS_PASSES_ARRAY_UNTUPLE_PASS_H_
 
-#include <cstdint>
 #include <string_view>
 
 #include "absl/status/statusor.h"

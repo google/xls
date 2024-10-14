@@ -14,7 +14,6 @@
 
 #include "xls/passes/ram_rewrite_pass.h"
 
-#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
