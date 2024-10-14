@@ -41,6 +41,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/extract_module_name.h"
 #include "xls/dslx/fmt/ast_fmt.h"
+#include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"

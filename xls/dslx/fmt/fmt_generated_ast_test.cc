@@ -23,6 +23,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/fmt/ast_fmt.h"
+#include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"

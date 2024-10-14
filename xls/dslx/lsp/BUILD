@@ -66,6 +66,7 @@ cc_library(
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/fmt:ast_fmt",
+        "//xls/dslx/fmt:comments",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:bindings",

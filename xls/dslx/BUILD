@@ -827,6 +827,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx/fmt:ast_fmt",
+        "//xls/dslx/fmt:comments",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
         "@com_google_absl//absl/flags:flag",

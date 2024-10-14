@@ -19,47 +19,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
-#include <vector>
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/types/span.h"
+#include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/module.h"
-#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
-
-// API convenience wrapper around comment data that the scanner produces -- this
-// allows us to look up "what comments an AST node is responsible for" via
-// `GetComments()` providing the AST node span.
-class Comments {
- public:
-  static Comments Create(absl::Span<const CommentData> comments);
-
-  Comments() = default;
-
-  // Returns all the comments contained within the given `node_span`.
-  //
-  // This is a convenient way for nodes to query for all their related comments.
-  std::vector<const CommentData*> GetComments(const Span& node_span) const;
-
-  // Returns whether there are any comments contained in the given span.
-  bool HasComments(const Span& in_span) const;
-
-  const std::optional<Pos>& last_data_limit() const { return last_data_limit_; }
-
- private:
-  Comments(absl::flat_hash_map<int64_t, CommentData> line_to_comment,
-           std::optional<Pos> last_data_limit)
-      : line_to_comment_(std::move(line_to_comment)),
-        last_data_limit_(last_data_limit) {}
-
-  absl::flat_hash_map<int64_t, CommentData> line_to_comment_;
-  std::optional<Pos> last_data_limit_;
-};
 
 // Functions with this signature create a pretty printable document from the AST
 // node "n".
