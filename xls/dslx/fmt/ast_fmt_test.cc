@@ -1621,7 +1621,8 @@ fn f(b: bool) -> MyStruct {
         },
     }
 }
-)", /*want=*/R"(struct MyStruct { field: u32 }
+)",
+      /*want=*/R"(struct MyStruct { field: u32 }
 
 const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
 

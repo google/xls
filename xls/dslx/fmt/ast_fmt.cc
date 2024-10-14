@@ -1328,16 +1328,17 @@ static DocRef FmtStructMembersBreak(
         // reassessment of whether to enter break mode for the field
         // expression.
         DocRef on_flat =
-            ConcatN(arena, {arena.MakeText(field_name), arena.colon(), arena.break1(),
-                            arena.MakeGroup(field_expr)});
+            ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
+                            arena.break1(), arena.MakeGroup(field_expr)});
         DocRef nest_field_expr =
             ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
                             arena.hard_line(), arena.MakeNest(field_expr)});
 
         DocRef on_other;
         if (expr->IsBlockedExprWithLeader()) {
-          DocRef leader = ConcatN(arena, {
-              arena.MakeText(field_name), arena.colon(), arena.space(), FmtBlockedExprLeader(*expr, comments, arena)});
+          DocRef leader = ConcatN(
+              arena, {arena.MakeText(field_name), arena.colon(), arena.space(),
+                      FmtBlockedExprLeader(*expr, comments, arena)});
           on_other = arena.MakeModeSelect(leader, /*on_flat=*/on_flat,
                                           /*on_break=*/nest_field_expr);
         } else {
