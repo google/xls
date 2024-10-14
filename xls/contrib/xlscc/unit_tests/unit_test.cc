@@ -248,7 +248,7 @@ absl::Status XlsccTestBase::ScanFile(
   // Since there are several unit tests to check the failing case, the maximum
   // loop iterations is set lower than in the main tool interface to make
   // the test run in a reasonable time.
-  translator_.reset(new xlscc::Translator(
+  translator_ = std::make_unique<xlscc::Translator>(
       error_on_init_interval,
       /*error_on_uninitialized=*/error_on_uninitialized,
       /*generate_fsms_for_pipelined_loops=*/generate_fsms_for_pipelined_loops_,
@@ -257,7 +257,7 @@ absl::Status XlsccTestBase::ScanFile(
       /*debug_ir_trace_flags=*/xlscc::DebugIrTraceFlags_None,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
-      /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser)));
+      /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser));
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }
@@ -336,7 +336,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
                                  /*error_on_uninitialized=*/false,
                                  /*loc=*/xls::SourceLocation(),
                                  /*fail_xlscc_check=*/false, max_unroll_iters));
-    package_.reset(new xls::Package("my_package"));
+    package_ = std::make_unique<xls::Package>("my_package");
     absl::flat_hash_map<const clang::NamedDecl*, xlscc::ChannelBundle>
         top_channel_injections = {};
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
@@ -402,7 +402,7 @@ void XlsccTestBase::ProcTest(
                            /*max_unroll_iters=*/0,
                            /*top_class_name=*/top_class_name));
 
-    package_.reset(new xls::Package("my_package"));
+    package_ = std::make_unique<xls::Package>("my_package");
     if (block_spec.has_value()) {
       block_spec_ = block_spec.value();
       XLS_ASSERT_OK(translator_

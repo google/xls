@@ -4145,7 +4145,7 @@ TEST_F(TranslatorLogicTest, TopMemberAccess) {
   }
 
   XLS_ASSERT_OK(ScanFile(content));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
       xls::status_testing::StatusIs(
@@ -4340,7 +4340,7 @@ TEST_F(TranslatorLogicTest, ChannelTemplateType) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
                            xls::TempFile::CreateWithContent(content, ".cc"));
   XLS_ASSERT_OK(ScanFile(temp));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   ASSERT_THAT(translator_
                   ->GenerateIR_Block(package_.get(), block_spec,
                                      /*top_level_init_interval=*/1)
@@ -4820,7 +4820,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
   XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   HLSBlock block_spec;
   XLS_ASSERT_OK(
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
@@ -5100,7 +5100,7 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedArray) {
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false,
                          /*error_on_uninitialized=*/true));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   HLSBlock block_spec;
   ASSERT_THAT(translator_
                   ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
@@ -5126,7 +5126,7 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCount) {
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false,
                          /*error_on_uninitialized=*/true));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   HLSBlock block_spec;
   ASSERT_THAT(
       translator_
@@ -5154,7 +5154,7 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCountPragma) {
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false,
                          /*error_on_uninitialized=*/true));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   HLSBlock block_spec;
   ASSERT_THAT(translator_
                   ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
@@ -5180,7 +5180,7 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedDefaultMember) {
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false,
                          /*error_on_uninitialized=*/true));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   HLSBlock block_spec;
   ASSERT_THAT(translator_
                   ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
