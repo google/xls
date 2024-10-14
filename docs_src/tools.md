@@ -113,7 +113,7 @@ building the LLVM tools using `bazel build` from the XLS repo.
 
 Tool for reducing IR to a minimal test case based on an external test.
 
-## [`ir_stats_main`](https://github.com/google/xls/tree/main/xls/tools/ir_stats_main.cc)
+## [`ir_stats_main`](https://github.com/google/xls/tree/main/xls/dev_tools/ir_stats_main.cc)
 
 Prints summary information/stats on an IR [Package] file. An example:
 
