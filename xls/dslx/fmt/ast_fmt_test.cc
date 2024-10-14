@@ -1607,6 +1607,57 @@ fn f() -> MyStruct {
 )");
 }
 
+TEST_F(ModuleFmtTest, StructInstantiationWithExactSizedCondExpr) {
+  Run(
+      R"(struct MyStruct { field: u32 }
+
+const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
+
+fn f(b: bool) -> MyStruct {
+    MyStruct {
+        field: if TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT {
+            u32:42
+        } else {
+            u32:64
+        },
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, StructInstantiationWithExactOneCharOverlyLargeCondExpr) {
+  Run(
+      R"(struct MyStruct { field: u32 }
+
+const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
+
+fn f(b: bool) -> MyStruct {
+    MyStruct {
+        field: if TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT {
+            u32:42
+        } else {
+            u32:64
+        },
+    }
+}
+)",
+      /*want=*/R"(struct MyStruct { field: u32 }
+
+const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
+
+fn f(b: bool) -> MyStruct {
+    MyStruct {
+        field:
+            if TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT {
+                u32:42
+            } else {
+                u32:64
+            },
+    }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleParametricStructInstantiation) {
   Run(
       R"(import mol;
@@ -2364,6 +2415,23 @@ TEST_F(ModuleFmtTest, GithubIssue1354) {
 pub struct A { value: B[5] }
 
 pub fn f(a: A) -> A { if a.B[0].value == u32:0 { zero!<A>() } else { a } }
+)");
+}
+
+TEST_F(ModuleFmtTest, LongStructInstanceFieldExpr) {
+  Run(R"(struct X { xxxxxxxxxxxxxxxxxxx: bool, yyyyyyyyyyyyyyyyyyy: u32 }
+
+const aaaaaaaaaaaaaaaaaaaaaaaaa = u32:0;
+const bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb = u32:0;
+const ccccccccccccccccccccccccc = bool:false;
+
+fn f() -> X {
+    X {
+        xxxxxxxxxxxxxxxxxxx:
+            aaaaaaaaaaaaaaaaaaaaaaaaa == bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,
+        yyyyyyyyyyyyyyyyyyy: u32:0,
+    }
+}
 )");
 }
 

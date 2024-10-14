@@ -52,6 +52,9 @@
 namespace xls::dslx {
 namespace {
 
+DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
+                            DocArena& arena);
+
 // Note: if a comment doc is emitted (i.e. return value has_value()) it does not
 // have a trailing hard-line. This is for consistency with other emission
 // routines which generally don't emit any whitespace afterwards, just their
@@ -1304,19 +1307,45 @@ static DocRef FmtStructMembersBreak(
   return FmtJoin<std::pair<std::string, Expr*>>(
       members, Joiner::kCommaHardlineTrailingCommaAlways,
       [](const auto& member, const Comments& comments, DocArena& arena) {
-        const auto& [name, expr] = member;
+        const auto& [field_name, expr] = member;
         // If the expression is an identifier that matches its corresponding
         // struct member name, we canonically use the shorthand notation of just
         // providing the identifier and leaving the member name implicitly as
         // the same symbol.
         if (const NameRef* name_ref = dynamic_cast<const NameRef*>(expr);
-            name_ref != nullptr && name_ref->identifier() == name) {
-          return arena.MakeText(name);
+            name_ref != nullptr && name_ref->identifier() == field_name) {
+          return arena.MakeText(field_name);
         }
 
-        return ConcatNGroup(arena,
-                            {arena.MakeText(name), arena.colon(), arena.space(),
-                             arena.MakeGroup(Fmt(*expr, comments, arena))});
+        DocRef field_expr = Fmt(*expr, comments, arena);
+
+        // This is the document we want to emit both when we:
+        // - Know it fits in flat mode
+        // - Know the start of the document (i.e. the leader on the RHS
+        //   expression) can be emitted in flat mode
+        //
+        // That's why it has a `break1` in it (instead of a space) and a
+        // reassessment of whether to enter break mode for the field
+        // expression.
+        DocRef on_flat =
+            ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
+                            arena.break1(), arena.MakeGroup(field_expr)});
+        DocRef nest_field_expr =
+            ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
+                            arena.hard_line(), arena.MakeNest(field_expr)});
+
+        DocRef on_other;
+        if (expr->IsBlockedExprWithLeader()) {
+          DocRef leader = ConcatN(
+              arena, {arena.MakeText(field_name), arena.colon(), arena.space(),
+                      FmtBlockedExprLeader(*expr, comments, arena)});
+          on_other = arena.MakeModeSelect(leader, /*on_flat=*/on_flat,
+                                          /*on_break=*/nest_field_expr);
+        } else {
+          on_other = arena.MakeFlatChoice(on_flat, nest_field_expr);
+        }
+
+        return arena.MakeNestIfFlatFits(on_flat, on_other);
       },
       comments, arena);
 }
