@@ -49,31 +49,6 @@ absl::Status CheckNodeToStageMap(const CodegenPassUnit& unit) {
   return absl::OkStatus();
 }
 
-absl::Status CheckRegisterLists(const CodegenPassUnit& unit) {
-  for (const auto& [block, metadata] : unit.metadata) {
-    absl::flat_hash_set<Node*> nodes(block->nodes().begin(),
-                                     block->nodes().end());
-    for (const std::optional<StateRegister>& reg :
-         metadata.streaming_io_and_pipeline.state_registers) {
-      if (reg) {
-        XLS_RET_CHECK(nodes.contains(reg->reg_read)) << "read of " << reg->name;
-        XLS_RET_CHECK(nodes.contains(reg->reg_write))
-            << "write of " << reg->name;
-      }
-    }
-    for (const PipelineStageRegisters& stage :
-         metadata.streaming_io_and_pipeline.pipeline_registers) {
-      for (const PipelineRegister& reg : stage) {
-        XLS_RET_CHECK(nodes.contains(reg.reg_read))
-            << absl::StreamFormat("read of %s", reg.reg->name());
-        XLS_RET_CHECK(nodes.contains(reg.reg_write))
-            << absl::StreamFormat("write of %s", reg.reg->name());
-      }
-    }
-  }
-  return absl::OkStatus();
-}
-
 // Verify that all nodes, instantiations, and registers in `streaming_io` are
 // contained in `block`.
 absl::Status CheckStreamingIO(const StreamingIOPipeline& streaming_io,
