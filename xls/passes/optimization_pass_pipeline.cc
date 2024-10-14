@@ -34,6 +34,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
+#include "xls/passes/array_untuple_pass.h"
 #include "xls/passes/basic_simplification_pass.h"
 #include "xls/passes/bdd_cse_pass.h"
 #include "xls/passes/bdd_simplification_pass.h"
@@ -114,6 +115,8 @@ void AddSimplificationPasses(OptimizationCompoundPass& pass,
   pass.Add<BitSliceSimplificationPass>(opt_level);
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<ConcatSimplificationPass>(opt_level);
+  pass.Add<DeadCodeEliminationPass>();
+  pass.Add<ArrayUntuplePass>();
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<DataflowSimplificationPass>();
   pass.Add<DeadCodeEliminationPass>();

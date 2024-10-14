@@ -329,6 +329,14 @@ def load_external_repositories():
         sha256 = "cad05f864a32799f6f9022891de91ac78f30e0fa07dc68abac92a628121b5b11",
     )
 
+    # HEAD as of 2024-10-11 on https://github.com/ryanhaining/cppitertools
+    http_archive(
+        name = "cppitertools",
+        urls = ["https://github.com/ryanhaining/cppitertools/archive/3f454640b491bc13b314deddbf53b3534f6d7f1f.zip"],
+        strip_prefix = "cppitertools-3f454640b491bc13b314deddbf53b3534f6d7f1f",
+        integrity = "sha256-49xFSGD2D0equ6mOPApSfEuiObp4W1iwnQjxHahGz0Y=",
+    )
+
     # Used in C++ tests of the ZSTD Module
     # Transitive dependency of fuzztest (required by riegeli in fuzztest workspace)
     # Version fdfb2aff released on 2024-07-31
