@@ -71,7 +71,7 @@ $2$1$3
 #include "xls/public/status_macros.h"
 #include "xls/public/value.h"
 
-static bool FitsInNBitsSigned(int64_t value, int64_t n) {
+[[maybe_unused]] static bool FitsInNBitsSigned(int64_t value, int64_t n) {
   // All bits from [n - 1, 64) must be all zero or all ones.
   if (n >= 64) {
     return true;
@@ -83,14 +83,14 @@ static bool FitsInNBitsSigned(int64_t value, int64_t n) {
        (mask & value_as_unsigned) == mask;
 }
 
-static bool FitsInNBitsUnsigned(uint64_t value, int64_t n) {
+[[maybe_unused]] static bool FitsInNBitsUnsigned(uint64_t value, int64_t n) {
   if (n >= 64) {
     return true;
   }
   return value < (uint64_t{1} << n);
 }
 
-static std::string __indent(int64_t amount) {
+[[maybe_unused]] static std::string __indent(int64_t amount) {
   return std::string(amount * 2, ' ');
 }
 
