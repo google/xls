@@ -27,6 +27,7 @@
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {

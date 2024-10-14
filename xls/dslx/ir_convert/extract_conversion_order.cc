@@ -216,6 +216,10 @@ class InvocationVisitor : public ExprVisitor {
                             // Nothing needed for conversion.
                             return absl::OkStatus();
                           },
+                          [&](VerbatimNode*) {
+                            return absl::UnimplementedError(
+                                "Should not convert VerbatimNode");
+                          },
                       },
                       stmt->wrapped()));
     }
@@ -815,7 +819,10 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
             [](EnumDef*) { return absl::OkStatus(); },
             [](Import*) { return absl::OkStatus(); },
             [](ConstAssert*) { return absl::OkStatus(); },
-            [](VerbatimNode*) { return absl::OkStatus(); },
+            [](VerbatimNode*) {
+              return absl::UnimplementedError(
+                  "Should not convert VerbatimNode");
+            },
         },
         member);
     XLS_RETURN_IF_ERROR(status);

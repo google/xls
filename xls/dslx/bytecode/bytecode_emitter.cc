@@ -385,26 +385,32 @@ absl::Status BytecodeEmitter::HandleStatementBlock(const StatementBlock* node) {
     }
 
     VLOG(5) << "BytecodeEmitter::HandleStatement: `" << s->ToString() << "`";
-    XLS_RETURN_IF_ERROR(absl::visit(Visitor{[&](Expr* e) {
-                                              last_expression = e;
-                                              return e->AcceptExpr(this);
-                                            },
-                                            [&](Let* let) {
-                                              last_expression = nullptr;
-                                              return HandleLet(let);
-                                            },
-                                            [&](ConstAssert* n) {
-                                              // Nothing to emit, should be
-                                              // resolved via type inference.
-                                              last_expression = nullptr;
-                                              return absl::OkStatus();
-                                            },
-                                            [&](TypeAlias* ta) {
-                                              // Nothing to emit, should be
-                                              // resolved via type inference.
-                                              last_expression = nullptr;
-                                              return absl::OkStatus();
-                                            }},
+    XLS_RETURN_IF_ERROR(absl::visit(Visitor{
+                                        [&](Expr* e) {
+                                          last_expression = e;
+                                          return e->AcceptExpr(this);
+                                        },
+                                        [&](Let* let) {
+                                          last_expression = nullptr;
+                                          return HandleLet(let);
+                                        },
+                                        [&](ConstAssert*) {
+                                          // Nothing to emit, should be
+                                          // resolved via type inference.
+                                          last_expression = nullptr;
+                                          return absl::OkStatus();
+                                        },
+                                        [&](TypeAlias*) {
+                                          // Nothing to emit, should be
+                                          // resolved via type inference.
+                                          last_expression = nullptr;
+                                          return absl::OkStatus();
+                                        },
+                                        [&](VerbatimNode*) {
+                                          return absl::UnimplementedError(
+                                              "Should not emit VerbatimNode");
+                                        },
+                                    },
                                     s->wrapped()));
   }
 

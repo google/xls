@@ -3126,31 +3126,35 @@ absl::Status FunctionConverter::HandleStatementBlock(
 
 absl::Status FunctionConverter::HandleStatement(const Statement* node) {
   VLOG(5) << "FunctionConverter::HandleStatement; node: " << node->ToString();
-  return absl::visit(Visitor{
-                         [&](Expr* e) -> absl::Status {
-                           XLS_RETURN_IF_ERROR(Visit(ToAstNode(e)));
-                           XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(e));
-                           SetNodeToIr(node, bvalue);
-                           return absl::OkStatus();
-                         },
-                         [&](TypeAlias* n) -> absl::Status {
-                           // Nothing to do, all was resolved at type inference
-                           // time.
-                           return absl::OkStatus();
-                         },
-                         [&](ConstAssert* n) -> absl::Status {
-                           // Nothing to do, all was resolved at type inference
-                           // time.
-                           return absl::OkStatus();
-                         },
-                         [&](Let* let) -> absl::Status {
-                           XLS_RETURN_IF_ERROR(Visit(ToAstNode(let)));
-                           XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(let));
-                           SetNodeToIr(node, bvalue);
-                           return absl::OkStatus();
-                         },
-                     },
-                     node->wrapped());
+  return absl::visit(
+      Visitor{
+          [&](Expr* e) -> absl::Status {
+            XLS_RETURN_IF_ERROR(Visit(ToAstNode(e)));
+            XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(e));
+            SetNodeToIr(node, bvalue);
+            return absl::OkStatus();
+          },
+          [&](TypeAlias*) {
+            // Nothing to do, all was resolved at type inference
+            // time.
+            return absl::OkStatus();
+          },
+          [&](ConstAssert*) {
+            // Nothing to do, all was resolved at type inference
+            // time.
+            return absl::OkStatus();
+          },
+          [&](Let* let) -> absl::Status {
+            XLS_RETURN_IF_ERROR(Visit(ToAstNode(let)));
+            XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(let));
+            SetNodeToIr(node, bvalue);
+            return absl::OkStatus();
+          },
+          [](VerbatimNode*) {
+            return absl::UnimplementedError("Should not convert VerbatimNode");
+          },
+      },
+      node->wrapped());
   return absl::OkStatus();
 }
 

@@ -1883,7 +1883,8 @@ std::string TupleTypeAnnotation::ToString() const {
 
 // -- class Statement
 
-/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*, Let*, ConstAssert*>>
+/* static */ absl::StatusOr<
+    std::variant<Expr*, TypeAlias*, Let*, ConstAssert*, VerbatimNode*>>
 Statement::NodeToWrapped(AstNode* n) {
   if (auto* e = dynamic_cast<Expr*>(n)) {
     return e;

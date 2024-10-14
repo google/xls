@@ -767,7 +767,8 @@ class ChannelTypeAnnotation : public TypeAnnotation {
 // Both of those lines are statements.
 class Statement final : public AstNode {
  public:
-  using Wrapped = std::variant<Expr*, TypeAlias*, Let*, ConstAssert*>;
+  using Wrapped =
+      std::variant<Expr*, TypeAlias*, Let*, ConstAssert*, VerbatimNode*>;
 
   static absl::StatusOr<Wrapped> NodeToWrapped(AstNode* n);
 

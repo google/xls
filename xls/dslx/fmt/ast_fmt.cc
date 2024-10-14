@@ -1838,6 +1838,10 @@ std::vector<const CommentData*> Comments::GetComments(
   return results;
 }
 
+DocRef Fmt(const VerbatimNode* n, DocArena& arena) {
+  return arena.MakeText(std::string(n->text()));
+}
+
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
            bool trailing_semi) {
   auto maybe_concat_semi = [&](DocRef d) {
@@ -1858,6 +1862,7 @@ DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
           [&](const ConstAssert* n) {
             return maybe_concat_semi(Fmt(*n, comments, arena));
           },
+          [&](const VerbatimNode* n) { return Fmt(n, arena); },
       },
       n.wrapped());
 }
@@ -2529,7 +2534,7 @@ static DocRef Fmt(const ModuleMember& n, const Comments& comments,
           [&](const ConstAssert* n) {
             return arena.MakeConcat(Fmt(*n, comments, arena), arena.semi());
           },
-          [&](const VerbatimNode*) { return arena.empty(); },
+          [&](const VerbatimNode* n) { return Fmt(n, arena); },
       },
       n);
 }

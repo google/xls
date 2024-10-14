@@ -28,6 +28,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -167,20 +168,38 @@ TEST(AstFmtTest, FormatLet) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
-TEST(AstFmtTest, FormatVerbatimNode) {
+TEST(AstFmtTest, FormatVerbatimNodeTop) {
   FileTable file_table;
   Module m("test", /*fs_path=*/std::nullopt, file_table);
-  const Span fake_span;
+
   const std::string_view verbatim_text = "anything // goes\n  even here";
-  VerbatimNode verbatim(&m, fake_span, verbatim_text);
+  VerbatimNode verbatim(&m, Span(), verbatim_text);
   XLS_ASSERT_OK(m.AddTop(&verbatim, /*make_collision_error=*/nullptr));
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Fmt(m, empty_comments, arena);
-  // TODO: google/xls#1320 - Format verbatim nodes properly. Until then,
-  // verbatim nodes are formatted as "empty".
-  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), "\n");
+
+  // Intentionally small text width, should still be formatted verbatim.
+  // Newline is always added to a module.
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10),
+            absl::StrCat(verbatim_text, "\n"));
+}
+
+TEST(AstFmtTest, FormatVerbatimNodeStatement) {
+  FileTable file_table;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  const std::string_view verbatim_text = "anything // goes\n  even here";
+  VerbatimNode verbatim(&m, Span(), verbatim_text);
+  Statement statement(&m, &verbatim);
+  const Comments empty_comments = Comments::Create({});
+
+  DocArena arena(file_table);
+  DocRef doc = Fmt(statement, empty_comments, arena, /*trailing_semi=*/false);
+
+  // Intentionally small text width, should still be formatted verbatim.
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), verbatim_text);
 }
 
 // Fixture for test that format entire (single) functions -- expected usage:
