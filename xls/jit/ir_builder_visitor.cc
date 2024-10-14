@@ -2593,13 +2593,13 @@ absl::Status IrBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   if (one_hot->operand(0)->GetType()->AsBitsOrDie()->bit_count() > 0) {
     llvm::Value* zeroes;
     if (one_hot->priority() == LsbOrMsb::kLsb) {
-      llvm::Function* cttz = llvm::Intrinsic::getDeclaration(
+      llvm::Function* cttz = llvm::Intrinsic::getOrInsertDeclaration(
           module(), llvm::Intrinsic::cttz, {input_type});
       // We don't need to pass user data to these intrinsics; they're leaf
       // nodes.
       zeroes = b.CreateCall(cttz, {input, llvm_false});
     } else {
-      llvm::Function* ctlz = llvm::Intrinsic::getDeclaration(
+      llvm::Function* ctlz = llvm::Intrinsic::getOrInsertDeclaration(
           module(), llvm::Intrinsic::ctlz, {input_type});
       zeroes = b.CreateCall(ctlz, {input, llvm_false});
       zeroes = b.CreateSub(llvm::ConstantInt::get(input_type, input_width - 1),
@@ -2756,7 +2756,7 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
   llvm::Value* llvm_false = b.getFalse();
 
   // Get index to select by counting trailing zeros
-  llvm::Function* cttz = llvm::Intrinsic::getDeclaration(
+  llvm::Function* cttz = llvm::Intrinsic::getOrInsertDeclaration(
       module(), llvm::Intrinsic::cttz, {selector->getType()});
   llvm::Value* selected_index = b.CreateCall(cttz, {selector, llvm_false});
 
@@ -2787,7 +2787,7 @@ absl::Status IrBuilderVisitor::HandleOrReduce(BitwiseReductionOp* op) {
 absl::Status IrBuilderVisitor::HandleReverse(UnOp* reverse) {
   return HandleUnaryOp(
       reverse, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
-        llvm::Function* reverse_fn = llvm::Intrinsic::getDeclaration(
+        llvm::Function* reverse_fn = llvm::Intrinsic::getOrInsertDeclaration(
             module(), llvm::Intrinsic::bitreverse, {operand->getType()});
         // Shift right logically by native width - natural with.
         llvm::Value* result = b.CreateCall(reverse_fn, {operand});
@@ -3019,7 +3019,7 @@ absl::Status IrBuilderVisitor::HandleULt(CompareOp* lt) {
 absl::Status IrBuilderVisitor::HandleXorReduce(BitwiseReductionOp* op) {
   return HandleUnaryOp(op, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
     // XOR-reduce is equivalent to checking if the number of set bits is odd.
-    llvm::Function* ctpop = llvm::Intrinsic::getDeclaration(
+    llvm::Function* ctpop = llvm::Intrinsic::getOrInsertDeclaration(
         module(), llvm::Intrinsic::ctpop, {operand->getType()});
     // We don't need to pass user data to intrinsics; they're leaf nodes.
     llvm::Value* pop_count = b.CreateCall(ctpop, {operand});
