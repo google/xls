@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/passes/optimization_pass.h"
@@ -50,6 +51,8 @@ enum class RamLogicalChannel {
 absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(
     std::string_view name);
 std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel);
+
+Direction GetRamLogicalChannelDirection(RamLogicalChannel logical_channel);
 
 // If mask_width is defined, return bits[mask_width]. Otherwise, there are no
 // masks, which we represent with an empty tuple. The empty tuple will be

@@ -70,14 +70,6 @@ struct RamConfig {
   static absl::StatusOr<RamConfig> FromProto(const RamConfigProto& proto);
 };
 
-struct RamModelBuilderResult {
-  std::unique_ptr<Package> package;
-  absl::flat_hash_map<std::string, std::string>
-      channel_logical_name_to_physical_name;
-};
-
-using ram_model_builder_t = std::function<RamModelBuilderResult(RamConfig)>;
-
 // A configuration describing a desired RAM rewrite.
 struct RamRewrite {
   // Configuration of RAM we start with.
@@ -90,9 +82,10 @@ struct RamRewrite {
   RamConfig to_config;
   // Name prefix for the new ram model
   std::string to_name_prefix;
-  // If populated, also add a RAM model of kind "to_kind" driving the new
-  // channels using the builder function.
-  std::optional<ram_model_builder_t> model_builder;
+
+  // For proc-scoped channels only, this specifies which proc the channels are
+  // defined in.
+  std::optional<std::string> proc_name;
 
   static absl::StatusOr<RamRewrite> FromProto(const RamRewriteProto& proto);
 };

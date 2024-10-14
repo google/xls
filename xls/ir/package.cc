@@ -158,7 +158,7 @@ Block* Package::AddBlock(std::unique_ptr<Block> block) {
   return blocks_.back().get();
 }
 
-// Private helpers for Package::AddPackage().
+// Private helpers for Package::ImportFromPackage().
 namespace {
 // Helper class that tracks names in a package and resolves name collisions.
 class NameCollisionResolver {
@@ -295,7 +295,7 @@ AddFunctionBasesFromPackage(
 }
 }  // namespace
 
-absl::StatusOr<Package::PackageMergeResult> Package::AddPackage(
+absl::StatusOr<Package::PackageMergeResult> Package::ImportFromPackage(
     const Package* other) {
   // Helper that keeps track of old -> new name mapping, resolving collisions if
   // needed.

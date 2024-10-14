@@ -161,9 +161,9 @@ class Package {
     // other package -> this package channel id mapping
     absl::flat_hash_map<std::string, std::string> channel_updates;
   };
-  // Add another package to this package. Ownership is transferred to this
-  // package.
-  absl::StatusOr<PackageMergeResult> AddPackage(const Package* other);
+  // Import all IR constructs from another package to this package. Ownership of
+  // all constructs is transferred to this package.
+  absl::StatusOr<PackageMergeResult> ImportFromPackage(const Package* other);
 
   // Get a function, proc, or block by name. Returns an error if no such
   // construct of the indicated kind exists with that name.

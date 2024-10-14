@@ -97,9 +97,6 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
 
 /* static */ absl::StatusOr<RamRewrite> RamRewrite::FromProto(
     const RamRewriteProto& proto) {
-  if (proto.has_model_builder()) {
-    return absl::UnimplementedError("Model builders not yet implemented.");
-  }
   XLS_ASSIGN_OR_RETURN(RamConfig from_config,
                        RamConfig::FromProto(proto.from_config()));
   XLS_ASSIGN_OR_RETURN(RamConfig to_config,
@@ -112,7 +109,9 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
               proto.from_channels_logical_to_physical().end()),
       .to_config = to_config,
       .to_name_prefix = proto.to_name_prefix(),
-      .model_builder = std::nullopt,
+      .proc_name = proto.has_proc_name()
+                       ? std::optional<std::string>(proto.proc_name())
+                       : std::nullopt,
   };
 }
 

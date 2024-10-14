@@ -148,15 +148,23 @@ class Channel {
     absl::Format(&sink, "%s", p.name());
   }
 
-  // Comparator used for sorting by name.
+  // Comparators used for sorting by name/id.
   static bool NameLessThan(const Channel* a, const Channel* b) {
     return a->name() < b->name();
+  }
+  static bool IdLessThan(const Channel* a, const Channel* b) {
+    return a->id() < b->id();
   }
 
   // Struct form for passing comparators as template arguments.
   struct NameLessThan {
     bool operator()(const Channel* a, const Channel* b) const {
       return Channel::NameLessThan(a, b);
+    }
+  };
+  struct IdLessThan {
+    bool operator()(const Channel* a, const Channel* b) const {
+      return Channel::IdLessThan(a, b);
     }
   };
 
@@ -346,6 +354,14 @@ enum class Direction : int8_t { kSend, kReceive };
 std::string DirectionToString(Direction direction);
 absl::StatusOr<Direction> DirectionFromString(std::string_view str);
 std::ostream& operator<<(std::ostream& os, Direction direction);
+inline Direction InvertDirection(Direction d) {
+  switch (d) {
+    case Direction::kSend:
+      return Direction::kReceive;
+    case Direction::kReceive:
+      return Direction::kSend;
+  }
+}
 
 // Abstraction representing a reference to a channel. The reference can be
 // typed to refer to the send or receive side. With proc-scoped channels (new

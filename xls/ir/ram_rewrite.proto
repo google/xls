@@ -35,7 +35,9 @@ message RamRewriteProto {
   map<string, string> from_channels_logical_to_physical = 2;
   RamConfigProto to_config = 3;
   string to_name_prefix = 4;
-  optional string model_builder = 5;
+  // For proc-scoped channels only, this specifies which proc the channels are
+  // defined in.
+  optional string proc_name = 5;
 }
 
 message RamRewritesProto {

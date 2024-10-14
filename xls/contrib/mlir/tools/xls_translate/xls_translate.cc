@@ -864,7 +864,7 @@ FailureOr<PackageInfo> importDslxInstantiation(
     return failure();
   }
   absl::StatusOr<Package::PackageMergeResult> merge_result =
-      package.AddPackage(package_or->get());
+      package.ImportFromPackage(package_or->get());
   if (!merge_result.ok()) {
     llvm::errs() << "Failed to add package: " << merge_result.status().message()
                  << "\n";
@@ -916,7 +916,7 @@ FailureOr<PackageInfo> importDslxFile(ImportDslxFilePackageOp file_import_op,
     return failure();
   }
   absl::StatusOr<Package::PackageMergeResult> merge_result =
-      package.AddPackage(package_or->get());
+      package.ImportFromPackage(package_or->get());
   if (!merge_result.ok()) {
     llvm::errs() << "Failed to add package: " << merge_result.status().message()
                  << "\n";
