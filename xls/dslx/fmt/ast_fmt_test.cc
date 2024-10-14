@@ -1588,6 +1588,56 @@ fn f() -> MyStruct {
 )");
 }
 
+TEST_F(ModuleFmtTest, StructInstantiationWithExactSizedCondExpr) {
+  Run(
+      R"(struct MyStruct { field: u32 }
+
+const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
+
+fn f(b: bool) -> MyStruct {
+    MyStruct {
+        field: if TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT {
+            u32:42
+        } else {
+            u32:64
+        },
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, StructInstantiationWithExactOneCharOverlyLargeCondExpr) {
+  Run(
+      R"(struct MyStruct { field: u32 }
+
+const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
+
+fn f(b: bool) -> MyStruct {
+    MyStruct {
+        field: if TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT {
+            u32:42
+        } else {
+            u32:64
+        },
+    }
+}
+)", /*want=*/R"(struct MyStruct { field: u32 }
+
+const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
+
+fn f(b: bool) -> MyStruct {
+    MyStruct {
+        field:
+            if TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT {
+                u32:42
+            } else {
+                u32:64
+            },
+    }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleParametricStructInstantiation) {
   Run(
       R"(import mol;

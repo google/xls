@@ -1307,14 +1307,14 @@ static DocRef FmtStructMembersBreak(
   return FmtJoin<std::pair<std::string, Expr*>>(
       members, Joiner::kCommaHardlineTrailingCommaAlways,
       [](const auto& member, const Comments& comments, DocArena& arena) {
-        const auto& [name, expr] = member;
+        const auto& [field_name, expr] = member;
         // If the expression is an identifier that matches its corresponding
         // struct member name, we canonically use the shorthand notation of just
         // providing the identifier and leaving the member name implicitly as
         // the same symbol.
         if (const NameRef* name_ref = dynamic_cast<const NameRef*>(expr);
-            name_ref != nullptr && name_ref->identifier() == name) {
-          return arena.MakeText(name);
+            name_ref != nullptr && name_ref->identifier() == field_name) {
+          return arena.MakeText(field_name);
         }
 
         DocRef field_expr = Fmt(*expr, comments, arena);
@@ -1328,16 +1328,16 @@ static DocRef FmtStructMembersBreak(
         // reassessment of whether to enter break mode for the field
         // expression.
         DocRef on_flat =
-            ConcatN(arena, {arena.MakeText(name), arena.colon(), arena.break1(),
+            ConcatN(arena, {arena.MakeText(field_name), arena.colon(), arena.break1(),
                             arena.MakeGroup(field_expr)});
         DocRef nest_field_expr =
-            ConcatN(arena, {arena.MakeText(name), arena.colon(),
+            ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
                             arena.hard_line(), arena.MakeNest(field_expr)});
 
         DocRef on_other;
         if (expr->IsBlockedExprWithLeader()) {
-          DocRef leader = arena.MakeConcat(
-              arena.space(), FmtBlockedExprLeader(*expr, comments, arena));
+          DocRef leader = ConcatN(arena, {
+              arena.MakeText(field_name), arena.colon(), arena.space(), FmtBlockedExprLeader(*expr, comments, arena)});
           on_other = arena.MakeModeSelect(leader, /*on_flat=*/on_flat,
                                           /*on_break=*/nest_field_expr);
         } else {
