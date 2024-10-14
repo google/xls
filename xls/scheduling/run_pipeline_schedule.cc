@@ -482,13 +482,16 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
                                 /*check_feasibility=*/false,
                                 worst_case_throughput);
     if (!schedule_cycle_map.ok()) {
-      if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
-        // The scheduler was able to explain the failure; report it up.
+      if (absl::IsInvalidArgument(schedule_cycle_map.status()) &&
+          (!options.minimize_clock_on_failure().value_or(false) ||
+           !options.recover_after_minimizing_clock().value_or(false))) {
+        // The scheduler was able to explain the failure, and we're not supposed
+        // to try to recover; report it up without further analysis.
         return std::move(schedule_cycle_map).status();
       }
       if (options.clock_period_ps().has_value()) {
-        // The scheduler was unable to explain the failure internally, and the
-        // user specified a specific clock period.
+        // The user specified a specific clock period; see if we can confirm
+        // that that's the issue.
 
         if (options.minimize_clock_on_failure().value_or(true)) {
           // Find the smallest clock period that would have worked.
@@ -506,10 +509,19 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
           if (min_clock_period_ps.ok()) {
             min_clock_period_ps_for_tracing = *min_clock_period_ps;
             if (options.recover_after_minimizing_clock().value_or(false)) {
-              LOG(WARNING) << "Continuing with clock period = "
-                           << *min_clock_period_ps << " ps.";
+              int64_t new_clock_period_ps = *min_clock_period_ps;
+              if (options.period_relaxation_percent().has_value()) {
+                int64_t relaxation_percent =
+                    options.period_relaxation_percent().value();
+                new_clock_period_ps +=
+                    (new_clock_period_ps * relaxation_percent + 50) / 100;
+              }
+              LOG(WARNING) << "Shortest feasible clock period is "
+                           << *min_clock_period_ps
+                           << "; continuing with clock period = "
+                           << new_clock_period_ps << " ps.";
               SchedulingOptions new_clock_options(options);
-              new_clock_options.clock_period_ps(*min_clock_period_ps);
+              new_clock_options.clock_period_ps(new_clock_period_ps);
               return RunPipelineSchedule(f, delay_estimator, new_clock_options,
                                          synthesizer);
             }
