@@ -110,8 +110,9 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
     absl::flat_hash_map<std::string, Value> base =
         BlockJitContinuation::GetRegistersMap();
     for (const auto& [orig, rename] : reg_rename_map_) {
-      if (base.contains(rename)) {
-        base[orig] = base.extract(rename).mapped();
+      if (auto node = base.extract(rename)) {
+        node.key() = orig;
+        base.insert(std::move(node));
       }
     }
     return base;
@@ -120,8 +121,9 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
       const override {
     auto base = BlockJitContinuation::GetRegisterIndices();
     for (const auto& [orig, rename] : reg_rename_map_) {
-      if (base.contains(rename)) {
-        base[orig] = base.extract(rename).mapped();
+      if (auto node = base.extract(rename)) {
+        node.key() = orig;
+        base.insert(std::move(node));
       }
     }
     return base;
@@ -130,8 +132,9 @@ class ElaboratedBlockJitContinuation : public BlockJitContinuation {
       const absl::flat_hash_map<std::string, Value>& regs) override {
     absl::flat_hash_map<std::string, Value> translated_regs = regs;
     for (const auto& [orig, rename] : reg_rename_map_) {
-      if (translated_regs.contains(orig)) {
-        translated_regs[rename] = translated_regs.extract(orig).mapped();
+      if (auto node = translated_regs.extract(orig)) {
+        node.key() = rename;
+        translated_regs.insert(std::move(node));
       }
     }
     // Registers inserted to implement elaboration don't have any analogue on
