@@ -42,6 +42,7 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/fmt/ast_fmt.h"
+#include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/module.h"

@@ -30,7 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
-#include "xls/dslx/fmt/ast_fmt.h"
+#include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"

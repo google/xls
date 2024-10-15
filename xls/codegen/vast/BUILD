@@ -171,6 +171,7 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/fmt:ast_fmt",
+        "//xls/dslx/fmt:comments",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:module",
