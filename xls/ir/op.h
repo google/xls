@@ -82,9 +82,11 @@ template <typename OpT>
 constexpr bool IsOpClass(Op op) {
   static_assert(std::is_base_of<Node, OpT>::value && !std::is_same_v<OpT, Node>,
                 "OpT is not a Node subclass");
-  // TODO(allight): Once we have an absl with public c_contains we should use
-  // that instead.
-  return absl::c_count(OpT::kOps, op) != 0;
+  // Return true if op is one of the elements of OpT::kOps
+  for (auto it = OpT::kOps.begin(); it != OpT::kOps.end(); ++it) {
+    if (*it == op) return true;
+  }
+  return false;
 }
 
 // Streams the string for "op" to the given output stream.
