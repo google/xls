@@ -146,6 +146,41 @@ TEST_F(BlockJitTest, SetInputsWithViews) {
               testing::ElementsAre(Value(UBits(42, 16))));
 }
 
+TEST_F(BlockJitTest, SetRegistersImmediatelyVisible) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto r1, bb.block()->AddRegister("test1", p->GetBitsType(16)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto r2, bb.block()->AddRegister("test2", p->GetBitsType(16)));
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  bb.RegisterWrite(r1, bb.Literal(UBits(0, 16)));
+  bb.RegisterWrite(r2, bb.Literal(UBits(0, 16)));
+  auto read1 = bb.RegisterRead(r1);
+  auto read2 = bb.RegisterRead(r2);
+  bb.OutputPort("output", bb.Add(read1, read2));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto cont, kJitBlockEvaluator.NewContinuation(b));
+
+  XLS_ASSERT_OK(cont->RunOneCycle({}));
+  EXPECT_THAT(cont->registers(),
+              testing::UnorderedElementsAre(
+                  testing::Pair("test1", Value(UBits(0, 16))),
+                  testing::Pair("test2", Value(UBits(0, 16)))));
+
+  XLS_ASSERT_OK(cont->SetRegisters({
+      {"test1", Value(UBits(1, 16))},
+      {"test2", Value(UBits(2, 16))},
+  }));
+
+  // Should be visible without a `RunOneCycle()` call.
+  EXPECT_THAT(cont->registers(),
+              testing::UnorderedElementsAre(
+                  testing::Pair("test1", Value(UBits(1, 16))),
+                  testing::Pair("test2", Value(UBits(2, 16)))));
+}
+
 TEST_F(BlockJitTest, SetRegistersWithViews) {
   auto p = CreatePackage();
   BlockBuilder bb(TestName(), p.get());

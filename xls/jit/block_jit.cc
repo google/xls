@@ -581,6 +581,7 @@ class BlockContinuationJitWrapper final : public BlockContinuation {
   }
   absl::Status SetRegisters(
       const absl::flat_hash_map<std::string, Value>& regs) final {
+    temporary_regs_.reset();
     return continuation_->SetRegisters(regs);
   }
 
