@@ -16,47 +16,31 @@
 
 #include <list>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
-#include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc.h"
-#include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/frontend/proc_test_utils.h"
 
 namespace xls::dslx {
 namespace {
 
 class ProcIdTest : public ::testing::Test {
  protected:
-  Proc* CreateEmptyProc(std::string_view name) {
-    const std::string_view code_template = R"(proc %s {
-    config() { () }
-    init { () }
-    next(state: ()) { () }
-})";
-    Scanner s{file_table_, Fileno(0), absl::StrFormat(code_template, name)};
-    Parser parser{"test", &s};
-    Bindings bindings;
-    absl::StatusOr<Proc*> proc =
-        parser.ParseProc(/*is_public=*/false, bindings);
-    CHECK(proc.ok());
-    modules_.emplace_back(std::move(parser.module()));
-    return *proc;
-  }
-
   void SetUp() override {
-    foo_ = CreateEmptyProc("Foo");
-    bar_ = CreateEmptyProc("Bar");
-    baz_ = CreateEmptyProc("Baz");
+    auto [foo_module, foo_proc] = CreateEmptyProc(file_table_, "Foo");
+    auto [bar_module, bar_proc] = CreateEmptyProc(file_table_, "Bar");
+    auto [baz_module, baz_proc] = CreateEmptyProc(file_table_, "Baz");
+    foo_ = foo_proc;
+    bar_ = bar_proc;
+    baz_ = baz_proc;
+    modules_.push_back(std::move(foo_module));
+    modules_.push_back(std::move(bar_module));
+    modules_.push_back(std::move(baz_module));
   }
 
   FileTable file_table_;
