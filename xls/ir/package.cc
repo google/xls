@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <list>
 #include <memory>
 #include <optional>
@@ -183,8 +184,9 @@ class NameCollisionResolver {
       new_name = absl::StrCat(old_name, "_", suffix);
       ++suffix;
     } while (Collides(new_name));
-    names_.insert(new_name);
     name_updates_[old_name] = new_name;
+    std::string& new_name_ref = storage_.emplace_back(new_name);
+    names_.insert(new_name_ref);
     return new_name;
   }
 
@@ -193,6 +195,9 @@ class NameCollisionResolver {
   // for collisions and resolve them.
   absl::flat_hash_set<std::string_view> names_;
   absl::flat_hash_map<std::string, std::string> name_updates_;
+  // Storage for string_views inside names_ that have been created in
+  // ResolveName.
+  std::deque<std::string> storage_;
 };
 
 // Get a set of all names defined within a package.
