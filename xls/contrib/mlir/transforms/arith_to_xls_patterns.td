@@ -136,6 +136,11 @@ def : Pat<(Arith_SIToFPOp:$op I32:$a),
           (Xls_CallDslxOp (FloatLib $op), CS<"from_int32">, (variadic $a), ConstUnitAttr),
           [(ScalarOrTensorOf<F32> $op)]>;
 
+def : Pat<(Arith_SIToFPOp:$op I32:$a),
+          (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
+            (variadic (Arith_SIToFPOp $a, (returnType "$_builder.getF32Type()"))), ConstUnitAttr),
+          [(ScalarOrTensorOf<BF16> $op)]>;
+
 def : Pat<(Arith_SIToFPOp:$op I8:$a),
           (Xls_CallDslxOp (FloatLib $op), CS<"from_int8">, (variadic $a), ConstUnitAttr),
           [(ScalarOrTensorOf<BF16> $op)]>;

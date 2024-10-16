@@ -150,6 +150,16 @@ func.func @sitofp16(%arg0: i8) -> bf16 attributes { "xls" = true } {
   return %0 : bf16
 }
 
+// CHECK-LABEL: @si32tofp16
+// CHECK: xls.call_dslx
+// CHECK-SAME: from_int32
+// CHECK: xls.call_dslx
+// CHECK-SAME: from_float32
+func.func @si32tofp16(%arg0: i32) -> bf16 attributes { "xls" = true } {
+  %0 = arith.sitofp %arg0 : i32 to bf16
+  return %0 : bf16
+}
+
 // CHECK-LABEL: @eq
 // CHECK:  xls.call_dslx
 // CHECK-SAME: eq_2
