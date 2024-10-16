@@ -300,11 +300,11 @@ def load_external_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
-    # Tagged 2024-08-23, current as of 2024-08-24
-    VERIBLE_TAG = "v0.0-3756-gda9a0f8c"
+    # Tagged 2024-10-16, current as of 2024-10-16
+    VERIBLE_TAG = "v0.0-3836-g86ee9bab"
     http_archive(
         name = "verible",
-        sha256 = "0d45e646ce8cf618c55e614f827aead0377c34035be04b843aee225ea5be4527",
+        sha256 = "946625a1527d0a97772ea031ab7358af29e61258c189a2ab0d9533b43e71f35b",
         strip_prefix = "verible-" + VERIBLE_TAG.lstrip("v"),
         urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/" + VERIBLE_TAG + ".tar.gz"],
         patch_args = ["-p1"],
