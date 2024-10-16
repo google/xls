@@ -363,15 +363,41 @@ TEST(IrMatchersTest, SendOps) {
   XLS_ASSERT_OK(b.Build({b.AfterAll({send, send_if}), state}).status());
 
   EXPECT_THAT(send.node(), m::Send());
-  EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
+  EXPECT_THAT(send.node(), m::Send(m::Channel("ch42")));
   EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), m::Name("my_state"),
-                                   m::Channel(42)));
+                                   m::Channel("ch42")));
   EXPECT_THAT(send.node(), m::Send(m::ChannelWithType("bits[32]")));
 
   EXPECT_THAT(send_if.node(), m::Send());
-  EXPECT_THAT(send_if.node(), m::Send(m::Channel(123)));
+  EXPECT_THAT(send_if.node(), m::Send(m::Channel("ch123")));
   EXPECT_THAT(send_if.node(), m::Send(m::Name("my_token"), m::Name("my_state"),
-                                      m::Literal(), m::Channel(123)));
+                                      m::Literal(), m::Channel("ch123")));
+  EXPECT_THAT(send_if.node(), m::Send(m::ChannelWithType("bits[32]")));
+}
+
+TEST(IrMatchersTest, ProcScopedChannels) {
+  Package p("p");
+  ProcBuilder b(NewStyleProc(), "test_proc", &p);
+  auto my_token = b.StateElement("my_token", Value::Token());
+  auto state = b.StateElement("my_state", Value(UBits(333, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelReferences ch42,
+                           b.AddChannel("ch42", p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(SendChannelReference * ch123,
+                           b.AddOutputChannel("ch123", p.GetBitsType(32)));
+  auto send = b.Send(ch42.send_ref, my_token, state);
+  auto send_if = b.SendIf(ch123, my_token, b.Literal(UBits(1, 1)), {state});
+  XLS_ASSERT_OK(b.Build({b.AfterAll({send, send_if}), state}).status());
+
+  EXPECT_THAT(send.node(), m::Send());
+  EXPECT_THAT(send.node(), m::Send(m::Channel("ch42")));
+  EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), m::Name("my_state"),
+                                   m::Channel("ch42")));
+  EXPECT_THAT(send.node(), m::Send(m::ChannelWithType("bits[32]")));
+
+  EXPECT_THAT(send_if.node(), m::Send());
+  EXPECT_THAT(send_if.node(), m::Send(m::Channel("ch123")));
+  EXPECT_THAT(send_if.node(), m::Send(m::Name("my_token"), m::Name("my_state"),
+                                      m::Literal(), m::Channel("ch123")));
   EXPECT_THAT(send_if.node(), m::Send(m::ChannelWithType("bits[32]")));
 }
 
@@ -403,7 +429,7 @@ TEST(IrMatchersTest, ReceiveOps) {
                     .status());
 
   EXPECT_THAT(receive.node(), m::Receive());
-  EXPECT_THAT(receive.node(), m::Receive(m::Channel(42)));
+  EXPECT_THAT(receive.node(), m::Receive(m::Channel("ch42")));
   EXPECT_THAT(receive.node(),
               m::Receive(m::Name("my_token"), m::Channel("ch42")));
   EXPECT_THAT(receive.node(), m::Receive(m::Name("my_token"),
@@ -411,7 +437,7 @@ TEST(IrMatchersTest, ReceiveOps) {
   EXPECT_THAT(receive.node(), m::Receive(m::ChannelWithType("bits[32]")));
 
   EXPECT_THAT(receive_if.node(), m::Receive());
-  EXPECT_THAT(receive_if.node(), m::Receive(m::Channel(123)));
+  EXPECT_THAT(receive_if.node(), m::Receive(m::Channel("ch123")));
   EXPECT_THAT(receive_if.node(), m::Receive(m::Name("my_token"), m::Literal(),
                                             m::Channel("ch123")));
   EXPECT_THAT(receive_if.node(),
@@ -419,8 +445,6 @@ TEST(IrMatchersTest, ReceiveOps) {
   EXPECT_THAT(receive_if.node(), m::Receive(m::ChannelWithType("bits[32]")));
 
   // Mismatch conditions.
-  EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel(444))),
-              HasSubstr("has incorrect id (42), expected: 444"));
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel("foobar"))),
               HasSubstr("ch42 has incorrect name, expected: foobar."));
   EXPECT_THAT(

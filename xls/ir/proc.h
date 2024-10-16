@@ -247,8 +247,14 @@ class Proc : public FunctionBase {
   absl::StatusOr<ChannelReferences> AddChannel(
       std::unique_ptr<Channel> channel);
 
-  // Returns the channel with the given name defined in the proc.
+  // Returns the channel with the given name defined in the proc. Only can be
+  // called for new style procs.
   absl::StatusOr<Channel*> GetChannel(std::string_view name);
+
+  // Returns the ChannelRef referring to the global channel or proc-scoped
+  // channel (new-style procs) with the given name.
+  absl::StatusOr<ChannelRef> GetChannelRef(std::string_view name,
+                                           Direction direction);
 
   bool ChannelIsOwnedByProc(Channel* channel);
 

@@ -40,6 +40,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -65,33 +66,25 @@ void NameMatcherInternal::DescribeNegationTo(std::ostream* os) const {
 }  // namespace internal
 
 bool ChannelMatcher::MatchAndExplain(
-    const ::xls::Channel* channel,
-    ::testing::MatchResultListener* listener) const {
-  if (channel == nullptr) {
-    return false;
-  }
-  *listener << channel->ToString();
-  if (id_.has_value() && channel->id() != id_.value()) {
-    *listener << absl::StreamFormat(" has incorrect id (%d), expected: %d",
-                                    channel->id(), id_.value());
-    return false;
-  }
+    ::xls::ChannelRef channel, ::testing::MatchResultListener* listener) const {
+  *listener << ChannelRefToString(channel);
 
   if (name_.has_value() &&
-      !name_->MatchAndExplain(std::string{channel->name()}, listener)) {
+      !name_->MatchAndExplain(std::string{ChannelRefName(channel)}, listener)) {
     return false;
   }
 
-  if (kind_.has_value() && channel->kind() != kind_.value()) {
-    *listener << absl::StreamFormat(" has incorrect kind (%s), expected: %s",
-                                    ChannelKindToString(channel->kind()),
-                                    ChannelKindToString(kind_.value()));
+  if (kind_.has_value() && ChannelRefKind(channel) != kind_.value()) {
+    *listener << absl::StreamFormat(
+        " has incorrect kind (%s), expected: %s",
+        ChannelKindToString(ChannelRefKind(channel)),
+        ChannelKindToString(kind_.value()));
     return false;
   }
   if (type_string_.has_value() &&
-      channel->type()->ToString() != type_string_.value()) {
+      ChannelRefType(channel)->ToString() != type_string_.value()) {
     *listener << absl::StreamFormat(" has incorrect type (%s), expected: %s",
-                                    channel->type()->ToString(),
+                                    ChannelRefType(channel)->ToString(),
                                     type_string_.value());
     return false;
   }
@@ -100,9 +93,6 @@ bool ChannelMatcher::MatchAndExplain(
 
 void ChannelMatcher::DescribeTo(::std::ostream* os) const {
   std::vector<std::string> pieces;
-  if (id_.has_value()) {
-    pieces.push_back(absl::StrFormat("id=%d", id_.value()));
-  }
   if (name_.has_value()) {
     std::stringstream ss;
     ss << "name=\"";
@@ -382,16 +372,17 @@ bool TupleIndexMatcher::MatchAndExplain(
 }
 
 static bool MatchChannel(
-    std::string_view channel, Package* package,
-    const ::testing::Matcher<const ::xls::Channel*>& channel_matcher,
+    std::string_view channel, ::xls::Proc* proc, ::xls::Direction direction,
+    const ::testing::Matcher<::xls::ChannelRef>& channel_matcher,
     ::testing::MatchResultListener* listener) {
-  absl::StatusOr<::xls::Channel*> channel_status = package->GetChannel(channel);
+  absl::StatusOr<::xls::ChannelRef> channel_status =
+      proc->GetChannelRef(channel, direction);
   if (!channel_status.ok()) {
     *listener << " has an invalid channel name: " << channel;
     return false;
   }
-  ::xls::Channel* ch = channel_status.value();
-  return channel_matcher.MatchAndExplain(ch, listener);
+  ::xls::ChannelRef ch_ref = channel_status.value();
+  return channel_matcher.MatchAndExplain(ch_ref, listener);
 }
 
 static std::string_view GetChannelName(const Node* node) {
@@ -413,7 +404,18 @@ bool ChannelNodeMatcher::MatchAndExplain(
   if (!channel_matcher_.has_value()) {
     return true;
   }
-  return MatchChannel(GetChannelName(node), node->package(),
+  Direction direction;
+  if (node->Is<::xls::Send>()) {
+    direction = Direction::kSend;
+  } else if (node->Is<::xls::Receive>()) {
+    direction = Direction::kReceive;
+  } else {
+    LOG(FATAL) << absl::StrFormat(
+        "Expected send or receive node, got node `%s` with op `%s`",
+        node->GetName(), OpToString(node->op()));
+  }
+  return MatchChannel(GetChannelName(node),
+                      node->function_base()->AsProcOrDie(), direction,
                       channel_matcher_.value(), listener);
 }
 

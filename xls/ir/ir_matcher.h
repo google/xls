@@ -653,89 +653,74 @@ inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
 // which communicate over channels (e.g., send and receive). Supported forms:
 //
 //   m::Channel(/*name=*/"foo");
-//   m::Channel(/*id=*/42);
-//   m::Channel(ChannelKind::kPort);
+//   m::Channel(ChannelKind::kStreaming);
 //   m::Channel(node->GetType());
 //   m::ChannelWithType("bits[32]");
 //
-class ChannelMatcher
-    : public ::testing::MatcherInterface<const ::xls::Channel*> {
+class ChannelMatcher : public ::testing::MatcherInterface<::xls::ChannelRef> {
  public:
-  ChannelMatcher(std::optional<int64_t> id,
-                 std::optional<::testing::Matcher<std::string>> name,
+  ChannelMatcher(std::optional<::testing::Matcher<std::string>> name,
                  std::optional<ChannelKind> kind,
                  std::optional<std::string_view> type_string)
-      : id_(id),
-        name_(std::move(name)),
-        kind_(kind),
-        type_string_(type_string) {}
+      : name_(std::move(name)), kind_(kind), type_string_(type_string) {}
 
-  bool MatchAndExplain(const ::xls::Channel* channel,
+  bool MatchAndExplain(::xls::ChannelRef channel,
                        ::testing::MatchResultListener* listener) const override;
 
   void DescribeTo(::std::ostream* os) const override;
 
  protected:
-  std::optional<int64_t> id_;
   std::optional<::testing::Matcher<std::string>> name_;
   std::optional<ChannelKind> kind_;
   std::optional<std::string> type_string_;
 };
 
-inline ::testing::Matcher<const ::xls::Channel*> Channel() {
+inline ::testing::Matcher<::xls::ChannelRef> Channel() {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::nullopt, std::nullopt, std::nullopt, std::nullopt));
-}
-
-inline ::testing::Matcher<const ::xls::Channel*> Channel(
-    std::optional<int64_t> id) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      id, std::nullopt, std::nullopt, std::nullopt));
+      std::nullopt, std::nullopt, std::nullopt));
 }
 
 template <typename T>
-inline ::testing::Matcher<const ::xls::Channel*> Channel(
-    std::optional<int64_t> id, T name,
-    std::optional<ChannelKind> kind = std::nullopt,
-    std::optional<const ::xls::Type*> type_ = std::nullopt)
+inline ::testing::Matcher<::xls::ChannelRef> Channel(
+    T name, std::optional<ChannelKind> kind,
+    std::optional<const ::xls::Type*> type_)
   requires(std::is_convertible_v<T, std::string>)
 {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      id, std::string{name}, kind,
+      std::string{name}, kind,
       type_.has_value() ? std::optional(type_.value()->ToString())
                         : std::nullopt));
 }
 
 template <typename T>
-inline ::testing::Matcher<const ::xls::Channel*> Channel(T name)
+inline ::testing::Matcher<::xls::ChannelRef> Channel(T name)
   requires(std::is_convertible_v<T, std::string_view>)
 {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::nullopt, internal::NameMatcherInternal(std::string_view{name}),
-      std::nullopt, std::nullopt));
+      internal::NameMatcherInternal(std::string_view{name}), std::nullopt,
+      std::nullopt));
 }
 
-inline ::testing::Matcher<const ::xls::Channel*> Channel(
+inline ::testing::Matcher<::xls::ChannelRef> Channel(
     const ::testing::Matcher<std::string>& matcher) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::nullopt, matcher, std::nullopt, std::nullopt));
+      matcher, std::nullopt, std::nullopt));
 }
 
-inline ::testing::Matcher<const ::xls::Channel*> Channel(ChannelKind kind) {
+inline ::testing::Matcher<::xls::ChannelRef> Channel(ChannelKind kind) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::ChannelMatcher(std::nullopt, kind, std::nullopt));
+}
+
+inline ::testing::Matcher<::xls::ChannelRef> Channel(const ::xls::Type* type_) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::nullopt, std::nullopt, kind, std::nullopt));
+      std::nullopt, std::nullopt, type_->ToString()));
 }
 
-inline ::testing::Matcher<const ::xls::Channel*> Channel(
-    const ::xls::Type* type_) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::nullopt, std::nullopt, std::nullopt, type_->ToString()));
-}
-
-inline ::testing::Matcher<const ::xls::Channel*> ChannelWithType(
+inline ::testing::Matcher<::xls::ChannelRef> ChannelWithType(
     std::string_view type_string) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      std::nullopt, std::nullopt, std::nullopt, type_string));
+      std::nullopt, std::nullopt, type_string));
 }
 
 // Abstract base class for matchers of nodes which use channels.
@@ -743,7 +728,7 @@ class ChannelNodeMatcher : public NodeMatcher {
  public:
   ChannelNodeMatcher(
       Op op, absl::Span<const ::testing::Matcher<const Node*>> operands,
-      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher)
       : NodeMatcher(op, operands),
         channel_matcher_(std::move(channel_matcher)) {}
 
@@ -752,34 +737,34 @@ class ChannelNodeMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher_;
+  std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher_;
 };
 
 // Send matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, m::Send());
-//   EXPECT_THAT(foo, m::Send(m::Channel(42)));
+//   EXPECT_THAT(foo, m::Send(m::Channel("foo")));
 //   EXPECT_THAT(foo, m::Send(/*token=*/m::Param(), /*data=*/m::Param(),
-//                            m::Channel(42)));
+//                            m::Channel("bar")));
 //   EXPECT_THAT(foo, m::Send(/*token=*/m::Param(), /*data=*/m::Param(),
 //                            /*predicate=*/m::Param(),
-//                            m::Channel(42)));
+//                            m::Channel("bazz")));
 class SendMatcher : public ChannelNodeMatcher {
  public:
   explicit SendMatcher(
-      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher)
       : ChannelNodeMatcher(Op::kSend, {}, std::move(channel_matcher)) {}
   explicit SendMatcher(
       ::testing::Matcher<const Node*> token,
       ::testing::Matcher<const Node*> data,
-      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher)
       : ChannelNodeMatcher(Op::kSend, {std::move(token), std::move(data)},
                            std::move(channel_matcher)) {}
   explicit SendMatcher(
       ::testing::Matcher<const Node*> token,
       ::testing::Matcher<const Node*> data,
       ::testing::Matcher<const Node*> predicate,
-      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher)
       : ChannelNodeMatcher(
             Op::kSend,
             {std::move(token), std::move(data), std::move(predicate)},
@@ -787,7 +772,7 @@ class SendMatcher : public ChannelNodeMatcher {
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Send(
-    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher =
         std::nullopt) {
   return ::xls::op_matchers::SendMatcher(std::move(channel_matcher));
 }
@@ -795,7 +780,7 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
 inline ::testing::Matcher<const ::xls::Node*> Send(
     ::testing::Matcher<const ::xls::Node*> token,
     ::testing::Matcher<const Node*> data,
-    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher =
         std::nullopt) {
   return ::xls::op_matchers::SendMatcher(std::move(token), std::move(data),
                                          std::move(channel_matcher));
@@ -805,7 +790,7 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
     ::testing::Matcher<const ::xls::Node*> token,
     ::testing::Matcher<const Node*> data,
     ::testing::Matcher<const Node*> predicate,
-    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher =
         std::nullopt) {
   return ::xls::op_matchers::SendMatcher(std::move(token), std::move(data),
                                          std::move(predicate),
@@ -822,31 +807,31 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
 class ReceiveMatcher : public ChannelNodeMatcher {
  public:
   explicit ReceiveMatcher(
-      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher)
       : ChannelNodeMatcher(Op::kReceive, {}, std::move(channel_matcher)) {}
   explicit ReceiveMatcher(
       ::testing::Matcher<const Node*> token,
-      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher)
       : ChannelNodeMatcher(Op::kReceive, {std::move(token)},
                            std::move(channel_matcher)) {}
   explicit ReceiveMatcher(
       ::testing::Matcher<const Node*> token,
       ::testing::Matcher<const Node*> predicate,
-      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher)
       : ChannelNodeMatcher(Op::kReceive,
                            {std::move(token), std::move(predicate)},
                            std::move(channel_matcher)) {}
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Receive(
-    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher =
         std::nullopt) {
   return ::xls::op_matchers::ReceiveMatcher(std::move(channel_matcher));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Receive(
     ::testing::Matcher<const Node*> token,
-    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<::xls::ChannelRef>> channel_matcher =
         std::nullopt) {
   return ::xls::op_matchers::ReceiveMatcher(std::move(token),
                                             std::move(channel_matcher));
@@ -855,7 +840,7 @@ inline ::testing::Matcher<const ::xls::Node*> Receive(
 inline ::testing::Matcher<const ::xls::Node*> Receive(
     ::testing::Matcher<const Node*> token,
     ::testing::Matcher<const Node*> predicate,
-    ::testing::Matcher<const ::xls::Channel*> channel_matcher) {
+    ::testing::Matcher<::xls::ChannelRef> channel_matcher) {
   return ::xls::op_matchers::ReceiveMatcher(
       std::move(token), std::move(predicate), channel_matcher);
 }

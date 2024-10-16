@@ -170,8 +170,9 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
   EXPECT_EQ(proc->node_count(), 8);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 8);
-  auto tuple = m::Tuple(m::TupleIndex(m::Receive(m::Param("tkn"), channel), 0),
-                        m::Literal(0));
+  auto tuple = m::Tuple(
+      m::TupleIndex(m::Receive(m::Param("tkn"), m::Channel("test_channel")), 0),
+      m::Literal(0));
   EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
   EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
 }
@@ -214,7 +215,7 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
   EXPECT_EQ(proc->node_count(), 6);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
-  auto tuple = m::Receive(m::Param("tkn"), channel);
+  auto tuple = m::Receive(m::Param("tkn"), m::Channel("test_channel"));
   EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
   EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
 }

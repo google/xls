@@ -449,6 +449,7 @@ std::string_view ChannelRefName(ChannelRef ref);
 Type* ChannelRefType(ChannelRef ref);
 ChannelKind ChannelRefKind(ChannelRef ref);
 std::optional<ChannelStrictness> ChannelRefStrictness(ChannelRef ref);
+std::string ChannelRefToString(ChannelRef ref);
 
 }  // namespace xls
 

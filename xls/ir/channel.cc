@@ -304,4 +304,11 @@ std::string ChannelReference::ToString() const {
                          absl::StrJoin(keyword_strs, " "));
 }
 
+std::string ChannelRefToString(ChannelRef ref) {
+  if (std::holds_alternative<ChannelReference*>(ref)) {
+    return std::get<ChannelReference*>(ref)->ToString();
+  }
+  return std::get<Channel*>(ref)->ToString();
+}
+
 }  // namespace xls

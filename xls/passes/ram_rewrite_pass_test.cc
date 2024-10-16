@@ -838,13 +838,11 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteProcScoped) {
   EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReference * req_ref,
-                           proc->GetSendChannelReference("ram_1rw_req"));
-  EXPECT_EQ(req_ref->type()->ToString(),
-            "(bits[10], bits[32], (), (), bits[1], bits[1])");
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReference * resp_ref,
-                           proc->GetReceiveChannelReference("ram_1rw_resp"));
-  EXPECT_EQ(resp_ref->type()->ToString(), "(bits[32])");
+  EXPECT_THAT(proc->GetSendChannelReference("ram_1rw_req"),
+              IsOkAndHolds(m::ChannelWithType(
+                  "(bits[10], bits[32], (), (), bits[1], bits[1])")));
+  EXPECT_THAT(proc->GetReceiveChannelReference("ram_1rw_resp"),
+              IsOkAndHolds(m::ChannelWithType("(bits[32])")));
 }
 
 TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteProcScoped) {
@@ -888,21 +886,15 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteProcScoped) {
   EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReference * read_req_ref,
-                           proc->GetSendChannelReference("ram_1r1w_read_req"));
-  EXPECT_EQ(read_req_ref->type()->ToString(), "(bits[10], ())");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelReference * read_resp_ref,
-      proc->GetReceiveChannelReference("ram_1r1w_read_resp"));
-  EXPECT_EQ(read_resp_ref->type()->ToString(), "(bits[32])");
+  EXPECT_THAT(proc->GetSendChannelReference("ram_1r1w_read_req"),
+              IsOkAndHolds(m::ChannelWithType("(bits[10], ())")));
+  EXPECT_THAT(proc->GetReceiveChannelReference("ram_1r1w_read_resp"),
+              IsOkAndHolds(m::ChannelWithType("(bits[32])")));
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelReference * write_req_ref,
-                           proc->GetSendChannelReference("ram_1r1w_write_req"));
-  EXPECT_EQ(write_req_ref->type()->ToString(), "(bits[10], bits[32], ())");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ChannelReference * write_resp_ref,
-      proc->GetReceiveChannelReference("ram_1r1w_write_completion"));
-  EXPECT_EQ(write_resp_ref->type()->ToString(), "()");
+  EXPECT_THAT(proc->GetSendChannelReference("ram_1r1w_write_req"),
+              IsOkAndHolds(m::ChannelWithType("(bits[10], bits[32], ())")));
+  EXPECT_THAT(proc->GetReceiveChannelReference("ram_1r1w_write_completion"),
+              IsOkAndHolds(m::ChannelWithType("()")));
 }
 
 }  // namespace
