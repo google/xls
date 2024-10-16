@@ -19,6 +19,7 @@
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "llvm/include/llvm/Support/SMLoc.h"
+#include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
 #include "mlir/include/mlir/IR/OpImplementation.h"
@@ -166,6 +167,47 @@ ParseResult parseArrayUpdateSliceBrackets(mlir::AsmParser& parser,
   sliceType = ArrayType::get(parser.getContext(), width.getInt(),
                              arrayTypeAsArray.getElementType());
   return ParseResult::success();
+}
+
+void printZippedSymbols(mlir::AsmPrinter& p, Operation*, ArrayAttr globalRefs,
+                        ArrayAttr localRefs) {
+  p << "(";
+  llvm::interleaveComma(llvm::zip(globalRefs, localRefs), p.getStream(),
+                        [&](auto globalLocal) {
+                          p.printAttribute(std::get<1>(globalLocal));
+                          p << " as ";
+                          p.printAttribute(std::get<0>(globalLocal));
+                        });
+  p << ")";
+}
+ParseResult parseZippedSymbols(mlir::AsmParser& parser, ArrayAttr& globalRefs,
+                               ArrayAttr& localRefs) {
+  SmallVector<Attribute> globals;
+  SmallVector<Attribute> locals;
+
+  if (parser.parseLParen()) {
+    return failure();
+  }
+  if (failed(parser.parseOptionalRParen())) {
+    if (failed(parser.parseCommaSeparatedList([&]() {
+          FlatSymbolRefAttr global, local;
+          if (parser.parseAttribute(local) || parser.parseKeyword("as") ||
+              parser.parseAttribute(global)) {
+            return failure();
+          }
+          globals.push_back(global);
+          locals.push_back(local);
+          return success();
+        }))) {
+      return failure();
+    }
+    if (failed(parser.parseRParen())) {
+      return failure();
+    }
+  }
+  globalRefs = ArrayAttr::get(parser.getContext(), globals);
+  localRefs = ArrayAttr::get(parser.getContext(), locals);
+  return success();
 }
 
 }  // namespace mlir::xls

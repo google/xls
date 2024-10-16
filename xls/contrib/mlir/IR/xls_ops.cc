@@ -24,6 +24,7 @@
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"  // IWYU pragma: keep
+#include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
@@ -265,6 +266,32 @@ LogicalResult ArrayIndexOp::canonicalize(ArrayIndexOp op,
   return LogicalResult::failure();
 }
 
+LogicalResult InstantiateEprocOp::verifySymbolUses(
+    SymbolTableCollection& symbolTable) {
+  // Check that the callee references a valid function.
+  auto eprocOp =
+      symbolTable.lookupNearestSymbolFrom<EprocOp>(*this, getEprocAttr());
+  if (!eprocOp) {
+    return emitError("'") << getEproc() << "' does not reference a valid eproc";
+  }
+
+  for (auto ref : getGlobalChannels()) {
+    auto chanOp = symbolTable.lookupNearestSymbolFrom<ChanOp>(
+        *this, cast<FlatSymbolRefAttr>(ref));
+    if (!chanOp) {
+      return emitOpError("'") << ref << "' does not reference a valid channel";
+    }
+  }
+  for (auto ref : getLocalChannels()) {
+    auto chanOp = symbolTable.lookupNearestSymbolFrom<ChanOp>(
+        *this, cast<FlatSymbolRefAttr>(ref));
+    if (!chanOp) {
+      return emitOpError("'") << ref << "' does not reference a valid channel";
+    }
+  }
+  return success();
+}
+
 }  // namespace mlir::xls
 
 namespace {
@@ -343,6 +370,9 @@ void EprocOp::print(OpAsmPrinter& printer) {
   llvm::interleaveComma(getBody().getArguments(), printer.getStream(),
                         [&](auto arg) { printer.printRegionArgument(arg); });
   printer << ") zeroinitializer ";
+  if (getDiscardable()) {
+    printer << "discardable ";
+  }
   printer.printRegion(getBody(), /*printEntryBlockArgs=*/false);
 }
 
@@ -362,6 +392,9 @@ ParseResult EprocOp::parse(OpAsmParser& parser, OperationState& result) {
 
   if (parser.parseKeyword("zeroinitializer")) {
     return failure();
+  }
+  if (succeeded(parser.parseOptionalKeyword("discardable"))) {
+    result.addAttribute("discardable", UnitAttr::get(parser.getContext()));
   }
 
   Region* body = result.addRegion();

@@ -21,8 +21,14 @@
 
 namespace mlir::xls {
 
-void XlsLowerPassPipeline(OpPassManager& pm) {
+void XlsLowerPassPipeline(OpPassManager& pm,
+                          const XlsLowerPassPipelineOptions& options) {
   pm.addPass(createProcElaborationPass());
+  if (options.instantiate_eprocs) {
+    pm.addPass(createInstantiateEprocsPass());
+    // Removes discardable eprocs.
+    pm.addPass(createSymbolDCEPass());
+  }
   pm.addPass(createScfToXlsPass());
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(createMathToXlsPass());
@@ -37,8 +43,11 @@ void XlsLowerPassPipeline(OpPassManager& pm) {
 }
 
 void RegisterXlsLowerPassPipeline() {
-  mlir::PassPipelineRegistration<>(
-      "xls-lower", "Lowering pass pipeline for XLS", XlsLowerPassPipeline);
+  mlir::PassPipelineRegistration<XlsLowerPassPipelineOptions>(
+      "xls-lower", "Lowering pass pipeline for XLS",
+      [](OpPassManager& pm, const XlsLowerPassPipelineOptions& options) {
+        XlsLowerPassPipeline(pm, options);
+      });
 }
 
 }  // namespace mlir::xls

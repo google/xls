@@ -395,6 +395,12 @@ xls.eproc @eproc(%arg: i32) zeroinitializer {
   xls.yield %arg : i32
 }
 
+// CHECK: xls.instantiate_eproc @eproc ()
+xls.instantiate_eproc @eproc ()
+
+// CHECK: xls.instantiate_eproc @eproc (@mychan as @vector_chan)
+xls.instantiate_eproc @eproc (@mychan as @vector_chan)
+
 // CHECK-LABEL: func @blocking_receive
 func.func @blocking_receive(%arg0: !xls.token, %arg1: i1) -> i32 {
   // CHECK: xls.blocking_receive %arg0, %arg1, @mychan : i32
@@ -544,3 +550,11 @@ xls.sproc @sproc2() {
   }
 }
 
+// -----
+
+xls.eproc @eproc(%arg: i32) zeroinitializer {
+  xls.yield %arg : i32
+}
+
+// expected-error@+1 {{'xls.instantiate_eproc' op '@unknown' does not reference a valid channel}}
+xls.instantiate_eproc @eproc (@unknown as @unknown)

@@ -357,6 +357,7 @@ cc_library(
         ":arith_to_xls",  # buildcleaner: keep
         ":expand_macro_ops",  # buildcleaner: keep
         ":index_type_conversion",  # buildcleaner: keep
+        ":instantiate_eprocs",  # buildcleaner: keep
         ":math_to_xls",  # buildcleaner: keep
         ":normalize_xls_calls",  # buildcleaner: keep
         ":proc_elaboration",  # buildcleaner: keep
@@ -364,6 +365,7 @@ cc_library(
         ":scf_to_xls",  # buildcleaner: keep
         ":transforms/lower_counted_for",  # buildcleaner: keep
         ":xls_transforms_passes",
+        "@llvm-project//llvm:Support",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Transforms",
     ],
@@ -405,6 +407,25 @@ cc_library(
 )
 
 cc_library(
+    name = "instantiate_eprocs",
+    srcs = ["transforms/instantiate_eprocs.cc"],
+    deps = [
+        ":interpreter",
+        ":mlir_xls",
+        ":xls_transforms_passes",
+        ":xls_transforms_passes_inc_gen",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings:str_format",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
     name = "expand_macro_ops",
     srcs = ["transforms/expand_macro_ops.cc"],
     deps = [
@@ -424,6 +445,7 @@ cc_binary(
         ":arith_to_xls",
         ":expand_macro_ops",
         ":extraction_utils",
+        ":instantiate_eprocs",
         ":mlir_xls",
         ":normalize_xls_calls",
         ":proc_elaboration",

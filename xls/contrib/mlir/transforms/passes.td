@@ -77,7 +77,17 @@ def IndexTypeConversionPass : Pass<"index-type-conversion", "mlir::ModuleOp"> {
 def ProcElaborationPass : Pass<"elaborate-procs", "mlir::ModuleOp"> {
   let summary = "Elaborates sprocs into eprocs";
   let description = [{
-    Pass that lowers (elaborates) sprocs into eprocs.
+    Pass that lowers (elaborates) sprocs into eprocs and instantiate_eproc ops.
+  }];
+  let dependentDialects = [
+    "mlir::xls::XlsDialect",
+  ];
+}
+
+def InstantiateEprocsPass : Pass<"instantiate-eprocs", "mlir::ModuleOp"> {
+  let summary = "Instantiates eprocs";
+  let description = [{
+    Pass that lowers instantiate_eproc ops into eprocs.
   }];
   let dependentDialects = [
     "mlir::xls::XlsDialect",

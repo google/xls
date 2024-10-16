@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cassert>
 #include <utility>
 #include <vector>
 
@@ -23,8 +24,10 @@
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/SmallString.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
+#include "llvm/include/llvm/ADT/SmallVectorExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/ADT/StringSet.h"
+#include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
@@ -84,11 +87,19 @@ class ProcElaborationPass
   void runOnOperation() override;
 };
 
+struct EprocAndChannels {
+  // A discardable eproc.
+  EprocOp eproc;
+  // The channels used by the eproc.
+  std::vector<ChanOp> channels;
+};
+
 class ElaborationContext
     : public InterpreterContext<ElaborationContext, ChanOp> {
  public:
-  explicit ElaborationContext(OpBuilder& builder, ModuleOp module)
-      : builder(builder), symbolTable(module) {}
+  explicit ElaborationContext(OpBuilder& builder, SymbolTable& symbolTable,
+                              DenseMap<SprocOp, EprocAndChannels>& procCache)
+      : builder(builder), symbolTable(symbolTable), procCache(procCache) {}
 
   OpBuilder& getBuilder() { return builder; }
 
@@ -111,25 +122,60 @@ class ElaborationContext
     return builder.getStringAttr(str);
   }
 
-  void createEproc(SprocOp sproc, std::vector<value_type> channels) {
+  // Creates an eproc for the given sproc if none has yet been created. New
+  // local channels are created for the eproc and are returned.
+  //
+  // Eprocs are cached such that a sproc is only elaborated once.
+  EprocAndChannels createEproc(SprocOp sproc) {
+    if (auto it = procCache.find(sproc); it != procCache.end()) {
+      return it->second;
+    }
     StringAttr symbol = makeUniqueSymbol(sproc.getSymName());
 
-    EprocOp eproc = builder.create<EprocOp>(sproc.getLoc(), symbol);
-
+    EprocOp eproc =
+        builder.create<EprocOp>(sproc.getLoc(), symbol, /*discardable=*/true);
     IRMapping mapping;
     sproc.getNext().cloneInto(&eproc.getBody(), mapping);
     llvm::DenseMap<Value, SymbolRefAttr> chanMap;
-    for (auto [arg, chan] : llvm::zip(sproc.getNextChannels(), channels)) {
+    std::vector<value_type> eprocChannels;
+    for (auto [i, arg] : llvm::enumerate(sproc.getNextChannels())) {
+      auto chan = builder.create<ChanOp>(
+          sproc.getLoc(),
+          absl::StrFormat("%s_arg%d", sproc.getSymName().str(), i),
+          cast<SchanType>(arg.getType()).getElementType());
+      eprocChannels.push_back(chan);
       chanMap[mapping.lookup(arg)] = SymbolRefAttr::get(chan.getSymNameAttr());
     }
     replaceStructuredChannelOps(eproc.getBody(), chanMap);
     eproc.getBody().front().eraseArguments(0, sproc.getNextChannels().size());
+
+    EprocAndChannels result = {eproc, std::move(eprocChannels)};
+    procCache[sproc] = result;
+    return result;
+  }
+
+  void instantiateEproc(const EprocAndChannels& eprocAndChannels,
+                        ArrayRef<value_type> globalChannels) {
+    EprocOp eproc = eprocAndChannels.eproc;
+    ArrayRef<value_type> localChannels = eprocAndChannels.channels;
+    assert(globalChannels.size() == localChannels.size());
+    auto flatchan = [](value_type chan) -> Attribute {
+      return FlatSymbolRefAttr::get(chan.getSymNameAttr());
+    };
+    SmallVector<Attribute> globalSymbols =
+        llvm::map_to_vector(globalChannels, flatchan);
+    SmallVector<Attribute> localSymbols =
+        llvm::map_to_vector(localChannels, flatchan);
+    builder.create<InstantiateEprocOp>(eproc.getLoc(), eproc.getSymName(),
+                                       builder.getArrayAttr(globalSymbols),
+                                       builder.getArrayAttr(localSymbols));
   }
 
  private:
   OpBuilder& builder;
   SymbolTable symbolTable;
   StringSet<> addedSymbols;
+  DenseMap<SprocOp, EprocAndChannels>& procCache;
 };
 
 class ElaborationInterpreter
@@ -179,7 +225,8 @@ class ElaborationInterpreter
     }
     XLS_ASSIGN_OR_RETURN(auto results,
                          Interpret(sproc.getSpawns(), arguments, ctx));
-    ctx.createEproc(sproc, results);
+    auto eproc_channels = ctx.createEproc(sproc);
+    ctx.instantiateEproc(eproc_channels, results);
     return absl::OkStatus();
   }
 
@@ -187,7 +234,8 @@ class ElaborationInterpreter
                          ArrayRef<ChanOp> boundaryChannels = {}) {
     XLS_ASSIGN_OR_RETURN(auto results,
                          Interpret(op.getSpawns(), boundaryChannels, ctx));
-    ctx.createEproc(op, results);
+    auto eproc_channels = ctx.createEproc(op);
+    ctx.instantiateEproc(eproc_channels, results);
     return absl::OkStatus();
   }
 };
@@ -196,6 +244,8 @@ class ElaborationInterpreter
 
 void ProcElaborationPass::runOnOperation() {
   ModuleOp module = getOperation();
+  DenseMap<SprocOp, EprocAndChannels> procCache;
+  SymbolTable symbolTable(module);
   // Elaborate all sprocs marked "top". Elaboration traverses a potentially
   // cyclical graph of sprocs, so we delay removing the sprocs until the end.
   for (auto sproc : module.getOps<SprocOp>()) {
@@ -222,8 +272,8 @@ void ProcElaborationPass::runOnOperation() {
     }
 
     ElaborationInterpreter interpreter;
-    auto result =
-        interpreter.InterpretTop(sproc, boundaryChannels, builder, module);
+    auto result = interpreter.InterpretTop(sproc, boundaryChannels, builder,
+                                           symbolTable, procCache);
     if (!result.ok()) {
       sproc.emitError() << "failed to elaborate: " << result.message();
     }

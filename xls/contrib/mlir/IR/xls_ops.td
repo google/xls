@@ -1279,9 +1279,12 @@ def Xls_EprocOp : Xls_Op<"eproc", [
     keyword "zeroinitializer". This makes the initial state explicit to the
     reader as well as enabling extension to more complex initial states in the
     future without complicating the grammar.
+
+    If `discardable` is true, the eproc may be discarded if it is not used.
   }];
   let arguments = (ins
-    SymbolNameAttr:$sym_name
+    SymbolNameAttr:$sym_name,
+    UnitAttr:$discardable
   );
   let regions = (region
     SizedRegion<1>:$body
@@ -1305,6 +1308,7 @@ def Xls_EprocOp : Xls_Op<"eproc", [
     llvm::ArrayRef<::mlir::Type> getResultTypes() {
       return {};
     }
+    bool canDiscardOnUseEmpty() { return getDiscardable(); }
   }];
 }
 
@@ -1345,6 +1349,29 @@ def Xls_ChanOp : Xls_Op<"chan", [
     }
   }];
 
+}
+
+def Xls_InstantiateEprocOp : Xls_Op<"instantiate_eproc", [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "Instantiates an eproc";
+  let description = [{
+    Instantiates an eproc, binding the channels the eproc sends and receives on
+    to the given "global" channels.
+
+    "global" channels are channels that will be bound to the eproc's channels.
+    "local" channels are those channels that the eproc already uses.
+
+    During instantiation, the eproc will be cloned, and references to the local
+    channels will be replaced with references to the global channels. The
+    original eproc will be removed after instantiation.
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$eproc,
+    FlatSymbolRefArrayAttr:$global_channels,
+    FlatSymbolRefArrayAttr:$local_channels
+  );
+  let assemblyFormat = [{
+    $eproc custom<ZippedSymbols>($global_channels, $local_channels) attr-dict
+  }];
 }
 
 //===----------------------------------------------------------------------===//
