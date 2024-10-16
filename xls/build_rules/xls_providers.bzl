@@ -99,6 +99,8 @@ CODEGEN_FIELDS = {
     "reset_data_path": "Whether to also reset the datapath.",
     "use_system_verilog": "If true, emit SystemVerilog otherwise emit Verilog.",
     "separate_lines": "If true, emit every subexpression on a separate line.",
+    "max_inline_depth": "The maximum depth of subexpressions to include inline; " +
+                        "deeper expressions are emitted with extra wires/lines to reduce depth.",
     "streaming_channel_data_suffix": "Suffix to append to data signals for " +
                                      "streaming channels.",
     "streaming_channel_ready_suffix": "Suffix to append to ready signals for " +

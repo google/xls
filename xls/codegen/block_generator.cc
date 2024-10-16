@@ -445,11 +445,12 @@ class BlockGenerator {
 
   // If the node has an assigned name then don't emit as an inline expression.
   // This ensures the name appears in the generated Verilog.
-  bool EmitAsAssignment(Node* const n) {
+  bool ShouldEmitAsAssignment(Node* const n, int64_t inline_depth) {
     if (n->HasAssignedName() ||
         (n->users().size() > 1 && !ShouldInlineExpressionIntoMultipleUses(n)) ||
         n->function_base()->HasImplicitUse(n) ||
-        !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines()) {
+        !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines() ||
+        inline_depth > options_.max_inline_depth()) {
       return true;
     }
     // Emit operands of RegisterWrite's as assignments rather than inline
@@ -475,6 +476,7 @@ class BlockGenerator {
   // defined by the nodes.
   absl::Status EmitLogic(absl::Span<Node* const> nodes,
                          std::optional<int64_t> stage = std::nullopt) {
+    absl::flat_hash_map<Node*, int64_t> node_depth;
     for (Node* node : nodes) {
       VLOG(3) << "Emitting logic for: " << node->GetName();
 
@@ -622,17 +624,30 @@ class BlockGenerator {
         node_exprs_[node] = UnrepresentedSentinel();
         continue;
       }
+
+      int64_t input_depth = 0;
+      for (const Node* operand : node->operands()) {
+        if (auto it = node_depth.find(operand); it != node_depth.end()) {
+          input_depth = std::max(input_depth, it->second);
+        }
+      }
+      int64_t inline_depth = input_depth + 1;
+
       // If any of the operands do not have an Expression* representation then
       // handle the node specially.
       if (std::any_of(
               node->operands().begin(), node->operands().end(), [&](Node* n) {
                 return !std::holds_alternative<Expression*>(node_exprs_.at(n));
               })) {
+        bool emit_as_assignment = ShouldEmitAsAssignment(node, inline_depth);
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
             CodegenNodeWithUnrepresentedOperands(
                 node, &mb_, node_exprs_, NodeAssignmentName(node, stage),
-                EmitAsAssignment(node)));
+                emit_as_assignment));
+        if (!emit_as_assignment) {
+          node_depth[node] = inline_depth;
+        }
         continue;
       }
 
@@ -660,7 +675,7 @@ class BlockGenerator {
         inputs.push_back(std::get<Expression*>(node_exprs_.at(operand)));
       }
 
-      if (EmitAsAssignment(node)) {
+      if (ShouldEmitAsAssignment(node, inline_depth)) {
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
             mb_.EmitAsAssignment(NodeAssignmentName(node, stage), node,
@@ -668,6 +683,7 @@ class BlockGenerator {
       } else {
         XLS_ASSIGN_OR_RETURN(node_exprs_[node],
                              mb_.EmitAsInlineExpression(node, inputs));
+        node_depth[node] = inline_depth;
       }
     }
     return absl::OkStatus();

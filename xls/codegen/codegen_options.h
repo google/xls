@@ -128,6 +128,9 @@ class CodegenOptions {
   CodegenOptions& separate_lines(bool value);
   bool separate_lines() const { return separate_lines_; }
 
+  CodegenOptions& max_inline_depth(int64_t value);
+  int64_t max_inline_depth() const { return max_inline_depth_; }
+
   // Whether to flop inputs into a register at the beginning of the pipeline. If
   // true, adds a single cycle to the latency of the pipeline.
   CodegenOptions& flop_inputs(bool value);
@@ -289,6 +292,7 @@ class CodegenOptions {
   std::optional<std::string> clock_name_;
   bool use_system_verilog_ = true;
   bool separate_lines_ = false;
+  int64_t max_inline_depth_ = 5;
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
   IOKind flop_inputs_kind_ = IOKind::kFlop;

@@ -60,6 +60,7 @@ message CodegenFlagsProto {
   optional bool reset_data_path = 17;
   optional bool use_system_verilog = 18;
   optional bool separate_lines = 19;
+  optional int64 max_inline_depth = 35;
   optional string gate_format = 20;
   optional string assert_format = 21;
   optional string smulp_format = 22;

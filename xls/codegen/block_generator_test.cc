@@ -1996,6 +1996,178 @@ proc mux_proc(tkn: token, init={token}) {
                                  verilog);
 }
 
+TEST_P(BlockGeneratorTest, DeeplyNestedExpressions) {
+  const std::string ir_text = R"(package test
+
+fn deep_nesting(x: bits[10]) -> bits[10] {
+  literal.1: bits[2] = literal(value=2, id=1)
+  literal.2: bits[10] = literal(value=0, id=2)
+  literal.3: bits[10] = literal(value=1, id=3)
+  literal.4: bits[10] = literal(value=2, id=4)
+  literal.5: bits[10] = literal(value=3, id=5)
+  literal.6: bits[10] = literal(value=4, id=6)
+  literal.7: bits[10] = literal(value=5, id=7)
+  literal.8: bits[10] = literal(value=6, id=8)
+  literal.9: bits[10] = literal(value=7, id=9)
+  literal.10: bits[10] = literal(value=8, id=10)
+  literal.11: bits[10] = literal(value=9, id=11)
+  bit_slice_update.20: bits[10] = bit_slice_update(x, literal.2, literal.1, id=20)
+  bit_slice_update.21: bits[10] = bit_slice_update(bit_slice_update.20, literal.3, literal.1, id=21)
+  bit_slice_update.22: bits[10] = bit_slice_update(bit_slice_update.21, literal.4, literal.1, id=22)
+  bit_slice_update.23: bits[10] = bit_slice_update(bit_slice_update.22, literal.5, literal.1, id=23)
+  bit_slice_update.24: bits[10] = bit_slice_update(bit_slice_update.23, literal.6, literal.1, id=24)
+  bit_slice_update.25: bits[10] = bit_slice_update(bit_slice_update.24, literal.7, literal.1, id=25)
+  bit_slice_update.26: bits[10] = bit_slice_update(bit_slice_update.25, literal.8, literal.1, id=26)
+  bit_slice_update.27: bits[10] = bit_slice_update(bit_slice_update.26, literal.9, literal.1, id=27)
+  bit_slice_update.28: bits[10] = bit_slice_update(bit_slice_update.27, literal.10, literal.1, id=28)
+  ret bit_slice_update.29: bits[10] = bit_slice_update(bit_slice_update.28, literal.11, literal.1, id=29)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("deep_nesting"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  options.max_inline_depth(10);
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           FunctionToCombinationalBlock(f, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.top_block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.top_block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+TEST_P(BlockGeneratorTest, DeeplyNestedExpressionsWithDefaultLimit) {
+  const std::string ir_text = R"(package test
+
+fn deep_nesting(x: bits[10]) -> bits[10] {
+  literal.1: bits[2] = literal(value=2, id=1)
+  literal.2: bits[10] = literal(value=0, id=2)
+  literal.3: bits[10] = literal(value=1, id=3)
+  literal.4: bits[10] = literal(value=2, id=4)
+  literal.5: bits[10] = literal(value=3, id=5)
+  literal.6: bits[10] = literal(value=4, id=6)
+  literal.7: bits[10] = literal(value=5, id=7)
+  literal.8: bits[10] = literal(value=6, id=8)
+  literal.9: bits[10] = literal(value=7, id=9)
+  literal.10: bits[10] = literal(value=8, id=10)
+  literal.11: bits[10] = literal(value=9, id=11)
+  bit_slice_update.20: bits[10] = bit_slice_update(x, literal.2, literal.1, id=20)
+  bit_slice_update.21: bits[10] = bit_slice_update(bit_slice_update.20, literal.3, literal.1, id=21)
+  bit_slice_update.22: bits[10] = bit_slice_update(bit_slice_update.21, literal.4, literal.1, id=22)
+  bit_slice_update.23: bits[10] = bit_slice_update(bit_slice_update.22, literal.5, literal.1, id=23)
+  bit_slice_update.24: bits[10] = bit_slice_update(bit_slice_update.23, literal.6, literal.1, id=24)
+  bit_slice_update.25: bits[10] = bit_slice_update(bit_slice_update.24, literal.7, literal.1, id=25)
+  bit_slice_update.26: bits[10] = bit_slice_update(bit_slice_update.25, literal.8, literal.1, id=26)
+  bit_slice_update.27: bits[10] = bit_slice_update(bit_slice_update.26, literal.9, literal.1, id=27)
+  bit_slice_update.28: bits[10] = bit_slice_update(bit_slice_update.27, literal.10, literal.1, id=28)
+  ret bit_slice_update.29: bits[10] = bit_slice_update(bit_slice_update.28, literal.11, literal.1, id=29)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("deep_nesting"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           FunctionToCombinationalBlock(f, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.top_block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.top_block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+TEST_P(BlockGeneratorTest, DeeplyNestedExpressionsWithShallowLimit) {
+  const std::string ir_text = R"(package test
+
+fn deep_nesting(x: bits[10]) -> bits[10] {
+  literal.1: bits[2] = literal(value=2, id=1)
+  literal.2: bits[10] = literal(value=0, id=2)
+  literal.3: bits[10] = literal(value=1, id=3)
+  literal.4: bits[10] = literal(value=2, id=4)
+  literal.5: bits[10] = literal(value=3, id=5)
+  literal.6: bits[10] = literal(value=4, id=6)
+  literal.7: bits[10] = literal(value=5, id=7)
+  literal.8: bits[10] = literal(value=6, id=8)
+  literal.9: bits[10] = literal(value=7, id=9)
+  literal.10: bits[10] = literal(value=8, id=10)
+  literal.11: bits[10] = literal(value=9, id=11)
+  bit_slice_update.20: bits[10] = bit_slice_update(x, literal.2, literal.1, id=20)
+  bit_slice_update.21: bits[10] = bit_slice_update(bit_slice_update.20, literal.3, literal.1, id=21)
+  bit_slice_update.22: bits[10] = bit_slice_update(bit_slice_update.21, literal.4, literal.1, id=22)
+  bit_slice_update.23: bits[10] = bit_slice_update(bit_slice_update.22, literal.5, literal.1, id=23)
+  bit_slice_update.24: bits[10] = bit_slice_update(bit_slice_update.23, literal.6, literal.1, id=24)
+  bit_slice_update.25: bits[10] = bit_slice_update(bit_slice_update.24, literal.7, literal.1, id=25)
+  bit_slice_update.26: bits[10] = bit_slice_update(bit_slice_update.25, literal.8, literal.1, id=26)
+  bit_slice_update.27: bits[10] = bit_slice_update(bit_slice_update.26, literal.9, literal.1, id=27)
+  bit_slice_update.28: bits[10] = bit_slice_update(bit_slice_update.27, literal.10, literal.1, id=28)
+  ret bit_slice_update.29: bits[10] = bit_slice_update(bit_slice_update.28, literal.11, literal.1, id=29)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, package->GetFunction("deep_nesting"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  options.max_inline_depth(2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           FunctionToCombinationalBlock(f, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.top_block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.top_block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<BlockGeneratorTest>);

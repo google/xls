@@ -268,6 +268,7 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
 
   options.use_system_verilog(p.use_system_verilog());
   options.separate_lines(p.separate_lines());
+  options.max_inline_depth(p.max_inline_depth());
 
   if (!p.gate_format().empty()) {
     options.SetOpOverride(

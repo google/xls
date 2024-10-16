@@ -204,6 +204,11 @@ CodegenOptions& CodegenOptions::separate_lines(bool value) {
   return *this;
 }
 
+CodegenOptions& CodegenOptions::max_inline_depth(int64_t value) {
+  max_inline_depth_ = value;
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::flop_inputs(bool value) {
   flop_inputs_ = value;
   return *this;

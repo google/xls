@@ -200,9 +200,12 @@ Some names can be set at codegen via the following flags:
     `@always_ff`, asserts, covers, etc. True by default.
 -   `--separate_lines` causes every subexpression to be emitted on a separate
     line. False by default.
+-   `--max_inline_depth=N` puts a bound on how deeply subexpressions can be
+    nested in a single line. 5 by default; overridden if `separate_lines` is
+    set, which functionally forces this flag to 1.
 -   `--multi_proc` causes every proc to be codegen'd.
--   `max_trace_verbosity` is the maximum verbosity allowed for traces. Traces
-    with higher verbosity are stripped from codegen output. 0 by default.
+-   `--max_trace_verbosity=N` is the maximum verbosity allowed for traces.
+    Traces with higher verbosity are stripped from codegen output. 0 by default.
 -   `--simulation_macro_name=...` sets the name of the Verilog macro used to
     guard simulation-only constructs.
 
