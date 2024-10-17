@@ -35,6 +35,7 @@ cc_library(
         ":log_flags",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:vlog_is_on",
         "@com_google_absl//absl/strings:string_view",
     ],
 )
@@ -101,5 +102,6 @@ cc_binary(
     deps = [
         "//xls/common:init_xls",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:vlog_is_on",
     ],
 )

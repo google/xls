@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -923,7 +924,7 @@ SDCScheduler::SDCScheduler(FunctionBase* f, DelayMap delay_map)
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(
-      solver_, math_opt::IncrementalSolver::New(&model_.UnderlyingModel(),
+      solver_, math_opt::NewIncrementalSolver(&model_.UnderlyingModel(),
                                               math_opt::SolverType::kGlop));
 
   for (Node* node : f_->nodes()) {

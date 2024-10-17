@@ -24,6 +24,7 @@
 #include "absl/base/call_once.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "llvm/include/llvm-c/Target.h"

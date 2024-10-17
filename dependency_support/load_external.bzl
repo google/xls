@@ -55,20 +55,20 @@ def load_external_repositories():
         build_file = "//dependency_support/zlib:bundled.BUILD.bazel",
     )
 
-    # V 1.14.0 (released 2023-08-02, current as of 2024-06-26)
+    # V 1.15.2 (released 2024-07-31, current as of 2024-10-16)
     http_archive(
         name = "com_google_googletest",
-        urls = ["https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip"],
-        strip_prefix = "googletest-1.14.0",
-        sha256 = "1f357c27ca988c3f7c6b4bf68a9395005ac6761f034046e9dde0896e3aba00e4",
+        urls = ["https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip"],
+        strip_prefix = "googletest-1.15.2",
+        integrity = "sha256-8XnsIX+bOz88bosC0+ftqZe0nkzibWsjXJBTvsnAv58=",
     )
 
-    # LTS 20240116.2 (released 2024-04-08, current as of 2024-06-26)
+    # LTS 20240722.0 (released 2024-07-22, current as of 2024-10-16)
     http_archive(
         name = "com_google_absl",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20240116.2.tar.gz"],
-        strip_prefix = "abseil-cpp-20240116.2",
-        sha256 = "733726b8c3a6d39a4120d7e45ea8b41a434cdacde401cba500f14236c49b39dc",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20240722.0.tar.gz"],
+        strip_prefix = "abseil-cpp-20240722.0",
+        integrity = "sha256-9Q5awxGoE4Laf6dblzEOS5AGR0+VYKxG9UqZZ/B9SuM=",
     )
 
     # Released 2024-06-03, current as of 2024-06-26
@@ -255,12 +255,12 @@ def load_external_repositories():
         sha256 = "218efe8ee736d26a3572663b374a253c012b716d8af0c07e842e82f238a0a7ee",
     )
 
-    # Released 2024-05-08, current as of 2024-06-26.
-    ORTOOLS_VERSION = "9.10"
+    # Released 2024-09-13, current as of 2024-10-16.
+    ORTOOLS_VERSION = "9.11"
     http_archive(
         name = "com_google_ortools",
         urls = ["https://github.com/google/or-tools/archive/refs/tags/v{tag}.tar.gz".format(tag = ORTOOLS_VERSION)],
-        sha256 = "e7c27a832f3595d4ae1d7e53edae595d0347db55c82c309c8f24227e675fd378",
+        integrity = "sha256-9qC9W58wWKoagUt5jbXTk8Meycu2EDSGcomXtJqxJ7w=",
         strip_prefix = "or-tools-" + ORTOOLS_VERSION,
     )
 

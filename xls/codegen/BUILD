@@ -190,6 +190,7 @@ cc_library(
         "//xls/passes:pass_base",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:vlog_is_on",
         "@com_google_absl//absl/status:statusor",
     ],
 )

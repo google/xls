@@ -18,6 +18,7 @@
 #include <cstdlib>
 
 #include "absl/log/log.h"
+#include "absl/log/vlog_is_on.h"
 #include "xls/common/init_xls.h"
 
 int main(int argc, char** argv) {
