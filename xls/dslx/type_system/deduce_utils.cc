@@ -441,7 +441,7 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
 }
 
 absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                            ArrayTypeAnnotation*, StructDef*>>
+                            ArrayTypeAnnotation*, Impl*>>
 ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
                                         const TypeInfo* type_info,
                                         const ColonRef* colon_ref) {
@@ -449,17 +449,21 @@ ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
                                         import_data, type_info, colon_ref));
   using ReturnT =
       absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                                  ArrayTypeAnnotation*, StructDef*>>;
+                                  ArrayTypeAnnotation*, Impl*>>;
   return absl::visit(
       Visitor{
           [](Module* x) -> ReturnT { return x; },
           [](EnumDef* x) -> ReturnT { return x; },
           [](BuiltinNameDef* x) -> ReturnT { return x; },
           [](ArrayTypeAnnotation* x) -> ReturnT { return x; },
-          [](StructDef* x) -> ReturnT { return x; },
+          [](StructDef* x) -> ReturnT {
+            std::optional<Impl*> impl = x->impl();
+            XLS_RET_CHECK(impl.has_value());
+            return impl.value();
+          },
           [](ColonRef*) -> ReturnT {
             return absl::InternalError(
-                "After type checking colon-ref subject cannot be a StructDef");
+                "After type checking colon-ref subject cannot be a ColonRef");
           },
       },
       result);

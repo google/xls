@@ -77,7 +77,7 @@ ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
 // performed, in which case we can eliminate some of the (invalid) possibilities
 // so they no longer need to be handled.
 absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                            ArrayTypeAnnotation*, StructDef*>>
+                            ArrayTypeAnnotation*, Impl*>>
 ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
                                         const TypeInfo* type_info,
                                         const ColonRef* colon_ref);

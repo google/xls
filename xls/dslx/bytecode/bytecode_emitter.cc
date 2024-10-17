@@ -861,9 +861,9 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
           [&](Module* module) -> absl::StatusOr<InterpValue> {
             return HandleColonRefToValue(module, node);
           },
-          [&](StructDef* struct_def) -> absl::StatusOr<InterpValue> {
+          [&](Impl* impl) -> absl::StatusOr<InterpValue> {
             std::optional<ConstantDef*> constant_def =
-                struct_def->GetImplConstant(node->attr());
+                impl->GetConstant(node->attr());
             XLS_RET_CHECK(constant_def.has_value());
             return type_info_->GetConstExpr(constant_def.value());
           },

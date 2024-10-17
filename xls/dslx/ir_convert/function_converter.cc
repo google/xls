@@ -2808,9 +2808,9 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
             DefConst(node, value);
             return absl::OkStatus();
           },
-          [&](StructDef* struct_def) -> absl::Status {
+          [&](Impl* impl) -> absl::Status {
             std::optional<ConstantDef*> constant_def =
-                struct_def->GetImplConstant(node->attr());
+                impl->GetConstant(node->attr());
             XLS_RET_CHECK(constant_def.has_value());
             XLS_ASSIGN_OR_RETURN(
                 InterpValue iv,

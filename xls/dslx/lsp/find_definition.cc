@@ -36,7 +36,7 @@ namespace {
 
 const NameDef* GetNameDef(
     const std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
-                       StructDef*>& colon_ref_subject,
+                       Impl*>& colon_ref_subject,
     std::string_view attr) {
   return absl::visit(
       Visitor{
@@ -46,7 +46,7 @@ const NameDef* GetNameDef(
             return ModuleMemberGetNameDef(*member.value());
           },
           [&](EnumDef* e) -> const NameDef* { return e->GetNameDef(attr); },
-          [&](StructDef* s) -> const NameDef* { return s->name_def(); },
+          [](Impl* s) -> const NameDef* { return nullptr; },
           [](BuiltinNameDef*) -> const NameDef* { return nullptr; },
           [](ArrayTypeAnnotation*) -> const NameDef* { return nullptr; },
       },

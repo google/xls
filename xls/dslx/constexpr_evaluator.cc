@@ -389,9 +389,9 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
                 expr, type_info->GetConstExpr(constant_def->value()).value());
             return absl::OkStatus();
           },
-          [&](StructDef* struct_def) -> absl::Status {
+          [&](Impl* impl) -> absl::Status {
             std::optional<ConstantDef*> constant_def =
-                struct_def->GetImplConstant(expr->attr());
+                impl->GetConstant(expr->attr());
             XLS_RET_CHECK(constant_def.has_value());
             XLS_RETURN_IF_ERROR(Evaluate(import_data_, type_info_,
                                          warning_collector_, bindings_,
