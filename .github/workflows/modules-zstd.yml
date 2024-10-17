@@ -60,12 +60,20 @@ jobs:
       - name: Build and run ZSTD IR benchmark rules (opt)
         if: ${{ !cancelled() }}
         run: |
-          bazel run -c opt -- $(bazel query 'filter(".*_ir_benchmark", kind(rule, //xls/modules/zstd/...))')
+          for target in $(bazel query 'filter(".*_ir_benchmark$", kind(rule, //xls/modules/zstd/...))');
+          do
+            echo "running $target";
+            bazel run -c opt $target -- --logtostderr;
+          done
 
       - name: Build and run synthesis benchmarks of the ZSTD module (opt)
         if: ${{ !cancelled() }}
         run: |
-          bazel run -c opt -- $(bazel query 'filter(".*_benchmark_synth", kind(rule, //xls/modules/zstd/...))')
+          for target in $(bazel query 'filter(".*_benchmark_synth$", kind(rule, //xls/modules/zstd/...))');
+          do
+            echo "running $target";
+            bazel run -c opt $target -- --logtostderr;
+          done
 
       - name: Build ZSTD place and route targets (opt)
         if: ${{ !cancelled() }}
