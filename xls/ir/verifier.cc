@@ -70,8 +70,16 @@ namespace {
 
 using ::absl::StrFormat;
 
-absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
-  if (!ids->insert(node->id()).second) {
+absl::Status VerifyNodeIdUnique(Node* node, std::vector<bool>* ids_seen,
+                                int64_t* max_id_seen) {
+  const int64_t id = node->id();
+  if (id >= ids_seen->size()) {
+    return absl::InternalError(
+        absl::StrFormat("ID %d larger than expected max id in package", id));
+  }
+  *max_id_seen = std::max(id, *max_id_seen);
+
+  if ((*ids_seen)[id]) {
     // Find locations of all nodes in the package with this node ID for error
     // message.
     std::vector<std::string> location_strings;
@@ -86,6 +94,7 @@ absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
         "ID %d is not unique; source locations of nodes with same id:\n%s",
         node->id(), absl::StrJoin(location_strings, ", ")));
   }
+  (*ids_seen)[id] = true;
   return absl::OkStatus();
 }
 
@@ -111,10 +120,10 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
   }
 
   // Verify ids are unique within the function.
-  absl::flat_hash_set<int64_t> ids;
-  ids.reserve(function->node_count());
+  std::vector<bool> ids_seen(function->package()->next_node_id());
+  int64_t max_id_seen = -1;
   for (Node* node : function->nodes()) {
-    XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
+    XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids_seen, &max_id_seen));
   }
 
   // Verify that there are no cycles in the node graph.
@@ -460,22 +469,18 @@ absl::Status VerifyPackage(Package* package, bool codegen) {
 
   // Verify node IDs are unique within the package and uplinks point to this
   // package.
-  absl::flat_hash_set<int64_t> ids;
-  ids.reserve(package->GetNodeCount());
+  std::vector<bool> ids_seen(package->next_node_id());
+  int64_t max_id_seen = -1;
   for (FunctionBase* function : package->GetFunctionBases()) {
     XLS_RET_CHECK(function->package() == package);
     for (Node* node : function->nodes()) {
-      XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
+      XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids_seen, &max_id_seen));
       XLS_RET_CHECK(node->package() == package);
     }
   }
 
   // Ensure that the package's "next ID" is not in the space of IDs currently
   // occupied by the package's nodes.
-  int64_t max_id_seen = -1;
-  for (const auto& item : ids) {
-    max_id_seen = std::max(item, max_id_seen);
-  }
   XLS_RET_CHECK_GT(package->next_node_id(), max_id_seen);
 
   // Verify function, proc, block names are unique among functions/procs/blocks.
