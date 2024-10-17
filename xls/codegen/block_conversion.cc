@@ -2193,7 +2193,7 @@ class CloneNodesIntoBlockHandler {
       } else if (node->Is<Next>()) {
         XLS_RET_CHECK(is_proc_);
         XLS_RETURN_IF_ERROR(HandleNextValue(node, stage));
-      } else if (IsChannelNode(node)) {
+      } else if (node->Is<ChannelNode>()) {
         XLS_RET_CHECK(is_proc_);
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
 

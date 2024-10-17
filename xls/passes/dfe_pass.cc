@@ -120,7 +120,7 @@ absl::StatusOr<FunctionBaseLiveness> ProcLiveness(Proc* top) {
         proc_to_channel.insert({proc.get(), {}});
     bool saw_channel = false;
     for (Node* node : proc->nodes()) {
-      if (!IsChannelNode(node)) {
+      if (!node->Is<ChannelNode>()) {
         continue;
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));

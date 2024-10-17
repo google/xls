@@ -23,11 +23,13 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -434,13 +436,40 @@ absl::StatusOr<Node*> BitwiseReductionOp::CloneInNewFunction(
       loc(), new_operands[0], op(), GetNameView());
 }
 
+absl::StatusOr<ChannelRef> ChannelNode::GetChannelRef() const {
+  Proc* proc = function_base()->AsProcOrDie();
+  if (proc->is_new_style_proc()) {
+    return proc->GetChannelReference(channel_name(), direction());
+  }
+  return package()->GetChannel(channel_name());
+}
+
+Type* ChannelNode::GetPayloadType() const {
+  return function_base()
+      ->AsProcOrDie()
+      ->GetChannelReferenceType(channel_name())
+      .value();
+}
+
+absl::Status ChannelNode::ReplaceChannel(std::string_view new_channel_name) {
+  Proc* proc = function_base()->AsProcOrDie();
+  if (proc->is_new_style_proc()) {
+    XLS_RETURN_IF_ERROR(
+        proc->GetChannelReference(channel_name(), direction()).status());
+  } else {
+    XLS_RETURN_IF_ERROR(package()->GetChannel(new_channel_name).status());
+  }
+  channel_name_ = new_channel_name;
+  return absl::OkStatus();
+}
+
 Receive::Receive(const SourceInfo& loc, Node* token,
                  std::optional<Node*> predicate, std::string_view channel_name,
                  bool is_blocking, std::string_view name,
                  FunctionBase* function)
-    : Node(Op::kReceive, GetReceiveType(function, channel_name, is_blocking),
-           loc, name, function),
-      channel_name_(channel_name),
+    : ChannelNode(loc, Op::kReceive,
+                  GetReceiveType(function, channel_name, is_blocking),
+                  channel_name, Direction::kReceive, name, function),
       is_blocking_(is_blocking),
       has_predicate_(predicate.has_value()) {
   CHECK(IsOpClass<Receive>(op_))
@@ -457,7 +486,7 @@ bool Receive::IsDefinitelyEqualTo(const Node* other) const {
     return false;
   }
 
-  return channel_name_ == other->As<Receive>()->channel_name_ &&
+  return channel_name() == other->As<Receive>()->channel_name() &&
          is_blocking_ == other->As<Receive>()->is_blocking_ &&
          has_predicate_ == other->As<Receive>()->has_predicate_;
 }
@@ -465,8 +494,8 @@ bool Receive::IsDefinitelyEqualTo(const Node* other) const {
 Send::Send(const SourceInfo& loc, Node* token, Node* data,
            std::optional<Node*> predicate, std::string_view channel_name,
            std::string_view name, FunctionBase* function)
-    : Node(Op::kSend, function->package()->GetTokenType(), loc, name, function),
-      channel_name_(channel_name),
+    : ChannelNode(loc, Op::kSend, function->package()->GetTokenType(),
+                  channel_name, Direction::kSend, name, function),
       has_predicate_(predicate.has_value()) {
   CHECK(IsOpClass<Send>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Send`.";
@@ -483,7 +512,7 @@ bool Send::IsDefinitelyEqualTo(const Node* other) const {
     return false;
   }
 
-  return channel_name_ == other->As<Send>()->channel_name_ &&
+  return channel_name() == other->As<Send>()->channel_name() &&
          has_predicate_ == other->As<Send>()->has_predicate_;
 }
 
@@ -1278,18 +1307,6 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
   return new_function->MakeNodeWithName<Trace>(
       loc(), new_operands[0], new_operands[1], new_operands.subspan(2),
       format(), verbosity(), GetNameView());
-}
-
-Type* Receive::GetPayloadType() const {
-  return GetReceivePayloadType(function_base_, channel_name_);
-}
-
-void Receive::ReplaceChannel(std::string_view new_channel_name) {
-  channel_name_ = new_channel_name;
-}
-
-void Send::ReplaceChannel(std::string_view new_channel_name) {
-  channel_name_ = new_channel_name;
 }
 
 absl::StatusOr<Node*> Receive::CloneInNewFunction(

@@ -51,6 +51,7 @@
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_scanner.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -167,19 +168,6 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
   return absl::OkStatus();
 }
 
-// Returns the channel used by the given send or receive node. Returns an error
-// if the given node is not a send or receive.
-absl::StatusOr<Channel*> GetSendOrReceiveChannel(Node* node) {
-  if (node->Is<Send>()) {
-    return node->package()->GetChannel(node->As<Send>()->channel_name());
-  }
-  if (node->Is<Receive>()) {
-    return node->package()->GetChannel(node->As<Receive>()->channel_name());
-  }
-  return absl::InternalError(absl::StrFormat(
-      "Node is not a send or receive node: %s", node->ToString()));
-}
-
 // Verify various invariants about the channels owned by the given package.
 absl::Status VerifyChannels(Package* package, bool codegen) {
   // All channels must be proc-scoped or no channels should be proc scoped.
@@ -234,11 +222,11 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
     }
     for (Node* node : TopoSort(proc.get())) {
       if (node->Is<Send>()) {
-        XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
+        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
         send_nodes[channel].push_back(node);
       }
       if (node->Is<Receive>()) {
-        XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
+        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
         receive_nodes[channel].push_back(node);
       }
     }

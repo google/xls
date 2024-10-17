@@ -258,7 +258,7 @@ class Proc : public FunctionBase {
 
   bool ChannelIsOwnedByProc(Channel* channel);
 
-  // Add input/output channels to the interfacce of the proc.
+  // Add input/output channels to the interface of the proc.
   absl::StatusOr<ReceiveChannelReference*> AddInputChannel(
       std::string_view name, Type* type, ChannelKind kind,
       std::optional<ChannelStrictness> strictness = std::nullopt);

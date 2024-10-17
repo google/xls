@@ -249,41 +249,6 @@ TEST_F(NodeUtilTest, NonReductiveEquivalents) {
   EXPECT_FALSE(OpToNonReductionOp(Op::kBitSlice).ok());
 }
 
-TEST_F(NodeUtilTest, NewStyleChannelNodes) {
-  auto package = CreatePackage();
-
-  ProcBuilder pb(NewStyleProc(), "top_proc", package.get());
-  BValue tkn = pb.Literal(Value::Token());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ReceiveChannelReference * in_channel,
-      pb.AddInputChannel("in_ch", package->GetBitsType(32)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      SendChannelReference * out_channel,
-      pb.AddOutputChannel("out_ch", package->GetBitsType(32)));
-  BValue rcv = pb.Receive(in_channel, tkn);
-  BValue recv_token = pb.TupleIndex(rcv, 0);
-  BValue input = pb.TupleIndex(rcv, 1);
-  BValue send = pb.Send(out_channel, recv_token, input);
-  XLS_ASSERT_OK(pb.Build({}).status());
-
-  EXPECT_TRUE(IsChannelNode(rcv.node()));
-  EXPECT_TRUE(IsChannelNode(send.node()));
-  EXPECT_FALSE(IsChannelNode(input.node()));
-
-  EXPECT_THAT(GetChannelReferenceUsedByNode(rcv.node()),
-              IsOkAndHolds(in_channel));
-  EXPECT_THAT(GetChannelReferenceUsedByNode(send.node()),
-              IsOkAndHolds(out_channel));
-  EXPECT_THAT(GetChannelReferenceUsedByNode(input.node()),
-              StatusIs(absl::StatusCode::kNotFound,
-                       HasSubstr("No channel reference associated with node")));
-
-  EXPECT_THAT(GetChannelRefUsedByNode(rcv.node()),
-              IsOkAndHolds(ChannelRef{in_channel}));
-  EXPECT_THAT(GetChannelRefUsedByNode(send.node()),
-              IsOkAndHolds(ChannelRef{out_channel}));
-}
-
 TEST_F(NodeUtilTest, ChannelNodes) {
   Package p("my_package");
 
@@ -301,18 +266,11 @@ TEST_F(NodeUtilTest, ChannelNodes) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, b.Build({b.AfterAll({b.TupleIndex(rcv, 0), send}), state}));
 
-  EXPECT_TRUE(IsChannelNode(rcv.node()));
-  EXPECT_TRUE(IsChannelNode(send.node()));
-  EXPECT_FALSE(IsChannelNode(proc->GetStateParam(0)));
-
   EXPECT_THAT(GetChannelUsedByNode(rcv.node()), IsOkAndHolds(ch0));
   EXPECT_THAT(GetChannelUsedByNode(send.node()), IsOkAndHolds(ch1));
   EXPECT_THAT(GetChannelUsedByNode(proc->GetStateParam(0)),
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("No channel associated with node")));
-
-  EXPECT_THAT(GetChannelRefUsedByNode(rcv.node()),
-              IsOkAndHolds(ChannelRef{ch0}));
 }
 
 TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithFunction) {

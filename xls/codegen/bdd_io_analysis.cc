@@ -60,7 +60,7 @@ absl::StatusOr<bool> AreStreamingOutputsMutuallyExclusive(Proc* proc) {
       continue;
     }
 
-    XLS_ASSIGN_OR_RETURN(ChannelRef channel, GetChannelRefUsedByNode(node));
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel, node->As<Send>()->GetChannelRef());
     if (ChannelRefKind(channel) != ChannelKind::kStreaming) {
       continue;
     }

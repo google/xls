@@ -833,7 +833,7 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
   if (((n->Is<Receive>() && absl::GetFlag(FLAGS_can_remove_receives)) ||
        (n->Is<Send>() && absl::GetFlag(FLAGS_can_remove_sends))) &&
       absl::Bernoulli(rng, 0.3)) {
-    XLS_ASSIGN_OR_RETURN(ChannelRef c, GetChannelRefUsedByNode(n));
+    XLS_ASSIGN_OR_RETURN(ChannelRef c, n->As<ChannelNode>()->GetChannelRef());
     absl::flat_hash_set<std::string> preserved_channels;
     for (const std::string& chan : absl::GetFlag(FLAGS_preserve_channels)) {
       preserved_channels.insert(chan);
@@ -841,8 +841,9 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
     absl::flat_hash_map<ChannelRef, absl::flat_hash_set<Node*>>
         channel_to_nodes;
     for (Node* node : f->nodes()) {
-      if (node->Is<Receive>() || node->Is<Send>()) {
-        XLS_ASSIGN_OR_RETURN(ChannelRef node_c, GetChannelRefUsedByNode(node));
+      if (node->Is<ChannelNode>()) {
+        XLS_ASSIGN_OR_RETURN(ChannelRef node_c,
+                             node->As<ChannelNode>()->GetChannelRef());
         channel_to_nodes[node_c].insert(node);
       }
     }

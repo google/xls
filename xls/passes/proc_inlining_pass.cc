@@ -1933,7 +1933,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
   // the inlined procs.
   std::vector<Node*> to_remove;
   for (Node* node : container_proc->nodes()) {
-    if (!IsChannelNode(node)) {
+    if (!node->Is<ChannelNode>()) {
       continue;
     }
     XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(node));

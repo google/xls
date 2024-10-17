@@ -77,7 +77,7 @@ absl::StatusOr<ChannelProcMap> GetChannelProcMap(Package* package) {
 
   for (const std::unique_ptr<Proc>& proc : package->procs()) {
     for (Node* node : proc->nodes()) {
-      if (IsChannelNode(node)) {
+      if (node->Is<ChannelNode>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
         channel_map.channel_to_procs[channel].insert(proc.get());
         channel_map.proc_to_channels[proc.get()].insert(channel);

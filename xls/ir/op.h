@@ -84,7 +84,9 @@ constexpr bool IsOpClass(Op op) {
                 "OpT is not a Node subclass");
   // Return true if op is one of the elements of OpT::kOps
   for (auto it = OpT::kOps.begin(); it != OpT::kOps.end(); ++it) {
-    if (*it == op) return true;
+    if (*it == op) {
+      return true;
+    }
   }
   return false;
 }

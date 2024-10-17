@@ -629,6 +629,7 @@ cc_library(
         ":code_template",
         ":ir",
         ":ir_scanner",
+        ":node_util",
         ":op",
         ":proc_elaboration",
         ":register",

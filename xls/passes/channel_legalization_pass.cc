@@ -1040,7 +1040,8 @@ absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
   for (int64_t instance_number = 0; instance_number < token_dag.size();
        ++instance_number) {
     Node* node = token_dag[instance_number].node;
-    XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref, GetChannelRefUsedByNode(node));
+    XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
+                         node->As<ChannelNode>()->GetChannelRef());
     XLS_ASSIGN_OR_RETURN(
         AdapterInputChannel pred_input_channel,
         MakePredicateChannel(node, channel_ref, instance_number, ab));
@@ -1216,9 +1217,8 @@ absl::Status AddAdapterForMultipleReceives(absl::Span<Receive* const> ops,
             FifoConfig(/*depth=*/1, /*bypass=*/false,
                        /*register_push_outputs=*/true,
                        /*register_pop_outputs=*/false)));
-    XLS_RETURN_IF_ERROR(ReplaceChannelUsedByNode(
-        node, ChannelRefName(AsChannelRef(
-                  output_data_channel.parent_receive_channel_ref))));
+    XLS_RETURN_IF_ERROR(node->As<ChannelNode>()->ReplaceChannel(ChannelRefName(
+        AsChannelRef(output_data_channel.parent_receive_channel_ref))));
     BValue send_token =
         ab.adapter_builder().AfterAll({activation.pred_recv_token, recv_token});
     ab.adapter_builder().SendIf(output_data_channel.adapter_send_channel_ref,
@@ -1272,9 +1272,9 @@ absl::Status AddAdapterForMultipleSends(absl::Span<Send* const> ops,
               FifoConfig(/*depth=*/1, /*bypass=*/false,
                          /*register_push_outputs=*/true,
                          /*register_pop_outputs=*/false)));
-      XLS_RETURN_IF_ERROR(ReplaceChannelUsedByNode(
-          node, ChannelRefName(
-                    AsChannelRef(input_data_channel.parent_send_channel_ref))));
+      XLS_RETURN_IF_ERROR(
+          node->As<ChannelNode>()->ReplaceChannel(ChannelRefName(
+              AsChannelRef(input_data_channel.parent_send_channel_ref))));
       BValue recv = ab.adapter_builder().ReceiveIf(
           input_data_channel.adapter_receive_channel_ref,
           activation.pred_recv_token, activation.activate);

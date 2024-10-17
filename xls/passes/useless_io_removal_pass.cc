@@ -54,12 +54,12 @@ absl::StatusOr<ChannelMaps> ComputeChannelMaps(Package* package) {
     for (Node* node : proc->nodes()) {
       if (node->Is<Send>()) {
         XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
-                             GetChannelRefUsedByNode(node));
+                             node->As<Send>()->GetChannelRef());
         result.to_send[channel_ref].insert(node->As<Send>());
       }
       if (node->Is<Receive>()) {
         XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
-                             GetChannelRefUsedByNode(node));
+                             node->As<Receive>()->GetChannelRef());
         result.to_receive[channel_ref].insert(node->As<Receive>());
       }
     }
@@ -88,8 +88,7 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         if (!send->predicate().has_value()) {
           continue;
         }
-        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
-                             GetChannelRefUsedByNode(node));
+        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref, send->GetChannelRef());
         Node* predicate = send->predicate().value();
         if (query_engine.IsAllZeros(predicate) &&
             channel_maps.to_send.at(channel_ref).size() >= 2) {
@@ -107,8 +106,7 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
         if (!receive->predicate().has_value()) {
           continue;
         }
-        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
-                             GetChannelRefUsedByNode(node));
+        XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref, receive->GetChannelRef());
         Node* predicate = receive->predicate().value();
         if (query_engine.IsAllZeros(predicate) &&
             channel_maps.to_receive.at(channel_ref).size() >= 2) {

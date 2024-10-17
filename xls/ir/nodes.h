@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
@@ -787,7 +788,37 @@ class PrioritySelect final : public Node {
   int64_t cases_size_;
 };
 
-class Receive final : public Node {
+// Base class for nodes which communicate over channels.
+class ChannelNode : public Node {
+ public:
+  static constexpr std::array<Op, 2> kOps = {Op::kReceive, Op::kSend};
+
+  ChannelNode(const SourceInfo& loc, Op op, Type* type,
+              std::string_view channel_name, Direction direction,
+              std::string_view name, FunctionBase* function)
+      : Node(op, type, loc, name, function),
+        channel_name_(channel_name),
+        direction_(direction) {}
+
+  const std::string& channel_name() const { return channel_name_; }
+  absl::StatusOr<ChannelRef> GetChannelRef() const;
+
+  // Returns the direction this node communicates on the channel.
+  Direction direction() const { return direction_; }
+
+  // Returns the type of the data payload communicated on the channel.
+  Type* GetPayloadType() const;
+
+  // Replaces the channel with the channel with the given name. Returns an
+  // error if no such channel/channel-ref exists.
+  absl::Status ReplaceChannel(std::string_view new_channel_name);
+
+ private:
+  std::string channel_name_;
+  Direction direction_;
+};
+
+class Receive final : public ChannelNode {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kReceive};
   static constexpr int64_t kTokenOperand = 0;
@@ -799,7 +830,6 @@ class Receive final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  const std::string& channel_name() const { return channel_name_; }
 
   bool is_blocking() const { return is_blocking_; }
 
@@ -810,9 +840,6 @@ class Receive final : public Node {
                ? std::optional<Node*>(operand(*predicate_operand_number()))
                : std::nullopt;
   }
-
-  Type* GetPayloadType() const;
-  void ReplaceChannel(std::string_view new_channel_name);
 
   absl::StatusOr<int64_t> predicate_operand_number() const {
     if (!has_predicate_) {
@@ -826,8 +853,46 @@ class Receive final : public Node {
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:
-  std::string channel_name_;
   bool is_blocking_;
+  bool has_predicate_;
+};
+
+class Send final : public ChannelNode {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kSend};
+  static constexpr int64_t kTokenOperand = 0;
+  static constexpr int64_t kDataOperand = 1;
+
+  Send(const SourceInfo& loc, Node* token, Node* data,
+       std::optional<Node*> predicate, std::string_view channel_name,
+       std::string_view name, FunctionBase* function);
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
+
+  Node* token() const { return operand(0); }
+
+  Node* data() const { return operand(1); }
+
+  std::optional<Node*> predicate() const {
+    return predicate_operand_number().ok()
+               ? std::optional<Node*>(operand(*predicate_operand_number()))
+               : std::nullopt;
+  }
+
+  absl::StatusOr<int64_t> predicate_operand_number() const {
+    if (!has_predicate_) {
+      return absl::InternalError("predicate is not present");
+    }
+    int64_t ret = 2;
+
+    return ret;
+  }
+
+  bool IsDefinitelyEqualTo(const Node* other) const final;
+
+ private:
   bool has_predicate_;
 };
 
@@ -962,49 +1027,6 @@ class Select final : public Node {
  private:
   int64_t cases_size_;
   bool has_default_value_;
-};
-
-class Send final : public Node {
- public:
-  static constexpr std::array<Op, 1> kOps = {Op::kSend};
-  static constexpr int64_t kTokenOperand = 0;
-  static constexpr int64_t kDataOperand = 1;
-
-  Send(const SourceInfo& loc, Node* token, Node* data,
-       std::optional<Node*> predicate, std::string_view channel_name,
-       std::string_view name, FunctionBase* function);
-
-  absl::StatusOr<Node*> CloneInNewFunction(
-      absl::Span<Node* const> new_operands,
-      FunctionBase* new_function) const final;
-  const std::string& channel_name() const { return channel_name_; }
-
-  Node* token() const { return operand(0); }
-
-  Node* data() const { return operand(1); }
-
-  std::optional<Node*> predicate() const {
-    return predicate_operand_number().ok()
-               ? std::optional<Node*>(operand(*predicate_operand_number()))
-               : std::nullopt;
-  }
-
-  void ReplaceChannel(std::string_view new_channel_name);
-
-  absl::StatusOr<int64_t> predicate_operand_number() const {
-    if (!has_predicate_) {
-      return absl::InternalError("predicate is not present");
-    }
-    int64_t ret = 2;
-
-    return ret;
-  }
-
-  bool IsDefinitelyEqualTo(const Node* other) const final;
-
- private:
-  std::string channel_name_;
-  bool has_predicate_;
 };
 
 class Trace final : public Node {
