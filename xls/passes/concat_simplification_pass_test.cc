@@ -40,7 +40,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class ConcatSimplificationPassTest : public IrTestBase {
  protected:

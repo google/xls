@@ -20,6 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
@@ -40,11 +41,11 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using xls::solvers::z3::IsProvenFalse;
-using xls::solvers::z3::IsProvenTrue;
-using xls::solvers::z3::ScopedVerifyProcEquivalence;
-using xls::solvers::z3::TryProveEquivalence;
+using ::absl_testing::IsOkAndHolds;
+using ::xls::solvers::z3::IsProvenFalse;
+using ::xls::solvers::z3::IsProvenTrue;
+using ::xls::solvers::z3::ScopedVerifyProcEquivalence;
+using ::xls::solvers::z3::TryProveEquivalence;
 
 class UnrollProcTest : public IrTestBase {};
 TEST_F(UnrollProcTest, BasicProcEquivalence) {
@@ -116,7 +117,7 @@ TEST_F(UnrollProcTest, StateOnlyProcs) {
                                                 /*include_state=*/true));
 
   EXPECT_THAT(TryProveEquivalence(l, r),
-              status_testing::IsOkAndHolds(IsProvenTrue()));
+              absl_testing::IsOkAndHolds(IsProvenTrue()));
 }
 
 TEST_F(UnrollProcTest, DetectChangesProcs) {
@@ -151,7 +152,7 @@ TEST_F(UnrollProcTest, DetectChangesProcs) {
                                                 /*include_state=*/true));
 
   EXPECT_THAT(TryProveEquivalence(l, r),
-              status_testing::IsOkAndHolds(IsProvenFalse()));
+              absl_testing::IsOkAndHolds(IsProvenFalse()));
 }
 
 TEST_F(UnrollProcTest, UnrollDetectsImpossibleProcs) {
@@ -177,7 +178,7 @@ TEST_F(UnrollProcTest, UnrollDetectsImpossibleProcs) {
   EXPECT_THAT(
       UnrollProcToFunction(left, /*activation_count=*/4,
                            /*include_state=*/false),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInternal,
           testing::ContainsRegex(".*No sends means returned function would "
                                  "return a single constant value.*")));

@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_pass.h"
@@ -44,9 +45,9 @@
 namespace xlscc {
 namespace {
 
-using testing::Pair;
-using testing::UnorderedElementsAre;
-using xls::status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 constexpr char kTestName[] = "translator_verilog_test";
 constexpr char kTestdataPath[] = "xls/contrib/xlscc/unit_tests/testdata";

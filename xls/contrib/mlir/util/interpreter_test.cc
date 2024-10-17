@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
@@ -29,15 +30,14 @@
 #include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/OwningOpRef.h"
 #include "mlir/include/mlir/Parser/Parser.h"
-#include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 
 namespace mlir::xls {
 namespace {
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::Eq;
 using ::testing::HasSubstr;
-using ::xls::status_testing::IsOkAndHolds;
-using ::xls::status_testing::StatusIs;
 
 class TestInterpreterContext
     : public InterpreterContext<TestInterpreterContext, int64_t> {

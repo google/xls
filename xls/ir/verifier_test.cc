@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
@@ -36,7 +37,7 @@
 namespace xls {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 class VerifierTest : public IrTestBase {
@@ -57,8 +58,8 @@ top fn function_0() -> bits[8][8] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
   ASSERT_THAT(VerifyPackage(p.get()),
-              status_testing::StatusIs(absl::StatusCode::kInternal,
-                                       HasSubstr("does not match node type")));
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     HasSubstr("does not match node type")));
 }
 
 TEST_F(VerifierTest, WellFormedPackage) {

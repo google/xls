@@ -37,14 +37,14 @@
 namespace xls::verilog {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Not;
-using ::xls::status_testing::IsOkAndHolds;
-using ::xls::status_testing::StatusIs;
 namespace m = ::xls::op_matchers;
 
 using NameLegalizationPassIrTest = IrTestBase;

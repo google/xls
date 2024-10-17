@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/algorithm/container.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
@@ -255,7 +256,7 @@ void OpFuzz(
   EXPECT_THAT(solvers::z3::TryProve(f, implication.node(),
                                     solvers::z3::Predicate::NotEqualToZero(),
                                     absl::InfiniteDuration()),
-              status_testing::IsOkAndHolds(IsProvenTrue()));
+              absl_testing::IsOkAndHolds(IsProvenTrue()));
 }
 
 void BinaryOpFuzz(

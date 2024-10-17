@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -81,7 +82,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 constexpr char kTestName[] = "block_generator_test";
@@ -1696,7 +1697,7 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
 
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
                                            ready_valid_holdoffs),
-              status_testing::IsOkAndHolds(expected_output_values));
+              absl_testing::IsOkAndHolds(expected_output_values));
 }
 
 TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithNonUpdateCase) {
@@ -1905,7 +1906,7 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
       {"out", {UBits(0, 32), UBits(20, 32), UBits(30, 32)}}};
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, {{"out", 3}},
                                            ready_valid_holdoffs),
-              status_testing::IsOkAndHolds(output_values));
+              absl_testing::IsOkAndHolds(output_values));
 }
 
 TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
@@ -1935,7 +1936,7 @@ TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
       {"out", {UBits(0, 32), UBits(20, 32), UBits(30, 32)}}};
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, {{"out", 3}},
                                            ready_valid_holdoffs),
-              status_testing::IsOkAndHolds(output_values));
+              absl_testing::IsOkAndHolds(output_values));
 }
 
 TEST_P(BlockGeneratorTest, SelectWithTokens) {

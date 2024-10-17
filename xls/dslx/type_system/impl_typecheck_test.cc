@@ -17,14 +17,15 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
 namespace xls::dslx {
 namespace {
 
-using status_testing::StatusIs;
-using testing::HasSubstr;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 TEST(TypecheckTest, ConstantOnStructInstant) {
   constexpr std::string_view kProgram = R"(

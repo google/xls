@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
@@ -39,6 +40,7 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using VB = ValueBuilder;
 
 // Simple wrapper to avoid std::vector<bool> specialization.
@@ -123,8 +125,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestUMul) {
   BValue res = fb.UMul(fb.Literal(UBits(2, 4)), fb.Literal(UBits(4, 4)),
                        /*result_width=*/32);
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(8, 32))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(8, 32))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestSMul) {
@@ -134,8 +135,8 @@ TEST_F(AbstractNodeEvaluatorTest, TestSMul) {
   auto res = fb.SMul(fb.Literal(UBits(0b1111, 4)), fb.Literal(UBits(4, 4)),
                      /*result_width=*/16);
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res), status_testing::IsOkAndHolds(
-                                         Value(UBits(0b1111111111111100, 16))));
+  EXPECT_THAT(AbstractEvaluate(res),
+              IsOkAndHolds(Value(UBits(0b1111111111111100, 16))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestAdd) {
@@ -143,8 +144,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestAdd) {
   FunctionBuilder fb(TestName(), p.get());
   auto res = fb.Add(fb.Literal(UBits(2, 4)), fb.Literal(UBits(4, 4)));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(6, 4))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(6, 4))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestUSub) {
@@ -152,8 +152,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestUSub) {
   FunctionBuilder fb(TestName(), p.get());
   auto res = fb.Subtract(fb.Literal(UBits(4, 4)), fb.Literal(UBits(2, 4)));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(2, 4))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(2, 4))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestUDiv) {
@@ -161,8 +160,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestUDiv) {
   FunctionBuilder fb(TestName(), p.get());
   auto res = fb.UDiv(fb.Literal(UBits(9, 32)), fb.Literal(UBits(3, 32)));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(3, 32))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(3, 32))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestSDiv) {
@@ -170,8 +168,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestSDiv) {
   FunctionBuilder fb(TestName(), p.get());
   auto res = fb.SDiv(fb.Literal(UBits(-9, 64)), fb.Literal(UBits(3, 64)));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(-3, 64))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(-3, 64))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestShll) {
@@ -179,8 +176,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestShll) {
   FunctionBuilder fb(TestName(), p.get());
   auto res = fb.Shll(fb.Literal(UBits(0b1010, 4)), fb.Literal(UBits(2, 4)));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(0b1000, 4))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(0b1000, 4))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestShrl) {
@@ -188,8 +184,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestShrl) {
   FunctionBuilder fb(TestName(), p.get());
   auto res = fb.Shrl(fb.Literal(UBits(0b1010, 4)), fb.Literal(UBits(2, 4)));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(0b0010, 4))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(0b0010, 4))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestShra) {
@@ -198,16 +193,14 @@ TEST_F(AbstractNodeEvaluatorTest, TestShra) {
     FunctionBuilder fb(TestName(), p.get());
     auto res = fb.Shra(fb.Literal(UBits(0b1010, 4)), fb.Literal(UBits(2, 4)));
     XLS_ASSERT_OK(fb.Build().status());
-    EXPECT_THAT(AbstractEvaluate(res),
-                status_testing::IsOkAndHolds(Value(UBits(0b1110, 4))));
+    EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(0b1110, 4))));
   }
   {
     auto p = CreatePackage();
     FunctionBuilder fb(TestName(), p.get());
     auto res = fb.Shra(fb.Literal(UBits(0b0101, 4)), fb.Literal(UBits(2, 4)));
     XLS_ASSERT_OK(fb.Build().status());
-    EXPECT_THAT(AbstractEvaluate(res),
-                status_testing::IsOkAndHolds(Value(UBits(0b0001, 4))));
+    EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(0b0001, 4))));
   }
 }
 
@@ -216,8 +209,7 @@ TEST_F(AbstractNodeEvaluatorTest, TestUMod) {
   FunctionBuilder fb(TestName(), p.get());
   auto res = fb.UMod(fb.Literal(UBits(9, 32)), fb.Literal(UBits(4, 32)));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(AbstractEvaluate(res),
-              status_testing::IsOkAndHolds(Value(UBits(1, 32))));
+  EXPECT_THAT(AbstractEvaluate(res), IsOkAndHolds(Value(UBits(1, 32))));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TestGate) {
@@ -229,9 +221,9 @@ TEST_F(AbstractNodeEvaluatorTest, TestGate) {
     return AbstractEvaluate(res);
   };
   EXPECT_THAT(test_with(Value(UBits(0, 1)), Value(UBits(0b111, 3))),
-              status_testing::IsOkAndHolds(Value(UBits(0b000, 3))));
+              IsOkAndHolds(Value(UBits(0b000, 3))));
   EXPECT_THAT(test_with(Value(UBits(1, 1)), Value(UBits(0b111, 3))),
-              status_testing::IsOkAndHolds(Value(UBits(0b111, 3))));
+              IsOkAndHolds(Value(UBits(0b111, 3))));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value target,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(5, 6))}),
@@ -242,10 +234,8 @@ TEST_F(AbstractNodeEvaluatorTest, TestGate) {
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
                  VB::UBits2DArray({{0, 0, 0}, {0, 0, 0}}, 8)})
           .Build());
-  EXPECT_THAT(test_with(Value(UBits(0, 1)), target),
-              status_testing::IsOkAndHolds(zero));
-  EXPECT_THAT(test_with(Value(UBits(1, 1)), target),
-              status_testing::IsOkAndHolds(target));
+  EXPECT_THAT(test_with(Value(UBits(0, 1)), target), IsOkAndHolds(zero));
+  EXPECT_THAT(test_with(Value(UBits(1, 1)), target), IsOkAndHolds(target));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, Identity) {
@@ -257,15 +247,14 @@ TEST_F(AbstractNodeEvaluatorTest, Identity) {
     return AbstractEvaluate(res);
   };
   EXPECT_THAT(test_with(Value(UBits(0b111, 3))),
-              status_testing::IsOkAndHolds(Value(UBits(0b111, 3))));
+              IsOkAndHolds(Value(UBits(0b111, 3))));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value target,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(5, 6))}),
                  VB::UBits2DArray({{1, 2, 3}, {4, 5, 6}}, 8)})
           .Build());
-  EXPECT_THAT(test_with(target), status_testing::IsOkAndHolds(target));
-  EXPECT_THAT(test_with(Value::Tuple({})),
-              status_testing::IsOkAndHolds(Value::Tuple({})));
+  EXPECT_THAT(test_with(target), IsOkAndHolds(target));
+  EXPECT_THAT(test_with(Value::Tuple({})), IsOkAndHolds(Value::Tuple({})));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, Eq) {
@@ -279,9 +268,9 @@ TEST_F(AbstractNodeEvaluatorTest, Eq) {
   auto v_true = Value::Bool(true);
   auto v_false = Value::Bool(false);
   EXPECT_THAT(test_with(Value(UBits(3, 4)), Value(UBits(3, 4))),
-              status_testing::IsOkAndHolds(v_true));
+              IsOkAndHolds(v_true));
   EXPECT_THAT(test_with(Value(UBits(0, 4)), Value(UBits(3, 4))),
-              status_testing::IsOkAndHolds(v_false));
+              IsOkAndHolds(v_false));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value target,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(5, 6))}),
@@ -292,8 +281,8 @@ TEST_F(AbstractNodeEvaluatorTest, Eq) {
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
                  VB::UBits2DArray({{0, 0, 0}, {0, 0, 0}}, 8)})
           .Build());
-  EXPECT_THAT(test_with(target, target), status_testing::IsOkAndHolds(v_true));
-  EXPECT_THAT(test_with(target, zero), status_testing::IsOkAndHolds(v_false));
+  EXPECT_THAT(test_with(target, target), IsOkAndHolds(v_true));
+  EXPECT_THAT(test_with(target, zero), IsOkAndHolds(v_false));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, Ne) {
@@ -307,9 +296,9 @@ TEST_F(AbstractNodeEvaluatorTest, Ne) {
   auto v_true = Value::Bool(true);
   auto v_false = Value::Bool(false);
   EXPECT_THAT(test_with(Value(UBits(3, 4)), Value(UBits(3, 4))),
-              status_testing::IsOkAndHolds(v_false));
+              IsOkAndHolds(v_false));
   EXPECT_THAT(test_with(Value(UBits(0, 4)), Value(UBits(3, 4))),
-              status_testing::IsOkAndHolds(v_true));
+              IsOkAndHolds(v_true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value target,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(5, 6))}),
@@ -320,8 +309,8 @@ TEST_F(AbstractNodeEvaluatorTest, Ne) {
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
                  VB::UBits2DArray({{0, 0, 0}, {0, 0, 0}}, 8)})
           .Build());
-  EXPECT_THAT(test_with(target, target), status_testing::IsOkAndHolds(v_false));
-  EXPECT_THAT(test_with(target, zero), status_testing::IsOkAndHolds(v_true));
+  EXPECT_THAT(test_with(target, target), IsOkAndHolds(v_false));
+  EXPECT_THAT(test_with(target, zero), IsOkAndHolds(v_true));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, Sel) {
@@ -346,12 +335,12 @@ TEST_F(AbstractNodeEvaluatorTest, Sel) {
   EXPECT_THAT(
       test_with(Value(UBits(2, 2)), {Value(UBits(0, 4)), Value(UBits(1, 4)),
                                      Value(UBits(2, 4)), Value(UBits(3, 4))}),
-      status_testing::IsOkAndHolds(Value(UBits(2, 4))));
+      IsOkAndHolds(Value(UBits(2, 4))));
   EXPECT_THAT(test_with(Value(UBits(6, 20)),
                         {Value(UBits(0, 4)), Value(UBits(1, 4)),
                          Value(UBits(2, 4)), Value(UBits(3, 4))},
                         Value(UBits(4, 4))),
-              status_testing::IsOkAndHolds(Value(UBits(4, 4))));
+              IsOkAndHolds(Value(UBits(4, 4))));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value zero,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
@@ -379,9 +368,9 @@ TEST_F(AbstractNodeEvaluatorTest, Sel) {
           .Build());
 
   EXPECT_THAT(test_with(Value(UBits(2, 2)), {zero, one, two, three}),
-              status_testing::IsOkAndHolds(two));
+              IsOkAndHolds(two));
   EXPECT_THAT(test_with(Value(UBits(6, 20)), {zero, one, two, three}, four),
-              status_testing::IsOkAndHolds(four));
+              IsOkAndHolds(four));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, OneHotSel) {
@@ -401,13 +390,13 @@ TEST_F(AbstractNodeEvaluatorTest, OneHotSel) {
   EXPECT_THAT(test_with(Value(UBits(0b0010, 4)),
                         {Value(UBits(0, 4)), Value(UBits(1, 4)),
                          Value(UBits(2, 4)), Value(UBits(3, 4))}),
-              status_testing::IsOkAndHolds(Value(UBits(1, 4))));
+              IsOkAndHolds(Value(UBits(1, 4))));
   EXPECT_THAT(test_with(Value(UBits(0b00, 2)),
                         {Value(UBits(1, 4)), Value(UBits(2, 4))}),
-              status_testing::IsOkAndHolds(Value(UBits(0, 4))));
+              IsOkAndHolds(Value(UBits(0, 4))));
   EXPECT_THAT(test_with(Value(UBits(0b11, 2)),
                         {Value(UBits(1, 4)), Value(UBits(2, 4))}),
-              status_testing::IsOkAndHolds(Value(UBits(3, 4))));
+              IsOkAndHolds(Value(UBits(3, 4))));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value zero,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
@@ -429,11 +418,10 @@ TEST_F(AbstractNodeEvaluatorTest, OneHotSel) {
                  VB::UBits2DArray({{3, 3, 3}, {3, 3, 3}}, 8)})
           .Build());
   EXPECT_THAT(test_with(Value(UBits(0b0010, 4)), {zero, one, two, three}),
-              status_testing::IsOkAndHolds(one));
-  EXPECT_THAT(test_with(Value(UBits(0, 2)), {one, two}),
-              status_testing::IsOkAndHolds(zero));
+              IsOkAndHolds(one));
+  EXPECT_THAT(test_with(Value(UBits(0, 2)), {one, two}), IsOkAndHolds(zero));
   EXPECT_THAT(test_with(Value(UBits(0b11, 2)), {one, two}),
-              status_testing::IsOkAndHolds(three));
+              IsOkAndHolds(three));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, PrioritySel) {
@@ -455,15 +443,15 @@ TEST_F(AbstractNodeEvaluatorTest, PrioritySel) {
                         {Value(UBits(0, 4)), Value(UBits(1, 4)),
                          Value(UBits(2, 4)), Value(UBits(3, 4))},
                         Value(UBits(8, 4))),
-              status_testing::IsOkAndHolds(Value(UBits(1, 4))));
+              IsOkAndHolds(Value(UBits(1, 4))));
   EXPECT_THAT(
       test_with(Value(UBits(0b00, 2)), {Value(UBits(1, 4)), Value(UBits(2, 4))},
                 Value(UBits(8, 4))),
-      status_testing::IsOkAndHolds(Value(UBits(8, 4))));
+      IsOkAndHolds(Value(UBits(8, 4))));
   EXPECT_THAT(
       test_with(Value(UBits(0b11, 2)), {Value(UBits(1, 4)), Value(UBits(2, 4))},
                 Value(UBits(8, 4))),
-      status_testing::IsOkAndHolds(Value(UBits(1, 4))));
+      IsOkAndHolds(Value(UBits(1, 4))));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value zero,
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
@@ -485,11 +473,11 @@ TEST_F(AbstractNodeEvaluatorTest, PrioritySel) {
                  VB::UBits2DArray({{3, 3, 3}, {3, 3, 3}}, 8)})
           .Build());
   EXPECT_THAT(test_with(Value(UBits(0b0010, 4)), {zero, one, two, three}, zero),
-              status_testing::IsOkAndHolds(one));
+              IsOkAndHolds(one));
   EXPECT_THAT(test_with(Value(UBits(0, 2)), {one, two}, zero),
-              status_testing::IsOkAndHolds(zero));
+              IsOkAndHolds(zero));
   EXPECT_THAT(test_with(Value(UBits(0b11, 2)), {one, two}, zero),
-              status_testing::IsOkAndHolds(one));
+              IsOkAndHolds(one));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, Array) {
@@ -509,7 +497,7 @@ TEST_F(AbstractNodeEvaluatorTest, Array) {
   std::array<VB, 4> t1 = {VB::Bits(UBits(0, 4)), VB::Bits(UBits(1, 4)),
                           VB::Bits(UBits(2, 4)), VB::Bits(UBits(3, 4))};
   XLS_ASSERT_OK_AND_ASSIGN(auto a1, VB::ArrayB(t1).Build());
-  EXPECT_THAT(test_with(t1), status_testing::IsOkAndHolds(a1));
+  EXPECT_THAT(test_with(t1), IsOkAndHolds(a1));
 
   auto zero =
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
@@ -524,8 +512,7 @@ TEST_F(AbstractNodeEvaluatorTest, Array) {
       VB::Tuple({VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(3, 6))}),
                  VB::UBits2DArray({{3, 3, 3}, {3, 3, 3}}, 8)});
   XLS_ASSERT_OK_AND_ASSIGN(auto a2, VB::Array({zero, one, two, three}).Build());
-  EXPECT_THAT(test_with({zero, one, two, three}),
-              status_testing::IsOkAndHolds(a2));
+  EXPECT_THAT(test_with({zero, one, two, three}), IsOkAndHolds(a2));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, ArrayConcat) {
@@ -566,18 +553,18 @@ TEST_F(AbstractNodeEvaluatorTest, ArrayConcat) {
   XLS_ASSERT_OK_AND_ASSIGN(auto comps_result, VB::ArrayB(comps).Build());
   EXPECT_THAT(
       test_with({ints.subspan(0, 4), ints.subspan(4, 2), ints.subspan(6)}),
-      status_testing::IsOkAndHolds(ints_result));
+      IsOkAndHolds(ints_result));
   EXPECT_THAT(
       test_with({ints.subspan(0, 2), ints.subspan(2, 2), ints.subspan(4, 2),
                  ints.subspan(6, 2), ints.subspan(8, 2), ints.subspan(10)}),
-      status_testing::IsOkAndHolds(ints_result));
+      IsOkAndHolds(ints_result));
   EXPECT_THAT(
       test_with({comps.subspan(0, 4), comps.subspan(4, 2), comps.subspan(6)}),
-      status_testing::IsOkAndHolds(comps_result));
+      IsOkAndHolds(comps_result));
   EXPECT_THAT(
       test_with({comps.subspan(0, 2), comps.subspan(2, 2), comps.subspan(4, 2),
                  comps.subspan(6, 2), comps.subspan(8, 2), comps.subspan(10)}),
-      status_testing::IsOkAndHolds(comps_result));
+      IsOkAndHolds(comps_result));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, Tuple) {
@@ -597,7 +584,7 @@ TEST_F(AbstractNodeEvaluatorTest, Tuple) {
   std::array<VB, 4> t1 = {VB::Bits(UBits(0, 4)), VB::Bits(UBits(1, 4)),
                           VB::Bits(UBits(2, 4)), VB::Bits(UBits(3, 4))};
   XLS_ASSERT_OK_AND_ASSIGN(auto a1, VB::TupleB(t1).Build());
-  EXPECT_THAT(test_with(t1), status_testing::IsOkAndHolds(a1));
+  EXPECT_THAT(test_with(t1), IsOkAndHolds(a1));
 
   auto zero =
       VB::Tuple({VB::Tuple({VB::Bits(UBits(0, 4)), VB::Bits(UBits(0, 6))}),
@@ -612,13 +599,12 @@ TEST_F(AbstractNodeEvaluatorTest, Tuple) {
       VB::Tuple({VB::Tuple({VB::Bits(UBits(3, 4)), VB::Bits(UBits(3, 6))}),
                  VB::UBits2DArray({{3, 3, 3}, {3, 3, 3}}, 8)});
   XLS_ASSERT_OK_AND_ASSIGN(auto a2, VB::Tuple({zero, one, two, three}).Build());
-  EXPECT_THAT(test_with({zero, one, two, three}),
-              status_testing::IsOkAndHolds(a2));
+  EXPECT_THAT(test_with({zero, one, two, three}), IsOkAndHolds(a2));
   auto foo = VB::UBits2DArray({{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}, 16);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto a3, VB::Tuple({zero, foo, one, foo, two, foo, three, foo}).Build());
   EXPECT_THAT(test_with({zero, foo, one, foo, two, foo, three, foo}),
-              status_testing::IsOkAndHolds(a3));
+              IsOkAndHolds(a3));
 }
 
 TEST_F(AbstractNodeEvaluatorTest, TupleIndex) {
@@ -642,21 +628,21 @@ TEST_F(AbstractNodeEvaluatorTest, TupleIndex) {
     EXPECT_THAT(test_with(VB::Tuple({VB::Bits(UBits(1, 1)),
                                      VB::Tuple({VB::Bits(UBits(1, 1)), res})}),
                           {1, 1}),
-                status_testing::IsOkAndHolds(res));
+                IsOkAndHolds(res));
   }
   {
     auto res = Value::Tuple({Value(UBits(3, 4)), Value(UBits(5, 6))});
     EXPECT_THAT(test_with(VB::Tuple({VB::Bits(UBits(1, 1)),
                                      VB::Tuple({VB::Bits(UBits(1, 1)), res})}),
                           {1, 1}),
-                status_testing::IsOkAndHolds(res));
+                IsOkAndHolds(res));
   }
   {
     auto res = Value::Tuple({});
     EXPECT_THAT(test_with(VB::Tuple({VB::Bits(UBits(1, 1)),
                                      VB::Tuple({VB::Bits(UBits(1, 1)), res})}),
                           {1, 1}),
-                status_testing::IsOkAndHolds(res));
+                IsOkAndHolds(res));
   }
 }
 }  // namespace

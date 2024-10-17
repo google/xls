@@ -19,13 +19,14 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls::noc {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
-using ::xls::status_testing::StatusIs;
 
 TEST(ArbitraryBaseNumberTest, AccessFields) {
   ArbitraryBaseNumber number(1, 2);

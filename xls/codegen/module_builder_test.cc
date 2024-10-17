@@ -36,7 +36,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 constexpr char kTestName[] = "module_builder_test";

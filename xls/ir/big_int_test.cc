@@ -32,7 +32,7 @@
 namespace xls {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 
 class BigIntTest : public ::testing::Test {
  protected:

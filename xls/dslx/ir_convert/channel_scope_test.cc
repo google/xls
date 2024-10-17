@@ -24,6 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
@@ -42,10 +43,10 @@
 namespace xls::dslx {
 namespace {
 
-using proto_testing::EqualsProto;
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::xls::proto_testing::EqualsProto;
 
 constexpr std::string_view kPackageName = "the_package";
 

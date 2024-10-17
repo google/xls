@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -41,8 +42,8 @@ absl::StatusOr<std::filesystem::path> GetParseIrPath() {
   return GetXlsRunfilePath("xls/dev_tools/parse_ir");
 }
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::Contains;
 using ::testing::HasSubstr;

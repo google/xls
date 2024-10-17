@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
@@ -46,7 +47,7 @@
 namespace xls::dslx {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 Expr* GetSingleBodyExpr(Function* f) {
   StatementBlock* body = f->body();

@@ -29,7 +29,7 @@
 namespace xls {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 
 TEST(NumberParserTest, ParseNumbersAsUint64) {
   auto expect_uint64_value = [](std::string_view s, uint64_t expected) {

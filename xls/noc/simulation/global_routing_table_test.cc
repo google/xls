@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
@@ -190,8 +191,8 @@ TEST(GlobalRoutingTableTest, Index) {
 
   EXPECT_THAT(
       routing_table.GetNextHopPort(PortAndVCIndex{bin1, 1}, recvport0).status(),
-      status_testing::StatusIs(absl::StatusCode::kNotFound,
-                               testing::HasSubstr("Unable to find")));
+      absl_testing::StatusIs(absl::StatusCode::kNotFound,
+                             testing::HasSubstr("Unable to find")));
 
   // Test route.
   XLS_ASSERT_OK_AND_ASSIGN(

@@ -32,7 +32,7 @@ namespace m = ::xls::op_matchers;
 namespace xls::verilog {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class CodegenWrapperPassTest : public IrTestBase {
  protected:

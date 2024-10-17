@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
@@ -35,7 +36,7 @@
 namespace xls::dslx {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 
 std::string DebugString(const verible::lsp::Position& pos) {
   return absl::StrFormat("Position{.line=%d, .character=%d}", pos.line,

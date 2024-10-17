@@ -34,7 +34,7 @@
 namespace xls {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 
 class TernaryLogicTest : public ::testing::Test {

@@ -36,6 +36,7 @@
 #include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -86,6 +87,8 @@ namespace {
 
 namespace m = ::xls::op_matchers;
 
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::AnyOf;
@@ -99,8 +102,6 @@ using ::testing::HasSubstr;
 using ::testing::IsSupersetOf;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
-using ::xls::status_testing::IsOkAndHolds;
-using ::xls::status_testing::StatusIs;
 
 using BlockStitchingPassTest = IrTestBase;
 

@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -36,9 +37,9 @@ namespace m = xls::op_matchers;
 
 namespace xls {
 namespace {
-using solvers::z3::IsProvenTrue;
-using solvers::z3::TryProveEquivalence;
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
+using ::xls::solvers::z3::IsProvenTrue;
+using ::xls::solvers::z3::TryProveEquivalence;
 
 class ClonePackageTest : public IrTestBase {};
 
@@ -109,11 +110,11 @@ TEST_F(ClonePackageTest, BasicBlock) {
   ASSERT_NE(cb, blk);
   // TODO(allight): It would be nice to have z3 provers for block equiv.
   EXPECT_THAT(cb->GetOutputPort("foo"),
-              status_testing::IsOkAndHolds(m::OutputPort(
+              absl_testing::IsOkAndHolds(m::OutputPort(
                   m::Add(m::InputPort("bar"), m::Literal(UBits(32, 32))))));
-  EXPECT_THAT(cb2->GetOutputPort("pass_out"),
-              status_testing::IsOkAndHolds(
-                  m::OutputPort(m::InstantiationOutput("foo"))));
+  EXPECT_THAT(
+      cb2->GetOutputPort("pass_out"),
+      absl_testing::IsOkAndHolds(m::OutputPort(m::InstantiationOutput("foo"))));
 }
 
 }  // namespace

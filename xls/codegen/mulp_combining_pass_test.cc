@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
@@ -28,8 +29,8 @@ namespace m = xls::op_matchers;
 namespace xls::verilog {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using testing::AllOf;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::AllOf;
 
 class MulpCombiningPassTest : public IrTestBase {
  protected:

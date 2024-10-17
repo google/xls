@@ -547,9 +547,9 @@ cc_test(
     deps = [
         ":interpreter",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
         "@llvm-project//llvm:Support",

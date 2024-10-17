@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/btree_map.h"
+#include "absl/status/status_matchers.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
@@ -30,11 +31,11 @@
 
 namespace xls {
 namespace {
-using proto_testing::EqualsProto;
-using status_testing::IsOkAndHolds;
-using testing::ElementsAre;
-using testing::Pair;
-using testing::UnorderedElementsAre;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
+using ::xls::proto_testing::EqualsProto;
 
 TEST(EvalHelpersTest, ParseChannelValuesFromProto) {
   std::string_view proto = R"pb(

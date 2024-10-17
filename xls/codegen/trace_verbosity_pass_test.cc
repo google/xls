@@ -33,10 +33,10 @@ namespace {
 
 using TraceVerbosityPassTest = IrTestBase;
 
+using ::absl_testing::IsOkAndHolds;
 using ::testing::Contains;
 using ::testing::Eq;
 using ::testing::Gt;
-using ::xls::status_testing::IsOkAndHolds;
 
 namespace m = ::xls::op_matchers;
 

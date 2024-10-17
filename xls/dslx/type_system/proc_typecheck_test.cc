@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
@@ -73,7 +74,7 @@ proc entry {
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("(chan(uN[32], dir=in))\nvs ()")));
 }
@@ -90,7 +91,7 @@ proc entry {
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("()\nvs (chan(uN[32], dir=in))")));
 }
@@ -107,7 +108,7 @@ proc entry {
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(
                       "final expression in a Proc config must be a tuple with "
@@ -143,7 +144,7 @@ proc entry {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr(
               "Want argument 3 to 'recv_if' to have type uN[32]; got uN[42]")));
@@ -160,7 +161,7 @@ proc oopsie {
 })";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("'next' state param and 'init' types differ")));
 }
@@ -176,7 +177,7 @@ proc oopsie {
 })";
 
   EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("input and output state types differ")));
 }
@@ -199,7 +200,7 @@ proc foo {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr(
               "Want argument 1 to 'send' to be a channel; got uN[32]")));
@@ -221,7 +222,7 @@ proc foo {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr(
               "Want argument 1 to 'send' to be a channel; got uN[32]")));
@@ -256,7 +257,7 @@ proc entry {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("Want argument 1 to 'recv' to be an 'in' (recv) "
                              "channel; got chan(uN[32], dir=out)")));
@@ -280,7 +281,7 @@ proc entry {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("Want argument 1 to 'send' to be an 'out' (send) "
                              "channel; got chan(uN[32], dir=in)")));
@@ -322,7 +323,7 @@ proc entry {
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(
                       "Want argument 0 to 'send' to be a token; got uN[32]")));
@@ -646,7 +647,7 @@ proc MyProc {
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(
                       "Expected either a proc member, type alias, or "
@@ -685,7 +686,7 @@ proc Instantiator {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("const_assert! failure: `X == Y` constexpr "
                              "environment: {X: u32:42, Y: u32:64}")));
@@ -731,7 +732,7 @@ proc Instantiator {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("const_assert! failure: `X == Y` constexpr "
                              "environment: {X: u32:42, Y: u32:64}")));

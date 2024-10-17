@@ -23,6 +23,7 @@
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
@@ -43,9 +44,9 @@
 namespace xls {
 namespace {
 
-using status_testing::StatusIs;
-using testing::ContainsRegex;
-using testing::ElementsAre;
+using ::absl_testing::StatusIs;
+using ::testing::ContainsRegex;
+using ::testing::ElementsAre;
 
 class BlockJitTest : public IrTestBase {};
 TEST_F(BlockJitTest, ConstantToPort) {
@@ -271,7 +272,7 @@ TEST_F(BlockJitTest, ErrorOnUnhandledNameCollision) {
 
   XLS_ASSERT_OK(kJitBlockEvaluator.NewContinuation(b1).status());
   ASSERT_THAT(kJitBlockEvaluator.NewContinuation(b2).status(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::HasSubstr("Multiple blocks have the same name")));
 }

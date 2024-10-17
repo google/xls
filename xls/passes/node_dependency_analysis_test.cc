@@ -22,6 +22,7 @@
 #include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/benchmark_support.h"
@@ -39,7 +40,7 @@ MATCHER_P2(DependentOn, nda, source,
            absl::StrFormat("%spath from %s in analysis", negation ? "no " : "",
                            source.node()->ToString())) {
   auto res = nda.IsDependent(source.node(), arg.node());
-  return testing::ExplainMatchResult(status_testing::IsOkAndHolds(true), res,
+  return testing::ExplainMatchResult(absl_testing::IsOkAndHolds(true), res,
                                      result_listener);
 }
 
@@ -47,7 +48,7 @@ MATCHER_P2(DependedOnBy, nda, destination,
            absl::StrFormat("%spath to %s in analysis", negation ? "no " : "",
                            destination.node()->ToString())) {
   auto res = nda.IsDependent(arg.node(), destination.node());
-  return testing::ExplainMatchResult(status_testing::IsOkAndHolds(true), res,
+  return testing::ExplainMatchResult(absl_testing::IsOkAndHolds(true), res,
                                      result_listener);
 }
 
@@ -79,9 +80,9 @@ TEST_F(NodeDependencyAnalysisTest, BackwardsUninterestingIsRemoved) {
   NodeDependencyAnalysis nda(
       NodeDependencyAnalysis::BackwardDependents(f, targets));
   EXPECT_THAT(nda.GetDependents(layer1[1].node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda.GetDependents(layer3[0].node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
 }
 
 TEST_F(NodeDependencyAnalysisTest, BasicBackwards) {
@@ -263,35 +264,35 @@ TEST_F(NodeDependencyAnalysisTest, WorksWithNodeIdGaps) {
   NodeDependencyAnalysis nda2(NodeDependencyAnalysis::BackwardDependents(f2));
   NodeDependencyAnalysis nda3(NodeDependencyAnalysis::BackwardDependents(f3));
   NodeDependencyAnalysis nda4(NodeDependencyAnalysis::BackwardDependents(f4));
-  EXPECT_THAT(nda1.GetDependents(ret1.node()), status_testing::IsOk());
-  EXPECT_THAT(nda2.GetDependents(ret2.node()), status_testing::IsOk());
-  EXPECT_THAT(nda3.GetDependents(ret3.node()), status_testing::IsOk());
-  EXPECT_THAT(nda4.GetDependents(ret4.node()), status_testing::IsOk());
+  EXPECT_THAT(nda1.GetDependents(ret1.node()), absl_testing::IsOk());
+  EXPECT_THAT(nda2.GetDependents(ret2.node()), absl_testing::IsOk());
+  EXPECT_THAT(nda3.GetDependents(ret3.node()), absl_testing::IsOk());
+  EXPECT_THAT(nda4.GetDependents(ret4.node()), absl_testing::IsOk());
   EXPECT_THAT(nda1.GetDependents(ret1.node())->IsDependent(cond1.node()),
-              status_testing::IsOk());
+              absl_testing::IsOk());
   EXPECT_THAT(nda2.GetDependents(ret2.node())->IsDependent(cond2.node()),
-              status_testing::IsOk());
+              absl_testing::IsOk());
   EXPECT_THAT(nda3.GetDependents(ret3.node())->IsDependent(cond3.node()),
-              status_testing::IsOk());
+              absl_testing::IsOk());
   EXPECT_THAT(nda4.GetDependents(ret4.node())->IsDependent(cond4.node()),
-              status_testing::IsOk());
+              absl_testing::IsOk());
   // Cross function.
   EXPECT_THAT(nda2.GetDependents(ret1.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda3.GetDependents(ret2.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda4.GetDependents(ret3.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda1.GetDependents(ret4.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda1.GetDependents(ret1.node())->IsDependent(cond2.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda2.GetDependents(ret2.node())->IsDependent(cond3.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda3.GetDependents(ret3.node())->IsDependent(cond4.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
   EXPECT_THAT(nda4.GetDependents(ret4.node())->IsDependent(cond1.node()),
-              testing::Not(status_testing::IsOk()));
+              testing::Not(absl_testing::IsOk()));
 }
 
 template <typename Iter>

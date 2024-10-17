@@ -24,6 +24,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -32,9 +33,9 @@ namespace xls {
 namespace synthesis {
 namespace {
 
-using status_testing::StatusIs;
-using testing::HasSubstr;
-using testing::UnorderedElementsAre;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
+using ::testing::UnorderedElementsAre;
 
 TEST(YosysUtilTest, GetMaxFrequency) {
   XLS_ASSERT_OK_AND_ASSIGN(

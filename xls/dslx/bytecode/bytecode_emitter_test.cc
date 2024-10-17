@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -46,7 +47,7 @@
 namespace xls::dslx {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 
 absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(

@@ -37,7 +37,7 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class BddFunctionTest : public IrTestBase {};
 

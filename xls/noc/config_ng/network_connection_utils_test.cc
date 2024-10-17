@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/noc/config_ng/fake_network_component.h"
 #include "xls/noc/config_ng/network_component.h"
@@ -25,8 +26,8 @@
 namespace xls::noc {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::testing::Not;
-using xls::status_testing::IsOk;
 
 // Validate a connection with a data output port as a source and a data input
 // port as a sink.

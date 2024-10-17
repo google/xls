@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
@@ -44,7 +45,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 class PassBaseTest : public IrTestBase {};
 
 class CountPass final : public OptimizationFunctionBasePass {
@@ -162,7 +163,7 @@ TEST_F(PassBaseTest, PipelineGeneratorMissingPass) {
   XLS_ASSERT_OK(fb.Build().status());
   TestPipelineGenerator gen;
   EXPECT_THAT(gen.GeneratePipeline("foobar not_present").status(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::MatchesRegex(
                       ".*Unable to add pass 'foobar' to pipeline.*")));
@@ -175,7 +176,7 @@ TEST_F(PassBaseTest, PipelineGeneratorUnmatchedFixedpointOpen) {
   XLS_ASSERT_OK(fb.Build().status());
   TestPipelineGenerator gen;
   EXPECT_THAT(gen.GeneratePipeline("[ dce dce dce [ dce ] ").status(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::MatchesRegex(".*Unmatched '\\[' in pipeline.*")));
 }
@@ -187,7 +188,7 @@ TEST_F(PassBaseTest, PipelineGeneratorUnmatchedFixedpointClose) {
   XLS_ASSERT_OK(fb.Build().status());
   TestPipelineGenerator gen;
   EXPECT_THAT(gen.GeneratePipeline("dce dce dce [ dce ] ]").status(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::MatchesRegex(".*Unmatched '\\]' in pipeline.*")));
 }

@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/error_test_utils.h"
@@ -33,8 +34,8 @@
 namespace xls::dslx {
 namespace {
 
-using status_testing::StatusIs;
-using testing::HasSubstr;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 absl::StatusOr<std::vector<Token>> ToTokens(std::string text) {
   FileTable file_table;

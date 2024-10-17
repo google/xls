@@ -31,6 +31,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -58,13 +59,13 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
-using ::xls::status_testing::IsOkAndHolds;
-using ::xls::status_testing::StatusIs;
 
 using ArgMap = absl::flat_hash_map<std::string, Value>;
 

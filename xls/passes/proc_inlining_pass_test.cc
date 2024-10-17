@@ -33,6 +33,7 @@
 #include "absl/log/log.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
@@ -65,12 +66,12 @@ namespace m = xls::op_matchers;
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAreArray;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
-using ::xls::status_testing::IsOkAndHolds;
-using ::xls::status_testing::StatusIs;
 
 // Proc inlining currently only respects depth. This helper provides defaults
 // for the other ignored parameters in FifoConfig.

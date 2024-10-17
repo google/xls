@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/matchers.h"
@@ -37,7 +38,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-using ::xls::status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class FoldVastConstantsTest : public ::testing::Test {
  public:

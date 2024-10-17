@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -247,8 +248,8 @@ TEST_F(TranslatorStaticTest, StaticMember) {
        })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("static")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("static")));
 }
 
 // Add inner
@@ -1092,7 +1093,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructAssign) {
   ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("parameters containing LValues")));
 }
@@ -1127,12 +1128,12 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructWithOnReset) {
        })";
 
   xlscc::GeneratedFunction* func;
-  ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
-                         /* io_test_mode= */ true)
-                  .status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("ompound lvalue not present")));
+  ASSERT_THAT(
+      SourceToIr(content, &func, /* clang_argv= */ {},
+                 /* io_test_mode= */ true)
+          .status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("ompound lvalue not present")));
 }
 
 TEST_F(TranslatorStaticTest, StaticChannelRefInStructWithOnReset2) {
@@ -1164,12 +1165,11 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructWithOnReset2) {
        })";
 
   xlscc::GeneratedFunction* func;
-  ASSERT_THAT(
-      SourceToIr(content, &func, /* clang_argv= */ {},
-                 /* io_test_mode= */ true)
-          .status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                    testing::HasSubstr("using side-effects")));
+  ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
+                         /* io_test_mode= */ true)
+                  .status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("using side-effects")));
 }
 
 TEST_F(TranslatorStaticTest, ReturnStaticLValue) {

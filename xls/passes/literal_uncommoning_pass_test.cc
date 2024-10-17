@@ -29,7 +29,7 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class LiteralUncommoningPassTest : public IrTestBase {
  protected:

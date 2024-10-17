@@ -32,8 +32,8 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 
 TEST(ValueConversionUtils, ConvertCppToXlsValueSignedIntegrals) {

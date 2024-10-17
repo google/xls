@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/netlist/cell_library.h"
@@ -37,7 +38,7 @@ namespace netlist {
 namespace rtl {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 TEST(NetlistParserTest, EmptyModule) {

@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -40,12 +41,12 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::testing::AllOf;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
-using ::xls::status_testing::IsOkAndHolds;
 
 MATCHER_P(SchedulingUnitWithElements, matcher, "") {
   return ExplainMatchResult(matcher, arg.schedules(), result_listener);

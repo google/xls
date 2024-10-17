@@ -26,6 +26,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/substitute.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -45,17 +46,17 @@
 namespace xls {
 namespace {
 
-using solvers::z3::IrTranslator;
-using solvers::z3::Predicate;
-using solvers::z3::PredicateOfNode;
-using solvers::z3::ProverResult;
-using solvers::z3::TryProve;
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::xls::solvers::z3::IrTranslator;
+using ::xls::solvers::z3::Predicate;
+using ::xls::solvers::z3::PredicateOfNode;
+using ::xls::solvers::z3::ProverResult;
+using ::xls::solvers::z3::TryProve;
 
-using solvers::z3::IsProvenFalse;
-using solvers::z3::IsProvenTrue;
-using testing::HasSubstr;
+using ::testing::HasSubstr;
+using ::xls::solvers::z3::IsProvenFalse;
+using ::xls::solvers::z3::IsProvenTrue;
 
 class Z3IrTranslatorTest : public IrTestBase {};
 

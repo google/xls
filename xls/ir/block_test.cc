@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
@@ -47,8 +48,8 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
@@ -956,13 +957,12 @@ TEST_F(BlockTest, ReplaceInstantiation) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto inst2_add, block->AddBlockInstantiation("inst2_add", add2_block));
 
-  EXPECT_THAT(
-      block->ReplaceInstantiationWith(instantiation, inst2_add),
-      status_testing::StatusIs(absl::StatusCode::kInternal,
-                               testing::ContainsRegex("Type mismatch")));
+  EXPECT_THAT(block->ReplaceInstantiationWith(instantiation, inst2_add),
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     testing::ContainsRegex("Type mismatch")));
   XLS_ASSERT_OK(block->RemoveInstantiation(inst2_add));
   EXPECT_THAT(block->ReplaceInstantiationWith(instantiation, inst_add),
-              status_testing::IsOk());
+              absl_testing::IsOk());
   EXPECT_EQ(p->DumpIr(), R"(package ReplaceInstantiation
 
 block sub_block(a: bits[32], b: bits[32], x: bits[32], y: bits[32]) {

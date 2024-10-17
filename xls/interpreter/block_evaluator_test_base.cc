@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -50,6 +51,9 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::_;
 using ::testing::A;
 using ::testing::AllOf;
@@ -61,9 +65,6 @@ using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
-using ::xls::status_testing::IsOk;
-using ::xls::status_testing::IsOkAndHolds;
-using ::xls::status_testing::StatusIs;
 
 TEST_P(BlockEvaluatorTest, ObserverSeesValues) {
   if (!SupportsObserver()) {

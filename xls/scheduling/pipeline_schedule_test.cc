@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -86,11 +87,11 @@ MATCHER_P2(CyclesMatch, lhs, rhs, "") {
 namespace xls {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::Each;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedPointwise;
-using xls::status_testing::StatusIs;
 
 class PipelineScheduleTest : public IrTestBase {};
 
@@ -352,7 +353,7 @@ TEST_F(PipelineScheduleTest, TestVerifyTiming) {
       schedule.VerifyTiming(/*clock_period_ps=*/5, TestDelayEstimator()));
   EXPECT_THAT(
       schedule.VerifyTiming(/*clock_period_ps=*/1, TestDelayEstimator()),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInternal,
           ::testing::HasSubstr(
               "Schedule does not meet timing (1ps). Longest failing path "
@@ -362,7 +363,7 @@ TEST_F(PipelineScheduleTest, TestVerifyTiming) {
   XLS_EXPECT_OK(schedule.VerifyTiming(/*clock_period_ps=*/5, delay_manager));
   EXPECT_THAT(
       schedule.VerifyTiming(/*clock_period_ps=*/1, delay_manager),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInternal,
           ::testing::HasSubstr(
               "Schedule does not meet timing (1ps). Longest failing path "
@@ -516,7 +517,7 @@ TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
           func, TestDelayEstimator(),
           SchedulingOptions().clock_period_ps(3).clock_margin_percent(200))
           .status(),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           ::testing::HasSubstr(
               "Clock period non-positive (-3ps) after adjusting for margin. "

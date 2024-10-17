@@ -19,8 +19,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
-#include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 
@@ -54,7 +54,7 @@ TEST(InterpBindingsTest, ResolveValueViaParentLnk) {
   InterpBindings child(&parent);
   child.ResolveValueFromIdentifier("t", nullptr, file_table).value().IsTrue();
   EXPECT_THAT(child.ResolveModule("t"),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("identifier \"t\" was bound to a Value")));
 }

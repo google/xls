@@ -24,6 +24,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -42,7 +43,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::ContainsRegex;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;

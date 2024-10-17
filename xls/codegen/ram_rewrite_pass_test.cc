@@ -68,15 +68,15 @@ namespace {
 
 namespace m = xls::op_matchers;
 
-using proto_testing::EqualsProto;
-using status_testing::StatusIs;
-using testing::AllOf;
-using testing::AnyOf;
-using testing::Contains;
-using testing::Eq;
-using testing::HasSubstr;
+using ::absl_testing::StatusIs;
+using ::testing::AllOf;
+using ::testing::AnyOf;
+using ::testing::Contains;
+using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::IsSupersetOf;
-using testing::Not;
+using ::testing::Not;
+using ::xls::proto_testing::EqualsProto;
 
 class PortByNameMatcher : public ::testing::MatcherInterface<Block::Port> {
  public:

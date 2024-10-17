@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -46,9 +47,9 @@
 namespace xls::dslx {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::Contains;
 using ::testing::HasSubstr;
-using ::xls::status_testing::StatusIs;
 
 namespace m = ::xls::op_matchers;
 

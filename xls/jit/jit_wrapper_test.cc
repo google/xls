@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/stdlib/float32_mul_jit_wrapper.h"
 #include "xls/dslx/stdlib/tests/float32_upcast_jit_wrapper.h"
@@ -36,9 +37,9 @@
 namespace xls {
 namespace {
 
-using something::cool::CompoundJitWrapper;
-using status_testing::IsOkAndHolds;
-using testing::Optional;
+using ::absl_testing::IsOkAndHolds;
+using ::something::cool::CompoundJitWrapper;
+using ::testing::Optional;
 
 TEST(JitWrapperTest, BasicFunctionCall) {
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -110,8 +111,8 @@ TEST(JitWrapperTest, Proc2) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCaps::Create());
   XLS_ASSERT_OK(jit->Tick());
   EXPECT_THAT(jit->Tick(),
-              status_testing::StatusIs(absl::StatusCode::kInternal,
-                                       testing::ContainsRegex("deadlock")));
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     testing::ContainsRegex("deadlock")));
 }
 TEST(JitWrapperTest, Proc) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCaps::Create());
@@ -144,8 +145,8 @@ TEST(JitWrapperTest, Proc) {
   EXPECT_THAT(jit->ReceiveFromStringOutput(), IsOkAndHolds(std::nullopt));
   // Another tick gives an error since all procs are blocked.
   EXPECT_THAT(jit->Tick(),
-              status_testing::StatusIs(absl::StatusCode::kInternal,
-                                       testing::ContainsRegex("deadlock")));
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     testing::ContainsRegex("deadlock")));
   EXPECT_THAT(jit->ReceiveFromStringOutput(), IsOkAndHolds(std::nullopt));
   // Giving either one a value unblocks however.
   XLS_ASSERT_OK(jit->SendToBlocker(Value::Tuple({})));
@@ -156,8 +157,8 @@ TEST(JitWrapperTest, Proc) {
   EXPECT_THAT(jit->ReceiveFromStringOutput(), IsOkAndHolds(std::nullopt));
   // Another tick gives an error since all procs are blocked.
   EXPECT_THAT(jit->Tick(),
-              status_testing::StatusIs(absl::StatusCode::kInternal,
-                                       testing::ContainsRegex("deadlock")));
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     testing::ContainsRegex("deadlock")));
   EXPECT_THAT(jit->ReceiveFromStringOutput(), IsOkAndHolds(std::nullopt));
 
   XLS_ASSERT_OK(jit->SendToStringInput(StrArray("foobar12")));
@@ -169,8 +170,8 @@ TEST(JitWrapperTest, Proc) {
   EXPECT_THAT(jit->ReceiveFromStringOutput(), IsOkAndHolds(std::nullopt));
   // Another tick gives an error since all procs are blocked.
   EXPECT_THAT(jit->Tick(),
-              status_testing::StatusIs(absl::StatusCode::kInternal,
-                                       testing::ContainsRegex("deadlock")));
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     testing::ContainsRegex("deadlock")));
   EXPECT_THAT(jit->ReceiveFromStringOutput(), IsOkAndHolds(std::nullopt));
 }
 

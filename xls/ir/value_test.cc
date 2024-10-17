@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/proto_test_utils.h"
@@ -32,9 +33,9 @@
 namespace xls {
 namespace {
 
-using proto_testing::EqualsProto;
-using status_testing::IsOkAndHolds;
-using testing::HasSubstr;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::HasSubstr;
+using ::xls::proto_testing::EqualsProto;
 
 TEST(ValueTest, ToHumanString) {
   Value bits_value(UBits(42, 33));
@@ -625,7 +626,7 @@ TEST(ValueTest, FromProtoArray) {
     ValueProto source;
     ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
     EXPECT_THAT(Value::FromProto(source),
-                status_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
   }
   // No type-mismatch
   {
@@ -638,7 +639,7 @@ TEST(ValueTest, FromProtoArray) {
     ValueProto source;
     ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
     EXPECT_THAT(Value::FromProto(source),
-                status_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+                absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
   }
 }
 

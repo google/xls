@@ -41,8 +41,8 @@ MATCHER_P(NodeIs, m, "") {
   return ::testing::ExplainMatchResult(m, arg.node, result_listener);
 }
 
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
-using ::xls::status_testing::StatusIs;
 
 namespace xls {
 namespace {

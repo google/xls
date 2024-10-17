@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -34,8 +35,8 @@ namespace xls {
 namespace benchmark_support {
 
 namespace {
-using status_testing::IsOkAndHolds;
-using testing::Not;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::Not;
 
 MATCHER_P(SameNode, bn, "") { return bn.node() == arg.node(); }
 MATCHER_P(AsBValue, inner, "") {

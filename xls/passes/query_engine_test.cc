@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/log.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
@@ -46,9 +47,9 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOk;
-using status_testing::IsOkAndHolds;
-using testing::Not;
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::Not;
 
 enum class QueryEngineType { kTernary, kBdd };
 

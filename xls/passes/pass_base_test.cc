@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
@@ -43,11 +44,11 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-using status_testing::IsOk;
-using testing::ElementsAre;
-using testing::Eq;
-using testing::Field;
-using testing::IsEmpty;
+using ::absl_testing::IsOk;
+using ::testing::ElementsAre;
+using ::testing::Eq;
+using ::testing::Field;
+using ::testing::IsEmpty;
 
 class PassBaseTest : public IrTestBase {};
 
@@ -128,11 +129,11 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturn) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(13, 64));
-  ASSERT_THAT(fb.Build(), status_testing::IsOk());
+  ASSERT_THAT(fb.Build(), absl_testing::IsOk());
   ArchitectNumber pass;
   PassResults results;
   EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
                       "Pass architect_number indicated IR unchanged, but IR is "
@@ -143,11 +144,11 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturnInCompound) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Literal(UBits(13, 64));
-  ASSERT_THAT(fb.Build(), status_testing::IsOk());
+  ASSERT_THAT(fb.Build(), absl_testing::IsOk());
   ArchitectNumber pass;
   PassResults results;
   EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
                       "Pass architect_number indicated IR unchanged, but IR is "

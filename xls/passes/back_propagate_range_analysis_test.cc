@@ -18,6 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -550,7 +551,7 @@ TEST_F(BackPropagateRangeAnalysisTest, ImpossibleSignedCmp) {
   XLS_ASSERT_OK(qe.Populate(f).status());
   EXPECT_THAT(PropagateGivensBackwards(
                   qe, f, {{cmp.node(), IntervalSet::Precise(UBits(1, 1))}}),
-              status_testing::IsOk());
+              absl_testing::IsOk());
 }
 
 }  // namespace

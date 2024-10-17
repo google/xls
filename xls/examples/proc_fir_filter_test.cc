@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
@@ -36,8 +37,8 @@ namespace xls {
 
 namespace {
 
-using status_testing::IsOk;
-using testing::Optional;
+using ::absl_testing::IsOk;
+using ::testing::Optional;
 
 class ProcFirFilterTest : public IrTestBase {
  protected:

@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
@@ -67,8 +68,8 @@ MATCHER_P4(IsTestResult, result, ran_count, skipped_count, failed_count, "") {
   return true;
 }
 
-using status_testing::StatusIs;
-using testing::HasSubstr;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 enum class RunnerType : int8_t {
   kDslxInterpreter,

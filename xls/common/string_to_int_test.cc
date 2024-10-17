@@ -28,9 +28,9 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
-using xls::status_testing::IsOkAndHolds;
-using xls::status_testing::StatusIs;
 
 TEST(StringToInt, TabularTest) {
   struct TestCase {

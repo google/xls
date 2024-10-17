@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
@@ -94,7 +95,7 @@ TEST_F(SynthOnlyTest, IomanipTest) {
   std::vector<std::string_view> clang_argv(clang_args.begin(),
                                            clang_args.end());
   absl::StatusOr<std::string> ret = SourceToIr(content, nullptr, clang_argv);
-  ASSERT_THAT(ret.status(), xls::status_testing::StatusIs(
+  ASSERT_THAT(ret.status(), absl_testing::StatusIs(
                                 absl::StatusCode::kUnimplemented,
                                 testing::HasSubstr("Unimplemented marker")));
 }

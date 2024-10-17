@@ -21,7 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "xls/common/status/matchers.h"
+#include "absl/status/status_matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
@@ -389,7 +389,7 @@ TEST_F(TranslatorIOTest, SubroutineDeclMissing) {
   ASSERT_THAT(SourceToIr(content, /*pfunc=*/nullptr, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kNotFound,
                   testing::HasSubstr("sub_recv used but has no body")));
 }
@@ -542,7 +542,7 @@ TEST_F(TranslatorIOTest, OperatorSubroutine) {
       SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
                  /* io_test_mode= */ true)
           .status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("IO ops in operator calls are not supported")));
 }
@@ -1010,7 +1010,7 @@ TEST_F(TranslatorIOTest, NonparameterIOOps) {
        })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("hannel declaration uninitialized")));
 }
@@ -1199,7 +1199,7 @@ TEST_F(TranslatorIOTest, MuxTwoInputs) {
   ASSERT_THAT(SourceToIr(content, /*pfunc=*/nullptr, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kOk));
+              absl_testing::StatusIs(absl::StatusCode::kOk));
 }
 
 TEST_F(TranslatorIOTest, AcChannelAlias) {
@@ -1661,7 +1661,7 @@ TEST_F(TranslatorIOTest, TernaryChannelRefParam) {
   ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("hannel select passed as parameter")));
 }
@@ -1698,7 +1698,7 @@ TEST_F(TranslatorIOTest, ChannelRefInStructSubroutineRef) {
   ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("arameters containing LValues")));
 }
@@ -1718,12 +1718,12 @@ TEST_F(TranslatorIOTest, TopParameterStructWithChannel) {
       })";
 
   xlscc::GeneratedFunction* func;
-  ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
-                         /* io_test_mode= */ true)
-                  .status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("lvalues in nested structs")));
+  ASSERT_THAT(
+      SourceToIr(content, &func, /* clang_argv= */ {},
+                 /* io_test_mode= */ true)
+          .status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("lvalues in nested structs")));
 }
 
 TEST_F(TranslatorIOTest, DebugAssert) {
@@ -1960,10 +1960,9 @@ TEST_F(TranslatorIOTest, DebugTracePointer) {
          out.write(3*r);
        })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                    testing::HasSubstr("must have R-Value")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("must have R-Value")));
 }
 
 TEST_F(TranslatorIOTest, DebugTraceStruct) {
@@ -2012,8 +2011,8 @@ TEST_F(TranslatorIOTest, DebugTraceStructWithReference) {
        })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("LValue")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("LValue")));
 }
 
 }  // namespace

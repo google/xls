@@ -21,6 +21,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"
@@ -30,8 +31,8 @@ namespace xls {
 namespace netlist {
 namespace {
 
-using google::protobuf::TextFormat;
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
+using ::google::protobuf::TextFormat;
 
 TEST(CellLibraryTest, SerializeToProto) {
   CellLibrary cell_library;
@@ -142,13 +143,12 @@ TEST(CellLibraryTest, EvaluateStateTable) {
   // BLT is unspecified.
   stimulus.clear();
   stimulus["i1"] = false;
-  EXPECT_THAT(
-      table.GetSignalValue(stimulus, "ham_sandwich"),
-      status_testing::StatusIs(absl::StatusCode::kNotFound,
-                               ::testing::HasSubstr("No matching row")));
+  EXPECT_THAT(table.GetSignalValue(stimulus, "ham_sandwich"),
+              absl_testing::StatusIs(absl::StatusCode::kNotFound,
+                                     ::testing::HasSubstr("No matching row")));
 
   EXPECT_THAT(table.GetSignalValue(stimulus, "PB&J"),
-              status_testing::StatusIs(absl::StatusCode::kInvalidArgument));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(CellLibraryTest, LutStateTable) {

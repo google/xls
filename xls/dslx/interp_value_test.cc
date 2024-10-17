@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
@@ -35,7 +36,7 @@
 namespace xls::dslx {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 TEST(InterpValueTest, FormatU8) {
   auto ff = InterpValue::MakeUBits(/*bit_count=*/8, /*value=*/0xff);
@@ -232,7 +233,7 @@ TEST(InterpValueTest, Array2DUpdateArrayWrongDimension) {
       InterpValue::MakeTuple({InterpValue::MakeU8(1), InterpValue::MakeU8(0),
                               InterpValue::MakeU32(0)});
   EXPECT_THAT(array->Update(indices, InterpValue::MakeU32(4)),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("Update of non-array element")));
 }
@@ -248,7 +249,7 @@ TEST(InterpValueTest, Array2DUpdateArrayOutOfBounds) {
   auto indices =
       InterpValue::MakeTuple({InterpValue::MakeU8(2), InterpValue::MakeU8(0)});
   EXPECT_THAT(array->Update(indices, InterpValue::MakeU32(4)),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("Update index 2 is out of bounds")));
 }
@@ -277,7 +278,7 @@ TEST(InterpValueTest, FormatNilTupleWrongElementCount) {
       "MyStruct", {"x"},
       {ValueFormatDescriptor::MakeLeafValue(FormatPreference::kHex)});
   ASSERT_THAT(tuple.ToFormattedString(fmt_desc),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("Number of tuple elements (0)")));
 }

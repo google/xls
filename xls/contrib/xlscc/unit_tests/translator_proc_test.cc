@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
@@ -1515,8 +1516,8 @@ TEST_P(TranslatorProcTest, ForPipelinedDontPropagateAnnotation) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("missing")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("missing")));
 }
 
 TEST_P(TranslatorProcTest, ForPipelinedII2) {
@@ -1614,9 +1615,8 @@ TEST_P(TranslatorProcTest, ForPipelinedII2Error) {
   package_ = std::make_unique<xls::Package>("my_package");
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("nly initiation interval 1")));
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("nly initiation interval 1")));
 }
 
 TEST_P(TranslatorProcTest, WhilePipelined) {
@@ -2005,7 +2005,7 @@ TEST_P(TranslatorProcTest, ForPipelinedReturnInBody) {
   package_ = std::make_unique<xls::Package>("my_package");
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("eturns in pipelined loop body unimplemented")));
 }
@@ -4413,7 +4413,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine3) {
   package_ = std::make_unique<xls::Package>("my_package");
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("parameters containing LValues")));
 }
@@ -4621,7 +4621,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIOInBodySubroutine3) {
   package_ = std::make_unique<xls::Package>("my_package");
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("ops in pipelined loops in subroutines called "
                              "with multiple different channel arguments")));
@@ -5172,8 +5172,8 @@ TEST_P(TranslatorProcTest, IOProcClassConstTop) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("Const top")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("Const top")));
 }
 
 TEST_P(TranslatorProcTest, IOProcClassConstructor) {
@@ -5202,10 +5202,10 @@ TEST_P(TranslatorProcTest, IOProcClassConstructor) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("onstructors in top class")));
+  ASSERT_THAT(
+      ret.status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("onstructors in top class")));
 }
 
 TEST_P(TranslatorProcTest, IOProcClassNonVoidReturn) {
@@ -5229,10 +5229,10 @@ TEST_P(TranslatorProcTest, IOProcClassNonVoidReturn) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Non-void top method return")));
+  ASSERT_THAT(
+      ret.status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("Non-void top method return")));
 }
 
 TEST_P(TranslatorProcTest, IOProcClassParameters) {
@@ -5256,7 +5256,7 @@ TEST_P(TranslatorProcTest, IOProcClassParameters) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("method parameters unsupported")));
 }
@@ -5278,9 +5278,8 @@ TEST_P(TranslatorProcTest, IOProcClassStaticMethod) {
                       /*io_test_mode=*/false,
                       /*error_on_init_interval=*/false);
 
-  ASSERT_THAT(
-      ret, xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                         testing::HasSubstr("static member")));
+  ASSERT_THAT(ret, absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                          testing::HasSubstr("static member")));
 }
 
 TEST_P(TranslatorProcTest, IOProcClassWithPipelinedLoop) {
@@ -5500,7 +5499,7 @@ TEST_P(TranslatorProcTest, IOProcClassLValueMember) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr(
                       "Don't know how to create LValue for member ptr")));
@@ -5536,7 +5535,7 @@ TEST_P(TranslatorProcTest, IOProcClassDirectIn) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("direct-ins not implemented yet")));
 }
@@ -5687,7 +5686,7 @@ TEST_P(TranslatorProcTest,
                {{"in", xls::ChannelStrictness::kProvenMutuallyExclusive},
                 {"in_unused", xls::ChannelStrictness::kProvenMutuallyExclusive},
                 {"out", xls::ChannelStrictness::kArbitraryStaticOrder}}}),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           AllOf(testing::HasSubstr("Unused channel strictness"),
                 testing::HasSubstr("in_unused:proven_mutually_exclusive"),
@@ -7016,10 +7015,10 @@ TEST_P(TranslatorProcTest, LocalChannelSubBlockNonStatic) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("declaration uninitialized")));
+  ASSERT_THAT(
+      ret.status(),
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             testing::HasSubstr("declaration uninitialized")));
 }
 
 TEST_P(TranslatorProcTest, LocalChannelPassUpAndDown) {
@@ -7087,8 +7086,8 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInTopClassUnspecified) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                            testing::HasSubstr("unspecified")));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("unspecified")));
 }
 
 TEST_P(TranslatorProcTest, LocalChannelDeclaredInTopClass) {
@@ -7117,10 +7116,10 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInTopClass) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Internal (InOut) channels")));
+  ASSERT_THAT(
+      ret.status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("Internal (InOut) channels")));
 }
 
 TEST_P(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
@@ -7219,9 +7218,9 @@ TEST_P(TranslatorProcTest, LocalChannelDeclaredInClassUninitialized) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(), xls::status_testing::StatusIs(
-                                absl::StatusCode::kInvalidArgument,
-                                testing::HasSubstr("marked as InOut")));
+  ASSERT_THAT(ret.status(),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("marked as InOut")));
 }
 
 TEST_P(TranslatorProcTest, LocalChannelDeclaredInClass) {
@@ -7545,8 +7544,8 @@ TEST_F(TranslatorProcTestWithoutFSMParam, DISABLED_ForPipelinedASAPTrivial) {
           ->GenerateIR_Block(package_.get(), block_spec,
                              /*top_level_init_interval=*/1)
           .status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                    testing::HasSubstr("IO ops with schedul")));
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("IO ops with schedul")));
 }
 
 // TODO(seanhaskell): Enable once b/371085056 is fixed
@@ -7580,10 +7579,10 @@ TEST_F(TranslatorProcTestWithoutFSMParam,
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
                                              /*top_level_init_interval=*/1);
 
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("variable in outside scope")));
+  ASSERT_THAT(
+      ret.status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("variable in outside scope")));
 }
 
 // TODO(seanhaskell): Turn on once b/321114633 is resolved
@@ -7639,7 +7638,7 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAP) {
                                                /*top_level_init_interval=*/1);
 
     ASSERT_THAT(ret.status(),
-                xls::status_testing::StatusIs(
+                absl_testing::StatusIs(
                     absl::StatusCode::kUnimplemented,
                     testing::HasSubstr("loops with scheduling options")));
   }
@@ -7681,10 +7680,10 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAPDataDependency) {
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
                                              /*top_level_init_interval=*/1);
 
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("variable in outside scope")));
+  ASSERT_THAT(
+      ret.status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("variable in outside scope")));
 }
 
 // TODO(seanhaskell): Turn on once b/321114633 is resolved
@@ -7746,7 +7745,7 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAPDataDependencyMethod) {
                                                /*top_level_init_interval=*/1);
 
     ASSERT_THAT(ret.status(),
-                xls::status_testing::StatusIs(
+                absl_testing::StatusIs(
                     absl::StatusCode::kUnimplemented,
                     testing::HasSubstr("loops with scheduling options")));
   }
@@ -7946,7 +7945,7 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopSerialAfterASAP) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("IO ops with scheduling options")));
 }
@@ -7982,7 +7981,7 @@ TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(), xls::status_testing::IsOk());
+  ASSERT_THAT(ret.status(), absl_testing::IsOk());
 
   // Run inliner to expose the duplication
   // But don't run other passes that might eliminate it (cse etc)

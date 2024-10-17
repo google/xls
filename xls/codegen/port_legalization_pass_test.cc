@@ -31,9 +31,9 @@
 namespace xls::verilog {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using testing::ElementsAre;
-using testing::IsEmpty;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 namespace m = ::xls::op_matchers;
 
 class PortLegalizationPassTest : public IrTestBase {

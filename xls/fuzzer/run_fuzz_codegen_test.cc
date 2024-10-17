@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
@@ -44,7 +45,7 @@ constexpr int64_t kCallsPerSample = 8;
 constexpr int64_t kSampleCount = 20;
 constexpr int64_t kProcTicks = 100;
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 using ::testing::IsSupersetOf;
 
 // Returns the directory in which to write crashers.

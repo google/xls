@@ -58,7 +58,7 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 struct TernaryPair {
   Value known_bits;

@@ -27,7 +27,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-using status_testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 constexpr char kTestName[] = "finite_state_machine_test";

@@ -30,7 +30,7 @@
 namespace xls::verilog {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 using ::testing::UnorderedElementsAre;
 
 class RegisterLegalizationPassTest : public IrTestBase {

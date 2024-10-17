@@ -44,7 +44,7 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 using ::testing::Eq;
 
 class SelectSimplificationPassTest : public IrTestBase {

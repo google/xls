@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -38,13 +39,13 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::FieldsAre;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
-using ::xls::status_testing::IsOkAndHolds;
-using ::xls::status_testing::StatusIs;
 
 INSTANTIATE_TEST_SUITE_P(
     IrInterpreterTest, IrEvaluatorTestBase,

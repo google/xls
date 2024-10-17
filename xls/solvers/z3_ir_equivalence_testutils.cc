@@ -26,6 +26,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -85,7 +86,7 @@ absl::StatusOr<std::string> DumpWithNodeValues(Function* func,
 }
 }  // namespace
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 using ::testing::_;
 using ::testing::VariantWith;
@@ -171,7 +172,7 @@ void ScopedVerifyProcEquivalence::RunProcVerification() {
     PassResults res;
     NextNodeModernizePass pass;
     ASSERT_THAT(pass.Run(clone_package_.get(), {}, &res),
-                status_testing::IsOkAndHolds(true))
+                absl_testing::IsOkAndHolds(true))
         << "Unable to modernize proc.";
   }
   XLS_ASSERT_OK_AND_ASSIGN(

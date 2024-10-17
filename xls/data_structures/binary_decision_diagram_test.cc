@@ -23,12 +23,12 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
-#include "xls/common/status/matchers.h"
+#include "absl/status/status_matchers.h"
 
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 TEST(BinaryDecisionDiagramTest, BasicInvariants) {
   BinaryDecisionDiagram bdd;

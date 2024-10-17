@@ -48,7 +48,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 constexpr char kTestName[] = "combinational_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";

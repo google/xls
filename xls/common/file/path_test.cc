@@ -16,12 +16,12 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
+#include "absl/status/status_matchers.h"
 
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 TEST(PathTest, RelativizePathRelativizesPath) {
   EXPECT_THAT(RelativizePath("/a/d", "/a"), IsOkAndHolds("d"));

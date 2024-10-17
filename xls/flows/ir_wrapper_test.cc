@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/golden_files.h"
@@ -88,8 +89,8 @@ pub fn GetLatency() -> s64 {
 
   EXPECT_THAT(
       ir_wrapper.GetDslxModule("not_a_module"),
-      status_testing::StatusIs(absl::StatusCode::kNotFound,
-                               testing::HasSubstr("Could not find module")));
+      absl_testing::StatusIs(absl::StatusCode::kNotFound,
+                             testing::HasSubstr("Could not find module")));
 
   // Test that the ir can be compiled and retrieved.
   XLS_ASSERT_OK_AND_ASSIGN(Function * get_latency,

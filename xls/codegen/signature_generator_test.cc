@@ -47,7 +47,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 using ::testing::Property;

@@ -20,6 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/status/matchers.h"
@@ -37,9 +38,9 @@
 namespace xls::dslx {
 namespace {
 
-using status_testing::StatusIs;
-using testing::AllOf;
-using testing::HasSubstr;
+using ::absl_testing::StatusIs;
+using ::testing::AllOf;
+using ::testing::HasSubstr;
 
 TEST(TypecheckErrorTest, SendInFunction) {
   std::string_view text = R"(

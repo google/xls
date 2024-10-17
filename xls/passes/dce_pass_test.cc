@@ -19,6 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -35,10 +36,10 @@ namespace xls {
 namespace {
 
 namespace m = xls::op_matchers;
-using status_testing::IsOk;
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
-using testing::Not;
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::Not;
 
 class DeadCodeEliminationPassTest : public IrTestBase {
  protected:

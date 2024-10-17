@@ -20,6 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -41,8 +42,8 @@ namespace m = ::xls::op_matchers;
 
 namespace xls {
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
@@ -254,7 +255,7 @@ TEST(FunctionBuilderTest, ConcatTuples) {
   BValue x = b.Param("x", value_type);
   BValue t = b.Tuple({x});
   b.Concat({t, t});
-  EXPECT_THAT(b.Build(), status_testing::StatusIs(
+  EXPECT_THAT(b.Build(), absl_testing::StatusIs(
                              absl::StatusCode::kInvalidArgument,
                              testing::HasSubstr("it has non-bits type")));
 }
@@ -280,7 +281,7 @@ TEST(FunctionBuilderTest, AfterAllNonTokenArg) {
 
   EXPECT_THAT(
       fb.Build(),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr("Dependency type bits[32] is not a token.")));
 }
@@ -313,7 +314,7 @@ TEST(FunctionBuilderTest, MinDelayNonTokenArg) {
   fb.MinDelay(x, /*delay=*/1);
 
   EXPECT_THAT(fb.Build(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("Input type bits[32] is not a token.")));
 }
@@ -324,7 +325,7 @@ TEST(FunctionBuilderTest, MinDelayNegative) {
   BValue token = fb.AfterAll({});
   fb.MinDelay(token, /*delay=*/-5);
 
-  EXPECT_THAT(fb.Build(), status_testing::StatusIs(
+  EXPECT_THAT(fb.Build(), absl_testing::StatusIs(
                               absl::StatusCode::kInvalidArgument,
                               testing::HasSubstr("Delay cannot be negative")));
 }
@@ -339,8 +340,8 @@ TEST(FunctionBuilderTest, MinDelayNegativeWithGetError) {
 
   EXPECT_THAT(
       fb.GetError(),
-      status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                               testing::HasSubstr("Delay cannot be negative")));
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             testing::HasSubstr("Delay cannot be negative")));
 }
 
 TEST(FunctionBuilderTest, ArrayIndexBits) {
@@ -351,7 +352,7 @@ TEST(FunctionBuilderTest, ArrayIndexBits) {
   b.ArrayIndex(x, {x});
   EXPECT_THAT(
       b.Build(),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr(
               "Too many indices (1) to index into array of type bits[32]")));
@@ -378,7 +379,7 @@ TEST(FunctionBuilderTest, ArrayUpdateOnNonArray) {
                 {b.Literal(Value(UBits(1, 32)))});
   EXPECT_THAT(
       b.Build(),
-      status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr(
               "Too many indices (1) to index into array of type bits[32]")));
@@ -391,7 +392,7 @@ TEST(FunctionBuilderTest, ArrayUpdateIncompatibleUpdateValue) {
       b.Literal(Value::ArrayOrDie({Value(UBits(1, 32)), Value(UBits(2, 32))})),
       b.Literal(Value(UBits(99, 64))), {b.Literal(Value(UBits(1, 32)))});
   EXPECT_THAT(b.Build(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("Expected update value to have type "
                                      "bits[32]; has type bits[64]")));

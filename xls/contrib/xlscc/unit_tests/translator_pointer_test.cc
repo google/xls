@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "xls/common/status/matchers.h"
+#include "absl/status/status_matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/bits.h"
@@ -154,10 +154,9 @@ TEST_F(TranslatorPointerTest, AssignArrayElementByPointer) {
       return arr[3];
     })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                    testing::HasSubstr("not pointers")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("not pointers")));
 }
 
 TEST_F(TranslatorPointerTest, AddrOfPointer) {
@@ -176,10 +175,10 @@ TEST_F(TranslatorPointerTest, AddrOfPointer) {
       return arr[3];
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("only supported on array")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             testing::HasSubstr("only supported on array")));
 }
 
 TEST_F(TranslatorPointerTest, ArraySliceAssignDirect) {
@@ -278,8 +277,8 @@ TEST_F(TranslatorPointerTest, ArraySliceOutOfBounds) {
     })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kOutOfRange,
-                                            testing::HasSubstr("slice")));
+              absl_testing::StatusIs(absl::StatusCode::kOutOfRange,
+                                     testing::HasSubstr("slice")));
 }
 
 TEST_F(TranslatorPointerTest, ArraySliceAssignTrueCondition) {
@@ -617,10 +616,9 @@ TEST_F(TranslatorPointerTest, UninitializedPointer) {
       return a[0];
     })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("uninitialized")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("uninitialized")));
 }
 
 TEST_F(TranslatorPointerTest, Aliasing) {
@@ -663,8 +661,8 @@ TEST_F(TranslatorPointerTest, Nullptr) {
       })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("nullptr")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("nullptr")));
 }
 
 TEST_F(TranslatorPointerTest, PointerInStruct) {
@@ -698,7 +696,7 @@ TEST_F(TranslatorPointerTest, PointerInStruct2) {
   // Default constructor causes lvalue translation
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Don't know how to create LValue for member")));
 }
@@ -721,7 +719,7 @@ TEST_F(TranslatorPointerTest, PointerInStruct3) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Don't know how to create LValue for member")));
 }
@@ -827,7 +825,7 @@ TEST_F(TranslatorPointerTest, ReferenceInNestedStruct) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Don't know how to create LValue for member")));
 }
@@ -855,7 +853,7 @@ TEST_F(TranslatorPointerTest, ReferenceInNestedStruct2) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Don't know how to create LValue for member")));
 }
@@ -913,7 +911,7 @@ TEST_F(TranslatorPointerTest, ReferenceFuncReturn) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Don't know how to handle lvalue return")));
 }
@@ -1055,10 +1053,10 @@ TEST_F(TranslatorPointerTest, PointerToPointer) {
       return **xpp;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Don't know how to convert")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("Don't know how to convert")));
 }
 
 TEST_F(TranslatorPointerTest, MethodUsingMemberReference) {
@@ -1078,7 +1076,7 @@ TEST_F(TranslatorPointerTest, MethodUsingMemberReference) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Don't know how to create LValue for member")));
 }
@@ -1113,7 +1111,7 @@ TEST_F(TranslatorPointerTest, ReferenceReturnWithIO) {
       SourceToIr(content, /*pfunc=*/nullptr, /*clang_argv=*/{},
                  /*io_test_mode=*/true)
           .status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("eferences to side effecting operations")));
 }
@@ -1344,7 +1342,7 @@ TEST_F(TranslatorPointerTest, AssignReferenceInTernaryDirect) {
     })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("Ternaries in lvalues only supported for "
                                      "pointers or references")));
@@ -1383,7 +1381,7 @@ TEST_F(TranslatorPointerTest, SetPointerInMethod) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Don't know how to create LValue for member")));
 }

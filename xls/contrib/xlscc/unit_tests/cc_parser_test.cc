@@ -22,6 +22,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/Decl.h"
@@ -136,7 +137,7 @@ TEST_F(CCParserTest, TopNotFound) {
 
   XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
   EXPECT_THAT(parser.GetTopFunction().status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kNotFound));
+              absl_testing::StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(CCParserTest, SourceMeta) {
@@ -289,9 +290,8 @@ TEST_F(CCParserTest, InvalidPragmaArg) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST_F(CCParserTest, InvalidPragmaArg2) {
@@ -309,9 +309,8 @@ TEST_F(CCParserTest, InvalidPragmaArg2) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST_F(CCParserTest, CommentedPragma) {
@@ -385,9 +384,8 @@ TEST_F(CCParserTest, IfdefdPragmaTrue) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST_F(CCParserTest, SourceManagerInitialized) {
@@ -608,10 +606,9 @@ TEST_F(CCParserTest, UnrollBadNumber) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("must")));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("must")));
 }
 
 TEST_F(CCParserTest, DoubleTopName) {
@@ -631,10 +628,9 @@ TEST_F(CCParserTest, DoubleTopName) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
-      xls::status_testing::StatusIs(absl::StatusCode::kAlreadyExists,
-                                    testing::HasSubstr("Two top functions")));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
+              absl_testing::StatusIs(absl::StatusCode::kAlreadyExists,
+                                     testing::HasSubstr("Two top functions")));
 }
 
 TEST_F(CCParserTest, DoubleTopPragma) {
@@ -653,10 +649,9 @@ TEST_F(CCParserTest, DoubleTopPragma) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser),
-      xls::status_testing::StatusIs(absl::StatusCode::kAlreadyExists,
-                                    testing::HasSubstr("Two top functions")));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kAlreadyExists,
+                                     testing::HasSubstr("Two top functions")));
 }
 
 TEST_F(CCParserTest, PragmaZeroExtend) {
@@ -776,7 +771,7 @@ TEST_F(CCParserTest, DesignUnknown) {
 
   XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
   absl::StatusOr<const clang::FunctionDecl*> top = parser.GetTopFunction();
-  EXPECT_THAT(top, xls::status_testing::StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(top, absl_testing::StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(CCParserTest, PragmasInDefines) {
@@ -852,10 +847,10 @@ TEST_F(CCParserTest, PragmaPipelineInitIntervalParameterMustBeNumber) {
       return foo;
     }
   )";
-  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kFailedPrecondition,
-                  testing::HasSubstr("Must be an integer >= 1.")));
+  EXPECT_THAT(
+      ScanTempFileWithContent(cpp_src, {}, &parser),
+      absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                             testing::HasSubstr("Must be an integer >= 1.")));
 }
 
 TEST_F(CCParserTest, PragmaUnrollParametersMustBeNumberIfNotYesOrNo) {
@@ -870,7 +865,7 @@ TEST_F(CCParserTest, PragmaUnrollParametersMustBeNumberIfNotYesOrNo) {
   )";
 
   EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kFailedPrecondition,
                   testing::HasSubstr("Must be 'yes', 'no', or an integer.")));
 }
@@ -949,9 +944,8 @@ TEST_F(CCParserTest, ChannelStrictnessUnimplemented) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
 TEST_F(CCParserTest, DesignTooManyArgs) {
@@ -965,10 +959,9 @@ TEST_F(CCParserTest, DesignTooManyArgs) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("1 argument")));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("1 argument")));
 }
 
 TEST_F(CCParserTest, UnrollTooManyArgs) {
@@ -985,10 +978,9 @@ TEST_F(CCParserTest, UnrollTooManyArgs) {
     }
   )";
 
-  EXPECT_THAT(
-      ScanTempFileWithContent(cpp_src, {}, &parser),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("1 argument")));
+  EXPECT_THAT(ScanTempFileWithContent(cpp_src, {}, &parser),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("1 argument")));
 }
 
 }  // namespace

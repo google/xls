@@ -20,6 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -55,13 +56,13 @@ TEST_F(AreaEstimatorTest, AreaEstimatorManager) {
   XLS_ASSERT_OK(manager.AddAreaEstimator(
       std::make_unique<FakeAreaEstimator>("ten_area", 10.0)));
   EXPECT_THAT(manager.GetAreaEstimator("unit_area"),
-              status_testing::StatusIs(absl::StatusCode::kOk));
+              absl_testing::StatusIs(absl::StatusCode::kOk));
   EXPECT_THAT(manager.GetAreaEstimator("ten_area"),
-              status_testing::StatusIs(absl::StatusCode::kOk));
+              absl_testing::StatusIs(absl::StatusCode::kOk));
   EXPECT_THAT(manager.estimator_names(),
               testing::ElementsAre("ten_area", "unit_area"));
   EXPECT_THAT(manager.GetAreaEstimator("negative_area"),
-              status_testing::StatusIs(absl::StatusCode::kNotFound));
+              absl_testing::StatusIs(absl::StatusCode::kNotFound));
 
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -71,15 +72,15 @@ TEST_F(AreaEstimatorTest, AreaEstimatorManager) {
                            manager.GetAreaEstimator("unit_area"));
   EXPECT_THAT(
       unit_estimator->GetOperationAreaInSquareMicrons(f->return_value()),
-      status_testing::IsOkAndHolds(1.0));
+      absl_testing::IsOkAndHolds(1.0));
   EXPECT_THAT(unit_estimator->GetRegisterAreaInSquareMicrons(42),
-              status_testing::IsOkAndHolds(42.0));
+              absl_testing::IsOkAndHolds(42.0));
   XLS_ASSERT_OK_AND_ASSIGN(AreaEstimator * ten_estimator,
                            manager.GetAreaEstimator("ten_area"));
   EXPECT_THAT(ten_estimator->GetOperationAreaInSquareMicrons(f->return_value()),
-              status_testing::IsOkAndHolds(10.0));
+              absl_testing::IsOkAndHolds(10.0));
   EXPECT_THAT(ten_estimator->GetRegisterAreaInSquareMicrons(42),
-              status_testing::IsOkAndHolds(420.0));
+              absl_testing::IsOkAndHolds(420.0));
 }
 
 }  // namespace

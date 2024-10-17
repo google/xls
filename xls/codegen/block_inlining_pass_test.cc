@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
@@ -82,7 +83,7 @@ TEST_F(BlockInliningPassTest, InlineBlocks) {
   CodegenPassUnit pu(p.get(), top);
   CodegenPassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
   Block* inlined = pu.top_block;
   EXPECT_THAT(inlined->nodes(),
@@ -158,7 +159,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithReg) {
   CodegenPassUnit pu(p.get(), top);
   CodegenPassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
   Block* inlined = pu.top_block;
   EXPECT_THAT(inlined->nodes(),
@@ -241,7 +242,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithFifo) {
   CodegenPassUnit pu(p.get(), top);
   CodegenPassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
   Block* inlined = pu.top_block;
   XLS_ASSERT_OK_AND_ASSIGN(auto* left_foobar_inst,
@@ -314,7 +315,7 @@ TEST_F(BlockInliningPassTest, InlineBlocksWithExtern) {
   CodegenPassUnit pu(p.get(), top);
   CodegenPassResults results;
   CodegenPassOptions opt;
-  ASSERT_THAT(bip.Run(&pu, opt, &results), status_testing::IsOkAndHolds(true));
+  ASSERT_THAT(bip.Run(&pu, opt, &results), absl_testing::IsOkAndHolds(true));
 
   Block* inlined = pu.top_block;
   XLS_ASSERT_OK_AND_ASSIGN(auto* left_foobar_inst,

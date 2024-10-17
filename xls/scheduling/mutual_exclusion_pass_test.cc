@@ -45,7 +45,7 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 namespace m = ::xls::op_matchers;
 
 class SimplificationPass : public OptimizationCompoundPass {

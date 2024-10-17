@@ -16,14 +16,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
+#include "absl/status/status_matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 TEST(InterpValueFromStringTest, SimpleConstantBitLiterals) {
   EXPECT_THAT(InterpValueFromString("u32:42", kDefaultDslxStdlibPath),

@@ -31,7 +31,7 @@ namespace {
 
 namespace m = ::xls::op_matchers;
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class LutConversionPassTest : public IrTestBase {
  protected:

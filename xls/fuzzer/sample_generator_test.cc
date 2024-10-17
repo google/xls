@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/pos.h"
@@ -33,8 +34,8 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::testing::HasSubstr;
-using ::xls::status_testing::IsOkAndHolds;
 
 TEST(SampleGeneratorTest, GenerateBasicSample) {
   dslx::FileTable file_table;

@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast/vast.h"
@@ -36,9 +37,9 @@
 namespace xls {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::ContainerEq;
 using ::testing::HasSubstr;
-using ::xls::status_testing::StatusIs;
 
 TEST(AssertionsMainTest, CombinationalTest) {
   XLS_ASSERT_OK_AND_ASSIGN(

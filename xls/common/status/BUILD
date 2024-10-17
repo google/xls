@@ -44,6 +44,7 @@ cc_test(
         ":matchers",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -157,6 +158,7 @@ cc_library(
         ":status_builder",
         ":status_macros",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",

@@ -93,6 +93,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",

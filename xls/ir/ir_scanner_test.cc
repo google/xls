@@ -20,15 +20,16 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls {
 namespace {
 
-using status_testing::StatusIs;
-using testing::ElementsAre;
-using testing::HasSubstr;
+using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 
 // Returns the string values of the given tokens as a vector of strings.
 std::vector<std::string> TokensToStrings(absl::Span<const Token> tokens) {

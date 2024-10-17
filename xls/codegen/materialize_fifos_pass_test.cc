@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -134,7 +135,7 @@ class MaterializeFifosPassTestHelper {
       auto test_res = tester->RunOneCycle(op.InputSet());
       auto oracle_res = oracle->RunOneCycle(op.InputSet());
       ASSERT_THAT(std::make_pair(test_res, oracle_res),
-                  testing::Pair(status_testing::IsOk(), status_testing::IsOk()))
+                  testing::Pair(absl_testing::IsOk(), absl_testing::IsOk()))
           << "@i=" << i;
       auto tester_outputs = tester->output_ports();
       ScopedMaybeRecord state("out_state", tester->registers());

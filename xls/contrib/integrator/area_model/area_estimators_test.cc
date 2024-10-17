@@ -18,6 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/integrator/area_model/area_estimator.h"
 #include "xls/ir/function_builder.h"
@@ -28,7 +29,7 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class AreaEstimatorTest : public IrTestBase {};
 

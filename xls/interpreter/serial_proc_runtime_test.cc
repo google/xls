@@ -23,6 +23,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
@@ -127,7 +128,7 @@ TEST(SerialProcRuntimeTest, JitAsserts) {
                            CreateJitSerialProcRuntime(package.get()));
 
   EXPECT_THAT(interpreter->Tick(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kAborted,
                   ::testing::HasSubstr("Assertion failure via fail!")));
 }
@@ -143,7 +144,7 @@ TEST(SerialProcRuntimeTest, InterpreterAsserts) {
                            CreateInterpreterSerialProcRuntime(package.get()));
 
   EXPECT_THAT(interpreter->Tick(),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kAborted,
                   ::testing::HasSubstr("Assertion failure via fail!")));
 }

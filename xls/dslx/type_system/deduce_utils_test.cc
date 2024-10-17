@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
@@ -53,7 +54,7 @@ TEST(DeduceUtilsTest, ValidateNumber) {
 
   // 256 does not fit in a u8.
   ASSERT_THAT(ValidateNumber(*tfs, *u8),
-              status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(
                       "Value '256' does not fit in the bitwidth of a uN[8]")));

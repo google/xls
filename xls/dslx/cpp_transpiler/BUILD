@@ -113,6 +113,7 @@ cc_test(
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
@@ -160,6 +161,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:value",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest",
     ],
 )

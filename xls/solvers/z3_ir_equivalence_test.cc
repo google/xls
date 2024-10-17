@@ -22,6 +22,7 @@
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
@@ -44,12 +45,12 @@ namespace m = xls::op_matchers;
 namespace xls::solvers::z3 {
 namespace {
 
-using status_testing::IsOk;
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 
-using testing::AnyOf;
+using ::testing::AnyOf;
 using ::testing::Not;
-using testing::Pair;
+using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
 class EquivalenceTest : public IrTestBase {};

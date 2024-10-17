@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
 #include "absl/log/log.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
@@ -55,8 +56,8 @@ namespace {
 
 constexpr absl::Duration kProverTimeout = absl::Seconds(10);
 
-using status_testing::IsOk;
-using status_testing::IsOkAndHolds;
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
@@ -1844,7 +1845,7 @@ void UmulFuzz(const Bits& multiplicand, const Bits& result, int64_t var_width,
   PassResults results;
   ASSERT_THAT(ArithSimplificationPass(kMaxOptLevel)
                   .Run(&p, OptimizationPassOptions(), &results),
-              status_testing::IsOk());
+              absl_testing::IsOk());
 }
 
 FUZZ_TEST(ArithSimplificationPassFuzzTest, UmulFuzz)

@@ -18,6 +18,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -40,10 +41,10 @@ namespace m = xls::op_matchers;
 namespace xls::verilog {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using testing::AnyOf;
-using testing::MatchesRegex;
-using testing::UnorderedElementsAre;
+using ::absl_testing::IsOkAndHolds;
+using ::testing::AnyOf;
+using ::testing::MatchesRegex;
+using ::testing::UnorderedElementsAre;
 
 MATCHER_P(Reg, name,
           absl::StrCat("Register should be named: ",

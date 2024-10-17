@@ -27,6 +27,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
@@ -48,15 +49,13 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 
-using xls::status_testing::IsOkAndHolds;
-
 // TODO(seanhaskell): Reimplement unsequenced assignment detection
 #define UNSEQUENCED_TESTS 0
 
 namespace xlscc {
 namespace {
 
-using xls::status_testing::IsOkAndHolds;
+using ::absl_testing::IsOkAndHolds;
 
 class TranslatorLogicTest : public XlsccTestBase {
  public:
@@ -105,8 +104,8 @@ TEST_F(TranslatorLogicTest, SyntaxError) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("expected expression")));
+      absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                             testing::HasSubstr("expected expression")));
 }
 
 TEST_F(TranslatorLogicTest, Assignment) {
@@ -429,7 +428,7 @@ TEST_F(TranslatorLogicTest, DerefPointerToArrayAssign) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("Only array subscript assignments "
                                      "directly to arrays supported")));
@@ -450,7 +449,7 @@ TEST_F(TranslatorLogicTest, ArrayPointerParam) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Pointer function parameters unsupported")));
 }
@@ -565,10 +564,9 @@ TEST_F(TranslatorLogicTest, ArrayTooManyInitListValues) {
          long long arr[1] = {4, 5};
          return arr[0];
        })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("excess elements")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("excess elements")));
 }
 
 TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeMultipleZeros) {
@@ -729,7 +727,7 @@ TEST_F(TranslatorLogicTest, UnsequencedAssign) {
 
   // Clang catches this one and fails parsing
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kFailedPrecondition,
                   testing::HasSubstr("unsequenced modification and access")));
 }
@@ -766,8 +764,8 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("unsequenced")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("unsequenced")));
 }
 TEST_F(TranslatorLogicTest, UnsequencedRefParam2) {
   std::string_view content = R"(
@@ -781,8 +779,8 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam2) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("unsequenced")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("unsequenced")));
 }
 
 TEST_F(TranslatorLogicTest, UnsequencedRefParam3) {
@@ -797,8 +795,8 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam3) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("unsequenced")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("unsequenced")));
 }
 
 TEST_F(TranslatorLogicTest, UnsequencedRefParam4) {
@@ -809,8 +807,8 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam4) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("unsequenced")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("unsequenced")));
 }
 TEST_F(TranslatorLogicTest, UnsequencedRefParam5) {
   std::string_view content = R"(
@@ -820,8 +818,8 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParam5) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("unsequenced")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("unsequenced")));
 }
 
 // Okay with one parameter
@@ -848,8 +846,8 @@ TEST_F(TranslatorLogicTest, UnsequencedRefParamBinary) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("unsequenced")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("unsequenced")));
 }
 
 #endif  // UNSEQUENCED_TESTS
@@ -873,10 +871,9 @@ TEST_F(TranslatorLogicTest, UndefinedConditionalAssign) {
         return ret;
       })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("uninitialized")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("uninitialized")));
 }
 
 TEST_F(TranslatorLogicTest, IfStmt) {
@@ -1313,8 +1310,8 @@ TEST_F(TranslatorLogicTest, IntrinsicScoped) {
         return a;
       })";
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("missing")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("missing")));
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollInTemplateFunc) {
@@ -1357,8 +1354,8 @@ TEST_F(TranslatorLogicTest, PragmaInDefineAppliesOnlyInDefine) {
   )";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("missing")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("missing")));
 }
 
 TEST_F(TranslatorLogicTest, NestedLoopsNoBraces) {
@@ -1373,8 +1370,8 @@ TEST_F(TranslatorLogicTest, NestedLoopsNoBraces) {
         return a;
       })";
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                            testing::HasSubstr("compound")));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("compound")));
 }
 
 TEST_F(TranslatorLogicTest, NestedLoopsNoBraces2) {
@@ -1388,8 +1385,8 @@ TEST_F(TranslatorLogicTest, NestedLoopsNoBraces2) {
         return a;
       })";
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                            testing::HasSubstr("compound")));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("compound")));
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollLabel) {
@@ -1860,10 +1857,9 @@ TEST_F(TranslatorLogicTest, ForUnrollNoCond) {
         }
         return a;
       })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
-                                    testing::HasSubstr("maximum")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                     testing::HasSubstr("maximum")));
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollNoCondBreakInBody) {
@@ -1893,10 +1889,10 @@ TEST_F(TranslatorLogicTest, ForUnrollNoPragma) {
       })";
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("loop missing #pragma")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("loop missing #pragma")));
 }
 
 TEST_F(TranslatorLogicTest, ForNestedUnroll) {
@@ -1925,10 +1921,9 @@ TEST_F(TranslatorLogicTest, ForUnrollInfinite) {
          }
          return a;
        })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
-                                    testing::HasSubstr("maximum")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                     testing::HasSubstr("maximum")));
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollBreak) {
@@ -2234,13 +2229,12 @@ TEST_F(TranslatorLogicTest, MaxUnrollItersError) {
       }
       return ret;
     })";
-  ASSERT_THAT(
-      SourceToIr(content, /*pfunc=*/nullptr,
-                 /*clang_argv=*/{}, /*io_test_mode=*/false,
-                 /*max_unroll_iters=*/4)
-          .status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
-                                    testing::HasSubstr("broke at maximum")));
+  ASSERT_THAT(SourceToIr(content, /*pfunc=*/nullptr,
+                         /*clang_argv=*/{}, /*io_test_mode=*/false,
+                         /*max_unroll_iters=*/4)
+                  .status(),
+              absl_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                     testing::HasSubstr("broke at maximum")));
 }
 
 TEST_F(TranslatorLogicTest, MaxUnrollItersEquals) {
@@ -2707,10 +2701,9 @@ TEST_F(TranslatorLogicTest, NoTupleMultiField) {
        })";
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("only 1 field")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("only 1 field")));
 }
 
 TEST_F(TranslatorLogicTest, StructMemberOrder) {
@@ -3134,10 +3127,9 @@ TEST_F(TranslatorLogicTest, Destructor) {
         Test s;
         return s.x+s.y;
       })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                    testing::HasSubstr("aren't yet called")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("aren't yet called")));
 }
 
 TEST_F(TranslatorLogicTest, ConstructorWithArg) {
@@ -3279,10 +3271,10 @@ TEST_F(TranslatorLogicTest, TopFunctionNoPragma) {
       int asdf(int a) {
         return a + 1;
       })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kNotFound,
-                  testing::HasSubstr("No top function found")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kNotFound,
+                             testing::HasSubstr("No top function found")));
 }
 
 TEST_F(TranslatorLogicTest, Function) {
@@ -3317,8 +3309,8 @@ TEST_F(TranslatorLogicTest, TopFunctionNoOutputs) {
       })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                            testing::HasSubstr("no outputs")));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("no outputs")));
 }
 
 TEST_F(TranslatorLogicTest, DefaultArg) {
@@ -3392,7 +3384,7 @@ TEST_F(TranslatorLogicTest, FunctionDeclMissing) {
       })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kNotFound,
                   testing::HasSubstr("do_something used but has no body")));
 }
@@ -3437,10 +3429,9 @@ TEST_F(TranslatorLogicTest, NamespaceFailure) {
       })";
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("undeclared")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("undeclared")));
 }
 
 TEST_F(TranslatorLogicTest, Ternary) {
@@ -3457,10 +3448,9 @@ TEST_F(TranslatorLogicTest, Ternary) {
 TEST_F(TranslatorLogicTest, ParseFailure) {
   std::string_view content = "int my_package(int a) {";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("expected")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("expected")));
 }
 
 std::string NativeOperatorTestIr(const std::string& op) {
@@ -3953,10 +3943,9 @@ TEST_F(TranslatorLogicTest, DefaultArrayInit) {
       return 1+y.a[1].v;
     })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kNotFound,
-                                    testing::HasSubstr("__builtin_memcpy")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kNotFound,
+                                     testing::HasSubstr("__builtin_memcpy")));
 }
 
 TEST_F(TranslatorLogicTest, ZeroIterationForLoop) {
@@ -3975,10 +3964,10 @@ TEST_F(TranslatorLogicTest, OnlyUnrolledLoops) {
       return a;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("loop missing #pragma")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("loop missing #pragma")));
 }
 
 TEST_F(TranslatorLogicTest, InvalidUnrolledLoop) {
@@ -3989,10 +3978,9 @@ TEST_F(TranslatorLogicTest, InvalidUnrolledLoop) {
       return a;
     })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
-                                    testing::HasSubstr("maximum")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                     testing::HasSubstr("maximum")));
 }
 
 TEST_F(TranslatorLogicTest, NonPragmaNestedLoop) {
@@ -4007,10 +3995,10 @@ TEST_F(TranslatorLogicTest, NonPragmaNestedLoop) {
       return a;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("loop missing #pragma")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("loop missing #pragma")));
 }
 
 TEST_F(TranslatorLogicTest, Label) {
@@ -4041,10 +4029,9 @@ TEST_F(TranslatorLogicTest, DisallowUsed) {
       })";
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                    testing::HasSubstr("Unimplemented")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("Unimplemented")));
 }
 
 TEST_F(TranslatorLogicTest, DisallowUnused) {
@@ -4206,7 +4193,7 @@ TEST_F(TranslatorLogicTest, TopMemberAccess) {
   package_ = std::make_unique<xls::Package>("my_package");
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
+      absl_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("top level methods are not supported")));
 }
@@ -4344,9 +4331,8 @@ TEST_F(TranslatorLogicTest, ArrayExtendError) {
   ASSERT_THAT(
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
                                              /*top_level_init_interval=*/0),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr("number of initializers")));
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             testing::HasSubstr("number of initializers")));
 }
 
 // Check that hls_array_allow_default_pad pragma maintains supplied values
@@ -4428,7 +4414,7 @@ TEST_F(TranslatorLogicTest, ChannelTemplateType) {
                   ->GenerateIR_Block(package_.get(), block_spec,
                                      /*top_level_init_interval=*/1)
                   .status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr(
                       "Channel type should be a template specialization")));
@@ -4714,10 +4700,10 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationCtorLValue) {
         aa = 11;
         return block.b_;
        })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Don't know how to create")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                             testing::HasSubstr("Don't know how to create")));
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchical) {
@@ -4819,7 +4805,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValue) {
        })";
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
+              absl_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("Tried to access 'this' in a context")));
 }
@@ -5006,10 +4992,10 @@ TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
   int st() {
     return 1;
   })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kNotFound,
-                  testing::HasSubstr("No top function found")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      absl_testing::StatusIs(absl::StatusCode::kNotFound,
+                             testing::HasSubstr("No top function found")));
 }
 
 TEST_F(TranslatorLogicTest, AllowEmptyInitializerList) {
@@ -5032,7 +5018,7 @@ TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
     return 1;
   })";
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kOk));
+              absl_testing::StatusIs(absl::StatusCode::kOk));
 }
 
 TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
@@ -5046,7 +5032,7 @@ TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
     return 1;
   })";
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kOk));
+              absl_testing::StatusIs(absl::StatusCode::kOk));
   ASSERT_EQ(this->log_entries_.size(), 0);
 }
 
@@ -5059,7 +5045,7 @@ TEST_F(TranslatorLogicTest, OnlyValidPragmasGiveNoWarnings) {
     return x[1];
   })";
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kOk));
+              absl_testing::StatusIs(absl::StatusCode::kOk));
   ASSERT_EQ(this->log_entries_.size(), 0);
 }
 
@@ -5093,8 +5079,8 @@ TEST_F(TranslatorLogicTest, Recursion) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("ecursion")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("ecursion")));
 }
 
 TEST_F(TranslatorLogicTest, TopRecursion) {
@@ -5108,8 +5094,8 @@ TEST_F(TranslatorLogicTest, TopRecursion) {
   auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("ecursion")));
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("ecursion")));
 }
 
 TEST_F(TranslatorLogicTest, ErrorOnUninitializedBasic) {
@@ -5125,13 +5111,12 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedBasic) {
       }
     };)";
 
-  ASSERT_THAT(
-      ScanFile(content, /*clang_argv=*/{},
-               /*io_test_mode=*/false,
-               /*error_on_init_interval=*/false,
-               /*error_on_uninitialized=*/true),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("uninitialized")));
+  ASSERT_THAT(ScanFile(content, /*clang_argv=*/{},
+                       /*io_test_mode=*/false,
+                       /*error_on_init_interval=*/false,
+                       /*error_on_uninitialized=*/true),
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("uninitialized")));
 }
 
 TEST_F(TranslatorLogicTest, ErrorOnUninitializedArray) {
@@ -5156,8 +5141,8 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedArray) {
                   ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
                                               /*top_level_init_interval=*/0)
                   .status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                            testing::HasSubstr("efault init")));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("efault init")));
 }
 
 TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCount) {
@@ -5178,13 +5163,12 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCount) {
                          /*error_on_uninitialized=*/true));
   package_ = std::make_unique<xls::Package>("my_package");
   HLSBlock block_spec;
-  ASSERT_THAT(
-      translator_
-          ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
-                                      /*top_level_init_interval=*/0)
-          .status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                    testing::HasSubstr("number of init")));
+  ASSERT_THAT(translator_
+                  ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                              /*top_level_init_interval=*/0)
+                  .status(),
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("number of init")));
 }
 
 TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCountPragma) {
@@ -5210,7 +5194,7 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedWrongCountPragma) {
                   ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
                                               /*top_level_init_interval=*/0)
                   .status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kOk));
+              absl_testing::StatusIs(absl::StatusCode::kOk));
 }
 
 TEST_F(TranslatorLogicTest, ErrorOnUninitializedDefaultMember) {
@@ -5236,8 +5220,8 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedDefaultMember) {
                   ->GenerateIR_BlockFromClass(package_.get(), &block_spec,
                                               /*top_level_init_interval=*/0)
                   .status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                            testing::HasSubstr("not init")));
+              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                     testing::HasSubstr("not init")));
 }
 
 }  // namespace

@@ -271,6 +271,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:value",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],

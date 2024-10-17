@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -35,8 +36,8 @@ TEST(InterpreterStackTest, PushThenDoublePop) {
   EXPECT_TRUE(popped.Eq(InterpValue::MakeU32(42)));
   EXPECT_TRUE(stack.empty());
   EXPECT_THAT(stack.Pop(),
-              status_testing::StatusIs(absl::StatusCode::kInternal,
-                                       "Tried to pop off an empty stack."));
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     "Tried to pop off an empty stack."));
 }
 
 }  // namespace

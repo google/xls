@@ -15,6 +15,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/cpp_transpiler/test_types_lib.h"
 #include "xls/ir/bits.h"
@@ -23,9 +24,9 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using status_testing::StatusIs;
-using testing::HasSubstr;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 TEST(TestTypesTest, EnumToString) {
   EXPECT_EQ(MyEnumToString(test::MyEnum::kA), "MyEnum::kA (0)");

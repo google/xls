@@ -21,13 +21,13 @@
 #include "absl/random/mock_distributions.h"
 #include "absl/random/mocking_bit_gen.h"
 #include "absl/status/status.h"
-#include "xls/common/status/matchers.h"
+#include "absl/status/status_matchers.h"
 
-using testing::_;
-using testing::HasSubstr;
-using testing::Return;
-using xls::status_testing::IsOkAndHolds;
-using xls::status_testing::StatusIs;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::_;
+using ::testing::HasSubstr;
+using ::testing::Return;
 
 namespace xls::dslx {
 namespace {
