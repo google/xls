@@ -1219,7 +1219,7 @@ TEST_F(ArithSimplificationPassTest, SMulByMinNegative) {
 
 TEST_F(ArithSimplificationPassTest, SMulByMinusOne) {
   // A single-bit value of 1 is a -1 when interpreted as a signed number. The
-  // Mul-by-power-of-two optimization should not kick in in this case.
+  // Mul-by-power-of-two optimization should not kick in this case.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn mul_zero(x:bits[8]) -> bits[3] {

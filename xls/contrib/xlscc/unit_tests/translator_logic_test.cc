@@ -2500,7 +2500,7 @@ TEST_F(TranslatorLogicTest, AssignmentInParens) {
   Run({{"a", 100}}, 55, content);
 }
 
-TEST_F(TranslatorLogicTest, ShadowAssigment) {
+TEST_F(TranslatorLogicTest, ShadowAssignment) {
   std::string_view content = R"(
       int my_package(int a) {
         int r = a;

@@ -5584,7 +5584,7 @@ TEST_F(BlockConversionTest, CoveringRegions) {
   auto nxt_c = pb.Next(c, nc);
   XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
 
-  // One region entierly covers the others.
+  // One region entirely covers the others.
   // A is live [0, 3]
   // B is live [2, 3]
   // C is live [1, 2]

@@ -1218,7 +1218,7 @@ DocRef FmtTuple(const XlsTuple& n, const Comments& comments, DocArena& arena) {
     const bool first_element = i == 0;
     const Span& span = item->span();
 
-    // If there are comments between end of the the last element we processed,
+    // If there are comments between end of the last element we processed,
     // and the start of this one, prepend them.
     if (std::optional<DocRef> previous_comments =
             EmitCommentsBetween(last_tuple_element_span_limit, span.start(),

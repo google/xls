@@ -126,7 +126,7 @@ TEST_F(DelayHeapTest, TrivialFunction) {
 
 // The frontier should following properties:
 // (1) All nodes on the frontier should be contained in the heap.
-// (2) Sorted in decending order by critical path
+// (2) Sorted in descending order by critical path
 // (3) No user (operand) of a node in the frontier should be in the heap.
 absl::Status VerifyFrontier(const DelayHeap& heap) {
   int64_t last_cp = std::numeric_limits<int64_t>::max();

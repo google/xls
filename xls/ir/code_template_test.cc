@@ -153,7 +153,7 @@ TEST(CodeTemplateTest, UnescapingBraces) {
 }
 
 TEST(CodeTemplateTest, ToStringRecreatesOriginalTemplate) {
-  // Note, this implictly also tests Substitute() as it is used underneath.
+  // Note, this implicitly also tests Substitute() as it is used underneath.
   CodeTemplate code_template = *CodeTemplate::Create("");
   for (std::string_view test_template : {"",                          //
                                          "((){x})"                    //

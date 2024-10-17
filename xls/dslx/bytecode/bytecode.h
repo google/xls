@@ -93,7 +93,7 @@ class Bytecode {
     kGt,
     // Selects the TOS0'th element of the array- or tuple-typed value at TOS1.
     kIndex,
-    // Same as kIndex but runtime checks that the the value TOS1 is a tuple.
+    // Same as kIndex but runtime checks that the value TOS1 is a tuple.
     kTupleIndex,
     // Inverts the bits of TOS0.
     kInvert,

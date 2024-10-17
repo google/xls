@@ -729,7 +729,7 @@ class AbstractEvaluator {
     // separate vector (and allocation) for each case.
     //
     // First create an extended version of the input vector where additional
-    // bits are added to the beginning or end of the the vector. These
+    // bits are added to the beginning or end of the vector. These
     // additional bits ensure that any shift amount corresponds to a particular
     // slice of the extended vector.
     //

@@ -105,7 +105,7 @@ class FuzzCoverageTest(test_base.TestCase):
     return FuzzSummary(summaries)
 
   def test_timing(self):
-    # Verify the the elapsed time for the various operations performed by the
+    # Verify the elapsed time for the various operations performed by the
     # fuzzer are non-zero.
     crasher_path = self._create_tempdir()
     summaries_path = self._create_tempdir()

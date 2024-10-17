@@ -345,7 +345,7 @@ fn f() -> u32 { p(u7:0) }
   EXPECT_THAT(
       Typecheck(program),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Parametric expression `X + X` refered to `X` which "
+               HasSubstr("Parametric expression `X + X` referred to `X` which "
                          "is not present in the parametric environment")));
 }
 
@@ -1407,7 +1407,7 @@ fn f() -> u32[2][3] {
               "Want argument 0 type uN[32][2][3] dimensions: 2 to be larger")));
 }
 
-TEST(TypecheckTest, UpdateBuiltinTypeMissmatch) {
+TEST(TypecheckTest, UpdateBuiltinTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
 fn f() -> u32[2][3] {

@@ -310,7 +310,7 @@ proc my_proc(t: token, s: bits[42], init={token, 45}) {
           HasSubstr("Cannot send over channel ch, send operation: send.1")));
 }
 
-TEST_F(VerifierTest, DynamicCountedForBodyParamterCountMismatch) {
+TEST_F(VerifierTest, DynamicCountedForBodyParameterCountMismatch) {
   std::string input = R"(
 package p
 

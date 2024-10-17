@@ -23,7 +23,7 @@
 
 namespace xls::verilog {
 
-// Returns the the codegen pass pipeline which runs on a package and prepares
+// Returns the codegen pass pipeline which runs on a package and prepares
 // the IR for lowering to Verilog. After the pipeline is complete a signature is
 // generated and the Block may be passed to block_generator for generating
 // Verilog.

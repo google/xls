@@ -226,7 +226,7 @@ absl::Status EagerlyPopulateParametricEnvMap(
     for (const std::string& key : keys_sorted) {
       if (!parametric_env_map.contains(key)) {
         std::string message = absl::StrFormat(
-            "Parametric expression `%s` refered to `%s` which is not "
+            "Parametric expression `%s` referred to `%s` which is not "
             "present in the parametric environment; instantiated from %s",
             expr->ToString(), key, span.ToString(ctx->file_table()));
         // For structs, this is not an issue at this stage because the value

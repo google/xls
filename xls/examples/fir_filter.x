@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Paramterized fixed and floating point fir filter
+// Parameterized fixed and floating point fir filter
 // implementations.  A fir filter, used in signal
 // processing, is essentially a convolution of a
 // filter of a series of samples.

@@ -1290,7 +1290,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     if (next_args_by_state.size() < (1 << state_bits)) {
       initial_args_bval =
           pb.Literal(initial_args_val, body_loc,
-                     absl::StrFormat("%s_inital_args", fsm_prefix));
+                     absl::StrFormat("%s_initial_args", fsm_prefix));
     }
     xls::BValue args_from_this_state =
         pb.Select(state_index,

@@ -23,7 +23,7 @@
 
 namespace xls {
 
-// Returns the the scheduling pass pipeline which runs on a package.
+// Returns the scheduling pass pipeline which runs on a package.
 std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
     int64_t opt_level = kMaxOptLevel);
 

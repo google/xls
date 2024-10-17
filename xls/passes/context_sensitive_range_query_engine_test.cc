@@ -309,7 +309,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Eq) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -360,7 +360,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Ne) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -497,7 +497,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLtConstantUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -547,7 +547,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -595,7 +595,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLeConstantUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -644,7 +644,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -692,7 +692,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableGtConstantUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -741,7 +741,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -789,7 +789,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableGeConstantUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -838,7 +838,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -886,7 +886,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantLtVariableUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -936,7 +936,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -984,7 +984,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantLeVariableUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1033,7 +1033,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -1081,7 +1081,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantGtVariableUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1130,7 +1130,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -1178,7 +1178,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantGeVariableUseInIf) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1227,7 +1227,7 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   // arm so no need to compute them.
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
@@ -1290,7 +1290,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, OpenOpenRangeUseInIf) {
   // arm so no need to compute them.
   EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1353,7 +1353,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, OpenClosedRangeUseInIf) {
   // arm so no need to compute them.
   EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1416,7 +1416,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, ClosedOpenRangeUseInIf) {
   // arm so no need to compute them.
   EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1478,7 +1478,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, ClosedClosedRangeUseInIf) {
   // arm so no need to compute them.
   EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             engine.GetIntervals(cond.node()));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1534,7 +1534,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest,
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
-  // NB There is a restricted value for res given cond == 0 but its not clear
+  // NB There is a restricted value for res given cond == 0 but it's not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
   EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
@@ -1578,7 +1578,7 @@ TEST_P(SignedRangeComparisonContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(consequent_arm_range->GetIntervals(add_ten.node()), add_ten_ist);
 }
 
-// TODO(allight): Changes in the implementation of back-propogation meant we
+// TODO(allight): Changes in the implementation of back-propagation meant we
 // could no longer see through code like (X < 5 && X > 0) == FALSE. It would be
 // nice to get this back but it is complicated by the sort of transform we need
 // to do.

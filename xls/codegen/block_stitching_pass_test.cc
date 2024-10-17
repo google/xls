@@ -3000,7 +3000,7 @@ TEST_F(ProcInliningPassTest, BlockingReceiveBlocksSendsForDepth0Fifos) {
 // `pass_inputs`. This was fine in proc inlining because the inter-proc channel
 // became a wire within the inlined proc, and proc codegen ensured the input
 // from `x` was valid when sending on `pass_inputs`. With multi-proc, the
-// situation is different because the the two procs tick truly independently, so
+// situation is different because the two procs tick truly independently, so
 // we need this channel to be streaming to synchronize the two procs.
 //
 // Note that the original test also relied on the behavior of single value

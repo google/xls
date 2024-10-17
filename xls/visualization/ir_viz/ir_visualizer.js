@@ -335,7 +335,7 @@ class IrVisualizer {
     if (this.graphView_) {
       this.graphView_.highlightEdge(edgeId);
     }
-    // Highlight the source node as well so the metdata about the value carried
+    // Highlight the source node as well so the metadata about the value carried
     // by the edge is shown in the metadata box.
     this.highlightNode(srcId);
   }

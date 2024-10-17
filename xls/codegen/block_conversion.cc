@@ -3450,7 +3450,7 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
   absl::flat_hash_map<Node*, Node*> node_map;
   CodegenPassUnit unit(block->package(), block);
 
-  // Emit the parameters first to ensure the their order is preserved in the
+  // Emit the parameters first to ensure their order is preserved in the
   // block.
   auto func_interface =
       FindFunctionInterface(options.package_interface(), f->name());

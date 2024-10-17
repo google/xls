@@ -111,8 +111,8 @@ class JittedFunctionBase {
   // are identical.
   bool InputsAndOutputsAreEquivalent() const {
     return absl::c_equal(input_buffer_sizes_, output_buffer_sizes_) &&
-           absl::c_equal(input_buffer_prefered_alignments_,
-                         output_buffer_prefered_alignments_);
+           absl::c_equal(input_buffer_preferred_alignments_,
+                         output_buffer_preferred_alignments_);
   }
 
   // Create a buffer capable of being used for both the input and output of a
@@ -176,11 +176,11 @@ class JittedFunctionBase {
   }
 
   absl::Span<int64_t const> input_buffer_preferred_alignments() const {
-    return input_buffer_prefered_alignments_;
+    return input_buffer_preferred_alignments_;
   }
 
   absl::Span<int64_t const> output_buffer_preferred_alignments() const {
-    return output_buffer_prefered_alignments_;
+    return output_buffer_preferred_alignments_;
   }
 
   absl::Span<int64_t const> input_buffer_abi_alignments() const {
@@ -220,8 +220,8 @@ class JittedFunctionBase {
                      std::optional<JitFunctionType> packed_function,
                      std::vector<int64_t> input_buffer_sizes,
                      std::vector<int64_t> output_buffer_sizes,
-                     std::vector<int64_t> input_buffer_prefered_alignments,
-                     std::vector<int64_t> output_buffer_prefered_alignments,
+                     std::vector<int64_t> input_buffer_preferred_alignments,
+                     std::vector<int64_t> output_buffer_preferred_alignments,
                      std::vector<int64_t> input_buffer_abi_alignments,
                      std::vector<int64_t> output_buffer_abi_alignments,
                      std::vector<int64_t> packed_input_buffer_sizes,
@@ -235,10 +235,10 @@ class JittedFunctionBase {
         packed_function_(packed_function),
         input_buffer_sizes_(std::move(input_buffer_sizes)),
         output_buffer_sizes_(std::move(output_buffer_sizes)),
-        input_buffer_prefered_alignments_(
-            std::move(input_buffer_prefered_alignments)),
-        output_buffer_prefered_alignments_(
-            std::move(output_buffer_prefered_alignments)),
+        input_buffer_preferred_alignments_(
+            std::move(input_buffer_preferred_alignments)),
+        output_buffer_preferred_alignments_(
+            std::move(output_buffer_preferred_alignments)),
         input_buffer_abi_alignments_(std::move(input_buffer_abi_alignments)),
         output_buffer_abi_alignments_(std::move(output_buffer_abi_alignments)),
         packed_input_buffer_sizes_(std::move(packed_input_buffer_sizes)),
@@ -268,8 +268,8 @@ class JittedFunctionBase {
   std::vector<int64_t> output_buffer_sizes_;
 
   // alignment preferences of each input/output buffer.
-  std::vector<int64_t> input_buffer_prefered_alignments_;
-  std::vector<int64_t> output_buffer_prefered_alignments_;
+  std::vector<int64_t> input_buffer_preferred_alignments_;
+  std::vector<int64_t> output_buffer_preferred_alignments_;
 
   // alignment ABI requirements of each input/output buffer.
   std::vector<int64_t> input_buffer_abi_alignments_;

@@ -176,7 +176,7 @@ genrule(
     tools = [":add_reset_trace_main"],
 )
 
-# Force this port to always say its not valid
+# Force this port to always say it's not valid
 genrule(
     name = "break_eval_proc_main_test_blk",
     testonly = True,

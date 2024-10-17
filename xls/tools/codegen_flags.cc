@@ -70,7 +70,7 @@ ABSL_FLAG(
     "input port is equal to the number of pipeline stages. Bit N of the port "
     "is the load-enable signal for the pipeline registers after stage N.");
 ABSL_FLAG(bool, flop_inputs, true,
-          "If true, inputs of the the module are flopped into registers before "
+          "If true, inputs of the module are flopped into registers before "
           "use in generated pipelines. Only used with pipeline generator.");
 ABSL_FLAG(bool, flop_outputs, true,
           "If true, the module outputs are flopped into registers before "

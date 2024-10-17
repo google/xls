@@ -59,7 +59,7 @@ namespace {
 // better dependency analysis provided by selects etc. This turns an
 // array-update into a select of the old array-index and the new value and
 // indexes with a select on the various indexes. In many cases this will allow
-// us to entierly remove the array.
+// us to entirely remove the array.
 constexpr int64_t kSmallArrayLimit = 3;
 
 // Returns true if the given index value is definitely out of bounds for the

@@ -794,7 +794,7 @@ TEST(MinimizeIntervalsTest, PrefersEarlyIntervals) {
   EXPECT_EQ(MinimizeIntervals(even_numbers, 2),
             FromRanges(
                 {
-                    // earlier entries are prefered.
+                    // earlier entries are preferred.
                     {62, 62},
                     {0, 60},
                 },
@@ -803,7 +803,7 @@ TEST(MinimizeIntervalsTest, PrefersEarlyIntervals) {
   EXPECT_EQ(MinimizeIntervals(even_numbers, 4),
             FromRanges(
                 {
-                    // earlier entries are prefered.
+                    // earlier entries are preferred.
                     {62, 62},
                     {60, 60},
                     {58, 58},

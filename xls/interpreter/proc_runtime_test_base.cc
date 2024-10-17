@@ -72,7 +72,7 @@ absl::StatusOr<Proc*> CreateIotaProc(std::string_view proc_name,
 }
 
 // Creates a proc which keeps a running sum of all values read through the input
-// channel. The sum is sent via an output chanel each iteration.
+// channel. The sum is sent via an output channel each iteration.
 absl::StatusOr<Proc*> CreateAccumProc(std::string_view proc_name,
                                       Channel* in_channel, Channel* out_channel,
                                       Package* package) {

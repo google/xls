@@ -278,7 +278,7 @@ TEST_F(IntegratorTest, MappingTestSetNodeMappingFailureCases) {
   EXPECT_FALSE(integration->SetNodeMapping(internal_2, internal_1).ok());
 }
 
-TEST_F(IntegratorTest, ParamterPacking) {
+TEST_F(IntegratorTest, ParameterPacking) {
   auto p = CreatePackage();
   FunctionBuilder fb_a("func_a", p.get());
   fb_a.Param("a1", p->GetBitsType(2));
@@ -373,7 +373,7 @@ TEST_F(IntegratorTest, ParamterPacking) {
   EXPECT_EQ(integration->function()->node_count(), 6);
 }
 
-TEST_F(IntegratorTest, ParamterPackingUniversalMuxSelect) {
+TEST_F(IntegratorTest, ParameterPackingUniversalMuxSelect) {
   auto p = CreatePackage();
   FunctionBuilder fb_a("func_a", p.get());
   fb_a.Param("a1", p->GetBitsType(2));

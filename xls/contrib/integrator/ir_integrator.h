@@ -262,7 +262,7 @@ class IntegrationFunction {
   absl::StatusOr<Node*> DeUnifyIntegrationNodesWithGlobalMuxSelect(Node* node);
 
   // Replaces 'mux' with a new mux which is identical except that
-  // the the cases at the indexes in 'source_index_to_case'
+  // the cases at the indexes in 'source_index_to_case'
   // are replaced with the nodes specified.
   absl::StatusOr<Node*> ReplaceMuxCases(
       Node* mux_node,

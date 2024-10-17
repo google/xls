@@ -1458,8 +1458,7 @@ Value         | Type
 
 <!-- mdformat on -->
 
-The type `T` of the data operand must be the same as the the type of the
-register.
+The type `T` of the data operand must be the same as the type of the register.
 
 #### **`instantiation_input`**
 
@@ -1495,8 +1494,8 @@ Value    | Type
 
 <!-- mdformat on -->
 
-The type `T` of the data operand must be the same as the the type of the
-associated input port of the instantiated object.
+The type `T` of the data operand must be the same as the type of the associated
+input port of the instantiated object.
 
 #### **`instantiation_output`**
 

@@ -1350,7 +1350,7 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     Type* input_type = InputType(input);
     jitted_function.input_buffer_sizes_.push_back(
         jit_context.type_converter().GetTypeByteSize(input_type));
-    jitted_function.input_buffer_prefered_alignments_.push_back(
+    jitted_function.input_buffer_preferred_alignments_.push_back(
         jit_context.type_converter().GetTypePreferredAlignment(input_type));
     jitted_function.input_buffer_abi_alignments_.push_back(
         jit_context.type_converter().GetTypeAbiAlignment(input_type));
@@ -1361,7 +1361,7 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     Type* output_type = OutputType(output);
     jitted_function.output_buffer_sizes_.push_back(
         jit_context.type_converter().GetTypeByteSize(output_type));
-    jitted_function.output_buffer_prefered_alignments_.push_back(
+    jitted_function.output_buffer_preferred_alignments_.push_back(
         jit_context.type_converter().GetTypePreferredAlignment(output_type));
     jitted_function.output_buffer_abi_alignments_.push_back(
         jit_context.type_converter().GetTypeAbiAlignment(output_type));

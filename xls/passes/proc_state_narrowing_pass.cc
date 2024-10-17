@@ -322,7 +322,7 @@ class ConstantValueIrInterpreter
       return HandleNonConst(n);
     }
     // Non-bits ops are more complicated to handle. The only ones here should be
-    // things like mulp which its not clear if we should care much about...
+    // things like mulp which it's not clear if we should care much about...
     if (!n->GetType()->IsBits()) {
       VLOG(2) << "Ignoring non-bits type op " << n;
       return HandleNonConst(n);

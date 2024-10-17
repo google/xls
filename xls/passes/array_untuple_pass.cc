@@ -237,11 +237,11 @@ class UntupleVisitor : public DfsVisitorWithDefault {
   bool changed() const { return changed_; }
   absl::Status DefaultHandler(Node* n) override { return absl::OkStatus(); }
 
-  absl::Status FixupImplicitUses(Proc* proc, int64_t inital_param_count) {
+  absl::Status FixupImplicitUses(Proc* proc, int64_t initial_param_count) {
     // For each of the original state params.
     XLS_RET_CHECK(changed_) << "Called without changes.";
     for (const auto& [idx, param, update_value] :
-         iter::zip(iter::range(inital_param_count), proc->StateParams(),
+         iter::zip(iter::range(initial_param_count), proc->StateParams(),
                    proc->NextState())) {
       if (!CanUntuple(param)) {
         continue;

@@ -66,7 +66,7 @@ class IrEdge {
 
 /**
  * Abstract representation of the IR graph of an XLS function. Includes nodes
- * (operations), edges (depencies), and some metadata about each.
+ * (operations), edges (dependencies), and some metadata about each.
  */
 class IrGraph {
   /**

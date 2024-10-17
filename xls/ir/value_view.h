@@ -199,7 +199,7 @@ class MutableArrayView : public ArrayView<ElementT, kNumElements> {
 
   uint8_t* mutable_buffer() { return const_cast<uint8_t*>(this->buffer()); }
 
-  // Gets the N'th element in the array.
+  // Gets the Nth element in the array.
   ElementT Get(int index) {
     return ElementT(mutable_buffer() + (ElementT::GetTypeSize() * index));
   }

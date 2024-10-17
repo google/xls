@@ -472,7 +472,7 @@ TEST_F(BlockTest, MultipleInputsAndOutputsDumpOrderTest) {
   BlockBuilder bb("my_block", p.get());
   Type* u32 = p->GetBitsType(32);
 
-  // Intentially create the input ports in the wrong order then order them
+  // Intentionally create the input ports in the wrong order then order them
   // later. This makes the id order not match the port order for a better test.
   bb.InputPort("y", u32);
   bb.InputPort("z", u32);

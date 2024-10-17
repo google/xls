@@ -140,7 +140,7 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
   int64_t real_outcol = 0;
 
   // This number can be >= real_outcol when we anticipate inserting leading
-  // spaces, but we don't want to /realy/ insert them yet, because we want to
+  // spaces, but we don't want to /really/ insert them yet, because we want to
   // avoid whitespace before newlines on newline-only lines.
   int64_t virtual_outcol = 0;
 
