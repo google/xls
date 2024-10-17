@@ -31,7 +31,7 @@
 namespace xls {
 namespace {
 
-using testing::StrEq;
+using ::testing::StrEq;
 
 TEST(ToStringHelpersTest, ToStringBool) {
   EXPECT_THAT(::xls::ToString(true), StrEq("true"));

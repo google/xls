@@ -43,13 +43,13 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
-using netlist::CellLibraryEntry;
-using netlist::StateTable;
-using netlist::StateTableSignal;
-using netlist::function::Ast;
-using netlist::rtl::Cell;
-using netlist::rtl::Module;
-using netlist::rtl::NetRef;
+using ::xls::netlist::CellLibraryEntry;
+using ::xls::netlist::StateTable;
+using ::xls::netlist::StateTableSignal;
+using ::xls::netlist::function::Ast;
+using ::xls::netlist::rtl::Cell;
+using ::xls::netlist::rtl::Module;
+using ::xls::netlist::rtl::NetRef;
 
 absl::StatusOr<std::unique_ptr<NetlistTranslator>>
 NetlistTranslator::CreateAndTranslate(

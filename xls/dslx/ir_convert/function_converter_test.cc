@@ -36,7 +36,7 @@
 
 namespace xls::dslx {
 namespace {
-using proto_testing::EqualsProto;
+using ::xls::proto_testing::EqualsProto;
 
 constexpr std::string_view kTestName = "function_converter_test";
 constexpr std::string_view kTestdataPath = "xls/dslx/ir_convert/testdata";

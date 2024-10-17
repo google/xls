@@ -40,9 +40,9 @@ namespace m = xls::op_matchers;
 namespace xls::verilog {
 namespace {
 using Instantiation = xls::Instantiation;
-using testing::IsEmpty;
-using testing::Pair;
-using testing::UnorderedElementsAre;
+using ::testing::IsEmpty;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 class BlockInliningPassTest : public IrTestBase {};
 

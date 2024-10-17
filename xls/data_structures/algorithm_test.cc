@@ -20,7 +20,7 @@
 namespace xls {
 namespace {
 
-using testing::ElementsAre;
+using ::testing::ElementsAre;
 
 TEST(NodeUtilTest, IndicesWhere) {
   EXPECT_THAT(IndicesWhere<int>({2, 5, 7, 4, -1}, [](int i) { return i > 3; }),

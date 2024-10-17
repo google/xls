@@ -196,7 +196,7 @@ absl::StatusOr<Node*> TruthTable::CreateReplacement(
 
 namespace {
 
-using xls::internal::TruthTable;
+using ::xls::internal::TruthTable;
 
 // Indicates more than kMaxFrontierNodes are involved in a boolean expression.
 struct TooManySentinel {};

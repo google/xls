@@ -30,7 +30,7 @@ namespace xls {
 namespace sched {
 namespace {
 
-using testing::Pair;
+using ::testing::Pair;
 
 class TestDelayEstimator : public DelayEstimator {
  public:

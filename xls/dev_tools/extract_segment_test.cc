@@ -29,7 +29,7 @@ namespace {
 
 class ExtractSegmentTest : public IrTestBase {};
 
-using testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAre;
 
 TEST_F(ExtractSegmentTest, FromSource) {
   auto p = CreatePackage();

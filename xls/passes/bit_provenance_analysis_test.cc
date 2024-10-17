@@ -32,7 +32,7 @@
 
 namespace xls {
 namespace {
-using testing::ElementsAre;
+using ::testing::ElementsAre;
 
 class BitProvenanceAnalysisTest : public IrTestBase {};
 

@@ -55,9 +55,9 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
-using netlist::rtl::Module;
-using netlist::rtl::Netlist;
-using netlist::rtl::NetRef;
+using ::xls::netlist::rtl::Module;
+using ::xls::netlist::rtl::Netlist;
+using ::xls::netlist::rtl::NetRef;
 
 namespace {
 

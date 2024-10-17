@@ -33,8 +33,8 @@
 namespace xls::dslx {
 namespace {
 
-using testing::ElementsAre;
-using testing::FieldsAre;
+using ::testing::ElementsAre;
+using ::testing::FieldsAre;
 
 enum class CallbackKind : uint8_t {
   kAggregateStart,

@@ -37,7 +37,7 @@ namespace mlir::xls {
 #include "xls/contrib/mlir/transforms/passes.h.inc"
 
 namespace {
-using llvm::StringRef;
+using ::llvm::StringRef;
 
 class InstantiateEprocsPass
     : public impl::InstantiateEprocsPassBase<InstantiateEprocsPass> {

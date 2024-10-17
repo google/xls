@@ -23,7 +23,7 @@
 
 namespace xls::proto_testing {
 namespace {
-using testing::Not;
+using ::testing::Not;
 
 Foo MakeFoo(std::string_view sv) {
   Foo foo;

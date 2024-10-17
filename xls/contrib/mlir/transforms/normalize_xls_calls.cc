@@ -36,8 +36,8 @@ namespace mlir::xls {
 
 namespace {
 
-using llvm::dyn_cast;
-using llvm::StringRef;
+using ::llvm::dyn_cast;
+using ::llvm::StringRef;
 
 class NormalizeXlsCallsPass
     : public impl::NormalizeXlsCallsPassBase<NormalizeXlsCallsPass> {

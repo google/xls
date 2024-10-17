@@ -28,8 +28,8 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/token.h"
 
-using absl::InvalidArgumentError;
-using absl::StatusOr;
+using ::absl::InvalidArgumentError;
+using ::absl::StatusOr;
 
 namespace xls::dslx {
 namespace {

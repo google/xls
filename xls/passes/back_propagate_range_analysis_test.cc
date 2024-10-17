@@ -35,9 +35,9 @@ namespace m = xls::op_matchers;
 namespace xls {
 namespace {
 
-using testing::ElementsAre;
-using testing::Pair;
-using testing::UnorderedElementsAre;
+using ::testing::ElementsAre;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 class BackPropagateRangeAnalysisTest : public IrTestBase {
  public:

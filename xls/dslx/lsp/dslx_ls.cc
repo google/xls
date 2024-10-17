@@ -58,11 +58,11 @@ namespace {
 
 namespace fs = std::filesystem;
 
-using verible::lsp::BufferCollection;
-using verible::lsp::EditTextBuffer;
-using verible::lsp::InitializeResult;
-using verible::lsp::JsonRpcDispatcher;
-using verible::lsp::MessageStreamSplitter;
+using ::verible::lsp::BufferCollection;
+using ::verible::lsp::EditTextBuffer;
+using ::verible::lsp::InitializeResult;
+using ::verible::lsp::JsonRpcDispatcher;
+using ::verible::lsp::MessageStreamSplitter;
 
 // The "initialize" method requests server capabilities.
 InitializeResult InitializeServer(const nlohmann::json& params) {

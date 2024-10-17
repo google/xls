@@ -53,7 +53,7 @@
 
 namespace xls {
 
-using dslx::InterpValue;
+using ::xls::dslx::InterpValue;
 
 namespace {
 

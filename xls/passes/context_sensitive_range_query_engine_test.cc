@@ -43,8 +43,8 @@
 
 namespace xls {
 namespace {
-using testing::AnyOf;
-using testing::Eq;
+using ::testing::AnyOf;
+using ::testing::Eq;
 
 class ContextSensitiveRangeQueryEngineTest : public IrTestBase {
  public:

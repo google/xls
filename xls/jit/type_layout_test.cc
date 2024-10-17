@@ -44,7 +44,7 @@
 namespace xls {
 namespace {
 
-using testing::ElementsAre;
+using ::testing::ElementsAre;
 
 class TypeLayoutTest : public IrTestBase {};
 

@@ -49,8 +49,8 @@
 #include "xls/passes/optimization_pass_pipeline.h"
 
 namespace xls {
-using dslx::Module;
-using dslx::TypecheckedModule;
+using ::xls::dslx::Module;
+using ::xls::dslx::TypecheckedModule;
 
 absl::StatusOr<JitChannelQueueWrapper> JitChannelQueueWrapper::Create(
     JitChannelQueue* queue, JitRuntime* jit_runtime) {

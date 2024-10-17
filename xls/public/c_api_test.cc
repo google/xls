@@ -32,7 +32,7 @@
 
 namespace {
 
-using testing::HasSubstr;
+using ::testing::HasSubstr;
 
 // Smoke test for `xls_convert_dslx_to_ir` C API.
 TEST(XlsCApiTest, ConvertDslxToIrSimple) {

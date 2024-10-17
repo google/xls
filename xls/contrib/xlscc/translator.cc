@@ -95,11 +95,11 @@
 #include "external/z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
-using std::list;
-using std::ostringstream;
-using std::shared_ptr;
-using std::string;
-using std::vector;
+using ::std::list;
+using ::std::ostringstream;
+using ::std::shared_ptr;
+using ::std::string;
+using ::std::vector;
 
 namespace {
 template <typename Lambda>

@@ -39,8 +39,8 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-using testing::AnyOf;
-using testing::Eq;
+using ::testing::AnyOf;
+using ::testing::Eq;
 
 class InliningPassTest : public IrTestBase {
  protected:

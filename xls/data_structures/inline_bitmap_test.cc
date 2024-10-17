@@ -26,7 +26,7 @@
 namespace xls {
 namespace {
 
-using testing::ElementsAre;
+using ::testing::ElementsAre;
 
 TEST(InlineBitmapTest, FromWord) {
   {

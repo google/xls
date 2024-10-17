@@ -26,8 +26,8 @@
 #include "xls/common/status/matchers.h"
 
 using ::absl_testing::StatusIs;
-using testing::ElementsAre;
-using testing::HasSubstr;
+using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 
 namespace xls {
 

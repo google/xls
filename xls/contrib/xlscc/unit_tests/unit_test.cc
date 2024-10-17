@@ -71,7 +71,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
-using testing::Optional;
+using ::testing::Optional;
 
 const int determinism_test_repeat_count = 3;
 

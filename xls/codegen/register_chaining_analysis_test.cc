@@ -37,9 +37,9 @@
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 
-using testing::AnyOf;
-using testing::ElementsAre;
-using testing::UnorderedElementsAre;
+using ::testing::AnyOf;
+using ::testing::ElementsAre;
+using ::testing::UnorderedElementsAre;
 
 namespace xls::verilog {
 namespace {

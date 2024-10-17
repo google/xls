@@ -20,7 +20,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using testing::StartsWith;
+using ::testing::StartsWith;
 
 namespace xls {
 namespace internal {

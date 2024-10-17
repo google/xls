@@ -41,20 +41,20 @@
 namespace xls::dslx {
 namespace {
 
-using pprint_internal::Align;
-using pprint_internal::Concat;
-using pprint_internal::Doc;
-using pprint_internal::FlatChoice;
-using pprint_internal::Group;
-using pprint_internal::HardLine;
-using pprint_internal::InfinityRequirement;
-using pprint_internal::IsInfinite;
-using pprint_internal::ModeSelect;
-using pprint_internal::Nest;
-using pprint_internal::NestIfFlatFits;
-using pprint_internal::PrefixedReflow;
-using pprint_internal::ReduceTextWidth;
-using pprint_internal::Requirement;
+using ::xls::dslx::pprint_internal::Align;
+using ::xls::dslx::pprint_internal::Concat;
+using ::xls::dslx::pprint_internal::Doc;
+using ::xls::dslx::pprint_internal::FlatChoice;
+using ::xls::dslx::pprint_internal::Group;
+using ::xls::dslx::pprint_internal::HardLine;
+using ::xls::dslx::pprint_internal::InfinityRequirement;
+using ::xls::dslx::pprint_internal::IsInfinite;
+using ::xls::dslx::pprint_internal::ModeSelect;
+using ::xls::dslx::pprint_internal::Nest;
+using ::xls::dslx::pprint_internal::NestIfFlatFits;
+using ::xls::dslx::pprint_internal::PrefixedReflow;
+using ::xls::dslx::pprint_internal::ReduceTextWidth;
+using ::xls::dslx::pprint_internal::Requirement;
 
 Requirement operator+(Requirement lhs, Requirement rhs) {
   if (std::holds_alternative<int64_t>(lhs) &&

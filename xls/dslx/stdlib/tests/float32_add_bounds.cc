@@ -69,7 +69,7 @@ constexpr const char kIrPath[] = "xls/dslx/stdlib/float32_add.ir";
 constexpr const char kOptIrPath[] = "xls/dslx/stdlib/float32_add.opt.ir";
 constexpr const char kFunctionName[] = "__float32__add";
 
-using solvers::z3::IrTranslator;
+using ::xls::solvers::z3::IrTranslator;
 
 // Adds an error comparison to the translated XLS function. To do so:
 //  - We convert the input arguments into Z3 floating-point types.

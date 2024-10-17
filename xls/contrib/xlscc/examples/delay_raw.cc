@@ -24,7 +24,7 @@ using ac_int = XlsInt<Width, Signed>;
 #define DELAY 2048
 #define MEMORY_SIZE static_cast<uint32_t>(DELAY)
 
-using std::uint32_t;
+using ::std::uint32_t;
 
 using memory_t = uint32_t;
 using addr_t = ac_int<11, /*signed=*/false>;

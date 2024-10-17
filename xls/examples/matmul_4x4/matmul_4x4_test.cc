@@ -35,7 +35,7 @@ namespace {
 
 constexpr const char kIrPath[] = "xls/examples/matmul_4x4/matmul_4x4.ir";
 
-using testing::Optional;
+using ::testing::Optional;
 
 Value GetX0Value() {
   static int iter = 0;

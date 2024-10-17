@@ -70,7 +70,7 @@ int64_t __multi_proc__proc_ten_0_next(  // NOLINT
 
 namespace xls {
 namespace {
-using testing::Optional;
+using ::testing::Optional;
 
 static_assert(std::is_same_v<JitFunctionType, decltype(&proc_0)>,
               "Jit function ABI updated. This test needs to be tweaked.");

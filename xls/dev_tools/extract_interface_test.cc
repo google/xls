@@ -28,9 +28,9 @@
 
 namespace xls {
 namespace {
-using proto_testing::EqualsProto;
-using proto_testing::IgnoringRepeatedFieldOrdering;
-using proto_testing::Partially;
+using ::xls::proto_testing::EqualsProto;
+using ::xls::proto_testing::IgnoringRepeatedFieldOrdering;
+using ::xls::proto_testing::Partially;
 
 auto ProtoEquivalent(auto inner) {
   return Partially(IgnoringRepeatedFieldOrdering(EqualsProto(inner)));

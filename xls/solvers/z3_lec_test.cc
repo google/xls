@@ -39,7 +39,7 @@ namespace solvers {
 namespace z3 {
 namespace {
 
-using netlist::rtl::Netlist;
+using ::xls::netlist::rtl::Netlist;
 
 absl::StatusOr<bool> Match(const std::string& ir_text,
                            const std::string& netlist_text, bool expect_equal) {

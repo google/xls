@@ -57,9 +57,9 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
-using std::shared_ptr;
-using std::string;
-using std::vector;
+using ::std::shared_ptr;
+using ::std::string;
+using ::std::vector;
 
 namespace xlscc {
 

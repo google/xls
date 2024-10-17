@@ -60,18 +60,18 @@
 namespace xls {
 namespace {
 
-using dslx::AstGenerator;
-using dslx::AstGeneratorOptions;
-using dslx::AstNode;
-using dslx::AstNodeVisitorWithDefault;
-using dslx::FunctionType;
-using dslx::ImportData;
-using dslx::InterpValue;
-using dslx::Module;
-using dslx::ModuleMember;
-using dslx::ParseModule;
-using dslx::Type;
-using dslx::TypecheckedModule;
+using ::xls::dslx::AstGenerator;
+using ::xls::dslx::AstGeneratorOptions;
+using ::xls::dslx::AstNode;
+using ::xls::dslx::AstNodeVisitorWithDefault;
+using ::xls::dslx::FunctionType;
+using ::xls::dslx::ImportData;
+using ::xls::dslx::InterpValue;
+using ::xls::dslx::Module;
+using ::xls::dslx::ModuleMember;
+using ::xls::dslx::ParseModule;
+using ::xls::dslx::Type;
+using ::xls::dslx::TypecheckedModule;
 
 class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
  public:

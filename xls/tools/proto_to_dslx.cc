@@ -90,18 +90,18 @@ struct MessageRecord {
 
 namespace {
 
-using google::protobuf::Descriptor;
-using google::protobuf::DescriptorPool;
-using google::protobuf::EnumDescriptor;
-using google::protobuf::FieldDescriptor;
-using google::protobuf::FileDescriptorProto;
-using google::protobuf::Message;
-using google::protobuf::Reflection;
-using google::protobuf::compiler::DiskSourceTree;
-using google::protobuf::compiler::SourceTreeDescriptorDatabase;
+using ::google::protobuf::Descriptor;
+using ::google::protobuf::DescriptorPool;
+using ::google::protobuf::EnumDescriptor;
+using ::google::protobuf::FieldDescriptor;
+using ::google::protobuf::FileDescriptorProto;
+using ::google::protobuf::Message;
+using ::google::protobuf::Reflection;
+using ::google::protobuf::compiler::DiskSourceTree;
+using ::google::protobuf::compiler::SourceTreeDescriptorDatabase;
 
-using internal::MessageRecord;
-using internal::NameToRecord;
+using ::xls::internal::MessageRecord;
+using ::xls::internal::NameToRecord;
 
 // Returns true if the provided field type is integral.
 bool FieldIsIntegral(FieldDescriptor::Type type) {

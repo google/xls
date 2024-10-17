@@ -48,7 +48,7 @@
 namespace xls::interval_ops {
 
 namespace {
-using solvers::z3::IsProvenTrue;
+using ::xls::solvers::z3::IsProvenTrue;
 
 IntervalSet SetOf(absl::Span<const Interval> intervals) {
   IntervalSet is(intervals.front().BitCount());

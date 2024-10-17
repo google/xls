@@ -43,12 +43,12 @@ namespace xls {
 namespace solvers {
 namespace z3 {
 
-using netlist::CellLibrary;
-using netlist::CellLibraryEntry;
-using netlist::rtl::Cell;
-using netlist::rtl::Module;
-using netlist::rtl::NetDeclKind;
-using netlist::rtl::NetRef;
+using ::xls::netlist::CellLibrary;
+using ::xls::netlist::CellLibraryEntry;
+using ::xls::netlist::rtl::Cell;
+using ::xls::netlist::rtl::Module;
+using ::xls::netlist::rtl::NetDeclKind;
+using ::xls::netlist::rtl::NetRef;
 
 namespace {
 

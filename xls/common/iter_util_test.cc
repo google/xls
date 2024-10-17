@@ -24,8 +24,8 @@
 
 namespace xls {
 namespace {
-using testing::ElementsAreArray;
-using testing::IsEmpty;
+using ::testing::ElementsAreArray;
+using ::testing::IsEmpty;
 
 struct Tup {
   int a;

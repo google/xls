@@ -49,10 +49,10 @@ namespace mlir::xls {
 
 namespace {
 
-using llvm::ArrayRef;
-using llvm::SmallString;
-using llvm::StringRef;
-using llvm::StringSet;
+using ::llvm::ArrayRef;
+using ::llvm::SmallString;
+using ::llvm::StringRef;
+using ::llvm::StringSet;
 
 // Replaces all structured channel ops in a region with the corresponding
 // unstructured channel op (ssend -> send, etc). The channel map is a mapping

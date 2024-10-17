@@ -40,7 +40,7 @@ namespace xls {
 namespace sched {
 namespace {
 
-using testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAre;
 
 class FunctionPartitionTest : public IrTestBase {
  protected:

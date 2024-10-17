@@ -46,13 +46,13 @@
 namespace xls {
 
 // keep-sorted start
-using dslx::ConstantDef;
-using dslx::Expr;
-using dslx::InterpValue;
-using dslx::InterpValueTag;
-using dslx::Module;
-using dslx::Number;
-using dslx::TypeAnnotation;
+using ::xls::dslx::ConstantDef;
+using ::xls::dslx::Expr;
+using ::xls::dslx::InterpValue;
+using ::xls::dslx::InterpValueTag;
+using ::xls::dslx::Module;
+using ::xls::dslx::Number;
+using ::xls::dslx::TypeAnnotation;
 // keep-sorted end
 
 namespace {

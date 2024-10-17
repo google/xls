@@ -51,9 +51,9 @@
 #include "xls/solvers/z3_utils.h"
 #include "external/z3/src/api/z3_api.h"
 
-using std::shared_ptr;
-using std::string;
-using std::vector;
+using ::std::shared_ptr;
+using ::std::string;
+using ::std::vector;
 
 ABSL_FLAG(bool, log_slow_unroll_iterations, false,
           "If true, log warnings when unrolling is slow.");
