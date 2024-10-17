@@ -626,7 +626,7 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
   return result_vector;
 }
 
-absl::Status CheckIsBlocking(Node* n) {
+absl::Status CheckIsBlocking(ChannelNode* n) {
   if (n->Is<Receive>()) {
     XLS_RET_CHECK(n->As<Receive>()->is_blocking()) << absl::StreamFormat(
         "Channel legalization cannot legalize %s because it is "
@@ -646,7 +646,7 @@ absl::Status CheckIsBlocking(Node* n) {
 // 3) Updates the token of the original channel operation to come after the new
 //    predicate send.
 absl::StatusOr<AdapterInputChannel> MakePredicateChannel(
-    Node* operation, ChannelRef channel_ref, int64_t instance_number,
+    ChannelNode* operation, ChannelRef channel_ref, int64_t instance_number,
     AdapterBuilder& ab) {
   Package* package = operation->package();
   Proc* proc = operation->function_base()->AsProcOrDie();
@@ -668,8 +668,8 @@ absl::StatusOr<AdapterInputChannel> MakePredicateChannel(
                      /*register_pop_outputs=*/false)));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
-  XLS_ASSIGN_OR_RETURN(std::optional<Node*> predicate,
-                       GetPredicateUsedByNode(operation));
+  std::optional<Node*> predicate = operation->predicate();
+
   // Send the predicate before performing the channel operation operation.
   // If predicate nullopt, that means it's an unconditional send/receive. Make a
   // true literal to send to the adapter.
@@ -680,19 +680,16 @@ absl::StatusOr<AdapterInputChannel> MakePredicateChannel(
                              absl::StrFormat("true_predicate_for_chan_%s",
                                              ChannelRefName(channel_ref))));
   }
-  XLS_ASSIGN_OR_RETURN(int64_t operand_number,
-                       TokenOperandNumberForChannelOp(operation));
-  XLS_ASSIGN_OR_RETURN(Send * send_pred,
-                       proc->MakeNodeWithName<Send>(
-                           SourceInfo(), operation->operand(operand_number),
-                           predicate.value(), std::nullopt,
-                           ChannelRefName(AsChannelRef(
-                               pred_input_channel.parent_send_channel_ref)),
-                           absl::StrFormat("send_predicate_for_chan_%s",
-                                           ChannelRefName(channel_ref))));
+  XLS_ASSIGN_OR_RETURN(
+      Send * send_pred,
+      proc->MakeNodeWithName<Send>(
+          SourceInfo(), operation->token(), predicate.value(), std::nullopt,
+          ChannelRefName(
+              AsChannelRef(pred_input_channel.parent_send_channel_ref)),
+          absl::StrFormat("send_predicate_for_chan_%s",
+                          ChannelRefName(channel_ref))));
   // Replace the op's original input token with the predicate send's token.
-  XLS_RETURN_IF_ERROR(operation->ReplaceOperandNumber(
-      operand_number, send_pred, /*type_must_match=*/true));
+  XLS_RETURN_IF_ERROR(operation->ReplaceToken(send_pred));
 
   return pred_input_channel;
 }
@@ -708,7 +705,7 @@ absl::StatusOr<AdapterInputChannel> MakePredicateChannel(
 // 3) Updates the token of the original channel operation to come after the new
 //    completion_42` receive.
 absl::StatusOr<AdapterOutputChannel> MakeCompletionChannel(
-    Node* operation, int64_t instance_number, AdapterBuilder& ab) {
+    ChannelNode* operation, int64_t instance_number, AdapterBuilder& ab) {
   Package* package = ab.package();
   Proc* proc = operation->function_base()->AsProcOrDie();
 
@@ -731,8 +728,8 @@ absl::StatusOr<AdapterOutputChannel> MakeCompletionChannel(
                      /*register_pop_outputs=*/false)));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
-  XLS_ASSIGN_OR_RETURN(std::optional<Node*> predicate,
-                       GetPredicateUsedByNode(operation));
+  std::optional<Node*> predicate = operation->predicate();
+
   // Send the predicate before performing the channel operation operation.
   // If predicate nullopt, that means it's an unconditional send/receive. Make a
   // true literal to send to the adapter.
@@ -765,8 +762,7 @@ absl::StatusOr<AdapterOutputChannel> MakeCompletionChannel(
       XLS_RETURN_IF_ERROR(operation->ReplaceUsesWith(recv_completion_token));
       // After replacing the send, we need to replace the recv_completion's
       // token with the original send.
-      XLS_RETURN_IF_ERROR(recv_completion->ReplaceOperandNumber(
-          Send::kTokenOperand, operation));
+      XLS_RETURN_IF_ERROR(recv_completion->ReplaceToken(operation));
       break;
     }
     case Op::kReceive: {
@@ -780,8 +776,7 @@ absl::StatusOr<AdapterOutputChannel> MakeCompletionChannel(
           Node * operation_token,
           operation->function_base()->MakeNode<TupleIndex>(
               SourceInfo(), operation, Receive::kTokenOperand));
-      XLS_RETURN_IF_ERROR(recv_completion->ReplaceOperandNumber(
-          Receive::kTokenOperand, operation_token));
+      XLS_RETURN_IF_ERROR(recv_completion->ReplaceToken(operation_token));
       break;
     }
     default:
@@ -1039,7 +1034,7 @@ absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
 
   for (int64_t instance_number = 0; instance_number < token_dag.size();
        ++instance_number) {
-    Node* node = token_dag[instance_number].node;
+    ChannelNode* node = token_dag[instance_number].node->As<ChannelNode>();
     XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
                          node->As<ChannelNode>()->GetChannelRef());
     XLS_ASSIGN_OR_RETURN(
@@ -1299,7 +1294,7 @@ absl::Status AddAdapterForMultipleSends(absl::Span<Send* const> ops,
   BValue empty_tuple_literal = ab.adapter_builder().Literal(Value::Tuple({}));
 
   for (int64_t i = 0; i < token_dags.size(); ++i) {
-    Node* node = token_dags[i].node;
+    ChannelNode* node = token_dags[i].node->As<ChannelNode>();
     XLS_ASSIGN_OR_RETURN(AdapterOutputChannel completion_channel,
                          MakeCompletionChannel(node, i, ab));
     ab.adapter_builder().SendIf(completion_channel.adapter_send_channel_ref,

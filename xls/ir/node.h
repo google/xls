@@ -43,7 +43,7 @@ class Package;
 class Node;
 class FunctionBase;
 
-// Forward decaration to avoid circular dependency.
+// Forward declaration to avoid circular dependency.
 class DfsVisitor;
 
 // Abstract type for a node (representing an expression) in the high level IR.
@@ -310,7 +310,6 @@ class Node {
   // with the node.
   absl::Status AddNodeToFunctionAndReplace(std::unique_ptr<Node> replacement);
 
- protected:
   void AddUser(Node* user);
   void RemoveUser(Node* user);
 

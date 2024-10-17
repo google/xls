@@ -469,12 +469,13 @@ Receive::Receive(const SourceInfo& loc, Node* token,
                  FunctionBase* function)
     : ChannelNode(loc, Op::kReceive,
                   GetReceiveType(function, channel_name, is_blocking),
-                  channel_name, Direction::kReceive, name, function),
-      is_blocking_(is_blocking),
-      has_predicate_(predicate.has_value()) {
+                  channel_name, Direction::kReceive, predicate.has_value(),
+                  name, function),
+      is_blocking_(is_blocking) {
   CHECK(IsOpClass<Receive>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Receive`.";
   AddOperand(token);
+  // Predicate is expected to be the last operand.
   AddOptionalOperand(predicate);
 }
 
@@ -482,25 +483,22 @@ bool Receive::IsDefinitelyEqualTo(const Node* other) const {
   if (this == other) {
     return true;
   }
-  if (!Node::IsDefinitelyEqualTo(other)) {
-    return false;
-  }
-
-  return channel_name() == other->As<Receive>()->channel_name() &&
-         is_blocking_ == other->As<Receive>()->is_blocking_ &&
-         has_predicate_ == other->As<Receive>()->has_predicate_;
+  return Node::IsDefinitelyEqualTo(other) &&
+         channel_name() == other->As<Receive>()->channel_name() &&
+         is_blocking() == other->As<Receive>()->is_blocking();
 }
 
 Send::Send(const SourceInfo& loc, Node* token, Node* data,
            std::optional<Node*> predicate, std::string_view channel_name,
            std::string_view name, FunctionBase* function)
     : ChannelNode(loc, Op::kSend, function->package()->GetTokenType(),
-                  channel_name, Direction::kSend, name, function),
-      has_predicate_(predicate.has_value()) {
+                  channel_name, Direction::kSend, predicate.has_value(), name,
+                  function) {
   CHECK(IsOpClass<Send>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Send`.";
   AddOperand(token);
   AddOperand(data);
+  // Predicate is expected to be the last operand.
   AddOptionalOperand(predicate);
 }
 
@@ -508,12 +506,8 @@ bool Send::IsDefinitelyEqualTo(const Node* other) const {
   if (this == other) {
     return true;
   }
-  if (!Node::IsDefinitelyEqualTo(other)) {
-    return false;
-  }
-
-  return channel_name() == other->As<Send>()->channel_name() &&
-         has_predicate_ == other->As<Send>()->has_predicate_;
+  return Node::IsDefinitelyEqualTo(other) &&
+         channel_name() == other->As<Send>()->channel_name();
 }
 
 NaryOp::NaryOp(const SourceInfo& loc, absl::Span<Node* const> args, Op op,
