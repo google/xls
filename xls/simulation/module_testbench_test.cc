@@ -1104,8 +1104,8 @@ TEST_P(ModuleTestbenchTest, StreamingIoProducesX) {
   }
 
   auto consumer = [&](const Bits& bits) -> absl::Status {
-    EXPECT_FALSE(true) << "The consumer function should not be called because "
-                          "all values are X";
+    ADD_FAILURE() << "The consumer function should not be called because "
+                     "all values are X";
     return absl::OkStatus();
   };
 
