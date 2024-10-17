@@ -185,6 +185,7 @@ cc_library(
         "@llvm-project//clang:basic",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:lex",
+        "@llvm-project//clang:sema",
         "@llvm-project//clang:tooling",
         "@llvm-project//llvm:Support",
     ],

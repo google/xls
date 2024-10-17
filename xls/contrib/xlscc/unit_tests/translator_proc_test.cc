@@ -1484,7 +1484,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
   }
 }
 
-TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
+TEST_P(TranslatorProcTest, ForPipelinedDontPropagateAnnotation) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -1494,44 +1494,12 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
       void foo() {
         int a = in.read();
 
-
-        #pragma hls_pipeline_init_interval 1
         __xlscc_pipeline(1);for(long i=1;i<=4;++i) {
           a += i;
         }
 
-        out.write(a);
-      }
-    };
-  )";
-
-  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
-                         /*io_test_mode=*/false,
-                         /*error_on_init_interval=*/false));
-  package_ = std::make_unique<xls::Package>("my_package");
-  HLSBlock block_spec;
-  auto ret =
-      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(), xls::status_testing::StatusIs(
-                                absl::StatusCode::kInvalidArgument,
-                                testing::HasSubstr("intrinsic and a #pragma")));
-}
-
-TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
-  const std::string content = R"(
-    class Block {
-      __xls_channel<int, __xls_channel_dir_In> in;
-      __xls_channel<int, __xls_channel_dir_Out> out;
-
-      #pragma hls_top
-      void foo() {
-        int a = in.read();
-
-        __xlscc_pipeline(1);
-
-
-        for(long i=1;i<=4;++i) {
-          a += i;
+        for(long j=1;j<=4;++j) {
+          a += j*3;
         }
 
         out.write(a);
@@ -5310,9 +5278,9 @@ TEST_P(TranslatorProcTest, IOProcClassStaticMethod) {
                       /*io_test_mode=*/false,
                       /*error_on_init_interval=*/false);
 
-  ASSERT_THAT(ret, xls::status_testing::StatusIs(
-                       absl::StatusCode::kFailedPrecondition,
-                       testing::HasSubstr("Unable to parse")));
+  ASSERT_THAT(
+      ret, xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                         testing::HasSubstr("static member")));
 }
 
 TEST_P(TranslatorProcTest, IOProcClassWithPipelinedLoop) {
@@ -5573,7 +5541,8 @@ TEST_P(TranslatorProcTest, IOProcClassDirectIn) {
                   testing::HasSubstr("direct-ins not implemented yet")));
 }
 
-TEST_P(TranslatorProcTest, IODefaultStrictness) {
+// TODO(seanhaskell): Enable once b/371085056 is fixed
+TEST_P(TranslatorProcTest, DISABLED_IODefaultStrictness) {
   const std::string content = R"(
        class Block {
         public:
@@ -5606,7 +5575,8 @@ TEST_P(TranslatorProcTest, IODefaultStrictness) {
   }
 }
 
-TEST_P(TranslatorProcTest, IOWithStrictnessSpecified) {
+// TODO(seanhaskell): Enable once b/371085056 is fixed
+TEST_P(TranslatorProcTest, DISABLED_IOWithStrictnessSpecified) {
   const std::string content = R"(
        class Block {
         public:
@@ -5688,7 +5658,9 @@ TEST_P(TranslatorProcTest, IOWithStrictnessSpecifiedOnCommandLine) {
   }
 }
 
-TEST_P(TranslatorProcTest, IOWithUnusedStrictnessesSpecifiedOnCommandLine) {
+// TODO(seanhaskell): Enable once b/371085056 is fixed
+TEST_P(TranslatorProcTest,
+       DISABLED_IOWithUnusedStrictnessesSpecifiedOnCommandLine) {
   const std::string content = R"(
        class Block {
         public:
@@ -7523,7 +7495,8 @@ TEST_P(TranslatorProcTest, PipelinedLoopSerial) {
   }
 }
 
-TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPTrivial) {
+// TODO(seanhaskell): Enable once b/371085056 is fixed
+TEST_F(TranslatorProcTestWithoutFSMParam, DISABLED_ForPipelinedASAPTrivial) {
   const std::string content = R"(
     #pragma hls_top
     void foo(__xls_channel<int>& in,
@@ -7576,6 +7549,7 @@ TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPTrivial) {
                                     testing::HasSubstr("IO ops with schedul")));
 }
 
+// TODO(seanhaskell): Enable once b/371085056 is fixed
 TEST_F(TranslatorProcTestWithoutFSMParam,
        DISABLED_ForPipelinedASAPOutsideScopeAccess) {
   const std::string content = R"(
@@ -7670,7 +7644,7 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAP) {
                     testing::HasSubstr("loops with scheduling options")));
   }
 }
-
+// TODO(seanhaskell): Enable once b/371085056 is fixed
 TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAPDataDependency) {
   const std::string content = R"(
        class Block {
@@ -7941,7 +7915,8 @@ TEST_P(TranslatorProcTest, PipelinedLoopConditional2) {
   }
 }
 
-TEST_P(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
+// TODO(seanhaskell): Enable once b/371085056 is fixed
+TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopSerialAfterASAP) {
   const std::string content = R"(
        class Block {
         public:

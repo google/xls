@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <fstream>
+#include <list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,13 +38,20 @@
 #include "absl/synchronization/blocking_counter.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/ASTConsumer.h"
+#include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclBase.h"
+#include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/RecursiveASTVisitor.h"
+#include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/Basic/Diagnostic.h"
+#include "clang/include/clang/Basic/DiagnosticIDs.h"
+#include "clang/include/clang/Basic/DiagnosticLex.h"
+#include "clang/include/clang/Basic/DiagnosticSema.h"
 #include "clang/include/clang/Basic/FileSystemOptions.h"
 #include "clang/include/clang/Basic/IdentifierTable.h"
 #include "clang/include/clang/Basic/LLVM.h"
+#include "clang/include/clang/Basic/ParsedAttrInfo.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Basic/TokenKinds.h"
 #include "clang/include/clang/Frontend/CompilerInstance.h"
@@ -51,9 +59,13 @@
 #include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/include/clang/Lex/PPCallbacks.h"
 #include "clang/include/clang/Lex/Pragma.h"
+#include "clang/include/clang/Lex/Preprocessor.h"
 #include "clang/include/clang/Lex/Token.h"
+#include "clang/include/clang/Sema/ParsedAttr.h"
+#include "clang/include/clang/Sema/Sema.h"
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "llvm/include/llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
@@ -67,6 +79,122 @@
 #include "re2/re2.h"
 
 namespace xlscc {
+namespace {
+
+void GenerateIntrinsicCall(clang::Preprocessor& PP, std::string_view name,
+                           const clang::Token& after,
+                           const absl::Span<const clang::Token>& arguments) {
+  const int64_t sNTokens = 4 + arguments.size() * 2 - 1;
+  std::unique_ptr<clang::Token[]> tokens =
+      std::make_unique<clang::Token[]>(sNTokens);
+
+  int64_t current_token = 0;
+
+  tokens[current_token].setKind(clang::tok::identifier);
+  tokens[current_token].setLength(name.size());
+  tokens[current_token].setLocation(after.getLocation());
+  tokens[current_token].setIdentifierInfo(PP.getIdentifierInfo(name));
+  ++current_token;
+
+  tokens[current_token].setKind(clang::tok::l_paren);
+  tokens[current_token].setLength(0);
+  tokens[current_token].setLocation(after.getLocation());
+  ++current_token;
+
+  for (int64_t i = 0; i < arguments.size(); ++i) {
+    if (i > 0) {
+      tokens[current_token].setKind(clang::tok::comma);
+      tokens[current_token].setLength(0);
+      tokens[current_token].setLocation(after.getLocation());
+      ++current_token;
+    }
+
+    const clang::Token& argument = arguments.at(i);
+    tokens[current_token] = argument;
+    tokens[current_token].setLocation(after.getLocation());
+    ++current_token;
+  }
+
+  tokens[current_token].setKind(clang::tok::r_paren);
+  tokens[current_token].setLength(0);
+  tokens[current_token].setLocation(after.getLocation());
+  ++current_token;
+
+  tokens[current_token].setKind(clang::tok::semi);
+  tokens[current_token].setLength(0);
+  tokens[current_token].setLocation(after.getEndLoc());
+  ++current_token;
+
+  PP.EnterTokenStream(std::move(tokens), sNTokens,
+                      /*DisableMacroExpansion=*/false,
+                      /*IsReinject=*/false);
+}
+
+void GenerateIntrinsicCall(clang::Preprocessor& PP, std::string_view name,
+                           const clang::Token& after, int64_t argument) {
+  clang::Token arg = after;
+
+  thread_local std::list<std::string> literals;
+  literals.push_back(absl::StrFormat("%i", argument));
+
+  arg.setKind(clang::tok::numeric_constant);
+  arg.setLiteralData(literals.back().c_str());
+  arg.setLength(literals.back().size());
+
+  GenerateIntrinsicCall(PP, name, after,
+                        /*arguments=*/{arg});
+}
+
+void GenerateAnnotation(clang::Preprocessor& PP, std::string_view name,
+                        const clang::Token& after,
+                        const absl::Span<const clang::Token>& arguments) {
+  // TODO(seanhaskell): Attributes with arguments are not yet correctly
+  // supported b/371085056
+  CHECK(arguments.empty());
+
+  std::unique_ptr<clang::Token[]> tokens = std::make_unique<clang::Token[]>(5);
+  tokens[0].setKind(clang::tok::l_square);
+  tokens[0].setLength(0);
+  tokens[0].setLocation(after.getLocation());
+  tokens[1].setKind(clang::tok::l_square);
+  tokens[1].setLength(0);
+  tokens[1].setLocation(after.getLocation());
+  tokens[2].setKind(clang::tok::identifier);
+  tokens[2].setLength(after.getLength());
+  tokens[2].setLocation(after.getLocation());
+  tokens[2].setIdentifierInfo(PP.getIdentifierInfo(name));
+  tokens[3].setKind(clang::tok::r_square);
+  tokens[3].setLength(0);
+  tokens[3].setLocation(after.getEndLoc());
+  tokens[4].setKind(clang::tok::r_square);
+  tokens[4].setLength(0);
+  tokens[4].setLocation(after.getEndLoc());
+  PP.EnterTokenStream(std::move(tokens), 5,
+                      /*DisableMacroExpansion=*/false,
+                      /*IsReinject=*/false);
+}
+
+std::optional<std::vector<clang::Token>> LexPragmaArgs(
+    clang::Preprocessor& PP, clang::Token& firstToken,
+    int64_t num_token_arguments, std::string_view pragma_name) {
+  const clang::PresumedLoc presumed_loc =
+      PP.getSourceManager().getPresumedLoc(firstToken.getLocation());
+
+  std::vector<clang::Token> toks;
+  PP.LexTokensUntilEOF(&toks);
+
+  if (toks.size() != num_token_arguments) {
+    PP.Diag(firstToken.getLocation(), clang::diag::err_pragma_message)
+        << absl::StrFormat("#pragma %s must have %i arguments. At %s:%i",
+                           pragma_name, num_token_arguments,
+                           presumed_loc.getFilename(), presumed_loc.getLine());
+    return std::nullopt;
+  }
+
+  return toks;
+}
+
+}  // namespace
 
 class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
  public:
@@ -86,131 +214,374 @@ class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
   CCParser& parser_;
 };
 
-class HlsNoParamPragmaHandler : public clang::PragmaHandler {
- public:
-  explicit HlsNoParamPragmaHandler(clang::CompilerInstance* compiler_instance,
-                                   CCParser& parser,
-                                   std::string_view pragma_name,
-                                   PragmaType pragma_type)
-      : clang::PragmaHandler(pragma_name),
-        compiler_instance_(compiler_instance),
-        parser_(parser),
-        pragma_type_(pragma_type) {}
-  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override {
-    const clang::PresumedLoc presumed_loc =
-        compiler_instance_->getSourceManager().getPresumedLoc(Introducer.Loc);
-    // TODO(b/349335947) - Ensure pragmas are not unintentionally clobbered.
-    parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                             presumed_loc.getLine())] =
-        Pragma(pragma_type_);
+struct XlsTopAttrInfo : public clang::ParsedAttrInfo {
+  XlsTopAttrInfo() {
+    // GNU-style __attribute__(("hls_top")) and C++/C23-style [[hls_top]] and
+    // [[xlscc::hls_top]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_top"},
+        {clang::ParsedAttr::AS_C23, "hls_top"},
+        {clang::ParsedAttr::AS_CXX11, "hls_top"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_top"}};
+    Spellings = S;
   }
-  clang::CompilerInstance* compiler_instance_;
-  CCParser& parser_;
-  PragmaType pragma_type_;
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to functions only.
+    if (!isa<clang::FunctionDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "functions";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, "hls_top", nullptr, 0,
+                                           Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsTopAttrInfo> hls_top(
+    "hls_top", "Marks a function as the top function of an HLS block.");
+
+struct XlsAllowDefaultPadAttrInfo : public clang::ParsedAttrInfo {
+  XlsAllowDefaultPadAttrInfo() {
+    // GNU-style __attribute__(("hls_array_allow_default_pad")) and
+    // C++/C23-style [[hls_array_allow_default_pad]] and
+    // [[xlscc::hls_array_allow_default_pad]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_array_allow_default_pad"},
+        {clang::ParsedAttr::AS_C23, "hls_array_allow_default_pad"},
+        {clang::ParsedAttr::AS_CXX11, "hls_array_allow_default_pad"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_array_allow_default_pad"}};
+    Spellings = S;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to variables only.
+    if (!isa<clang::VarDecl>(D) && !isa<clang::FieldDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "variables";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    D->addAttr(clang::AnnotateAttr::Create(
+        S.Context, "hls_array_allow_default_pad", nullptr, 0, Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsAllowDefaultPadAttrInfo>
+    hls_array_allow_default_pad("hls_array_allow_default_pad",
+                                "Marks a variable declaration as allowing "
+                                "default zero padding to full size.");
+
+struct XlsSyntheticIntAttrInfo : public clang::ParsedAttrInfo {
+  XlsSyntheticIntAttrInfo() {
+    // GNU-style __attribute__(("hls_synthetic_int")) and
+    // C++/C23-style [[hls_synthetic_int]] and
+    // [[xlscc::hls_synthetic_int]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_synthetic_int"},
+        {clang::ParsedAttr::AS_C23, "hls_synthetic_int"},
+        {clang::ParsedAttr::AS_CXX11, "hls_synthetic_int"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_synthetic_int"}};
+    Spellings = S;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to structs only.
+    if (!clang::isa<clang::RecordDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "structs/classes";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, "hls_synthetic_int",
+                                           nullptr, 0, Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsSyntheticIntAttrInfo>
+    hls_synthetic_int(
+        "hls_array_allow_default_pad",
+        "Marks a struct or class declaration as implementing an integer type.");
+
+struct XlsNoTupleAttrInfo : public clang::ParsedAttrInfo {
+  XlsNoTupleAttrInfo() {
+    // GNU-style __attribute__(("hls_synthetic_int")) and
+    // C++/C23-style [[hls_synthetic_int]] and
+    // [[xlscc::hls_synthetic_int]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_no_tuple"},
+        {clang::ParsedAttr::AS_C23, "hls_no_tuple"},
+        {clang::ParsedAttr::AS_CXX11, "hls_no_tuple"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_no_tuple"}};
+    Spellings = S;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to structs only.
+    if (!clang::isa<clang::RecordDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "structs/classes";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, "hls_no_tuple", nullptr,
+                                           0, Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsNoTupleAttrInfo> hls_no_tuple(
+    "hls_no_tuple",
+    "Marks a struct or class as represented as the type of its first, and "
+    "only, member.");
+
+class HlsArgsPragmaHandler : public clang::PragmaHandler {
+ public:
+  explicit HlsArgsPragmaHandler(const std::string& pragma_name,
+                                int64_t num_args)
+      : clang::PragmaHandler(pragma_name), num_args_(num_args) {}
+
+  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
+                    clang::Token& firstToken) override final {
+    std::optional<std::vector<clang::Token>> lexed_args_opt = LexPragmaArgs(
+        PP, firstToken, num_args_, clang::PragmaHandler::getName());
+
+    if (!lexed_args_opt.has_value()) {
+      return;
+    }
+
+    HandlePragma(PP, Introducer, firstToken, lexed_args_opt.value());
+  }
+
+  virtual void HandlePragma(clang::Preprocessor& PP,
+                            clang::PragmaIntroducer Introducer,
+                            clang::Token& firstToken,
+                            const std::vector<clang::Token>& toks) = 0;
+
+ private:
+  int64_t num_args_ = 0;
 };
 
-class HlsDesignPragmaHandler : public clang::PragmaHandler {
+class HlsNoTuplePragmaHandler : public HlsArgsPragmaHandler {
  public:
-  explicit HlsDesignPragmaHandler(clang::CompilerInstance* compiler_instance,
-                                  CCParser& parser)
-      : clang::PragmaHandler("hls_design"),
-        compiler_instance_(compiler_instance),
-        parser_(parser) {}
+  explicit HlsNoTuplePragmaHandler()
+      : HlsArgsPragmaHandler("hls_no_tuple", /*num_args=*/0) {}
+
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override {
+                    clang::Token& firstToken,
+                    const std::vector<clang::Token>& toks) override {
     const clang::PresumedLoc presumed_loc =
-        compiler_instance_->getSourceManager().getPresumedLoc(Introducer.Loc);
-    clang::Token tok;
-    PP.Lex(tok);
+        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
+
+    PP.Diag(Introducer.Loc, clang::diag::err_pragma_message) << absl::StrFormat(
+        "%s cannot be used as a pragma, use an attribute instead. At "
+        "%s:%i",
+        clang::PragmaHandler::getName(), presumed_loc.getFilename(),
+        presumed_loc.getLine());
+  }
+};
+
+static clang::PragmaHandlerRegistry::Add<HlsNoTuplePragmaHandler>
+    hls_no_tuple_pragma("hls_no_tuple",
+                        "Pragma to mark a class or struct as represented in "
+                        "the IR by its first, and only, field.");
+
+class HlsSyntheticIntPragmaHandler : public HlsArgsPragmaHandler {
+ public:
+  explicit HlsSyntheticIntPragmaHandler()
+      : HlsArgsPragmaHandler("hls_synthetic_int", /*num_args=*/0) {}
+
+  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
+                    clang::Token& firstToken,
+                    const std::vector<clang::Token>& toks) override {
+    const clang::PresumedLoc presumed_loc =
+        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
+
+    PP.Diag(Introducer.Loc, clang::diag::err_pragma_message) << absl::StrFormat(
+        "%s cannot be used as a pragma, use an attribute instead. At "
+        "%s:%i",
+        clang::PragmaHandler::getName(), presumed_loc.getFilename(),
+        presumed_loc.getLine());
+  }
+};
+
+static clang::PragmaHandlerRegistry::Add<HlsSyntheticIntPragmaHandler>
+    hls_synthetic_int_pragma(
+        "hls_synthetic_int",
+        "Pragma to mark a class or struct as representing a custom integer "
+        "implementation in the generated metadata.");
+
+class HlsTopPragmaHandler : public HlsArgsPragmaHandler {
+ public:
+  explicit HlsTopPragmaHandler()
+      : HlsArgsPragmaHandler("hls_top", /*num_args=*/0) {}
+
+  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
+                    clang::Token& firstToken,
+                    const std::vector<clang::Token>& toks) override {
+    GenerateAnnotation(PP, clang::PragmaHandler::getName(), firstToken,
+                       /*arguments=*/{});
+  }
+};
+
+static clang::PragmaHandlerRegistry::Add<HlsTopPragmaHandler> hls_top_pragma(
+    "hls_top",
+    "Pragma to mark a function or method as the entrypoint for translation.");
+
+class HlsAllowDefaultPadPragmaHandler : public HlsArgsPragmaHandler {
+ public:
+  explicit HlsAllowDefaultPadPragmaHandler()
+      : HlsArgsPragmaHandler("hls_array_allow_default_pad", /*num_args=*/0) {}
+
+  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
+                    clang::Token& firstToken,
+                    const std::vector<clang::Token>& toks) override {
+    GenerateAnnotation(PP, "hls_array_allow_default_pad", firstToken,
+                       /*arguments=*/{});
+  }
+};
+
+static clang::PragmaHandlerRegistry::Add<HlsAllowDefaultPadPragmaHandler>
+    hls_array_allow_default_pad_pragma(
+        "hls_array_allow_default_pad",
+        "Pragma to mark a declaration as allowing default initialization to "
+        "zero for missing elements in the initializer list.");
+
+class HlsDesignPragmaHandler : public HlsArgsPragmaHandler {
+ public:
+  explicit HlsDesignPragmaHandler()
+      : HlsArgsPragmaHandler("hls_design", /*num_args=*/1) {}
+
+  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
+                    clang::Token& firstToken,
+                    const std::vector<clang::Token>& toks) override {
+    const clang::Token& tok = toks.at(0);
+
     if (tok.is(clang::tok::identifier)) {
       const clang::IdentifierInfo* identifier = tok.getIdentifierInfo();
-      if (identifier->isStr("block")) {
-        parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                                 presumed_loc.getLine())] =
-            Pragma(Pragma_Block);
-      } else if (identifier->isStr("top")) {
-        parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                                 presumed_loc.getLine())] =
-            Pragma(Pragma_Top);
+      if (identifier->isStr("top")) {
+        GenerateAnnotation(PP, "hls_top", tok,
+                           /*arguments=*/{});
       } else {
         LOG(WARNING) << "Ignoring unknown #pragma hls_design: "
                      << identifier->getName().str();
       }
     }
   }
-  clang::CompilerInstance* compiler_instance_;
-  CCParser& parser_;
 };
 
-class HlsPipelineInitIntervalPragmaHandler : public clang::PragmaHandler {
+static clang::PragmaHandlerRegistry::Add<HlsDesignPragmaHandler>
+    hls_design_pragma("hls_design",
+                      "Pragma of the form hls_design [top], equivalent to "
+                      "other pragmas such as hls_top");
+
+class HlsPipelineInitIntervalPragmaHandler : public HlsArgsPragmaHandler {
  public:
-  explicit HlsPipelineInitIntervalPragmaHandler(
-      clang::CompilerInstance* compiler_instance, CCParser& parser)
-      : clang::PragmaHandler("hls_pipeline_init_interval"),
-        compiler_instance_(compiler_instance),
-        parser_(parser) {}
+  HlsPipelineInitIntervalPragmaHandler()
+      : HlsArgsPragmaHandler("hls_pipeline_init_interval", /*num_args=*/1) {}
+
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override {
+                    clang::Token& firstToken,
+                    const std::vector<clang::Token>& toks) override {
+    const clang::Token& tok = toks.at(0);
+
     const clang::PresumedLoc presumed_loc =
-        compiler_instance_->getSourceManager().getPresumedLoc(Introducer.Loc);
-    clang::Token tok;
-    PP.Lex(tok);
+        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
+
     if (tok.getKind() != clang::tok::numeric_constant) {
-      parser_.libtool_visit_status_ =
-          absl::InvalidArgumentError(absl::StrFormat(
-              "Argument to pragma 'hls_pipeline_init_interval' is not valid."
-              "Must be an integer "
-              ">= 1. At %s:%i",
-              presumed_loc.getFilename(), presumed_loc.getLine()));
+      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
+          << absl::StrFormat(
+                 "Argument to pragma 'hls_pipeline_init_interval' is not valid."
+                 "Must be an integer "
+                 ">= 1. At %s:%i",
+                 presumed_loc.getFilename(), presumed_loc.getLine());
       return;
     }
     const char* literal_data = tok.getLiteralData();
     std::string_view str_identifier(literal_data, tok.getLength());
     int64_t arg = -1;
     if (!absl::SimpleAtoi(str_identifier, &arg) || (arg <= 0)) {
-      parser_
-          .libtool_visit_status_ = absl::InvalidArgumentError(absl::StrFormat(
-          "Argument '%s' to pragma 'hls_pipeline_init_interval' is not valid."
-          "Must be an integer "
-          ">= 1. At %s:%i",
-          str_identifier, presumed_loc.getFilename(), presumed_loc.getLine()));
+      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
+          << absl::StrFormat(
+                 "Argument '%s' to pragma 'hls_pipeline_init_interval' is not "
+                 "valid."
+                 "Must be an integer "
+                 ">= 1. At %s:%i",
+                 str_identifier, presumed_loc.getFilename(),
+                 presumed_loc.getLine());
       return;
     }
 
-    parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                             presumed_loc.getLine())] =
-        Pragma(Pragma_InitInterval, arg);
+    GenerateIntrinsicCall(PP, "__xlscc_pipeline", tok,
+                          /*arguments=*/{tok});
   }
-  clang::CompilerInstance* compiler_instance_;
-  CCParser& parser_;
 };
+
+static clang::PragmaHandlerRegistry::Add<HlsPipelineInitIntervalPragmaHandler>
+    hls_pipeline_init_interval_pragma(
+        "hls_pipeline_init_interval",
+        "Pragma specifying that a loop should be pipelined, and how.");
 
 class HlsUnrollPragmaHandler : public clang::PragmaHandler {
  public:
-  explicit HlsUnrollPragmaHandler(clang::CompilerInstance* compiler_instance,
-                                  CCParser& parser)
-      : clang::PragmaHandler("hls_unroll"),
-        compiler_instance_(compiler_instance),
-        parser_(parser) {}
+  explicit HlsUnrollPragmaHandler() : clang::PragmaHandler("hls_unroll") {}
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken) override {
     const clang::PresumedLoc presumed_loc =
-        compiler_instance_->getSourceManager().getPresumedLoc(Introducer.Loc);
-    clang::Token tok;
-    PP.Lex(tok);
-    if (tok.is(clang::tok::eod)) {  // no arguments
-      parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                               presumed_loc.getLine())] =
-          Pragma(Pragma_Unroll);
+        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
+
+    std::vector<clang::Token> toks;
+    PP.LexTokensUntilEOF(&toks);
+
+    if (toks.empty()) {  // no arguments
+      GenerateIntrinsicCall(PP, "__xlscc_unroll", firstToken, 1);
       return;
     }
+
+    if (toks.size() != 1) {
+      PP.Diag(firstToken.getLocation(), clang::diag::err_pragma_message)
+          << absl::StrFormat(
+                 "#pragma %s must have 1 argument (negative numbers are "
+                 "invalid). At %s:%i",
+                 clang::PragmaHandler::getName(), presumed_loc.getFilename(),
+                 presumed_loc.getLine());
+      return;
+    }
+
+    const clang::Token& tok = toks.at(0);
+
     if (tok.is(clang::tok::identifier)) {
       const clang::IdentifierInfo* identifier = tok.getIdentifierInfo();
       if (identifier->isStr("yes")) {
-        parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                                 presumed_loc.getLine())] =
-            Pragma(Pragma_Unroll);
+        GenerateIntrinsicCall(PP, "__xlscc_unroll", firstToken, 1);
         return;
       }
       if (identifier->isStr("no")) {
@@ -222,11 +593,12 @@ class HlsUnrollPragmaHandler : public clang::PragmaHandler {
       }
     }
     if (tok.getKind() != clang::tok::numeric_constant) {
-      parser_.libtool_visit_status_ = absl::InvalidArgumentError(
-          absl::StrFormat("Argument to pragma 'hls_unroll' is not valid. "
-                          "Must be 'yes', 'no', or an integer."
-                          " At %s:%i",
-                          presumed_loc.getFilename(), presumed_loc.getLine()));
+      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
+          << absl::StrFormat(
+                 "Argument to pragma 'hls_unroll' is not valid. "
+                 "Must be 'yes', 'no', or an integer."
+                 " At %s:%i",
+                 presumed_loc.getFilename(), presumed_loc.getLine());
       return;
     }
     const char* literal_data = tok.getLiteralData();
@@ -241,47 +613,50 @@ class HlsUnrollPragmaHandler : public clang::PragmaHandler {
                         "not needed and has no effect.";
         return;
       }
-      parser_.libtool_visit_status_ = absl::InvalidArgumentError(
-          absl::StrFormat("Argument '%s' to pragma 'hls_unroll' is not valid. "
-                          "Must be 'yes', 'no', or an integer."
-                          " At %s:%i",
-                          str_identifier, presumed_loc.getFilename(),
-                          presumed_loc.getLine()));
+      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
+          << absl::StrFormat(
+                 "Argument '%s' to pragma 'hls_unroll' is not valid. "
+                 "Must be 'yes', 'no', or an integer."
+                 " At %s:%i",
+                 str_identifier, presumed_loc.getFilename(),
+                 presumed_loc.getLine());
       return;
     }
     LOG(WARNING) << "Partial unroll not yet supported: fully unrolling";
-    parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                             presumed_loc.getLine())] =
-        Pragma(Pragma_Unroll, arg);
+    GenerateIntrinsicCall(PP, "__xlscc_unroll", tok,
+                          /*arguments=*/{tok});
   }
   clang::CompilerInstance* compiler_instance_;
-  CCParser& parser_;
 };
 
-class HlsChannelStrictnessPragmaHandler : public clang::PragmaHandler {
+static clang::PragmaHandlerRegistry::Add<HlsUnrollPragmaHandler>
+    hls_unroll_pragma(
+        "hls_unroll",
+        "Pragma specifying that a loop should be unrolled, and how.");
+
+class HlsChannelStrictnessPragmaHandler : public HlsArgsPragmaHandler {
  public:
-  explicit HlsChannelStrictnessPragmaHandler(
-      clang::CompilerInstance* compiler_instance, CCParser& parser)
-      : clang::PragmaHandler("hls_channel_strictness"),
-        compiler_instance_(compiler_instance),
-        parser_(parser) {}
+  explicit HlsChannelStrictnessPragmaHandler()
+      : HlsArgsPragmaHandler("hls_channel_strictness", /*num_args=*/0) {}
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override {
+                    clang::Token& firstToken,
+                    const std::vector<clang::Token>& tok) override {
     const clang::PresumedLoc presumed_loc =
-        compiler_instance_->getSourceManager().getPresumedLoc(Introducer.Loc);
-    clang::Token tok;
-    PP.Lex(tok);
-    if (tok.is(clang::tok::identifier)) {
-      const clang::IdentifierInfo* identifier = tok.getIdentifierInfo();
-      parser_.hls_pragmas_[CCParser::PragmaLoc(presumed_loc.getFilename(),
-                                               presumed_loc.getLine())] =
-          Pragma(Pragma_ChannelStrictness,
-                 std::string(identifier->getName().str()));
-    }
+        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
+
+    // TODO(seanhaskell): Implement with annotations b/371085056
+    PP.Diag(firstToken.getLocation(), clang::diag::err_pragma_message)
+        << absl::StrFormat(
+               "#pragma hls_channel_strictness is currently unimplemented. At "
+               "%s:%i",
+               presumed_loc.getFilename(), presumed_loc.getLine());
   }
-  clang::CompilerInstance* compiler_instance_;
-  CCParser& parser_;
 };
+
+static clang::PragmaHandlerRegistry::Add<HlsChannelStrictnessPragmaHandler>
+    hls_channel_strictness_pragma(
+        "hls_channel_strictness",
+        "Pragma specifying that a loop should be unrolled, and how.");
 
 class UnknownPragmaHandler : public clang::PragmaHandler {
  public:
@@ -331,35 +706,7 @@ class LibToolFrontendAction : public clang::ASTFrontendAction {
     return std::unique_ptr<clang::ASTConsumer>(
         new LibToolASTConsumer(CI, parser_));
   }
-  void ExecuteAction() override {
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "", new HlsNoParamPragmaHandler(compiler_instance_, parser_, "hls_top",
-                                        Pragma_Top));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "", new HlsDesignPragmaHandler(compiler_instance_, parser_));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "",
-        new HlsPipelineInitIntervalPragmaHandler(compiler_instance_, parser_));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "", new HlsNoParamPragmaHandler(compiler_instance_, parser_,
-                                        "hls_array_allow_default_pad",
-                                        Pragma_ArrayAllowDefaultPad));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "", new HlsNoParamPragmaHandler(compiler_instance_, parser_,
-                                        "hls_no_tuple", Pragma_NoTuples));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "",
-        new HlsNoParamPragmaHandler(compiler_instance_, parser_,
-                                    "hls_synthetic_int", Pragma_SyntheticInt));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "", new HlsUnrollPragmaHandler(compiler_instance_, parser_));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "", new HlsChannelStrictnessPragmaHandler(compiler_instance_, parser_));
-    getCompilerInstance().getPreprocessor().AddPragmaHandler(
-        "", new UnknownPragmaHandler());
-
-    clang::ASTFrontendAction::ExecuteAction();
-  }
+  void ExecuteAction() override { clang::ASTFrontendAction::ExecuteAction(); }
 
  private:
   CCParser& parser_;
@@ -375,8 +722,10 @@ class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
   void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
                         const clang::Diagnostic& info) override {
     if (level >= clang::DiagnosticsEngine::Level::Error) {
-      parser_.libtool_visit_status_ = absl::FailedPreconditionError(
-          absl::StrFormat("Unable to parse text with clang (libtooling)\n"));
+      llvm::SmallString<1024> str;
+      info.FormatDiagnostic(str);
+      parser_.libtool_visit_status_ = absl::FailedPreconditionError(str.str());
+      return;
     }
     // Print the message
     clang::TextDiagnosticPrinter::HandleDiagnostic(level, info);
@@ -385,22 +734,6 @@ class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
  private:
   CCParser& parser_;
 };
-
-Pragma::Pragma(PragmaType type, int64_t argument)
-    : type_(type), int_argument_(argument) {}
-
-Pragma::Pragma(PragmaType type, std::string argument)
-    : type_(type), str_argument_(std::move(argument)) {}
-
-Pragma::Pragma(PragmaType type) : type_(type), int_argument_(-1) {}
-
-Pragma::Pragma() : type_(Pragma_Null), int_argument_(-1) {}
-
-PragmaType Pragma::type() const { return type_; }
-
-int64_t Pragma::int_argument() const { return int_argument_; }
-
-std::string_view Pragma::str_argument() const { return str_argument_; }
 
 CCParser::~CCParser() {
   // Allow parser and its thread to be destroyed
@@ -499,67 +832,6 @@ xls::SourceInfo CCParser::GetLoc(const clang::PresumedLoc& loc) {
                                              xls::Colno(loc.getColumn())));
 }
 
-absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
-    const clang::SourceLocation& loc, bool ignore_label) {
-  return FindPragmaForLoc(sm_->getPresumedLoc(loc), ignore_label);
-}
-
-absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
-    const clang::PresumedLoc& ploc, bool ignore_label) {
-  // NOTE: Semantics should be the same as Translator::FindIntrinsicCall()!
-  if (!files_scanned_for_pragmas_.contains(ploc.getFilename())) {
-    XLS_RETURN_IF_ERROR(ScanFileForPragmas(ploc.getFilename()));
-  }
-  // Look on the line before.
-  PragmaLoc loc(ploc.getFilename(), ploc.getLine() - 1);
-
-  if (!hls_pragmas_.contains(loc)) {
-    return Pragma(Pragma_Null);
-  }
-
-  // Look for a label there. If found, look at the line before that.
-  if (ignore_label && hls_pragmas_.at(loc).type() == Pragma_Label &&
-      std::get<1>(loc) > 0) {
-    loc = PragmaLoc(ploc.getFilename(), ploc.getLine() - 2);
-    if (!hls_pragmas_.contains(loc)) {
-      return Pragma(Pragma_Null);
-    }
-  }
-
-  return hls_pragmas_.at(loc);
-}
-
-absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
-  std::ifstream fin(std::string(filename).c_str());
-  if (!fin.good()) {
-    if (!(filename.empty() || filename[0] == '/')) {
-      return absl::NotFoundError(absl::StrFormat(
-          "Unable to open file to scan for pragmas: %s\n", filename));
-    }
-  }
-  int lineno = 1;
-  PragmaLoc prev_location;
-  for (std::string line; std::getline(fin, line); ++lineno) {
-    prev_location = PragmaLoc(filename, lineno - 1);
-    std::string matched;
-    // Ignore blank lines, comments, and lines starting with a label
-    if (std::all_of(line.begin(), line.end(), isspace) ||
-        RE2::FullMatch(line, "\\s*//.*")) {
-      if (hls_pragmas_.contains(prev_location)) {
-        Pragma found_value = hls_pragmas_[prev_location];
-        hls_pragmas_[PragmaLoc(filename, lineno)] = found_value;
-        continue;
-      }
-    }
-    if (RE2::PartialMatch(line, "(\\w+)[\\t\\s]*\\:", &matched)) {
-      hls_pragmas_[PragmaLoc(filename, lineno)] = Pragma(Pragma_Label, matched);
-      continue;
-    }
-  }
-  files_scanned_for_pragmas_.insert(static_cast<std::string>(filename));
-  return absl::OkStatus();
-}
-
 std::string CCParser::LocString(const xls::SourceInfo& loc) {
   std::vector<std::string> strings;
   for (const xls::SourceLocation& location : loc.locations) {
@@ -596,6 +868,7 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
   if (sm_ == nullptr) {
     sm_ = &funcdecl->getASTContext().getSourceManager();
   }
+
   const std::string fname = funcdecl->getNameAsString();
 
   // Top can't be a template function
@@ -609,11 +882,15 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      Pragma pragma,
-      FindPragmaForLoc(GetPresumedLoc(*funcdecl), /*ignore_label=*/true));
+  const clang::AnnotateAttr* attr = funcdecl->getAttr<clang::AnnotateAttr>();
 
-  if (pragma.type() == Pragma_Top || fname == top_function_name_) {
+  std::string annotation;
+
+  if (attr != nullptr) {
+    annotation = attr->getAnnotation().str();
+  }
+
+  if ((annotation == "hls_top") || fname == top_function_name_) {
     if (top_function_ == nullptr) {
       top_function_ = funcdecl;
     } else if (fname == top_function_name_) {
@@ -623,13 +900,13 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
             "Two top functions defined by name, at %s, previously at %s",
             LocString(GetLoc(*top_function_)), LocString(GetLoc(*funcdecl))));
       }
-      // Name takes precedence over pragma
+      // Name takes precedence over annotation
       top_function_ = funcdecl;
-    } else if (pragma.type() == Pragma_Top) {
-      // If the name doesn't match the top, then it was pragma specified
+    } else if (annotation == "hls_top") {
+      // If the name doesn't match the top, then it was annotation specified
       if (top_function_->getNameAsString() != top_function_name_) {
         return absl::AlreadyExistsError(absl::StrFormat(
-            "Two top functions defined by pragma, at %s, previously at %s",
+            "Two top functions defined by annotation, at %s, previously at %s",
             LocString(GetLoc(*top_function_)), LocString(GetLoc(*funcdecl))));
       }
     }

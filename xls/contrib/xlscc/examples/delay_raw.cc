@@ -47,7 +47,6 @@ using InputChannel = __xls_channel<T, __xls_channel_dir_In>;
 // DEFAULT_OUTPUT_VALUE for the first DELAY transactions.
 struct Delay {
   InputChannel<uint32_t> in;
-#pragma hls_channel_strictness arbitrary_static_order
   __xls_memory<memory_t, MEMORY_SIZE> memory;
   OutputChannel<uint32_t> out;
 

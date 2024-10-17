@@ -34,7 +34,6 @@ class MinValue {};
 template <int Width>
 class MinValue<Width, true> {
  public:
-#pragma hls_synthetic_int
   inline static __xls_bits<Width> Value() {
     XlsInt<Width, false> reti(1);
     reti <<= (Width - 1);
@@ -45,7 +44,6 @@ class MinValue<Width, true> {
 template <int Width>
 class MinValue<Width, false> {
  public:
-#pragma hls_synthetic_int
   inline static __xls_bits<Width> Value() {
     return XlsInt<Width, false>(0).storage;
   }
@@ -57,7 +55,6 @@ class MaxValue {};
 template <int Width>
 class MaxValue<Width, true> {
  public:
-#pragma hls_synthetic_int
   inline static __xls_bits<Width> Value() {
     XlsInt<Width, false> reti(0);
     reti = reti.bit_complement();
@@ -69,7 +66,6 @@ class MaxValue<Width, true> {
 template <int Width>
 class MaxValue<Width, false> {
  public:
-#pragma hls_synthetic_int
   inline static __xls_bits<Width> Value() {
     XlsInt<Width, false> reti(0);
     reti = reti.bit_complement();
@@ -138,6 +134,7 @@ class Adjustment {
     const XlsInt<W, S> max_val = MaxValue<W, S>::Value();
     constexpr int shift = (W - I) - (FromW - FromI);
     constexpr int shift_log = 32;  // Log2Ceil<shift>;
+
     if constexpr (shift == 0) {
       if constexpr (W == FromW) {
         return in;
@@ -203,11 +200,10 @@ class Adjustment {
   }
 };
 
-#pragma hls_no_tuple
 template <int Width, int IntegerWidth, bool Signed,
           ac_datatypes::ac_q_mode Quantization = ac_datatypes::AC_TRN,
           ac_datatypes::ac_o_mode Overflow = ac_datatypes::AC_WRAP>
-class XlsFixed {
+class [[hls_no_tuple]] XlsFixed {
  public:
   // XLS[cc] will initialize to 0
   inline XlsFixed() {}

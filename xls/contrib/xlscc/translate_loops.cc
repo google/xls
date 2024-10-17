@@ -61,10 +61,11 @@ ABSL_FLAG(bool, log_slow_unroll_iterations, false,
 namespace xlscc {
 
 absl::Status Translator::GenerateIR_Loop(
-    bool always_first_iter, const clang::Stmt* init,
-    const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, const clang::PresumedLoc& presumed_loc,
-    const xls::SourceInfo& loc, clang::ASTContext& ctx) {
+    bool always_first_iter, const clang::Stmt* loop_stmt,
+    const clang::Stmt* init, const clang::Expr* cond_expr,
+    const clang::Stmt* inc, const clang::Stmt* body,
+    const clang::PresumedLoc& presumed_loc, const xls::SourceInfo& loc,
+    clang::ASTContext& ctx) {
   if (cond_expr != nullptr && cond_expr->isIntegerConstantExpr(ctx)) {
     // special case for "for (;0;) {}" (essentially no op)
     XLS_ASSIGN_OR_RETURN(auto constVal, EvaluateInt64(*cond_expr, ctx, loc));
@@ -78,8 +79,7 @@ absl::Status Translator::GenerateIR_Loop(
   bool have_relevant_intrinsic = false;
   bool intrinsic_unroll = false;
 
-  XLS_ASSIGN_OR_RETURN(const clang::CallExpr* intrinsic_call,
-                       FindIntrinsicCall(presumed_loc));
+  const clang::CallExpr* intrinsic_call = FindIntrinsicCallFor(loop_stmt);
   if (intrinsic_call != nullptr) {
     const std::string& intrinsic_name =
         intrinsic_call->getDirectCallee()->getNameAsString();
@@ -96,22 +96,10 @@ absl::Status Translator::GenerateIR_Loop(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(presumed_loc));
-
-  bool have_relevant_pragma =
-      (pragma.type() == Pragma_Unroll || pragma.type() == Pragma_InitInterval);
-
-  if (have_relevant_intrinsic && have_relevant_pragma) {
-    return absl::InvalidArgumentError(
-        ErrorMessage(loc,
-                     "Have both an __xlscc_ intrinsic and a #pragma directive, "
-                     "don't know what to do"));
-  }
-
   bool do_unroll = false;
 
   if ((have_relevant_intrinsic && intrinsic_unroll) ||
-      (pragma.type() == Pragma_Unroll) || context().for_loops_default_unroll) {
+      context().for_loops_default_unroll) {
     do_unroll = true;
   }
 
@@ -127,12 +115,6 @@ absl::Status Translator::GenerateIR_Loop(
     XLSCC_CHECK_EQ(intrinsic_call->getNumArgs(), 1, loc);
     XLS_ASSIGN_OR_RETURN(init_interval,
                          EvaluateInt64(*intrinsic_call->getArg(0), ctx, loc));
-  } else if (have_relevant_pragma) {
-    XLSCC_CHECK(pragma.type() == Pragma_InitInterval, loc);
-    init_interval = pragma.int_argument();
-  }
-
-  if (have_relevant_intrinsic || have_relevant_pragma) {
     if (init_interval <= 0) {
       return absl::InvalidArgumentError(
           ErrorMessage(loc, "Invalid initiation interval %i", init_interval));
@@ -146,6 +128,7 @@ absl::Status Translator::GenerateIR_Loop(
           (context().outer_pipelined_loop_init_interval > 0));
     init_interval = context().outer_pipelined_loop_init_interval;
   }
+
   if (init_interval <= 0) {
     return absl::UnimplementedError(
         ErrorMessage(loc, "For loop missing #pragma or __xlscc_ intrinsic"));
@@ -1490,6 +1473,21 @@ Translator::GenerateIR_PipelinedLoopContents(
       .first_iter = use_context_in,
       .out_tuple = out_tuple,
       .extra_next_state_values = next_state_values};
+}
+
+absl::Status Translator::CheckInitIntervalValidity(int initiation_interval_arg,
+                                                   const xls::SourceInfo& loc) {
+  if (initiation_interval_arg != 1) {
+    std::string message = WarningMessage(
+        loc,
+        "Only initiation interval 1 supported, %i requested, defaulting to 1",
+        initiation_interval_arg);
+    if (error_on_init_interval_) {
+      return absl::UnimplementedError(message);
+    }
+    LOG(WARNING) << message;
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xlscc

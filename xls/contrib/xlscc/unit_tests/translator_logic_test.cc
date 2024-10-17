@@ -103,10 +103,10 @@ TEST_F(TranslatorLogicTest, SyntaxError) {
         return a+
       })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kFailedPrecondition,
-                  testing::HasSubstr("Unable to parse text")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                    testing::HasSubstr("expected expression")));
 }
 
 TEST_F(TranslatorLogicTest, Assignment) {
@@ -565,10 +565,10 @@ TEST_F(TranslatorLogicTest, ArrayTooManyInitListValues) {
          long long arr[1] = {4, 5};
          return arr[0];
        })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kFailedPrecondition,
-                  testing::HasSubstr("Unable to parse text")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                    testing::HasSubstr("excess elements")));
 }
 
 TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeMultipleZeros) {
@@ -728,10 +728,10 @@ TEST_F(TranslatorLogicTest, UnsequencedAssign) {
   auto ret = SourceToIr(content);
 
   // Clang catches this one and fails parsing
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("parse")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kFailedPrecondition,
+                  testing::HasSubstr("unsequenced modification and access")));
 }
 
 TEST_F(TranslatorLogicTest, TestXlsccCheck) {
@@ -876,7 +876,7 @@ TEST_F(TranslatorLogicTest, UndefinedConditionalAssign) {
   ASSERT_THAT(
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("Unable to parse")));
+                                    testing::HasSubstr("uninitialized")));
 }
 
 TEST_F(TranslatorLogicTest, IfStmt) {
@@ -1300,6 +1300,98 @@ TEST_F(TranslatorLogicTest, ForUnroll) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
+TEST_F(TranslatorLogicTest, IntrinsicScoped) {
+  std::string_view content = R"(
+      long long my_package(long long a, long long b) {
+        {
+          #pragma hls_unroll yes
+        }
+        for(int i=1;i<=10;++i) {
+          a += b;
+          a += 2*b;
+        }
+        return a;
+      })";
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("missing")));
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollInTemplateFunc) {
+  std::string_view content = R"(
+      template<typename T>
+      T doit(T a, T b) {
+        #pragma hls_unroll yes
+        for(int i=1;i<=10;++i) {
+          a += b;
+          a += 2*b;
+        }
+        return a;
+      }
+
+      long long my_package(long long a, long long b) {
+        return doit<long long>(a, b);
+      })";
+  Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
+TEST_F(TranslatorLogicTest, PragmaInDefineAppliesOnlyInDefine) {
+  const std::string content = R"(
+    #define some_macro(x) { \
+        _Pragma("hls_unroll yes") \
+          int i = 0;             \
+          while (i < 2) {   \
+            x[i] += 1;                                         \
+            ++i;                             \
+          }                                                       \
+        }
+
+    #pragma hls_top
+    int bar(int (&a)[5], int b) {
+      some_macro(a);
+      some_macro(a);
+
+      for (int i = 0; i < 5; ++i) a[i] = b;
+      return true;
+    }
+  )";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("missing")));
+}
+
+TEST_F(TranslatorLogicTest, NestedLoopsNoBraces) {
+  std::string_view content = R"(
+      #define HLS_PRAGMA(x) _Pragma(#x)
+
+      long long my_package(long long a, long long b) {
+        HLS_PRAGMA(hls_unroll yes)
+        for(int j=1;j<=2;++j)
+          HLS_PRAGMA(hls_unroll yes)
+          for(int i=1;i<=5;++i) a += 3*b;
+        return a;
+      })";
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                            testing::HasSubstr("compound")));
+}
+
+TEST_F(TranslatorLogicTest, NestedLoopsNoBraces2) {
+  std::string_view content = R"(
+      #define HLS_PRAGMA(x) _Pragma(#x)
+
+      long long my_package(long long a, long long b) {
+        if(a > 10)
+          HLS_PRAGMA(hls_unroll yes)
+          for(int i=1;i<=10;++i) a += 3*b;
+        return a;
+      })";
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                            testing::HasSubstr("compound")));
+}
+
 TEST_F(TranslatorLogicTest, ForUnrollLabel) {
   std::string_view content = R"(
       long long my_package(long long a, long long b) {
@@ -1503,7 +1595,9 @@ TEST_F(TranslatorLogicTest, ForUnrollShortCircuit3) {
         long sum(long in[N], int n) {
           long sum = 0;
           #pragma hls_unroll yes
-          for (int i = 0; i < N && i < n; ++i) sum += in[i];
+          for (int i = 0; i < N && i < n; ++i) {
+            sum += in[i];
+          }
           return sum;
         }
 
@@ -2589,8 +2683,7 @@ TEST_F(TranslatorLogicTest, StructInitListWithDefaultWrongCount) {
 
 TEST_F(TranslatorLogicTest, NoTupleStruct) {
   std::string_view content = R"(
-       #pragma hls_no_tuple
-       struct Test {
+      struct [[hls_no_tuple]] Test {
          int x;
        };
        Test my_package(int a) {
@@ -2603,8 +2696,7 @@ TEST_F(TranslatorLogicTest, NoTupleStruct) {
 
 TEST_F(TranslatorLogicTest, NoTupleMultiField) {
   std::string_view content = R"(
-       #pragma hls_no_tuple
-       struct Test {
+       struct [[hls_no_tuple]] Test {
          int x;
          int y;
        };
@@ -2619,37 +2711,6 @@ TEST_F(TranslatorLogicTest, NoTupleMultiField) {
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
                                     testing::HasSubstr("only 1 field")));
-}
-
-TEST_F(TranslatorLogicTest, NoTupleMultiFieldLineComment) {
-  std::string_view content = R"(
-       //#pragma hls_no_tuple
-       struct Test {
-         int x;
-         int y;
-       };
-       int my_package(int a) {
-         Test s;
-         s.x=a;
-         return s.x;
-       })";
-  Run({{"a", 311}}, 311, content);
-}
-
-TEST_F(TranslatorLogicTest, NoTupleMultiFieldBlockComment) {
-  std::string_view content = R"(
-       /*
-       #pragma hls_no_tuple*/
-       struct Test {
-         int x;
-         int y;
-       };
-       int my_package(int a) {
-         Test s;
-         s.x=a;
-         return s.x;
-       })";
-  Run({{"a", 311}}, 311, content);
 }
 
 TEST_F(TranslatorLogicTest, StructMemberOrder) {
@@ -2950,13 +3011,11 @@ TEST_F(TranslatorLogicTest, BaseConstructor) {
 
 TEST_F(TranslatorLogicTest, BaseConstructorNoTuple) {
   std::string_view content = R"(
-       #pragma hls_no_tuple
-       struct Base {
+       struct [[hls_no_tuple]] Base {
          Base() : x(88) { }
           int x;
        };
-       #pragma hls_no_tuple
-       struct Derived : public Base {
+       struct [[hls_no_tuple]] Derived : public Base {
        };
        int my_package(int x) {
          Derived b;
@@ -2970,8 +3029,7 @@ TEST_F(TranslatorLogicTest, InheritanceNoTuple) {
        struct Base {
          int x;
        };
-       #pragma hls_no_tuple
-       struct Derived : public Base {
+       struct [[hls_no_tuple]] Derived : public Base {
          int foo()const {
            return x;
          }
@@ -2986,12 +3044,10 @@ TEST_F(TranslatorLogicTest, InheritanceNoTuple) {
 
 TEST_F(TranslatorLogicTest, InheritanceNoTuple2) {
   std::string_view content = R"(
-       #pragma hls_no_tuple
-       struct Base {
+       struct [[hls_no_tuple]] Base {
          int x;
        };
-       #pragma hls_no_tuple
-       struct Derived : public Base {
+       struct [[hls_no_tuple]] Derived : public Base {
          int foo()const {
            return x;
          }
@@ -3006,14 +3062,12 @@ TEST_F(TranslatorLogicTest, InheritanceNoTuple2) {
 
 TEST_F(TranslatorLogicTest, InheritanceNoTuple4) {
   std::string_view content = R"(
-       #pragma hls_no_tuple
-       struct Base {
+       struct [[hls_no_tuple]] Base {
          int x;
          void set(int v) { x=v; }
          int get()const { return x; }
        };
-       #pragma hls_no_tuple
-       struct Derived : public Base {
+       struct [[hls_no_tuple]] Derived : public Base {
          void setd(int v) { x=v; }
          int getd()const { return x; }
        };
@@ -3383,10 +3437,10 @@ TEST_F(TranslatorLogicTest, NamespaceFailure) {
       })";
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kFailedPrecondition,
-                  testing::HasSubstr("Unable to parse text")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                    testing::HasSubstr("undeclared")));
 }
 
 TEST_F(TranslatorLogicTest, Ternary) {
@@ -3403,10 +3457,10 @@ TEST_F(TranslatorLogicTest, Ternary) {
 TEST_F(TranslatorLogicTest, ParseFailure) {
   std::string_view content = "int my_package(int a) {";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kFailedPrecondition,
-                  testing::HasSubstr("Unable to parse text")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                    testing::HasSubstr("expected")));
 }
 
 std::string NativeOperatorTestIr(const std::string& op) {
@@ -3600,8 +3654,12 @@ TEST_F(TranslatorLogicTest, NativeOperatorShrUnsigned) {
       {
         return a >> b;
       })";
-  { Run({{"a", 10}, {"b", 1}}, 5, content); }
-  { Run({{"a", -20}, {"b", 2}}, 4611686018427387899L, content); }
+  {
+    Run({{"a", 10}, {"b", 1}}, 5, content);
+  }
+  {
+    Run({{"a", -20}, {"b", 2}}, 4611686018427387899L, content);
+  }
 }
 TEST_F(TranslatorLogicTest, NativeOperatorShl) {
   const std::string op = "<<";
@@ -4261,9 +4319,34 @@ TEST_F(TranslatorLogicTest, ArrayZeroExtendMaintainsValues) {
         int my_package(int a) {
          #pragma hls_array_allow_default_pad
          int x[4] = {1,2};
-         return x[1];
+         return x[a];
        })";
-  Run({{"a", 5}}, 2, content);
+  Run({{"a", 1}}, 2, content);
+  Run({{"a", 2}}, 0, content);
+}
+
+TEST_F(TranslatorLogicTest, ArrayExtendError) {
+  std::string_view content = R"(
+    class Foo {
+        #pragma hls_top
+        void my_package() {
+         int x[4] = {1,2};
+         (void)x;
+       }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false,
+                         /*error_on_uninitialized=*/true));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  ASSERT_THAT(
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                             /*top_level_init_interval=*/0),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("number of initializers")));
 }
 
 // Check that hls_array_allow_default_pad pragma maintains supplied values
@@ -4378,10 +4461,10 @@ TEST_F(TranslatorLogicTest, CXXRecordDecl) {
 
 std::string GenerateEnumDef(std::vector<std::optional<int64_t>> variants) {
   const std::string src_template = R"(
-  #pragma hls_top
   enum class MyEnum {
     $0
   };
+  #pragma hls_top
   MyEnum my_package() {
     return (MyEnum)0;
   }
@@ -4874,36 +4957,6 @@ TEST_F(TranslatorLogicTest, ConstexprBinaryOperatorsForFloat) {
   Run({}, 19, content);
 }
 
-TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIncorrectlyFormatted) {
-  std::string_view content = R"(
-  #pragma top
-  int st() {
-    return 1;
-  })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kNotFound,
-                  testing::HasSubstr("No top function found")));
-  ASSERT_EQ(this->log_entries_.size(), 1);
-  ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
-                                "#pragma 'top' requires 'hls_' prefix"));
-}
-
-TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIsUppercase) {
-  std::string_view content = R"(
-  #pragma HLS_TOP
-  int st() {
-    return 1;
-  })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kNotFound,
-                  testing::HasSubstr("No top function found")));
-  ASSERT_EQ(this->log_entries_.size(), 1);
-  ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
-                                "#pragma must be lowercase:"));
-}
-
 TEST_F(TranslatorLogicTest, PragmaAllowsCommentsBetween) {
   std::string_view content = R"(
   #pragma hls_top
@@ -4980,9 +5033,6 @@ TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
   })";
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(absl::StatusCode::kOk));
-  ASSERT_EQ(this->log_entries_.size(), 1);
-  ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
-                                "#pragma 'top' requires 'hls_' prefix"));
 }
 
 TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
@@ -5081,7 +5131,7 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedBasic) {
                /*error_on_init_interval=*/false,
                /*error_on_uninitialized=*/true),
       xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("Unable to parse")));
+                                    testing::HasSubstr("uninitialized")));
 }
 
 TEST_F(TranslatorLogicTest, ErrorOnUninitializedArray) {

@@ -1197,9 +1197,8 @@ TEST_F(TranslatorMetadataTest, SyntheticInt) {
       __xls_bits<W> val_;
     };
 
-    #pragma hls_synthetic_int
     template<int W, int S>
-    struct Blah : Base<W> {
+    struct [[hls_synthetic_int]] Blah : Base<W> {
     };
     #pragma hls_top
     int i_am_top(Blah<17, false> a) {
@@ -1253,15 +1252,13 @@ TEST_F(TranslatorMetadataTest, SyntheticInt) {
 
 TEST_F(TranslatorMetadataTest, StaticSyntheticInt) {
   const std::string content = R"(
-    #pragma hls_synthetic_int
     template<int W, bool S>
-    struct Base {
+    struct [[hls_synthetic_int]] Base {
       __xls_bits<W> val_;
     };
 
-    #pragma hls_synthetic_int
     template<int W, bool S>
-    struct Blah : Base<W, S> {
+    struct [[hls_synthetic_int]] Blah : Base<W, S> {
       Blah(int val) {
         asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_1_(aid): bits[i] = "
             "identity(a, pos=(loc)) }"
@@ -1407,15 +1404,13 @@ TEST_F(TranslatorMetadataTest, ReturnReference) {
 
 TEST_F(TranslatorMetadataTest, StaticBits) {
   const std::string content = R"(
-    #pragma hls_no_tuple
     template<int W, bool S>
-    struct Base {
+    struct [[hls_no_tuple]] Base {
       __xls_bits<W> val_;
     };
 
-    #pragma hls_no_tuple
     template<int W, bool S>
-    struct Blah : Base<W, S> {
+    struct [[hls_no_tuple]] Blah : Base<W, S> {
       Blah(int val) {
         asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_1_(aid): bits[i] = "
             "identity(a, pos=(loc)) }"

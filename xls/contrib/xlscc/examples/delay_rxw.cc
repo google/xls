@@ -46,7 +46,6 @@ using InputChannel = __xls_channel<T, __xls_channel_dir_In>;
 // i.e. it either reads or writes in a proc tick, but never both) . The delay
 // block takes an input transaction and delays it DELAY transactions later. The
 // output is DEFAULT_OUTPUT_VALUE for the first DELAY transactions.
-#pragma hls_top
 struct Delay {
   InputChannel<uint32_t> in;
   __xls_memory<memory_t, MEMORY_SIZE> memory;

@@ -23,7 +23,6 @@ using ac_int = XlsInt<Width, Signed>;
 #endif /* READ_ITERATIONS */
 
 class MemIteratedRead {
-#pragma hls_channel_strictness arbitrary_static_order
   __xls_memory<ac_int<8>, 22> mem;
   __xls_channel<ac_int<8>, __xls_channel_dir_Out> res;
   __xls_channel<ac_int<1>, __xls_channel_dir_In> rsel;

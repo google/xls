@@ -83,15 +83,10 @@ absl::StatusOr<xls::ChannelStrictness> Translator::GetChannelStrictness(
     const clang::NamedDecl& decl, const ChannelOptions& channel_options,
     absl::flat_hash_map<std::string, xls::ChannelStrictness>&
         unused_strictness_options) {
+  // TODO(seanhaskell): Use annotation with xls::ChannelStrictnessFromString
+  // b/371085056
   std::optional<xls::ChannelStrictness> channel_strictness;
-  XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(decl.getLocation()));
-  if (pragma.type() == Pragma_ChannelStrictness) {
-    XLS_ASSIGN_OR_RETURN(
-        channel_strictness,
-        xls::ChannelStrictnessFromString(pragma.str_argument()),
-        _.SetPrepend() << ErrorMessage(
-            GetLoc(decl), "Invalid hls_channel_strictness pragma: "));
-  }
+
   if (auto it = channel_options.strictness_map.find(decl.getNameAsString());
       it != channel_options.strictness_map.end()) {
     if (channel_strictness.has_value() && *channel_strictness != it->second) {

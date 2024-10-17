@@ -50,6 +50,7 @@
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/APValue.h"
 #include "clang/include/clang/AST/ASTContext.h"
+#include "clang/include/clang/AST/Attr.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/DeclTemplate.h"
@@ -213,6 +214,8 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   context().return_cval = popped.return_cval;
   context().last_return_condition = popped.last_return_condition;
   context().have_returned_condition = popped.have_returned_condition;
+  context().last_intrinsic_annotation_call =
+      popped.last_intrinsic_annotation_call;
 
   for (const auto& [decl, count] : popped.variables_accessed) {
     if (!context().variables_accessed.contains(decl)) {
@@ -270,6 +273,7 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
     context().or_condition_util(saved_popped_relative_continue_condition,
                                 context().relative_continue_condition, loc);
   }
+
   return absl::OkStatus();
 }
 
@@ -706,9 +710,8 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
   // Pragma at class or method level
   XLS_ASSIGN_OR_RETURN(sf.in_synthetic_int, FunctionIsInSyntheticInt(funcdecl));
-  XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                       FindPragmaForLoc(GetPresumedLoc(*funcdecl)));
-  const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
+  // TODO(seanhaskell): Implement via attribute b/371085056
+  const bool synthetic_int_pragma = false;
   sf.in_synthetic_int = sf.in_synthetic_int || synthetic_int_pragma;
 
   // Functions need a clean context
@@ -1271,9 +1274,17 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
         "Warning: interpreting definition-less struct '%s' as empty",
         signature->base()->getNameAsString());
   }
-  XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
-  const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
-  const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
+
+  const clang::AnnotateAttr* attr = sd->getAttr<clang::AnnotateAttr>();
+
+  std::string annotation;
+
+  if (attr != nullptr) {
+    annotation = attr->getAnnotation().str();
+  }
+
+  const bool no_tuple_pragma = (annotation == "hls_no_tuple");
+  const bool synthetic_int_pragma = (annotation == "hls_synthetic_int");
 
   new_type = std::make_shared<CStructType>(
       fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma);
@@ -1396,9 +1407,24 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
     const clang::VarDecl* decl, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                        TranslateTypeFromClang(decl->getType(), loc));
+
+  const clang::AnnotateAttr* attr = decl->getAttr<clang::AnnotateAttr>();
+
+  std::string annotation;
+
+  if (attr != nullptr) {
+    annotation = attr->getAnnotation().str();
+  }
+
+  bool allow_default_pad_before = context().allow_default_pad;
+
+  context().allow_default_pad = (annotation == "hls_array_allow_default_pad");
+
   const clang::Expr* initializer = decl->getAnyInitializer();
 
   XLS_ASSIGN_OR_RETURN(CValue ret, CreateInitValue(ctype, initializer, loc));
+
+  context().allow_default_pad = allow_default_pad_before;
 
   return ret;
 }
@@ -2798,15 +2824,13 @@ absl::StatusOr<std::string> Translator::GetStringLiteral(
 absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     const clang::CallExpr* call, const xls::SourceInfo& loc) {
   const clang::FunctionDecl* funcdecl = call->getDirectCallee();
-  if (funcdecl->getNameAsString() == "__xlscc_unimplemented") {
-    return absl::UnimplementedError(ErrorMessage(loc, "Unimplemented marker"));
+  if (IsIntrinsicCallAnnotation(call)) {
+    context().last_intrinsic_annotation_call = call;
+    return std::make_pair(true, CValue());
   }
 
-  if (funcdecl->getNameAsString() == "__xlscc_pipeline" ||
-      funcdecl->getNameAsString() == "__xlscc_unroll" ||
-      funcdecl->getNameAsString() == "__xlscc_asap") {
-    context().last_intrinsic_call = call;
-    return std::make_pair(true, CValue());
+  if (funcdecl->getNameAsString() == "__xlscc_unimplemented") {
+    return absl::UnimplementedError(ErrorMessage(loc, "Unimplemented marker"));
   }
 
   if (funcdecl->getNameAsString() == "__xlscc_fixed_32_32_bits_for_double" ||
@@ -3863,7 +3887,7 @@ absl::StatusOr<std::optional<CValue>> Translator::EvaluateNumericConstExpr(
     for (int i = 0; i < truncated_n; ++i) {
       truncated.emplace_back(api_raw[i]);
     }
-    // FromBytes() accepts little endian format
+    // FromBytes() accepts big endian format
     auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
     return CValue(context().fb->Literal(lbits, loc), ctype);
   }
@@ -4458,9 +4482,7 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
       return absl::UnimplementedError(
           ErrorMessage(loc, "Too many initializers"));
     }
-    XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                         FindPragmaForLoc(init_list->getBeginLoc()));
-    if (pragma.type() != Pragma_ArrayAllowDefaultPad &&
+    if (!context().allow_default_pad &&
         array_t->GetSize() != init_list->getNumInits() &&
         init_list->getNumInits() != 0 && error_on_uninitialized_) {
       return absl::InvalidArgumentError(
@@ -5037,7 +5059,36 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
 
 absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                                          clang::ASTContext& ctx) {
+  // TODO(seanhaskell): Remove both of these once b/371085056 is fixed
+  context().last_stmt = stmt;
+
+  // Intrinsic calls only apply to the next statement
+  auto null_last_intrinsic_call = MakeLambdaGuard([this]() {
+    if (context().last_stmt == context().last_intrinsic_annotation_call) {
+      return;
+    }
+    context().last_intrinsic_annotation_call = nullptr;
+  });
+
   const xls::SourceInfo loc = GetLoc(*stmt);
+
+  if (!clang::isa<clang::CompoundStmt>(stmt) &&
+      !clang::isa<clang::LabelStmt>(stmt)) {
+    for (const clang::Stmt* child : stmt->children()) {
+      if (child == nullptr) {
+        continue;
+      }
+      const clang::CallExpr* call =
+          clang::dyn_cast<const clang::CallExpr>(child);
+      if (call == nullptr) {
+        continue;
+      }
+      if (IsIntrinsicCallAnnotation(call)) {
+        return absl::InvalidArgumentError(ErrorMessage(
+            loc, "Intrinsic calls must be in a compound statement"));
+      }
+    }
+  }
 
   if (const clang::Expr* expr = clang::dyn_cast<const clang::Expr>(stmt)) {
     XLS_ASSIGN_OR_RETURN(absl::StatusOr<CValue> rv, GenerateIR_Expr(expr, loc));
@@ -5145,18 +5196,24 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     }
   } else if (auto forst = clang::dyn_cast<const clang::ForStmt>(stmt)) {
     XLS_RETURN_IF_ERROR(GenerateIR_Loop(
-        /*always_first_iter=*/false, forst->getInit(), forst->getCond(),
-        forst->getInc(), forst->getBody(), GetPresumedLoc(*forst), loc, ctx));
+        /*always_first_iter=*/false, /*loop_stmt=*/forst,
+        /*init=*/forst->getInit(), /*cond_expr=*/forst->getCond(),
+        /*inc=*/forst->getInc(), /*body=*/forst->getBody(),
+        GetPresumedLoc(*forst), loc, ctx));
   } else if (auto forst = clang::dyn_cast<const clang::WhileStmt>(stmt)) {
-    XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/false,
-                                        /*init=*/nullptr, forst->getCond(),
-                                        /*inc=*/nullptr, forst->getBody(),
-                                        GetPresumedLoc(*forst), loc, ctx));
+    XLS_RETURN_IF_ERROR(
+        GenerateIR_Loop(/*always_first_iter=*/false,
+                        /*loop_stmt=*/forst,
+                        /*init=*/nullptr, /*cond_expr=*/forst->getCond(),
+                        /*inc=*/nullptr, /*body=*/forst->getBody(),
+                        GetPresumedLoc(*forst), loc, ctx));
   } else if (auto dost = clang::dyn_cast<const clang::DoStmt>(stmt)) {
-    XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/true,
-                                        /*init=*/nullptr, dost->getCond(),
-                                        /*inc=*/nullptr, dost->getBody(),
-                                        GetPresumedLoc(*dost), loc, ctx));
+    XLS_RETURN_IF_ERROR(
+        GenerateIR_Loop(/*always_first_iter=*/true,
+                        /*loop_stmt=*/dost,
+                        /*init=*/nullptr, /*cond_expr=*/dost->getCond(),
+                        /*inc=*/nullptr, /*body=*/dost->getBody(),
+                        GetPresumedLoc(*dost), loc, ctx));
   } else if (auto switchst = clang::dyn_cast<const clang::SwitchStmt>(stmt)) {
     return GenerateIR_Switch(switchst, ctx, loc);
   } else if (clang::isa<clang::ContinueStmt>(stmt)) {
@@ -5484,21 +5541,6 @@ GeneratedFunction::GetDeterministicallyOrderedStaticValues() const {
   }
   SortNamesDeterministically(ret);
   return ret;
-}
-
-absl::Status Translator::CheckInitIntervalValidity(int initiation_interval_arg,
-                                                   const xls::SourceInfo& loc) {
-  if (initiation_interval_arg != 1) {
-    std::string message = WarningMessage(
-        loc,
-        "Only initiation interval 1 supported, %i requested, defaulting to 1",
-        initiation_interval_arg);
-    if (error_on_init_interval_) {
-      return absl::UnimplementedError(message);
-    }
-    LOG(WARNING) << message;
-  }
-  return absl::OkStatus();
 }
 
 // First, flatten the statements in the switch
@@ -6102,65 +6144,6 @@ clang::PresumedLoc Translator::GetPresumedLoc(const clang::Decl& decl) {
   return parser_->GetPresumedLoc(decl);
 }
 
-absl::StatusOr<const clang::CallExpr*> Translator::FindIntrinsicCall(
-    const clang::PresumedLoc& target_loc) {
-  // NOTE: Semantics should be the same as CCParser::FindPragmaForLoc()!
-
-  xls::SourceInfo xls_loc = parser_->GetLoc(target_loc);
-
-  const clang::CallExpr* ret = context().last_intrinsic_call;
-
-  // No intrinsics yet in this scope
-  if (ret == nullptr) {
-    return nullptr;
-  }
-
-  const clang::PresumedLoc intrinsic_loc = GetPresumedLoc(*ret);
-
-  // Not in the same file at all (macros?)
-
-  if (target_loc.getFilename() != intrinsic_loc.getFilename()) {
-    return absl::UnimplementedError(ErrorMessage(
-        xls_loc, "Intrinsic call in this scope, but in another file (macro?)"));
-  }
-
-  XLSCC_CHECK_GE(target_loc.getLine(), intrinsic_loc.getLine(), xls_loc);
-
-  // Does not apply if more than 2 lines behind
-  if (target_loc.getLine() > (intrinsic_loc.getLine() + 2)) {
-    return nullptr;
-  }
-
-  // Applies if it's the same line or the one before
-  if (target_loc.getLine() <= (intrinsic_loc.getLine() + 1)) {
-    return ret;
-  }
-
-  XLSCC_CHECK_GE(target_loc.getLine(), intrinsic_loc.getLine() + 2, xls_loc);
-
-  // Must be a label in between if it's two lines before
-  XLS_ASSIGN_OR_RETURN(Pragma pragma_before,
-                       FindPragmaForLoc(target_loc, /*ignore_label=*/false));
-
-  if (pragma_before.type() != PragmaType::Pragma_Label) {
-    return nullptr;
-  }
-
-  return ret;
-}
-
-absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
-    const clang::SourceLocation& loc, bool ignore_label) {
-  CHECK_NE(parser_.get(), nullptr);
-  return parser_->FindPragmaForLoc(loc, ignore_label);
-}
-
-absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
-    const clang::PresumedLoc& ploc, bool ignore_label) {
-  CHECK_NE(parser_.get(), nullptr);
-  return parser_->FindPragmaForLoc(ploc, ignore_label);
-}
-
 absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
     xls::FunctionBase* func) {
   XLS_RET_CHECK(!func->IsBlock());
@@ -6174,6 +6157,23 @@ absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
             /*source=*/nullptr, /*allow_unsupported=*/false));
   }
   return iter->second.get();
+}
+
+bool Translator::IsIntrinsicCallAnnotation(const clang::CallExpr* call) {
+  const clang::FunctionDecl* funcdecl = call->getDirectCallee();
+  CHECK(funcdecl != nullptr);
+  if (funcdecl->getNameAsString() == "__xlscc_pipeline" ||
+      funcdecl->getNameAsString() == "__xlscc_unroll" ||
+      funcdecl->getNameAsString() == "__xlscc_asap") {
+    return true;
+  }
+  return false;
+}
+
+const clang::CallExpr* Translator::FindIntrinsicCallFor(
+    const clang::Stmt* stmt) {
+  CHECK(context().last_stmt == stmt);
+  return context().last_intrinsic_annotation_call;
 }
 
 }  // namespace xlscc

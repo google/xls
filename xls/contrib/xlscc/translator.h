@@ -1072,7 +1072,11 @@ struct TranslationContext {
   bool mask_io_other_than_memory_writes = false;
   bool mask_memory_writes = false;
 
-  const clang::CallExpr* last_intrinsic_call = nullptr;
+  bool allow_default_pad = false;
+
+  // TODO(seanhaskell): Remove both of these once b/371085056 is fixed
+  const clang::CallExpr* last_intrinsic_annotation_call = nullptr;
+  const clang::Stmt* last_stmt = nullptr;
 
   // Number of times a variable is accessed
   // Always propagates up
@@ -1885,7 +1889,9 @@ class Translator {
                                          const xls::SourceInfo& loc);
 
   // init, cond, and inc can be nullptr
-  absl::Status GenerateIR_Loop(bool always_first_iter, const clang::Stmt* init,
+  absl::Status GenerateIR_Loop(bool always_first_iter,
+                               const clang::Stmt* loop_stmt,
+                               const clang::Stmt* init,
                                const clang::Expr* cond_expr,
                                const clang::Stmt* inc, const clang::Stmt* body,
                                const clang::PresumedLoc& presumed_loc,
@@ -2232,16 +2238,6 @@ class Translator {
 
   std::unique_ptr<CCParser> parser_;
 
-  // Uses context's last_intrinsic_call
-  // Returns nullptr if no applicable intrinsic call is found
-  absl::StatusOr<const clang::CallExpr*> FindIntrinsicCall(
-      const clang::PresumedLoc& target_loc);
-
-  // Convenience calls to CCParser
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc,
-                                          bool ignore_label = true);
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc,
-                                          bool ignore_label = true);
   std::string LocString(const xls::SourceInfo& loc);
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);
   xls::SourceInfo GetLoc(const clang::Decl& decl);
@@ -2257,6 +2253,11 @@ class Translator {
 
   absl::StatusOr<xls::solvers::z3::IrTranslator*> GetZ3Translator(
       xls::FunctionBase* func) ABSL_ATTRIBUTE_LIFETIME_BOUND;
+
+  bool IsIntrinsicCallAnnotation(const clang::CallExpr* call);
+
+  // TODO(seanhaskell): Remove both of these once b/371085056 is fixed
+  const clang::CallExpr* FindIntrinsicCallFor(const clang::Stmt* stmt);
 
   absl::flat_hash_map<xls::FunctionBase*,
                       std::unique_ptr<xls::solvers::z3::IrTranslator>>

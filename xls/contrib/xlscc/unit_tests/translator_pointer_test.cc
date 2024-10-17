@@ -620,7 +620,7 @@ TEST_F(TranslatorPointerTest, UninitializedPointer) {
   ASSERT_THAT(
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
-                                    testing::HasSubstr("Unable to parse")));
+                                    testing::HasSubstr("uninitialized")));
 }
 
 TEST_F(TranslatorPointerTest, Aliasing) {

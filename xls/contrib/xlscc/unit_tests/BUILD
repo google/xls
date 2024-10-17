@@ -280,11 +280,13 @@ cc_test(
         "//xls/contrib/xlscc:cc_parser",
         "//xls/contrib/xlscc:metadata_output_cc_proto",
         "//xls/ir:source_location",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
         "@llvm-project//clang:ast",
         "@llvm-project//clang:basic",
+        "@llvm-project//llvm:Support",
     ],
 )
 
