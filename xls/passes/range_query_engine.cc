@@ -1420,6 +1420,30 @@ static void IntervalSetTreeToStream(const IntervalSetTree& tree, Type* type,
   }
 }
 
+Bits RangeQueryEngine::MaxUnsignedValue(Node* n) const {
+  CHECK(n->GetType()->IsBits()) << n;
+  // If modifications to the function mean we don't have a tree we just fall
+  // back to the bit-based version.
+  if (!HasExplicitIntervals(n)) {
+    return QueryEngine::MaxUnsignedValue(n);
+  }
+  std::optional<Interval> hull =
+      GetIntervalSetTreeView(n)->Get({}).ConvexHull();
+  return hull ? hull->UpperBound() : Bits::AllOnes(n->BitCountOrDie());
+}
+
+Bits RangeQueryEngine::MinUnsignedValue(Node* n) const {
+  CHECK(n->GetType()->IsBits()) << n;
+  // If modifications to the function mean we don't have a tree we just fall
+  // back to the bit-based version.
+  if (!HasExplicitIntervals(n)) {
+    return QueryEngine::MinUnsignedValue(n);
+  }
+  std::optional<Interval> hull =
+      GetIntervalSetTreeView(n)->Get({}).ConvexHull();
+  return hull ? hull->LowerBound() : Bits(n->BitCountOrDie());
+}
+
 std::string IntervalSetTreeToString(const IntervalSetTree& tree) {
   std::stringstream ss;
   IntervalSetTreeToStream(tree, tree.type(), {}, ss);

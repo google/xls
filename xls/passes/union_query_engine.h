@@ -87,6 +87,9 @@ class UnownedUnionQueryEngine : public QueryEngine {
   bool IsAllZeros(Node* n) const override;
   bool IsAllOnes(Node* n) const override;
 
+  Bits MaxUnsignedValue(Node* node) const override;
+  Bits MinUnsignedValue(Node* node) const override;
+
  private:
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;

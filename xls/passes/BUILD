@@ -836,6 +836,7 @@ cc_library(
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:interval_set",
         "//xls/ir:ternary",
         "//xls/ir:type",

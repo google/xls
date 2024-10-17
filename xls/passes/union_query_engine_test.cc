@@ -146,6 +146,23 @@ class FakeQueryEngine : public QueryEngine {
     intervals_[node] = intervals;
   }
 
+  Bits MaxUnsignedValue(Node* n) const override {
+    CHECK(n->GetType()->IsBits()) << n;
+    if (intervals_.contains(n)) {
+      return intervals_.at(n).Get({}).ConvexHull()->UpperBound();
+    } else {
+      return Bits::AllOnes(n->BitCountOrDie());
+    }
+  }
+  Bits MinUnsignedValue(Node* n) const override {
+    CHECK(n->GetType()->IsBits()) << n;
+    if (intervals_.contains(n)) {
+      return intervals_.at(n).Get({}).ConvexHull()->LowerBound();
+    } else {
+      return Bits(n->BitCountOrDie());
+    }
+  }
+
   void AddKnownBit(const TreeBitLocation& location, bool value) {
     Node* node = location.node();
     AddTracked(node);
@@ -337,6 +354,36 @@ TEST_F(UnionQueryEngineTest, Intervals) {
       union_query_engine.GetIntervals(tuple.node());
   EXPECT_EQ(tuple_intervals.elements()[0], x_a);
   EXPECT_EQ(tuple_intervals.elements()[1], y_b);
+}
+
+TEST_F(UnionQueryEngineTest, MaxMinUnsignedValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", fb.package()->GetBitsType(8));
+  BValue y = fb.Param("y", fb.package()->GetBitsType(8));
+  fb.Tuple({x, y});
+  XLS_ASSERT_OK(fb.Build());
+
+  FakeQueryEngine query_engine_a;
+  IntervalSet x_a = IntervalSet::Of({
+      Interval(UBits(20, 8), UBits(40, 8)),
+  });
+  query_engine_a.AddIntervals(
+      x.node(), LeafTypeTree<IntervalSet>(x.node()->GetType(), {x_a}));
+  FakeQueryEngine query_engine_b;
+  IntervalSet y_b = IntervalSet::Of({Interval(UBits(200, 8), UBits(240, 8))});
+  query_engine_b.AddIntervals(
+      y.node(), LeafTypeTree<IntervalSet>(y.node()->GetType(), {y_b}));
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_a));
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_b));
+  UnionQueryEngine union_query_engine(std::move(engines));
+  // No need to Populate, since FakeQueryEngine doesn't use that interface
+  EXPECT_EQ(union_query_engine.MinUnsignedValue(x.node()), UBits(20, 8));
+  EXPECT_EQ(union_query_engine.MinUnsignedValue(y.node()), UBits(200, 8));
+  EXPECT_EQ(union_query_engine.MaxUnsignedValue(x.node()), UBits(40, 8));
+  EXPECT_EQ(union_query_engine.MaxUnsignedValue(y.node()), UBits(240, 8));
 }
 
 }  // namespace

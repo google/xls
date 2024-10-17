@@ -235,6 +235,9 @@ class RangeQueryEngine : public QueryEngine {
   // This must be called before `SetIntervalSetTree`.
   void InitializeNode(Node* node);
 
+  Bits MaxUnsignedValue(Node* n) const override;
+  Bits MinUnsignedValue(Node* n) const override;
+
  private:
   friend class RangeQueryVisitor;
 

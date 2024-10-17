@@ -2546,5 +2546,36 @@ TEST_F(RangeQueryEngineTest, MultipleRangeGivenValue) {
             BitsLTT(ltxyz.node(), {Interval::Precise(UBits(1, 1))}));
 }
 
+TEST_F(RangeQueryEngineTest, MaxMinUnsignedValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // We will have a known range of [3, 12] for this
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  // We will have a known range of [0, 3] for this
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  // We will have a known range of [1, 4] for this.
+  BValue z = fb.Param("z", p->GetBitsType(8));
+
+  // [3, 12] + [0, 3] == [3, 15]
+  BValue xy = fb.Add(x, y);
+  // [3, 15] + [1,4] == [4,19]
+  BValue xyz = fb.Add(xy, z);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(3, 8), UBits(12, 8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval(UBits(0, 8), UBits(3, 8))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval(UBits(1, 8), UBits(4, 8))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(engine.MaxUnsignedValue(xyz.node()), UBits(19, 8));
+  EXPECT_EQ(engine.MaxUnsignedValue(xy.node()), UBits(15, 8));
+  EXPECT_EQ(engine.MinUnsignedValue(xyz.node()), UBits(4, 8));
+  EXPECT_EQ(engine.MinUnsignedValue(xy.node()), UBits(3, 8));
+}
+
 }  // namespace
 }  // namespace xls

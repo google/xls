@@ -28,6 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
@@ -234,6 +235,31 @@ std::optional<TernaryVector> UnownedUnionQueryEngine::ImpliedNodeTernary(
       } else {
         result = std::move(implied);
       }
+    }
+  }
+  return result;
+}
+
+Bits UnownedUnionQueryEngine::MaxUnsignedValue(Node* node) const {
+  CHECK(node->GetType()->IsBits()) << node;
+  Bits result = engines_.front()->MaxUnsignedValue(node);
+  for (const auto& engine : absl::MakeConstSpan(engines_).subspan(1)) {
+    Bits eng_res = engine->MaxUnsignedValue(node);
+    if (bits_ops::ULessThan(eng_res, result)) {
+      result = std::move(eng_res);
+    }
+  }
+  return result;
+}
+
+Bits UnownedUnionQueryEngine::MinUnsignedValue(Node* node) const {
+  CHECK(node->GetType()->IsBits()) << node;
+  CHECK(node->GetType()->IsBits()) << node;
+  Bits result = engines_.front()->MinUnsignedValue(node);
+  for (const auto& engine : absl::MakeConstSpan(engines_).subspan(1)) {
+    Bits eng_res = engine->MinUnsignedValue(node);
+    if (bits_ops::UGreaterThan(eng_res, result)) {
+      result = std::move(eng_res);
     }
   }
   return result;
