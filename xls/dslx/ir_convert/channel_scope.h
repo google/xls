@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -49,10 +50,12 @@ class ChannelArray {
   std::string ToString() const { return base_channel_name_; }
 
  private:
-  explicit ChannelArray(std::string_view base_channel_name)
-      : base_channel_name_(base_channel_name) {}
+  explicit ChannelArray(std::string_view base_channel_name,
+                        bool subarray = false)
+      : base_channel_name_(base_channel_name), subarray_(subarray) {}
 
   std::string_view base_channel_name() const { return base_channel_name_; }
+  bool is_subarray() const { return subarray_; }
 
   absl::Span<const std::string> flattened_names_in_order() const {
     return flattened_names_in_order_;
@@ -74,6 +77,14 @@ class ChannelArray {
   // The base channel name is the DSLX package name plus the channel name string
   // in the DSLX source code.
   const std::string base_channel_name_;
+
+  // Whether this array represents part of a larger N-D array, with up to N-1
+  // dims fixed. In that case, it will contain some of the same channel pointers
+  // that are in the `ChannelArray` object representing the overall array.
+  // `ChannelArray` objects for subarrays are fabricated by a `ChannelScope` on
+  // an as-needed basis, when references to them are encountered (in the form of
+  // `Index` ops).
+  const bool subarray_;
 
   // The flattened names in order of addition. The scope adds channels in
   // ascending index order, and in some situations wants to enumerate them in
@@ -118,13 +129,14 @@ class ChannelScope {
   // should be used, for example, when a channel is passed into `spawn` and the
   // receiving proc associates it with a local argument name.
   absl::StatusOr<ChannelOrArray> AssociateWithExistingChannelOrArray(
-      const NameDef* name_def, const ChannelDecl* decl);
+      const ProcId& proc_id, const NameDef* name_def, const ChannelDecl* decl);
 
   // Variant of `AssociateWithExistingChannelOrArray`, to be used when the
   // caller has the channel or array returned by `DefineChannelOrArray` on hand,
   // rather than the `decl` it was made from.
   absl::Status AssociateWithExistingChannelOrArray(
-      const NameDef* name_def, ChannelOrArray channel_or_array);
+      const ProcId& proc_id, const NameDef* name_def,
+      ChannelOrArray channel_or_array);
 
   // Retrieves the individual `Channel` that is referred to by the given `index`
   // operation. In order for this to succeed, `index` must meet the following
@@ -138,7 +150,15 @@ class ChannelScope {
   //      be constexpr evaluatable.
   // A not-found error is the guaranteed result in cases where `index` is not
   // a channel array index operation at all.
-  absl::StatusOr<Channel*> GetChannelForArrayIndex(const Index* index);
+  absl::StatusOr<Channel*> GetChannelForArrayIndex(const ProcId& proc_id,
+                                                   const Index* index);
+
+  // Retrieves the subarray or individual `Channel` that is referred to by the
+  // given `index operation. The `index` must conform to the criteria described
+  // for `GetChannelForArrayIndex()`, but it may lead part way into a
+  // multidimensional channel array.
+  absl::StatusOr<ChannelOrArray> GetChannelOrArrayForArrayIndex(
+      const ProcId& proc_id, const Index* index);
 
  private:
   absl::StatusOr<ChannelOrArray> DefineChannelOrArrayInternal(
@@ -149,9 +169,6 @@ class ChannelScope {
   absl::Status DefineProtoChannelOrArray(
       ChannelOrArray array, dslx::ChannelTypeAnnotation* type_annot,
       xls::Type* ir_type, TypeInfo* type_info);
-
-  absl::StatusOr<std::string_view> GetBaseNameForNameDef(
-      const NameDef* name_def);
 
   std::string_view GetBaseNameForChannelOrArray(
       ChannelOrArray channel_or_array);
@@ -171,8 +188,16 @@ class ChannelScope {
                                          xls::Type* type,
                                          std::optional<FifoConfig> fifo_config);
 
-  absl::StatusOr<Channel*> GetChannelArrayElement(
-      const NameRef* name_ref, std::string_view flattened_name_suffix);
+  absl::StatusOr<ChannelOrArray> EvaluateIndex(const ProcId& proc_id,
+                                               const Index* index,
+                                               bool allow_subarray_reference);
+
+  absl::StatusOr<ChannelOrArray> GetChannelArrayElement(
+      const ProcId& proc_id, const NameRef* name_ref,
+      std::string_view flattened_name_suffix, bool allow_subarray_reference);
+
+  absl::StatusOr<ChannelArray*> GetOrDefineSubarray(
+      ChannelArray* array, std::string_view subarray_name);
 
   PackageConversionData* const conversion_info_;
   ImportData* const import_data_;
@@ -200,8 +225,9 @@ class ChannelScope {
 
   absl::flat_hash_map<const ChannelDecl*, ChannelOrArray>
       decl_to_channel_or_array_;
-  absl::flat_hash_map<const NameDef*, ChannelOrArray>
+  absl::flat_hash_map<std::pair<ProcId, const NameDef*>, ChannelOrArray>
       name_def_to_channel_or_array_;
+  absl::flat_hash_map<std::string, ChannelArray*> subarrays_;
 };
 
 }  // namespace xls::dslx

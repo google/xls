@@ -90,7 +90,7 @@ absl::Status ProcConfigIrConverter::Finalize() {
         ProcConfigValueToChannelOrArray(value);
     if (channel_or_array.has_value()) {
       XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
-          member->name_def(), *channel_or_array));
+          proc_id_, member->name_def(), *channel_or_array));
     }
   }
 
@@ -138,9 +138,10 @@ absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
 
 absl::Status ProcConfigIrConverter::HandleIndex(const Index* node) {
   VLOG(4) << "ProcConfigIrConverter::HandleIndex: " << node->ToString();
-  XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       channel_scope_->GetChannelForArrayIndex(node));
-  node_to_ir_[node] = channel;
+  XLS_ASSIGN_OR_RETURN(
+      ChannelOrArray channel_or_array,
+      channel_scope_->GetChannelOrArrayForArrayIndex(proc_id_, node));
+  node_to_ir_[node] = ChannelOrArrayToProcConfigValue(channel_or_array);
   return absl::OkStatus();
 }
 
@@ -165,8 +166,8 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
         NameDef* name_def = std::get<NameDef*>(leaves[i]);
         XLS_ASSIGN_OR_RETURN(
             ChannelOrArray target,
-            channel_scope_->AssociateWithExistingChannelOrArray(name_def,
-                                                                decl));
+            channel_scope_->AssociateWithExistingChannelOrArray(
+                proc_id_, name_def, decl));
         node_to_ir_[name_def] = ChannelOrArrayToProcConfigValue(target);
         continue;
       }
@@ -192,7 +193,7 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
         ProcConfigValueToChannelOrArray(value);
     if (channel_or_array.has_value()) {
       XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
-          def, *channel_or_array));
+          proc_id_, def, *channel_or_array));
     }
     node_to_ir_[def] = value;
   }
@@ -244,7 +245,7 @@ absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
       ProcConfigValueToChannelOrArray(value);
   if (channel_or_array.has_value()) {
     XLS_RETURN_IF_ERROR(channel_scope_->AssociateWithExistingChannelOrArray(
-        node->name_def(), *channel_or_array));
+        proc_id_, node->name_def(), *channel_or_array));
   }
   node_to_ir_[node->name_def()] = value;
   return absl::OkStatus();

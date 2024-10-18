@@ -2540,6 +2540,138 @@ TEST(IrConverterTest, ReceiveFromBoundaryChannelArrayElement) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, DealOutChannelSubarray) {
+  constexpr std::string_view kProgram = R"(
+  proc B {
+    outs: chan<u32>[2] out;
+    ins: chan<u32>[2] in;
+
+    init {}
+
+    config(outs: chan<u32>[2] out, ins: chan<u32>[2] in) {
+      (outs, ins)
+    }
+
+    next(state: ()) {
+      unroll_for!(j, tok) : (u32, token) in u32:0..u32:2 {
+        let tok = send(tok, outs[j], j);
+        let(tok, _) = recv(tok, ins[j]);
+        tok
+      }(join());
+    }
+  }
+
+  proc A {
+    init {}
+
+    config() {
+      let (outs, ins) = chan<u32>[2][2]("the_channel");
+      unroll_for!(i, _) : (u32, ()) in u32:0..u32:2 {
+        spawn B(outs[i], ins[i]);
+      }(());
+    }
+
+    next(state: ()) { state }
+  }
+  )";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, LetChannelSubarrayInConfig) {
+  constexpr std::string_view kProgram = R"(
+ proc B {
+    outs: chan<u32>[2] out;
+    ins: chan<u32>[2] in;
+
+    init {}
+
+    config(outs: chan<u32>[2] out, ins: chan<u32>[2] in) {
+      (outs, ins)
+    }
+
+    next(state: ()) {
+      unroll_for!(j, tok) : (u32, token) in u32:0..u32:2 {
+        let tok = send(tok, outs[j], j);
+        let(tok, _) = recv(tok, ins[j]);
+        tok
+      }(join());
+    }
+  }
+
+  proc A {
+    init {}
+
+    config() {
+      let (outs, ins) = chan<u32>[2][2]("the_channel");
+      let outs0 = outs[0];
+      let ins0 = ins[0];
+      let outs1 = outs[1];
+      let ins1 = ins[1];
+      spawn B(outs0, ins0);
+      spawn B(outs1, ins1);
+    }
+
+    next(state: ()) { state }
+  }
+  )";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "A", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, LetChannelSubarrayInNext) {
+  constexpr std::string_view kProgram = R"(
+  proc A {
+    outs: chan<u32>[2][2] out;
+    ins: chan<u32>[2][2] in;
+
+    init {}
+
+    config() {
+      let (outs, ins) = chan<u32>[2][2]("the_channel");
+      (outs, ins)
+    }
+
+    next(state: ()) {
+      let (outs0, ins0) = (outs[0], ins[0]);
+      let (outs1, ins1) = (outs[1], ins[1]);
+      unroll_for!(j, tok) : (u32, token) in u32:0..u32:2 {
+        let tok = send(tok, outs0[j], j);
+        let(tok, _) = recv(tok, ins0[j]);
+        let tok = send(tok, outs1[j], j);
+        let(tok, _) = recv(tok, ins1[j]);
+        tok
+      }(join());
+    }
+  }
+  )";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "A", import_data, options),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid channel subarray use")));
+}
+
 TEST(IrConverterTest, TopProcWithState) {
   constexpr std::string_view kProgram = R"(
 proc main {

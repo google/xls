@@ -1679,11 +1679,24 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleIndex(const Index* node) {
-  absl::StatusOr<Channel*> channel =
-      channel_scope_->GetChannelForArrayIndex(node);
-  if (channel.ok()) {
-    node_to_ir_[node] = *channel;
-    return absl::OkStatus();
+  if (proc_id_.has_value()) {
+    absl::StatusOr<ChannelOrArray> channel_or_array =
+        channel_scope_->GetChannelOrArrayForArrayIndex(*proc_id_, node);
+    if (channel_or_array.ok()) {
+      if (std::holds_alternative<ChannelArray*>(*channel_or_array)) {
+        // We don't allow referencing subarrays outside of config(), and the
+        // ones that occur in config() are dealt with in `ProcConfigIrConverter`
+        // rather than ending up here. The reason for disallowing them in next()
+        // is low utility and higher difficulty of implementation against
+        // non-lowered arrays, which can't be an `IrValue`, `BValue`, etc.
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid channel subarray use: `%s` at %s; channel subarrays can "
+            "only be used in proc config functions.",
+            node->ToString(), node->span().ToString(file_table())));
+      }
+      node_to_ir_[node] = std::get<Channel*>(*channel_or_array);
+      return absl::OkStatus();
+    }
   }
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));

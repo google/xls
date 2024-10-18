@@ -32,6 +32,8 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/proc_id.h"
+#include "xls/dslx/frontend/proc_test_utils.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/conversion_info.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -99,20 +101,24 @@ class ChannelScopeTest : public ::testing::Test {
                                  NumberKind::kOther, GetU32TypeAnnotation());
   }
 
-  Index* CreateIndexOp(ChannelDecl* decl,
+  Index* CreateIndexOp(NameRef* name_ref,
                        const std::vector<std::string_view>& indices) {
-    NameDef* fake_array = module_->Make<NameDef>(Span::Fake(), "arr", nullptr);
-    absl::StatusOr<ChannelOrArray> channel_or_array =
-        scope_->AssociateWithExistingChannelOrArray(fake_array, decl);
-    XLS_EXPECT_OK(channel_or_array);
-    NameRef* fake_array_ref =
-        module_->Make<NameRef>(Span::Fake(), "arr", fake_array);
     Index* index =
-        module_->Make<Index>(Span::Fake(), fake_array_ref, MakeU32(indices[0]));
+        module_->Make<Index>(Span::Fake(), name_ref, MakeU32(indices[0]));
     for (int i = 1; i < indices.size(); i++) {
       index = module_->Make<Index>(Span::Fake(), index, MakeU32(indices[i]));
     }
     return index;
+  }
+
+  Index* CreateIndexOp(ChannelDecl* decl,
+                       const std::vector<std::string_view>& indices) {
+    NameDef* fake_array = module_->Make<NameDef>(Span::Fake(), "arr", nullptr);
+    absl::StatusOr<ChannelOrArray> channel_or_array =
+        scope_->AssociateWithExistingChannelOrArray(ProcId{}, fake_array, decl);
+    XLS_EXPECT_OK(channel_or_array);
+    return CreateIndexOp(
+        module_->Make<NameRef>(Span::Fake(), "arr", fake_array), indices);
   }
 
   std::unique_ptr<ImportData> import_data_;
@@ -204,7 +210,7 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelDecl) {
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
   NameDef* name_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
   XLS_EXPECT_OK_AND_EQ(
-      scope_->AssociateWithExistingChannelOrArray(name_def, decl),
+      scope_->AssociateWithExistingChannelOrArray(ProcId{}, name_def, decl),
       std::get<Channel*>(result));
 }
 
@@ -216,15 +222,16 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelArrayDecl) {
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
   NameDef* name_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
   XLS_EXPECT_OK_AND_EQ(
-      scope_->AssociateWithExistingChannelOrArray(name_def, decl),
+      scope_->AssociateWithExistingChannelOrArray(ProcId{}, name_def, decl),
       std::get<ChannelArray*>(result));
 }
 
 TEST_F(ChannelScopeTest, AssociateWithExistingChannelOrArrayNonexistent) {
   ChannelDecl* decl = MakeU32ChannelDecl("the_channel");
   NameDef* name_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
-  EXPECT_THAT(scope_->AssociateWithExistingChannelOrArray(name_def, decl),
-              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(
+      scope_->AssociateWithExistingChannelOrArray(ProcId{}, name_def, decl),
+      StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(ChannelScopeTest, AssociateWithExistingChannel) {
@@ -233,7 +240,8 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannel) {
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
   NameDef* name_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
-  XLS_EXPECT_OK(scope_->AssociateWithExistingChannelOrArray(name_def, result));
+  XLS_EXPECT_OK(
+      scope_->AssociateWithExistingChannelOrArray(ProcId{}, name_def, result));
 }
 
 TEST_F(ChannelScopeTest, AssociateWithExistingChannelArray) {
@@ -243,7 +251,45 @@ TEST_F(ChannelScopeTest, AssociateWithExistingChannelArray) {
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
   NameDef* name_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
-  XLS_EXPECT_OK(scope_->AssociateWithExistingChannelOrArray(name_def, result));
+  XLS_EXPECT_OK(
+      scope_->AssociateWithExistingChannelOrArray(ProcId{}, name_def, result));
+}
+
+TEST_F(ChannelScopeTest, AssociateWithExistingChannelArrayDifferentProcIds) {
+  std::vector<Expr*> dims = {MakeU32("5")};
+  ChannelDecl* arr1_decl = MakeU32ChannelDecl("arr1", dims);
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr1,
+                           scope_->DefineChannelOrArray(arr1_decl));
+  ChannelDecl* arr2_decl = MakeU32ChannelDecl("arr2", dims);
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray arr2,
+                           scope_->DefineChannelOrArray(arr2_decl));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr1));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(arr2));
+
+  NameDef* ch_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
+  NameRef* ch_ref = module_->Make<NameRef>(Span::Fake(), "ch", ch_def);
+  FileTable file_table;
+  auto [proc_a_module, proc_a] = CreateEmptyProc(file_table, "A");
+  auto [proc_b_module, proc_b] = CreateEmptyProc(file_table, "B");
+  // Simulate two spawns of B from A, the first passing `arr1` for `ch` and the
+  // second passing `arr2` for `ch`.
+  ProcId proc_id1{.proc_instance_stack = {{proc_a, 0}, {proc_b, 0}}};
+  ProcId proc_id2{.proc_instance_stack = {{proc_a, 0}, {proc_b, 1}}};
+  XLS_EXPECT_OK(
+      scope_->AssociateWithExistingChannelOrArray(proc_id1, ch_def, arr1_decl));
+  XLS_EXPECT_OK(
+      scope_->AssociateWithExistingChannelOrArray(proc_id2, ch_def, arr2_decl));
+
+  // Trying to evaluate `ch[some_index]` now should give us a different object
+  // depending on the proc ID.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * test_channel1,
+      scope_->GetChannelForArrayIndex(proc_id1, CreateIndexOp(ch_ref, {"2"})));
+  EXPECT_EQ(test_channel1->name(), "the_package__arr1__2");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * test_channel2,
+      scope_->GetChannelForArrayIndex(proc_id2, CreateIndexOp(ch_ref, {"2"})));
+  EXPECT_EQ(test_channel2->name(), "the_package__arr2__2");
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndex1DValid) {
@@ -252,8 +298,9 @@ TEST_F(ChannelScopeTest, HandleChannelIndex1DValid) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel, scope_->GetChannelForArrayIndex(
-                                                  CreateIndexOp(decl, {"2"})));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      scope_->GetChannelForArrayIndex(ProcId{}, CreateIndexOp(decl, {"2"})));
   EXPECT_EQ(channel->name(), "the_package__the_channel__2");
 }
 
@@ -263,9 +310,9 @@ TEST_F(ChannelScopeTest, HandleChannelIndex2DValid) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * channel,
-      scope_->GetChannelForArrayIndex(CreateIndexOp(decl, {"4", "1"})));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
+                           scope_->GetChannelForArrayIndex(
+                               ProcId{}, CreateIndexOp(decl, {"4", "1"})));
   EXPECT_EQ(channel->name(), "the_package__the_channel__4_1");
 }
 
@@ -274,8 +321,9 @@ TEST_F(ChannelScopeTest, HandleChannelIndexWithNonArray) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<Channel*>(result));
-  EXPECT_THAT(scope_->GetChannelForArrayIndex(CreateIndexOp(decl, {"4"})),
-              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      scope_->GetChannelForArrayIndex(ProcId{}, CreateIndexOp(decl, {"4"})),
+      StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndexWithTooManyIndices) {
@@ -284,9 +332,9 @@ TEST_F(ChannelScopeTest, HandleChannelIndexWithTooManyIndices) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  EXPECT_THAT(
-      scope_->GetChannelForArrayIndex(CreateIndexOp(decl, {"4", "1", "1"})),
-      StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(scope_->GetChannelForArrayIndex(
+                  ProcId{}, CreateIndexOp(decl, {"4", "1", "1"})),
+              StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndexWithInsufficientIndices) {
@@ -295,8 +343,34 @@ TEST_F(ChannelScopeTest, HandleChannelIndexWithInsufficientIndices) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  EXPECT_THAT(scope_->GetChannelForArrayIndex(CreateIndexOp(decl, {"4"})),
-              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(
+      scope_->GetChannelForArrayIndex(ProcId{}, CreateIndexOp(decl, {"4"})),
+      StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(ChannelScopeTest, HandleSubarrayIndex) {
+  std::vector<Expr*> dims = {MakeU32("2"), MakeU32("5")};
+  ChannelDecl* decl = MakeU32ChannelDecl("the_channel", dims);
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
+                           scope_->DefineChannelOrArray(decl));
+  EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
+
+  // Get a subarray of "the_channel" and assign a `NameDef` to that.
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray subarray,
+                           scope_->GetChannelOrArrayForArrayIndex(
+                               ProcId{}, CreateIndexOp(decl, {"4"})));
+  ASSERT_TRUE(std::holds_alternative<ChannelArray*>(subarray));
+  NameDef* subarray_def = module_->Make<NameDef>(Span::Fake(), "ch", nullptr);
+  NameRef* subarray_ref =
+      module_->Make<NameRef>(Span::Fake(), "ch", subarray_def);
+  XLS_EXPECT_OK(scope_->AssociateWithExistingChannelOrArray(
+      ProcId{}, subarray_def, subarray));
+
+  // Now index into the subarray.
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * channel,
+                           scope_->GetChannelForArrayIndex(
+                               ProcId{}, CreateIndexOp(subarray_ref, {"1"})));
+  EXPECT_EQ(channel->name(), "the_package__the_channel__4_1");
 }
 
 TEST_F(ChannelScopeTest, HandleChannelIndexWithOutOfRangeIndices) {
@@ -305,7 +379,8 @@ TEST_F(ChannelScopeTest, HandleChannelIndexWithOutOfRangeIndices) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelOrArray result,
                            scope_->DefineChannelOrArray(decl));
   EXPECT_TRUE(std::holds_alternative<ChannelArray*>(result));
-  EXPECT_THAT(scope_->GetChannelForArrayIndex(CreateIndexOp(decl, {"5", "0"})),
+  EXPECT_THAT(scope_->GetChannelForArrayIndex(ProcId{},
+                                              CreateIndexOp(decl, {"5", "0"})),
               StatusIs(absl::StatusCode::kNotFound));
 }
 
