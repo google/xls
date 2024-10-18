@@ -21,5 +21,6 @@ package xls;
 // the external function instantiation.
 message ForeignFunctionData {
   string code_template = 1;
-  // TODO(hzeller): 2023-07-05 Add optional delay model information.
+  optional int32 delay_ps = 2;
+  // TODO(hzeller): 2023-07-05 Add optional delay model information?
 }

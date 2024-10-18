@@ -19,6 +19,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/op.h"
 
 namespace xls {
@@ -28,6 +29,12 @@ absl::StatusOr<int64_t> FfiDelayEstimator::GetOperationDelayInPs(
     return absl::UnimplementedError(
         absl::StrFormat("FFI delay estimate only for kInvoke, found %s",
                         OpToString(node->op())));
+  }
+  // If the user does not want to provide one, they can use the value from
+  // the --ffi_fallback_delay_ps flag. However, this user-provided value
+  // overrides the value from the --ffi_fallback_delay_ps flag.
+  if (node->function_base()->ForeignFunctionData()->has_delay_ps()) {
+    return node->function_base()->ForeignFunctionData()->delay_ps();
   }
   if (!fallback_delay_estimate_.has_value()) {
     return absl::NotFoundError("No --ffi_fallback_delay_ps provided.");

@@ -77,6 +77,9 @@ FfiPartialValueSubstituteHelper::GetUpdatedFfiData() const {
       CodeTemplate::Escaped::kKeep);
   ForeignFunctionData result;
   result.set_code_template(modified_template);
+  if (ffi_->has_delay_ps()) {
+    result.set_delay_ps(ffi_->delay_ps());
+  }
   return result;
 }
 

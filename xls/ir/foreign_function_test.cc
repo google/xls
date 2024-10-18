@@ -24,12 +24,16 @@ namespace {
 TEST(ForeignFunctionTest, PartialValueSubstituteHelper) {
   ForeignFunctionData ffi;
   ffi.set_code_template("Some {foo} at {bar} with {baz}");
+  // Setting some non-zero delay to make sure it is preserved.
+  ffi.set_delay_ps(1536);
   FfiPartialValueSubstituteHelper substitute(ffi);
   substitute.SetNamedValue("foo", Value(UBits(0xf00d, 16)));
   // '{bar}', we want to keep as-is.
   substitute.SetNamedValue("baz", Value(UBits(0xc0ffee, 24)));
   EXPECT_EQ(substitute.GetUpdatedFfiData()->code_template(),
             "Some 16'hf00d at {bar} with 24'hc0ffee");
+  EXPECT_EQ(ffi.delay_ps(), 1536);
+  EXPECT_EQ(substitute.GetUpdatedFfiData()->delay_ps(), 1536);
 }
 }  // namespace
 }  // namespace xls
