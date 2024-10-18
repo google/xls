@@ -255,3 +255,75 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_binary(
+    name = "libxls.dylib",
+    linkshared = True,
+    deps = [
+        ":c_api",
+    ],
+    copts = [
+        "-fno-exceptions",
+    ],
+    linkopts = [
+        "@$(location :generate_linker_params_underscores)",
+    ],
+    additional_linker_inputs = [
+        ":exported_symbols_map",
+        ":generate_linker_params_underscores",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:osx": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+# This allows export of all symbols that start with `xls_`
+filegroup(
+    name = "exported_symbols_map",
+    srcs = ["exported_symbols.map"],
+)
+
+py_test(
+    name = "test_c_api_symbols",
+    srcs = ["test_c_api_symbols.py"],
+    data = [
+        "c_api_symbols.txt",
+        ":c_api",
+        ":c_api_dslx",
+        ":c_api_vast",
+    ],
+)
+
+# We have to note that all these symbols, though unused, should be
+# included/exposed in the resulting artifact's symbol set.
+genrule(
+    name = "generate_linker_params",
+    srcs = ["c_api_symbols.txt"],
+    outs = ["dso_linker_params.txt"],
+    cmd = "sed 's|^|-Wl,-u,|' $(location c_api_symbols.txt) > $@",
+)
+
+# As above, but with leading underscores for OS X.
+genrule(
+    name = "generate_linker_params_underscores",
+    srcs = ["c_api_symbols.txt"],
+    outs = ["dso_linker_params_underscores.txt"],
+    cmd = "sed 's|^|-Wl,-u,_|' $(location c_api_symbols.txt) > $@",
+)
+
+cc_binary(
+    name = "libxls.so",
+    additional_linker_inputs = [
+        ":exported_symbols_map",
+        ":generate_linker_params",
+    ],
+    linkopts = [
+        "-Wl,--version-script=$(location :exported_symbols_map)",
+        "@$(location :generate_linker_params)",
+    ],
+    linkshared = True,
+    deps = [
+        ":c_api",
+    ],
+)

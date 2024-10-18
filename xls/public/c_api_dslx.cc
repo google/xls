@@ -173,6 +173,16 @@ char* xls_dslx_struct_def_get_identifier(struct xls_dslx_struct_def* n) {
   return xls::ToOwnedCString(result);
 }
 
+bool xls_dslx_struct_def_is_parametric(struct xls_dslx_struct_def* n) {
+  auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(n);
+  return cpp_struct_def->IsParametric();
+}
+
+int64_t xls_dslx_struct_def_get_member_count(struct xls_dslx_struct_def* n) {
+  auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(n);
+  return cpp_struct_def->size();
+}
+
 // -- enum_def
 
 char* xls_dslx_enum_def_get_identifier(struct xls_dslx_enum_def* n) {
@@ -211,6 +221,11 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_def(
     struct xls_dslx_type_info* type_info,
     struct xls_dslx_struct_def* struct_def) {
   return GetMetaTypeHelper(type_info, struct_def);
+}
+
+const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_member(
+    struct xls_dslx_type_info* type_info, struct xls_dslx_struct_member* struct_member) {
+  return GetMetaTypeHelper(type_info, struct_member);
 }
 
 const struct xls_dslx_type* xls_dslx_type_info_get_type_enum_def(
