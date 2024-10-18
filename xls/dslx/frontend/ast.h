@@ -2245,7 +2245,10 @@ class EnumDef : public AstNode {
   const std::vector<EnumMember>& values() const { return values_; }
   std::vector<EnumMember>& mutable_values() { return values_; }
 
+  // Type annotation that indicates the "underlying" bit type payload for the
+  // enum.
   TypeAnnotation* type_annotation() const { return type_annotation_; }
+
   bool is_public() const { return is_public_; }
 
   const std::string& GetMemberName(int64_t i) const {

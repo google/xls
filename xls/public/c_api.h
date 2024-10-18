@@ -84,6 +84,8 @@ struct xls_value* xls_value_make_true();
 bool xls_value_get_bits(const struct xls_value* value, char** error_out,
                         struct xls_bits** bits_out);
 
+int64_t xls_bits_get_bit_count(const struct xls_bits* bits);
+
 void xls_bits_free(struct xls_bits* bits);
 
 // Returns a new `bits[1]:0` XLS value which the caller must free.

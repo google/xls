@@ -263,7 +263,8 @@ class ImportData {
              WarningKindSet enabled_warnings,
              std::unique_ptr<VirtualizableFilesystem> vfs)
       : stdlib_path_(std::move(stdlib_path)),
-        additional_search_paths_(additional_search_paths),
+        additional_search_paths_(std::vector<std::filesystem::path>(
+            additional_search_paths.begin(), additional_search_paths.end())),
         enabled_warnings_(enabled_warnings),
         vfs_(std::move(vfs)) {}
 
@@ -281,7 +282,7 @@ class ImportData {
   absl::flat_hash_map<Module*, AstNode*> typecheck_wip_;
   TypeInfoOwner type_info_owner_;
   const std::filesystem::path stdlib_path_;
-  absl::Span<const std::filesystem::path> additional_search_paths_;
+  std::vector<std::filesystem::path> additional_search_paths_;
   WarningKindSet enabled_warnings_;
   std::unique_ptr<BytecodeCacheInterface> bytecode_cache_;
 

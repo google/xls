@@ -29,6 +29,7 @@
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_vast.h"
+
 namespace {
 
 using ::testing::HasSubstr;
@@ -648,6 +649,70 @@ enum MyEnum : u5 {
         xls_dslx_type_is_signed_bits(enum_def_type, &error, &is_signed));
     ASSERT_EQ(error, nullptr);
     EXPECT_FALSE(is_signed);
+  }
+}
+
+TEST(XlsCApiTest, DslxInspectTypeRefTypeAnnotation) {
+  const char kImported[] = "pub type SomeType = u32;";
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempDirectory tempdir,
+                           xls::TempDirectory::Create());
+  const std::filesystem::path tempdir_path = tempdir.path();
+  const std::filesystem::path module_path =
+      tempdir_path / "my_imported_module.x";
+  XLS_ASSERT_OK(xls::SetFileContents(module_path, kImported));
+
+  const char kProgram[] = R"(import my_imported_module;
+
+type MyTypeAlias = my_imported_module::SomeType;
+)";
+  const char* additional_search_paths[] = {tempdir_path.c_str()};
+
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      ABSL_ARRAYSIZE(additional_search_paths));
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  xls_dslx_typechecked_module* tm = nullptr;
+  char* error = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram, "foo.x", "foo", import_data,
+                                         &error, &tm);
+  absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
+  ASSERT_TRUE(ok) << "got not-ok result from parse-and-typecheck; error: "
+                  << error;
+  ASSERT_EQ(error, nullptr);
+  ASSERT_NE(tm, nullptr);
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  xls_dslx_type_alias* type_alias =
+      xls_dslx_module_get_type_definition_as_type_alias(module, 0);
+
+  // Validate that the name is "MyTypeAlias".
+  {
+    char* identifier = xls_dslx_type_alias_get_identifier(type_alias);
+    absl::Cleanup free_identifier([=] { xls_c_str_free(identifier); });
+    EXPECT_EQ(std::string_view{identifier}, std::string_view{"MyTypeAlias"});
+  }
+
+  // Get the type definition for the right hand side -- it should be a
+  // TypeRefTypeAnnotation, which we traverse to a TypeRef where we can resolve
+  // its subject as an import.
+  {
+    xls_dslx_type_annotation* type =
+        xls_dslx_type_alias_get_type_annotation(type_alias);
+    xls_dslx_type_ref_type_annotation* type_ref_type_annotation =
+        xls_dslx_type_annotation_get_type_ref_type_annotation(type);
+    xls_dslx_type_ref* type_ref =
+        xls_dslx_type_ref_type_annotation_get_type_ref(
+            type_ref_type_annotation);
+    xls_dslx_type_definition* type_definition =
+        xls_dslx_type_ref_get_type_definition(type_ref);
+    xls_dslx_colon_ref* colon_ref =
+        xls_dslx_type_definition_get_colon_ref(type_definition);
+    xls_dslx_import* import_subject =
+        xls_dslx_colon_ref_resolve_import_subject(colon_ref);
+    EXPECT_NE(import_subject, nullptr);
   }
 }
 
