@@ -30,6 +30,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/Support/Error.h"
 #include "xls/codegen/block_inlining_pass.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -52,6 +54,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/jit/aot_compiler.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
@@ -173,49 +176,32 @@ class ElaboratedBlockJit : public BlockJit {
       std::unique_ptr<Package> jit_pkg, Block* block,
       absl::flat_hash_map<std::string, std::string> reg_rename_map,
       absl::flat_hash_map<std::string, Type*> materialized_impl_regs,
-      std::unique_ptr<JitRuntime> runtime, std::unique_ptr<OrcJit> jit,
+      std::unique_ptr<JitRuntime> runtime, std::unique_ptr<OrcJit> orc_jit,
       JittedFunctionBase function, bool support_observer_callbacks)
-      : BlockJit(block, std::move(runtime), std::move(jit), std::move(function),
-                 support_observer_callbacks),
+      : BlockJit(block, std::move(runtime), std::move(orc_jit),
+                 std::move(function), support_observer_callbacks),
         jit_pkg_(std::move(jit_pkg)),
         reg_rename_map_(std::move(reg_rename_map)),
         materialized_impl_regs_(std::move(materialized_impl_regs)) {}
 
+  // Actual pointer to keep alive the jitted block. Note that on AOT blocks this
+  // might be null.
   std::unique_ptr<Package> jit_pkg_;
   absl::flat_hash_map<std::string, std::string> reg_rename_map_;
   absl::flat_hash_map<std::string, Type*> materialized_impl_regs_;
 
   friend class BlockJit;
 };
-}  // namespace
 
-absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    Block* block, bool support_observer_callbacks) {
-  XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
-                       BlockElaboration::Elaborate(block));
-  return BlockJit::Create(elab, support_observer_callbacks);
-}
+struct ElaborationJitData {
+  std::unique_ptr<Package> cloned_package;
+  Block* inlined_block;
+  absl::flat_hash_map<std::string, std::string> renamed_registers;
+  absl::flat_hash_map<std::string, Type*> added_registers;
+};
 
-absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
-    const BlockElaboration& elab, bool support_observer_callbacks) {
-  Block* block;
-  absl::flat_hash_map<std::string, std::string> reg_aliases;
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<OrcJit> orc_jit,
-      OrcJit::Create(
-          LlvmCompiler::kDefaultOptLevel,
-          /*include_observer_callbacks=*/support_observer_callbacks));
-  XLS_ASSIGN_OR_RETURN(auto data_layout, orc_jit->CreateDataLayout());
-  auto jit_runtime = std::make_unique<JitRuntime>(data_layout);
-  if (elab.top()->block() &&
-      (*elab.top()->block())->GetInstantiations().empty()) {
-    block = elab.blocks().front();
-    XLS_ASSIGN_OR_RETURN(auto function,
-                         JittedFunctionBase::Build(block, *orc_jit));
-    return std::unique_ptr<BlockJit>(
-        new BlockJit(block, std::move(jit_runtime), std::move(orc_jit),
-                     std::move(function), support_observer_callbacks));
-  }
+absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
+    const BlockElaboration& elab) {
   std::string_view top_name = elab.top()->block().value()->name();
   XLS_RET_CHECK(elab.top()->block())
       << "Top block of elaboration must be an XLS 'block' in order to use JIT";
@@ -241,14 +227,119 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
           /*active_low=*/false, /*reset_data_path=*/false)};
   XLS_RETURN_IF_ERROR(
       PrepareForJitPassPipeline()->Run(&pass_unit, opts, &results).status());
-  Block* jit_block = pass_unit.top_block;
-  XLS_ASSIGN_OR_RETURN(JittedFunctionBase jit_entrypoint,
-                       JittedFunctionBase::Build(jit_block, *orc_jit));
+  return ElaborationJitData{
+      .cloned_package = std::move(jit_package),
+      .inlined_block = pass_unit.top_block,
+      .renamed_registers = std::move(results.register_renames),
+      .added_registers = std::move(results.inserted_registers),
+  };
+}
+
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
+    Block* block, bool support_observer_callbacks) {
+  XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
+                       BlockElaboration::Elaborate(block));
+  return BlockJit::Create(elab, support_observer_callbacks);
+}
+
+absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
+    const BlockElaboration& elab, bool support_observer_callbacks) {
+  Block* block;
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<OrcJit> orc_jit,
+      OrcJit::Create(
+          LlvmCompiler::kDefaultOptLevel,
+          /*include_observer_callbacks=*/support_observer_callbacks));
+  XLS_ASSIGN_OR_RETURN(auto data_layout, orc_jit->CreateDataLayout());
+  auto jit_runtime = std::make_unique<JitRuntime>(data_layout);
+  if (elab.top()->block() &&
+      (*elab.top()->block())->GetInstantiations().empty()) {
+    block = elab.blocks().front();
+    XLS_ASSIGN_OR_RETURN(auto function,
+                         JittedFunctionBase::Build(block, *orc_jit));
+    return std::unique_ptr<BlockJit>(
+        new BlockJit(block, std::move(jit_runtime), std::move(orc_jit),
+                     std::move(function), support_observer_callbacks));
+  }
+  XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
+                       CloneElaborationPackage(elab));
+  XLS_ASSIGN_OR_RETURN(
+      JittedFunctionBase jit_entrypoint,
+      JittedFunctionBase::Build(jit_data.inlined_block, *orc_jit));
   return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
-      std::move(jit_package), jit_block, std::move(results.register_renames),
-      std::move(results.inserted_registers), std::move(jit_runtime),
+      std::move(jit_data.cloned_package), jit_data.inlined_block,
+      std::move(jit_data.renamed_registers),
+      std::move(jit_data.added_registers), std::move(jit_runtime),
       std::move(orc_jit), std::move(jit_entrypoint),
       support_observer_callbacks));
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::CreateFromAot(
+    Block* block, const AotEntrypointProto& entrypoint,
+    std::string_view data_layout, JitFunctionType func_ptr) {
+  // TODO(allight): It would be better to not do this again but there is an
+  // abstraction mismatch where its difficult to send this to the wrapper.
+  // Because the inlining is a no-op if no instantiations are present however it
+  // is safe to redo it. To maintain compat with using this on already inlined
+  // values the proto maps for registers and such are always used.
+  XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
+                       BlockElaboration::Elaborate(block));
+  XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
+                       CloneElaborationPackage(elab));
+
+  XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
+                       JittedFunctionBase::BuildFromAot(
+                           jit_data.inlined_block, entrypoint, func_ptr,
+                           /*packed_entrypoint=*/std::nullopt));
+  llvm::Expected<llvm::DataLayout> layout =
+      llvm::DataLayout::parse(data_layout);
+  XLS_RET_CHECK(layout) << "bad layout: " << data_layout;
+  absl::flat_hash_map<std::string, std::string> renamed_regs;
+  renamed_regs.insert(entrypoint.register_aliases().begin(),
+                      entrypoint.register_aliases().end());
+  absl::flat_hash_map<std::string, Type*> added_regs;
+  added_regs.reserve(entrypoint.added_registers_size());
+  for (const auto& [reg_name, reg_ty] : entrypoint.added_registers()) {
+    XLS_ASSIGN_OR_RETURN(added_regs[reg_name],
+                         jit_data.cloned_package->GetTypeFromProto(reg_ty));
+  }
+  return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
+      std::move(jit_data.cloned_package), block, std::move(renamed_regs),
+      std::move(added_regs), std::make_unique<JitRuntime>(*layout),
+      /*orc_jit=*/nullptr, std::move(jfb),
+      /*support_observer_callbacks=*/false));
+}
+
+/* static */ absl::StatusOr<JitObjectCode> BlockJit::CreateObjectCode(
+    const BlockElaboration& elab, int64_t opt_level, bool include_msan,
+    JitObserver* obs) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<AotCompiler> comp,
+                       AotCompiler::Create(include_msan, opt_level, obs));
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout, comp->CreateDataLayout());
+  // NB We could avoid doing a package clone if there are no instantations but
+  // since this is aot anyway its easier to just not bother. The cloned package
+  // isn't going to be long lived anyway.
+  XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
+                       CloneElaborationPackage(elab));
+  XLS_ASSIGN_OR_RETURN(
+      auto function, JittedFunctionBase::Build(jit_data.inlined_block, *comp));
+  XLS_ASSIGN_OR_RETURN(auto obj_code, std::move(comp)->GetObjectCode());
+  return JitObjectCode{
+      .object_code = std::move(obj_code),
+      .entrypoints =
+          {
+              FunctionEntrypoint{
+                  .function = jit_data.inlined_block,
+                  .jit_info = std::move(function),
+                  .register_aliases = std::move(jit_data.renamed_registers),
+                  .added_registers = std::move(jit_data.added_registers),
+              },
+          },
+      .data_layout = data_layout,
+      .package = std::move(jit_data.cloned_package),
+  };
 }
 
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {

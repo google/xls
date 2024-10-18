@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package xls;
 
+import "xls/ir/xls_type.proto";
 import "xls/jit/type_layout.proto";
 
 // Proto version of the jittedFunctionBase information needed to call a AOTd
@@ -74,6 +75,14 @@ message AotEntrypointProto {
   optional TypeLayoutsProto outputs_layout = 19;
   repeated string inputs_names = 20;
   repeated string outputs_names = 21;
+
+  // Block specific fields.
+
+  // Register renames done to inline all blocks into a single mega-block
+  // suitable for compilation.
+  map<string, string> register_aliases = 23;
+  // Any registers added to implement things like fifos for simulation.
+  map<string, TypeProto> added_registers = 24;
 }
 
 // A single object file can have entrypoints for many different targets. This is

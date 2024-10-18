@@ -15,6 +15,7 @@
 #define XLS_JIT_FUNCTION_BASE_JIT_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,7 +32,9 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/type.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_buffer.h"
@@ -296,6 +299,10 @@ class JittedFunctionBase {
 struct FunctionEntrypoint {
   FunctionBase* function;
   JittedFunctionBase jit_info;
+
+  // Extra field information.
+  absl::flat_hash_map<std::string, std::string> register_aliases = {};
+  absl::flat_hash_map<std::string, Type*> added_registers = {};
 };
 
 // Data structure containing jitted object code and metadata about how to call
@@ -304,6 +311,10 @@ struct JitObjectCode {
   std::vector<uint8_t> object_code;
   std::vector<FunctionEntrypoint> entrypoints;
   llvm::DataLayout data_layout;
+
+  // If set a package that needs to stay alive to keep 'FunctionEntrypoint' (ie
+  // FunctionBase*, type maps etc) valid.
+  std::unique_ptr<Package> package = nullptr;
 };
 
 }  // namespace xls

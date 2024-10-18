@@ -607,6 +607,7 @@ xls_ir_jit_wrapper_macro(
         "namespace": "not_xls::test",
     },
     source_file = "simple_example_5_one_stage_jit_wrapper.cc",
+    top = "main",
     wrapper_type = FUNCTION_WRAPPER_TYPE,
 )
 
@@ -826,6 +827,7 @@ xls_ir_jit_wrapper_macro(
         "namespace": "not_xls::test",
     },
     source_file = "xls_ir_jit_wrapper.cc",
+    top = "main",
     wrapper_type = FUNCTION_WRAPPER_TYPE,
 )
 

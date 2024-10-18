@@ -1,0 +1,77 @@
+#include "{{ wrapped.header_filename }}"
+
+#include <cstdint>
+#include <array>
+#include <string_view>
+#include <string>
+
+#include "absl/container/flat_hash_map.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/interpreter/evaluator_options.h"
+#include "xls/jit/block_base_jit_wrapper.h"
+
+extern "C" {
+
+// The actual symbols the AOT generates.
+// Unpacked entrypoint
+int64_t {{wrapped.aot_entrypoint.entrypoint[0].function_symbol}}(  // NOLINT
+    const uint8_t* const* inputs, uint8_t* const* outputs, void* temp_buffer,
+    xls::InterpreterEvents* events, xls::InstanceContext* instance_context,
+    xls::JitRuntime* jit_runtime, int64_t continuation_point);
+}
+
+namespace {{ wrapped.namespace }} {
+
+namespace {
+
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+static constexpr bool kTargetHasSanitizer = true;
+#else
+static constexpr bool kTargetHasSanitizer = false;
+#endif
+static constexpr bool kExternHasSanitizer = {{ "true" if wrapped.aot_entrypoint.entrypoint[0].has_msan else "false" }};
+
+static_assert(kTargetHasSanitizer == kExternHasSanitizer,
+              "sanitizer states do not match!");
+
+static constexpr std::string_view kFunctionName = "{{ wrapped.function_name }}";
+
+// Note: This is a plain array as the content can be so large that it exceeds
+// compiler constexpr limits if attempting to assign to std::string_view
+static constexpr char kIrText[] =
+    R"original_ir({{wrapped.ir_text}})original_ir";
+
+// Bytes of the AOT entrypoint message:
+{{ str(wrapped.aot_entrypoint.entrypoint[0]).split("\n") | prefix_each("// ") | join("\n") }}
+static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToString())}}> kAotEntrypointsProtoBin = {
+  {{wrapped.aot_entrypoint.SerializeToString() | list | join(", ")}}
+};
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
+{{ wrapped.class_name }}::Create(const xls::EvaluatorOptions& options) {
+  return xls::BaseBlockJitWrapper::Create<{{wrapped.class_name}}>(
+            kIrText,
+            kFunctionName,
+            kAotEntrypointsProtoBin,
+            {{wrapped.aot_entrypoint.entrypoint[0].function_symbol}},
+            options);
+}
+absl::Status {{wrapped.class_name}}Continuation::SetInputPorts(const {{wrapped.class_name}}Ports& ports) {
+  {% for port in wrapped.input_ports %}
+  if (!ports.{{port.snake_name}}) {
+    return absl::InvalidArgumentError("Input port {{port.xls_name}} (field {{port.snake_name}}) is not set.");
+  }
+  {% endfor %}
+  absl::flat_hash_map<std::string, xls::Value> values{
+    {% for port in wrapped.input_ports %}
+      {
+        std::string("{{port.xls_name}}"),
+        *ports.{{port.snake_name}}
+      },
+    {% endfor %}
+  };
+  return xls::BaseBlockJitWrapperContinuation::SetInputPorts(values);
+}
+
+}  // namespace {{ wrapped.namespace }}

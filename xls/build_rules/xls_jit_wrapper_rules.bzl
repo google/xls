@@ -36,7 +36,11 @@ load(
     "//xls/build_rules:xls_internal_build_defs.bzl",
     "XLS_IS_MSAN_BUILD",
 )
-load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
+load(
+    "//xls/build_rules:xls_ir_rules.bzl",
+    "xls_ir_common_attrs",
+    "xls_ir_top_attrs",
+)
 load("//xls/build_rules:xls_providers.bzl", "AotCompileInfo", "JitWrapperInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
@@ -140,6 +144,9 @@ def _xls_ir_jit_wrapper_impl(ctx):
         fail("Header filename must contain the '%s' extension." %
              _H_FILE_EXTENSION)
 
+    if ctx.attr.top != "":
+        jit_wrapper_flags.add("--function", ctx.attr.top)
+
     # validate basename
     if source_basename != header_basename:
         fail("The basename of the source and header files do not match.")
@@ -154,7 +161,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
     jit_wrapper_flags.add("--output_dir", cc_file.dirname)
 
     # genfiles directory
-    jit_wrapper_flags.add("--genfiles_dir", ctx.genfiles_dir.path)
+    jit_wrapper_flags.add("--genfiles_dir", ctx.bin_dir.path + "/")
 
     # function_type
     jit_wrapper_flags.add("--function_type", ctx.attr.wrapper_type)
@@ -221,6 +228,7 @@ Examples:
     implementation = _xls_ir_jit_wrapper_impl,
     attrs = dicts.add(
         xls_ir_common_attrs,
+        xls_ir_top_attrs,
         _xls_ir_jit_wrapper_attrs,
         CONFIG["xls_outs_attrs"],
         xls_toolchain_attrs,
@@ -248,6 +256,7 @@ _no_aot_info = rule(
 def xls_ir_jit_wrapper_macro(
         name,
         src,
+        top,
         source_file,
         header_file,
         wrapper_type,
@@ -265,6 +274,7 @@ def xls_ir_jit_wrapper_macro(
     Args:
       name: The name of the rule.
       src: The IR file. See 'src' attribute from the 'xls_ir_jit_wrapper' rule.
+      top: Name of the function/block/proc to wrap.
       source_file: The generated source file. See 'source_file' attribute from
         the 'xls_ir_jit_wrapper' rule.
       header_file: The generated header file. See 'header_file' attribute from
@@ -284,6 +294,7 @@ def xls_ir_jit_wrapper_macro(
     # Type check input
     string_type_check("name", name)
     string_type_check("src", src)
+    string_type_check("top", top)
     string_type_check("source_file", source_file)
     string_type_check("header_file", header_file)
     string_type_check("wrapper_type", wrapper_type)
@@ -295,6 +306,7 @@ def xls_ir_jit_wrapper_macro(
     xls_ir_jit_wrapper(
         name = name,
         src = src,
+        top = top,
         source_file = source_file,
         header_file = header_file,
         aot_info = aot_info,
@@ -316,17 +328,24 @@ PROC_WRAPPER_TYPE = "PROC"
 BLOCK_WRAPPER_TYPE = "BLOCK"
 
 _BASE_JIT_WRAPPER_DEPS = {
-    FUNCTION_WRAPPER_TYPE: "//xls/jit:function_base_jit_wrapper",
-    PROC_WRAPPER_TYPE: "//xls/jit:proc_base_jit_wrapper",
+    FUNCTION_WRAPPER_TYPE: ["//xls/jit:function_base_jit_wrapper"],
+    PROC_WRAPPER_TYPE: [
+        "//xls/jit:proc_base_jit_wrapper",
+        "@com_google_absl//absl/container:flat_hash_map",
+    ],
+    BLOCK_WRAPPER_TYPE: [
+        "//xls/jit:block_base_jit_wrapper",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/container:flat_hash_map",
+    ],
 }
-
-_AOT_SUPPORTED_WRAPPERS = [FUNCTION_WRAPPER_TYPE, PROC_WRAPPER_TYPE]
 
 def cc_xls_ir_jit_wrapper(
         name,
         src,
         jit_wrapper_args = {},
         wrapper_type = FUNCTION_WRAPPER_TYPE,
+        top = "",
         **kwargs):
     """Invokes the JIT wrapper generator and compiles the result as a cc_library.
 
@@ -344,13 +363,13 @@ def cc_xls_ir_jit_wrapper(
                     FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or
                     PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE
                     for compatibility.
+      top: Name of the top function/proc/block.
       **kwargs: Keyword arguments. Named arguments.
     """
 
-    # TODO(allight): We should add top as an argument here. With the new
-    # jit-wrapper architecture it would be simple to support.
     dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
     string_type_check("src", src)
+    string_type_check("top", src)
 
     # Validate arguments of macro
     if kwargs.get("source_file"):
@@ -363,31 +382,25 @@ def cc_xls_ir_jit_wrapper(
     if wrapper_type not in (FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, PROC_WRAPPER_TYPE):
         fail(("Cannot set 'wrapper_type' to %s. It must be one of BLOCK_WRAPPER_TYPE, " +
               "FUNCTION_WRAPPER_TYPE, or PROC_WRAPPER_TYPE") % wrapper_type)
-    if wrapper_type == BLOCK_WRAPPER_TYPE:
-        fail("Block jit-wrapper not yet supported!")
 
     source_filename = name + _CC_FILE_EXTENSION
     header_filename = name + _H_FILE_EXTENSION
 
     extra_lib_deps = []
-    if wrapper_type in _AOT_SUPPORTED_WRAPPERS:
-        xls_aot_generate(
-            name = name + "_aot_code_for_wrapper",
-            src = src,
-            with_msan = XLS_IS_MSAN_BUILD,
-            # The XLS AOT compiler does not currently support cross-compilation.
-        )
-        aot_info_target = ":" + name + "_aot_code_for_wrapper"
-        extra_lib_deps.append(aot_info_target)
-    else:
-        # Simplify the xls_ir_jit_wrapper_macro by making sure it always gets an AotCompileInfo
-        _no_aot_info(name = name + "_empty_aot_info")
-        aot_info_target = ":" + name + "_empty_aot_info"
-        # Since this doesn't define any actual AOT code we don't need to add anything to the deps.
+    xls_aot_generate(
+        name = name + "_aot_code_for_wrapper",
+        src = src,
+        top = top,
+        with_msan = XLS_IS_MSAN_BUILD,
+        # The XLS AOT compiler does not currently support cross-compilation.
+    )
+    aot_info_target = ":" + name + "_aot_code_for_wrapper"
+    extra_lib_deps.append(aot_info_target)
 
     xls_ir_jit_wrapper_macro(
         name = "__" + name + "_xls_ir_jit_wrapper",
         src = src,
+        top = top,
         jit_wrapper_args = jit_wrapper_args,
         aot_info = aot_info_target,
         wrapper_type = wrapper_type,
@@ -400,17 +413,12 @@ def cc_xls_ir_jit_wrapper(
         name = name,
         srcs = [":" + source_filename],
         hdrs = [":" + header_filename],
-        deps = extra_lib_deps + [
-            _BASE_JIT_WRAPPER_DEPS[wrapper_type],
-            "@com_google_absl//absl/container:flat_hash_map",
+        deps = extra_lib_deps +
+               _BASE_JIT_WRAPPER_DEPS[wrapper_type] + [
             "@com_google_absl//absl/status",
             "@com_google_absl//absl/status:statusor",
             "//xls/common/status:status_macros",
             "//xls/interpreter:evaluator_options",
-            "//xls/jit:function_jit",
-            "//xls/public:function_builder",
-            "//xls/public:ir",
-            "//xls/public:ir_parser",
             "//xls/public:value",
         ],
         **kwargs

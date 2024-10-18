@@ -40,12 +40,15 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block_elaboration.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/jit/aot_entrypoint.pb.h"
+#include "xls/jit/block_jit.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
@@ -118,8 +121,10 @@ class IntermediatesObserver final : public JitObserver {
 };
 
 absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
-    Package* package, FunctionBase* func, const JittedFunctionBase& object_code,
-    bool include_msan, LlvmTypeConverter& type_converter) {
+    Package* package, const FunctionEntrypoint& entrypoint, bool include_msan,
+    LlvmTypeConverter& type_converter) {
+  FunctionBase* func = entrypoint.function;
+  const JittedFunctionBase& object_code = entrypoint.jit_info;
   AotEntrypointProto proto;
   proto.set_has_msan(include_msan);
   if (func->IsFunction()) {
@@ -145,7 +150,25 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
       *proto.mutable_outputs_layout()->add_layouts() = layout_proto;
     }
   } else {
-    return absl::UnimplementedError("block aot dumping unsupported!");
+    proto.set_type(AotEntrypointProto::BLOCK);
+    for (InputPort* p : func->AsBlockOrDie()->GetInputPorts()) {
+      proto.add_inputs_names(p->name());
+      auto layout_proto =
+          type_converter.CreateTypeLayout(p->GetType()).ToProto();
+      *proto.mutable_inputs_layout()->add_layouts() = layout_proto;
+    }
+    for (OutputPort* p : func->AsBlockOrDie()->GetOutputPorts()) {
+      proto.add_outputs_names(p->name());
+      auto layout_proto =
+          type_converter.CreateTypeLayout(p->GetType()).ToProto();
+      *proto.mutable_outputs_layout()->add_layouts() = layout_proto;
+    }
+    for (const auto& [orig, translated] : entrypoint.register_aliases) {
+      proto.mutable_register_aliases()->insert({orig, translated});
+    }
+    for (const auto& [reg, ty] : entrypoint.added_registers) {
+      proto.mutable_added_registers()->insert({reg, ty->ToProto()});
+    }
   }
   proto.set_xls_package_name(package->name());
   proto.set_xls_function_identifier(func->name());
@@ -235,8 +258,11 @@ absl::Status RealMain(const std::string& input_ir_path,
                                             package.get(), include_msan, &obs));
     }
   } else {
-    return absl::UnimplementedError(
-        "Dumping block jit code is not yet supported");
+    XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
+                         BlockElaboration::Elaborate(f->AsBlockOrDie()));
+    XLS_ASSIGN_OR_RETURN(
+        object_code,
+        BlockJit::CreateObjectCode(elab, /*opt_level=*/3, include_msan, &obs));
   }
   AotPackageEntrypointsProto all_entrypoints;
   if (output_object_path) {
@@ -253,8 +279,9 @@ absl::Status RealMain(const std::string& input_ir_path,
   for (const FunctionEntrypoint& oc : object_code->entrypoints) {
     XLS_ASSIGN_OR_RETURN(
         *all_entrypoints.add_entrypoint(),
-        GenerateEntrypointProto(package.get(), oc.function, oc.jit_info,
-                                include_msan, type_converter));
+        GenerateEntrypointProto(
+            object_code->package ? object_code->package.get() : package.get(),
+            oc, include_msan, type_converter));
   }
   if (output_textproto_path) {
     std::string text;

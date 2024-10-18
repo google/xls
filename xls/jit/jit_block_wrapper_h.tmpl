@@ -1,0 +1,80 @@
+#ifndef {{ wrapped.header_guard }}
+#define {{ wrapped.header_guard }}
+#include <memory>
+#include <optional>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "xls/jit/block_base_jit_wrapper.h"
+#include "xls/public/value.h"
+#include "xls/ir/bits.h"
+#include "xls/interpreter/evaluator_options.h"
+
+namespace {{ wrapped.namespace }} {
+
+struct {{ wrapped.class_name }}Ports {
+  {% for port in wrapped.input_ports %}
+  // The value of port {{port.xls_name}}.
+  std::optional<xls::Value> {{port.snake_name}};
+
+  // Set the current value of the {{port.xls_name}} port.
+  {{wrapped.class_name}}Ports& Set{{port.camel_name}}(const xls::Value& v) {
+    {{port.snake_name}} = v;
+    return *this;
+  }
+
+  {% if port.specialized_type %}
+  // Set the current value of the {{port.xls_name}} port.
+  {{wrapped.class_name}}Ports& Set{{port.camel_name}}({{port.specialized_type}} v) {
+    {{port.snake_name}} = xls::Value(xls::UBits(v, {{port.bit_count}}));
+    return *this;
+  }
+  {% endif %}
+  {% endfor %}
+};
+
+class {{ wrapped.class_name}}Continuation : public xls::BaseBlockJitWrapperContinuation {
+ public:
+
+  {% for port in wrapped.output_ports %}
+  // Get the current value of the {{port.xls_name}} port.
+  xls::Value Get{{port.camel_name}}AsValue() const {
+    return GetOutputByName("{{port.xls_name}}");
+  }
+  {% if port.specialized_type %}
+  // Get the current value of the {{port.xls_name}} port.
+  {{port.specialized_type}} Get{{port.camel_name}}() const {
+    return static_cast<{{port.specialized_type}}>(GetOutputByName("{{port.xls_name}}").bits().ToUint64().value());
+  }
+  {% endif %}
+  {% endfor %}
+
+  absl::Status SetInputPorts(const {{wrapped.class_name}}Ports& ports);
+  using xls::BaseBlockJitWrapperContinuation::SetInputPorts;
+
+ private:
+  using xls::BaseBlockJitWrapperContinuation::BaseBlockJitWrapperContinuation;
+
+  // For constructor.
+  friend class xls::BaseBlockJitWrapper;
+};
+
+class {{ wrapped.class_name }} final : public xls::BaseBlockJitWrapper {
+ public:
+  static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create(const xls::EvaluatorOptions& options = xls::EvaluatorOptions());
+
+  std::unique_ptr<{{wrapped.class_name}}Continuation>
+  NewContinuation() {
+    return NewContinuationImpl<{{wrapped.class_name}}Continuation>();
+  }
+
+ private:
+  using xls::BaseBlockJitWrapper::BaseBlockJitWrapper;
+
+  // For constructor.
+  friend class xls::BaseBlockJitWrapper;
+};
+
+}  // namespace {{ wrapped.namespace }}
+
+#endif  // {{ wrapped.header_guard }}

@@ -40,7 +40,7 @@ _FUNCTION_TYPE = flags.DEFINE_string(
     required=False,
     help=(
         "If set require a specific type of function. Options are [FUNCTION,"
-        " PROC]."
+        " PROC, BLOCK]."
     ),
 )
 _CLASS_NAME = flags.DEFINE_string(
@@ -57,9 +57,9 @@ _FUNCTION = flags.DEFINE_string(
     default=None,
     required=False,
     help=(
-        "Function/proc to wrap. If unspecified the top function/proc will be"
-        " used. NB If this is a proc it *must* be the top proc unless new-style"
-        " procs are being used."
+        "Function/proc/block to wrap. If unspecified the top function/proc will"
+        " be used. NB If this is a proc it *must* be the top proc unless"
+        " new-style procs are being used."
     ),
 )
 _IR_PATH = flags.DEFINE_string(
@@ -138,6 +138,7 @@ class XlsNamedValue:
 class JitType(enum.Enum):
   FUNCTION = 1
   PROC = 2
+  BLOCK = 3
 
 
 @dataclasses.dataclass(frozen=True)
@@ -146,6 +147,15 @@ class XlsChannel:
   camel_name: str
   packed_type: str
   unpacked_type: str
+  specialized_type: Optional[str]
+
+
+@dataclasses.dataclass(frozen=True)
+class XlsPort:
+  xls_name: str
+  camel_name: str
+  snake_name: str
+  bit_count: Optional[int]
   specialized_type: Optional[str]
 
 
@@ -168,6 +178,9 @@ class WrappedIr:
   incoming_channels: Optional[Sequence[XlsChannel]] = None
   outgoing_channels: Optional[Sequence[XlsChannel]] = None
   state: Optional[Sequence[XlsNamedValue]] = None
+  # block ports
+  input_ports: Optional[Sequence[XlsPort]] = None
+  output_ports: Optional[Sequence[XlsPort]] = None
 
   @property
   def can_be_specialized(self) -> bool:
@@ -252,16 +265,21 @@ def is_float_tuple(t: type_pb2.TypeProto) -> bool:
   return is_floating_point(t, 8, 23)
 
 
-def to_specialized(t: type_pb2.TypeProto) -> Optional[str]:
+def to_specialized(
+    t: type_pb2.TypeProto, *, int_only: bool = False
+) -> Optional[str]:
   """Get the specialized c++ type.
 
   Args:
     t: The xls type
+    int_only: If true only allow 'integer/bits' typed things to be specialized
 
   Returns:
     the C++ type
   """
   the_type = t.type_enum
+  if int_only and the_type != type_pb2.TypeProto.BITS:
+    return None
   if the_type == type_pb2.TypeProto.BITS:
     if t.bit_count <= 8:
       return "uint8_t"
@@ -308,6 +326,20 @@ def to_param(
       packed_type=to_packed(p.type),
       unpacked_type=to_unpacked(p.type),
       specialized_type=to_specialized(p.type),
+  )
+
+
+def to_port(
+    p: ir_interface_pb2.PackageInterfaceProto.NamedValue, package_name: str
+) -> XlsPort:
+  return XlsPort(
+      xls_name=p.name,
+      camel_name=camelize(p.name.removeprefix(f"{package_name}__")),
+      snake_name=p.name.removeprefix(f"{package_name}__"),
+      bit_count=p.type.bit_count
+      if p.type.type_enum == type_pb2.TypeProto.BITS
+      else None,
+      specialized_type=to_specialized(p.type, int_only=True),
   )
 
 
@@ -409,6 +441,46 @@ def interpret_proc_interface(
   )
 
 
+def interpret_block_interface(
+    ir: str,
+    package: ir_interface_pb2.PackageInterfaceProto,
+    block_ir: ir_interface_pb2.PackageInterfaceProto.Block,
+    class_name: str,
+    header_guard: str,
+    header_filename: str,
+    aot_info: aot_entrypoint_pb2.AotPackageEntrypointsProto,
+) -> WrappedIr:
+  """Fill in a WrappedIr for a block from the interface.
+
+  Args:
+    ir: package IR
+    package: the package interface proto
+    block_ir: the particular block we want to wrap
+    class_name: The class name
+    header_guard: The header-guard string
+    header_filename: The header file name.
+    aot_info: The aot info for the function.
+
+  Returns:
+    A wrapped ir for the block.
+  """
+  input_ports = [to_port(p, package.name) for p in block_ir.input_ports]
+  output_ports = [to_port(p, package.name) for p in block_ir.output_ports]
+  namespace = _WRAPPER_NAMESPACE.value
+  return WrappedIr(
+      jit_type=JitType.BLOCK,
+      ir_text=ir,
+      function_name=block_ir.base.name,
+      class_name=class_name,
+      header_guard=header_guard,
+      header_filename=header_filename,
+      namespace=namespace,
+      input_ports=input_ports,
+      output_ports=output_ports,
+      aot_entrypoint=aot_info,
+  )
+
+
 _T = TypeVar("_T")
 
 
@@ -484,11 +556,25 @@ def interpret_interface(
           header_filename,
           aot_info,
       )
+  # Try to find a block
+  if _FUNCTION_TYPE.value in (None, "BLOCK"):
+    block_ir = find_named_entry(interface.blocks, function_name, interface.name)
+    if block_ir is not None:
+      return interpret_block_interface(
+          ir,
+          interface,
+          block_ir,
+          class_name,
+          header_guard,
+          header_filename,
+          aot_info,
+      )
   raise app.UsageError(
-      f"No function/proc called {function_name} in {interface.name} found."
-      " options are functions:"
+      f"No function/proc/block called {function_name} in"
+      f" {interface.name} found. options are functions:"
       f" [{', '.join(f.base.name for f in interface.functions)}],  procs:"
-      f" [{', '.join(f.base.name for f in interface.procs)}]"
+      f" [{', '.join(f.base.name for f in interface.procs)}], blocks:"
+      f" [{', '.join(f.base.name for f in interface.blocks)}]"
   )
 
 
@@ -511,6 +597,9 @@ _CC_TEMPLATES = {
     JitType.PROC: runfiles.get_contents_as_text(
         "xls/jit/jit_proc_wrapper_cc.tmpl"
     ),
+    JitType.BLOCK: runfiles.get_contents_as_text(
+        "xls/jit/jit_block_wrapper_cc.tmpl"
+    ),
 }
 
 _H_TEMPLATES = {
@@ -520,15 +609,18 @@ _H_TEMPLATES = {
     JitType.PROC: runfiles.get_contents_as_text(
         "xls/jit/jit_proc_wrapper_h.tmpl"
     ),
+    JitType.BLOCK: runfiles.get_contents_as_text(
+        "xls/jit/jit_block_wrapper_h.tmpl"
+    ),
 }
 
 
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError("Incorrect arguments")
-  if _FUNCTION_TYPE.value not in (None, "FUNCTION", "PROC"):
+  if _FUNCTION_TYPE.value not in (None, "FUNCTION", "PROC", "BLOCK"):
     raise app.UsageError(
-        "Unknown --function_type. Requires none or FUNCTION or PROC"
+        "Unknown --function_type. Requires none or FUNCTION, BLOCK, or PROC"
     )
   with open(_AOT_INFO.value, "rb") as aot_info_file:
     aot_info = aot_entrypoint_pb2.AotPackageEntrypointsProto.FromString(

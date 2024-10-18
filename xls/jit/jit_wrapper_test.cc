@@ -33,6 +33,7 @@
 #include "xls/ir/value_builder.h"
 #include "xls/ir/value_view.h"
 #include "xls/jit/compound_type_jit_wrapper.h"
+#include "xls/jit/multi_func_block_wrapper.h"
 
 namespace xls {
 namespace {
@@ -223,6 +224,16 @@ TEST(JitWrapperTest, ProcOptIrWrapper) {
               IsOkAndHolds(Optional(StrArray("YZ012345"))));
   // No more data right now.
   EXPECT_THAT(jit->ReceiveFromExternalOutputWire(), IsOkAndHolds(std::nullopt));
+}
+
+TEST(JitWraperTest, Block) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit,
+                           something::cool::MultiFuncBlockJit::Create());
+  auto cont = jit->NewContinuation();
+  XLS_ASSERT_OK(
+      cont->SetInputPorts(something::cool::MultiFuncBlockJitPorts().SetX(2)));
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_EQ(cont->GetOut(), 10);
 }
 
 }  // namespace

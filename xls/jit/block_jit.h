@@ -34,7 +34,9 @@
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_buffer.h"
 #include "xls/jit/jit_callbacks.h"
@@ -51,6 +53,16 @@ class BlockJit {
       Block* block, bool support_observer_callbacks = false);
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
       const BlockElaboration& elab, bool support_observer_callbacks = false);
+
+  static absl::StatusOr<std::unique_ptr<BlockJit>> CreateFromAot(
+      Block* inlined_block, const AotEntrypointProto& entrypoint,
+      std::string_view data_layout, JitFunctionType func_ptr);
+
+  // Returns the bytes of an object file containing the compiled XLS function.
+  static absl::StatusOr<JitObjectCode> CreateObjectCode(
+      const BlockElaboration& elab, int64_t opt_level, bool include_msan,
+      JitObserver* obs);
+
   virtual ~BlockJit() = default;
 
   // Create a new blank block with no registers or ports set. Can be cycled

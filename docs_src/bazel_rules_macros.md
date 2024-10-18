@@ -608,7 +608,7 @@ currently produced should be considered INCOMPLETE.
 ## cc_xls_ir_jit_wrapper
 
 <pre>
-cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
+cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-top">top</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
 </pre>
 
 Invokes the JIT wrapper generator and compiles the result as a cc_library.
@@ -627,6 +627,7 @@ identical to this macro.
 | <a id="cc_xls_ir_jit_wrapper-src"></a>src |  The path to the IR file.   |  none |
 | <a id="cc_xls_ir_jit_wrapper-jit_wrapper_args"></a>jit_wrapper_args |  Arguments of the JIT wrapper tool. Note: argument 'output_name' cannot be defined.   |  `{}` |
 | <a id="cc_xls_ir_jit_wrapper-wrapper_type"></a>wrapper_type |  The type of XLS construct to wrap. Must be one of 'BLOCK', 'FUNCTION', or 'PROC'. You should use the exported FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE for compatibility.   |  `"FUNCTION"` |
+| <a id="cc_xls_ir_jit_wrapper-top"></a>top |  Name of the top function/proc/block.   |  `""` |
 | <a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 

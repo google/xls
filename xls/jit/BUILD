@@ -28,6 +28,8 @@ load(
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_ir_cc_library",
+    "xls_ir_opt_ir",
+    "xls_ir_verilog",
 )
 load(
     "//xls/build_rules:xls_internal_aot_rules.bzl",
@@ -91,6 +93,7 @@ cc_binary(
     srcs = ["aot_compiler_main.cc"],
     deps = [
         ":aot_entrypoint_cc_proto",
+        ":block_jit",
         ":function_base_jit",
         ":function_jit",
         ":jit_proc_runtime",
@@ -102,6 +105,7 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:block_elaboration",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "@com_google_absl//absl/algorithm:container",
@@ -233,6 +237,30 @@ cc_library(
 )
 
 cc_library(
+    name = "block_base_jit_wrapper",
+    srcs = ["block_base_jit_wrapper.cc"],
+    hdrs = ["block_base_jit_wrapper.h"],
+    # Allow jit-wrapper users to see this.
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":block_jit",
+        ":function_base_jit",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:evaluator_options",
+        "//xls/ir",
+        "//xls/ir:value",
+        "//xls/ir:value_utils",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "proc_base_jit_wrapper",
     hdrs = ["proc_base_jit_wrapper.h"],
     # Allow jit-wrapper users to see this.
@@ -261,6 +289,8 @@ py_binary(
     name = "jit_wrapper_generator_main",
     srcs = ["jit_wrapper_generator_main.py"],
     data = [
+        ":jit_block_wrapper_cc.tmpl",
+        ":jit_block_wrapper_h.tmpl",
         ":jit_function_wrapper_cc.tmpl",
         ":jit_function_wrapper_h.tmpl",
         ":jit_proc_wrapper_cc.tmpl",
@@ -285,6 +315,7 @@ cc_test(
     srcs = ["jit_wrapper_test.cc"],
     deps = [
         ":compound_type_jit_wrapper",
+        ":multi_func_block_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_mul_jit_wrapper",
@@ -709,6 +740,8 @@ cc_library(
     srcs = ["block_jit.cc"],
     hdrs = ["block_jit.h"],
     deps = [
+        ":aot_compiler",
+        ":aot_entrypoint_cc_proto",
         ":function_base_jit",
         ":jit_buffer",
         ":jit_callbacks",
@@ -740,6 +773,8 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:ir_headers",
     ],
 )
 
@@ -1005,7 +1040,10 @@ build_test(
 proto_library(
     name = "aot_entrypoint_proto",
     srcs = ["aot_entrypoint.proto"],
-    deps = [":type_layout_proto"],
+    deps = [
+        ":type_layout_proto",
+        "//xls/ir:xls_type_proto",
+    ],
 )
 
 cc_proto_library(
@@ -1060,6 +1098,46 @@ xls_dslx_ir(
     name = "multi_function",
     dslx_top = "multi_function_one",
     library = ":multi_function_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "multi_func_opt_ir",
+    src = ":multi_function",
+)
+
+xls_ir_verilog(
+    name = "multi_func_sv",
+    src = ":multi_func_opt_ir",
+    codegen_args = {
+        "module_name": "multi_func_top",
+        "delay_model": "unit",
+        "generator": "combinational",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "multi_proc": "true",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+    },
+    verilog_file = "multi_func.sv",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "multi_func_block_wrapper",
+    src = ":multi_func.block.ir",
+    jit_wrapper_args = {
+        "class_name": "MultiFuncBlockJit",
+        "namespace": "something::cool",
+    },
+    top = "multi_func_top",
+    wrapper_type = "BLOCK",
 )
 
 xls_aot_generate(
