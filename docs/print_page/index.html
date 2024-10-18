@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.39">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
     
     
       
@@ -22,7 +22,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.8c3ca2c6.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.0253249f.min.css">
       
       
 
@@ -7252,8 +7252,7 @@ the following table.</p>
 </table>
 <!-- mdformat on -->
 
-<p>The type <code>T</code> of the data operand must be the same as the the type of the
-register.</p>
+<p>The type <code>T</code> of the data operand must be the same as the type of the register.</p>
 <h4 id="ir_semantics-instantiation_input"><strong><code>instantiation_input</code></strong></h4>
 <p>Corresponds to a single input port of an instantiation.</p>
 <p>An instantiation is a block-scoped construct that represents a module
@@ -7315,8 +7314,8 @@ operations (one for each input port).</p>
 </table>
 <!-- mdformat on -->
 
-<p>The type <code>T</code> of the data operand must be the same as the the type of the
-associated input port of the instantiated object.</p>
+<p>The type <code>T</code> of the data operand must be the same as the type of the associated
+input port of the instantiated object.</p>
 <h4 id="ir_semantics-instantiation_output"><strong><code>instantiation_output</code></strong></h4>
 <p>Corresponds to a single output port of an instantiation.</p>
 <p>An instantiation is a block-scoped construct that represents a module
@@ -12071,11 +12070,13 @@ parameter.</p>
 <h3 id="floating_point-apfloatis_pos_inf"><code>apfloat::is_pos_inf</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">is_pos_inf</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
 </code></pre></div>
-<p>Returns whether or not the given <code>APFloat</code> represents a positive infinite quantity.</p>
+<p>Returns whether or not the given <code>APFloat</code> represents a positive infinite
+quantity.</p>
 <h3 id="floating_point-apfloatis_neg_inf"><code>apfloat::is_neg_inf</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">is_neg_inf</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
 </code></pre></div>
-<p>Returns whether or not the given <code>APFloat</code> represents a negative infinite quantity.</p>
+<p>Returns whether or not the given <code>APFloat</code> represents a negative infinite
+quantity.</p>
 <h3 id="floating_point-apfloatzero"><code>apfloat::zero</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">zero</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
 </code></pre></div>
@@ -12084,11 +12085,16 @@ parameter.</p>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">one</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">sign</span><span class="p">:</span><span class="w"> </span><span class="nc">bits</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
 </code></pre></div>
 <p>Returns one or minus one depending upon the given sign parameter.</p>
+<h3 id="floating_point-aploatabs"><code>aploat::abs</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">abs</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
+</code></pre></div>
+<p>Returns the absolute value of <code>x</code> unless it is a <code>NaN</code>, in which case it will
+return a quiet <code>NaN</code>.</p>
 <h3 id="floating_point-apfloatnegate"><code>apfloat::negate</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">negate</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
 </code></pre></div>
-<p>Returns the negative of <code>x</code> unless it is a <code>NaN</code>, in which case it will change it
-from a quiet to signaling <code>NaN</code> or from signaling to a quiet <code>NaN</code>.</p>
+<p>Returns the negative of <code>x</code> unless it is a <code>NaN</code>, in which case it will change
+it from a quiet to signaling <code>NaN</code> or from signaling to a quiet <code>NaN</code>.</p>
 <h3 id="floating_point-apfloatmax_normal_exp"><code>apfloat::max_normal_exp</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">max_normal_exp</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">sN</span><span class="p">[</span><span class="n">EXP_SZ</span><span class="p">]</span>
 </code></pre></div>
@@ -12138,10 +12144,10 @@ the sign bit, the next <code>EXP_SZ</code> bit encode the biased exponent and th
 <p><code>ldexp</code> (load exponent) computes <code>fraction * 2^exp</code>. Note that:</p>
 <ul>
 <li>Input denormals are treated as/flushed to 0. (denormals-are-zero / DAZ).
-   Similarly, denormal results are flushed to 0.</li>
+    Similarly, denormal results are flushed to 0.</li>
 <li>No exception flags are raised/reported.</li>
 <li>We emit a single, canonical representation for NaN (qnan) but accept all
-   <code>NaN</code> representations as input.</li>
+    <code>NaN</code> representations as input.</li>
 </ul>
 <h3 id="floating_point-apfloatcast_from_fixed_using_rne"><code>apfloat::cast_from_fixed_using_rne</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">cast_from_fixed_using_rne</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">NUM_SRC_BITS</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span>
@@ -12329,34 +12335,6 @@ single-precision floating-point addition, with the following exceptions:</p>
 </ul>
 <p>In all other cases, results should be identical to other conforming
 implementations (modulo exact fraction values in the <code>NaN</code> case.</p>
-<h3 id="floating_point-apfloathas_fractional_part"><code>apfloat::has_fractional_part</code></h3>
-<p>Returns whether or not the given APFloat has a fractional part.</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">has_fractional_part</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
-</code></pre></div>
-<h3 id="floating_point-has_negative_exponent"><code>has_negative_exponent</code></h3>
-<p>Returns whether or not the given APFloat has an negative exponent.</p>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">has_negative_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
-<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
-</code></pre></div>
-<h3 id="floating_point-apfloatceil"><code>apfloat::ceil</code></h3>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">ceil</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
-<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
-</code></pre></div>
-<p>Returns the nearest integral <code>APFloat</code> of the same precision as <code>f</code> whose value
-is greater than or equal to <code>f</code>.</p>
-<h3 id="floating_point-apfloatfloor"><code>apfloat::floor</code></h3>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">floor</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
-<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
-</code></pre></div>
-<p>Returns the nearest integral <code>APFloat</code> of the same precision as <code>f</code> whose value
-is lesser than or equal to <code>f</code>.</p>
-<h3 id="floating_point-apfloattrunc"><code>apfloat::trunc</code></h3>
-<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">trunc</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">                          </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span>
-<span class="w">    </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
-</code></pre></div>
-<p>Returns an <code>APFloat</code> of the same precision as <code>f</code> with all the fractional bits
-set to <code>0</code>.</p>
 <h4 id="floating_point-implementation-details">Implementation details</h4>
 <p>Floating-point addition, like any FP operation, is much more complicated than
 integer addition, and has many more steps. Being the first operation described,
@@ -12459,6 +12437,46 @@ straightforward (types are as for a C <code>float</code> implementation):</p>
 <span class="w">                         </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">shifted_fraction</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u28</span><span class="w"> </span><span class="p">};</span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">rounding_carry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rounded_fraction</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">:];</span>
 </code></pre></div>
+<h3 id="floating_point-apfloathas_fractional_part"><code>apfloat::has_fractional_part</code></h3>
+<p>Returns whether or not the given APFloat has a fractional part.</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">has_fractional_part</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
+</code></pre></div>
+<h3 id="floating_point-apfloathas_negative_exponent"><code>apfloat::has_negative_exponent</code></h3>
+<p>Returns whether or not the given APFloat has an negative exponent.</p>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">has_negative_exponent</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">bool</span>
+</code></pre></div>
+<h3 id="floating_point-apfloatceil"><code>apfloat::ceil</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">ceil</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
+</code></pre></div>
+<p>Returns the nearest integral <code>APFloat</code> of the same precision as <code>f</code> whose value
+is greater than or equal to <code>f</code>.</p>
+<h3 id="floating_point-apfloatfloor"><code>apfloat::floor</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">floor</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span>
+<span class="w">    </span><span class="p">(</span><span class="n">f</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
+</code></pre></div>
+<p>Returns the nearest integral <code>APFloat</code> of the same precision as <code>f</code> whose value
+is lesser than or equal to <code>f</code>.</p>
+<h3 id="floating_point-apfloattrunc"><code>apfloat::trunc</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">trunc</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">                          </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
+</code></pre></div>
+<p>Returns an <code>APFloat</code> of the same precision as <code>f</code> with all the fractional bits
+set to <code>0</code>.</p>
+<h3 id="floating_point-apfloatround"><code>apfloat::round</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">round</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">                          </span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span>
+</code></pre></div>
+<p>Returns an <code>APFloat</code> of the same precision as <code>f</code> rounded to the nearest
+integer.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This uses the "tie-to-even" rounding style: in case of a tie (<code>f</code> half-way
+between two integers), round to the nearest "even" integer.</p>
+</div>
 <h3 id="floating_point-apfloatmul"><code>apfloat::mul</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">mul</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">,</span>
 <span class="w">                                          </span><span class="n">y</span><span class="p">:</span><span class="w"> </span><span class="nc">APFloat</span><span class="o">&lt;</span><span class="n">EXP_SZ</span><span class="p">,</span><span class="w"> </span><span class="n">FRACTION_SZ</span><span class="o">&gt;</span><span class="p">)</span>
@@ -12549,8 +12567,8 @@ to be lower as well. The tradeoff is that this offers slighlty less precision
 <li>Input denormals are treated as/flushed to 0. (denormals-are-zero / DAZ).</li>
 <li>Only round-to-nearest mode is supported.</li>
 <li>No exception flags are raised/reported.</li>
-<li>We emit a single, canonical representation for NaN (qnan) but accept
-   all NaN respresentations as input.</li>
+<li>We emit a single, canonical representation for NaN (qnan) but accept all NaN
+    respresentations as input.</li>
 </ul>
 <p><code>fast_rsqrt_config_refinements</code> allows the user to specify the number of
 Computes an approximation of 1.0 / sqrt(x). <code>NUM_REFINEMENTS</code> can be increased
@@ -12560,12 +12578,12 @@ to tradeoff more hardware resources for more accuracy.</p>
 <p>To help with the
 <a href="https://en.wikipedia.org/wiki/Bfloat16_floating-point_format"><code>bfloat16</code></a>
 floating point numbers, <code>bfloat16.x</code> defines the following type aliases.</p>
-<p><div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">type</span><span class="w"> </span><span class="nc">BF16</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">apfloat</span><span class="p">::</span><span class="n">APFloat</span><span class="o">&lt;</span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="o">&gt;</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">type</span><span class="w"> </span><span class="nc">BF16</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">apfloat</span><span class="p">::</span><span class="n">APFloat</span><span class="o">&lt;</span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="o">&gt;</span><span class="p">;</span>
 <span class="k">pub</span><span class="w"> </span><span class="k">type</span><span class="w"> </span><span class="nc">FloatTag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">apfloat</span><span class="p">::</span><span class="n">APFloatTag</span><span class="p">;</span>
 <span class="k">pub</span><span class="w"> </span><span class="k">type</span><span class="w"> </span><span class="nc">TaggedBF16</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">FloatTag</span><span class="p">,</span><span class="w"> </span><span class="n">BF16</span><span class="p">);</span>
 </code></pre></div>
-Besides <code>bfloat16</code> specializations of the functions in <code>apfloat.x</code>, the following
-functions are defined just for <code>bfloat16</code>.</p>
+<p>Besides <code>bfloat16</code> specializations of the functions in <code>apfloat.x</code>, the
+following functions are defined just for <code>bfloat16</code>.</p>
 <h3 id="floating_point-bfloat16to_int16-bfloat16to_uint16"><code>bfloat16:to_int16</code>, <code>bfloat16:to_uint16</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">to_int16</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">BF16</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">s16</span>
 <span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">to_uint16</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="nc">BF16</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u16</span>
@@ -13840,9 +13858,12 @@ estimation refinements in XLS. For now, FDO is disabled by default
     <code>@always_ff</code>, asserts, covers, etc. True by default.</li>
 <li><code>--separate_lines</code> causes every subexpression to be emitted on a separate
     line. False by default.</li>
+<li><code>--max_inline_depth=N</code> puts a bound on how deeply subexpressions can be
+    nested in a single line. 5 by default; overridden if <code>separate_lines</code> is
+    set, which functionally forces this flag to 1.</li>
 <li><code>--multi_proc</code> causes every proc to be codegen'd.</li>
-<li><code>max_trace_verbosity</code> is the maximum verbosity allowed for traces. Traces
-    with higher verbosity are stripped from codegen output. 0 by default.</li>
+<li><code>--max_trace_verbosity=N</code> is the maximum verbosity allowed for traces.
+    Traces with higher verbosity are stripped from codegen output. 0 by default.</li>
 <li><code>--simulation_macro_name=...</code> sets the name of the Verilog macro used to
     guard simulation-only constructs.</li>
 </ul>
@@ -16289,7 +16310,7 @@ should be used to interact with the generated llvm bytecode. This can be done by
 building the LLVM tools using <code>bazel build</code> from the XLS repo.</p>
 <h2 id="tools-ir_minimizer_main"><a href="https://github.com/google/xls/tree/main/xls/dev_tools/ir_minimizer_main.cc"><code>ir_minimizer_main</code></a></h2>
 <p>Tool for reducing IR to a minimal test case based on an external test.</p>
-<h2 id="tools-ir_stats_main"><a href="https://github.com/google/xls/tree/main/xls/tools/ir_stats_main.cc"><code>ir_stats_main</code></a></h2>
+<h2 id="tools-ir_stats_main"><a href="https://github.com/google/xls/tree/main/xls/dev_tools/ir_stats_main.cc"><code>ir_stats_main</code></a></h2>
 <p>Prints summary information/stats on an IR [Package] file. An example:</p>
 <div class="highlight"><pre><span></span><code>$ bazel-bin/xls/tools/ir_stats_main bazel-genfiles/xls/modules/fp32_add_2.ir
 Package &quot;fp32_add_2&quot;
@@ -18398,7 +18419,7 @@ to and receive from the network.</p>
 <p>A <em>k</em>-ary <em>n</em>-fly butterfly topology type is a multistage logarithm network. It
 is implemented using <em>n</em> stages of identical routers, where <em>k</em> is the number of
 channels of a router that connect to the previous and/or to the next stage. For
-example, a 2-ary 3-tree butterfly topology has three stages composed of routers
+example, a 2-ary 3-fly butterfly topology has three stages composed of routers
 with two channels connect to the routers of the previous and/or the next stage
 (see Figure Butterfly_Topology_Example).</p>
 <p>Each endpoint node and channel has an <em>n</em>-digit radix-<em>k</em> identifier,
@@ -18419,9 +18440,9 @@ d<sub>n−i</sub> and d<sub>0</sub> of the channel identifier, with <em>i</em> &
 <strong><a href="#noc-xls_noc_butterfly_topology-butterfly_ref_0">Butterfly_Ref_0</a></strong></p>
 <p><img alt="drawing" src="../noc/butterfly_topology.png" /></p>
 <p><strong>Figure Butterfly_Topology_Example<a id="butterfly_topology_example"></a>. The
-router nodes of a 2-ary 3-tree butterfly topology.</strong></p>
+router nodes of a 2-ary 3-fly butterfly topology.</strong></p>
 <p>Figure <a href="#noc-xls_noc_butterfly_topology-butterfly_topology_example">Butterfly_Topology_Example</a> shows the
-router nodes of a 2-ary 3-tree butterfly topology. The routers are labelled with
+router nodes of a 2-ary 3-fly butterfly topology. The routers are labelled with
 an <strong>S.I</strong> format where <strong>S</strong> is the stage identifier and <strong>I</strong> is the router
 identifier. For example, router 0.2 is router 2 from stage 0. Channel 0.6 is
 connected to router 3 [0.<strong>11</strong>0<sub>2</sub>] of stage 0 and router
@@ -18756,7 +18777,7 @@ USA.</p></section><h1 class='nav-section-title-end'>Ended: NoC</h1></div>
     <script id="__config" type="application/json">{"base": "/xls/", "features": [], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.525ec568.min.js"></script>
+      <script src="../assets/javascripts/bundle.83f73b43.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       

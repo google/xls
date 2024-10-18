@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.39">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
     
     
       
@@ -26,7 +26,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.8c3ca2c6.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.0253249f.min.css">
       
       
 
@@ -2279,9 +2279,12 @@ estimation refinements in XLS. For now, FDO is disabled by default
     <code>@always_ff</code>, asserts, covers, etc. True by default.</li>
 <li><code>--separate_lines</code> causes every subexpression to be emitted on a separate
     line. False by default.</li>
+<li><code>--max_inline_depth=N</code> puts a bound on how deeply subexpressions can be
+    nested in a single line. 5 by default; overridden if <code>separate_lines</code> is
+    set, which functionally forces this flag to 1.</li>
 <li><code>--multi_proc</code> causes every proc to be codegen'd.</li>
-<li><code>max_trace_verbosity</code> is the maximum verbosity allowed for traces. Traces
-    with higher verbosity are stripped from codegen output. 0 by default.</li>
+<li><code>--max_trace_verbosity=N</code> is the maximum verbosity allowed for traces.
+    Traces with higher verbosity are stripped from codegen output. 0 by default.</li>
 <li><code>--simulation_macro_name=...</code> sets the name of the Verilog macro used to
     guard simulation-only constructs.</li>
 </ul>
@@ -2533,7 +2536,7 @@ response-receive are scheduled to match the RAM's latency.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.525ec568.min.js"></script>
+      <script src="../assets/javascripts/bundle.83f73b43.min.js"></script>
       
         <script src="../js/print-site.js"></script>
       
