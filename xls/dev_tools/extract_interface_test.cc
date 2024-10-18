@@ -134,5 +134,35 @@ top proc add(__token: token, init={token}) {
                   )pb"));
 }
 
+TEST_F(ExtractInterfaceTest, BasicBlock) {
+  auto p = CreatePackage();
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK(bb.AddClockPort("clk"));
+  bb.OutputPort(
+      "baz", bb.InsertRegister("foo", bb.InputPort("bar", p->GetBitsType(32))));
+  XLS_ASSERT_OK(bb.Build().status());
+
+  EXPECT_THAT(ExtractPackageInterface(p.get()),
+              ProtoEquivalent(
+                  R"pb(
+                    name: "BasicBlock"
+                    blocks {
+                      base { top: false name: "BasicBlock" }
+                      registers {
+                        name: "foo"
+                        type { type_enum: BITS bit_count: 32 }
+                      }
+                      input_ports {
+                        name: "bar"
+                        type { type_enum: BITS bit_count: 32 }
+                      }
+                      output_ports {
+                        name: "baz"
+                        type { type_enum: BITS bit_count: 32 }
+                      }
+                    }
+                  )pb"));
+}
+
 }  // namespace
 }  // namespace xls

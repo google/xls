@@ -18,6 +18,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
@@ -56,9 +57,13 @@ PackageInterfaceProto ExtractPackageInterface(Package* package) {
     f->set_name(ir->name());
     f->set_top(package->GetTop() == ir);
   };
-  auto add_named = [&](PackageInterfaceProto::NamedValue* n, Node* node) {
-    *n->mutable_type() = node->GetType()->ToProto();
+  auto add_typed = [&](PackageInterfaceProto::NamedValue* n, Node* node,
+                       Type* ty) {
+    *n->mutable_type() = ty->ToProto();
     n->set_name(node->GetName());
+  };
+  auto add_named = [&](PackageInterfaceProto::NamedValue* n, Node* node) {
+    add_typed(n, node, node->GetType());
   };
   for (const auto& f : package->functions()) {
     auto* func = proto.add_functions();
@@ -93,8 +98,8 @@ PackageInterfaceProto ExtractPackageInterface(Package* package) {
     for (Node* port : b->GetInputPorts()) {
       add_named(blk->add_input_ports(), port);
     }
-    for (Node* port : b->GetOutputPorts()) {
-      add_named(blk->add_output_ports(), port);
+    for (OutputPort* port : b->GetOutputPorts()) {
+      add_typed(blk->add_output_ports(), port, port->output_type());
     }
   }
   return proto;
