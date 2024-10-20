@@ -68,7 +68,8 @@ struct xls_dslx_import_data* xls_dslx_import_data_create(
   std::vector<std::filesystem::path> cpp_additional_search_paths =
       xls::ToCpp(additional_search_paths, additional_search_paths_count);
   xls::dslx::ImportData import_data = CreateImportData(
-      cpp_stdlib_path, cpp_additional_search_paths, xls::dslx::kAllWarningsSet);
+      cpp_stdlib_path, cpp_additional_search_paths, xls::dslx::kAllWarningsSet,
+      std::make_unique<xls::dslx::RealFilesystem>());
   return reinterpret_cast<xls_dslx_import_data*>(
       new xls::dslx::ImportData{std::move(import_data)});
 }

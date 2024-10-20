@@ -106,11 +106,26 @@ void TextChangeHandler(const std::string& file_uri,
     // Note: this returns a status, but we don't need to surface it from here.
     adapter.Update(file_uri, file_content).IgnoreError();
   });
-  verible::lsp::PublishDiagnosticsParams params{
-      .uri = file_uri,
-      .diagnostics = adapter.GenerateParseDiagnostics(file_uri),
-  };
-  dispatcher.SendNotification("textDocument/publishDiagnostics", params);
+
+  // For now we brute force evaluate all the files in the DAG that may be
+  // sensitive to the update. We'll need to be smarter as we observe scaling
+  // issues (e.g. only evaluate sensitive files if the original file went from
+  // being an import-time error to having no import-time error).
+  std::vector<std::string> sensitive_uris =
+      adapter.import_sensitivity().GatherAllSensitiveToChangeIn(file_uri);
+  for (std::string sensitive_uri : sensitive_uris) {
+    // Note to all dependent files that an update has occurred.
+    // We don't need to do this for the file that we updated directly.
+    if (sensitive_uri != file_uri) {
+      adapter.Update(sensitive_uri, std::nullopt).IgnoreError();
+    }
+
+    verible::lsp::PublishDiagnosticsParams params{
+        .uri = sensitive_uri,
+        .diagnostics = adapter.GenerateParseDiagnostics(sensitive_uri),
+    };
+    dispatcher.SendNotification("textDocument/publishDiagnostics", params);
+  }
 }
 
 absl::Status RealMain() {

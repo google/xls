@@ -40,6 +40,33 @@
 
 namespace xls::dslx {
 
+// A virtualizable filesystem seam so that we can perform imports using either
+// the real filesystem or a virtual filesystem.
+//
+// This is useful for use-cases like language servers where a mix of real
+// filesystem and virtualized filesystem contents (i.e. with temporary edits in
+// working buffers) are used.
+class VirtualizableFilesystem {
+ public:
+  virtual ~VirtualizableFilesystem() = default;
+
+  virtual absl::Status FileExists(const std::filesystem::path& path) = 0;
+
+  virtual absl::StatusOr<std::string> GetFileContents(
+      const std::filesystem::path& path) = 0;
+
+  virtual absl::StatusOr<std::filesystem::path> GetCurrentDirectory() = 0;
+};
+
+class RealFilesystem : public VirtualizableFilesystem {
+ public:
+  ~RealFilesystem() override = default;
+  absl::Status FileExists(const std::filesystem::path& path) override;
+  absl::StatusOr<std::string> GetFileContents(
+      const std::filesystem::path& path) override;
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override;
+};
+
 // An entry that goes into the ImportData.
 class ModuleInfo {
  public:
@@ -104,12 +131,11 @@ class ImportTokens {
   std::vector<std::string> pieces_;
 };
 
-// Wrapper around a {subject: module_info} mapping that modules can be imported
-// into.
-// Use the routines in create_import_data.h to instantiate an object.
+// Wrapper around a `{subject: module_info}` mapping that modules can be
+// imported into.
 class ImportData {
  public:
-  // All instantiations of ImportData should pass a stdlib_path as below.
+  // Use the routines in `create_import_data.h` to instantiate an object.
   ImportData() = delete;
 
   bool Contains(const ImportTokens& target) const {
@@ -123,6 +149,17 @@ class ImportData {
   // active, we've detected a cycle, and so we return an error.
   absl::Status AddToImporterStack(const Span& importer_span,
                                   const std::filesystem::path& imported);
+
+  // Registers a callback to be notified when we see that an importing span is
+  // beginning to import a filesystem path. This is useful for tracking the DAG
+  // of dependencies.
+  //
+  // Recursion checks are performed before this callback is invoked, so the
+  // callback results should all be validated to be DAG compliant.
+  void SetImporterStackObserver(
+      std::function<void(const Span&, const std::filesystem::path&)> f) {
+    importer_stack_observer_ = std::move(f);
+  }
 
   // This pops the entry from the import stack and verifies it's the latest
   // entry, returning an error iff it is not.
@@ -205,22 +242,29 @@ class ImportData {
   FileTable& file_table() { return file_table_; }
   const FileTable& file_table() const { return file_table_; }
 
+  VirtualizableFilesystem& vfs() const { return *vfs_; }
+
  private:
   friend ImportData CreateImportData(const std::filesystem::path&,
                                      absl::Span<const std::filesystem::path>,
-                                     WarningKindSet);
+                                     WarningKindSet,
+                                     std::unique_ptr<VirtualizableFilesystem>);
+
   friend std::unique_ptr<ImportData> CreateImportDataPtr(
       const std::filesystem::path&, absl::Span<const std::filesystem::path>,
       WarningKindSet);
+
   friend ImportData CreateImportDataForTest();
   friend std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 
   ImportData(std::filesystem::path stdlib_path,
              absl::Span<const std::filesystem::path> additional_search_paths,
-             WarningKindSet enabled_warnings)
+             WarningKindSet enabled_warnings,
+             std::unique_ptr<VirtualizableFilesystem> vfs)
       : stdlib_path_(std::move(stdlib_path)),
         additional_search_paths_(additional_search_paths),
-        enabled_warnings_(enabled_warnings) {}
+        enabled_warnings_(enabled_warnings),
+        vfs_(std::move(vfs)) {}
 
   // Attempts to find a module owned by this ImportData according to the
   // filename present in "span". Returns a NotFound error if a corresponding
@@ -240,8 +284,13 @@ class ImportData {
   WarningKindSet enabled_warnings_;
   std::unique_ptr<BytecodeCacheInterface> bytecode_cache_;
 
+  std::function<void(const Span&, const std::filesystem::path&)>
+      importer_stack_observer_;
+
   // See comment on AddToImporterStack() above.
   std::vector<ImportRecord> importer_stack_;
+
+  std::unique_ptr<VirtualizableFilesystem> vfs_;
 };
 
 }  // namespace xls::dslx

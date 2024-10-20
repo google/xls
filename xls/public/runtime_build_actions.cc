@@ -55,7 +55,7 @@ absl::StatusOr<std::string> ConvertDslxToIr(
           << " stdlib_path: " << dslx_stdlib_path;
   dslx::ImportData import_data(dslx::CreateImportData(
       std::string(dslx_stdlib_path), additional_search_paths,
-      dslx::kDefaultWarningsSet));
+      dslx::kDefaultWarningsSet, std::make_unique<dslx::RealFilesystem>()));
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule typechecked,
       dslx::ParseAndTypecheck(dslx, path, module_name, &import_data));

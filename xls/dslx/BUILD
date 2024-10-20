@@ -318,6 +318,7 @@ cc_library(
         ":import_record",
         ":interp_bindings",
         ":warning_kind",
+        "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/bytecode:bytecode_cache_interface",

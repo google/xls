@@ -138,7 +138,8 @@ absl::StatusOr<std::vector<dslx::InterpValue>> InterpretDslxFunction(
     const ArgsBatch& args_batch, const std::filesystem::path& run_dir) {
   dslx::ImportData import_data = dslx::CreateImportData(
       GetDefaultDslxStdlibPath(),
-      /*additional_search_paths=*/{}, dslx::kDefaultWarningsSet);
+      /*additional_search_paths=*/{}, dslx::kDefaultWarningsSet,
+      std::make_unique<dslx::RealFilesystem>());
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule tm,
       dslx::ParseAndTypecheck(text, "sample.x", "sample", &import_data));
@@ -647,7 +648,8 @@ InterpretDslxProc(std::string_view text, std::string_view top_name,
                   const std::filesystem::path& run_dir) {
   dslx::ImportData import_data = dslx::CreateImportData(
       GetDefaultDslxStdlibPath(),
-      /*additional_search_paths=*/{}, dslx::kDefaultWarningsSet);
+      /*additional_search_paths=*/{}, dslx::kDefaultWarningsSet,
+      std::make_unique<dslx::RealFilesystem>());
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule tm,
       dslx::ParseAndTypecheck(text, "sample.x", "sample", &import_data));

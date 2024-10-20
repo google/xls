@@ -220,7 +220,7 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
     XLS_ASSIGN_OR_RETURN(
         ModuleInfo * imported,
         DoImport(ctx->typecheck_module(), ImportTokens(import->subject()),
-                 import_data, import->span()));
+                 import_data, import->span(), import_data->vfs()));
     ctx->type_info()->AddImport(import, &imported->module(),
                                 imported->type_info());
   } else if (std::holds_alternative<ConstantDef*>(member) ||

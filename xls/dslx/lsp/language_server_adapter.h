@@ -34,6 +34,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/lsp/import_sensitivity.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -52,15 +53,27 @@ class LanguageServerAdapter {
   LanguageServerAdapter(std::string_view stdlib,
                         const std::vector<std::filesystem::path>& dslx_paths);
 
+  // Takes note that `dslx_code` is the current file contents for `file_uri`
+  // and performs a parse-and-typecheck using that file/contents as the entry
+  // point.
+  //
+  // `dslx_code` can be nullopt when we're re-evaluating the previous contents
+  // again; i.e. because we think a dependency may have been corrected.
+  //
   // Note: this is parsing is triggered for every keystroke. Fine for now.
   // Successful and unsuccessful parses are memoized so that their status
   // and can be queried.
+  //
   // Implementation note: since we currently do not react to buffer closed
   // events in the buffer change listener, we keep track of every file ever
   // opened and never delete.
-  absl::Status Update(std::string_view file_uri, std::string_view dslx_code);
+  absl::Status Update(std::string_view file_uri,
+                      std::optional<std::string_view> dslx_code);
 
-  // Generate LSP diagnostics for the file with given uri
+  // Generate LSP diagnostics for the file with given `uri`.
+  //
+  // Note that this only finds the existing parse-and-typecheck result, it does
+  // not trigger any new parsing activity, for that we need to `Update`.
   std::vector<verible::lsp::Diagnostic> GenerateParseDiagnostics(
       std::string_view uri) const;
 
@@ -99,6 +112,12 @@ class LanguageServerAdapter {
   absl::StatusOr<std::vector<verible::lsp::DocumentHighlight>>
   DocumentHighlight(std::string_view uri,
                     const verible::lsp::Position& position) const;
+
+  ImportSensitivity& import_sensitivity() { return import_sensitivity_; }
+
+  const absl::flat_hash_map<std::string, std::string>& vfs_contents() const {
+    return vfs_contents_;
+  }
 
  private:
   class ParseData;
@@ -150,6 +169,14 @@ class LanguageServerAdapter {
   const std::string stdlib_;
   const std::vector<std::filesystem::path> dslx_paths_;
   absl::flat_hash_map<std::string, std::unique_ptr<ParseData>> uri_parse_data_;
+
+  // The language server, in effect, needs to maintain a virtual filesystem
+  // layer, that's interwoven with the true filesystem; i.e. if a file is
+  // present on disk but not opened in the LSP workspace, we resolve it on
+  // disk.
+  absl::flat_hash_map<std::string, std::string> vfs_contents_;
+
+  ImportSensitivity import_sensitivity_;
 };
 
 }  // namespace xls::dslx

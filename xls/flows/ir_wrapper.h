@@ -196,10 +196,11 @@ class IrWrapper {
  private:
   // Construct this object with a default ImportData.
   explicit IrWrapper()
-      : import_data_(dslx::CreateImportData(
-            xls::kDefaultDslxStdlibPath,
-            /*additional_search_paths=*/{},
-            /*enabled_warnings=*/dslx::kAllWarningsSet)) {}
+      : import_data_(
+            dslx::CreateImportData(xls::kDefaultDslxStdlibPath,
+                                   /*additional_search_paths=*/{},
+                                   /*enabled_warnings=*/dslx::kAllWarningsSet,
+                                   std::make_unique<dslx::RealFilesystem>())) {}
 
   // Pointers to the each of the DSLX modules explicitly given to this wrapper.
   //

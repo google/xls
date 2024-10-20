@@ -65,9 +65,9 @@ static absl::Status RealMain(
     const std::filesystem::path& dslx_path,
     const std::vector<std::filesystem::path>& additional_search_paths,
     std::string_view entry_fn_name, std::string_view args_text) {
-  dslx::ImportData import_data(
-      dslx::CreateImportData(kDefaultDslxStdlibPath, additional_search_paths,
-                             dslx::kDefaultWarningsSet));
+  dslx::ImportData import_data(dslx::CreateImportData(
+      kDefaultDslxStdlibPath, additional_search_paths,
+      dslx::kDefaultWarningsSet, std::make_unique<dslx::RealFilesystem>()));
 
   XLS_ASSIGN_OR_RETURN(std::vector<dslx::InterpValue> args,
                        dslx::ParseArgs(args_text));

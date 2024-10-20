@@ -483,8 +483,9 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   const absl::Time start = absl::Now();
   TestResultData result(start, /*test_cases=*/{});
 
-  auto import_data = CreateImportData(options.dslx_stdlib_path,
-                                      options.dslx_paths, options.warnings);
+  auto import_data =
+      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
+                       options.warnings, std::make_unique<RealFilesystem>());
   FileTable& file_table = import_data.file_table();
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, filename, module_name, &import_data);
@@ -657,8 +658,9 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   const absl::Time start = absl::Now();
   TestResultData result(start, /*test_cases=*/{});
 
-  auto import_data = CreateImportData(options.dslx_stdlib_path,
-                                      options.dslx_paths, options.warnings);
+  auto import_data =
+      CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
+                       options.warnings, std::make_unique<RealFilesystem>());
   FileTable& file_table = import_data.file_table();
 
   absl::StatusOr<TypecheckedModule> tm_or =

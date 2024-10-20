@@ -402,7 +402,8 @@ absl::StatusOr<Sample> GenerateSample(
   ImportData import_data(
       dslx::CreateImportData(/*stdlib_path=*/"",
                              /*additional_search_paths=*/{},
-                             /*enabled_warnings=*/dslx::kAllWarningsSet));
+                             /*enabled_warnings=*/dslx::kAllWarningsSet,
+                             std::make_unique<dslx::RealFilesystem>()));
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data);
   if (!tm.ok()) {
