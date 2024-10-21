@@ -338,11 +338,19 @@ TEST(IrParserRoundTripTest, ParseArrayIndex) {
   ParseFunctionAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, ParseArrayIndexKnownInBounds) {
+  ParseFunctionAndCheckDump(TestName());
+}
+
 TEST(IrParserRoundTripTest, ParseArraySlice) {
   ParseFunctionAndCheckDump(TestName());
 }
 
 TEST(IrParserRoundTripTest, ParseArrayUpdate) {
+  ParseFunctionAndCheckDump(TestName());
+}
+
+TEST(IrParserRoundTripTest, ParseArrayUpdateKnownInBounds) {
   ParseFunctionAndCheckDump(TestName());
 }
 

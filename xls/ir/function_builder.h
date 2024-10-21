@@ -44,6 +44,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
@@ -499,8 +500,16 @@ class BuilderBase {
   // Adds an multi-dimensional array index expression. The indices should be all
   // bits types.
   BValue ArrayIndex(BValue arg, absl::Span<const BValue> indices,
-                    const SourceInfo& loc = SourceInfo(),
+                    bool known_in_bounds, const SourceInfo& loc = SourceInfo(),
                     std::string_view name = "");
+
+  // Adds an multi-dimensional array index expression. The indices should be all
+  // bits types.
+  BValue ArrayIndex(BValue arg, absl::Span<const BValue> indices,
+                    const SourceInfo& loc = SourceInfo(),
+                    std::string_view name = "") {
+    return ArrayIndex(arg, indices, /*known_in_bounds=*/false, loc, name);
+  }
 
   // Slices an array with a given start and end position.
   BValue ArraySlice(BValue array, BValue start, int64_t width,
@@ -510,9 +519,19 @@ class BuilderBase {
   // Updates the array element at index "idx" to update_value. The indices
   // should be all bits types.
   BValue ArrayUpdate(BValue arg, BValue update_value,
-                     absl::Span<const BValue> indices,
+                     absl::Span<const BValue> indices, bool known_in_bounds,
                      const SourceInfo& loc = SourceInfo(),
                      std::string_view name = "");
+
+  // Updates the array element at index "idx" to update_value. The indices
+  // should be all bits types.
+  BValue ArrayUpdate(BValue arg, BValue update_value,
+                     absl::Span<const BValue> indices,
+                     const SourceInfo& loc = SourceInfo(),
+                     std::string_view name = "") {
+    return ArrayUpdate(arg, update_value, indices, /*known_in_bounds=*/false,
+                       loc, name);
+  }
 
   // Concatenates array operands into a single array.  zero-th
   // element is the zero-th element of the zero-th (left-most) array.

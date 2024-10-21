@@ -489,7 +489,8 @@ BValue BuilderBase::Invoke(absl::Span<const BValue> args, Function* to_apply,
 }
 
 BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
-                               const SourceInfo& loc, std::string_view name) {
+                               bool known_in_bounds, const SourceInfo& loc,
+                               std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -513,7 +514,8 @@ BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
   for (const BValue& index : indices) {
     index_operands.push_back(index.node());
   }
-  return AddNode<xls::ArrayIndex>(loc, arg.node(), index_operands, name);
+  return AddNode<xls::ArrayIndex>(loc, arg.node(), index_operands,
+                                  known_in_bounds, name);
 }
 
 BValue BuilderBase::ArraySlice(BValue array, BValue start, int64_t width,
@@ -542,7 +544,8 @@ BValue BuilderBase::ArraySlice(BValue array, BValue start, int64_t width,
 
 BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
                                 absl::Span<const BValue> indices,
-                                const SourceInfo& loc, std::string_view name) {
+                                bool known_in_bounds, const SourceInfo& loc,
+                                std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -585,7 +588,7 @@ BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
     index_operands.push_back(index.node());
   }
   return AddNode<xls::ArrayUpdate>(loc, arg.node(), update_value.node(),
-                                   index_operands, name);
+                                   index_operands, known_in_bounds, name);
 }
 
 BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,

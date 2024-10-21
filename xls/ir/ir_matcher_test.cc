@@ -727,5 +727,35 @@ TEST(IrMatchersTest, InstantiationMatcher) {
       HasSubstr("add0 has incorrect name, expected: add1."));
 }
 
+TEST(IrMatchersTest, ArrayIndex) {
+  Package p("p");
+  FunctionBuilder fb("ArrayIndex", &p);
+  BValue foo = fb.Param("foo", p.GetArrayType(10, p.GetBitsType(32)));
+  BValue bar = fb.Param("bar", p.GetBitsType(32));
+  BValue known_in_bounds = fb.ArrayIndex(foo, {bar}, /*known_in_bounds=*/true);
+  BValue not_known_in_bounds =
+      fb.ArrayIndex(foo, {bar}, /*known_in_bounds=*/false);
+  fb.Tuple({known_in_bounds, not_known_in_bounds});
+  XLS_ASSERT_OK(fb.Build().status());
+  EXPECT_THAT(known_in_bounds.node(),
+              m::ArrayIndex(m::Param("foo"), {m::Param("bar")}));
+  EXPECT_THAT(not_known_in_bounds.node(),
+              m::ArrayIndex(m::Param("foo"), {m::Param("bar")}));
+  EXPECT_THAT(
+      known_in_bounds.node(),
+      m::ArrayIndex(m::Param("foo"), {m::Param("bar")}, m::KnownInBounds()));
+  EXPECT_THAT(Explain(known_in_bounds.node(),
+                      m::ArrayIndex(m::Param("foo"), {m::Param("bar")},
+                                    m::NotKnownInBounds())),
+              HasSubstr("Unexpected value of known_in_bounds"));
+  EXPECT_THAT(
+      not_known_in_bounds.node(),
+      m::ArrayIndex(m::Param("foo"), {m::Param("bar")}, m::NotKnownInBounds()));
+  EXPECT_THAT(Explain(not_known_in_bounds.node(),
+                      m::ArrayIndex(m::Param("foo"), {m::Param("bar")},
+                                    m::KnownInBounds())),
+              HasSubstr("Unexpected value of known_in_bounds"));
+}
+
 }  // namespace
 }  // namespace xls
