@@ -54,7 +54,7 @@ namespace {
 
 using ColonRefSubjectT =
     std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
-                 StructDef*, ColonRef*>;
+                 StructDef*, StructInstance*, Param*, ColonRef*>;
 
 }  // namespace
 
@@ -255,27 +255,28 @@ absl::Status ValidateNumber(const Number& number, const Type& type) {
       file_table);
 }
 
-static std::optional<StructDef*> TryResolveStructDefFromNode(AstNode* definer) {
+static std::optional<std::variant<StructDef*, StructInstance*, Param*>>
+TryResolveStructType(AstNode* definer) {
   if (StructDef* struct_def = dynamic_cast<StructDef*>(definer);
       struct_def != nullptr) {
     return struct_def;
   }
 
-  TypeRefTypeAnnotation* type_ref = nullptr;
-  if (Param* param = dynamic_cast<Param*>(definer); param != nullptr) {
-    type_ref = dynamic_cast<TypeRefTypeAnnotation*>(param->type_annotation());
-  } else if (StructInstance* struct_instance =
-                 dynamic_cast<StructInstance*>(definer);
-             struct_instance != nullptr) {
-    type_ref =
-        dynamic_cast<TypeRefTypeAnnotation*>(struct_instance->struct_ref());
+  if (StructInstance* struct_instance = dynamic_cast<StructInstance*>(definer);
+      struct_instance != nullptr) {
+    return struct_instance;
   }
 
-  if (type_ref != nullptr) {
-    if (absl::StatusOr<StructDef*> struct_def =
-            ResolveLocalStructDef(type_ref->type_ref()->type_definition());
-        struct_def.ok()) {
-      return struct_def.value();
+  TypeRefTypeAnnotation* type_ref = nullptr;
+  if (Param* param = dynamic_cast<Param*>(definer); param != nullptr) {
+    if (type_ref =
+            dynamic_cast<TypeRefTypeAnnotation*>(param->type_annotation());
+        type_ref != nullptr) {
+      if (absl::StatusOr<StructDef*> struct_def =
+              ResolveLocalStructDef(type_ref->type_ref()->type_definition());
+          struct_def.ok()) {
+        return param;
+      }
     }
   }
   return std::nullopt;
@@ -355,9 +356,10 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
     return enum_def;
   }
 
-  std::optional<StructDef*> struct_def = TryResolveStructDefFromNode(definer);
-  if (struct_def.has_value()) {
-    return struct_def.value();
+  std::optional<std::variant<StructDef*, StructInstance*, Param*>> struct_type =
+      TryResolveStructType(definer);
+  if (struct_type.has_value()) {
+    return WidenVariantTo<ColonRefSubjectT>(struct_type.value());
   }
 
   TypeAlias* type_alias = dynamic_cast<TypeAlias*>(definer);
@@ -440,6 +442,15 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
       td.value());
 }
 
+static absl::StatusOr<Impl*> ImplFromTypeRef(TypeRefTypeAnnotation* type_ref) {
+  XLS_RET_CHECK(type_ref != nullptr);
+  XLS_ASSIGN_OR_RETURN(
+      StructDef * struct_def,
+      ResolveLocalStructDef(type_ref->type_ref()->type_definition()));
+  XLS_RET_CHECK(struct_def->impl().has_value());
+  return struct_def->impl().value();
+}
+
 absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
                             ArrayTypeAnnotation*, Impl*>>
 ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
@@ -460,6 +471,18 @@ ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
             std::optional<Impl*> impl = x->impl();
             XLS_RET_CHECK(impl.has_value());
             return impl.value();
+          },
+          [](Param* x) -> ReturnT {
+            TypeRefTypeAnnotation* type_ref =
+                dynamic_cast<TypeRefTypeAnnotation*>(x->type_annotation());
+            return ImplFromTypeRef(type_ref);
+          },
+          [](StructInstance* x) -> ReturnT {
+            TypeAnnotation* struct_ref = x->struct_ref();
+            XLS_RET_CHECK(struct_ref != nullptr);
+            TypeRefTypeAnnotation* type_ref =
+                dynamic_cast<TypeRefTypeAnnotation*>(struct_ref);
+            return ImplFromTypeRef(type_ref);
           },
           [](ColonRef*) -> ReturnT {
             return absl::InternalError(

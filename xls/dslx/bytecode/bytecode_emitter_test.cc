@@ -844,6 +844,42 @@ fn struct_const_ref() -> u4 {
               IsOkAndHolds(InterpValue::MakeSBits(4, 7)));
 }
 
+TEST(BytecodeEmitterTest, StructImplConstantParametric) {
+  constexpr std::string_view kBaseProgram = R"(
+struct Empty<N: u32> {}
+
+impl Empty<N> {
+  const MY_CONST = uN[N]:7;
+}
+
+#[test]
+fn struct_const_ref() -> u4 {
+  let x = Empty<u32:4>{};
+  x::MY_CONST
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("struct_const_ref"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), ParametricEnv()));
+
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 3);
+
+  const Bytecode* bc = bytecodes.data();
+  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
+  ASSERT_TRUE(bc->has_data());
+  EXPECT_THAT(bytecodes.at(2).value_data(),
+              IsOkAndHolds(InterpValue::MakeSBits(4, 7)));
+}
+
 TEST(BytecodeEmitterTest, ImportedConstant) {
   constexpr std::string_view kImportedProgram = R"(pub const MY_CONST = u3:2;)";
   constexpr std::string_view kBaseProgram = R"(

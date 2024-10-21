@@ -274,7 +274,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantDef(const ConstantDef* node,
   ctx->type_info()->NoteConstExpr(node->value(), constexpr_value);
   ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value);
 
-  VLOG(5) << "DeduceConstantDef restult: " << result->ToString();
+  VLOG(5) << "DeduceConstantDef result: " << result->ToString();
   return result;
 }
 
@@ -1025,6 +1025,21 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
       ctx->file_table());
 }
 
+static std::optional<Type*> TryNoteColonRefForConstant(
+    const ConstantDef* constant, const ColonRef* colonref,
+    TypeInfo* type_info) {
+  std::optional<Type*> type = type_info->GetItem(constant);
+  if (!type.has_value()) {
+    return std::nullopt;
+  }
+  absl::StatusOr<InterpValue> value = type_info->GetConstExpr(constant);
+  if (!value.ok()) {
+    return std::nullopt;
+  }
+  type_info->NoteConstExpr(colonref, value.value());
+  return type;
+}
+
 static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToImpl(
     Impl* impl, const ColonRef* node, DeduceCtx* ctx) {
   VLOG(5) << "DeduceColonRefToImpl: " << node->ToString();
@@ -1036,12 +1051,72 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToImpl(
                         node->attr(), impl->struct_ref()->ToString()),
         ctx->file_table());
   }
-  std::optional<Type*> type = ctx->type_info()->GetItem(constant.value());
+  // It's possible the constant has already been deduced.
+  std::optional<Type*> type =
+      TryNoteColonRefForConstant(constant.value(), node, ctx->type_info());
+  if (type.has_value()) {
+    return type.value()->CloneToUnique();
+  }
+
+  // If not, deduce constants in impl and try again.
+  for (const auto& con : impl->constants()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> _, ctx->Deduce(ToAstNode(con)));
+  }
+
+  type = TryNoteColonRefForConstant(constant.value(), node, ctx->type_info());
   XLS_RET_CHECK(type.has_value());
-  XLS_ASSIGN_OR_RETURN(InterpValue value,
-                       ctx->type_info()->GetConstExpr(constant.value()));
-  ctx->type_info()->NoteConstExpr(node, value);
   return type.value()->CloneToUnique();
+}
+
+static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToStructType(
+    StructDef* struct_def, const std::optional<Type*> type,
+    const ColonRef* node, DeduceCtx* ctx) {
+  VLOG(5) << "DeduceColonRefToStructType " << node->ToString();
+  if (!struct_def->impl().has_value()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Struct '%s' has no impl defining '%s'",
+                        struct_def->identifier(), node->attr()),
+        ctx->file_table());
+  }
+  Impl* impl = struct_def->impl().value();
+  if (!type.has_value()) {
+    return DeduceColonRefToImpl(impl, node, ctx);
+  }
+
+  const StructType& struct_type = type.value()->AsStruct();
+
+  const absl::flat_hash_map<std::string, TypeDim>& dims =
+      struct_type.nominal_type_dims_by_identifier();
+
+  // If there are no parametrics to handle, this is the basic impl case.
+  if (dims.empty()) {
+    return DeduceColonRefToImpl(impl, node, ctx);
+  }
+
+  // Process any resolved parametrics associated with the type.
+  TypeInfo* derived_ti = ctx->AddDerivedTypeInfo();
+  for (const auto& binding : struct_def->parametric_bindings()) {
+    auto it = dims.find(binding->identifier());
+    if (it == dims.end()) {
+      continue;
+    }
+    TypeDim instance_val = it->second;
+    if (std::holds_alternative<InterpValue>(instance_val.value())) {
+      ctx->type_info()->NoteConstExpr(
+          binding->name_def(), std::get<InterpValue>(instance_val.value()));
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> colon_ref_type,
+                       DeduceColonRefToImpl(impl, node, ctx));
+  XLS_ASSIGN_OR_RETURN(InterpValue colon_ref_value,
+                       derived_ti->GetConstExpr(node));
+
+  XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo(derived_ti));
+  ctx->type_info()->NoteConstExpr(node, colon_ref_value);
+
+  return colon_ref_type;
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
@@ -1094,17 +1169,37 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
               [&](ArrayTypeAnnotation* type) -> ReturnT {
                 return DeduceColonRefToArrayType(type, node, subject_ctx.get());
               },
+
+              // Possible subjects for impl colon ref.
               [&](StructDef* struct_def) -> ReturnT {
-                if (!struct_def->impl().has_value()) {
-                  return TypeInferenceErrorStatus(
-                      node->span(), nullptr,
-                      absl::StrFormat("Struct '%s' has no impl defining '%s'",
-                                      struct_def->identifier(), node->attr()),
-                      ctx->file_table());
-                }
-                Impl* impl = struct_def->impl().value();
-                return DeduceColonRefToImpl(impl, node, subject_ctx.get());
+                return DeduceColonRefToStructType(struct_def, std::nullopt,
+                                                  node, subject_ctx.get());
               },
+              [&](StructInstance* struct_instance) -> ReturnT {
+                TypeAnnotation* struct_ref = struct_instance->struct_ref();
+                XLS_RET_CHECK(struct_ref != nullptr);
+                XLS_ASSIGN_OR_RETURN(
+                    StructDef * struct_def,
+                    DerefToStruct(node->span(), struct_ref->ToString(),
+                                  *struct_ref, ctx->type_info()));
+                return DeduceColonRefToStructType(
+                    struct_def, ctx->type_info()->GetItem(struct_instance),
+                    node, subject_ctx.get());
+              },
+              [&](Param* param) -> ReturnT {
+                TypeRefTypeAnnotation* type_ref =
+                    dynamic_cast<TypeRefTypeAnnotation*>(
+                        param->type_annotation());
+                XLS_RET_CHECK(type_ref != nullptr);
+                XLS_ASSIGN_OR_RETURN(
+                    StructDef * struct_def,
+                    ResolveLocalStructDef(
+                        type_ref->type_ref()->type_definition()));
+                return DeduceColonRefToStructType(
+                    struct_def, ctx->type_info()->GetItem(param), node,
+                    subject_ctx.get());
+              },
+
               [&](ColonRef* colon_ref) -> ReturnT {
                 // Note: this should be unreachable, as it's a colon-reference
                 // that refers *directly* to another colon-ref. Generally you
@@ -2131,10 +2226,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceImpl(const Impl* node,
                                     "Impl must be for a struct type",
                                     ctx->file_table());
   }
-
-  for (const auto& constant : node->constants()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> constType,
-                         ctx->Deduce(ToAstNode(constant)));
+  TypeRefTypeAnnotation* type_ref =
+      dynamic_cast<TypeRefTypeAnnotation*>(node->struct_ref());
+  XLS_RET_CHECK(type_ref != nullptr);
+  if (type_ref->parametrics().empty()) {
+    for (const auto& constant : node->constants()) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> constType,
+                           ctx->Deduce(ToAstNode(constant)));
+    }
   }
   return type;
 }

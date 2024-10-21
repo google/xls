@@ -67,8 +67,9 @@ absl::Status ValidateNumber(const Number& number, const Type& type);
 // * an enum definition
 // * a builtin type (with a constant item on it, a la `u7::MAX`)
 // * a constant defined via `impl` on a `StructDef`.
-absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
-                            ArrayTypeAnnotation*, StructDef*, ColonRef*>>
+absl::StatusOr<
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
+                 StructDef*, StructInstance*, Param*, ColonRef*>>
 ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
                                       const TypeInfo* type_info,
                                       const ColonRef* colon_ref);
