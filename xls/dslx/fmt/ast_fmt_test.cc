@@ -77,7 +77,7 @@ TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x[i]).2");
 }
 
-TEST(BuildAstFmtTest, FormatSingleElementTuple) {
+TEST(BuiltAstFmtTest, FormatSingleElementTuple) {
   auto [file_table, module, tuple] =
       MakeNElementTupleExpression(1, /*has_trailing_comma=*/true);
   const Comments empty_comments = Comments::Create({});
@@ -87,7 +87,7 @@ TEST(BuildAstFmtTest, FormatSingleElementTuple) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0,)");
 }
 
-TEST(BuildAstFmtTest, FormatShortTupleWithoutTrailingComma) {
+TEST(BuiltAstFmtTest, FormatShortTupleWithoutTrailingComma) {
   auto [file_table, module, tuple] =
       MakeNElementTupleExpression(2, /*has_trailing_comma=*/false);
   const Comments empty_comments = Comments::Create({});
@@ -97,7 +97,7 @@ TEST(BuildAstFmtTest, FormatShortTupleWithoutTrailingComma) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
-TEST(BuildAstFmtTest, FormatShortTupleWithTrailingComma) {
+TEST(BuiltAstFmtTest, FormatShortTupleWithTrailingComma) {
   auto [file_table, module, tuple] =
       MakeNElementTupleExpression(2, /*has_trailing_comma=*/true);
   const Comments empty_comments = Comments::Create({});
@@ -107,7 +107,7 @@ TEST(BuildAstFmtTest, FormatShortTupleWithTrailingComma) {
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
-TEST(BuildAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
+TEST(BuiltAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
   const Comments empty_comments = Comments::Create({});
   {
     auto [file_table, module, tuple] =
@@ -220,7 +220,6 @@ class FunctionFmtTest : public testing::Test {
   absl::StatusOr<std::string> DoFmt(
       std::string_view original,
       const absl::flat_hash_set<std::string>& builtin_name_defs = {},
-      int64_t text_width = kDslxDefaultTextWidth,
       bool opportunistic_postcondition = true) {
     CHECK(!scanner_.has_value());
     scanner_.emplace(file_table_, Fileno(0), std::string{original});
@@ -235,7 +234,7 @@ class FunctionFmtTest : public testing::Test {
     Comments comments = Comments::Create(scanner_->comments());
 
     DocRef doc = Fmt(*f_, comments, arena_);
-    std::string formatted = PrettyPrint(arena_, doc, text_width);
+    std::string formatted = PrettyPrint(arena_, doc, kDslxDefaultTextWidth);
 
     std::optional<AutoFmtPostconditionViolation> maybe_violation =
         ObeysAutoFmtOpportunisticPostcondition(original, formatted);
@@ -256,8 +255,7 @@ class FunctionFmtTest : public testing::Test {
   }
 
   absl::StatusOr<std::string> DoFmtNoPostcondition(std::string_view original) {
-    return DoFmt(original, {}, kDslxDefaultTextWidth,
-                 /*opportunistic_postcondition=*/false);
+    return DoFmt(original, {}, /*opportunistic_postcondition=*/false);
   }
 
   Bindings& bindings() { return bindings_; }
@@ -1203,10 +1201,10 @@ TEST_F(FunctionFmtTest, SingletonTupleWithLeadingComment) {
 
 class ModuleFmtTest : public testing::Test {
  public:
-  void Run(std::string_view input,
-           std::optional<std::string_view> want = std::nullopt,
-           int64_t text_width = kDslxDefaultTextWidth,
-           bool opportunistic_postcondition = true) {
+  void DoFmt(std::string_view input,
+             std::optional<std::string_view> want = std::nullopt,
+             int64_t text_width = kDslxDefaultTextWidth,
+             bool opportunistic_postcondition = true) {
     std::vector<CommentData> comments;
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Module> m,
@@ -1228,10 +1226,10 @@ class ModuleFmtTest : public testing::Test {
     EXPECT_EQ(got, want.value_or(input));
   }
 
-  void RunNoPostcondition(std::string_view input,
-                          std::optional<std::string_view> want = std::nullopt) {
-    Run(input, want, kDslxDefaultTextWidth,
-        /*opportunistic_postcondition=*/false);
+  void DoFmtNoPostcondition(std::string_view input,
+                            std::optional<std::string_view> want) {
+    DoFmt(input, want, kDslxDefaultTextWidth,
+          /*opportunistic_postcondition=*/false);
   }
 
  private:
@@ -1240,7 +1238,7 @@ class ModuleFmtTest : public testing::Test {
 
 // See https://github.com/google/xls/issues/1617
 TEST_F(ModuleFmtTest, OverlongTernary) {
-  Run(R"(type TypeTTTTTTTTTTTTTTTTT = u32;
+  DoFmt(R"(type TypeTTTTTTTTTTTTTTTTT = u32;
 
 const test000000000000000000000000000000 = u32:42;
 const consequent000000000000000000000000000000000 = u32:64;
@@ -1258,26 +1256,26 @@ fn f() {
 }
 
 TEST_F(ModuleFmtTest, TwoSimpleFunctions) {
-  Run("fn double(x:u32)->u32{u32:2*x}fn triple(x: u32)->u32{u32:3*x}",
-      R"(fn double(x: u32) -> u32 { u32:2 * x }
+  DoFmt("fn double(x:u32)->u32{u32:2*x}fn triple(x: u32)->u32{u32:3*x}",
+        R"(fn double(x: u32) -> u32 { u32:2 * x }
 
 fn triple(x: u32) -> u32 { u32:3 * x }
 )");
 }
 
 TEST_F(ModuleFmtTest, OverLongImport) {
-  Run("import very_long.name_here.made_of.dotted_components;",
-      "import very_long.\n"
-      "       name_here.\n"
-      "       made_of.\n"
-      "       dotted_components;\n",
-      14);
+  DoFmt("import very_long.name_here.made_of.dotted_components;",
+        "import very_long.\n"
+        "       name_here.\n"
+        "       made_of.\n"
+        "       dotted_components;\n",
+        14);
 }
 
-TEST_F(ModuleFmtTest, ImportAs) { Run("import foo as bar;\n"); }
+TEST_F(ModuleFmtTest, ImportAs) { DoFmt("import foo as bar;\n"); }
 
 TEST_F(ModuleFmtTest, ImportGroups) {
-  Run(R"(import thing1;
+  DoFmt(R"(import thing1;
 import thing2;
 
 import other;
@@ -1286,14 +1284,14 @@ import stuff;
 }
 
 TEST_F(ModuleFmtTest, ImportSuperLongName) {
-  Run(R"(// Module-level comment
+  DoFmt(R"(// Module-level comment
 import blahhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
     as blah;
 )");
 }
 
 TEST_F(ModuleFmtTest, TypeAliasGroups) {
-  Run(R"(import thing1;
+  DoFmt(R"(import thing1;
 import float32;
 
 type F32 = float32::F32;
@@ -1304,7 +1302,7 @@ type TaggedF32 = float32::TaggedF32;
 }
 
 TEST_F(ModuleFmtTest, ConstantDefGroups) {
-  Run(R"(const A = u32:42;
+  DoFmt(R"(const A = u32:42;
 const B = u32:64;
 
 const C = u32:128;
@@ -1312,32 +1310,32 @@ const D = u32:256;
 )");
 }
 
-TEST_F(ModuleFmtTest, ConstantDef) { Run("pub const MOL = u32:42;\n"); }
+TEST_F(ModuleFmtTest, ConstantDef) { DoFmt("pub const MOL = u32:42;\n"); }
 
 TEST_F(ModuleFmtTest, ConstantDefWithType) {
-  Run("pub const MOL: u32 = u32:42;\n");
+  DoFmt("pub const MOL: u32 = u32:42;\n");
 }
 
 TEST_F(ModuleFmtTest, ConstantDefWithTypeAliasTypeAnnotation) {
-  Run(R"(type MyU32 = u32;
+  DoFmt(R"(type MyU32 = u32;
 
 pub const MOL: MyU32 = MyU32:42;
 )");
 }
 
 TEST_F(ModuleFmtTest, TypeAliasSvType) {
-  Run(R"(#[sv_type("foo")]type MyU32 = u32;)",
-      R"(#[sv_type("foo")]
+  DoFmt(R"(#[sv_type("foo")]type MyU32 = u32;)",
+        R"(#[sv_type("foo")]
 type MyU32 = u32;
 )");
 }
 
 TEST_F(ModuleFmtTest, ConstantDefArray) {
-  Run("pub const VALS = u32[2]:[32, 64];\n");
+  DoFmt("pub const VALS = u32[2]:[32, 64];\n");
 }
 
 TEST_F(ModuleFmtTest, ConstantDefArrayMultiline) {
-  Run(R"(pub const VALS = u64[5]:[
+  DoFmt(R"(pub const VALS = u64[5]:[
     0x002698ad4b48ead0, 0x1bfb1e0316f2d5de, 0x173a623c9725b477, 0x0a447a02823ad868,
     0x1df74948b3fbea7e, 0x1bc8b594bcf01a39, 0x07b767ca9520e99a, 0x05e28b4320bfd20e,
     0x0105906a24823f57, 0x1a1e7d14a6d24384, 0x2a7326df322e084d, 0x120bc9cc3fac4ec7,
@@ -1348,7 +1346,7 @@ TEST_F(ModuleFmtTest, ConstantDefArrayMultiline) {
 }
 
 TEST_F(ModuleFmtTest, ConstantDefArrayMultilineWithEllipsis) {
-  Run(R"(pub const VALS = u64[8]:[
+  DoFmt(R"(pub const VALS = u64[8]:[
     0x002698ad4b48ead0, 0x1bfb1e0316f2d5de, 0x173a623c9725b477, 0x0a447a02823ad868,
     0x1df74948b3fbea7e, 0x1bc8b594bcf01a39, 0x07b767ca9520e99a, ...
 ];
@@ -1356,13 +1354,13 @@ TEST_F(ModuleFmtTest, ConstantDefArrayMultilineWithEllipsis) {
 }
 
 TEST_F(ModuleFmtTest, ConstantDefArrayEllipsis) {
-  Run("pub const VALS = u32[2]:[32, ...];\n");
+  DoFmt("pub const VALS = u32[2]:[32, ...];\n");
 }
 
 // We want these arrays to not have e.g. extra newlines introduced between them,
 // since they are abutted.
 TEST_F(ModuleFmtTest, ConstantDefMultipleArray) {
-  Run(R"(// Module level comment.
+  DoFmt(R"(// Module level comment.
 const W_A0 = u32:32;
 const W_A1 = u32:32;
 const W_A2 = u32:32;
@@ -1383,8 +1381,8 @@ pub const A0 = sN[W_A0][NUM_PIECES]:[
 }
 
 TEST_F(ModuleFmtTest, EnumDefTwoValues) {
-  Run("pub enum MyEnum:u32{A=1,B=2}\n",
-      R"(pub enum MyEnum : u32 {
+  DoFmt("pub enum MyEnum:u32{A=1,B=2}\n",
+        R"(pub enum MyEnum : u32 {
     A = 1,
     B = 2,
 }
@@ -1392,9 +1390,9 @@ TEST_F(ModuleFmtTest, EnumDefTwoValues) {
 }
 
 TEST_F(ModuleFmtTest, EnumDefTwoValuesSvType) {
-  Run(R"(#[sv_type("foo")] pub enum MyEnum:u32{A=1,B=2}
+  DoFmt(R"(#[sv_type("foo")] pub enum MyEnum:u32{A=1,B=2}
 )",
-      R"(#[sv_type("foo")]
+        R"(#[sv_type("foo")]
 pub enum MyEnum : u32 {
     A = 1,
     B = 2,
@@ -1411,14 +1409,14 @@ TEST_F(ModuleFmtTest, EnumDefCommentOnEachMember) {
     // This is a trailing comment.
 }
 )";
-  Run(R"(pub enum MyEnum:u32{
+  DoFmt(R"(pub enum MyEnum:u32{
 // This is the first member comment.
 FIRST = 0,
 // This is the second member comment.
 SECOND = 1,
 // This is a trailing comment.
 })",
-      kWant);
+        kWant);
 }
 
 TEST_F(ModuleFmtTest, FunctionRefWithExplicitParametrics) {
@@ -1428,7 +1426,7 @@ TEST_F(ModuleFmtTest, FunctionRefWithExplicitParametrics) {
 fn g() -> u32[3] { map([u32:1, u32:2, u32:3], f<u32:4>) }
 )";
 
-  Run(kInput);
+  DoFmt(kInput);
 }
 
 TEST_F(ModuleFmtTest, StructDefTwoFields) {
@@ -1436,27 +1434,27 @@ TEST_F(ModuleFmtTest, StructDefTwoFields) {
       "pub struct Point<N: u32> { x: bits[N], y: u64 }\n";
 
   // At normal 100 char width it can be in single line form.
-  Run(kInput);
+  DoFmt(kInput);
 
-  Run(kInput, R"(pub struct Point<N: u32> {
+  DoFmt(kInput, R"(pub struct Point<N: u32> {
     x: bits[N],
     y: u64,
 }
 )",
-      32);
+        32);
 }
 
 TEST_F(ModuleFmtTest, StructDefTwoFieldsSvType) {
   const std::string kInput =
       R"(#[sv_type("cool")] pub struct Point { x: u32, y: u64 })";
 
-  Run(kInput, R"(#[sv_type("cool")]
+  DoFmt(kInput, R"(#[sv_type("cool")]
 pub struct Point { x: u32, y: u64 }
 )");
 }
 
 TEST_F(ModuleFmtTest, StructDefEmptyWithComment) {
-  Run(
+  DoFmt(
       R"(pub struct Point {
     // Very empty.
 }
@@ -1464,7 +1462,7 @@ TEST_F(ModuleFmtTest, StructDefEmptyWithComment) {
 }
 
 TEST_F(ModuleFmtTest, StructDefWithInlineCommentsOnFields) {
-  Run(
+  DoFmt(
       R"(pub struct Point {
     x: u32,  // Comment on the first field
     y: u64,  // Comment on the second field
@@ -1473,7 +1471,7 @@ TEST_F(ModuleFmtTest, StructDefWithInlineCommentsOnFields) {
 }
 
 TEST_F(ModuleFmtTest, StructDefWithAbuttedCommentsOnFields) {
-  Run(R"(pub struct Point {
+  DoFmt(R"(pub struct Point {
     // Above the first member
     x: u32,
     // Above the second member
@@ -1484,7 +1482,7 @@ TEST_F(ModuleFmtTest, StructDefWithAbuttedCommentsOnFields) {
 }
 
 TEST_F(ModuleFmtTest, StructDefWithMixedCommentAnnotations) {
-  Run(
+  DoFmt(
       R"(pub struct Point {
     x: u32,  // short inline comment
     // This has a long, long discussion for some reason.
@@ -1495,7 +1493,7 @@ TEST_F(ModuleFmtTest, StructDefWithMixedCommentAnnotations) {
 }
 
 TEST_F(ModuleFmtTest, StructDefWithMultilineInlineComment) {
-  Run(
+  DoFmt(
       R"(pub struct Point {
     x: u32,  // this is a longer comment
              // it wants to be multi-line for some reason
@@ -1505,7 +1503,7 @@ TEST_F(ModuleFmtTest, StructDefWithMultilineInlineComment) {
 }
 
 TEST_F(ModuleFmtTest, StructDefGithub1260) {
-  Run(
+  DoFmt(
       R"(// Foos do what they do.
 struct Foo {
     // the foo top of body comment
@@ -1516,7 +1514,7 @@ struct Foo {
 }
 
 TEST_F(ModuleFmtTest, UnaryWithCommentGithub1372) {
-  Run(
+  DoFmt(
       R"(fn main(x: bool) -> bool {
     !x  // Gotta negate it!
 }
@@ -1526,18 +1524,18 @@ TEST_F(ModuleFmtTest, UnaryWithCommentGithub1372) {
 TEST_F(ModuleFmtTest, StructDefTwoParametrics) {
   const std::string_view kProgram =
       "pub struct Point<M: u32, N: u32> { x: bits[M], y: bits[N] }\n";
-  Run(kProgram);
+  DoFmt(kProgram);
 
   const std::string_view kWantMultiline = R"(pub struct Point<M: u32, N: u32> {
     x: bits[M],
     y: bits[N],
 }
 )";
-  Run(kProgram, kWantMultiline, 35);
+  DoFmt(kProgram, kWantMultiline, 35);
 }
 
 TEST_F(ModuleFmtTest, ImplSimple) {
-  Run(
+  DoFmt(
       R"(struct MyStruct {}
 
 impl MyStruct {}
@@ -1545,7 +1543,7 @@ impl MyStruct {}
 }
 
 TEST_F(ModuleFmtTest, ImplWithConstants) {
-  Run(
+  DoFmt(
       R"(struct MyStruct {}
 
 impl MyStruct {
@@ -1557,7 +1555,7 @@ impl MyStruct {
 }
 
 TEST_F(ModuleFmtTest, ImplWithInlineComment) {
-  Run(
+  DoFmt(
       R"(struct MyStruct {}
 
 impl MyStruct {
@@ -1569,7 +1567,7 @@ impl MyStruct {
 }
 
 TEST_F(ModuleFmtTest, SimpleTestFunction) {
-  Run(
+  DoFmt(
       R"(fn id(x: u32) -> u32 { x }
 
 #[test]
@@ -1581,7 +1579,7 @@ fn my_test() {
 }
 
 TEST_F(ModuleFmtTest, SimpleTestFunctionWithLeadingComment) {
-  Run(
+  DoFmt(
       R"(fn id(x: u32) -> u32 { x }
 
 // This is a test function. Now you know.
@@ -1594,7 +1592,7 @@ fn my_test() {
 }
 
 TEST_F(ModuleFmtTest, SimpleParametricInvocation) {
-  Run(
+  DoFmt(
       R"(fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
 fn f() -> u8 { p<8>(u8:42) }
@@ -1602,7 +1600,7 @@ fn f() -> u8 { p<8>(u8:42) }
 }
 
 TEST_F(ModuleFmtTest, StructInstantiationWithRedundantAttributeSpecifier) {
-  RunNoPostcondition(
+  DoFmtNoPostcondition(
       R"(struct MyStruct { x: u32 }
 
 fn f() -> MyStruct {
@@ -1620,7 +1618,7 @@ fn f() -> MyStruct {
 }
 
 TEST_F(ModuleFmtTest, StructInstantiationWithExactSizedCondExpr) {
-  Run(
+  DoFmt(
       R"(struct MyStruct { field: u32 }
 
 const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
@@ -1638,7 +1636,7 @@ fn f(b: bool) -> MyStruct {
 }
 
 TEST_F(ModuleFmtTest, StructInstantiationWithExactOneCharOverlyLargeCondExpr) {
-  Run(
+  DoFmt(
       R"(struct MyStruct { field: u32 }
 
 const TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT = true;
@@ -1671,7 +1669,7 @@ fn f(b: bool) -> MyStruct {
 }
 
 TEST_F(ModuleFmtTest, SimpleParametricStructInstantiation) {
-  Run(
+  DoFmt(
       R"(import mol;
 
 struct Point<N: u32> { x: bits[N], y: bits[N] }
@@ -1681,7 +1679,7 @@ fn f() -> Point<mol::MOL> { Point<mol::MOL> { x: u8:42, y: u8:64 } }
 }
 
 TEST_F(ModuleFmtTest, TypeRefTypeAnnotationModuleLevel) {
-  Run(
+  DoFmt(
       R"(type MyU32 = u32;
 
 fn f() -> MyU32 { MyU32:42 }
@@ -1689,7 +1687,7 @@ fn f() -> MyU32 { MyU32:42 }
 }
 
 TEST_F(ModuleFmtTest, TypeRefTypeAnnotationInBody) {
-  Run(
+  DoFmt(
       R"(fn f() -> u32 {
     type MyU32 = u32;
     MyU32:42
@@ -1698,15 +1696,15 @@ TEST_F(ModuleFmtTest, TypeRefTypeAnnotationInBody) {
 }
 
 TEST_F(ModuleFmtTest, TypeRefChannelTypeAnnotation) {
-  Run("type MyChan = chan<u32> out;\n");
+  DoFmt("type MyChan = chan<u32> out;\n");
 }
 
 TEST_F(ModuleFmtTest, TypeRefChannelArrayTypeAnnotation) {
-  Run("type MyChan = chan<u32>[2] out;\n");
+  DoFmt("type MyChan = chan<u32>[2] out;\n");
 }
 
 TEST_F(ModuleFmtTest, ColonRefWithImportSubject) {
-  Run(
+  DoFmt(
       R"(import foo;
 
 fn f() -> u32 { foo::bar }
@@ -1714,7 +1712,7 @@ fn f() -> u32 { foo::bar }
 }
 
 TEST_F(ModuleFmtTest, NestedColonRefWithImportSubject) {
-  Run(
+  DoFmt(
       R"(import foo;
 
 fn f() -> u32 { foo::bar::baz::bat }
@@ -1722,7 +1720,7 @@ fn f() -> u32 { foo::bar::baz::bat }
 }
 
 TEST_F(ModuleFmtTest, ModuleLevelConstAssert) {
-  Run(
+  DoFmt(
       R"(import foo;
 
 const_assert!(foo::bar == u32:42);
@@ -1730,14 +1728,14 @@ const_assert!(foo::bar == u32:42);
 }
 
 TEST_F(ModuleFmtTest, ConstStructInstance) {
-  Run(R"(struct Point { x: u32, y: u32 }
+  DoFmt(R"(struct Point { x: u32, y: u32 }
 
 const P = Point { x: u32:42, y: u32:64 };
 )");
 }
 
 TEST_F(ModuleFmtTest, ConstStructInstanceEmpty) {
-  Run(
+  DoFmt(
       R"(struct Nothing {}
 
 const NOTHING = Nothing {};
@@ -1745,7 +1743,8 @@ const NOTHING = Nothing {};
 }
 
 TEST_F(ModuleFmtTest, LetEqualStructInstance) {
-  Run(R"(struct Point0000000000000000000000000000000000000000000000000000000000000000000000 {
+  DoFmt(
+      R"(struct Point0000000000000000000000000000000000000000000000000000000000000000000000 {
     x: u32,
     y: u32,
 }
@@ -1760,7 +1759,8 @@ fn f() {
 }
 
 TEST_F(ModuleFmtTest, LetEqualSplatStructInstance) {
-  Run(R"(struct Point0000000000000000000000000000000000000000000000000000000000000000000000 {
+  DoFmt(
+      R"(struct Point0000000000000000000000000000000000000000000000000000000000000000000000 {
     x: u32,
     y: u32,
 }
@@ -1775,7 +1775,7 @@ fn f(p: Point0000000000000000000000000000000000000000000000000000000000000000000
 }
 
 TEST_F(ModuleFmtTest, StructAttr) {
-  Run(
+  DoFmt(
       R"(struct Point { x: u32, y: u32 }
 
 fn get_x(p: Point) -> u32 { p.x }
@@ -1783,7 +1783,7 @@ fn get_x(p: Point) -> u32 { p.x }
 }
 
 TEST_F(ModuleFmtTest, ConstStructInstanceWithSplatVariantOneUpdate) {
-  Run(
+  DoFmt(
       R"(struct Point { x: u32, y: u32 }
 
 const P = Point { x: u32:42, y: u32:64 };
@@ -1793,7 +1793,7 @@ const Q = Point { x: u32:32, ..P };
 }
 
 TEST_F(ModuleFmtTest, ConstStructInstanceWithSplatVariantNoUpdate) {
-  Run(
+  DoFmt(
       R"(struct Point { x: u32, y: u32 }
 
 const P = Point { x: u32:42, y: u32:64 };
@@ -1803,7 +1803,7 @@ const Q = Point { ..P };
 }
 
 TEST_F(ModuleFmtTest, StructInstanceWithNamesViaBindings) {
-  Run(R"(struct Point { x: u32, y: u16 }
+  DoFmt(R"(struct Point { x: u32, y: u16 }
 
 fn f() {
     let x = u32:42;
@@ -1814,7 +1814,7 @@ fn f() {
 }
 
 TEST_F(ModuleFmtTest, StructInstanceWithNamesViaBindingsBackwards) {
-  Run(
+  DoFmt(
       R"(struct Point { x: u32, y: u16 }
 
 fn f() {
@@ -1826,7 +1826,7 @@ fn f() {
 }
 
 TEST_F(ModuleFmtTest, StructInstanceLetBinding) {
-  Run(
+  DoFmt(
       R"(struct Point { x: u32, y: u16 }
 
 fn f() -> Point {
@@ -1839,26 +1839,26 @@ fn f() -> Point {
 }
 
 TEST_F(ModuleFmtTest, SimpleQuickCheck) {
-  Run(
+  DoFmt(
       R"(#[quickcheck]
 fn f() -> bool { true }
 )");
 }
 
 TEST_F(ModuleFmtTest, SimplePublicFunction) {
-  Run(
+  DoFmt(
       R"(pub fn id(x: u32) -> u32 { x }
 )");
 }
 
 TEST_F(ModuleFmtTest, OneModuleLevelCommentNoReflow) {
-  Run(
+  DoFmt(
       R"(// This is a module level comment at the top of the file.
 )");
 }
 
 TEST_F(ModuleFmtTest, TwoModuleLevelCommentsNoReflow) {
-  Run(
+  DoFmt(
       R"(// This is a module level comment at the top of the file.
 
 // This is another one slightly farther down in the file.
@@ -1866,7 +1866,7 @@ TEST_F(ModuleFmtTest, TwoModuleLevelCommentsNoReflow) {
 }
 
 TEST_F(ModuleFmtTest, OneMultiLineCommentNoReflow) {
-  Run(
+  DoFmt(
       R"(// This is a module level comment at the top of the file.
 // It spans multiple lines in a single block of comment text.
 // Three, to be precise. And then the file ends.
@@ -1874,7 +1874,7 @@ TEST_F(ModuleFmtTest, OneMultiLineCommentNoReflow) {
 }
 
 TEST_F(ModuleFmtTest, OneMultiLineCommentWithAnEmptyLineNoReflow) {
-  Run(
+  DoFmt(
       R"(// This is a module level comment at the top of the file.
 //
 // There's a blank on the second line. And then the file ends after the third.
@@ -1882,13 +1882,13 @@ TEST_F(ModuleFmtTest, OneMultiLineCommentWithAnEmptyLineNoReflow) {
 }
 
 TEST_F(ModuleFmtTest, OneOverlongCommentLineWithOneToken) {
-  Run(
+  DoFmt(
       R"(// abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz
 )");
 }
 
 TEST_F(ModuleFmtTest, ModuleAndFunctionLevelComments) {
-  Run(
+  DoFmt(
       R"(// This is a module level comment at the top of the file.
 
 // This is a function level comment.
@@ -1903,7 +1903,7 @@ fn g(x: u32) -> u32 {
 }
 
 TEST_F(ModuleFmtTest, TwoModuleLevelCommentBlocksBeforeFunction) {
-  Run(
+  DoFmt(
       R"(// Module comment one.
 
 // Module comment two.
@@ -1913,7 +1913,7 @@ fn uncommented_fn(x: u32) -> u32 { x }
 }
 
 TEST_F(ModuleFmtTest, SimpleProc) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     config() { () }
 
@@ -1925,7 +1925,7 @@ TEST_F(ModuleFmtTest, SimpleProc) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithConstant) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     // My constant.
     const MY_CONST = u32:8;
@@ -1942,7 +1942,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithConstant) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithComments) {
-  Run(
+  DoFmt(
       R"(// Proc-level comment.
 pub proc p {
     // Member-level comment on cin.
@@ -1965,7 +1965,7 @@ pub proc p {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcEmptyConfigBlock) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     config() {  }
 
@@ -1977,7 +1977,7 @@ TEST_F(ModuleFmtTest, SimpleProcEmptyConfigBlock) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -1992,7 +1992,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
 }
 
 TEST_F(ModuleFmtTest, SimpleParametricProc) {
-  Run(
+  DoFmt(
       R"(pub proc p<N: u32> {
     config() { () }
 
@@ -2004,7 +2004,7 @@ TEST_F(ModuleFmtTest, SimpleParametricProc) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithChannelDecl) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -2022,7 +2022,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelDecl) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithChannelArrayDecl) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     cin: chan<u32>[2] in;
     cout: chan<u32>[2] out;
@@ -2040,7 +2040,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelArrayDecl) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -2058,7 +2058,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithChannelDeclWithFifoDepth) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithSpawn) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -2085,7 +2085,7 @@ pub proc q {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithSpawnNoTrailingTuple) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     cin: chan<u32> in;
     cout: chan<u32> out;
@@ -2111,7 +2111,7 @@ pub proc q {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     cin: chan<u32> in;
     ca: chan<u32> out;
@@ -2135,7 +2135,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithLotsOfChannels) {
 }
 
 TEST_F(ModuleFmtTest, SimpleProcWithTypeAlias) {
-  Run(
+  DoFmt(
       R"(pub proc p {
     type MyU32OutChan = chan<u32> out;
     cg: MyU32OutChan;
@@ -2151,7 +2151,7 @@ TEST_F(ModuleFmtTest, SimpleProcWithTypeAlias) {
 
 // Based on report in https://github.com/google/xls/issues/1216
 TEST_F(ModuleFmtTest, ProcSpawnImported) {
-  Run(
+  DoFmt(
       R"(import some_import;
 
 proc p {
@@ -2168,7 +2168,7 @@ proc p {
 }
 
 TEST_F(ModuleFmtTest, SimpleTestProc) {
-  Run(
+  DoFmt(
       R"(#[test_proc]
 proc p_test {
     terminator: chan<bool> out;
@@ -2183,7 +2183,7 @@ proc p_test {
 }
 
 TEST_F(ModuleFmtTest, MatchLongWildcardArmExpression) {
-  Run(
+  DoFmt(
       R"(import float32;
 
 fn f(input_float: float32::F32) -> float32::F32 {
@@ -2199,7 +2199,7 @@ fn f(input_float: float32::F32) -> float32::F32 {
 }
 
 TEST_F(ModuleFmtTest, ProcCallFarRhs) {
-  Run(
+  DoFmt(
       R"(struct DelayState {}
 
 const DELAY = u32:42;
@@ -2222,7 +2222,7 @@ proc p {
 }
 
 TEST_F(ModuleFmtTest, ParametricFnWithManyArgs) {
-  Run(
+  DoFmt(
       R"(fn umax() {}
 
 pub fn uadd_with_overflow
@@ -2233,7 +2233,7 @@ pub fn uadd_with_overflow
 }
 
 TEST_F(ModuleFmtTest, TypeAliasToColonRefInstantiated) {
-  Run(
+  DoFmt(
       R"(import float32;
 
 type F32 = float32::F32;
@@ -2243,7 +2243,7 @@ pub fn f() -> F32 { F32 { blah: u32:42 } }
 }
 
 TEST_F(ModuleFmtTest, AttrEquality) {
-  Run(
+  DoFmt(
       R"(import m;
 
 const SOME_BOOL = true;
@@ -2253,7 +2253,7 @@ fn f(x: m::MyStruct, y: m::MyStruct) -> bool { (x.foo == y.foo) || SOME_BOOL }
 }
 
 TEST_F(ModuleFmtTest, ArrowReturnTypePackedOnOneLine) {
-  Run(
+  DoFmt(
       R"(import apfloat;
 
 fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
@@ -2264,7 +2264,7 @@ fn n_path<EXP_SZ: u32, FRACTION_SZ: u32>
 }
 
 TEST_F(ModuleFmtTest, LongParametricList) {
-  Run(R"(// Signed max routine.
+  DoFmt(R"(// Signed max routine.
 pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x > y { x } else { y } }
 
 pub fn extract_bits
@@ -2276,7 +2276,7 @@ pub fn extract_bits
 }
 
 TEST_F(ModuleFmtTest, NestedBinopLogicalOr) {
-  Run(
+  DoFmt(
       R"(// Define some arbitrary constants at various identifier widths.
 const AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA = true;
 const BBBBBBBBBBBBBBBBBBBBBBB = true;
@@ -2290,7 +2290,7 @@ fn f() -> bool {
 }
 
 TEST_F(ModuleFmtTest, ModuleConstantsWithInlineComments) {
-  Run(
+  DoFmt(
       R"(pub const MOL = u32:42;  // may be important
 
 const TWO_TO_FIFTH = u32:32;  // 2^5
@@ -2298,7 +2298,7 @@ const TWO_TO_FIFTH = u32:32;  // 2^5
 }
 
 TEST_F(ModuleFmtTest, ModuleConstantsWithMultilineInlineComments) {
-  Run(
+  DoFmt(
       R"(pub const MOL = u32:42;  // may be important
 
 const TWO_TO_FIFTH = u32:32;  // 2^5
@@ -2309,7 +2309,7 @@ const TWO_TO_FIFTH = u32:32;  // 2^5
 // If the array constant is placed on a single line it is overly long -- we
 // check that we smear it across multiple lines to stay within 100 chars.
 TEST_F(ModuleFmtTest, OverLongArrayConstant) {
-  Run(R"(// Top of module comment.
+  DoFmt(R"(// Top of module comment.
 const W_A0 = u32:32;
 const NUM_PIECES = u32:8;
 pub const A0 = sN[W_A0][NUM_PIECES]:[
@@ -2319,7 +2319,7 @@ pub const A0 = sN[W_A0][NUM_PIECES]:[
 }
 
 TEST_F(ModuleFmtTest, InvocationWithOneStructArg) {
-  Run(R"(struct APFloat {}
+  DoFmt(R"(struct APFloat {}
 
 fn unbiased_exponent() {}
 
@@ -2332,7 +2332,7 @@ fn f() {
 
 // See github issue https://github.com/google/xls/issues/1193
 TEST_F(ModuleFmtTest, LongLetLeader) {
-  Run(R"(import std;
+  DoFmt(R"(import std;
 
 fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
     type SomeTypeNameThatIsNotTooShort = s64;
@@ -2343,7 +2343,7 @@ fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_to
 }
 
 TEST_F(ModuleFmtTest, LongLetRhs) {
-  Run(R"(import std;
+  DoFmt(R"(import std;
 
 fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_too_short: u32) {
     type SomeTypeNameThatIsNotTooShort = sN[u32:96];
@@ -2355,14 +2355,14 @@ fn foo(some_value_that_is_pretty_long: u32, some_other_value_that_is_also_not_to
 }
 
 TEST_F(ModuleFmtTest, QuickcheckWithCount) {
-  Run(R"(// Comment on quickcheck.
+  DoFmt(R"(// Comment on quickcheck.
 #[quickcheck(test_count=100000)]
 fn prop_eq(x: u32, y: u32) -> bool { x == y }
 )");
 }
 
 TEST_F(ModuleFmtTest, ModuleLevelAnnotation) {
-  Run(R"(#![allow(nonstandard_constant_naming)]
+  DoFmt(R"(#![allow(nonstandard_constant_naming)]
 
 fn id(x: u32) { x }
 )");
@@ -2370,7 +2370,7 @@ fn id(x: u32) { x }
 
 TEST_F(ModuleFmtTest, GithubIssue1229) {
   // Note: we just need it to parse, no need for it to typecheck.
-  Run(R"(struct ReadReq<X: u32> {}
+  DoFmt(R"(struct ReadReq<X: u32> {}
 struct ReadResp<X: u32> {}
 struct WriteReq<X: u32, Y: u32> {}
 struct WriteResp {}
@@ -2400,7 +2400,7 @@ proc csr_8_32_14 {
 }
 
 TEST_F(ModuleFmtTest, GithubIssue1329) {
-  Run(R"(struct StructA { data: u64[8] }
+  DoFmt(R"(struct StructA { data: u64[8] }
 struct StructB { a: StructA }
 struct StructC { b: StructB }
 
@@ -2422,7 +2422,7 @@ fn struct_c_test() {
 }
 
 TEST_F(ModuleFmtTest, GithubIssue1354) {
-  Run(R"(pub struct B { value: u32 }
+  DoFmt(R"(pub struct B { value: u32 }
 
 pub struct A { value: B[5] }
 
@@ -2431,7 +2431,7 @@ pub fn f(a: A) -> A { if a.B[0].value == u32:0 { zero!<A>() } else { a } }
 }
 
 TEST_F(ModuleFmtTest, LongStructInstanceFieldExpr) {
-  Run(R"(struct X { xxxxxxxxxxxxxxxxxxx: bool, yyyyyyyyyyyyyyyyyyy: u32 }
+  DoFmt(R"(struct X { xxxxxxxxxxxxxxxxxxx: bool, yyyyyyyyyyyyyyyyyyy: u32 }
 
 const aaaaaaaaaaaaaaaaaaaaaaaaa = u32:0;
 const bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb = u32:0;
