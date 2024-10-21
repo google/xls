@@ -2291,27 +2291,19 @@ struct StructMember {
   Span GetSpan() const { return Span(name_span.start(), type->span().limit()); }
 };
 
-// Represents a struct definition.
-class StructDef : public AstNode {
+// Base class for a struct-like entity, which has a name and members, along with
+// optional parametric bindings and an optional impl.
+class StructDefBase : public AstNode {
  public:
-  StructDef(Module* owner, Span span, NameDef* name_def,
-            std::vector<ParametricBinding*> parametric_bindings,
-            std::vector<StructMember> members, bool is_public);
+  StructDefBase(Module* owner, Span span, NameDef* name_def,
+                std::vector<ParametricBinding*> parametric_bindings,
+                std::vector<StructMember> members, bool is_public);
 
-  ~StructDef() override;
-
-  AstNodeKind kind() const override { return AstNodeKind::kStructDef; }
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleStructDef(this);
-  }
+  virtual ~StructDefBase();
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
 
   const std::string& identifier() const { return name_def_->identifier(); }
-
-  std::string_view GetNodeTypeName() const override { return "Struct"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -2332,13 +2324,6 @@ class StructDef : public AstNode {
 
   int64_t size() const { return members_.size(); }
 
-  void set_extern_type_name(std::string_view n) {
-    extern_type_name_ = std::string(n);
-  }
-  const std::optional<std::string>& extern_type_name() const {
-    return extern_type_name_;
-  }
-
   std::optional<Span> GetParametricBindingsSpan() const {
     if (parametric_bindings_.empty()) {
       return std::nullopt;
@@ -2353,15 +2338,47 @@ class StructDef : public AstNode {
 
   std::optional<ConstantDef*> GetImplConstant(std::string_view constant_name);
 
+ protected:
+  // Helper for a subclass to implement `ToString()`, given the entity keyword
+  // for the subclass (like "struct" or "proc") and an optional DSLX attribute
+  // string.
+  std::string ToStringWithEntityKeywordAndAttribute(
+      std::string_view keyword, std::string_view attribute = "") const;
+
  private:
   Span span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<StructMember> members_;
   bool public_;
+  std::optional<Impl*> impl_;
+};
+
+// Represents a struct definition.
+class StructDef : public StructDefBase {
+ public:
+  using StructDefBase::StructDefBase;
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleStructDef(this);
+  }
+
+  AstNodeKind kind() const override { return AstNodeKind::kStructDef; }
+
+  std::string_view GetNodeTypeName() const override { return "Struct"; }
+
+  std::string ToString() const override;
+
+  void set_extern_type_name(std::string_view n) {
+    extern_type_name_ = std::string(n);
+  }
+  const std::optional<std::string>& extern_type_name() const {
+    return extern_type_name_;
+  }
+
+ private:
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
-  std::optional<Impl*> impl_;
 };
 
 // Represents an impl for a struct.
