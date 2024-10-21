@@ -19,9 +19,14 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "xls/tools/codegen_flags.h"
+#include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace mlir {
 class Operation;
@@ -50,6 +55,12 @@ class DslxPackageCache {
   absl::flat_hash_map<std::string, std::shared_ptr<const ::xls::Package>> cache;
 };
 
+template <typename T>
+T DieUnlessOk(const absl::StatusOr<T>& status_or) {
+  CHECK_OK(status_or.status());
+  return status_or.value();
+}
+
 struct MlirXlsToXlsTranslateOptions {
   // The name of the main function to translate.
   llvm::StringRef main_function = "";
@@ -69,17 +80,11 @@ struct MlirXlsToXlsTranslateOptions {
   // Optional cache for DSLX translation results.
   DslxPackageCache* dslx_cache = nullptr;
 
-  // Verilog emission options.
-
-  // The number of pipeline stages to (attempt to) generate. If zero, the
-  // combinational generator will be used.
-  int pipeline_stages = 0;
-
-  // The delay model to use.
-  std::string delay_model = "asap7";
-
-  // The name of the reset signal.
-  std::string reset_signal_name = "rst";
+  // Codegen options.
+  ::xls::CodegenFlagsProto codegen_flags_proto =
+      DieUnlessOk(::xls::GetCodegenFlags());
+  ::xls::SchedulingOptionsFlagsProto scheduling_options_flags_proto =
+      DieUnlessOk(::xls::GetSchedulingOptionsFlagsProto());
 };
 
 // Translates an operation with XLS dialect to DSLX.

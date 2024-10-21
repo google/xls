@@ -1,5 +1,5 @@
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls %s --main-function=combinational -- 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-verilog %s --main-function=combinational -- 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=VERILOG-COMB
+// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls %s --main-function=combinational -- --delay_model=asap7 --generator=combinational 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS
+// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-verilog %s --main-function=combinational -- --delay_model=asap7 --generator=combinational 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=VERILOG-COMB
 
 // XLS: fn combinational([[ARG0:.*]]: bits[8]{{.*}}, [[ARG1:.*]]: bits[8]{{.*}}, [[ARG2:.*]]: bits[8]{{.*}}) -> bits[8] {
 // XLS:   [[DIFF:[a-z0-9.]+]]: bits[8] = sub([[ARG0]], [[ARG1]]

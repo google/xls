@@ -1283,32 +1283,9 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
     return success();
   }
 
-  auto scheduling_options_flags_proto = ::xls::GetSchedulingOptionsFlagsProto();
-  if (!scheduling_options_flags_proto.ok()) {
-    llvm::errs() << "Failed to get scheduling options flags proto: "
-                 << scheduling_options_flags_proto.status().message() << "\n";
-    return failure();
-  }
-  auto codegen_flags_proto = ::xls::GetCodegenFlags();
-  if (!codegen_flags_proto.ok()) {
-    llvm::errs() << "Failed to get codegen flags proto: "
-                 << codegen_flags_proto.status().message() << "\n";
-    return failure();
-  }
-
-  if (options.pipeline_stages > 0) {
-    codegen_flags_proto->set_generator(::xls::GENERATOR_KIND_PIPELINE);
-  } else {
-    codegen_flags_proto->set_generator(::xls::GENERATOR_KIND_COMBINATIONAL);
-  }
-  codegen_flags_proto->set_register_merge_strategy(
-      ::xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
-  scheduling_options_flags_proto->set_delay_model(options.delay_model);
-  scheduling_options_flags_proto->set_pipeline_stages(options.pipeline_stages);
-  codegen_flags_proto->set_reset(options.reset_signal_name);
-
   auto xls_codegen_results = ::xls::ScheduleAndCodegenPackage(
-      package->get(), *scheduling_options_flags_proto, *codegen_flags_proto,
+      package->get(), options.scheduling_options_flags_proto,
+      options.codegen_flags_proto,
       /*with_delay_model=*/false);
   if (!xls_codegen_results.ok()) {
     llvm::errs() << "Failed to codegen: "

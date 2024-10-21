@@ -103,6 +103,22 @@ TranslateFromMLIRRegistration mlirXlsToVerilogTranslateRegistration(
 }  // namespace mlir::xls
 
 int main(int argc, char** argv) {
-  xls_init_xls("Initializing XLS", 1, argv);
-  return failed(mlir::mlirTranslateMain(argc, argv, "XLS translator\n"));
+  // We allow ABSL flags to be passed to this binary after a double-dash:
+  // xls_translate ... -- --alsologtostderr
+  char** mlir_argv = argv;
+  char** absl_argv = argv;
+  int mlir_argc = argc, absl_argc = 1;
+  for (int i = 0; i < argc; ++i) {
+    if (std::string(argv[i]) == std::string("--")) {
+      // -- found; split into MLIR and ABSL args.
+      absl_argv = &argv[i];  // -- becomes argv[0] for absl.
+      mlir_argc = i;
+      absl_argc = argc - i;
+      break;
+    }
+  }
+  xls_init_xls("Initializing XLS", absl_argc, absl_argv);
+
+  return failed(
+      mlir::mlirTranslateMain(mlir_argc, mlir_argv, "XLS translator\n"));
 }

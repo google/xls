@@ -3,7 +3,7 @@
 // RUN: > %t
 
 // RUN: xls/contrib/mlir/xls_opt --xls-lower %s \
-// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-verilog \
+// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-verilog -- --delay_model=asap7 --generator=combinational \
 // RUN: | FileCheck --check-prefix=CHECK-VERILOG %s
 
 // RUN: xls/tools/codegen_main %t \
