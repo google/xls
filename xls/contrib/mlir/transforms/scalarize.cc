@@ -197,6 +197,25 @@ void buildOffsetValues(ValueRange dynamicOffsets,
   }
 }
 
+// Legalizes tensor.concat to xls concat where it matches trivially given
+// tensor layout assumption.
+class LegalizeTensorConcatPattern
+    : public OpConversionPattern<mlir::tensor::ConcatOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      mlir::tensor::ConcatOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    if (op.getDim() != 0) {
+      return rewriter.notifyMatchFailure(op, "dim != 0 not supported");
+    }
+
+    rewriter.replaceOpWithNewOp<ConcatOp>(op, op.getResult().getType(),
+                                          adaptor.getOperands());
+    return success();
+  }
+};
+
 // Legalizes tensor.insert to array_update.
 class LegalizeTensorInsertPattern
     : public OpConversionPattern<mlir::tensor::InsertOp> {
@@ -790,6 +809,7 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
         LegalizeConstantTensorPattern,
         LegalizeScalarizableOpPattern,
         LegalizeTensorArrayTypeFungiblePattern,
+        LegalizeTensorConcatPattern,
         LegalizeTensorEmptyPattern,
         LegalizeTensorExtractPattern,
         LegalizeTensorExtractSingleSlicePattern,
