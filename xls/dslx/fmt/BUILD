@@ -145,3 +145,41 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "format_disabler",
+    srcs = ["format_disabler.cc"],
+    hdrs = ["format_disabler.h"],
+    deps = [
+        ":comments",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:comment_data",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "format_disabler_test",
+    srcs = ["format_disabler_test.cc"],
+    deps = [
+        ":comments",
+        ":format_disabler",
+        "//xls/common:casts",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:comment_data",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)

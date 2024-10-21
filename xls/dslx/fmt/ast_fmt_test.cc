@@ -174,7 +174,7 @@ TEST(AstFmtTest, FormatVerbatimNodeTop) {
   FileTable file_table;
   Module m("test", /*fs_path=*/std::nullopt, file_table);
 
-  const std::string_view verbatim_text = "anything // goes\n  even here";
+  const std::string verbatim_text = "anything // goes\n  even here";
   VerbatimNode verbatim(&m, Span(), verbatim_text);
   XLS_ASSERT_OK(m.AddTop(&verbatim, /*make_collision_error=*/nullptr));
   const Comments empty_comments = Comments::Create({});
@@ -192,7 +192,7 @@ TEST(AstFmtTest, FormatVerbatimNodeStatement) {
   FileTable file_table;
   Module m("test", /*fs_path=*/std::nullopt, file_table);
 
-  const std::string_view verbatim_text = "anything // goes\n  even here";
+  const std::string verbatim_text = "anything // goes\n  even here";
   VerbatimNode verbatim(&m, Span(), verbatim_text);
   Statement statement(&m, &verbatim);
   const Comments empty_comments = Comments::Create({});

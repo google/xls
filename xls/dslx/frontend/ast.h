@@ -3218,18 +3218,18 @@ class ChannelDecl : public Expr {
 // formatter.
 class VerbatimNode : public AstNode {
  public:
-  VerbatimNode(Module* owner, Span span, const std::string_view text)
-      : AstNode(owner), span_(std::move(span)), text_(text) {}
+  VerbatimNode(Module* owner, Span span, const std::string text)
+      : AstNode(owner), span_(std::move(span)), text_(std::move(text)) {}
 
   ~VerbatimNode() override;
 
-  std::string_view text() const { return text_; }
+  std::string text() const { return text_; }
 
   AstNodeKind kind() const override { return AstNodeKind::kVerbatimNode; }
 
   std::string_view GetNodeTypeName() const override { return "VerbatimNode"; }
 
-  std::string ToString() const override { return std::string(text_); }
+  std::string ToString() const override { return text_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
@@ -3244,7 +3244,7 @@ class VerbatimNode : public AstNode {
 
  private:
   Span span_;
-  std::string_view text_;
+  std::string text_;
 };
 
 // Helper for determining whether an AST node is constant (e.g. can be
