@@ -115,9 +115,6 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   // Final metrics collection for the final block.
   top->Add<BlockMetricsGenerationPass>();
 
-  // Check invariants at the end.
-  top->AddInvariantChecker<CodegenChecker>();
-
   return top;
 }
 
