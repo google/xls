@@ -18,6 +18,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -40,6 +41,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -1751,6 +1753,36 @@ TEST_F(TernaryQueryEngineTest, PrioritySelectJoin) {
   XLS_ASSERT_OK(query_engine.Populate(f).status());
   EXPECT_THAT(query_engine.ToString(v.node()), "0bX111_1111");
   EXPECT_THAT(query_engine.ToString(nv.node()), "0bX000_0000");
+}
+
+TEST_F(TernaryQueryEngineTest, Givens) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue sel = fb.Param("sel", p->GetBitsType(1));
+  BValue v = fb.PrioritySelect(sel, {fb.Param("foo", p->GetBitsType(8))},
+                               fb.Param("bar", p->GetBitsType(8)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  class TestGivens : public TernaryDataProvider {
+   public:
+    std::optional<LeafTypeTree<TernaryVector>> GetKnownTernary(
+        Node* n) const override {
+      if (n->GetNameView() == "foo") {
+        // Top 6 bits set.
+        return LeafTypeTree<TernaryVector>(
+            n->GetType(), StringToTernaryVector("0b111111XX").value());
+      }
+      if (n->GetNameView() == "bar") {
+        // Low 6 bits set.
+        return LeafTypeTree<TernaryVector>(
+            n->GetType(), StringToTernaryVector("0bXX111111").value());
+      }
+      return std::nullopt;
+    }
+  };
+  TernaryQueryEngine query_engine;
+  XLS_ASSERT_OK(query_engine.PopulateWithGivens(f, TestGivens()).status());
+  EXPECT_THAT(query_engine.ToString(v.node()), "0bXX11_11XX");
 }
 
 namespace {

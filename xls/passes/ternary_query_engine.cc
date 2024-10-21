@@ -18,6 +18,7 @@
 #include <functional>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -169,6 +170,10 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
   using CompoundValueView = LeafTypeTreeView<TernaryEvaluator::Vector>;
   using AbstractNodeEvaluator<TernaryEvaluator>::AbstractNodeEvaluator;
 
+  absl::Status SetGivenValue(Node* n, LeafTypeTree<TernaryVector> v) {
+    return SetValue(n, std::move(v));
+  }
+
   // By default everything is considered fully unconstrained.
   absl::Status DefaultHandler(Node* n) override {
     XLS_ASSIGN_OR_RETURN(auto unconstrained, UnconstrainedOf(n->GetType()));
@@ -303,12 +308,27 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
   }
 };
 
+class NoOpGivens final : public TernaryDataProvider {
+ public:
+  std::optional<LeafTypeTree<TernaryVector>> GetKnownTernary(
+      Node* n) const final {
+    return std::nullopt;
+  }
+};
+
 }  // namespace
 
-absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
+absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::PopulateWithGivens(
+    FunctionBase* f, const TernaryDataProvider& givens) {
   TernaryEvaluator evaluator;
   TernaryNodeEvaluator ternary_visitor(evaluator);
   for (Node* n : TopoSort(f)) {
+    std::optional<LeafTypeTree<TernaryVector>> given =
+        givens.GetKnownTernary(n);
+    if (given) {
+      XLS_RETURN_IF_ERROR(ternary_visitor.SetGivenValue(n, *std::move(given)));
+      continue;
+    }
     if (IsExpensiveToEvaluate(n, ternary_visitor.values())) {
       XLS_RETURN_IF_ERROR(ternary_visitor.DefaultHandler(n));
       continue;
@@ -336,6 +356,11 @@ absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
     }
   }
   return rf;
+}
+
+absl::StatusOr<ReachedFixpoint> TernaryQueryEngine::Populate(FunctionBase* f) {
+  NoOpGivens givens;
+  return PopulateWithGivens(f, givens);
 }
 
 bool TernaryQueryEngine::AtMostOneTrue(

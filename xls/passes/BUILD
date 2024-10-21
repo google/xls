@@ -2268,6 +2268,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:benchmark_support",
         "//xls/ir:bits",

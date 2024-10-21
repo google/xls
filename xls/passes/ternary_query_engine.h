@@ -34,6 +34,15 @@
 
 namespace xls {
 
+// Helper to provide a-priori known ternaries to the query engine.
+class TernaryDataProvider {
+ public:
+  TernaryDataProvider() = default;
+  virtual ~TernaryDataProvider() = default;
+  virtual std::optional<LeafTypeTree<TernaryVector>> GetKnownTernary(
+      Node* n) const = 0;
+};
+
 // A query engine which uses abstract evaluation of an XLS function using
 // ternary logic (0, 1, and unknown value X). Ternary logic evaluation is fast
 // and can expose statically known bit values in the function (known 0 or 1),
@@ -42,6 +51,8 @@ namespace xls {
 class TernaryQueryEngine : public QueryEngine {
  public:
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
+  absl::StatusOr<ReachedFixpoint> PopulateWithGivens(
+      FunctionBase* f, const TernaryDataProvider& givens);
 
   bool IsTracked(Node* node) const override {
     return values_.contains(node) && values_.at(node).type() == node->GetType();
