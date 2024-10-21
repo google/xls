@@ -24,6 +24,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -93,10 +95,34 @@ absl::Status Node::AddNodeToFunctionAndReplace(
   return ReplaceUsesWith(replacement_ptr);
 }
 
-void Node::AddUser(Node* user) { users_.insert(user); }
+void Node::AddUser(Node* user) {
+  absl::InlinedVector<Node*, 2>::iterator it;
+  if (users_.size() < kSmallUserCount) {
+    // Perform a linear search for the insertion point.
+    it = users_.begin();
+    auto less = NodeIdLessThan();
+    while (it != users_.end() && less(*it, user)) {
+      ++it;
+    }
+  } else {
+    it = absl::c_lower_bound(users_, user, NodeIdLessThan());
+  }
+  if (it == users_.end() || (*it)->id() != user->id()) {
+    users_.insert(it, user);
+  }
+}
 
 void Node::RemoveUser(Node* user) {
-  CHECK_EQ(users_.erase(user), 1) << GetName();
+  absl::InlinedVector<Node*, 2>::iterator it;
+  if (users_.size() < kSmallUserCount) {
+    it = absl::c_find_if(users_,
+                         [user](Node* x) { return x->id() == user->id(); });
+  } else {
+    it = absl::c_lower_bound(users_, user, NodeIdLessThan());
+  }
+  if (it != users_.end() && (*it)->id() == user->id()) {
+    users_.erase(it);
+  }
 }
 
 absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
@@ -719,7 +745,16 @@ std::string Node::GetUsersString() const {
 }
 
 bool Node::HasUser(const Node* target) const {
-  return users_.contains(const_cast<Node*>(target));
+  if (users_.size() < kSmallUserCount) {
+    for (const Node* user : users_) {
+      if (user->id() == target->id()) {
+        return true;
+      }
+    }
+    return false;
+  }
+  return absl::c_binary_search(users_, const_cast<Node*>(target),
+                               NodeIdLessThan());
 }
 
 bool Node::IsDead() const {
@@ -747,15 +782,15 @@ int64_t Node::OperandInstanceCount(const Node* target) const {
 }
 
 void Node::SetId(int64_t id) {
-  // The data structure (btree) containing the users of each node is sorted by
+  // The data structure (vector) containing the users of each node is sorted by
   // node id. To avoid violating invariants of the data structure, remove this
-  // node from all users lists, change id, then read to users list.
+  // node from all users lists, change id, then re-add to users list.
   for (Node* operand : operands()) {
-    operand->users_.erase(this);
+    operand->RemoveUser(this);
   }
   id_ = id;
   for (Node* operand : operands()) {
-    operand->users_.insert(this);
+    operand->AddUser(this);
   }
   package()->set_next_node_id(std::max(id + 1, package()->next_node_id()));
 }

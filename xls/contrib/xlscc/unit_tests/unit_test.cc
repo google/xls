@@ -785,8 +785,8 @@ XlsccTestBase::GetStatesByIONodeForFSMProc(std::string_view func_name) {
     XLS_ASSIGN_OR_RETURN(const int64_t state_index,
                          literal_value.bits().ToUint64());
 
-    absl::btree_set<xls::Node*, xls::Node::NodeIdLessThan> users =
-        node->users();
+    absl::btree_set<xls::Node*, xls::Node::NodeIdLessThan> users(
+        node->users().begin(), node->users().end());
     while (!users.empty()) {
       absl::btree_set<xls::Node*, xls::Node::NodeIdLessThan> next_users;
 
