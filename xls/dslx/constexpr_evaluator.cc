@@ -390,17 +390,7 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
             return absl::OkStatus();
           },
           [&](Impl* impl) -> absl::Status {
-            std::optional<ConstantDef*> constant_def =
-                impl->GetConstant(expr->attr());
-            XLS_RET_CHECK(constant_def.has_value());
-            XLS_RETURN_IF_ERROR(Evaluate(import_data_, type_info_,
-                                         warning_collector_, bindings_,
-                                         constant_def.value()->value()));
-            XLS_RET_CHECK(
-                type_info_->IsKnownConstExpr(constant_def.value()->value()));
-            type_info_->NoteConstExpr(
-                expr, type_info_->GetConstExpr(constant_def.value()->value())
-                          .value());
+            XLS_RET_CHECK(type_info_->IsKnownConstExpr(expr));
             return absl::OkStatus();
           },
       },

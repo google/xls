@@ -269,6 +269,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
                                                    DeduceCtx* ctx) {
+  VLOG(5) << "DeduceNumber: " << node->ToString();
   auto note_constexpr_value = [&](const Type& type) -> absl::Status {
     if (type.HasParametricDims()) {
       return absl::OkStatus();
@@ -610,6 +611,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceConcat(const Binop* node,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceBinop(const Binop* node,
                                                   DeduceCtx* ctx) {
+  VLOG(5) << "DeduceBinop: " << node->ToString();
   if (node->binop_kind() == BinopKind::kConcat) {
     return DeduceConcat(node, ctx);
   }

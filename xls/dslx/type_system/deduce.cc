@@ -1026,25 +1026,22 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
 }
 
 static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToImpl(
-    StructDef* struct_def, const ColonRef* node, DeduceCtx* ctx) {
+    Impl* impl, const ColonRef* node, DeduceCtx* ctx) {
   VLOG(5) << "DeduceColonRefToImpl: " << node->ToString();
-  if (!struct_def->impl().has_value()) {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrFormat("Struct '%s' has no impl defining '%s'",
-                        struct_def->identifier(), node->attr()),
-        ctx->file_table());
-  }
-  Impl* impl = struct_def->impl().value();
   std::optional<ConstantDef*> constant = impl->GetConstant(node->attr());
   if (!constant.has_value()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Name '%s' is not defined by the impl for struct '%s'.",
-                        node->attr(), struct_def->identifier()),
+                        node->attr(), impl->struct_ref()->ToString()),
         ctx->file_table());
   }
-  return ctx->Deduce(constant.value());
+  std::optional<Type*> type = ctx->type_info()->GetItem(constant.value());
+  XLS_RET_CHECK(type.has_value());
+  XLS_ASSIGN_OR_RETURN(InterpValue value,
+                       ctx->type_info()->GetConstExpr(constant.value()));
+  ctx->type_info()->NoteConstExpr(node, value);
+  return type.value()->CloneToUnique();
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
@@ -1098,8 +1095,15 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
                 return DeduceColonRefToArrayType(type, node, subject_ctx.get());
               },
               [&](StructDef* struct_def) -> ReturnT {
-                return DeduceColonRefToImpl(struct_def, node,
-                                            subject_ctx.get());
+                if (!struct_def->impl().has_value()) {
+                  return TypeInferenceErrorStatus(
+                      node->span(), nullptr,
+                      absl::StrFormat("Struct '%s' has no impl defining '%s'",
+                                      struct_def->identifier(), node->attr()),
+                      ctx->file_table());
+                }
+                Impl* impl = struct_def->impl().value();
+                return DeduceColonRefToImpl(impl, node, subject_ctx.get());
               },
               [&](ColonRef* colon_ref) -> ReturnT {
                 // Note: this should be unreachable, as it's a colon-reference
