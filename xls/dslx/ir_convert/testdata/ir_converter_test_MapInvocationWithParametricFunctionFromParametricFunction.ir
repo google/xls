@@ -1,0 +1,41 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__f__5(x: bits[32] id=1) -> bits[5] {
+  N: bits[32] = literal(value=5, id=2)
+  ret bit_slice.3: bits[5] = bit_slice(x, start=0, width=5, id=3)
+}
+
+fn __test_module__g__5(x: bits[32] id=4) -> bits[5][3] {
+  literal.6: bits[32] = literal(value=1, id=6)
+  literal.8: bits[32] = literal(value=2, id=8)
+  add.7: bits[32] = add(x, literal.6, id=7)
+  add.9: bits[32] = add(x, literal.8, id=9)
+  array.10: bits[32][3] = array(x, add.7, add.9, id=10)
+  X: bits[32] = literal(value=5, id=5)
+  ret map.11: bits[5][3] = map(array.10, to_apply=__test_module__f__5, id=11)
+}
+
+fn __test_module__f__6(x: bits[32] id=12) -> bits[6] {
+  N: bits[32] = literal(value=6, id=13)
+  ret bit_slice.14: bits[6] = bit_slice(x, start=0, width=6, id=14)
+}
+
+fn __test_module__g__6(x: bits[32] id=15) -> bits[6][3] {
+  literal.17: bits[32] = literal(value=1, id=17)
+  literal.19: bits[32] = literal(value=2, id=19)
+  add.18: bits[32] = add(x, literal.17, id=18)
+  add.20: bits[32] = add(x, literal.19, id=20)
+  array.21: bits[32][3] = array(x, add.18, add.20, id=21)
+  X: bits[32] = literal(value=6, id=16)
+  ret map.22: bits[6][3] = map(array.21, to_apply=__test_module__f__6, id=22)
+}
+
+fn __test_module__main() -> (bits[5][3], bits[6][3]) {
+  literal.23: bits[32] = literal(value=1, id=23)
+  literal.25: bits[32] = literal(value=2, id=25)
+  invoke.24: bits[5][3] = invoke(literal.23, to_apply=__test_module__g__5, id=24)
+  invoke.26: bits[6][3] = invoke(literal.25, to_apply=__test_module__g__6, id=26)
+  ret tuple.27: (bits[5][3], bits[6][3]) = tuple(invoke.24, invoke.26, id=27)
+}

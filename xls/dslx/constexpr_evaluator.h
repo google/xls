@@ -76,6 +76,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleConstantArray(const ConstantArray* expr) override;
   absl::Status HandleConstRef(const ConstRef* expr) override;
   absl::Status HandleFor(const For* expr) override;
+  absl::Status HandleFunctionRef(const FunctionRef* expr) override;
   absl::Status HandleFormatMacro(const FormatMacro* expr) override {
     return absl::OkStatus();
   }

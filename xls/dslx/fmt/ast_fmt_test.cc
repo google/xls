@@ -1421,6 +1421,16 @@ SECOND = 1,
       kWant);
 }
 
+TEST_F(ModuleFmtTest, FunctionRefWithExplicitParametrics) {
+  const std::string_view kInput =
+      R"(fn f<X: u32>() -> u32 { X }
+
+fn g() -> u32[3] { map([u32:1, u32:2, u32:3], f<u32:4>) }
+)";
+
+  Run(kInput);
+}
+
 TEST_F(ModuleFmtTest, StructDefTwoFields) {
   const std::string kInput =
       "pub struct Point<N: u32> { x: bits[N], y: u64 }\n";

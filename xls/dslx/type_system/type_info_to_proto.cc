@@ -89,6 +89,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_PARAM;
     case AstNodeKind::kFunction:
       return AST_NODE_KIND_FUNCTION;
+    case AstNodeKind::kFunctionRef:
+      return AST_NODE_KIND_FUNCTION_REF;
     case AstNodeKind::kProc:
       return AST_NODE_KIND_PROC;
     case AstNodeKind::kArray:
@@ -680,6 +682,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kParam;
     case AST_NODE_KIND_FUNCTION:
       return AstNodeKind::kFunction;
+    case AST_NODE_KIND_FUNCTION_REF:
+      return AstNodeKind::kFunctionRef;
     case AST_NODE_KIND_PROC:
       return AstNodeKind::kProc;
     case AST_NODE_KIND_ARRAY:

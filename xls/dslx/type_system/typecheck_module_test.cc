@@ -386,6 +386,30 @@ fn f() -> u32[3] {
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, MapOfParametricExplicit) {
+  std::string program =
+      R"(
+fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
+fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17>) }
+)";
+
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
+TEST(TypecheckTest, MapOfParametricExplicitWithWrongNumberOfArgs) {
+  std::string program =
+      R"(
+fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
+fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17, u32:18>) }
+)";
+
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Too many parametric values supplied; limit: 2 given: 3")));
+}
+
 TEST(TypecheckTest, MapImportedNonPublicFunction) {
   constexpr std::string_view kImported = R"(
 fn some_function(x: u32) -> u32 { x }

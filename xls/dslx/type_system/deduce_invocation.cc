@@ -65,13 +65,15 @@ namespace xls::dslx {
 //   span_: The location in the code where analysis is occurring.
 //   callee: The function to be invoked.
 //   arg_array: The array of arguments (at least one) to the function.
+//   explicit_parametrics: Any parametrics specified with the function name,
+//       e.g. `X` and `Y` in a call like `map(arr, f<X, Y>)`.
 //
 // Returns:
 //   An invocation node for the given function when called with an element in
 //   the argument array.
-static Invocation* CreateElementInvocation(Module* module, const Span& span,
-                                           Expr* callee, Expr* arg_array,
-                                           AstNode* parent) {
+static Invocation* CreateElementInvocation(
+    Module* module, const Span& span, Expr* callee, Expr* arg_array,
+    AstNode* parent, std::vector<ExprOrType> explicit_parametrics) {
   BuiltinNameDef* name =
       module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32);
   BuiltinTypeAnnotation* annotation =
@@ -79,8 +81,8 @@ static Invocation* CreateElementInvocation(Module* module, const Span& span,
   Number* index_number =
       module->Make<Number>(span, "0", NumberKind::kOther, annotation);
   Index* index = module->Make<Index>(span, arg_array, index_number);
-  Invocation* result =
-      module->Make<Invocation>(span, callee, std::vector<Expr*>{index});
+  Invocation* result = module->Make<Invocation>(
+      span, callee, std::vector<Expr*>{index}, std::move(explicit_parametrics));
   result->SetParentNonLexical(parent);
   return result;
 }
@@ -102,6 +104,13 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
                        ctx->DeduceAndResolve(args[0]));
 
   Expr* callee = args[1];
+  std::vector<ExprOrType> explicit_parametrics;
+  auto* callee_ref = dynamic_cast<FunctionRef*>(callee);
+  if (callee_ref != nullptr) {
+    // Currently there is only a `callee_ref` if explicit parametrics are used.
+    explicit_parametrics = callee_ref->explicit_parametrics();
+    callee = callee_ref->callee();
+  }
   // If the callee is an imported function, we need to check that it is public.
   if (auto* colon_ref = dynamic_cast<ColonRef*>(callee); colon_ref != nullptr) {
     XLS_ASSIGN_OR_RETURN(Function * callee_fn,
@@ -119,11 +128,11 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
   // Then get the type and bindings for the mapping fn.
   Invocation* element_invocation =
       CreateElementInvocation(ctx->module(), node->span(), /*callee=*/callee,
-                              /*arg_array=*/args[0], /*parent=*/node->parent());
+                              /*arg_array=*/args[0], /*parent=*/node->parent(),
+                              std::move(explicit_parametrics));
   XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
                        ctx->typecheck_invocation()(ctx, element_invocation,
                                                    /*constexpr_env=*/{}));
-
   const FnStackEntry& caller_fn_entry = ctx->fn_stack().back();
   const ParametricEnv& caller_bindings = caller_fn_entry.parametric_env();
   Function* caller = caller_fn_entry.f();

@@ -422,6 +422,10 @@ absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
   return absl::OkStatus();
 }
 
+absl::Status ConstexprEvaluator::HandleFunctionRef(const FunctionRef* expr) {
+  return absl::OkStatus();
+}
+
 absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
   VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());

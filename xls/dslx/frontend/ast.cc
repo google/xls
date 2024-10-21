@@ -293,6 +293,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "rest of tuple";
     case AstNodeKind::kFor:
       return "for";
+    case AstNodeKind::kFunctionRef:
+      return "function-ref";
     case AstNodeKind::kStatementBlock:
       return "statement-block";
     case AstNodeKind::kCast:
@@ -1088,6 +1090,23 @@ std::string Instantiation::FormatParametrics() const {
                                                       ToAstNode(e)->ToString());
                                     }),
                       ">");
+}
+
+// -- class FunctionRef
+
+FunctionRef::FunctionRef(Module* owner, Span span, Expr* callee,
+                         std::vector<ExprOrType> explicit_parametrics)
+    : Instantiation(owner, std::move(span), callee,
+                    std::move(explicit_parametrics)) {}
+
+FunctionRef::~FunctionRef() = default;
+
+std::vector<AstNode*> FunctionRef::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results = {callee()};
+  for (const ExprOrType& eot : explicit_parametrics()) {
+    results.push_back(ToAstNode(eot));
+  }
+  return results;
 }
 
 // -- class Invocation

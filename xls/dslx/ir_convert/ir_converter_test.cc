@@ -3024,5 +3024,46 @@ proc Counter {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, MapInvocationWithParametricFunction) {
+  constexpr std::string_view program =
+      R"(
+fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
+
+fn main() -> (u5[4], u6[4]) {
+  (
+    map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17>),
+    map(u32[4]:[0, 1, 2, 3], f<u32:6, u32:3>),
+  )
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest,
+     MapInvocationWithParametricFunctionFromParametricFunction) {
+  constexpr std::string_view program =
+      R"(
+fn f<N:u32>(x: u32) -> uN[N] { x as uN[N] }
+
+fn g<X:u32>(x: u32) -> uN[X][3] { map([x, x + u32:1, x + u32:2], f<X>) }
+
+fn main() -> (u5[3], u6[3]) {
+  (
+    g<u32:5>(u32:1),
+    g<u32:6>(u32:2),
+  )
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx

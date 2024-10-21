@@ -3248,5 +3248,36 @@ fn g() -> MyStruct { zero!<MyStruct>() }
   EXPECT_TRUE(g_result.GetValuesOrDie()[0].IsEnum());
 }
 
+TEST_F(BytecodeInterpreterTest, MapWithParametricFunction) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f<N:u32>(x: u32) -> u32 { x + N }
+
+fn g() -> u32[3] {
+  // Should result in [3, 4, 8].
+  map([u32:1, u32:2], f<u32:2>) ++ map([u32:3], f<u32:5>)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, Interpret(kProgram, "g", {}));
+  VLOG(1) << "f_result: " << result;
+
+  ASSERT_TRUE(result.IsArray());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, result.GetLength());
+  ASSERT_EQ(num_elements, 3);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue element,
+                           result.Index(InterpValue::MakeU32(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, result.Index(InterpValue::MakeU32(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 4);
+
+  XLS_ASSERT_OK_AND_ASSIGN(element, result.Index(InterpValue::MakeU32(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueViaSign());
+  EXPECT_EQ(bit_value, 8);
+}
+
 }  // namespace
 }  // namespace xls::dslx

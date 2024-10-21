@@ -2646,12 +2646,9 @@ fn main(x: u32, y: u32, z: bool) -> bool {
 
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  EXPECT_THAT(
-      parser.ParseModule(),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "Expected a '(' after parametrics for function invocation.")));
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected '}', got 'identifier'")));
 }
 
 TEST_F(ParserTest, ChannelDeclWithFifoDepthExpression) {
@@ -2881,9 +2878,7 @@ TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
   EXPECT_EQ(p->ToString(), text);
 }
 
-// TODO: google/xls#1412 - Enable this test once parametric instantiations can
-// be parsed like values.
-TEST_F(ParserTest, DISABLED_ParseParametericInMapBuiltin) {
+TEST_F(ParserTest, ParseParametricInMapBuiltin) {
   constexpr std::string_view kProgram = R"(
 fn truncate<OUT: u32, IN: u32>(x: bits[IN]) -> bits[OUT] {
     x[0:OUT]

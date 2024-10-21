@@ -262,6 +262,10 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleFunctionRef(const FunctionRef* expr) override {
+    return absl::OkStatus();
+  }
+
   absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) override {
     return absl::OkStatus();
   }
@@ -469,6 +473,9 @@ class InvocationVisitor : public ExprVisitor {
       XLS_RET_CHECK_EQ(invocation->args().size(), 2);
       Expr* fn_node = invocation->args()[1];
       VLOG(5) << "map() invoking: " << fn_node->ToString();
+      if (auto* mapped_ref = dynamic_cast<FunctionRef*>(fn_node)) {
+        fn_node = mapped_ref->callee();
+      }
       if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
         VLOG(5) << "map() invoking ColonRef: " << mapped_colon_ref->ToString();
         identifier = mapped_colon_ref->attr();

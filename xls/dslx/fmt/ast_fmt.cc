@@ -994,19 +994,33 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
       n);
 }
 
+std::optional<DocRef> FmtExplicitParametrics(const Instantiation& n,
+                                             const Comments& comments,
+                                             DocArena& arena) {
+  if (n.explicit_parametrics().empty()) {
+    return std::nullopt;
+  }
+  return ConcatNGroup(
+      arena, {arena.oangle(), arena.break0(),
+              FmtJoin<ExprOrType>(absl::MakeConstSpan(n.explicit_parametrics()),
+                                  Joiner::kCommaSpace, FmtParametricArg,
+                                  comments, arena),
+              arena.cangle()});
+}
+
+DocRef Fmt(const FunctionRef& n, const Comments& comments, DocArena& arena) {
+  DocRef callee_doc = Fmt(*n.callee(), comments, arena);
+  std::optional<DocRef> parametrics_doc =
+      FmtExplicitParametrics(n, comments, arena);
+  return parametrics_doc.has_value()
+             ? ConcatN(arena, {callee_doc, *parametrics_doc})
+             : callee_doc;
+}
+
 DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
   DocRef callee_doc = Fmt(*n.callee(), comments, arena);
-
-  std::optional<DocRef> parametrics_doc;
-  if (!n.explicit_parametrics().empty()) {
-    // Group for the parametrics.
-    parametrics_doc = ConcatNGroup(
-        arena, {arena.oangle(), arena.break0(),
-                FmtJoin<ExprOrType>(
-                    absl::MakeConstSpan(n.explicit_parametrics()),
-                    Joiner::kCommaSpace, FmtParametricArg, comments, arena),
-                arena.cangle()});
-  }
+  std::optional<DocRef> parametrics_doc =
+      FmtExplicitParametrics(n, comments, arena);
 
   DocRef args_doc_internal =
       FmtJoin<const Expr*>(n.args(), Joiner::kCommaBreak1AsGroupNoTrailingComma,

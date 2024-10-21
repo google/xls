@@ -96,6 +96,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_REST_OF_TUPLE = 62;
   AST_NODE_KIND_IMPL = 63;
   AST_NODE_KIND_VERBATIM_NODE = 64;
+  AST_NODE_KIND_FUNCTION_REF = 65;
 }
 
 message BitsValueProto {

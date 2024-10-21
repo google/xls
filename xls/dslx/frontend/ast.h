@@ -32,6 +32,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
@@ -57,6 +58,7 @@
   X(ConstRef)                      \
   X(For)                           \
   X(FormatMacro)                   \
+  X(FunctionRef)                   \
   X(Index)                         \
   X(Invocation)                    \
   X(Let)                           \
@@ -1889,6 +1891,42 @@ class Instantiation : public Expr {
  private:
   Expr* callee_;
   std::vector<ExprOrType> explicit_parametrics_;
+};
+
+// A reference to a function, with possible explicit parametrics. Currently,
+// this is only used for the function argument of a `map()` call, which is not a
+// direct invocation context. `FunctionRef` is counterintuitively never used as
+// the `callee` of an `Invocation`, but we may eventually retrofit `Invocation`
+// so that the `callee` is a `FunctionRef`.
+class FunctionRef : public Instantiation {
+ public:
+  FunctionRef(Module* owner, Span span, Expr* callee,
+              std::vector<ExprOrType> explicit_parametrics);
+
+  ~FunctionRef() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kFunctionRef; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleFunctionRef(this);
+  }
+
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleFunctionRef(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "FunctionRef"; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  Precedence GetPrecedenceWithoutParens() const final {
+    return Precedence::kStrongest;
+  }
+
+ private:
+  std::string ToStringInternal() const final {
+    return absl::StrCat(callee()->ToString(), FormatParametrics());
+  }
 };
 
 // Represents an invocation expression; e.g. `f(a, b, c)` or an implicit

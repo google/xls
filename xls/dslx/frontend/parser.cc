@@ -1978,21 +1978,25 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
       break;
     }
     case TokenKind::kOAngle: {
-      // Comparison op or parametric function invocation.
+      // Comparison op, parametric function invocation, or parametric function
+      // reference (e.g. for a `map` call).
       Transaction sub_txn(this, &outer_bindings);
       absl::Cleanup sub_cleanup = [&sub_txn]() { sub_txn.Rollback(); };
 
-      auto parametrics_or = ParseParametrics(*sub_txn.bindings());
-      if (!parametrics_or.ok()) {
-        VLOG(5) << "ParseParametrics gave error: " << parametrics_or.status();
+      absl::StatusOr<std::vector<ExprOrType>> parametrics =
+          ParseParametrics(*sub_txn.bindings());
+      if (!parametrics.ok()) {
+        VLOG(5) << "ParseParametrics gave error: " << parametrics.status();
         goto done;
       }
 
-      XLS_ASSIGN_OR_RETURN(
-          Token tok,
-          PopTokenOrError(
-              TokenKind::kOParen, /*start=*/nullptr,
-              "Expected a '(' after parametrics for function invocation."));
+      XLS_ASSIGN_OR_RETURN(bool has_open_paren,
+                           PeekTokenIs(TokenKind::kOParen));
+      if (!has_open_paren) {
+        sub_txn.CommitAndCancelCleanup(&sub_cleanup);
+        return module_->Make<FunctionRef>(lhs->span(), lhs, *parametrics);
+      }
+      CHECK_OK(PopToken().status());
       Bindings* b = sub_txn.bindings();
       XLS_ASSIGN_OR_RETURN(
           std::vector<Expr*> args,
@@ -2001,7 +2005,7 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
       XLS_ASSIGN_OR_RETURN(
           lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()),
                                       *sub_txn.bindings(), lhs, std::move(args),
-                                      std::move(parametrics_or).value()));
+                                      std::move(*parametrics)));
       sub_txn.CommitAndCancelCleanup(&sub_cleanup);
       break;
     }

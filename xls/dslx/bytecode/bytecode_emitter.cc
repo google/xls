@@ -983,6 +983,10 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleFunctionRef(const FunctionRef* node) {
+  return node->callee()->AcceptExpr(this);
+}
+
 absl::Status BytecodeEmitter::HandleZeroMacro(const ZeroMacro* node) {
   XLS_ASSIGN_OR_RETURN(InterpValue value, type_info_->GetConstExpr(node));
   Add(Bytecode::MakeLiteral(node->span(), std::move(value)));
