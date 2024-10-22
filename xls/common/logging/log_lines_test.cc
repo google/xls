@@ -20,16 +20,16 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
-#include "xls/common/logging/scoped_mock_log.h"
+#include "absl/log/scoped_mock_log.h"
 
 namespace {
 
 class LogLinesTest : public ::testing::Test {
  protected:
-  LogLinesTest() : mock_log_(::xls::testing::kDoNotCaptureLogsYet) {}
+  LogLinesTest() : mock_log_() {}
   ~LogLinesTest() override = default;
   void StartCapturingLogs() { mock_log_.StartCapturingLogs(); }
-  ::xls::testing::ScopedMockLog mock_log_;
+  absl::ScopedMockLog mock_log_;
 };
 
 #define XLS_EXPECT_LOG(TYPE, MESSAGE)                                        \
@@ -55,6 +55,7 @@ TEST_F(LogLinesTest, WorksWithError) {
 }
 
 TEST_F(LogLinesTest, WorksWithFatal) {
+  StartCapturingLogs();
   EXPECT_DEATH(XLS_LOG_LINES(FATAL, "Some message."),
                "Aborting due to previous errors.");
 }

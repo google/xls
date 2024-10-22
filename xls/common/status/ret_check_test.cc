@@ -19,9 +19,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/logging/scoped_mock_log.h"
 #include "xls/common/status/matchers.h"
 
 namespace not_xls {
@@ -35,12 +35,11 @@ struct Status;  // NOLINT
 namespace {
 
 using ::absl::LogSeverity;
+using ::absl::ScopedMockLog;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 using ::testing::Not;
-using ::xls::testing::kDoNotCaptureLogsYet;
-using ::xls::testing::ScopedMockLog;
 
 // Matcher to verify that an error message has all the parts we guarantee.
 testing::Matcher<const std::string&> HasRCheckMessage(const char* func) {
@@ -54,7 +53,7 @@ TEST(StatusMacrosChecksTest, RCheckFailure) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -68,7 +67,7 @@ TEST(StatusMacrosChecksTest, Bool) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -82,7 +81,7 @@ TEST(StatusMacrosChecksTest, Eq) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -96,7 +95,7 @@ TEST(StatusMacrosChecksTest, Ne) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -110,7 +109,7 @@ TEST(StatusMacrosChecksTest, Le) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -124,7 +123,7 @@ TEST(StatusMacrosChecksTest, Lt) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -138,7 +137,7 @@ TEST(StatusMacrosChecksTest, Ge) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -152,7 +151,7 @@ TEST(StatusMacrosChecksTest, Gt) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -167,7 +166,7 @@ TEST(StatusMacrosChecksTest, Ok) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -187,7 +186,7 @@ TEST(StatusMacrosChecksTest, StatusOrOk) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -200,7 +199,7 @@ TEST(StatusMacrosChecksTest, LocalVars) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -215,7 +214,7 @@ TEST(StatusMacrosChecksTest, NullStr) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -230,7 +229,7 @@ TEST(StatusMacrosChecksTest, MutableNullStr) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);
@@ -244,7 +243,7 @@ TEST(StatusMacrosChecksTest, LocalVarsOp) {
     return ::absl::OkStatus();
   };
 
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   log.StartCapturingLogs();
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasRCheckMessage(__func__)))
       .Times(1);

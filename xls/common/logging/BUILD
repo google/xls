@@ -40,28 +40,14 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "scoped_mock_log",
-    testonly = True,
-    hdrs = ["scoped_mock_log.h"],
-    visibility = ["//xls:xls_utility_users"],
-    deps = [
-        "@com_google_absl//absl/base:log_severity",
-        "@com_google_absl//absl/log:log_entry",
-        "@com_google_absl//absl/log:log_sink",
-        "@com_google_absl//absl/log:log_sink_registry",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
 cc_test(
     name = "log_lines_test",
     srcs = ["log_lines_test.cc"],
     deps = [
         ":log_lines",
-        ":scoped_mock_log",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/log:scoped_mock_log",
         "@com_google_googletest//:gtest",
     ],
 )

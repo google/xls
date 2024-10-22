@@ -25,26 +25,25 @@
 #include "absl/log/globals.h"
 #include "absl/log/log_entry.h"
 #include "absl/log/log_sink.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "xls/common/logging/scoped_mock_log.h"
 #include "xls/common/source_location.h"
 
 namespace xabsl {
 namespace {
 
 using ::absl::LogSeverity;
+using ::absl::ScopedMockLog;
 using ::testing::_;
 using ::testing::AnyOf;
 using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Pointee;
-using ::xls::testing::kDoNotCaptureLogsYet;
-using ::xls::testing::ScopedMockLog;
 
 // We use `#line` to produce some `source_location` values pointing at various
 // different (fake) files to test e.g. `VLog`, but we use it at the end of this
@@ -209,7 +208,7 @@ TEST(StatusBuilderTest, AppendRvalue) {
 }
 
 TEST(StatusBuilderTest, LogToMultipleErrorLevelsLvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(1);
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasSubstr("yes!"))).Times(1);
   EXPECT_CALL(log, Log(LogSeverity::kInfo, _, HasSubstr("Oui!"))).Times(1);
@@ -233,7 +232,7 @@ TEST(StatusBuilderTest, LogToMultipleErrorLevelsLvalue) {
 }
 
 TEST(StatusBuilderTest, LogToMultipleErrorLevelsRvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(1);
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasSubstr("yes!"))).Times(1);
   EXPECT_CALL(log, Log(LogSeverity::kInfo, _, HasSubstr("Oui!"))).Times(1);
@@ -254,7 +253,7 @@ TEST(StatusBuilderTest, LogToMultipleErrorLevelsRvalue) {
 }
 
 TEST(StatusBuilderTest, LogEveryNFirstLogs) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(1);
   log.StartCapturingLogs();
 
@@ -267,7 +266,7 @@ TEST(StatusBuilderTest, LogEveryNFirstLogs) {
 }
 
 TEST(StatusBuilderTest, LogEveryN2Lvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(3);
   log.StartCapturingLogs();
 
@@ -280,7 +279,7 @@ TEST(StatusBuilderTest, LogEveryN2Lvalue) {
 }
 
 TEST(StatusBuilderTest, LogEveryN3Lvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(2);
   log.StartCapturingLogs();
 
@@ -293,7 +292,7 @@ TEST(StatusBuilderTest, LogEveryN3Lvalue) {
 }
 
 TEST(StatusBuilderTest, LogEveryN7Lvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(3);
   log.StartCapturingLogs();
 
@@ -306,7 +305,7 @@ TEST(StatusBuilderTest, LogEveryN7Lvalue) {
 }
 
 TEST(StatusBuilderTest, LogEveryNRvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(2);
   log.StartCapturingLogs();
 
@@ -320,7 +319,7 @@ TEST(StatusBuilderTest, LogEveryNRvalue) {
 }
 
 TEST(StatusBuilderTest, LogEveryFirstLogs) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!"))).Times(1);
   log.StartCapturingLogs();
 
@@ -330,7 +329,7 @@ TEST(StatusBuilderTest, LogEveryFirstLogs) {
 }
 
 TEST(StatusBuilderTest, LogEveryLvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!")))
       .Times(testing::AtMost(3));
   log.StartCapturingLogs();
@@ -344,7 +343,7 @@ TEST(StatusBuilderTest, LogEveryLvalue) {
 }
 
 TEST(StatusBuilderTest, LogEveryRvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!")))
       .Times(testing::AtMost(3));
   log.StartCapturingLogs();
@@ -359,7 +358,7 @@ TEST(StatusBuilderTest, LogEveryRvalue) {
 }
 
 TEST(StatusBuilderTest, LogEveryZeroDuration) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, _, HasSubstr("no!")))
       .Times(testing::Exactly(4));
   log.StartCapturingLogs();
@@ -377,7 +376,7 @@ TEST(StatusBuilderTest, VLogModuleLvalue) {
   absl::SetVLogLevel("level1", 1);
   absl::SetVLogLevel("level2", 2);
   {
-    ScopedMockLog log(kDoNotCaptureLogsYet);
+    ScopedMockLog log;
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))
         .Times(0);
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level1.cc"), _))
@@ -405,7 +404,7 @@ TEST(StatusBuilderTest, VLogModuleLvalue) {
 
   absl::SetVLogLevel("level0", 2);
   {
-    ScopedMockLog log(kDoNotCaptureLogsYet);
+    ScopedMockLog log;
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))
         .Times(2);
     log.StartCapturingLogs();
@@ -422,7 +421,7 @@ TEST(StatusBuilderTest, VLogModuleRvalue) {
   absl::SetVLogLevel("level1", 1);
   absl::SetVLogLevel("level2", 2);
   {
-    ScopedMockLog log(kDoNotCaptureLogsYet);
+    ScopedMockLog log;
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))
         .Times(0);
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level1.cc"), _))
@@ -446,7 +445,7 @@ TEST(StatusBuilderTest, VLogModuleRvalue) {
 
   absl::SetVLogLevel("level0", 2);
   {
-    ScopedMockLog log(kDoNotCaptureLogsYet);
+    ScopedMockLog log;
     EXPECT_CALL(log, Log(LogSeverity::kInfo, HasSubstr("level0.cc"), _))
         .Times(2);
     log.StartCapturingLogs();
@@ -458,7 +457,7 @@ TEST(StatusBuilderTest, VLogModuleRvalue) {
 }
 
 TEST(StatusBuilderTest, LogIncludesFileAndLine) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kWarning, HasSubstr("/foo/secret.cc"),
                        HasSubstr("maybe?")))
       .Times(1);
@@ -469,7 +468,7 @@ TEST(StatusBuilderTest, LogIncludesFileAndLine) {
 }
 
 TEST(StatusBuilderTest, NoLoggingLvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(_, _, _)).Times(0);
   log.StartCapturingLogs();
 
@@ -487,7 +486,7 @@ TEST(StatusBuilderTest, NoLoggingLvalue) {
 }
 
 TEST(StatusBuilderTest, NoLoggingRvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(_, _, _)).Times(0);
   log.StartCapturingLogs();
   EXPECT_THAT(
@@ -502,7 +501,7 @@ TEST(StatusBuilderTest, NoLoggingRvalue) {
 }
 
 TEST(StatusBuilderTest, EmitStackTracePlusSomethingLikelyUniqueLvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log,
               Log(LogSeverity::kError, HasSubstr("/bar/baz.cc"),
                   // this method shows up in the stack trace
@@ -514,7 +513,7 @@ TEST(StatusBuilderTest, EmitStackTracePlusSomethingLikelyUniqueLvalue) {
 }
 
 TEST(StatusBuilderTest, EmitStackTracePlusSomethingLikelyUniqueRvalue) {
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log,
               Log(LogSeverity::kError, HasSubstr("/bar/baz.cc"),
                   // this method shows up in the stack trace
@@ -529,7 +528,7 @@ TEST(StatusBuilderTest, EmitStackTracePlusSomethingLikelyUniqueRvalue) {
 
 TEST(StatusBuilderTest, AlsoOutputToSinkLvalue) {
   StringSink sink;
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasSubstr("yes!"))).Times(1);
   log.StartCapturingLogs();
   {
@@ -548,7 +547,7 @@ TEST(StatusBuilderTest, AlsoOutputToSinkLvalue) {
 
 TEST(StatusBuilderTest, AlsoOutputToSinkRvalue) {
   StringSink sink;
-  ScopedMockLog log(kDoNotCaptureLogsYet);
+  ScopedMockLog log;
   EXPECT_CALL(log, Log(LogSeverity::kError, _, HasSubstr("yes!"))).Times(1);
   log.StartCapturingLogs();
   // This should not output anything to sink because logging is not enabled.
