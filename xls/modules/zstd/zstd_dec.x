@@ -50,12 +50,19 @@ enum ZstdDecoderInternalFsm: u4 {
     INVALID = 15,
 }
 
-enum ZstdDecoderStatus: u3 {
-    OKAY = 0,
-    FINISHED = 1,
-    FRAME_HEADER_CORRUPTED = 2,
-    FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE = 3,
-    BLOCK_HEADER_CORRUPTED = 4,
+enum ZstdDecoderStatus: u5 {
+    IDLE = 0,
+    RUNNING = 1,
+    READ_CONFIG_OK = 2,
+    FRAME_HEADER_OK = 3,
+    FRAME_HEADER_CORRUPTED = 4,
+    FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE = 5,
+    BLOCK_HEADER_OK = 6,
+    BLOCK_HEADER_CORRUPTED = 7,
+    BLOCK_HEADER_MEMORY_ACCESS_ERROR = 8,
+    RAW_BLOCK_OK = 9,
+    RAW_BLOCK_ERROR = 10,
+    RLE_BLOCK_OK = 11,
 }
 
 pub enum Csr: u3 {
@@ -317,7 +324,15 @@ proc ZstdDecoderInternal<
             Fsm::IDLE => {
                 trace_fmt!("[IDLE]");
                  if is_start {
-                     State { fsm: Fsm::READ_CONFIG, conf_cnt: CSR_REQS_MAX, ..zero!<State>() }
+                     let status = ZstdDecoderStatus::RUNNING;
+
+                     let csr_wr_req_valid = true;
+                     let csr_wr_req = CsrWrReq {
+                         csr: csr<LOG2_REGS_N>(Csr::STATUS),
+                         value: checked_cast<Data>(status),
+                     };
+
+                     State { fsm: Fsm::READ_CONFIG, csr_wr_req, csr_wr_req_valid, conf_cnt: CSR_REQS_MAX, ..zero!<State>() }
                  } else { zero!<State>() }
             },
 
@@ -337,8 +352,19 @@ proc ZstdDecoderInternal<
                 let conf_send = (state.conf_cnt == Reg:0);
                 let conf_cnt = if conf_send { Reg:0 } else {state.conf_cnt - Reg:1};
 
+                let status = match(all_collected) {
+                    true => ZstdDecoderStatus::READ_CONFIG_OK,
+                    _ => ZstdDecoderStatus::RUNNING,
+                };
+
+                let csr_wr_req_valid = all_collected;
+                let csr_wr_req = CsrWrReq {
+                    csr: csr<LOG2_REGS_N>(Csr::STATUS),
+                    value: checked_cast<Data>(status),
+                };
+
                 State {
-                    fsm, conf_cnt, conf_send, input_buffer, input_buffer_valid, output_buffer, output_buffer_valid,
+                    fsm, csr_wr_req, csr_wr_req_valid, conf_cnt, conf_send, input_buffer, input_buffer_valid, output_buffer, output_buffer_valid,
                 ..zero!<State>()
                 }
             },
@@ -347,10 +373,17 @@ proc ZstdDecoderInternal<
                 trace_fmt!("[DECODE_FRAME_HEADER]");
                 let error = (fh_resp.status != FrameHeaderDecoderStatus::OKAY);
 
-                let csr_wr_req_valid = (fh_resp_valid && error);
+                let status = match(fh_resp_valid, fh_resp.status) {
+                    (true, FrameHeaderDecoderStatus::OKAY) => ZstdDecoderStatus::FRAME_HEADER_OK,
+                    (true, FrameHeaderDecoderStatus::CORRUPTED) => ZstdDecoderStatus::FRAME_HEADER_CORRUPTED,
+                    (true, FrameHeaderDecoderStatus::UNSUPPORTED_WINDOW_SIZE) => ZstdDecoderStatus::FRAME_HEADER_UNSUPPORTED_WINDOW_SIZE,
+                    (_, _) => ZstdDecoderStatus::RUNNING,
+                };
+
+                let csr_wr_req_valid = (fh_resp_valid);
                 let csr_wr_req = CsrWrReq {
                     csr: csr<LOG2_REGS_N>(Csr::STATUS),
-                    value: checked_cast<Data>(fh_resp.status),
+                    value: checked_cast<Data>(status),
                 };
 
                 let fsm = match (fh_resp_valid, error) {
@@ -368,10 +401,17 @@ proc ZstdDecoderInternal<
                 trace_fmt!("[DECODE_BLOCK_HEADER]");
                 let error = (bh_resp.status != BlockHeaderDecoderStatus::OKAY);
 
-                let csr_wr_req_valid = (bh_resp_valid && error);
+                let status = match(bh_resp_valid, bh_resp.status) {
+                    (true, BlockHeaderDecoderStatus::OKAY) => ZstdDecoderStatus::BLOCK_HEADER_OK,
+                    (true, BlockHeaderDecoderStatus::CORRUPTED) => ZstdDecoderStatus::BLOCK_HEADER_CORRUPTED,
+                    (true, BlockHeaderDecoderStatus::MEMORY_ACCESS_ERROR) => ZstdDecoderStatus::BLOCK_HEADER_MEMORY_ACCESS_ERROR,
+                    (_, _) => ZstdDecoderStatus::RUNNING,
+                };
+
+                let csr_wr_req_valid = (bh_resp_valid);
                 let csr_wr_req = CsrWrReq {
                     csr:   csr<LOG2_REGS_N>(Csr::STATUS),
-                    value: checked_cast<Data>(bh_resp.status),
+                    value: checked_cast<Data>(status),
                 };
 
                 let fsm = match (bh_resp_valid, error, bh_resp.header.btype) {
@@ -413,10 +453,16 @@ proc ZstdDecoderInternal<
 
                 let error = (raw_resp.status != RawBlockDecoderStatus::OKAY);
 
-                let csr_wr_req_valid = (raw_resp_valid && error);
+                let status = match(raw_resp_valid, raw_resp.status) {
+                    (true, RawBlockDecoderStatus::OKAY) => ZstdDecoderStatus::RAW_BLOCK_OK,
+                    (true, RawBlockDecoderStatus::ERROR) => ZstdDecoderStatus::RAW_BLOCK_ERROR,
+                    (_, _) => ZstdDecoderStatus::RUNNING,
+                };
+
+                let csr_wr_req_valid = (raw_resp_valid);
                 let csr_wr_req = CsrWrReq {
                     csr:   csr<LOG2_REGS_N>(Csr::STATUS),
-                    value: checked_cast<Data>(raw_resp.status),
+                    value: checked_cast<Data>(status),
                 };
 
                 let fsm = match (raw_resp_valid, error, state.block_last) {
@@ -441,10 +487,15 @@ proc ZstdDecoderInternal<
                 trace_fmt!("[DECODE_RLE_BLOCK]");
                 let error = (rle_resp.status != RleBlockDecoderStatus::OKAY);
 
-                let csr_wr_req_valid = (rle_resp_valid && error);
+                let status = match(rle_resp_valid, rle_resp.status) {
+                    (true, RleBlockDecoderStatus::OKAY) => ZstdDecoderStatus::RLE_BLOCK_OK,
+                    (_, _) => ZstdDecoderStatus::RUNNING,
+                };
+
+                let csr_wr_req_valid = (rle_resp_valid);
                 let csr_wr_req = CsrWrReq {
                     csr:   csr<LOG2_REGS_N>(Csr::STATUS),
-                    value: checked_cast<Data>(rle_resp.status),
+                    value: checked_cast<Data>(status),
                 };
 
                 let fsm = match (rle_resp_valid, error, state.block_last) {
@@ -481,7 +532,7 @@ proc ZstdDecoderInternal<
                 let csr_wr_req_valid = true;
                 let csr_wr_req = CsrWrReq {
                     csr: csr<LOG2_REGS_N>(Csr::STATUS),
-                    value: checked_cast<Data>(fh_resp.status),
+                    value: checked_cast<Data>(ZstdDecoderStatus::IDLE),
                 };
 
                 State { fsm: Fsm::IDLE, csr_wr_req, csr_wr_req_valid, ..zero!<State>() }
