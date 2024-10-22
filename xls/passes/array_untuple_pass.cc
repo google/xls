@@ -148,6 +148,18 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
     }
   }
   for (Node* n : f->nodes()) {
+    // Avoid doing anything to arrays of empty tuples. This can cause infinite
+    // loops of not really being able to remove them if we're not careful.
+    // These are pretty much only an issue in fuzzer generated code. Other
+    // passes will eventually evaporate them but they can survive long enough to
+    // hit us here.
+    if (n->GetType()->IsArray() &&
+        n->GetType()->AsArrayOrDie()->element_type()->IsTuple() &&
+        n->GetType()->AsArrayOrDie()->element_type()->AsTupleOrDie()->size() ==
+            0) {
+      excluded.insert(groups.Find(n));
+      continue;
+    }
     // Proc output, nb proc input is captured by other use below.
     if (n->Is<Send>()) {
       if (n->As<Send>()->data()->GetType()->IsArray()) {

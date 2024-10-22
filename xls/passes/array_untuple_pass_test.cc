@@ -111,6 +111,26 @@ TEST_F(ArrayUntuplePassTest, BasicIndex) {
            m::Literal(Value::UBitsArray({3, 6, 9, 12, 15}, 8).value())}));
 }
 
+TEST_F(ArrayUntuplePassTest, EmptyTupleArray) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lit = fb.Literal(ValueBuilder::ArrayB(
+      {ValueBuilder::TupleB({}), ValueBuilder::TupleB({}),
+       ValueBuilder::TupleB({}), ValueBuilder::TupleB({}),
+       ValueBuilder::TupleB({}), ValueBuilder::TupleB({})}));
+  BValue i = fb.Param("i", p->GetBitsType(8));
+  fb.Tuple({fb.ArrayIndex(lit, {i}), fb.ArrayIndex(lit, {i})});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  solvers::z3::ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+
+  // No point doing anything with empty tuple arrays.
+  ArrayUntuplePass pass;
+  PassResults res;
+  ASSERT_THAT(pass.Run(p.get(), {}, &res), IsOkAndHolds(false));
+}
+
 TEST_F(ArrayUntuplePassTest, MaybeUpdate) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
