@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <utility>
@@ -224,8 +225,9 @@ class LegalizeTensorInsertPattern
   LogicalResult matchAndRewrite(
       mlir::tensor::InsertOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    auto flattened =
-        getFlattenedIndex(rewriter, op.getType(), adaptor.getIndices());
+    auto flattened = rewriter.create<arith::IndexCastOp>(
+        op.getLoc(), rewriter.getI32Type(),
+        getFlattenedIndex(rewriter, op.getType(), adaptor.getIndices()));
     rewriter.replaceOpWithNewOp<ArrayUpdateOp>(op, adaptor.getDest().getType(),
                                                adaptor.getDest(),
                                                adaptor.getScalar(), flattened);
@@ -249,6 +251,29 @@ class LegalizeTensorExtractPattern
     return success();
   }
 };
+
+// Returns true if the given array of sizes is contiguous.
+bool isSingleContiguousSlice(ArrayRef<int64_t> sizes,
+                             ArrayRef<int64_t> sourceSizes) {
+  // Find and drop leading and trailing unit sizes.
+  ArrayRef<int64_t> range = sizes;
+  const auto* nonUnitFrontIt =
+      llvm::find_if(range, [](int64_t size) { return size != 1; });
+  size_t numUnitFrontSizes = std::distance(range.begin(), nonUnitFrontIt);
+  int64_t numDroppedFrontDims = std::min(numUnitFrontSizes + 1, range.size());
+  range = range.drop_front(numDroppedFrontDims);
+  const auto nonUnitBackIt = llvm::find_if(
+      llvm::reverse(range), [](int64_t size) { return size != 1; });
+  size_t numUnitBackSizes =
+      std::distance(llvm::reverse(range).begin(), nonUnitBackIt);
+  int64_t numDroppedBackDims = std::min(numUnitBackSizes, range.size());
+  range = range.drop_back(numDroppedBackDims);
+
+  auto drop = [numDroppedFrontDims, numDroppedBackDims](auto range) {
+    return range.drop_front(numDroppedFrontDims).drop_back(numDroppedBackDims);
+  };
+  return range == drop(sourceSizes);
+}
 
 // Legalizes `tensor.extract_slice` to `array_slice` if the extracted slice is a
 // single contiguous slice in the flattened array. This is the case iff the
@@ -279,25 +304,16 @@ class LegalizeTensorExtractSingleSlicePattern
       }
     }
 
-    // Compute number of unit sizes in the front.
-    ArrayRef<int64_t> staticSizes = op.getStaticSizes();
-    const auto* nonUnitSizeIt =
-        llvm::find_if(staticSizes, [](int64_t size) { return size != 1; });
-    size_t numUnitSizes = nonUnitSizeIt - staticSizes.begin();
-
-    // Bail if the extracted slice is not contiguous.
     mlir::RankedTensorType sourceType = op.getSourceType();
-    {
-      int64_t numDroppedDims = std::min(numUnitSizes + 1, staticSizes.size());
-      if (staticSizes.drop_front(numDroppedDims) !=
-          sourceType.getShape().drop_front(numDroppedDims)) {
-        return rewriter.notifyMatchFailure(
-            op, "does not extract a single contiguous slice");
-      }
+
+    // Bail if the extracted slice is not a single contiguous slice.
+    if (!isSingleContiguousSlice(op.getStaticSizes(), sourceType.getShape())) {
+      return rewriter.notifyMatchFailure(
+          op, "does not extract a single contiguous slice");
     }
 
     Location loc = op.getLoc();
-    mlir::MLIRContext* context = sourceType.getContext();
+    mlir::MLIRContext* context = getContext();
 
     // Assemble `Value`s dynamic offsets, including for the static ones.
     SmallVector<Value> offsets;
@@ -312,7 +328,7 @@ class LegalizeTensorExtractSingleSlicePattern
     // Calculate the `width`. This is simply the product of the sizes of the
     // dimensions that we are extracting since we only have a single slice.
     int64_t width = 1;
-    for (int64_t size : staticSizes) {
+    for (int64_t size : op.getStaticSizes()) {
       width *= size;
     }
 
@@ -321,6 +337,58 @@ class LegalizeTensorExtractSingleSlicePattern
         ArrayType::get(context, width, sourceType.getElementType());
     rewriter.replaceOpWithNewOp<ArraySliceOp>(
         op, resultType, adaptor.getSource(), start, width);
+
+    return success();
+  }
+};
+
+class LegalizeTensorInsertSingleSlicePattern
+    : public OpConversionPattern<mlir::tensor::InsertSliceOp> {
+  explicit LegalizeTensorInsertSingleSlicePattern(mlir::MLIRContext* context)
+      : OpConversionPattern(context, /*benefit=*/2) {}
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      mlir::tensor::InsertSliceOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    // Bail on unsupported cases.
+    for (int64_t size : op.getStaticSizes()) {
+      if (ShapedType::isDynamic(size)) {
+        return rewriter.notifyMatchFailure(op, "dynamic sizes not supported");
+      }
+    }
+
+    for (int64_t size : op.getStaticStrides()) {
+      if (size != 1) {
+        return rewriter.notifyMatchFailure(op, "only unit strides supported");
+      }
+    }
+
+    mlir::RankedTensorType sourceType = op.getSourceType();
+
+    // Bail if the extracted slice is not a single contiguous slice.
+    if (!isSingleContiguousSlice(op.getStaticSizes(), sourceType.getShape())) {
+      return rewriter.notifyMatchFailure(
+          op, "does not extract a single contiguous slice");
+    }
+
+    Location loc = op.getLoc();
+
+    // Assemble `Value`s dynamic offsets, including for the static ones.
+    SmallVector<Value> offsets;
+    buildOffsetValues(adaptor.getOffsets(), op.getStaticOffsets(), loc,
+                      rewriter, offsets);
+
+    // Calculate the `start` index. `getFlattenIndex` does the right thing:
+    // `offsets` corresponds to the index of the first element in the slice,
+    // which gives us the first index in the flattened array.
+    Value start = rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getI32Type(),
+        getFlattenedIndex(rewriter, sourceType, offsets));
+
+    // Replace the op with a single `array_slice` op.
+    rewriter.replaceOpWithNewOp<ArrayUpdateSliceOp>(op, adaptor.getDest(),
+                                                    adaptor.getSource(), start);
 
     return success();
   }
@@ -815,6 +883,7 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
         LegalizeTensorExtractSingleSlicePattern,
         LegalizeTensorExtractSliceUnrollPattern,
         LegalizeTensorFromElementsPattern,
+        LegalizeTensorInsertSingleSlicePattern,
         LegalizeTensorInsertPattern,
         LegalizeVectorizedCallPattern,
         ReturnLikeOpPattern

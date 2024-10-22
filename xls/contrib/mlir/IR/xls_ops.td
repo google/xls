@@ -665,6 +665,7 @@ def Xls_ArrayUpdateSliceOp : Xls_Op<"array_update_slice", [Pure, ShapesAreConsis
   let arguments = (ins
     Xls_ArrayType:$array,
     Xls_ArrayType:$slice,
+    // TODO(jpienaar): Expand to support Xls_ScalarBits.
     I32:$start,
     I64Attr:$width
   );
