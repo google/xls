@@ -1265,12 +1265,10 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
   }
 
   if (options.optimize_ir) {
-    ::xls::tools::OptOptions options = {
-        .opt_level = 1,
-        .top = (*package)->GetTop().value()->name(),
-    };
+    ::xls::tools::OptOptions opt_options = options.opt_options;
+    opt_options.top = (*package)->GetTop().value()->name();
     absl::Status status =
-        ::xls::tools::OptimizeIrForTop(package->get(), options);
+        ::xls::tools::OptimizeIrForTop(package->get(), opt_options);
     if (!status.ok()) {
       llvm::errs() << "Failed to optimize IR: " << status.ToString() << "\n";
       return failure();

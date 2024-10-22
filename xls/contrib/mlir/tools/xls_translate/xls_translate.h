@@ -1,3 +1,4 @@
+#include "xls/tools/opt.h"
 // Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -81,6 +82,7 @@ struct MlirXlsToXlsTranslateOptions {
   DslxPackageCache* dslx_cache = nullptr;
 
   // Codegen options.
+  ::xls::tools::OptOptions opt_options = {};
   ::xls::CodegenFlagsProto codegen_flags_proto =
       DieUnlessOk(::xls::GetCodegenFlags());
   ::xls::SchedulingOptionsFlagsProto scheduling_options_flags_proto =
