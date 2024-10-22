@@ -467,6 +467,9 @@ cc_library(
     name = "xls_translate_lib",
     srcs = ["tools/xls_translate/xls_translate.cc"],
     hdrs = ["tools/xls_translate/xls_translate.h"],
+    data = [
+        "stdlib/fp_ext_trunc.x",
+    ],
     deps = [
         ":mlir_xls",
         "//xls/common/file:filesystem",
@@ -502,9 +505,6 @@ cc_library(
 cc_binary(
     name = "xls_translate",
     srcs = ["tools/xls_translate/xls_translate_main.cc"],
-    data = [
-        "stdlib/fp_ext_trunc.x",
-    ],
     deps = [
         ":xls_dialect_registration",
         ":xls_translate_lib",
