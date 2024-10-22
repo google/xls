@@ -157,11 +157,13 @@ PreInliningPassGroup::PreInliningPassGroup(int64_t opt_level)
                                "pre-inlining passes") {
   Add<DeadFunctionEliminationPass>();
   Add<DeadCodeEliminationPass>();
-  // At this stage in the pipeline only optimizations up to level 2 should
-  // run. 'opt_level' is the maximum level of optimization which should be run
-  // in the entire pipeline so set the level of the simplification pass to the
-  // minimum of the two values. Same below.
-  Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
+  if (opt_level > 0) {
+    // At this stage in the pipeline only optimizations up to level 2 should
+    // run. 'opt_level' is the maximum level of optimization which should be run
+    // in the entire pipeline so set the level of the simplification pass to the
+    // minimum of the two values. Same below.
+    Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
+  }
 }
 
 UnrollingAndInliningPassGroup::UnrollingAndInliningPassGroup(int64_t opt_level)
@@ -183,96 +185,98 @@ ProcStateFlatteningFixedPointPass::ProcStateFlatteningFixedPointPass()
 PostInliningPassGroup::PostInliningPassGroup(int64_t opt_level)
     : OptimizationCompoundPass(PostInliningPassGroup::kName,
                                "Post-inlining passes") {
-  Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
+  if (opt_level > 0) {
+    Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
 
-  Add<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
-  Add<DeadCodeEliminationPass>();
-  Add<BddCsePass>();
-  // TODO(https://github.com/google/xls/issues/274): 2022/01/20 Remove this
-  // extra conditional specialization pass when the pipeline has been
-  // reorganized better follow a high level of abstraction down to low level.
-  Add<DeadCodeEliminationPass>();
-  Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+    Add<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
+    Add<DeadCodeEliminationPass>();
+    Add<BddCsePass>();
+    // TODO(https://github.com/google/xls/issues/274): 2022/01/20 Remove this
+    // extra conditional specialization pass when the pipeline has been
+    // reorganized better follow a high level of abstraction down to low level.
+    Add<DeadCodeEliminationPass>();
+    Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+
+    Add<DeadCodeEliminationPass>();
+    Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
+
+    Add<NarrowingPass>(
+        /*analysis=*/NarrowingPass::AnalysisType::kRangeWithOptionalContext,
+        opt_level);
+    Add<DeadCodeEliminationPass>();
+    Add<BasicSimplificationPass>();
+    Add<DeadCodeEliminationPass>();
+    Add<ArithSimplificationPass>(opt_level);
+    Add<DeadCodeEliminationPass>();
+    Add<CsePass>();
+    Add<SparsifySelectPass>();
+    Add<DeadCodeEliminationPass>();
+    Add<UselessAssertRemovalPass>();
+    Add<RamRewritePass>();
+    Add<UselessIORemovalPass>();
+    Add<DeadCodeEliminationPass>();
+
+    // Run ConditionalSpecializationPass before TokenDependencyPass to remove
+    // false data dependencies
+    Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+    // Legalize multiple channel operations before proc inlining. The
+    // legalization can add an adapter proc that should be inlined.
+    Add<ChannelLegalizationPass>();
+    Add<TokenDependencyPass>();
+    // Simplify the adapter procs before inlining.
+    Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
+    // TODO(allight): It might be worthwhile to split the pipeline here as well.
+    // Since proc-inlining is being phased out in favor of multi-proc codegen
+    // however this seems unnecessary.
+    Add<ProcInliningPass>();
+
+    // After proc inlining flatten and optimize the proc state. Run tuple
+    // simplification to simplify tuple structures left over from flattening.
+    // TODO(meheff): Consider running proc state optimization more than once.
+    Add<ProcStateFlatteningFixedPointPass>();
+    Add<IdentityRemovalPass>();
+    Add<DataflowSimplificationPass>();
+    // TODO(allight): Remove once full transition to next-op is complete.
+    Add<NextNodeModernizePass>();
+    Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
+
+    Add<ProcStateNarrowingPass>();
+    Add<DeadCodeEliminationPass>();
+    Add<ProcStateOptimizationPass>();
+    Add<DeadCodeEliminationPass>();
+
+    Add<ProcStateProvenanceNarrowingPass>();
+    Add<DeadCodeEliminationPass>();
+    Add<ProcStateOptimizationPass>();
+    Add<DeadCodeEliminationPass>();
+
+    Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
+    Add<DeadCodeEliminationPass>();
+    Add<BddCsePass>();
+    Add<DeadCodeEliminationPass>();
+
+    Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+    Add<DeadCodeEliminationPass>();
+
+    Add<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
+
+    Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
+    Add<DeadCodeEliminationPass>();
+    Add<BddCsePass>();
+    Add<DeadCodeEliminationPass>();
+
+    Add<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
+
+    Add<UselessAssertRemovalPass>();
+    Add<UselessIORemovalPass>();
+    Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
+    // TODO(allight): We might want another proc-narrowing pass here but it's
+    // not clear if it will be likely to find anything and we'd need more
+    // cleanup passes if we did to take advantage of the narrower state.
+    Add<ProcStateOptimizationPass>();
+  }
 
   Add<DeadCodeEliminationPass>();
-  Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
-
-  Add<NarrowingPass>(
-      /*analysis=*/NarrowingPass::AnalysisType::kRangeWithOptionalContext,
-      opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<BasicSimplificationPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<ArithSimplificationPass>(opt_level);
-  Add<DeadCodeEliminationPass>();
-  Add<CsePass>();
-  Add<SparsifySelectPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<UselessAssertRemovalPass>();
-  Add<RamRewritePass>();
-  Add<UselessIORemovalPass>();
-  Add<DeadCodeEliminationPass>();
-
-  // Run ConditionalSpecializationPass before TokenDependencyPass to remove
-  // false data dependencies
-  Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
-  // Legalize multiple channel operations before proc inlining. The legalization
-  // can add an adapter proc that should be inlined.
-  Add<ChannelLegalizationPass>();
-  Add<TokenDependencyPass>();
-  // Simplify the adapter procs before inlining.
-  Add<FixedPointSimplificationPass>(std::min(int64_t{2}, opt_level));
-  // TODO(allight): It might be worthwhile to split the pipeline here as well.
-  // Since proc-inlining is being phased out in favor of multi-proc codegen
-  // however this seems unnecessary.
-  Add<ProcInliningPass>();
-
-  // After proc inlining flatten and optimize the proc state. Run tuple
-  // simplification to simplify tuple structures left over from flattening.
-  // TODO(meheff): Consider running proc state optimization more than once.
-  Add<ProcStateFlatteningFixedPointPass>();
-  Add<IdentityRemovalPass>();
-  Add<DataflowSimplificationPass>();
-  // TODO(allight): Remove once full transition to next-op is complete.
-  Add<NextNodeModernizePass>();
-  Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
-
-  Add<ProcStateNarrowingPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<ProcStateOptimizationPass>();
-  Add<DeadCodeEliminationPass>();
-
-  Add<ProcStateProvenanceNarrowingPass>();
-  Add<DeadCodeEliminationPass>();
-  Add<ProcStateOptimizationPass>();
-  Add<DeadCodeEliminationPass>();
-
-  Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
-  Add<DeadCodeEliminationPass>();
-  Add<BddCsePass>();
-  Add<DeadCodeEliminationPass>();
-
-  Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
-  Add<DeadCodeEliminationPass>();
-
-  Add<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
-
-  Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
-  Add<DeadCodeEliminationPass>();
-  Add<BddCsePass>();
-  Add<DeadCodeEliminationPass>();
-
-  Add<FixedPointSimplificationPass>(std::min(int64_t{3}, opt_level));
-
-  Add<UselessAssertRemovalPass>();
-  Add<UselessIORemovalPass>();
-  Add<NextValueOptimizationPass>(std::min(int64_t{3}, opt_level));
-  // TODO(allight): We might want another proc-narrowing pass here but it's not
-  // clear if it will be likely to find anything and we'd need more cleanup
-  // passes if we did to take advantage of the narrower state.
-  Add<ProcStateOptimizationPass>();
-  Add<DeadCodeEliminationPass>();
-
   Add<LabelRecoveryPass>();
 }
 std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
