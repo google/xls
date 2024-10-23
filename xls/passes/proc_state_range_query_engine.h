@@ -19,6 +19,7 @@
 #include <optional>
 #include <utility>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -30,6 +31,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/ternary.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
@@ -81,7 +83,7 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
   }
 
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override {
-    return AtLeastOneTrue(bits);
+    return inner_.AtLeastOneTrue(bits);
   }
 
   bool KnownEquals(const TreeBitLocation& a,
@@ -134,6 +136,11 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
 
   std::optional<LeafTypeTree<TernaryVector>> GetTernary(Node* node) const {
     return inner_.GetTernary(node);
+  }
+
+  std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
+      const absl::flat_hash_set<PredicateState>& state) const override {
+    return inner_.SpecializeGivenPredicate(state);
   }
 
  private:

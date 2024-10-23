@@ -3420,6 +3420,7 @@ cc_library(
         ":back_propagate_range_analysis",
         ":dataflow_visitor",
         ":node_dependency_analysis",
+        ":predicate_state",
         ":query_engine",
         ":range_query_engine",
         ":ternary_query_engine",
