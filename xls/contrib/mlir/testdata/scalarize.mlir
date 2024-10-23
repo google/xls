@@ -43,11 +43,11 @@ func.func @tensor_insert(%arg0: tensor<2x7xi32>, %arg1: i32) -> tensor<2x7xi32> 
 }
 
 // CHECK-LABEL: @tensor_concat
-// CHECK: xls.concat
-// CHECK-SAME: xls.array<28 x i32>
-func.func @tensor_concat(%arg0: tensor<2x7xi32>, %arg1: tensor<2x7xi32>) -> tensor<4x7xi32> attributes { "xls" = true } {
-  %0 = tensor.concat dim(0) %arg0, %arg1 : (tensor<2x7xi32>, tensor<2x7xi32>) -> tensor<4x7xi32>
-  return %0 : tensor<4x7xi32>
+// CHECK: xls.array_concat
+// CHECK-SAME: xls.array<28 x f32>
+func.func @tensor_concat(%arg0: tensor<2x7xf32>, %arg1: tensor<2x7xf32>) -> tensor<4x7xf32> attributes { "xls" = true } {
+  %0 = tensor.concat dim(0) %arg0, %arg1 : (tensor<2x7xf32>, tensor<2x7xf32>) -> tensor<4x7xf32>
+  return %0 : tensor<4x7xf32>
 }
 
 // CHECK-LABEL: @tensor_extract_element

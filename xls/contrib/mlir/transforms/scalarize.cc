@@ -211,9 +211,19 @@ class LegalizeTensorConcatPattern
       return rewriter.notifyMatchFailure(op, "dim != 0 not supported");
     }
 
-    rewriter.replaceOpWithNewOp<ConcatOp>(op, op.getResult().getType(),
-                                          adaptor.getOperands());
-    return success();
+    if (isa<IntegerType>(op.getResult().getType())) {
+      rewriter.replaceOpWithNewOp<ConcatOp>(op, op.getResult().getType(),
+                                            adaptor.getOperands());
+      return success();
+    }
+
+    if (isa<TensorType>(op.getResult().getType())) {
+      rewriter.replaceOpWithNewOp<ArrayConcatOp>(op, op.getResult().getType(),
+                                                 adaptor.getOperands());
+      return success();
+    }
+
+    return rewriter.notifyMatchFailure(op, "unsupported type");
   }
 };
 
