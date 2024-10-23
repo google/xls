@@ -16,6 +16,7 @@
 
 import random
 import logging
+from enum import Enum
 from pathlib import Path
 
 import cocotb
@@ -60,8 +61,12 @@ class WriteReqStruct(XLSStruct):
   length: ADDR_WIDTH
 
 @xls_dataclass
-class AxiWriterRespStruct(XLSStruct):
+class MemWriterRespStruct(XLSStruct):
   status: 1
+
+class MemWriterRespStatus(Enum):
+  OKAY = 0
+  ERROR = 1
 
 @xls_dataclass
 class WriteRequestStruct(XLSStruct):
@@ -101,7 +106,7 @@ async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_
 
   monitor_write_req = XLSChannelMonitor(dut, GENERIC_WRITE_REQ_CHANNEL, dut.clk, WriteRequestStruct)
   monitor_data_in = XLSChannelMonitor(dut, GENERIC_DATA_IN_CHANNEL, dut.clk, WriteRequestStruct)
-  monitor_write_resp = XLSChannelMonitor(dut, GENERIC_WRITE_RESP_CHANNEL, dut.clk, AxiWriterRespStruct)
+  monitor_write_resp = XLSChannelMonitor(dut, GENERIC_WRITE_RESP_CHANNEL, dut.clk, MemWriterRespStruct)
   monitor_axi_aw = AxiAWMonitor(bus_axi_aw, dut.clk, dut.rst)
   monitor_axi_w = AxiWMonitor(bus_axi_w, dut.clk, dut.rst)
   monitor_axi_b = AxiBMonitor(bus_axi_b, dut.clk, dut.rst)
@@ -128,70 +133,77 @@ async def test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_
     expected_memory_contents = bytearray(expected_memory.read(bundle["base_address"], bundle["length"]))
     assert memory_contents == expected_memory_contents, "{} bytes of memory contents at base address {}:\n{}\nvs\n{}\nHEXDUMP:\n{}\nvs\n{}".format(hex(bundle["length"]), hex(bundle["base_address"]), memory_contents, expected_memory_contents, memory.hexdump(bundle["base_address"], bundle["length"]), expected_memory.hexdump(bundle["base_address"], bundle["length"]))
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_1_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_1_transfer)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_2_transfers(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_2_transfers)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_almost_max_burst_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_almost_max_burst_transfer)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_single_burst_max_burst_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_single_burst_max_burst_transfer)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_2_full_bursts(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_2_full_bursts)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_1_full_burst_and_single_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_1_full_burst_and_single_transfer)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_crossing_4kb_boundary(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_crossing_4kb_boundary)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_crossing_4kb_boundary_with_perfectly_aligned_full_bursts)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=2000, timeout_unit="ms")
 async def ram_test_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer(dut):
   mem_size = 2**ADDR_WIDTH
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_arbitrary(mem_size, test_cases_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=5000, timeout_unit="ms")
+async def ram_test_not_full_packets(dut):
+  mem_size = 2**ADDR_WIDTH
+
+  (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_padded_test_data_arbitrary(mem_size, test_cases_not_full_packets)
+  await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
+
+@cocotb.test(timeout_time=5000, timeout_unit="ms")
 async def ram_test_random(dut):
   mem_size = 2**ADDR_WIDTH
   test_count = 200
@@ -260,7 +272,7 @@ def generate_test_data_random(test_count, mem_size):
     }
     memory_verification.append(memory_bundle)
 
-  write_resp_expect = [AxiWriterRespStruct(status=False)] * test_count
+  write_resp_expect = [MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)] * test_count
 
   return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
 
@@ -306,16 +318,13 @@ def generate_test_data_arbitrary(mem_size, test_cases):
 
   max_xfer_offset = mem_size - xfer_baseaddr
 
-  for i in range(test_count):
-    test_case = test_cases[i]
-    xfer_offset = test_case[0]
+  for xfer_offset, xfer_len in test_cases:
     assert xfer_offset <= max_xfer_offset
     xfer_addr = xfer_baseaddr + xfer_offset
     # Make sure we don't write beyond available memory
     memory_size_max_xfer_len = mem_size - xfer_addr
     arbitrary_max_xfer_len = 0x5000 # 20kB
     xfer_max_len = min(arbitrary_max_xfer_len, memory_size_max_xfer_len)
-    xfer_len = test_case[1]
     assert xfer_len <= xfer_max_len
 
     write_req = WriteReqStruct(
@@ -355,7 +364,78 @@ def generate_test_data_arbitrary(mem_size, test_cases):
     }
     memory_verification.append(memory_bundle)
 
-  write_resp_expect = [AxiWriterRespStruct(status=False)] * test_count
+  write_resp_expect = [MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)] * test_count
+
+  return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
+
+def generate_padded_test_data_arbitrary(mem_size, test_cases):
+  AXI_AXSIZE_ENCODING_MAX_4B_TRANSFER = 2 # Must be in sync with AXI_AXSIZE_ENCODING enum in axi.x
+  test_count = len(test_cases)
+
+  random.seed(1234)
+
+  write_req_input = []
+  data_in_input = []
+  write_resp_expect = []
+  memory_verification = []
+  memory = SparseMemory(mem_size)
+
+  xfer_baseaddr = 0x0
+  assert xfer_baseaddr < mem_size
+
+  max_xfer_offset = mem_size - xfer_baseaddr
+
+  for xfer_offset, xfer_len in test_cases:
+    assert xfer_offset <= max_xfer_offset
+    xfer_addr = xfer_baseaddr + xfer_offset
+    # Make sure we don't write beyond available memory
+    memory_size_max_xfer_len = mem_size - xfer_addr
+    arbitrary_max_xfer_len = 0x5000 # 20kB
+    xfer_max_len = min(arbitrary_max_xfer_len, memory_size_max_xfer_len)
+    assert xfer_len <= xfer_max_len
+
+    write_req = WriteReqStruct(
+      offset = xfer_offset,
+      length = xfer_len,
+    )
+    write_req_input.append(write_req)
+
+    data_to_write = random.randbytes(xfer_len)
+    bytes_to_packetize = xfer_len
+    packetized_bytes = 0
+    while(bytes_to_packetize):
+      packet_len = random.randint(1, 4)
+
+      if (bytes_to_packetize < packet_len):
+        packet_len = bytes_to_packetize
+
+      last = packet_len == bytes_to_packetize
+
+      data_in = DataInStruct(
+          data = int.from_bytes(data_to_write[packetized_bytes:packetized_bytes+packet_len], byteorder='little'),
+          length = packet_len,
+          last = last
+      )
+      data_in_input.append(data_in)
+
+      bytes_to_packetize -= packet_len
+      packetized_bytes += packet_len
+    assert xfer_len == packetized_bytes
+
+
+    transfer_req = WriteRequestStruct(
+      address = xfer_addr,
+      length = xfer_len,
+    )
+    write_expected_memory(transfer_req, data_to_write, memory)
+
+    memory_bundle = {
+            "base_address": transfer_req.address,
+            "length": transfer_req.length,
+    }
+    memory_verification.append(memory_bundle)
+
+  write_resp_expect = [MemWriterRespStruct(status=MemWriterRespStatus.OKAY.value)] * test_count
 
   return (write_req_input, data_in_input, write_resp_expect, memory_verification, memory, test_count)
 
@@ -562,4 +642,27 @@ test_cases_multiburst_crossing_4kb_boundary_with_2_full_bursts_and_1_transfer = 
   (0xEC02, 0x803),
   # End of address space - wrap around
   (0x0C03, 0x803),
+]
+
+test_cases_not_full_packets = [
+  # Aligned Address; Aligned Length
+  (0x0000, 0x20),
+  # Aligned Address; Unaligned Length
+  (0x100, 0x21),
+  (0x200, 0x22),
+  (0x300, 0x23),
+  # Unaligned Address; Aligned Length
+  (0x401, 0x20),
+  (0x502, 0x20),
+  (0x603, 0x20),
+  # Unaligned Address; Unaligned Length
+  (0x701, 0x21),
+  (0x802, 0x22),
+  (0x903, 0x23),
+  (0xA01, 0x22),
+  (0xB02, 0x22),
+  (0xC03, 0x22),
+  (0xD01, 0x23),
+  (0xE02, 0x23),
+  (0xF03, 0x23),
 ]
