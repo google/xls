@@ -1458,6 +1458,24 @@ fn test_f() {
 }
 ```
 
+Or on multiple patterns per arm using the `|` operator:
+
+```dslx
+fn f(x: u32) -> u32 {
+  match x {
+    u32:1 | u32:3 => u32:0,
+    _ => x
+  }
+}
+
+#[test]
+fn test_f() {
+  assert_eq(f(u32:1), u32:0);
+  assert_eq(f(u32:2), u32:2);
+  assert_eq(f(u32:3), u32:0);
+}
+```
+
 #### Redundant Patterns
 
 `match` will flag an error if a *syntactically identical* pattern is typed

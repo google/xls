@@ -1766,6 +1766,15 @@ fn f(x: u32) {
 })");
 }
 
+TEST_F(ParserTest, MatchWithMultiplePatterns) {
+  RoundTrip(R"(fn f(x: u32) {
+    match x {
+        u32:42 | u32:64 => u32:64,
+        _ => u32:42,
+    }
+})");
+}
+
 TEST_F(ParserTest, MatchWithNumberRangePattern) {
   RoundTrip(R"(fn f(x: u32) {
     match x {
