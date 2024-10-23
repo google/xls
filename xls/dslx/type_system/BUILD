@@ -108,6 +108,8 @@ cc_library(
     name = "deduce",
     srcs = [
         "deduce.cc",
+        "deduce_colon_ref.cc",
+        "deduce_colon_ref.h",
         "deduce_enum_def.cc",
         "deduce_enum_def.h",
         "deduce_expr.cc",
