@@ -1910,9 +1910,8 @@ std::string TupleTypeAnnotation::ToString() const {
 
 // -- class Statement
 
-/* static */ absl::StatusOr<
-    std::variant<Expr*, TypeAlias*, Let*, ConstAssert*, VerbatimNode*>>
-Statement::NodeToWrapped(AstNode* n) {
+/* static */ absl::StatusOr<Statement::Wrapped> Statement::NodeToWrapped(
+    AstNode* n) {
   if (auto* e = dynamic_cast<Expr*>(n)) {
     return e;
   }
@@ -1924,6 +1923,9 @@ Statement::NodeToWrapped(AstNode* n) {
   }
   if (auto* d = dynamic_cast<ConstAssert*>(n)) {
     return d;
+  }
+  if (auto* v = dynamic_cast<VerbatimNode*>(n)) {
+    return v;
   }
   return absl::InvalidArgumentError(absl::StrCat(
       "AST node could not be wrapped in a statement: ", n->GetNodeTypeName()));
