@@ -1140,7 +1140,7 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
 }
 
 pub const ZSTD_HISTORY_BUFFER_SIZE_KB: u32 = u32:64;
-const ZSTD_RAM_SIZE = ram_size(ZSTD_HISTORY_BUFFER_SIZE_KB);
+pub const ZSTD_RAM_SIZE = ram_size(ZSTD_HISTORY_BUFFER_SIZE_KB);
 pub const ZSTD_RAM_ADDR_WIDTH = ram_addr_width(ZSTD_HISTORY_BUFFER_SIZE_KB);
 
 pub proc SequenceExecutorZstd {

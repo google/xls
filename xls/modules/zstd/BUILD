@@ -49,6 +49,19 @@ common_codegen_args = {
 }
 
 xls_dslx_library(
+    name = "math_dslx",
+    srcs = [
+        "math.x",
+    ],
+)
+
+xls_dslx_test(
+    name = "math_dslx_test",
+    library = ":math_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
     name = "buffer_dslx",
     srcs = [
         "buffer.x",
@@ -929,32 +942,65 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+py_binary(
+    name = "zstd_test_frames_generator",
+    srcs = ["zstd_frame_dslx.py"],
+    imports = ["."],
+    main = "zstd_frame_dslx.py",
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("zstandard"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:data_generator",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+genrule(
+    name = "zstd_test_frames_generate",
+    srcs = [],
+    outs = ["zstd_frame_testcases.x"],
+    cmd = "$(location :zstd_test_frames_generator) -n 2 --btype RAW RLE -o $@",
+    tools = [":zstd_test_frames_generator"],
+)
+
+zstd_dec_deps = [
+    ":axi_csr_accessor_dslx",
+    ":block_header_dec_dslx",
+    ":block_header_dslx",
+    ":common_dslx",
+    ":csr_config_dslx",
+    ":dec_mux_dslx",
+    ":frame_header_dec_dslx",
+    ":raw_block_dec_dslx",
+    ":repacketizer_dslx",
+    ":rle_block_dec_dslx",
+    ":sequence_executor_dslx",
+    "//xls/examples:ram_dslx",
+    "//xls/modules/zstd/memory:mem_reader_dslx",
+    "//xls/modules/zstd/memory:axi_ram_dslx",
+]
+
 xls_dslx_library(
     name = "zstd_dec_dslx",
     srcs = [
         "zstd_dec.x",
     ],
-    deps = [
-        ":axi_csr_accessor_dslx",
-        ":block_header_dec_dslx",
-        ":block_header_dslx",
-        ":common_dslx",
-        ":csr_config_dslx",
-        ":dec_mux_dslx",
-        ":frame_header_dec_dslx",
-        ":raw_block_dec_dslx",
-        ":repacketizer_dslx",
-        ":rle_block_dec_dslx",
-        ":sequence_executor_dslx",
-        "//xls/examples:ram_dslx",
-        "//xls/modules/zstd/memory:mem_reader_dslx",
-    ],
+    deps = zstd_dec_deps,
 )
 
 xls_dslx_test(
     name = "zstd_dec_dslx_test",
-    library = ":zstd_dec_dslx",
+    srcs = [
+        "zstd_dec.x",
+        "zstd_dec_test.x",
+        "zstd_frame_testcases.x",
+    ],
     tags = ["manual"],
+    deps = zstd_dec_deps,
 )
 
 zstd_dec_codegen_args = common_codegen_args | {
