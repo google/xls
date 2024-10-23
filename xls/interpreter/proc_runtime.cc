@@ -56,20 +56,22 @@ class ChannelTraceRecorder : public ChannelQueueCallback {
 
   void ReadValue(ChannelInstance* channel_instance,
                  const Value& value) override {
-    runtime_->AddTraceMessage(TraceMessage{
-        .message = absl::StrFormat("Received data on channel `%s`: %s",
-                                   channel_instance->ToString(),
-                                   value.ToString(format_preference_)),
-        .verbosity = 0});
+    std::string message = absl::StrFormat("Received data on channel `%s`: %s",
+                                          channel_instance->ToString(),
+                                          value.ToString(format_preference_));
+    VLOG(3) << message;
+    runtime_->AddTraceMessage(
+        TraceMessage{.message = std::move(message), .verbosity = 0});
   }
 
   void WriteValue(ChannelInstance* channel_instance,
                   const Value& value) override {
-    runtime_->AddTraceMessage(TraceMessage{
-        .message = absl::StrFormat("Sent data on channel `%s`: %s",
-                                   channel_instance->ToString(),
-                                   value.ToString(format_preference_)),
-        .verbosity = 0});
+    std::string message = absl::StrFormat("Sent data on channel `%s`: %s",
+                                          channel_instance->ToString(),
+                                          value.ToString(format_preference_));
+    VLOG(3) << message;
+    runtime_->AddTraceMessage(
+        TraceMessage{.message = std::move(message), .verbosity = 0});
   }
 
  private:
