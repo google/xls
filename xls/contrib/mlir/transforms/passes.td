@@ -104,4 +104,19 @@ def ExpandMacroOpsPass : Pass<"expand-macro-ops", "mlir::ModuleOp"> {
   ];
 }
 
+def ArrayToBitsPass : Pass<"array-to-bits", "mlir::ModuleOp"> {
+  let summary = "Converts arrays to bitstrings";
+  let description = [{
+    Pass that converts array types to bitstrings (IntegerTypes). Must be run
+    after scalarization.
+
+    Use of this transform can help larger modules get through XLS optimizations
+    and verilog emission easier, but it should be used sparingly as XLS should
+    perform better optimizations on arrays.
+  }];
+  let dependentDialects = [
+    "mlir::xls::XlsDialect",
+  ];
+}
+
 #endif // MLIR_XLS_TRANSFORMS_PASSES

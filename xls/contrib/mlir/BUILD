@@ -343,6 +343,23 @@ cc_library(
 )
 
 cc_library(
+    name = "array_to_bits",
+    srcs = ["transforms/array_to_bits.cc"],
+    deps = [
+        ":mlir_xls",
+        ":xls_transforms_passes_inc_gen",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncTransforms",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Rewrite",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
+cc_library(
     name = "xls_dialect_registration",
     srcs = ["IR/init.cc"],
     hdrs = ["IR/register.h"],
@@ -355,6 +372,7 @@ cc_library(
     hdrs = ["transforms/xls_lower.h"],
     deps = [
         ":arith_to_xls",  # buildcleaner: keep
+        ":array_to_bits",  # buildcleaner: keep
         ":expand_macro_ops",  # buildcleaner: keep
         ":index_type_conversion",  # buildcleaner: keep
         ":instantiate_eprocs",  # buildcleaner: keep
@@ -443,6 +461,7 @@ cc_binary(
     srcs = ["tools/xls_opt/xls_opt.cc"],
     deps = [
         ":arith_to_xls",
+        ":array_to_bits",  # buildcleaner: keep
         ":expand_macro_ops",
         ":extraction_utils",
         ":instantiate_eprocs",

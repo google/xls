@@ -157,7 +157,7 @@ class TranslationState {
 
   ::xls::SourceInfo getLoc(Operation* op) const;
 
-  ::xls::Type* getType(Type t);
+  ::xls::Type* getType(Type t) const;
 
   LogicalResult recordOpaqueTypes(mlir::func::FuncOp func,
                                   ::xls::Function* xls_func);
@@ -176,7 +176,7 @@ class TranslationState {
   llvm::StringMap<PackageInfo> package_map_;
   llvm::StringMap<TranslationLinkage> linkage_map_;
   Package& package_;
-  llvm::DenseMap<Type, ::xls::Type*> type_map_;
+  mutable llvm::DenseMap<Type, ::xls::Type*> type_map_;
 
   // Acts as a cache for symbol lookups, should be available even in const
   // functions.
@@ -212,7 +212,7 @@ class TranslationState {
       ::xls::Colno(file_loc.getColumn())));
 }
 
-::xls::Type* TranslationState::getType(Type t) {
+::xls::Type* TranslationState::getType(Type t) const {
   auto& xls_type = type_map_[t];
   if (xls_type != nullptr) {
     return xls_type;
@@ -719,8 +719,41 @@ BValue convertOp(arith::ConstantOp op, const TranslationState& state,
 // Bitcasts
 BValue convertOp(arith::BitcastOp op, const TranslationState& state,
                  BuilderBase& fb) {
-  // TODO(jmolloy): Check the converted types are the same?
-  return state.getXlsValue(op.getOperand());
+  BValue operand = state.getXlsValue(op.getOperand());
+  ::xls::Type* expected_type = state.getType(op.getType());
+  if (operand.GetType() == expected_type) {
+    return operand;
+  }
+
+  // Handle conversion from int to float.
+  if (isa<FloatType>(op.getType()) &&
+      !isa<FloatType>(op.getOperand().getType())) {
+    auto float_type = cast<FloatType>(op.getType());
+    // Note that getFPMantissaWidth() includes the sign bit.
+    int exponent_width =
+        float_type.getWidth() - float_type.getFPMantissaWidth();
+    std::vector<BValue> elements = {
+        /*Sign*/ fb.BitSlice(operand, float_type.getWidth() - 1, 1),
+        /*Exponent*/
+        fb.BitSlice(operand, float_type.getFPMantissaWidth() - 1,
+                    exponent_width),
+        /*Mantissa*/
+        fb.BitSlice(operand, 0, float_type.getFPMantissaWidth() - 1),
+    };
+    return fb.Tuple(elements);
+  }
+  // Handle conversion from float to int.
+  if (!isa<FloatType>(op.getType()) &&
+      isa<FloatType>(op.getOperand().getType())) {
+    return fb.Concat({
+        fb.TupleIndex(operand, 0),
+        fb.TupleIndex(operand, 1),
+        fb.TupleIndex(operand, 2),
+    });
+  }
+
+  llvm::errs() << "Unsupported bitcast: " << op << "\n";
+  return {};
 }
 BValue convertOp(arith::IndexCastOp op, const TranslationState& state,
                  BuilderBase& fb) {

@@ -34,6 +34,9 @@ void XlsLowerPassPipeline(OpPassManager& pm,
   pm.addPass(createMathToXlsPass());
   pm.addPass(createArithToXlsPass());
   pm.addPass(createScalarizePass());
+  if (options.convert_arrays_to_bits) {
+    pm.addPass(createArrayToBitsPass());
+  }
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(createIndexTypeConversionPass());
   pm.addPass(createLowerCountedForPass());

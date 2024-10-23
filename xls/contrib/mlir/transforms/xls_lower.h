@@ -35,6 +35,15 @@ struct XlsLowerPassPipelineOptions
           "If true, xls.instantiate_eproc ops are turned into 'real' eprocs "
           "and the output is suitable for translation to XLS"),
       llvm::cl::init(true)};
+
+  PassOptions::Option<bool> convert_arrays_to_bits{
+      *this, "convert-arrays-to-bits",
+      llvm::cl::desc("If true, all array types will be converted into "
+                     "bitstrings (integers). Use of this transform can help "
+                     "larger modules get through XLS optimizations and verilog "
+                     "emission easier, but it should be used sparingly as XLS "
+                     "should perform better optimizations on arrays."),
+      llvm::cl::init(false)};
 };
 
 // A Pass pipeline that lowers to a form that can be translated to XLS.

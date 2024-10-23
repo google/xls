@@ -253,6 +253,11 @@ func.func @trace(%arg0: i32, %tkn: !xls.token) -> !xls.token {
   return %0 : !xls.token
 }
 
+func.func @bitcast(%arg0: f32) -> i32 {
+  %0 = arith.bitcast %arg0 : f32 to i32
+  return %0 : i32
+}
+
 // TODO
 // func.func @constant_tensor() -> tensor<3xi8> {
 //   %0 = "xls.constant_tensor"() { value = dense<[0, 1, 2]> : tensor<3xi8> } : () -> tensor<3xi8>
