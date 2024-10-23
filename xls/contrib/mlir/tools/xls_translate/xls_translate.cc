@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/APFloat.h"
+#include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/Sequence.h"
 #include "llvm/include/llvm/ADT/StringExtras.h"
@@ -987,6 +988,18 @@ FailureOr<::xls::Value> zeroLiteral(Type type) {
       }
       values.push_back(*value);
     }
+    return ::xls::Value::TupleOwned(std::move(values));  // NOLINT
+  }
+  if (auto float_type = dyn_cast<FloatType>(type)) {
+    std::vector<::xls::Value> values(3);  // NOLINT
+    // Note that getFPMantissaWidth() includes the sign bit.
+    int exponent_width =
+        float_type.getWidth() - float_type.getFPMantissaWidth();
+    values[0] = ::xls::Value(convertAPInt(llvm::APInt(1, 0)));  // NOLINT
+    values[1] =
+        ::xls::Value(convertAPInt(llvm::APInt(exponent_width, 0)));  // NOLINT
+    values[2] = ::xls::Value(                                        // NOLINT
+        convertAPInt(llvm::APInt(float_type.getFPMantissaWidth() - 1, 0)));
     return ::xls::Value::TupleOwned(std::move(values));  // NOLINT
   }
   llvm::errs() << "Unsupported type: " << type << "\n";
