@@ -14,12 +14,9 @@
 
 #include "xls/contrib/xlscc/cc_parser.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cstdint>
 #include <filesystem>  // NOLINT
-#include <fstream>
-#include <list>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,6 +29,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -44,6 +42,7 @@
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/RecursiveASTVisitor.h"
 #include "clang/include/clang/AST/Stmt.h"
+#include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/Diagnostic.h"
 #include "clang/include/clang/Basic/DiagnosticIDs.h"
 #include "clang/include/clang/Basic/DiagnosticLex.h"
@@ -64,112 +63,67 @@
 #include "clang/include/clang/Sema/ParsedAttr.h"
 #include "clang/include/clang/Sema/Sema.h"
 #include "clang/include/clang/Tooling/Tooling.h"
+#include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/MemoryBuffer.h"
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/status/status_macros.h"
-#include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
-#include "re2/re2.h"
 
 namespace xlscc {
 namespace {
 
-void GenerateIntrinsicCall(clang::Preprocessor& PP, std::string_view name,
-                           const clang::Token& after,
-                           const absl::Span<const clang::Token>& arguments) {
-  const int64_t sNTokens = 4 + arguments.size() * 2 - 1;
-  std::unique_ptr<clang::Token[]> tokens =
-      std::make_unique<clang::Token[]>(sNTokens);
-
-  int64_t current_token = 0;
-
-  tokens[current_token].setKind(clang::tok::identifier);
-  tokens[current_token].setLength(name.size());
-  tokens[current_token].setLocation(after.getLocation());
-  tokens[current_token].setIdentifierInfo(PP.getIdentifierInfo(name));
-  ++current_token;
-
-  tokens[current_token].setKind(clang::tok::l_paren);
-  tokens[current_token].setLength(0);
-  tokens[current_token].setLocation(after.getLocation());
-  ++current_token;
-
-  for (int64_t i = 0; i < arguments.size(); ++i) {
-    if (i > 0) {
-      tokens[current_token].setKind(clang::tok::comma);
-      tokens[current_token].setLength(0);
-      tokens[current_token].setLocation(after.getLocation());
-      ++current_token;
-    }
-
-    const clang::Token& argument = arguments.at(i);
-    tokens[current_token] = argument;
-    tokens[current_token].setLocation(after.getLocation());
-    ++current_token;
-  }
-
-  tokens[current_token].setKind(clang::tok::r_paren);
-  tokens[current_token].setLength(0);
-  tokens[current_token].setLocation(after.getLocation());
-  ++current_token;
-
-  tokens[current_token].setKind(clang::tok::semi);
-  tokens[current_token].setLength(0);
-  tokens[current_token].setLocation(after.getEndLoc());
-  ++current_token;
-
-  PP.EnterTokenStream(std::move(tokens), sNTokens,
-                      /*DisableMacroExpansion=*/false,
-                      /*IsReinject=*/false);
-}
-
-void GenerateIntrinsicCall(clang::Preprocessor& PP, std::string_view name,
-                           const clang::Token& after, int64_t argument) {
-  clang::Token arg = after;
-
-  thread_local std::list<std::string> literals;
-  literals.push_back(absl::StrFormat("%i", argument));
-
-  arg.setKind(clang::tok::numeric_constant);
-  arg.setLiteralData(literals.back().c_str());
-  arg.setLength(literals.back().size());
-
-  GenerateIntrinsicCall(PP, name, after,
-                        /*arguments=*/{arg});
-}
-
 void GenerateAnnotation(clang::Preprocessor& PP, std::string_view name,
                         const clang::Token& after,
                         const absl::Span<const clang::Token>& arguments) {
-  // TODO(seanhaskell): Attributes with arguments are not yet correctly
-  // supported b/371085056
-  CHECK(arguments.empty());
+  const int64_t num_tokens =
+      5 + (arguments.empty() ? 0 : (arguments.size() + 2));
 
-  std::unique_ptr<clang::Token[]> tokens = std::make_unique<clang::Token[]>(5);
-  tokens[0].setKind(clang::tok::l_square);
-  tokens[0].setLength(0);
-  tokens[0].setLocation(after.getLocation());
-  tokens[1].setKind(clang::tok::l_square);
-  tokens[1].setLength(0);
-  tokens[1].setLocation(after.getLocation());
-  tokens[2].setKind(clang::tok::identifier);
-  tokens[2].setLength(after.getLength());
-  tokens[2].setLocation(after.getLocation());
-  tokens[2].setIdentifierInfo(PP.getIdentifierInfo(name));
-  tokens[3].setKind(clang::tok::r_square);
-  tokens[3].setLength(0);
-  tokens[3].setLocation(after.getEndLoc());
-  tokens[4].setKind(clang::tok::r_square);
-  tokens[4].setLength(0);
-  tokens[4].setLocation(after.getEndLoc());
-  PP.EnterTokenStream(std::move(tokens), 5,
+  std::unique_ptr<clang::Token[]> tokens =
+      std::make_unique<clang::Token[]>(num_tokens);
+  int64_t token_index = 0;
+  auto add_token = [&](clang::tok::TokenKind kind, unsigned length,
+                       clang::SourceLocation location,
+                       std::string_view identifier = "") {
+    CHECK_LT(token_index, num_tokens);
+    tokens[token_index].setKind(kind);
+    tokens[token_index].setLength(length);
+    tokens[token_index].setLocation(location);
+    if (!identifier.empty()) {
+      tokens[token_index].setIdentifierInfo(PP.getIdentifierInfo(identifier));
+    }
+    token_index++;
+  };
+  auto insert_token = [&](clang::Token token) {
+    CHECK_LT(token_index, num_tokens);
+    tokens[token_index++] = std::move(token);
+  };
+
+  add_token(clang::tok::l_square, /*length=*/0, after.getLocation());
+  add_token(clang::tok::l_square, /*length=*/0, after.getLocation());
+
+  add_token(clang::tok::identifier, after.getLength(), after.getLocation(),
+            /*identifier=*/name);
+
+  if (!arguments.empty()) {
+    add_token(clang::tok::l_paren, /*length=*/0, after.getEndLoc());
+    for (const clang::Token& token : arguments) {
+      insert_token(token);
+    }
+    add_token(clang::tok::r_paren, /*length=*/0, arguments.back().getEndLoc());
+  }
+
+  add_token(clang::tok::r_square, /*length=*/0, after.getEndLoc());
+  add_token(clang::tok::r_square, /*length=*/0, after.getEndLoc());
+
+  CHECK_EQ(token_index, num_tokens);
+  PP.EnterTokenStream(std::move(tokens), num_tokens,
                       /*DisableMacroExpansion=*/false,
                       /*IsReinject=*/false);
 }
@@ -322,7 +276,7 @@ struct XlsSyntheticIntAttrInfo : public clang::ParsedAttrInfo {
 };
 static clang::ParsedAttrInfoRegistry::Add<XlsSyntheticIntAttrInfo>
     hls_synthetic_int(
-        "hls_array_allow_default_pad",
+        "hls_synthetic_int",
         "Marks a struct or class declaration as implementing an integer type.");
 
 struct XlsNoTupleAttrInfo : public clang::ParsedAttrInfo {
@@ -362,6 +316,374 @@ static clang::ParsedAttrInfoRegistry::Add<XlsNoTupleAttrInfo> hls_no_tuple(
     "hls_no_tuple",
     "Marks a struct or class as represented as the type of its first, and "
     "only, member.");
+
+struct XlsPipelineInitIntervalAttrInfo : public clang::ParsedAttrInfo {
+  XlsPipelineInitIntervalAttrInfo() {
+    // GNU-style __attribute__(("hls_pipeline_init_interval")) and C++/C23-style
+    // [[hls_pipeline_init_interval]] and [[xlscc::hls_pipeline_init_interval]]
+    // supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_pipeline_init_interval"},
+        {clang::ParsedAttr::AS_C23, "hls_pipeline_init_interval"},
+        {clang::ParsedAttr::AS_CXX11, "hls_pipeline_init_interval"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_pipeline_init_interval"}};
+    Spellings = S;
+    NumArgs = 1;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    if (isa<clang::LabelDecl>(D)) {
+      // Allow application to labels; enables pass-through to the following
+      // statement.
+      return true;
+    }
+    S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+        << Attr << Attr.isRegularKeywordAttribute() << "loop statements";
+    return false;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    if (!isa<clang::LabelDecl>(D)) {
+      return NotHandled;
+    }
+
+    clang::Attr* Result;
+    if (!CreateAttr(S, Attr, Result)) {
+      return AttributeNotApplied;
+    }
+    D->addAttr(Result);
+    return AttributeApplied;
+  }
+
+  bool diagAppertainsToStmt(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Stmt* St) const override {
+    if (!isa<clang::ForStmt>(St) && !isa<clang::WhileStmt>(St) &&
+        !isa<clang::DoStmt>(St)) {
+      // This attribute appertains to loop statements only.
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "loop statements";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleStmtAttribute(clang::Sema& S, clang::Stmt* St,
+                                   const clang::ParsedAttr& Attr,
+                                   class clang::Attr*& Result) const override {
+    return CreateAttr(S, Attr, Result) ? AttributeApplied : AttributeNotApplied;
+  }
+
+ private:
+  bool CreateAttr(clang::Sema& S, const clang::ParsedAttr& Attr,
+                  clang::Attr*& Result) const {
+    CHECK_EQ(Attr.getNumArgs(), 1);
+
+    auto invalid_argument = [&]() {
+      unsigned ID = S.getDiagnostics().getCustomDiagID(
+          clang::DiagnosticsEngine::Error,
+          "the argument to the 'hls_pipeline_init_interval' attribute must be "
+          "an integer >= 1");
+      S.Diag(Attr.getLoc(), ID);
+      return false;
+    };
+
+    clang::Expr* args[1];
+    if (!Attr.isArgExpr(0)) {
+      return invalid_argument();
+    }
+    args[0] = Attr.getArgAsExpr(0);
+    if (!args[0]->isIntegerConstantExpr(S.Context) ||
+        !args[0]->EvaluateKnownConstInt(S.Context).isStrictlyPositive()) {
+      return invalid_argument();
+    }
+    Result =
+        clang::AnnotateAttr::Create(S.Context, "hls_pipeline_init_interval",
+                                    args, /*ArgsSize=*/1, Attr.getRange());
+    return true;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsPipelineInitIntervalAttrInfo>
+    hls_pipeline_init_interval("hls_pipeline_init_interval",
+                               "Marks a loop to be pipelined, and how.");
+
+struct XlsUnrollAttrInfo : public clang::ParsedAttrInfo {
+  XlsUnrollAttrInfo() {
+    // GNU-style __attribute__(("hls_unroll")) and C++/C23-style [[hls_unroll]]
+    // and [[xlscc::hls_unroll]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_unroll"},
+        {clang::ParsedAttr::AS_C23, "hls_unroll"},
+        {clang::ParsedAttr::AS_CXX11, "hls_unroll"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_unroll"}};
+    Spellings = S;
+    OptArgs = 1;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    if (isa<clang::LabelDecl>(D)) {
+      // Allow application to labels; enables pass-through to the following
+      // statement.
+      return true;
+    }
+    S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+        << Attr << Attr.isRegularKeywordAttribute() << "loop statements";
+    return false;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    if (!isa<clang::LabelDecl>(D)) {
+      return NotHandled;
+    }
+
+    clang::Attr* Result;
+    if (!CreateAttr(S, Attr, Result)) {
+      return AttributeNotApplied;
+    }
+    D->addAttr(Result);
+    return AttributeApplied;
+  }
+
+  bool diagAppertainsToStmt(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Stmt* St) const override {
+    if (!isa<clang::ForStmt>(St) && !isa<clang::WhileStmt>(St) &&
+        !isa<clang::DoStmt>(St)) {
+      // This attribute appertains to loop statements only.
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "loop statements";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleStmtAttribute(clang::Sema& S, clang::Stmt* St,
+                                   const clang::ParsedAttr& Attr,
+                                   clang::Attr*& Result) const override {
+    return CreateAttr(S, Attr, Result) ? AttributeApplied : AttributeNotApplied;
+  }
+
+ private:
+  bool CreateAttr(clang::Sema& S, const clang::ParsedAttr& Attr,
+                  clang::Attr*& Result) const {
+    if (Attr.getNumArgs() > 1) {
+      S.Diag(Attr.getLoc(), clang::diag::err_attribute_too_many_arguments)
+          << Attr << 1;
+      return false;
+    }
+
+    clang::Expr* args[1];
+    int64_t num_args = Attr.getNumArgs();
+    if (Attr.getNumArgs() > 0) {
+      if (Attr.isArgExpr(0)) {
+        args[0] = Attr.getArgAsExpr(0);
+      } else {
+        std::string_view arg_name = Attr.getArgAsIdent(0)->Ident->getName();
+        if (absl::EqualsIgnoreCase(arg_name, "no")) {
+          const clang::PresumedLoc presumed_loc =
+              S.getSourceManager().getPresumedLoc(Attr.getLoc());
+          LOG(WARNING) << "Ignoring [[xlscc::hls_unroll(no)]] (at "
+                       << presumed_loc.getFilename() << ":"
+                       << presumed_loc.getLine()
+                       << "). Attribute is not needed and has no effect.";
+          return true;
+        } else if (absl::EqualsIgnoreCase(arg_name, "yes")) {
+          // Ignore the argument; the default is unbounded.
+          num_args = 0;
+        } else {
+          unsigned ID = S.getDiagnostics().getCustomDiagID(
+              clang::DiagnosticsEngine::Error,
+              "%0 attribute argument must be 'yes', 'no', or an integer.");
+          S.Diag(Attr.getLoc(), ID) << Attr;
+          return false;
+        }
+      }
+    }
+    Result = clang::AnnotateAttr::Create(S.Context, "hls_unroll", args,
+                                         num_args, Attr.getRange());
+    return true;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsUnrollAttrInfo> hls_unroll(
+    "hls_unroll", "Marks a loop to be unrolled, and how.");
+
+struct XlsChannelStrictnessAttrInfo : public clang::ParsedAttrInfo {
+  XlsChannelStrictnessAttrInfo() {
+    // GNU-style __attribute__(("hls_channel_strictness")) and C++/C23-style
+    // [[hls_channel_strictness]] and [[xlscc::hls_channel_strictness]]
+    // supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_channel_strictness"},
+        {clang::ParsedAttr::AS_C23, "hls_channel_strictness"},
+        {clang::ParsedAttr::AS_CXX11, "hls_channel_strictness"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_channel_strictness"}};
+    Spellings = S;
+    NumArgs = 1;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to channel declarations only.
+    if (!isa<clang::VarDecl>(D) && !isa<clang::FieldDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "channel declarations";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    if (Attr.getNumArgs() != 1) {
+      S.Diag(Attr.getLoc(), clang::diag::err_attribute_wrong_number_arguments)
+          << Attr << 1;
+      return AttributeNotApplied;
+    }
+
+    clang::Expr* args[1];
+    std::string strictness_str;
+    clang::SourceLocation arg_loc;
+    if (Attr.isArgIdent(0)) {
+      strictness_str = Attr.getArgAsIdent(0)->Ident->getName();
+      arg_loc = Attr.getArgAsIdent(0)->Loc;
+    } else {
+      args[0] = Attr.getArgAsExpr(0);
+      arg_loc = args[0]->getExprLoc();
+      if (clang::StringLiteral* literal =
+              dyn_cast<clang::StringLiteral>(args[0]);
+          literal != nullptr && !literal->isUnevaluated() &&
+          !literal->isOrdinary()) {
+        strictness_str = literal->getString();
+      } else if (std::optional<std::string> maybe_strictness =
+                     args[0]->tryEvaluateString(S.Context);
+                 maybe_strictness.has_value()) {
+        strictness_str = *maybe_strictness;
+      } else if (clang::Expr::EvalResult result;
+                 args[0]->EvaluateAsInt(result, S.Context) &&
+                 result.Val.getInt().isRepresentableByInt64()) {
+        // Accept values that evaluate to a constant integer, since they might
+        // be xls::ChannelStrictness enum values - but translate them to a
+        // string (we'll translate it back later) to give us a chance to report
+        // that the value is invalid.
+        int64_t strictness_val = result.Val.getInt().getExtValue();
+        if (strictness_val >
+            static_cast<int64_t>(
+                std::numeric_limits<xls::ChannelStrictness>::max())) {
+          strictness_str = "unknown";
+        } else {
+          strictness_str = xls::ChannelStrictnessToString(
+              static_cast<xls::ChannelStrictness>(strictness_val));
+        }
+      } else {
+        S.Diag(Attr.getLoc(), clang::diag::err_attribute_argument_type)
+            << Attr << clang::AANT_ArgumentString;
+        return AttributeNotApplied;
+      }
+    }
+
+    absl::StatusOr<xls::ChannelStrictness> strictness =
+        xls::ChannelStrictnessFromString(strictness_str);
+    if (!strictness.ok()) {
+      unsigned ID = S.getDiagnostics().getCustomDiagID(
+          clang::DiagnosticsEngine::Error,
+          "%0 attribute argument not a recognized channel strictness: %1");
+      S.Diag(Attr.getLoc(), ID) << Attr << strictness.status().message();
+    }
+
+    unsigned strictness_size = 8 * sizeof(xls::ChannelStrictness);
+    clang::QualType literal_type =
+        S.Context.getIntTypeForBitwidth(strictness_size,
+                                        /*Signed=*/false);
+    clang::Expr* strictness_expr = clang::IntegerLiteral::Create(
+        S.Context,
+        llvm::APInt(strictness_size, static_cast<uint64_t>(*strictness)),
+        literal_type, arg_loc);
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, "hls_channel_strictness",
+                                           &strictness_expr, /*ArgsSize=*/1,
+                                           Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsChannelStrictnessAttrInfo>
+    hls_channel_strictness("hls_channel_strictness",
+                           "Specifies the strictness of the defined channel.");
+
+struct XlsAsapAttrInfo : public clang::ParsedAttrInfo {
+  XlsAsapAttrInfo() {
+    // GNU-style __attribute__(("xlscc_asap")) and C++/C23-style
+    // [[xlscc_asap]] and [[xlscc::asap]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "xlscc_asap"},
+        {clang::ParsedAttr::AS_C23, "xlscc_asap"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc_asap"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::asap"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::xlscc_asap"}};
+    Spellings = S;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    if (isa<clang::LabelDecl>(D)) {
+      // Allow application to labels; enables pass-through to the following
+      // statement.
+      return true;
+    }
+    S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+        << Attr << Attr.isRegularKeywordAttribute() << "loop statements";
+    return false;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    if (!isa<clang::LabelDecl>(D)) {
+      return NotHandled;
+    }
+
+    clang::Attr* Result;
+    if (!CreateAttr(S, Attr, Result)) {
+      return AttributeNotApplied;
+    }
+    D->addAttr(Result);
+    return AttributeApplied;
+  }
+
+  bool diagAppertainsToStmt(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Stmt* St) const override {
+    if (!isa<clang::ForStmt>(St) && !isa<clang::WhileStmt>(St) &&
+        !isa<clang::DoStmt>(St)) {
+      // This attribute appertains to loop statements only.
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "loop statements";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleStmtAttribute(clang::Sema& S, clang::Stmt* St,
+                                   const clang::ParsedAttr& Attr,
+                                   class clang::Attr*& Result) const override {
+    return CreateAttr(S, Attr, Result) ? AttributeApplied : AttributeNotApplied;
+  }
+
+ private:
+  bool CreateAttr(clang::Sema& S, const clang::ParsedAttr& Attr,
+                  clang::Attr*& Result) const {
+    Result = clang::AnnotateAttr::Create(S.Context, "xlscc_asap", nullptr,
+                                         /*ArgsSize=*/0, Attr.getRange());
+    return true;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsAsapAttrInfo> xlscc_asap(
+    "xlscc_asap",
+    "Marks a loop to be scheduled ASAP; declares that there are no "
+    "cross-iteration dependencies.");
 
 class HlsArgsPragmaHandler : public clang::PragmaHandler {
  public:
@@ -503,48 +825,18 @@ static clang::PragmaHandlerRegistry::Add<HlsDesignPragmaHandler>
                       "Pragma of the form hls_design [top], equivalent to "
                       "other pragmas such as hls_top");
 
-class HlsPipelineInitIntervalPragmaHandler : public HlsArgsPragmaHandler {
+class HlsPipelineInitIntervalPragmaHandler : public clang::PragmaHandler {
  public:
   HlsPipelineInitIntervalPragmaHandler()
-      : HlsArgsPragmaHandler("hls_pipeline_init_interval", /*num_args=*/1) {}
+      : clang::PragmaHandler("hls_pipeline_init_interval") {}
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken,
-                    const std::vector<clang::Token>& toks) override {
-    const clang::Token& tok = toks.at(0);
-
-    const clang::PresumedLoc presumed_loc =
-        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
-
-    if (tok.getKind() != clang::tok::numeric_constant) {
-      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
-          << absl::StrFormat(
-                 "Argument to pragma 'hls_pipeline_init_interval' is not valid."
-                 "Must be an integer "
-                 ">= 1. At %s:%i",
-                 presumed_loc.getFilename(), presumed_loc.getLine());
-      return;
-    }
-    const char* literal_data = tok.getLiteralData();
-    std::string_view str_identifier(literal_data, tok.getLength());
-    int64_t arg = -1;
-    if (!absl::SimpleAtoi(str_identifier, &arg) || (arg <= 0)) {
-      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
-          << absl::StrFormat(
-                 "Argument '%s' to pragma 'hls_pipeline_init_interval' is not "
-                 "valid."
-                 "Must be an integer "
-                 ">= 1. At %s:%i",
-                 str_identifier, presumed_loc.getFilename(),
-                 presumed_loc.getLine());
-      return;
-    }
-
-    GenerateIntrinsicCall(PP, "__xlscc_pipeline", tok,
-                          /*arguments=*/{tok});
+                    clang::Token& firstToken) override {
+    std::vector<clang::Token> toks;
+    PP.LexTokensUntilEOF(&toks);
+    GenerateAnnotation(PP, "hls_pipeline_init_interval", firstToken, toks);
   }
 };
-
 static clang::PragmaHandlerRegistry::Add<HlsPipelineInitIntervalPragmaHandler>
     hls_pipeline_init_interval_pragma(
         "hls_pipeline_init_interval",
@@ -555,107 +847,14 @@ class HlsUnrollPragmaHandler : public clang::PragmaHandler {
   explicit HlsUnrollPragmaHandler() : clang::PragmaHandler("hls_unroll") {}
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
                     clang::Token& firstToken) override {
-    const clang::PresumedLoc presumed_loc =
-        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
-
     std::vector<clang::Token> toks;
     PP.LexTokensUntilEOF(&toks);
-
-    if (toks.empty()) {  // no arguments
-      GenerateIntrinsicCall(PP, "__xlscc_unroll", firstToken, 1);
-      return;
-    }
-
-    if (toks.size() != 1) {
-      PP.Diag(firstToken.getLocation(), clang::diag::err_pragma_message)
-          << absl::StrFormat(
-                 "#pragma %s must have 1 argument (negative numbers are "
-                 "invalid). At %s:%i",
-                 clang::PragmaHandler::getName(), presumed_loc.getFilename(),
-                 presumed_loc.getLine());
-      return;
-    }
-
-    const clang::Token& tok = toks.at(0);
-
-    if (tok.is(clang::tok::identifier)) {
-      const clang::IdentifierInfo* identifier = tok.getIdentifierInfo();
-      if (identifier->isStr("yes")) {
-        GenerateIntrinsicCall(PP, "__xlscc_unroll", firstToken, 1);
-        return;
-      }
-      if (identifier->isStr("no")) {
-        LOG(WARNING) << "Ignoring #pragma hls_unroll no (at "
-                     << presumed_loc.getFilename() << ":"
-                     << presumed_loc.getLine()
-                     << "). Pragma is not needed and has no effect.";
-        return;
-      }
-    }
-    if (tok.getKind() != clang::tok::numeric_constant) {
-      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
-          << absl::StrFormat(
-                 "Argument to pragma 'hls_unroll' is not valid. "
-                 "Must be 'yes', 'no', or an integer."
-                 " At %s:%i",
-                 presumed_loc.getFilename(), presumed_loc.getLine());
-      return;
-    }
-    const char* literal_data = tok.getLiteralData();
-    std::string_view str_identifier(literal_data, tok.getLength());
-    int64_t arg = -1;
-    if (!absl::SimpleAtoi(str_identifier, &arg) || (arg <= 0)) {
-      if (arg == 0) {
-        LOG(WARNING) << "Ignoring #pragma hls_unroll 0 (at "
-                     << presumed_loc.getFilename() << ":"
-                     << presumed_loc.getLine()
-                     << "). Pragma is "
-                        "not needed and has no effect.";
-        return;
-      }
-      PP.Diag(tok.getLocation(), clang::diag::err_pragma_message)
-          << absl::StrFormat(
-                 "Argument '%s' to pragma 'hls_unroll' is not valid. "
-                 "Must be 'yes', 'no', or an integer."
-                 " At %s:%i",
-                 str_identifier, presumed_loc.getFilename(),
-                 presumed_loc.getLine());
-      return;
-    }
-    LOG(WARNING) << "Partial unroll not yet supported: fully unrolling";
-    GenerateIntrinsicCall(PP, "__xlscc_unroll", tok,
-                          /*arguments=*/{tok});
+    GenerateAnnotation(PP, "hls_unroll", firstToken, toks);
   }
-  clang::CompilerInstance* compiler_instance_;
 };
-
 static clang::PragmaHandlerRegistry::Add<HlsUnrollPragmaHandler>
     hls_unroll_pragma(
         "hls_unroll",
-        "Pragma specifying that a loop should be unrolled, and how.");
-
-class HlsChannelStrictnessPragmaHandler : public HlsArgsPragmaHandler {
- public:
-  explicit HlsChannelStrictnessPragmaHandler()
-      : HlsArgsPragmaHandler("hls_channel_strictness", /*num_args=*/0) {}
-  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken,
-                    const std::vector<clang::Token>& tok) override {
-    const clang::PresumedLoc presumed_loc =
-        PP.getSourceManager().getPresumedLoc(Introducer.Loc);
-
-    // TODO(seanhaskell): Implement with annotations b/371085056
-    PP.Diag(firstToken.getLocation(), clang::diag::err_pragma_message)
-        << absl::StrFormat(
-               "#pragma hls_channel_strictness is currently unimplemented. At "
-               "%s:%i",
-               presumed_loc.getFilename(), presumed_loc.getLine());
-  }
-};
-
-static clang::PragmaHandlerRegistry::Add<HlsChannelStrictnessPragmaHandler>
-    hls_channel_strictness_pragma(
-        "hls_channel_strictness",
         "Pragma specifying that a loop should be unrolled, and how.");
 
 class UnknownPragmaHandler : public clang::PragmaHandler {
@@ -665,7 +864,7 @@ class UnknownPragmaHandler : public clang::PragmaHandler {
     const std::string& name = firstToken.getIdentifierInfo()->getName().str();
     static const auto* non_hls_names = new absl::flat_hash_set<std::string>(
         {"top", "design", "pipeline_init_interval", "array_allow_default_pad",
-         "no_tuple", "synthetic_int", "unroll", "channel_strictness"});
+         "no_tuple", "synthetic_int", "unroll"});
     if (non_hls_names->contains(name)) {
       LOG(WARNING) << "WARNING: #pragma '" << name
                    << "' requires 'hls_' prefix";
@@ -675,8 +874,7 @@ class UnknownPragmaHandler : public clang::PragmaHandler {
         {"TOP", "HLS_TOP", "DESIGN", "HLS_DESIGN", "PIPELINE_INIT_INTERVAL",
          "HLS_PIPELINE_INIT_INTERVAL", "ARRAY_ALLOW_DEFAULT_PAD",
          "HLS_ARRAY_ALLOW_DEFAULT_PAD", "NO_TUPLE", "HLS_NO_TUPLE",
-         "SYNTHETIC_INT", "HLS_SYNTHETIC_INT", "UNROLL", "HLS_UNROLL",
-         "CHANNEL_STRICTNESS", "HLS_CHANNEL_STRICTNESS"});
+         "SYNTHETIC_INT", "HLS_SYNTHETIC_INT", "UNROLL", "HLS_UNROLL"});
     if (names_upper->contains(name)) {
       LOG(WARNING) << "#pragma must be lowercase: " << name;
       return;
@@ -721,14 +919,15 @@ class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
         parser_(translator) {}
   void HandleDiagnostic(clang::DiagnosticsEngine::Level level,
                         const clang::Diagnostic& info) override {
+    // Print the message
+    clang::TextDiagnosticPrinter::HandleDiagnostic(level, info);
+
     if (level >= clang::DiagnosticsEngine::Level::Error) {
       llvm::SmallString<1024> str;
       info.FormatDiagnostic(str);
       parser_.libtool_visit_status_ = absl::FailedPreconditionError(str.str());
       return;
     }
-    // Print the message
-    clang::TextDiagnosticPrinter::HandleDiagnostic(level, info);
   }
 
  private:

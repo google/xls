@@ -1889,14 +1889,12 @@ class Translator {
                                          const xls::SourceInfo& loc);
 
   // init, cond, and inc can be nullptr
-  absl::Status GenerateIR_Loop(bool always_first_iter,
-                               const clang::Stmt* loop_stmt,
-                               const clang::Stmt* init,
-                               const clang::Expr* cond_expr,
-                               const clang::Stmt* inc, const clang::Stmt* body,
-                               const clang::PresumedLoc& presumed_loc,
-                               const xls::SourceInfo& loc,
-                               clang::ASTContext& ctx);
+  absl::Status GenerateIR_Loop(
+      bool always_first_iter, const clang::Stmt* loop_stmt,
+      clang::ArrayRef<const clang::Attr*> attrs, const clang::Stmt* init,
+      const clang::Expr* cond_expr, const clang::Stmt* inc,
+      const clang::Stmt* body, const clang::PresumedLoc& presumed_loc,
+      const xls::SourceInfo& loc, clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_UnrolledLoop(bool always_first_iter,

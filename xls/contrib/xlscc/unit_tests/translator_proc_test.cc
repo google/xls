@@ -1418,7 +1418,7 @@ TEST_P(TranslatorProcTest, ForPipelinedUseReceivedFromOldState) {
   EXPECT_EQ(channel_bits_in, generate_fsms_for_pipelined_loops_ ? 0L : 32);
 }
 
-TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
+TEST_P(TranslatorProcTest, ForPipelinedAttribute) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -1428,7 +1428,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
       void foo() {
         int a = in.read();
 
-        __xlscc_pipeline(1);
+        [[xlscc::hls_pipeline_init_interval(1)]]
         for(long i=1;i<=4;++i) {
           a += i;
         }
@@ -1451,7 +1451,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
   }
 }
 
-TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
+TEST_P(TranslatorProcTest, ForPipelinedAttributeIgnoreLabel) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -1461,8 +1461,8 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
       void foo() {
         int a = in.read();
 
-        __xlscc_pipeline(1);
         foo:
+        [[xlscc::hls_pipeline_init_interval(1)]]
         for(long i=1;i<=4;++i) {
           a += i;
         }
@@ -1485,7 +1485,7 @@ TEST_P(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
   }
 }
 
-TEST_P(TranslatorProcTest, ForPipelinedDontPropagateAnnotation) {
+TEST_P(TranslatorProcTest, ForPipelinedDontPropagateAttribute) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -1495,7 +1495,7 @@ TEST_P(TranslatorProcTest, ForPipelinedDontPropagateAnnotation) {
       void foo() {
         int a = in.read();
 
-        __xlscc_pipeline(1);for(long i=1;i<=4;++i) {
+        [[xlscc::hls_pipeline_init_interval(1)]] for(long i=1;i<=4;++i) {
           a += i;
         }
 
@@ -5540,8 +5540,7 @@ TEST_P(TranslatorProcTest, IOProcClassDirectIn) {
                   testing::HasSubstr("direct-ins not implemented yet")));
 }
 
-// TODO(seanhaskell): Enable once b/371085056 is fixed
-TEST_P(TranslatorProcTest, DISABLED_IODefaultStrictness) {
+TEST_P(TranslatorProcTest, IODefaultStrictness) {
   const std::string content = R"(
        class Block {
         public:
@@ -5573,15 +5572,13 @@ TEST_P(TranslatorProcTest, DISABLED_IODefaultStrictness) {
         << "Incorrect strictness for channel: " << channel->name();
   }
 }
-
-// TODO(seanhaskell): Enable once b/371085056 is fixed
-TEST_P(TranslatorProcTest, DISABLED_IOWithStrictnessSpecified) {
+TEST_P(TranslatorProcTest, IOWithStrictnessSpecified) {
   const std::string content = R"(
        class Block {
         public:
-       #pragma hls_channel_strictness proven_mutually_exclusive
+         [[xlscc::hls_channel_strictness(proven_mutually_exclusive)]]
          __xls_channel<int , __xls_channel_dir_In>& in;
-       #pragma hls_channel_strictness arbitrary_static_order
+         [[xlscc::hls_channel_strictness(arbitrary_static_order)]]
          __xls_channel<long, __xls_channel_dir_Out>& out;
 
          #pragma hls_top
@@ -5657,14 +5654,12 @@ TEST_P(TranslatorProcTest, IOWithStrictnessSpecifiedOnCommandLine) {
   }
 }
 
-// TODO(seanhaskell): Enable once b/371085056 is fixed
-TEST_P(TranslatorProcTest,
-       DISABLED_IOWithUnusedStrictnessesSpecifiedOnCommandLine) {
+TEST_P(TranslatorProcTest, IOWithUnusedStrictnessesSpecifiedOnCommandLine) {
   const std::string content = R"(
        class Block {
         public:
          __xls_channel<int , __xls_channel_dir_In>& in;
-       #pragma hls_channel_strictness arbitrary_static_order
+         [[xlscc::hls_channel_strictness(arbitrary_static_order)]]
          __xls_channel<long, __xls_channel_dir_Out>& out;
 
          #pragma hls_top
@@ -7494,13 +7489,12 @@ TEST_P(TranslatorProcTest, PipelinedLoopSerial) {
   }
 }
 
-// TODO(seanhaskell): Enable once b/371085056 is fixed
-TEST_F(TranslatorProcTestWithoutFSMParam, DISABLED_ForPipelinedASAPTrivial) {
+TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPTrivial) {
   const std::string content = R"(
     #pragma hls_top
     void foo(__xls_channel<int>& in,
              __xls_channel<int>& out) {
-      __xlscc_asap();
+      [[xlscc::asap]]
       for(long i=1;i<=4;++i) {
         int a = in.read();
         out.write(a + i);
@@ -7548,9 +7542,7 @@ TEST_F(TranslatorProcTestWithoutFSMParam, DISABLED_ForPipelinedASAPTrivial) {
                              testing::HasSubstr("IO ops with schedul")));
 }
 
-// TODO(seanhaskell): Enable once b/371085056 is fixed
-TEST_F(TranslatorProcTestWithoutFSMParam,
-       DISABLED_ForPipelinedASAPOutsideScopeAccess) {
+TEST_F(TranslatorProcTestWithoutFSMParam, ForPipelinedASAPOutsideScopeAccess) {
   const std::string content = R"(
     class Block {
     public:
@@ -7561,7 +7553,7 @@ TEST_F(TranslatorProcTestWithoutFSMParam,
       void foo() {
         int a = in.read();
 
-        __xlscc_asap();
+        [[xlscc::asap]]
         for(long i=1;i<=4;++i) {
           out.write(a + i);
         }
@@ -7643,8 +7635,7 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAP) {
                     testing::HasSubstr("loops with scheduling options")));
   }
 }
-// TODO(seanhaskell): Enable once b/371085056 is fixed
-TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAPDataDependency) {
+TEST_P(TranslatorProcTest, PipelinedLoopASAPDataDependency) {
   const std::string content = R"(
        class Block {
         public:
@@ -7657,13 +7648,13 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopASAPDataDependency) {
 
           int value = 0;
 
-          __xlscc_asap();
+          [[xlscc::asap]]
           for(int i=0;i<6;++i) {
             out.write(value++);
             sync.write(0);
           }
 
-          __xlscc_asap();
+          [[xlscc::asap]]
           for(int i=0;i<6;++i) {
             (void)sync.read();
             out.write(10+value+i);
@@ -7914,8 +7905,7 @@ TEST_P(TranslatorProcTest, PipelinedLoopConditional2) {
   }
 }
 
-// TODO(seanhaskell): Enable once b/371085056 is fixed
-TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopSerialAfterASAP) {
+TEST_P(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
   const std::string content = R"(
        class Block {
         public:
@@ -7931,7 +7921,7 @@ TEST_P(TranslatorProcTest, DISABLED_PipelinedLoopSerialAfterASAP) {
           }
 
           #pragma hls_pipeline_init_interval 1
-          __xlscc_asap();for(int i=0;i<6;++i) {
+          [[xlscc::asap]] for(int i=0;i<6;++i) {
             out.write(500);
           }
          }

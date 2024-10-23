@@ -34,7 +34,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "clang/include/clang/AST/Attr.h"
+#include "clang/include/clang/AST/Attrs.inc"
 #include "clang/include/clang/AST/Decl.h"
+#include "clang/include/clang/AST/DeclBase.h"
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/GlobalDecl.h"
 #include "clang/include/clang/AST/Type.h"
@@ -83,9 +86,27 @@ absl::StatusOr<xls::ChannelStrictness> Translator::GetChannelStrictness(
     const clang::NamedDecl& decl, const ChannelOptions& channel_options,
     absl::flat_hash_map<std::string, xls::ChannelStrictness>&
         unused_strictness_options) {
-  // TODO(seanhaskell): Use annotation with xls::ChannelStrictnessFromString
-  // b/371085056
   std::optional<xls::ChannelStrictness> channel_strictness;
+  for (const clang::AnnotateAttr* attr :
+       decl.specific_attrs<clang::AnnotateAttr>()) {
+    if (attr->getAnnotation() == "hls_channel_strictness") {
+      if (attr->args_size() != 1) {
+        return absl::InvalidArgumentError(
+            "hls_channel_strictness must have exactly one argument");
+      }
+      clang::Expr::EvalResult result;
+      if (!(*attr->args().begin())
+               ->EvaluateAsInt(result, decl.getASTContext()) ||
+          !result.Val.getInt().isNonNegative() ||
+          !result.Val.getInt().isRepresentableByInt64()) {
+        return absl::InvalidArgumentError(
+            "hls_channel_strictness argument must be a xls::ChannelStrictness "
+            "enum value");
+      }
+      channel_strictness = static_cast<xls::ChannelStrictness>(
+          result.Val.getInt().getExtValue());
+    }
+  }
 
   if (auto it = channel_options.strictness_map.find(decl.getNameAsString());
       it != channel_options.strictness_map.end()) {
@@ -93,11 +114,10 @@ absl::StatusOr<xls::ChannelStrictness> Translator::GetChannelStrictness(
       return absl::InvalidArgumentError(ErrorMessage(
           GetLoc(decl),
           "Command-line-specified channel strictness contradicts "
-          "hls_channel_strictness pragma for channel: %s (command-line: %s, "
-          "pragma: %s)",
-          decl.getNameAsString(),
-          xls::ChannelStrictnessToString(channel_strictness.value()),
-          xls::ChannelStrictnessToString(it->second)));
+          "hls_channel_strictness annotation for channel: %s (command-line: "
+          "%s, attribute: %s)",
+          decl.getNameAsString(), xls::ChannelStrictnessToString(it->second),
+          xls::ChannelStrictnessToString(channel_strictness.value())));
     }
     channel_strictness = it->second;
 

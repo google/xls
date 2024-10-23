@@ -284,6 +284,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:cc_parser",
         "//xls/contrib/xlscc:metadata_output_cc_proto",
+        "//xls/ir:channel",
         "//xls/ir:source_location",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

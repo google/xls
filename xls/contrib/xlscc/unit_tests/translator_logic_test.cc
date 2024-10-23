@@ -1297,7 +1297,7 @@ TEST_F(TranslatorLogicTest, ForUnroll) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
-TEST_F(TranslatorLogicTest, IntrinsicScoped) {
+TEST_F(TranslatorLogicTest, PragmaScoped) {
   std::string_view content = R"(
       long long my_package(long long a, long long b) {
         {
@@ -1310,8 +1310,8 @@ TEST_F(TranslatorLogicTest, IntrinsicScoped) {
         return a;
       })";
   ASSERT_THAT(SourceToIr(content).status(),
-              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                     testing::HasSubstr("missing")));
+              absl_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                     testing::HasSubstr("expected statement")));
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollInTemplateFunc) {
@@ -1335,12 +1335,12 @@ TEST_F(TranslatorLogicTest, ForUnrollInTemplateFunc) {
 TEST_F(TranslatorLogicTest, PragmaInDefineAppliesOnlyInDefine) {
   const std::string content = R"(
     #define some_macro(x) { \
-        _Pragma("hls_unroll yes") \
-          int i = 0;             \
-          while (i < 2) {   \
-            x[i] += 1;                                         \
-            ++i;                             \
-          }                                                       \
+          int i = 0;                 \
+          _Pragma("hls_unroll yes")  \
+          while (i < 2) {            \
+            x[i] += 1;               \
+            ++i;                     \
+          }                          \
         }
 
     #pragma hls_top
@@ -1369,9 +1369,7 @@ TEST_F(TranslatorLogicTest, NestedLoopsNoBraces) {
           for(int i=1;i<=5;++i) a += 3*b;
         return a;
       })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                     testing::HasSubstr("compound")));
+  Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
 TEST_F(TranslatorLogicTest, NestedLoopsNoBraces2) {
@@ -1384,9 +1382,7 @@ TEST_F(TranslatorLogicTest, NestedLoopsNoBraces2) {
           for(int i=1;i<=10;++i) a += 3*b;
         return a;
       })";
-  ASSERT_THAT(SourceToIr(content).status(),
-              absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                     testing::HasSubstr("compound")));
+  Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollLabel) {
@@ -1401,6 +1397,25 @@ TEST_F(TranslatorLogicTest, ForUnrollLabel) {
         return a;
       })";
   Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollBeforeLabelAndStatement) {
+  std::string_view content = R"(
+      long long my_package(long long a, long long b) {
+        #pragma hls_unroll yes
+        label:
+        int x = 0;
+        for(int i=1;i<=10;++i) {
+          a += b;
+          a += 2*b;
+        }
+        (void)x;
+        return a;
+      })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                     testing::HasSubstr("missing")));
 }
 
 TEST_F(TranslatorLogicTest, ForUnrollAssignAfterBreak) {
@@ -1889,10 +1904,31 @@ TEST_F(TranslatorLogicTest, ForUnrollNoPragma) {
       })";
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("missing #pragma or attribute")));
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollBadNumber) {
+  std::string_view content = R"(
+      long long my_package(long long a, long long b) {
+        #pragma hls_unroll yes
+        for(int i=1;i<=10;++i) {
+          #pragma hls_unroll -4
+          for(int j=0;j<4;++j) {
+            int l = b;
+            a += l;
+          }
+        }
+        return a;
+      })";
+  auto ret = SourceToIr(content);
+
+  EXPECT_THAT(
       SourceToIr(content).status(),
-      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                             testing::HasSubstr("loop missing #pragma")));
+      absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                             testing::HasSubstr("must be a positive integer")));
 }
 
 TEST_F(TranslatorLogicTest, ForNestedUnroll) {
@@ -3964,10 +4000,10 @@ TEST_F(TranslatorLogicTest, OnlyUnrolledLoops) {
       return a;
     })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                             testing::HasSubstr("loop missing #pragma")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("missing #pragma or attribute")));
 }
 
 TEST_F(TranslatorLogicTest, InvalidUnrolledLoop) {
@@ -3995,10 +4031,10 @@ TEST_F(TranslatorLogicTest, NonPragmaNestedLoop) {
       return a;
     })";
 
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                             testing::HasSubstr("loop missing #pragma")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("missing #pragma or attribute")));
 }
 
 TEST_F(TranslatorLogicTest, Label) {
