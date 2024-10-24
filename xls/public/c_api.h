@@ -130,7 +130,7 @@ void xls_c_str_free(char* c_str);
 bool xls_package_to_string(const struct xls_package* p, char** string_out);
 
 // Parses IR text to a package.
-
+//
 // Note: `filename` may be nullptr.
 bool xls_parse_ir_package(const char* ir, const char* filename,
                           char** error_out,

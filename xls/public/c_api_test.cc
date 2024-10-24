@@ -26,7 +26,6 @@
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
-#include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_vast.h"
 
@@ -545,6 +544,9 @@ enum MyEnum : u5 {
     char* identifier = xls_dslx_struct_def_get_identifier(struct_def);
     absl::Cleanup free_identifier([=] { xls_c_str_free(identifier); });
     EXPECT_EQ(std::string_view{identifier}, std::string_view{"MyStruct"});
+
+    EXPECT_FALSE(xls_dslx_struct_def_is_parametric(struct_def));
+    EXPECT_EQ(xls_dslx_struct_def_get_member_count(struct_def), 2);
 
     // Get the concrete type that this resolves to.
     const xls_dslx_type* struct_def_type =
