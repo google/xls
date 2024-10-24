@@ -14,10 +14,68 @@ click==8.1.3 \
     # via
     #   -r dependency_support/pip_requirements.in
     #   flask
+cocotb==1.9.0 \
+    --hash=sha256:02a58ef6c941114964096e7c039bdd4e67e63816cfd2f6a9af6a34cd92b00e8e \
+    --hash=sha256:0819794ef5e8fd14fee0b265933226cf600e85edc2f1a749b4d5f8fa2d31ce4e \
+    --hash=sha256:0ba35617a677ff65a1273411a3dfdfc5f587128ad8cb9e941ab0eb17ec8fb3e2 \
+    --hash=sha256:17556e3a23562f64d577d0eb117fe02e384aedee997b29497b5c395f5010ff82 \
+    --hash=sha256:19b4e27b53a16e0b9c4cc5227c7f9d4dccac06e431a4f937e9f5513350196333 \
+    --hash=sha256:1a0381ced5590a726032ba2265c6b70ac12cfb49edb152be86a081bb7d104751 \
+    --hash=sha256:1aff68cf77059448a9a3278079037e34b50c8c2aee466d984295fa7fe699d390 \
+    --hash=sha256:277281420fd6fc3002bb85d6bec497bd20ff3a3905d4b5f1301faf975f750ede \
+    --hash=sha256:2daf743320331615f4e8ffb877ab0b04e6f913b911bb11bf9dbc1d876d9c4220 \
+    --hash=sha256:2e9bcdbfba3e99c9297bd0d74ba781772d89d2c86e893980784ada252bd1a0f8 \
+    --hash=sha256:3058c977f9d4e1f6333d505947f34b9142910719f1d8631c40a151dd86bad727 \
+    --hash=sha256:5832d894419a9e8fe5c242e3ac86588e16e2cb379822dcb154bfec8544ae858e \
+    --hash=sha256:598b841ed0809e5c64d8c383b8035f6ace5a6f9013f680cdc6981221911c005d \
+    --hash=sha256:5a5c91027d7652aaf10e101743edd6b1e832039a19af75fca301275ef30f01d4 \
+    --hash=sha256:61418f619af72c8cca8de622785b4f4bfc17ace09981de6eb44feae560cf3bbb \
+    --hash=sha256:784c914c8df3fd79cfb148d2bcd17c4b2703c89af1278ed98773afb57ceea3e6 \
+    --hash=sha256:87a19d3012f505ba7fda37483b851ef0ca40290ad8a9b28a820b84f8574287bb \
+    --hash=sha256:89503f0749362d36b6fab8636710f1848943c21f9d488672921bac21e9edd29f \
+    --hash=sha256:89e5189fd393918c27af2daefdcb13df4d52fa761f065d5964d2c4ff5c0642fb \
+    --hash=sha256:8cb4b0edf8f0b47c3b604b461cb574fc75fd97efa893cbaf828f4f2f71cf459e \
+    --hash=sha256:94e884e16186899ad5b4d131c3f7ff0a2277e67ea0660754e8810a4bbf2d610e \
+    --hash=sha256:997dbca2a2cd933fd0a44d9fadeebc1e8a40701db15ea06f207811933dceb350 \
+    --hash=sha256:a7cea13cb2fe4f5ca735490846342885117778a73008a67ed9cac667aaaf3f0d \
+    --hash=sha256:a84edfbfa57dc6e16845a55feb0b4e1c8b6bbfa5ef1ab6768beba8d81e0546aa \
+    --hash=sha256:a95b5e5708a3629d319d2b655d11345cc7e97fea9bdc9bc1df7435926ac30966 \
+    --hash=sha256:aa6818c39ca1ce699e4bb1d84899c4f98c2d25c7671bd6c7beee3b1ee9d68834 \
+    --hash=sha256:ab99bf7e055780b57419d4133fd4dca9c72a03b766a3e2200552f10498eb8845 \
+    --hash=sha256:b966f5560a494fd99f95a1562f9326ca20c35bb118d4e6b50db41da8e4a6f718 \
+    --hash=sha256:bc44a7708a5a63d3059a622c2fb90831dc33534c3343e971f5a6c78905097baa \
+    --hash=sha256:c11e21d291ba2f889e33c21d76e9aec6ffdfb5666053dc34452666579daa675b \
+    --hash=sha256:c848de13583478d71cc91e528e17c051ca6a3b92e89d703ac5015f17cab1287b \
+    --hash=sha256:d944aa5509a0f0786d6f30554a2f8b1f229847f9ac9988879d7a05497739f668 \
+    --hash=sha256:f50862153e1364f6edeaef9d70505093549fa097e9b2555ea46d1e4f94ac3287 \
+    --hash=sha256:f74c598e230e1035103f6e3a97dd7a0e1bcacf7f3ea7481cd3bcde477b74e379 \
+    --hash=sha256:fcb81c6c37e11b0729768dd8e192a9cfb809778699ab1fe89f4d92ba0beb3092 \
+    --hash=sha256:ff2ddc8b304eb7076ceead2534a1b9828df771798fa9c2601ea983c86d23ec08
+    # via
+    #   -r dependency_support/pip_requirements.in
+    #   cocotb-bus
+    #   cocotbext-axi
+cocotb-bus==0.2.1 \
+    --hash=sha256:a197aa4b0e0ad28469c8877b41b3fb2ec0206da9f491b9276d1578ce6dd8aa8d
+    # via
+    #   -r dependency_support/pip_requirements.in
+    #   cocotbext-axi
+cocotbext-axi==0.1.24 \
+    --hash=sha256:3ed62dcaf9448833176826507c5bc5c346431c4846a731e409d87c862d960593 \
+    --hash=sha256:533ba6c7503c6302bdb9ef86e43a549ad5da876eafb1adce23d39751c54cced4
+    # via -r dependency_support/pip_requirements.in
+find-libpython==0.4.0 \
+    --hash=sha256:034a4253bd57da3408aefc59aeac1650150f6c1f42e10fdd31615cf1df0842e3 \
+    --hash=sha256:46f9cdcd397ddb563b2d7592ded3796a41c1df5222443bd9d981721c906c03e6
+    # via cocotb
 flask==2.3.2 \
     --hash=sha256:77fd4e1249d8c9923de34907236b747ced06e5467ecac1a7bb7115ae0e9670b0 \
     --hash=sha256:8c2f9abd47a9e8df7f0c3f091ce9497d011dc3b31effcf4c85a6e2b50f4114ef
     # via -r dependency_support/pip_requirements.in
+iniconfig==2.0.0 \
+    --hash=sha256:2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3 \
+    --hash=sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374
+    # via pytest
 itsdangerous==2.1.2 \
     --hash=sha256:2c2349112351b88699d8d4b6b075022c0808887cb7ad10069318a8b0bc88db44 \
     --hash=sha256:5dbbc68b317e5e42f327f9021763545dc3fc3bfe22e6deb96aaf1fc38874156a
@@ -107,6 +165,14 @@ numpy==1.24.4 \
     # via
     #   -r dependency_support/pip_requirements.in
     #   scipy
+packaging==24.1 \
+    --hash=sha256:026ed72c8ed3fcce5bf8950572258698927fd1dbda10a5e981cdf0ac37f4f002 \
+    --hash=sha256:5b8f2217dbdbd2f7f384c41c628544e6d52f2d0f53c6d0c3ea61aa5d1d7ff124
+    # via pytest
+pluggy==1.5.0 \
+    --hash=sha256:2cffa88e94fdc978c4c574f15f9e59b7f4201d439195c3715ca9e2486f1d0cf1 \
+    --hash=sha256:44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669
+    # via pytest
 portpicker==1.3.1 \
     --hash=sha256:d2cdc776873635ed421315c4d22e63280042456bbfa07397817e687b142b9667
     # via -r dependency_support/pip_requirements.in
@@ -122,6 +188,10 @@ psutil==5.7.0 \
     --hash=sha256:d84029b190c8a66a946e28b4d3934d2ca1528ec94764b180f7d6ea57b0e75e26 \
     --hash=sha256:e2d0c5b07c6fe5a87fa27b7855017edb0d52ee73b71e6ee368fae268605cc3f5 \
     --hash=sha256:f344ca230dd8e8d5eee16827596f1c22ec0876127c28e800d7ae20ed44c4b310
+    # via -r dependency_support/pip_requirements.in
+pytest==8.2.2 \
+    --hash=sha256:c434598117762e2bd304e526244f67bf66bbd7b5d6cf22138be51ff661980343 \
+    --hash=sha256:de4bb8104e201939ccdc688b27a89a7be2079b22e2bd2b07f806b6ba71117977
     # via -r dependency_support/pip_requirements.in
 pyyaml==6.0.1 \
     --hash=sha256:04ac92ad1925b2cff1db0cfebffb6ffc43457495c9b3c39d3fcae417d7125dc5 \
