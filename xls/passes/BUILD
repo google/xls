@@ -1287,6 +1287,7 @@ cc_library(
     srcs = ["narrowing_pass.cc"],
     hdrs = ["narrowing_pass.h"],
     deps = [
+        ":aliasing_query_engine",
         ":context_sensitive_range_query_engine",
         ":optimization_pass",
         ":optimization_pass_registry",
@@ -3471,5 +3472,47 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "aliasing_query_engine",
+    hdrs = ["aliasing_query_engine.h"],
+    deps = [
+        ":predicate_state",
+        ":query_engine",
+        "//xls/common/status:ret_check",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/data_structures:union_find_map",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:interval_set",
+        "//xls/ir:ternary",
+        "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "aliasing_query_engine_test",
+    srcs = ["aliasing_query_engine_test.cc"],
+    deps = [
+        ":aliasing_query_engine",
+        ":stateless_query_engine",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_googletest//:gtest",
+        "@cppitertools",
     ],
 )

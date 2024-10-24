@@ -1442,6 +1442,28 @@ TEST_P(NarrowingPassTest, AnalysisLogOutput) {
                                 m::BitSlice(m::Literal()))));
 }
 
+TEST_P(NarrowingPassTest, TracksUpdates) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("param", p->GetBitsType(2));
+  // decoded is 0b00...0XXXX
+  BValue decoded = fb.Decode(fb.ZeroExtend(param, 8), 256);
+  // Should be able to do a 4 or 5-bit adder (need range analysis to see that 4
+  // bits is safe)
+  fb.Add(fb.Literal(UBits(1, 256)), decoded);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // TODO(allight): We should be able to recognize this as only needing 4 bit
+  // add for range analyses.
+  EXPECT_THAT(
+      f->return_value(),
+      m::ZeroExt(AllOf(m::Type("bits[5]"),
+                       m::Add(_, m::BitSlice(m::ZeroExt(AllOf(
+                                     m::Type("bits[4]"), m::Decode())))))));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,
