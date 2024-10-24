@@ -869,13 +869,15 @@ class KnownInBoundsMatcher {
 };
 
 // The known-in-bounds marker is the given value.
-KnownInBoundsMatcher KnownInBoundsIs(::testing::Matcher<bool> inner) {
+inline KnownInBoundsMatcher KnownInBoundsIs(::testing::Matcher<bool> inner) {
   return KnownInBoundsMatcher(inner);
 }
 // The known-in-bounds marker is true.
-KnownInBoundsMatcher KnownInBounds() { return KnownInBoundsIs(true); }
+inline KnownInBoundsMatcher KnownInBounds() { return KnownInBoundsIs(true); }
 // The known-in-bounds marker is false.
-KnownInBoundsMatcher NotKnownInBounds() { return KnownInBoundsIs(false); }
+inline KnownInBoundsMatcher NotKnownInBounds() {
+  return KnownInBoundsIs(false);
+}
 
 // ArrayIndex matcher. Supported forms:
 //
