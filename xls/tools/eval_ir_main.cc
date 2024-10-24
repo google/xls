@@ -95,6 +95,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
+#include "xls/tests/testvector.pb.h"
 #include "xls/tools/node_coverage_utils.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -148,6 +149,10 @@ ABSL_FLAG(std::string, top, "", "Top entity to evaluate.");
 ABSL_FLAG(std::string, input, "",
           "The input to the function as a semicolon-separated list of typed "
           "values. For example: \"bits[32]:42; (bits[7]:0, bits[20]:4)\"");
+ABSL_FLAG(std::string, testvector_textproto, "",
+          "A textproto file containing the function arguments.");
+
+// Deprecated. Soon to be removed in favor of --testvector_textproto
 ABSL_FLAG(std::string, input_file, "",
           "Inputs to interpreter, one set per line. Each line should contain a "
           "semicolon-separated set of typed values. Cannot be specified with "
@@ -544,6 +549,19 @@ absl::StatusOr<ArgSet> ArgSetFromString(std::string_view args_string) {
   return arg_set;
 }
 
+absl::StatusOr<std::vector<ArgSet>> ArgSetsFromTestvector(
+    const testvector::SampleInputsProto& testvector) {
+  if (!testvector.has_function_args()) {
+    return absl::InvalidArgumentError("Expected function_args in testvector");
+  }
+  std::vector<ArgSet> arg_sets;
+  for (std::string_view arg_line : testvector.function_args().args()) {
+    XLS_ASSIGN_OR_RETURN(ArgSet arg_set, ArgSetFromString(arg_line));
+    arg_sets.push_back(arg_set);
+  }
+  return arg_sets;
+}
+
 // Converts the given DSLX validation function into IR.
 absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
     Function* f, std::string_view dslx_stdlib_path,
@@ -640,7 +658,20 @@ absl::Status RealMain(std::string_view input_path,
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
 
   std::vector<ArgSet> arg_sets;
-  if (!absl::GetFlag(FLAGS_input).empty()) {
+  if (!absl::GetFlag(FLAGS_testvector_textproto).empty()) {
+    QCHECK_EQ(absl::GetFlag(FLAGS_random_inputs), 0)
+        << "Cannot specify both --testvector_textproto and --random_inputs";
+    QCHECK(absl::GetFlag(FLAGS_input_file).empty())
+        << "Cannot specify both --testvector_textproto and --input_file";
+    xls::testvector::SampleInputsProto data;
+    QCHECK_OK(xls::ParseTextProtoFile(absl::GetFlag(FLAGS_testvector_textproto),
+                                      &data));
+    auto arg_sets_status = ArgSetsFromTestvector(data);
+    QCHECK_OK(arg_sets_status.status())
+        << "Failed to parse testvector "
+        << absl::GetFlag(FLAGS_testvector_textproto);
+    arg_sets = arg_sets_status.value();
+  } else if (!absl::GetFlag(FLAGS_input).empty()) {
     QCHECK_EQ(absl::GetFlag(FLAGS_random_inputs), 0)
         << "Cannot specify both --input and --random_inputs";
     QCHECK(absl::GetFlag(FLAGS_input_file).empty())

@@ -212,6 +212,7 @@ cc_binary(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
+        "//xls/tests:testvector_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
