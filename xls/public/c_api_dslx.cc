@@ -131,6 +131,9 @@ xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
                          [](const xls::dslx::StructDef*) {
                            return xls_dslx_type_definition_kind_struct_def;
                          },
+                         [](const xls::dslx::ProcDef*) {
+                           return xls_dslx_type_definition_kind_proc_def;
+                         },
                          [](const xls::dslx::EnumDef*) {
                            return xls_dslx_type_definition_kind_enum_def;
                          },

@@ -230,7 +230,7 @@ class TypeInfo {
 
   struct TypeSource {
     TypeInfo* type_info;
-    std::variant<StructDef*, EnumDef*, TypeAlias*> definition;
+    std::variant<StructDef*, ProcDef*, EnumDef*, TypeAlias*> definition;
   };
 
   // Get the actual instructions which provided the given type-definition with

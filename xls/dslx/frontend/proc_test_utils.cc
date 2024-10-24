@@ -15,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -39,9 +40,11 @@ std::pair<Module, Proc*> CreateEmptyProc(FileTable& file_table,
   Scanner s(file_table, Fileno(0), absl::StrFormat(code_template, name));
   Parser parser{"test", &s};
   Bindings bindings;
-  absl::StatusOr<Proc*> proc = parser.ParseProc(/*is_public=*/false, bindings);
+  absl::StatusOr<ModuleMember> proc =
+      parser.ParseProc(/*is_public=*/false, bindings);
   CHECK(proc.ok());
-  return {std::move(parser.module()), *proc};
+  CHECK(std::holds_alternative<Proc*>(*proc));
+  return {std::move(parser.module()), std::get<Proc*>(*proc)};
 }
 
 }  // namespace xls::dslx

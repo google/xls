@@ -655,7 +655,10 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleStructDef(const StructDef* n) override {
+  // Helper function to clone a node of type `T` where `T` is a concrete
+  // subclass of `StructDefBase`.
+  template <typename T>
+  absl::Status HandleStructDefBaseInternal(const T* n) {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     std::vector<ParametricBinding*> new_parametric_bindings;
@@ -674,9 +677,9 @@ class AstCloner : public AstNodeVisitor {
     }
 
     auto* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
-    auto* new_struct_def = module_->Make<StructDef>(
-        n->span(), new_name_def, new_parametric_bindings, new_members,
-        n->is_public());
+    auto* new_struct_def =
+        module_->Make<T>(n->span(), new_name_def, new_parametric_bindings,
+                         new_members, n->is_public());
     old_to_new_[n] = new_struct_def;
 
     if (n->impl().has_value()) {
@@ -688,6 +691,14 @@ class AstCloner : public AstNodeVisitor {
     }
     new_name_def->set_definer(new_struct_def);
     return absl::OkStatus();
+  }
+
+  absl::Status HandleStructDef(const StructDef* n) override {
+    return HandleStructDefBaseInternal(n);
+  }
+
+  absl::Status HandleProcDef(const ProcDef* n) override {
+    return HandleStructDefBaseInternal(n);
   }
 
   absl::Status HandleImpl(const Impl* n) override {

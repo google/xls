@@ -243,6 +243,10 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
       if (std::get<StructDef*>(member)->identifier() == target) {
         return &member;
       }
+    } else if (std::holds_alternative<ProcDef*>(member)) {
+      if (std::get<ProcDef*>(member)->identifier() == target) {
+        return &member;
+      }
     } else if (std::holds_alternative<ConstantDef*>(member)) {
       if (std::get<ConstantDef*>(member)->identifier() == target) {
         return &member;
@@ -288,11 +292,14 @@ Module::GetTypeDefinitionByName() const {
       TypeAlias* td = std::get<TypeAlias*>(member);
       result[td->identifier()] = td;
     } else if (std::holds_alternative<EnumDef*>(member)) {
-      EnumDef* enum_ = std::get<EnumDef*>(member);
-      result[enum_->identifier()] = enum_;
+      EnumDef* enum_def = std::get<EnumDef*>(member);
+      result[enum_def->identifier()] = enum_def;
     } else if (std::holds_alternative<StructDef*>(member)) {
-      StructDef* struct_ = std::get<StructDef*>(member);
-      result[struct_->identifier()] = struct_;
+      StructDef* struct_def = std::get<StructDef*>(member);
+      result[struct_def->identifier()] = struct_def;
+    } else if (std::holds_alternative<ProcDef*>(member)) {
+      ProcDef* proc_def = std::get<ProcDef*>(member);
+      result[proc_def->identifier()] = proc_def;
     }
   }
   return result;
@@ -310,6 +317,9 @@ std::vector<TypeDefinition> Module::GetTypeDefinitions() const {
     } else if (std::holds_alternative<StructDef*>(member)) {
       StructDef* struct_def = std::get<StructDef*>(member);
       results.push_back(struct_def);
+    } else if (std::holds_alternative<ProcDef*>(member)) {
+      ProcDef* proc_def = std::get<ProcDef*>(member);
+      results.push_back(proc_def);
     }
   }
   return results;
@@ -350,6 +360,7 @@ absl::Status Module::AddTop(ModuleMember member,
           [](QuickCheck* qc) { return std::make_optional(qc->identifier()); },
           [](TypeAlias* td) { return std::make_optional(td->identifier()); },
           [](StructDef* sd) { return std::make_optional(sd->identifier()); },
+          [](ProcDef* pd) { return std::make_optional(pd->identifier()); },
           [](Impl* id) -> std::optional<std::string> { return std::nullopt; },
           [](ConstantDef* cd) { return std::make_optional(cd->identifier()); },
           [](EnumDef* ed) { return std::make_optional(ed->identifier()); },
@@ -394,6 +405,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](QuickCheck*) { return "quick-check"; },
                          [](TypeAlias*) { return "type-alias"; },
                          [](StructDef*) { return "struct-definition"; },
+                         [](ProcDef*) { return "proc-definition"; },
                          [](Impl*) { return "impl"; },
                          [](ConstantDef*) { return "constant-definition"; },
                          [](EnumDef*) { return "enum-definition"; },
@@ -410,6 +422,7 @@ bool IsPublic(const ModuleMember& member) {
                          [](const Proc* m) { return m->is_public(); },
                          [](const TypeAlias* m) { return m->is_public(); },
                          [](const StructDef* m) { return m->is_public(); },
+                         [](const ProcDef* m) { return m->is_public(); },
                          [](const Impl* m) { return m->is_public(); },
                          [](const ConstantDef* m) { return m->is_public(); },
                          [](const EnumDef* m) { return m->is_public(); },
@@ -440,6 +453,7 @@ NameDef* ModuleMemberGetNameDef(const ModuleMember& mm) {
           [](QuickCheck* n) -> NameDef* { return n->name_def(); },
           [](TypeAlias* n) -> NameDef* { return &n->name_def(); },
           [](StructDef* n) -> NameDef* { return n->name_def(); },
+          [](ProcDef* n) -> NameDef* { return n->name_def(); },
           [](Impl* n) -> NameDef* { return nullptr; },
           [](ConstantDef* n) -> NameDef* { return n->name_def(); },
           [](EnumDef* n) -> NameDef* { return n->name_def(); },

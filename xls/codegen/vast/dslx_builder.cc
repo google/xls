@@ -83,14 +83,11 @@ absl::StatusOr<bool> IsNegative(const dslx::InterpValue& value) {
 }
 
 std::string GetTypeDefName(const dslx::TypeDefinition& type_def) {
-  return absl::visit(
-      Visitor{
-          [&](const dslx::TypeAlias* n) { return n->identifier(); },
-          [&](const dslx::StructDef* n) { return n->identifier(); },
-          [&](const dslx::EnumDef* n) { return n->identifier(); },
-          [&](const dslx::ColonRef* n) { return n->ToString(); },
-      },
-      type_def);
+  return absl::visit(Visitor{
+                         [&](const dslx::ColonRef* n) { return n->ToString(); },
+                         [&](const auto* n) { return n->identifier(); },
+                     },
+                     type_def);
 }
 
 dslx::CommentData CommentAfter(const dslx::Span& span,

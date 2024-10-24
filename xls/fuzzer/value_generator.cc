@@ -268,6 +268,12 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
             return module->Make<dslx::StructInstance>(
                 fake_span, type_ref_type_annotation, members);
           },
+          [&](dslx::ProcDef* proc_def) -> absl::StatusOr<Expr*> {
+            // TODO: https://github.com/google/xls/issues/836 - Support
+            // impl-style procs.
+            return absl::InvalidArgumentError(
+                "Impl-style procs are not yet supported.");
+          },
           [&](dslx::EnumDef* enum_def) -> absl::StatusOr<Expr*> {
             const std::vector<dslx::EnumMember>& values = enum_def->values();
             int64_t value_idx =

@@ -232,6 +232,29 @@ fn main() -> MyStruct {
   XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, ProcDefAndImpl) {
+  constexpr std::string_view kProgram = R"(
+proc MyProc {
+    a: u32,
+    b: s64
+}
+
+impl MyProc {}
+)";
+
+  constexpr std::string_view kExpectedProcDef = R"(proc MyProc {
+    a: u32,
+    b: s64,
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  ProcDef* proc_def = module->GetProcDefs().at(0);
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(proc_def));
+  EXPECT_EQ(kExpectedProcDef, clone->ToString());
+}
+
 TEST(AstClonerTest, StructDefAndImpl) {
   constexpr std::string_view kProgram = R"(
 struct MyStruct {

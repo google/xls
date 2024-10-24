@@ -315,10 +315,16 @@ DslxTypeToVerilogManager::TypeAnnotationToVastType(
 
               return vast_enum_def;
             },
-            [&](ColonRef* colon_ref) -> absl::StatusOr<verilog::DataType*> {
+            [&](ColonRef*) -> absl::StatusOr<verilog::DataType*> {
               return absl::InternalError(
                   absl::StrFormat("TypeAnnotation ColonRef %s not yet "
                                   "supported by DslxTypeToVerilogManager",
+                                  type_annotation->ToString()));
+            },
+            [&](ProcDef*) -> absl::StatusOr<verilog::DataType*> {
+              return absl::InternalError(
+                  absl::StrFormat("TypeAnnotation ProcDef %s not supported by "
+                                  "DslxTypeToVerilogManager",
                                   type_annotation->ToString()));
             },
         },

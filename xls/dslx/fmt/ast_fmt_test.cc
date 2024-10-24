@@ -1991,6 +1991,14 @@ TEST_F(ModuleFmtTest, SimpleProcWithMembers) {
 )");
 }
 
+TEST_F(ModuleFmtTest, SimpleProcWithMembersImplStyle) {
+  DoFmt(
+      R"(pub proc P { foo: u32, bar: s16[2] }
+
+impl P {}
+)");
+}
+
 TEST_F(ModuleFmtTest, SimpleParametricProc) {
   DoFmt(
       R"(pub proc p<N: u32> {

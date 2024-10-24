@@ -41,7 +41,7 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Function& f) {
 }
 
 std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(
-    const StructDef& s) {
+    const StructDefBase& s) {
   verible::lsp::DocumentSymbol ds = {
       .name = s.identifier(),
       .kind = verible::lsp::SymbolKind::kStruct,
@@ -103,6 +103,7 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Module& m) {
                           return std::vector<verible::lsp::DocumentSymbol>{};
                         },
                         [](StructDef* s) { return ToDocumentSymbols(*s); },
+                        [](ProcDef* p) { return ToDocumentSymbols(*p); },
                         [](Impl*) {
                           // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};

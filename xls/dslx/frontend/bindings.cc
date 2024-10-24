@@ -106,10 +106,6 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
 
 Span BoundNodeGetSpan(BoundNode bn, FileTable& file_table) {
   return absl::visit(Visitor{
-                         [](EnumDef* n) { return n->span(); },
-                         [](TypeAlias* n) { return n->span(); },
-                         [](ConstantDef* n) { return n->span(); },
-                         [](NameDef* n) { return n->span(); },
                          [&](BuiltinNameDef* n) {
                            // Builtin name defs have no real span, so we provide
                            // a fake one here.
@@ -117,8 +113,7 @@ Span BoundNodeGetSpan(BoundNode bn, FileTable& file_table) {
                            Pos p(fileno, 0, 0);
                            return Span(p, p);
                          },
-                         [](StructDef* n) { return n->span(); },
-                         [](Import* n) { return n->span(); },
+                         [](auto* n) { return n->span(); },
                      },
                      bn);
 }
@@ -129,6 +124,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
   if (std::holds_alternative<TypeAlias*>(bn)) { return "TypeAlias"; }
   if (std::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
   if (std::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
+  if (std::holds_alternative<ProcDef*>(bn)) { return "ProcDef"; }
   if (std::holds_alternative<NameDef*>(bn)) { return "NameDef"; }
   if (std::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
   if (std::holds_alternative<Import*>(bn)) { return "Import"; }

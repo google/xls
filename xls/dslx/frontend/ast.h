@@ -96,6 +96,7 @@
   X(Param)                        \
   X(ParametricBinding)            \
   X(Proc)                         \
+  X(ProcDef)                      \
   X(ProcMember)                   \
   X(QuickCheck)                   \
   X(RestOfTuple)                  \
@@ -1170,7 +1171,7 @@ class ConstantArray : public Array {
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
 using TypeDefinition =
-    std::variant<TypeAlias*, StructDef*, EnumDef*, ColonRef*>;
+    std::variant<TypeAlias*, StructDef*, ProcDef*, EnumDef*, ColonRef*>;
 
 // Returns the name definition that (most locally) defined this type definition
 // AST node.
@@ -2301,6 +2302,11 @@ class StructDefBase : public AstNode {
 
   virtual ~StructDefBase();
 
+  // Returns a string for what to call the type of entity represented by this
+  // `StructDefBase` in error messages such as "A %s can't have two members with
+  // the same name."
+  virtual std::string_view EntityTypeStringForErrorMessages() const = 0;
+
   bool IsParametric() const { return !parametric_bindings_.empty(); }
 
   const std::string& identifier() const { return name_def_->identifier(); }
@@ -2367,6 +2373,10 @@ class StructDef : public StructDefBase {
 
   std::string_view GetNodeTypeName() const override { return "Struct"; }
 
+  std::string_view EntityTypeStringForErrorMessages() const override {
+    return "struct";
+  }
+
   std::string ToString() const override;
 
   void set_extern_type_name(std::string_view n) {
@@ -2380,6 +2390,34 @@ class StructDef : public StructDefBase {
   // The external verilog type name
   std::optional<std::string> extern_type_name_;
 };
+
+// Represents a proc declared with struct-like syntax, with the functions in an
+// impl.
+class ProcDef : public StructDefBase {
+ public:
+  using StructDefBase::StructDefBase;
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleProcDef(this);
+  }
+
+  AstNodeKind kind() const override { return AstNodeKind::kProcDef; }
+
+  std::string_view GetNodeTypeName() const override { return "ProcDef"; }
+
+  std::string_view EntityTypeStringForErrorMessages() const override {
+    return "proc";
+  }
+
+  std::string ToString() const override;
+};
+
+// Gets the `StructDefBase` contained in a `TypeDefinition` if it contains one.
+inline std::optional<StructDefBase*> TypeDefinitionToStructDefBase(
+    TypeDefinition def) {
+  auto* result = dynamic_cast<StructDefBase*>(ToAstNode(def));
+  return result == nullptr ? std::nullopt : std::make_optional(result);
+}
 
 // Represents an impl for a struct.
 class Impl : public AstNode {

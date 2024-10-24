@@ -676,6 +676,9 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
     if (std::holds_alternative<StructDef*>(type_def)) {
       return std::get<StructDef*>(type_def)->Accept(this);
     }
+    if (std::holds_alternative<ProcDef*>(type_def)) {
+      return std::get<ProcDef*>(type_def)->Accept(this);
+    }
     if (std::holds_alternative<EnumDef*>(type_def)) {
       return std::get<EnumDef*>(type_def)->Accept(this);
     }
@@ -688,13 +691,11 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleStructDef(const StructDef* struct_def) override {
-    for (const StructMember& member : struct_def->members()) {
-      if (token_found_) {
-        break;
-      }
-      XLS_RETURN_IF_ERROR(member.type->Accept(this));
-    }
-    return absl::OkStatus();
+    return HandleStructDefBaseInternal(struct_def);
+  }
+
+  absl::Status HandleProcDef(const ProcDef* proc_def) override {
+    return HandleStructDefBaseInternal(proc_def);
   }
 
   absl::Status HandleEnumDef(const EnumDef* enum_def) override {
@@ -706,6 +707,16 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
+  absl::Status HandleStructDefBaseInternal(const StructDefBase* struct_def) {
+    for (const StructMember& member : struct_def->members()) {
+      if (token_found_) {
+        break;
+      }
+      XLS_RETURN_IF_ERROR(member.type->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
   bool token_found_ = false;
 };
 

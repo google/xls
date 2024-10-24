@@ -158,6 +158,7 @@ absl::StatusOr<TypeDefinition> BoundNodeToTypeDefinition(BoundNode bn) {
   // clang-format off
   if (auto* e = TryGet<TypeAlias*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<StructDef*>(bn)) { return TypeDefinition(e); }
+  if (auto* e = TryGet<ProcDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<EnumDef*>(bn)) { return TypeDefinition(e); }
   // clang-format on
 
@@ -304,8 +305,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       }
 
       if (peek->IsKeyword(Keyword::kProc)) {
-        XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
-                                              /*is_public=*/true, *bindings));
+        XLS_ASSIGN_OR_RETURN(ModuleMember proc,
+                             ParseProc(
+                                 /*is_public=*/true, *bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(proc, make_collision_error));
         continue;
       }
@@ -366,35 +368,16 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
           ParseAttribute(&name_to_fn, *bindings, hash->span().start()));
       XLS_RETURN_IF_ERROR(absl::visit(
           Visitor{
-              [&](TestFunction* t) {
-                return module_->AddTop(t, make_collision_error);
-              },
-              [&](Function* f) {
-                return module_->AddTop(f, make_collision_error);
-              },
-              [&](TestProc* tp) {
-                return module_->AddTop(tp, make_collision_error);
-              },
-              [&](QuickCheck* qc) {
-                return module_->AddTop(qc, make_collision_error);
-              },
+              [&](auto* t) { return module_->AddTop(t, make_collision_error); },
               [&](TypeDefinition def) {
                 return absl::visit(
-                    Visitor{
-                        [&](ColonRef* c) {
-                          return absl::InternalError(
-                              "colon-ref annotated with attribute");
-                        },
-                        [&](TypeAlias* t) {
-                          return module_->AddTop(t, make_collision_error);
-                        },
-                        [&](StructDef* t) {
-                          return module_->AddTop(t, make_collision_error);
-                        },
-                        [&](EnumDef* t) {
-                          return module_->AddTop(t, make_collision_error);
-                        },
-                    },
+                    Visitor{[&](ColonRef* c) {
+                              return absl::InternalError(
+                                  "colon-ref annotated with attribute");
+                            },
+                            [&](auto* t) {
+                              return module_->AddTop(t, make_collision_error);
+                            }},
                     def);
               },
               [&](std::nullptr_t) { return absl::OkStatus(); },
@@ -435,8 +418,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kProc: {
-        XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
-                                              /*is_public=*/false, *bindings));
+        XLS_ASSIGN_OR_RETURN(ModuleMember proc,
+                             ParseProc(
+                                 /*is_public=*/false, *bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(proc, make_collision_error));
         break;
       }
@@ -758,7 +742,7 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(
       BoundNode type_def,
       bindings.ResolveNodeOrError(*tok.GetValue(), tok.span(), file_table()));
-  if (!IsOneOf<TypeAlias, EnumDef, StructDef>(ToAstNode(type_def))) {
+  if (!IsOneOf<TypeAlias, EnumDef, StructDef, ProcDef>(ToAstNode(type_def))) {
     return ParseErrorStatus(
         tok.span(),
         absl::StrFormat(
@@ -2451,10 +2435,22 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   return init;
 }
 
+std::vector<StructMember> ConvertProcMembersToStructMembers(
+    const std::vector<ProcMember*>& proc_members) {
+  std::vector<StructMember> struct_members;
+  struct_members.reserve(proc_members.size());
+  for (ProcMember* proc_member : proc_members) {
+    struct_members.push_back(StructMember{proc_member->span(),
+                                          proc_member->identifier(),
+                                          proc_member->type_annotation()});
+  }
+  return struct_members;
+}
+
 template <typename T>
-absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
-                                         Bindings& outer_bindings,
-                                         Keyword keyword) {
+absl::StatusOr<ModuleMember> Parser::ParseProcLike(bool is_public,
+                                                   Bindings& outer_bindings,
+                                                   Keyword keyword) {
   XLS_ASSIGN_OR_RETURN(Token leading_token, PopKeywordOrError(keyword));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
 
@@ -2507,6 +2503,8 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
       .init = nullptr,
   };
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  std::optional<const Token*> first_semi_separator;
+  std::optional<const Token*> first_comma_separator;
   while (peek->kind() != TokenKind::kCBrace) {
     if (peek->IsKeyword(Keyword::kType)) {
       XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
@@ -2599,10 +2597,25 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
         // binding into the proc-level bindings.
         XLS_ASSIGN_OR_RETURN(ProcMember * member,
                              ParseProcMember(member_bindings, identifier_tok));
-        XLS_RETURN_IF_ERROR(
-            DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
-                             "Expected a ';' after proc member"));
-
+        XLS_ASSIGN_OR_RETURN(const Token* separator, PeekToken());
+        if (!separator->IsKindIn(
+                {TokenKind::kSemi, TokenKind::kComma, TokenKind::kCBrace})) {
+          return ParseErrorStatus(
+              separator->span(),
+              absl::StrCat("Expected a ';' or ',' after proc member, got: ",
+                           separator->ToString()));
+        }
+        if (!first_comma_separator.has_value() &&
+            separator->kind() == TokenKind::kComma) {
+          first_comma_separator = separator;
+        }
+        if (!first_semi_separator.has_value() &&
+            separator->kind() == TokenKind::kSemi) {
+          first_semi_separator = separator;
+        }
+        if (separator->kind() != TokenKind::kCBrace) {
+          CHECK_OK(DropToken());
+        }
         proc_like_body.members.push_back(member);
         proc_like_body.stmts.push_back(member);
       } else if (identifier_tok.IsIdentifier(kConstAssertIdentifier)) {
@@ -2628,23 +2641,49 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
     XLS_ASSIGN_OR_RETURN(peek, PeekToken());
   }
 
-  if (proc_like_body.config == nullptr || proc_like_body.next == nullptr ||
-      proc_like_body.init == nullptr) {
-    std::vector<std::string_view> missing;
-    if (proc_like_body.init == nullptr) {
-      missing.push_back("\"init\"");
-    }
-    if (proc_like_body.config == nullptr) {
-      missing.push_back("\"config\"");
-    }
-    if (proc_like_body.next == nullptr) {
-      missing.push_back("\"next\"");
-    }
+  const bool has_any_functions = proc_like_body.config != nullptr ||
+                                 proc_like_body.next != nullptr ||
+                                 proc_like_body.init != nullptr;
+  std::vector<std::string_view> missing_functions;
+  if (proc_like_body.init == nullptr) {
+    missing_functions.push_back("`init`");
+  }
+  if (proc_like_body.config == nullptr) {
+    missing_functions.push_back("`config`");
+  }
+  if (proc_like_body.next == nullptr) {
+    missing_functions.push_back("`next`");
+  }
+  if (has_any_functions && !missing_functions.empty()) {
     return ParseErrorStatus(
         Span(leading_token.span().start(), GetPos()),
-        absl::StrFormat("Procs must define \"init\", \"config\" and \"next\" "
+        absl::StrFormat("Procs must define `init`, `config` and `next` "
                         "functions; missing: %s.",
-                        absl::StrJoin(missing, ", ")));
+                        absl::StrJoin(missing_functions, ", ")));
+  }
+
+  XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
+  const Span span(leading_token.span().start(), cbrace.span().limit());
+  const Span body_span(obrace_pos, cbrace.span().limit());
+
+  if (!has_any_functions) {
+    if (first_semi_separator.has_value()) {
+      return ParseErrorStatus(
+          (*first_semi_separator)->span(),
+          "Impl-style procs must use commas to separate members.");
+    }
+    // Assume this is an impl-style proc and return a `ProcDef` for it.
+    ProcDef* proc_def = module_->Make<ProcDef>(
+        span, name_def, std::move(parametric_bindings),
+        ConvertProcMembersToStructMembers(proc_like_body.members), is_public);
+    outer_bindings.Add(name_def->identifier(), proc_def);
+    return proc_def;
+  }
+
+  if (first_comma_separator.has_value()) {
+    return ParseErrorStatus(
+        (*first_comma_separator)->span(),
+        "Non-impl-style procs must use semicolons to separate members.");
   }
 
   // Just as with proc member decls, we need the init fn to have its own return
@@ -2657,9 +2696,6 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
       down_cast<TypeAnnotation*>(init_return_type));
   proc_like_body.init->SetParentage();
 
-  XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
-  const Span span(leading_token.span().start(), cbrace.span().limit());
-  const Span body_span(obrace_pos, cbrace.span().limit());
   auto* proc_like = module_->Make<T>(span, body_span, name_def,
                                      std::move(parametric_bindings),
                                      proc_like_body, is_public);
@@ -2674,8 +2710,8 @@ absl::StatusOr<T*> Parser::ParseProcLike(bool is_public,
   return proc_like;
 }
 
-absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
-                                        Bindings& outer_bindings) {
+absl::StatusOr<ModuleMember> Parser::ParseProc(bool is_public,
+                                               Bindings& outer_bindings) {
   return ParseProcLike<Proc>(is_public, outer_bindings, Keyword::kProc);
 }
 
@@ -3087,13 +3123,12 @@ absl::StatusOr<Impl*> Parser::ParseImpl(bool is_public, Bindings& bindings) {
   if (type_ref == nullptr) {
     return wrong_type_error;
   }
-  if (!std::holds_alternative<StructDef*>(
-          type_ref->type_ref()->type_definition())) {
+  std::optional<StructDefBase*> struct_def =
+      TypeDefinitionToStructDefBase(type_ref->type_ref()->type_definition());
+  if (!struct_def.has_value()) {
     return wrong_type_error;
   }
-  StructDef* struct_def =
-      std::get<StructDef*>(type_ref->type_ref()->type_definition());
-  if (struct_def->impl().has_value()) {
+  if ((*struct_def)->impl().has_value()) {
     return ParseErrorStatus(
         type->span(), "'impl' can only be defined once for a given 'struct'");
   }
@@ -3120,7 +3155,7 @@ absl::StatusOr<Impl*> Parser::ParseImpl(bool is_public, Bindings& bindings) {
   }
   Span span(start_pos, GetPos());
   auto* impl = module_->Make<Impl>(span, type, std::move(constants), is_public);
-  struct_def->set_impl(impl);
+  (*struct_def)->set_impl(impl);
   return impl;
 }
 
@@ -3350,7 +3385,17 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
 }
 
 absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(Proc * p, ParseProc(/*is_public=*/false, bindings));
+  XLS_ASSIGN_OR_RETURN(ModuleMember m,
+                       ParseProc(/*is_public=*/false, bindings));
+  if (!std::holds_alternative<Proc*>(m)) {
+    // TODO: https://github.com/google/xls/issues/836 - Support `ProcDef` here.
+    ProcDef* proc_def = std::get<ProcDef*>(m);
+    return ParseErrorStatus(
+        proc_def->span(),
+        absl::StrCat("Test proc with impl is not yet supported at ",
+                     proc_def->GetSpan()->ToString(file_table())));
+  }
+  Proc* p = std::get<Proc*>(m);
   if (std::optional<ModuleMember*> member =
           module_->FindMemberWithName(p->identifier())) {
     return ParseErrorStatus(

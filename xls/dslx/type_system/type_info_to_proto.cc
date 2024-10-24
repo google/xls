@@ -151,6 +151,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_ENUM_DEF;
     case AstNodeKind::kStructDef:
       return AST_NODE_KIND_STRUCT_DEF;
+    case AstNodeKind::kProcDef:
+      return AST_NODE_KIND_PROC_DEF;
     case AstNodeKind::kQuickCheck:
       return AST_NODE_KIND_QUICK_CHECK;
     case AstNodeKind::kXlsTuple:
@@ -740,6 +742,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kEnumDef;
     case AST_NODE_KIND_STRUCT_DEF:
       return AstNodeKind::kStructDef;
+    case AST_NODE_KIND_PROC_DEF:
+      return AstNodeKind::kProcDef;
     case AST_NODE_KIND_QUICK_CHECK:
       return AstNodeKind::kQuickCheck;
     case AST_NODE_KIND_XLS_TUPLE:

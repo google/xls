@@ -285,6 +285,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "enum definition";
     case AstNodeKind::kStructDef:
       return "struct definition";
+    case AstNodeKind::kProcDef:
+      return "proc definition";
     case AstNodeKind::kQuickCheck:
       return "quick-check";
     case AstNodeKind::kXlsTuple:
@@ -322,6 +324,7 @@ AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
       Visitor{
           [](TypeAlias* n) -> AnyNameDef { return &n->name_def(); },
           [](StructDef* n) -> AnyNameDef { return n->name_def(); },
+          [](ProcDef* n) -> AnyNameDef { return n->name_def(); },
           [](EnumDef* n) -> AnyNameDef { return n->name_def(); },
           [](ColonRef* n) -> AnyNameDef {
             return GetSubjectNameDef(n->subject());
@@ -746,6 +749,7 @@ TypeRef::TypeRef(Module* owner, Span span, TypeDefinition type_definition)
 std::string TypeRef::ToString() const {
   return absl::visit(Visitor{[&](TypeAlias* n) { return n->identifier(); },
                              [&](StructDef* n) { return n->identifier(); },
+                             [&](ProcDef* n) { return n->identifier(); },
                              [&](EnumDef* n) { return n->identifier(); },
                              [&](ColonRef* n) { return n->ToString(); }},
                      type_definition_);
@@ -1331,6 +1335,12 @@ std::optional<ConstantDef*> StructDefBase::GetImplConstant(
 std::string StructDef::ToString() const {
   return ToStringWithEntityKeywordAndAttribute(
       "struct", MakeExternTypeAttr(extern_type_name_));
+}
+
+// -- class ProcDef
+
+std::string ProcDef::ToString() const {
+  return ToStringWithEntityKeywordAndAttribute("proc");
 }
 
 // -- class Impl

@@ -436,6 +436,11 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
             return WidenVariantTo<ColonRefSubjectT>(resolved);
           },
           [](StructDef* struct_def) -> ReturnT { return struct_def; },
+          [](ProcDef* proc_def) -> ReturnT {
+            // TODO: https://github.com/google/xls/issues/836 - Support this.
+            LOG(FATAL)
+                << "Type deduction for impl-style procs is not yet supported.";
+          },
           [](EnumDef* enum_def) -> ReturnT { return enum_def; },
           [](ColonRef* colon_ref) -> ReturnT { return colon_ref; },
       },
@@ -566,6 +571,11 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
             [&](StructDef* n) -> absl::Status {  // Done dereferencing.
               retval = n;
               return absl::OkStatus();
+            },
+            [&](ProcDef* n) -> absl::Status {
+              // TODO: https://github.com/google/xls/issues/836 - Support this.
+              return absl::InvalidArgumentError(
+                  "Type deduction for impl-style procs is not yet supported.");
             },
             [&](TypeAlias* type_alias) -> absl::Status {
               TypeAnnotation& annotation = type_alias->type_annotation();

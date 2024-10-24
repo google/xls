@@ -90,7 +90,7 @@ class Parser : public TokenParser {
       bool is_public, Bindings& bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
-  absl::StatusOr<Proc*> ParseProc(bool is_public, Bindings& bindings);
+  absl::StatusOr<ModuleMember> ParseProc(bool is_public, Bindings& bindings);
 
   absl::StatusOr<std::unique_ptr<Module>> ParseModule(
       Bindings* bindings = nullptr);
@@ -605,10 +605,13 @@ class Parser : public TokenParser {
       Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       std::string_view proc_name, bool is_public);
 
-  // Parses a proc-like entity (i.e. either a Proc or a Block).
+  // Parses a proc-like entity (i.e. either a Proc or a Block). This will yield
+  // a node of type `T` unless the entity parsed is actually an impl-style
+  // `ProcDef`.
   template <typename T>
-  absl::StatusOr<T*> ParseProcLike(bool is_public, Bindings& outer_bindings,
-                                   Keyword keyword);
+  absl::StatusOr<ModuleMember> ParseProcLike(bool is_public,
+                                             Bindings& outer_bindings,
+                                             Keyword keyword);
 
   std::unique_ptr<Module> module_;
 

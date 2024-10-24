@@ -37,6 +37,7 @@ enum {
   xls_dslx_type_definition_kind_struct_def,
   xls_dslx_type_definition_kind_enum_def,
   xls_dslx_type_definition_kind_colon_ref,
+  xls_dslx_type_definition_kind_proc_def,
 };
 
 // Opaque structs.

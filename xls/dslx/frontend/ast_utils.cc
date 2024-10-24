@@ -134,6 +134,7 @@ absl::StatusOr<StructDef*> ResolveLocalStructDef(TypeDefinition td) {
             return ResolveLocalStructDef(&n->type_annotation(), td);
           },
           [&](StructDef* n) -> absl::StatusOr<StructDef*> { return n; },
+          [&](ProcDef* n) -> absl::StatusOr<StructDef*> { return error(n); },
           [&](EnumDef* n) -> absl::StatusOr<StructDef*> { return error(n); },
           [&](ColonRef* n) -> absl::StatusOr<StructDef*> { return error(n); },
       },

@@ -820,6 +820,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
             },
             [](TypeAlias*) { return absl::OkStatus(); },
             [](StructDef*) { return absl::OkStatus(); },
+            [](ProcDef*) { return absl::OkStatus(); },
             [](Impl*) {
               return absl::UnimplementedError("impl not yet implemented");
             },

@@ -1909,6 +1909,13 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstRef(const ConstRef* node,
   return type;
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceProcDef(const ProcDef* node,
+                                                    DeduceCtx* ctx) {
+  // TODO: https://github.com/google/xls/issues/836 - Support this.
+  return absl::InvalidArgumentError(
+      "Type deduction for impl-style procs is not yet supported.");
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceImpl(const Impl* node,
                                                  DeduceCtx* ctx) {
   VLOG(5) << "DeduceImpl: " << node->ToString();
@@ -1964,6 +1971,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Cast, DeduceCast)
   DEDUCE_DISPATCH(ConstAssert, DeduceConstAssert)
   DEDUCE_DISPATCH(StructDef, DeduceStructDef)
+  DEDUCE_DISPATCH(ProcDef, DeduceProcDef)
   DEDUCE_DISPATCH(Impl, DeduceImpl)
   DEDUCE_DISPATCH(Array, DeduceArray)
   DEDUCE_DISPATCH(Attr, DeduceAttr)
