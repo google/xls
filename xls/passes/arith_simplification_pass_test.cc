@@ -514,6 +514,67 @@ TEST_F(ArithSimplificationPassTest, MulBy42) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
+TEST_F(ArithSimplificationPassTest, MulBy5) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=5)
+        ret result: bits[8] = umul(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Param("x"),
+                     m::Concat(m::BitSlice(m::Param("x")), m::Literal(0, 2))));
+}
+
+TEST_F(ArithSimplificationPassTest, MulBy6) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=6)
+        ret result: bits[8] = umul(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Concat(m::BitSlice(m::Param("x")), m::Literal(0, 1)),
+                     m::Concat(m::BitSlice(m::Param("x")), m::Literal(0, 2))));
+}
+
+TEST_F(ArithSimplificationPassTest, MulBy7) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=7)
+        ret result: bits[8] = umul(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f, kProverTimeout);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Sub(m::Concat(m::BitSlice(m::Param("x")), m::Literal(0, 3)),
+                     m::Param("x")));
+}
+
+TEST_F(ArithSimplificationPassTest, MulBy11) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK(ParseFunction(R"(
+     fn mul_zero(x:bits[8]) -> bits[8] {
+        literal.1: bits[8] = literal(value=11)
+        ret result: bits[8] = umul(x, literal.1)
+     }
+  )",
+                              p.get())
+                    .status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_F(ArithSimplificationPassTest, SMulBy1SignExtendedResult) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1775,7 +1836,7 @@ TEST_F(ArithSimplificationPassTest, UMulCompareOverflow) {
   BValue x = fb.Param("x", p->GetBitsType(3));
   // This can overflow which makes getting the inverse more difficult.
   // TODO(allight): It might be nice to do this when we can.
-  fb.Eq(fb.Literal(UBits(1, 3)), fb.UMul(x, fb.Literal(UBits(5, 3)), 3));
+  fb.Eq(fb.Literal(UBits(1, 8)), fb.UMul(x, fb.Literal(UBits(170, 8)), 8));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
@@ -1787,12 +1848,13 @@ TEST_F(ArithSimplificationPassTest, UMulCompareZero) {
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(3));
   // Make sure that x*<foo> == 0 is x == 0
-  fb.Eq(fb.Literal(UBits(0, 6)), fb.UMul(x, fb.Literal(UBits(5, 3)), 6));
+  fb.Eq(fb.Literal(UBits(0, 6)), fb.UMul(x, fb.Literal(UBits(7, 3)), 6));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::Eq(x.node(), m::Literal(UBits(0, 3))));
+  EXPECT_THAT(f->return_value(), m::Eq(x.node(), m::Literal(UBits(0, 3))))
+      << f->DumpIr();
 }
 
 TEST_F(ArithSimplificationPassTest, UMulMulAndCompareZero) {

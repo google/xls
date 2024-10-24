@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -42,6 +41,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
@@ -1417,6 +1417,110 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     return true;
   }
 
+  if ((n->OpIn({Op::kSMul, Op::kUMul})) &&
+      query_engine.IsFullyKnown(n->operand(1))) {
+    const Bits rhs = *query_engine.KnownValueAsBits(n->operand(1));
+    int64_t pop_count = rhs.PopCount();
+
+    if (pop_count == 0) {
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
+      return true;
+    }
+
+    // Position of the last leading zero
+    const int64_t llz = rhs.bit_count() - rhs.CountLeadingZeros();
+    const Bits rhs_complement = bits_ops::Sub(
+        llz < rhs.bit_count() ? Bits::PowerOfTwo(llz, rhs.bit_count())
+                              : Bits(rhs.bit_count()),
+        rhs);
+
+    const int64_t adders = pop_count - 1;
+    const int64_t complement_adders = rhs_complement.PopCount();
+
+    constexpr int64_t kAdderLimit = 1;
+
+    const bool is_signed = n->op() == Op::kSMul;
+    if (adders <= kAdderLimit && adders <= complement_adders &&
+        SplitsEnabled(opt_level) &&
+        (!is_signed || bits_ops::SGreaterThan(rhs, 0))) {
+      VLOG(2) << "FOUND: mul by positive literal with " << rhs.PopCount()
+              << " bits set (" << rhs.ToDebugString() << ")";
+      Node* result = nullptr;
+      XLS_ASSIGN_OR_RETURN(
+          Node * adjusted_lhs,
+          NarrowOrExtend(n->operand(0), is_signed, n->BitCountOrDie()));
+      for (int64_t i = 0; i < rhs.bit_count(); ++i) {
+        if (!rhs.Get(i)) {
+          continue;
+        }
+        Node* shifted_input;
+        if (i > 0) {
+          XLS_ASSIGN_OR_RETURN(Node * shift_amount,
+                               n->function_base()->MakeNode<Literal>(
+                                   n->loc(), Value(UBits(i, rhs.bit_count()))));
+          XLS_ASSIGN_OR_RETURN(
+              shifted_input,
+              n->function_base()->MakeNode<BinOp>(n->loc(), adjusted_lhs,
+                                                  shift_amount, Op::kShll));
+        } else {
+          shifted_input = adjusted_lhs;
+        }
+        if (result == nullptr) {
+          result = shifted_input;
+        } else {
+          XLS_ASSIGN_OR_RETURN(result,
+                               n->function_base()->MakeNode<BinOp>(
+                                   n->loc(), result, shifted_input, Op::kAdd));
+        }
+      }
+      CHECK_NE(result, nullptr);
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(result));
+      return true;
+    }
+
+    if (complement_adders <= kAdderLimit && SplitsEnabled(opt_level) &&
+        (!is_signed || bits_ops::SGreaterThan(rhs, 0))) {
+      VLOG(2) << "FOUND: mul by positive literal with "
+              << rhs_complement.PopCount() << " bit(s) set in its complement ("
+              << rhs_complement.ToDebugString() << ")";
+      // The RHS can be written as (1 << llz) - K, where K has fewer than
+      // kAdderLimit bits set.
+      XLS_ASSIGN_OR_RETURN(
+          Node * adjusted_lhs,
+          NarrowOrExtend(n->operand(0), is_signed, n->BitCountOrDie()));
+      XLS_ASSIGN_OR_RETURN(Node * large_shift_amount,
+                           n->function_base()->MakeNode<Literal>(
+                               n->loc(), Value(UBits(llz, rhs.bit_count()))));
+      XLS_ASSIGN_OR_RETURN(Node * base, n->function_base()->MakeNode<BinOp>(
+                                            n->loc(), adjusted_lhs,
+                                            large_shift_amount, Op::kShll));
+      Node* complement = nullptr;
+      for (int64_t i = 0; i < rhs_complement.bit_count(); ++i) {
+        if (!rhs_complement.Get(i)) {
+          continue;
+        }
+        XLS_ASSIGN_OR_RETURN(Node * shift_amount,
+                             n->function_base()->MakeNode<Literal>(
+                                 n->loc(), Value(UBits(i, rhs.bit_count()))));
+        XLS_ASSIGN_OR_RETURN(
+            Node * shifted_input,
+            n->function_base()->MakeNode<BinOp>(n->loc(), adjusted_lhs,
+                                                shift_amount, Op::kShll));
+        if (complement == nullptr) {
+          complement = shifted_input;
+        } else {
+          XLS_ASSIGN_OR_RETURN(
+              complement, n->function_base()->MakeNode<BinOp>(
+                              n->loc(), complement, shifted_input, Op::kAdd));
+        }
+      }
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<BinOp>(base, complement, Op::kSub).status());
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -1425,9 +1529,24 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
-  return TransformNodesToFixedPoint(f, [this](Node* n) {
-    return MatchArithPatterns(opt_level_, n, StatelessQueryEngine());
-  });
+  bool changed = false;
+  bool pass_changed = false;
+  do {
+    pass_changed = false;
+    for (Node* n : ReverseTopoSort(f)) {
+      if (n->IsDead()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          bool node_changed,
+          MatchArithPatterns(opt_level_, n, StatelessQueryEngine()));
+      if (node_changed) {
+        pass_changed = true;
+      }
+    }
+    changed |= pass_changed;
+  } while (pass_changed);
+  return changed;
 }
 
 REGISTER_OPT_PASS(ArithSimplificationPass, pass_config::kOptLevel);
