@@ -75,6 +75,16 @@ jobs:
             bazel run -c opt $target -- --logtostderr;
           done
 
+      - name: Build and run verilog simulation of the ZSTD module components (opt)
+        if: ${{ !cancelled() }}
+        run: |
+          for target in $(bazel query 'filter(".*_cocotb_test$", kind(rule, //xls/modules/zstd/...))');
+          do
+            echo "running $target";
+            bazel run -c opt $target;
+            find sim_build ! -name "*.fst" -type f -exec rm -f {} +;
+          done
+
       - name: Build ZSTD place and route targets (opt)
         if: ${{ !cancelled() }}
         run: |
