@@ -20,8 +20,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/log_severity.h"
+#include "absl/log/scoped_mock_log.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/scoped_vlog_level.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
@@ -42,12 +45,14 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using ::absl::ScopedMockLog;
 using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Contains;
+using ::testing::HasSubstr;
 
 // The test is parameterized on whether to use range analysis or not.
 class NarrowingPassTestBase : public IrTestBase {
@@ -66,7 +71,7 @@ class NarrowingPassTestBase : public IrTestBase {
 
 class NarrowingPassTest
     : public NarrowingPassTestBase,
-      public testing::WithParamInterface<NarrowingPass::AnalysisType> {
+      public ::testing::WithParamInterface<NarrowingPass::AnalysisType> {
  protected:
   NarrowingPass::AnalysisType analysis() const override { return GetParam(); }
 };
@@ -1417,12 +1422,32 @@ TEST_P(NarrowingPassTest, FullNegativeNarrow) {
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
 }
 
+TEST_P(NarrowingPassTest, AnalysisLogOutput) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Add(fb.ZeroExtend(fb.Param("foo", p->GetBitsType(8)), 128),
+         fb.Literal(UBits(1, 128)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedSetVlogLevel vlog("narrowing_pass", 3);
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ScopedMockLog log;
+  EXPECT_CALL(
+      log, Log(absl::LogSeverity::kInfo, _, HasSubstr("literal shrinkable")));
+  log.StartCapturingLogs();
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  log.StopCapturingLogs();
+  EXPECT_THAT(f->return_value(),
+              m::ZeroExt(m::Add(m::BitSlice(m::ZeroExt(m::Param("foo"))),
+                                m::BitSlice(m::Literal()))));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
-    testing::Values(NarrowingPass::AnalysisType::kTernary,
-                    NarrowingPass::AnalysisType::kRange,
-                    NarrowingPass::AnalysisType::kRangeWithContext),
-    testing::PrintToStringParamName());
+    ::testing::Values(NarrowingPass::AnalysisType::kTernary,
+                      NarrowingPass::AnalysisType::kRange,
+                      NarrowingPass::AnalysisType::kRangeWithContext),
+    ::testing::PrintToStringParamName());
 
 }  // namespace
 }  // namespace xls

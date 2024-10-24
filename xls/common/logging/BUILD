@@ -91,3 +91,10 @@ cc_binary(
         "@com_google_absl//absl/log:vlog_is_on",
     ],
 )
+
+cc_library(
+    name = "scoped_vlog_level",
+    hdrs = ["scoped_vlog_level.h"],
+    visibility = ["//xls:xls_internal"],
+    deps = ["@com_google_absl//absl/log:globals"],
+)

@@ -1668,13 +1668,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   bool changed_ = false;
 };
 
-}  // namespace
-
-template <typename RangeEngine>
-static void RangeAnalysisLog(FunctionBase* f,
-                             const TernaryQueryEngine& ternary_query_engine,
-                             const RangeEngine& range_query_engine) {
-  int64_t bits_saved = 0;
+void AnalysisLog(FunctionBase* f, const QueryEngine& query_engine) {
+  VLOG(3) << "narrowing pass: Preliminary analysis prediction for : "
+          << f->name();
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> parents_map;
 
   for (Node* node : f->nodes()) {
@@ -1686,7 +1682,7 @@ static void RangeAnalysisLog(FunctionBase* f,
   StatelessQueryEngine stateless_query_engine;
   for (Node* node : f->nodes()) {
     if (node->GetType()->IsBits()) {
-      IntervalSet intervals = range_query_engine.GetIntervals(node).Get({});
+      IntervalSet intervals = query_engine.GetIntervals(node).Get({});
       int64_t current_size = node->BitCountOrDie();
       Bits compressed_total(current_size + 1);
       for (const Interval& interval : intervals.Intervals()) {
@@ -1703,7 +1699,7 @@ static void RangeAnalysisLog(FunctionBase* f,
         for (Node* parent : parents_map[node]) {
           parents.push_back(parent->ToString());
         }
-        VLOG(3) << "narrowing_pass: " << OpToString(node->op())
+        VLOG(3) << "  narrowing_pass: " << OpToString(node->op())
                 << " shrinkable: " << "current size = " << current_size << "; "
                 << "compressed size = " << compressed_size << "; "
                 << "convex hull size = " << hull_size << "; " << "parents = ["
@@ -1715,8 +1711,7 @@ static void RangeAnalysisLog(FunctionBase* f,
         if (!operand->GetType()->IsBits()) {
           break;
         }
-        IntervalSet intervals =
-            range_query_engine.GetIntervals(operand).Get({});
+        IntervalSet intervals = query_engine.GetIntervals(operand).Get({});
         intervals.Normalize();
         if (!intervals.IsMaximal()) {
           inputs_all_maximal = false;
@@ -1724,51 +1719,21 @@ static void RangeAnalysisLog(FunctionBase* f,
         }
       }
       if (!inputs_all_maximal &&
-          range_query_engine.GetIntervals(node).Get({}).IsMaximal()) {
-        VLOG(3) << "narrowing_pass: range analysis lost precision for " << node
-                << "\n";
-      }
-
-      if (ternary_query_engine.IsTracked(node) &&
-          range_query_engine.IsTracked(node)) {
-        std::optional<LeafTypeTree<TernaryVector>> ternary_result =
-            ternary_query_engine.GetTernary(node);
-        std::optional<LeafTypeTree<TernaryVector>> range_result =
-            range_query_engine.GetTernary(node);
-        TernaryVector ternary_vec =
-            ternary_result.has_value()
-                ? ternary_result->Get({})
-                : TernaryVector(node->BitCountOrDie(), TernaryValue::kUnknown);
-        TernaryVector range_vec =
-            range_result.has_value()
-                ? range_result->Get({})
-                : TernaryVector(node->BitCountOrDie(), TernaryValue::kUnknown);
-        std::optional<TernaryVector> difference =
-            ternary_ops::Difference(range_vec, ternary_vec);
-        CHECK(difference.has_value())
-            << "Inconsistency detected in node: " << node->GetName();
-        bits_saved += ternary_ops::NumberOfKnownBits(difference.value());
+          query_engine.GetIntervals(node).Get({}).IsMaximal()) {
+        VLOG(3) << "  narrowing_pass: range analysis lost precision for "
+                << node << "\n";
       }
     }
   }
-
-  if (bits_saved != 0) {
-    VLOG(3) << "narrowing_pass: range analysis saved " << bits_saved
-            << " bits in " << f << "\n";
-  }
 }
 
-static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
+absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     FunctionBase* f, AnalysisType analysis) {
   std::unique_ptr<QueryEngine> query_engine;
   if (analysis == AnalysisType::kRangeWithContext) {
     auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
     auto range_query_engine =
         std::make_unique<ContextSensitiveRangeQueryEngine>();
-
-    if (VLOG_IS_ON(3)) {
-      RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
-    }
 
     std::vector<std::unique_ptr<QueryEngine>> engines;
     engines.push_back(std::make_unique<StatelessQueryEngine>());
@@ -1778,10 +1743,6 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
   } else if (analysis == AnalysisType::kRange) {
     auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
     auto range_query_engine = std::make_unique<RangeQueryEngine>();
-
-    if (VLOG_IS_ON(3)) {
-      RangeAnalysisLog(f, *ternary_query_engine, *range_query_engine);
-    }
 
     std::vector<std::unique_ptr<QueryEngine>> engines;
     engines.push_back(std::make_unique<StatelessQueryEngine>());
@@ -1795,8 +1756,13 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
     query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
   }
   XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
+  if (VLOG_IS_ON(3)) {
+    AnalysisLog(f, *query_engine);
+  }
   return std::move(query_engine);
 }
+
+}  // namespace
 
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
