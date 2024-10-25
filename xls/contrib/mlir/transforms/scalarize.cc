@@ -514,8 +514,12 @@ class LegalizeTensorFromElementsPattern
 
 class LegalizeTensorArrayTypeFungiblePattern
     : public OpTraitConversionPattern<TensorArrayTypeFungible> {
-  using OpTraitConversionPattern::OpTraitConversionPattern;
-
+ public:
+  // This is better than LegalizeScalarizableOpPattern so give it a higher
+  // benefit.
+  LegalizeTensorArrayTypeFungiblePattern(TypeConverter& tc,
+                                         mlir::MLIRContext* context)
+      : OpTraitConversionPattern(tc, context, /*benefit=*/2) {}
   LogicalResult matchAndRewrite(
       Operation* op, ArrayRef<Value> operands,
       ConversionPatternRewriter& rewriter) const override {

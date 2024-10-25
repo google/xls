@@ -231,3 +231,11 @@ func.func @call_dslx_with_splat(%arg0: tensor<4xi32>, %arg1: i32) -> tensor<4xf3
   %0 = xls.call_dslx "foo.x": "f"(%arg0, %arg1) : (tensor<4xi32>, i32) -> tensor<4xf32>
   return %0 : tensor<4xf32>
 }
+
+// CHECK-LABEL: @select
+// CHECK-NEXT: xls.sel
+// CHECK-NEXT: return
+func.func @select(%arg0: tensor<2xi32>, %arg1: tensor<2xi32>, %arg2: tensor<2xi1>) -> tensor<2xi32> attributes {xls = true} {
+  %0 = "xls.sel"(%arg2, %arg0, %arg1) : (tensor<2xi1>, tensor<2xi32>, tensor<2xi32>) -> tensor<2xi32>
+  return %0 : tensor<2xi32>
+}
