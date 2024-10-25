@@ -29,18 +29,24 @@
 #include "xls/examples/dslx_module/some_caps_jit_wrapper.h"
 #include "xls/examples/dslx_module/some_caps_opt_jit_wrapper.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
 #include "xls/ir/value_view.h"
 #include "xls/jit/compound_type_jit_wrapper.h"
 #include "xls/jit/multi_func_block_wrapper.h"
+#include "xls/jit/multi_func_with_trace_block_wrapper.h"
 
 namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::something::cool::CompoundJitWrapper;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::Optional;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 TEST(JitWrapperTest, BasicFunctionCall) {
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -226,7 +232,7 @@ TEST(JitWrapperTest, ProcOptIrWrapper) {
   EXPECT_THAT(jit->ReceiveFromExternalOutputWire(), IsOkAndHolds(std::nullopt));
 }
 
-TEST(JitWraperTest, Block) {
+TEST(JitWrapperTest, BlockRunsOneCycle) {
   XLS_ASSERT_OK_AND_ASSIGN(auto jit,
                            something::cool::MultiFuncBlockJit::Create());
   auto cont = jit->NewContinuation();
@@ -234,6 +240,68 @@ TEST(JitWraperTest, Block) {
       cont->SetInputPorts(something::cool::MultiFuncBlockJitPorts().SetX(2)));
   XLS_ASSERT_OK(jit->RunOneCycle(*cont));
   EXPECT_EQ(cont->GetOut(), 10);
+}
+
+TEST(JitWrapperTest, BlockSetRegisterWorks) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto jit, something::cool::MultiFuncWithTraceBlockJit::Create());
+  auto cont = jit->NewContinuation();
+  XLS_ASSERT_OK(cont->SetRegisters({
+      {"p1_res", Value(UBits(10, 8))},  // this will output immediately
+      {"p0_x", Value(UBits(1, 8))},     // 5*1 will be the output next cycle
+  }));
+  XLS_ASSERT_OK(cont->SetInputPorts(
+      something::cool::MultiFuncWithTraceBlockJitPorts().SetX(
+          3)));  // After the pipeline is flushed, 5*3 will be the output.
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_EQ(cont->GetOut(), 10);
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_EQ(cont->GetOut(), 5);
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_EQ(cont->GetOut(), 15);
+}
+
+TEST(JitWrapperTest, BlockSetRegisterObservable) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto jit, something::cool::MultiFuncWithTraceBlockJit::Create());
+  auto cont = jit->NewContinuation();
+  XLS_ASSERT_OK(cont->SetRegisters({
+      {"p1_res", Value(UBits(10, 8))},  // this will output immediately
+      {"p0_x", Value(UBits(1, 8))},     // 5*1 will be the output next cycle
+  }));
+  EXPECT_THAT(cont->GetRegistersMap(),
+              UnorderedElementsAre(Pair("p1_res", Value(UBits(10, 8))),
+                                   Pair("p0_x", Value(UBits(1, 8)))));
+  XLS_ASSERT_OK(cont->SetInputPorts(
+      something::cool::MultiFuncWithTraceBlockJitPorts().SetX(
+          3)));  // After the pipeline is flushed, 5*3 will be the output.
+  EXPECT_THAT(cont->GetRegistersMap(),
+              UnorderedElementsAre(Pair("p1_res", Value(UBits(10, 8))),
+                                   Pair("p0_x", Value(UBits(1, 8)))));
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_EQ(cont->GetOut(), 10);
+  EXPECT_THAT(cont->GetRegistersMap(),
+              UnorderedElementsAre(Pair("p1_res", Value(UBits(5, 8))),
+                                   Pair("p0_x", Value(UBits(3, 8)))));
+}
+
+TEST(JitWrapperTest, BlockTraceEventsWork) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto jit, something::cool::MultiFuncWithTraceBlockJit::Create());
+  auto cont = jit->NewContinuation();
+  XLS_ASSERT_OK(cont->SetRegisters({
+      {"p1_res", Value(UBits(10, 8))},  // this will output immediately
+      {"p0_x", Value(UBits(1, 8))},     // 5*1 will be the output next cycle
+  }));
+  XLS_ASSERT_OK(cont->SetInputPorts(
+      something::cool::MultiFuncWithTraceBlockJitPorts().SetX(
+          3)));  // After the pipeline is flushed, 5*3 will be the output.
+  XLS_ASSERT_OK(jit->RunOneCycle(*cont));
+  EXPECT_THAT(cont->inner_continuation()->GetEvents().assert_msgs, IsEmpty());
+  EXPECT_THAT(
+      cont->inner_continuation()->GetEvents().trace_msgs,
+      ElementsAre(TraceMessage{.message = "mf_2(2) -> 4", .verbosity = 0},
+                  TraceMessage{.message = "mf_1(1) -> 5", .verbosity = 0}));
 }
 
 }  // namespace

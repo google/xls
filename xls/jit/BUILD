@@ -316,6 +316,7 @@ cc_test(
     deps = [
         ":compound_type_jit_wrapper",
         ":multi_func_block_wrapper",
+        ":multi_func_with_trace_block_wrapper",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_mul_jit_wrapper",
@@ -323,6 +324,7 @@ cc_test(
         "//xls/examples/dslx_module:some_caps_jit_wrapper",
         "//xls/examples/dslx_module:some_caps_opt_jit_wrapper",
         "//xls/ir:bits",
+        "//xls/ir:events",
         "//xls/ir:value",
         "//xls/ir:value_builder",
         "//xls/ir:value_view",
@@ -1165,6 +1167,35 @@ xls_dslx_ir(
     name = "multi_function_with_trace",
     dslx_top = "multi_function_one",
     library = ":multi_function_with_trace_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "multi_function_with_trace_opt_ir",
+    src = ":multi_function_with_trace",
+)
+
+# Codegen settings produce registers for this block. We rely on this in a jit_wrapper_test.
+xls_ir_verilog(
+    name = "multi_function_with_trace_sv",
+    src = ":multi_function_with_trace_opt_ir",
+    codegen_args = {
+        "module_name": "multi_func_with_trace_top",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+    },
+    verilog_file = "multi_func_with_trace.sv",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "multi_func_with_trace_block_wrapper",
+    src = ":multi_func_with_trace.block.ir",
+    jit_wrapper_args = {
+        "class_name": "MultiFuncWithTraceBlockJit",
+        "namespace": "something::cool",
+    },
+    top = "multi_func_with_trace_top",
+    wrapper_type = "BLOCK",
 )
 
 xls_ir_cc_library(
