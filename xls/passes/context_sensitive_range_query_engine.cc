@@ -355,13 +355,14 @@ class Analysis {
     CHECK(selector->GetType()->IsBits()) << "Non-bits select: " << *selector;
     IntervalSet given(selector->GetType()->GetFlatBitCount());
     if (s.IsDefaultArm()) {
-      given.AddInterval(Interval::Open(
+      given.AddInterval(Interval(
           UBits(select_node->cases().size(), selector->BitCountOrDie()),
           Bits::AllOnes(selector->BitCountOrDie())));
     } else {
       Bits value = UBits(s.arm_index(), selector->BitCountOrDie());
       given = IntervalSet::Precise(value);
     }
+    given.Normalize();
     XLS_ASSIGN_OR_RETURN(
         (absl::flat_hash_map<Node*, IntervalSet> intervals),
         PropagateOneGivenBackwards(base_range_, selector, given));

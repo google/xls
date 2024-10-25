@@ -38,6 +38,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value_builder.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/range_query_engine.h"
 
@@ -1630,6 +1631,40 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, DirectUse) {
 
   EXPECT_EQ(arm_4_range->GetIntervals(x.node()), x_4_ist);
   EXPECT_EQ(arm_4_range->GetIntervals(x_plus_two.node()), x_plus_two_4_ist);
+}
+
+TEST_F(ContextSensitiveRangeQueryEngineTest, HandlesDefaultArm) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Check we can get results for direct uses on many arms
+  // let foo = [1, 2, 3, 0]
+  // match (x) {
+  //   0 => 0,
+  //   1 -> 0,
+  //   2 -> 0,
+  //   _ -> foo[x], // nb always 0
+  // }
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue foo = fb.Literal(ValueBuilder::UBitsArray({1, 2, 3, 0}, 2));
+  BValue zero = fb.Literal(UBits(0, 2));
+  BValue arr_idx = fb.ArrayIndex(foo, {x});
+  BValue res = fb.Select(x, {zero, zero, zero}, arr_idx);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  auto default_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), PredicateState::kDefaultArm)});
+
+  EXPECT_EQ(engine.GetIntervals(x.node()),
+            BitsLTT(x.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(default_range->GetIntervals(arr_idx.node()),
+            BitsLTT(arr_idx.node(), {Interval::Precise(UBits(0, 2))}));
+  EXPECT_EQ(default_range->GetIntervals(x.node()),
+            BitsLTT(x.node(), {Interval(UBits(3, 8), Bits::AllOnes(8))}));
 }
 
 TEST_F(ContextSensitiveRangeQueryEngineTest, HandlesAllArms) {

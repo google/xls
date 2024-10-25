@@ -2690,6 +2690,7 @@ cc_test(
         "//xls/ir:interval_set",
         "//xls/ir:ir_test_base",
         "//xls/ir:type",
+        "//xls/ir:value_builder",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
