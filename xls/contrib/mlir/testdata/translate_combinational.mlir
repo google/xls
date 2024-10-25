@@ -23,7 +23,7 @@
 // VERILOG-COMB: endmodule
 
 module @pkg {
-func.func @combinational(%a: i8, %b: i8, %c: i8) -> i8 {
+func.func @combinational(%a: i8 loc("a"), %b: i8 loc("a"), %c: i8 loc("c")) -> i8 {
   %diff = xls.sub %a, %b: i8
   %umul.5 = xls.umul %diff, %diff : i8
   %umul.6 = xls.umul %c, %diff : i8

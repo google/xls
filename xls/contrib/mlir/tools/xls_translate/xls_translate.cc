@@ -58,6 +58,7 @@
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Transforms/Passes.h"
+#include "xls/codegen/vast/vast.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
@@ -1189,9 +1190,27 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       }
 
       // TODO(jpienaar): Do something better here with names.
+      DenseMap<Value, std::string> valueNameMap;
+      llvm::StringMap<int> usedNames;
       auto get_name = [&](Value v) -> std::string {
-        return mlir::debugString(v.getLoc());
+        if (auto it = valueNameMap.find(v); it != valueNameMap.end()) {
+          return it->second;
+        }
+        std::string name;
+        if (auto loc = dyn_cast<NameLoc>(v.getLoc())) {
+          name = ::xls::verilog::SanitizeIdentifier(loc.getName().str());
+        } else {
+          name = ::xls::verilog::SanitizeIdentifier(debugString(v.getLoc()));
+        }
+        auto& count = usedNames[name];
+        // If not unique, append counter.
+        if (count > 0) {
+          name += std::to_string(count);
+        }
+        ++count;
+        return valueNameMap[v] = name;
       };
+
       DenseMap<Value, BValue> valueMap;
       translation_state.setValueMap(valueMap);
 

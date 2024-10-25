@@ -491,6 +491,7 @@ cc_library(
     ],
     deps = [
         ":mlir_xls",
+        "//xls/codegen/vast",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/ir:bits",
