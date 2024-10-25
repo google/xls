@@ -35,6 +35,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_value.pb.h"
+#include "xls/tests/testvector.pb.h"
 #include "xls/tools/proc_channel_values.pb.h"
 #include "re2/re2.h"
 
@@ -144,7 +145,26 @@ ParseChannelValuesFromProto(const ProcChannelValuesProto& values,
     for (const ValueProto& iv : c.entry()) {
       XLS_ASSIGN_OR_RETURN(Value v, Value::FromProto(iv));
       channel_vec.push_back(v);
-      if (++cnt == max_values_count) {
+      if (max_values_count.has_value() && ++cnt == *max_values_count) {
+        break;
+      }
+    }
+  }
+  return results;
+}
+
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromProto(const testvector::ChannelInputsProto& values,
+                            std::optional<const int64_t> max_values_count) {
+  absl::btree_map<std::string, std::vector<Value>> results;
+  for (const testvector::ChannelInputProto& c : values.inputs()) {
+    std::vector<Value>& channel_vec = results[c.channel_name()];
+    channel_vec.reserve(c.values_size());
+    int64_t cnt = 0;
+    for (std::string_view value_string : c.values()) {
+      XLS_ASSIGN_OR_RETURN(Value v, Parser::ParseTypedValue(value_string));
+      channel_vec.push_back(v);
+      if (max_values_count.has_value() && ++cnt == *max_values_count) {
         break;
       }
     }
@@ -160,6 +180,17 @@ ParseChannelValuesFromProtoFile(std::string_view filename_with_all_channel,
                        GetFileContents(filename_with_all_channel));
   XLS_RET_CHECK(pcv.ParseFromString(content));
   return ParseChannelValuesFromProto(pcv, max_values_count);
+}
+
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromTestVectorFile(
+    std::string_view testvector_filename,
+    std::optional<const int64_t> max_values_count) {
+  testvector::SampleInputsProto sample_inputs;
+  XLS_RETURN_IF_ERROR(ParseTextProtoFile(testvector_filename, &sample_inputs));
+  XLS_RET_CHECK(sample_inputs.has_channel_inputs());
+  return ParseChannelValuesFromProto(sample_inputs.channel_inputs(),
+                                     max_values_count);
 }
 
 absl::StatusOr<ProcChannelValuesProto> ChannelValuesToProto(

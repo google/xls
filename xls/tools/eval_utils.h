@@ -27,6 +27,7 @@
 #include "xls/common/indent.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/value.h"
+#include "xls/tests/testvector.pb.h"
 #include "xls/tools/proc_channel_values.pb.h"
 
 namespace xls {
@@ -107,22 +108,37 @@ ParseChannelValuesFromFile(
     std::string_view filename_with_all_channel,
     std::optional<const int64_t> max_values_count = std::nullopt);
 
-// The function returns a channels-to-values map representation of the contents
+// The functions return a channels-to-values map representation of the contents
 // of the proto. The max_values_count denotes the maximum number of values for a
 // channel. If more values then 'max_values_count' are included the extra are
 // ignored.
+// TODO(google/xls#1645) these should be unified.
 absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromProto(
     const ProcChannelValuesProto& values,
     std::optional<const int64_t> max_values_count = std::nullopt);
 
+// Ditto, but input is a ChannelInputsProto
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromProto(
+    const testvector::ChannelInputsProto& values,
+    std::optional<const int64_t> max_values_count = std::nullopt);
+
 // The function returns a channels-to-values map representation of the contents
-// of the proto. The max_values_count denotes the maximum number of values for a
+// of the ProcChannelValuesProto read as textproto from file.
+// The max_values_count denotes the maximum number of values for a
 // channel. If more values then 'max_values_count' are included the extra are
 // ignored.
 absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 ParseChannelValuesFromProtoFile(
     std::string_view filename_with_all_channel,
+    std::optional<const int64_t> max_values_count = std::nullopt);
+
+// Similar to ParseChannelValuesFromProtoFile, but read from a file
+// containing a testvector::SampleInputsProto textproto.
+absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
+ParseChannelValuesFromTestVectorFile(
+    std::string_view testvector_filename,
     std::optional<const int64_t> max_values_count = std::nullopt);
 
 // Convert a map of channel-name -> channel values into a ProcChannelValuesProto

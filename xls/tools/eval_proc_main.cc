@@ -79,6 +79,7 @@
 #include "xls/jit/block_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/tests/testvector.pb.h"
 #include "xls/tools/eval_utils.h"
 #include "xls/tools/node_coverage_utils.h"
 
@@ -111,11 +112,12 @@ ABSL_FLAG(std::string, block_signature_proto, "",
           "Path to textproto file containing signature from codegen");
 ABSL_FLAG(int64_t, max_cycles_no_output, 100,
           "For block simulation, stop after this many cycles without output.");
+
 ABSL_FLAG(
     std::vector<std::string>, inputs_for_channels, {},
     "Comma separated list of channel=filename pairs, for example: ch_a=foo.ir. "
     "Files contain one XLS Value in human-readable form per line. Either "
-    "'inputs_for_channels' or 'inputs_for_all_channels' can be defined.");
+    "'inputs_for_channels' or 'testvector_textproto' can be defined.");
 ABSL_FLAG(
     std::vector<std::string>, expected_outputs_for_channels, {},
     "Comma separated list of channel=filename pairs, for example: ch_a=foo.ir. "
@@ -125,6 +127,11 @@ ABSL_FLAG(
     "For procs, when 'expected_outputs_for_channels' or "
     "'expected_outputs_for_all_channels' are not specified the values of all "
     "the channel are displayed on stdout.");
+
+ABSL_FLAG(std::string, testvector_textproto, "",
+          "A textproto file containing proc channel test vectors.");
+
+// TODO(google/xls#1645) Remove in favor of --testvector_textproto
 ABSL_FLAG(
     std::string, inputs_for_all_channels, "",
     "Path to file containing inputs for all channels.\n"
@@ -153,6 +160,8 @@ ABSL_FLAG(
     "'expected_outputs_for_all_channels' or "
     "'expected_proto_outputs_for_all_channels' are not specified the values of "
     "all the channel are displayed on stdout.");
+
+// TODO(google/xls#1645) Also probably remove in favor of --testvector_textproto
 ABSL_FLAG(
     std::string, proto_inputs_for_all_channels, "",
     "Path to ProcChannelValuesProto binary proto containing inputs for all "
@@ -161,6 +170,7 @@ ABSL_FLAG(
     std::string, expected_proto_outputs_for_all_channels, "",
     "Path to file containing ProcChannelValuesProto binary proto of outputs "
     "for all channels.");
+
 ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
@@ -1162,6 +1172,7 @@ GetValuesForEachChannels(
   return values_for_channels;
 }
 
+// These are too many parameters...
 static absl::Status RealMain(
     std::string_view ir_file, std::string_view backend,
     std::string_view block_signature_proto, std::vector<int64_t> ticks,
@@ -1172,6 +1183,7 @@ static absl::Status RealMain(
     const std::string& inputs_for_all_channels_text,
     const std::string& expected_outputs_for_all_channels_text,
     const std::string& proto_inputs_for_all_channels,
+    const std::string& testvector_proto,
     const std::string& expected_proto_outputs_for_all_channels,
     const int random_seed, const double prob_input_valid_assert,
     bool show_trace, std::string_view output_stats_path, bool fail_on_assert) {
@@ -1194,6 +1206,10 @@ static absl::Status RealMain(
     XLS_ASSIGN_OR_RETURN(inputs_for_channels,
                          ParseChannelValuesFromProtoFile(
                              proto_inputs_for_all_channels, total_ticks));
+  } else if (!testvector_proto.empty()) {
+    XLS_ASSIGN_OR_RETURN(
+        inputs_for_channels,
+        ParseChannelValuesFromTestVectorFile(testvector_proto, total_ticks));
   }
 
   absl::btree_map<std::string, std::vector<Value>>
@@ -1335,6 +1351,7 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_inputs_for_all_channels),
       absl::GetFlag(FLAGS_expected_outputs_for_all_channels),
       absl::GetFlag(FLAGS_proto_inputs_for_all_channels),
+      absl::GetFlag(FLAGS_testvector_textproto),
       absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels),
       absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
