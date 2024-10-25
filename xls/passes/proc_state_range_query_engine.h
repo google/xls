@@ -56,9 +56,9 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
         range_(std::make_unique<RangeQueryEngine>()),
         inner_(UnownedUnionQueryEngine({ternary_.get(), range_.get()})) {}
   ProcStateRangeQueryEngine(ProcStateRangeQueryEngine&&) = default;
-  ProcStateRangeQueryEngine(const ProcStateRangeQueryEngine&) = default;
+  ProcStateRangeQueryEngine(const ProcStateRangeQueryEngine&) = delete;
   ProcStateRangeQueryEngine& operator=(const ProcStateRangeQueryEngine&) =
-      default;
+      delete;
   ProcStateRangeQueryEngine& operator=(ProcStateRangeQueryEngine&&) = default;
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
@@ -134,7 +134,8 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
   // Returns whether any information is available for this node.
   bool IsTracked(Node* node) const override { return inner_.IsTracked(node); }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(Node* node) const {
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override {
     return inner_.GetTernary(node);
   }
 

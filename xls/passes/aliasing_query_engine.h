@@ -44,7 +44,7 @@ namespace xls {
 // engine. This is useful if the underlying graph is being modified to add new
 // nodes over time. Aliases can chain. Each node may only be added to alias set
 // once.
-class AliasingQueryEngine : public QueryEngine {
+class AliasingQueryEngine final : public QueryEngine {
  public:
   explicit AliasingQueryEngine(std::unique_ptr<QueryEngine> base)
       : base_(std::move(base)),
@@ -130,7 +130,7 @@ class AliasingQueryEngine : public QueryEngine {
   }
 
   bool KnownNotEquals(const TreeBitLocation& a,
-                      const TreeBitLocation& b) const {
+                      const TreeBitLocation& b) const override {
     return base_->KnownNotEquals(UnaliasLocation(a), UnaliasLocation(b));
   }
   bool AtMostOneBitTrue(Node* node) const override {
