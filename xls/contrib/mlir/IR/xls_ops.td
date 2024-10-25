@@ -1282,10 +1282,14 @@ def Xls_EprocOp : Xls_Op<"eproc", [
     future without complicating the grammar.
 
     If `discardable` is true, the eproc may be discarded if it is not used.
+
+    The `min_pipeline_stages` attribute has the same meaning as in SprocOp. See
+    SprocOp for more details.
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
-    UnitAttr:$discardable
+    UnitAttr:$discardable,
+    DefaultValuedAttr<I64Attr, "1">:$min_pipeline_stages
   );
   let regions = (region
     SizedRegion<1>:$body
@@ -1468,11 +1472,27 @@ def Xls_SprocOp : Xls_Op<"sproc", [
       }
     }
     ```
+
+    The `min_pipeline_stages` attribute tracks the mininum number of pipeline
+    stages that XLS must be given in order to have a chance of scheduling the
+    proc. The default is 1, but some transforms guarantee that the proc will no
+    longer schedule in one pipeline stage; for example:
+
+      myop(...) -> xls.sblocking_receive(xls.ssend(...))
+
+    The above transform will guarantee that the proc requires at least two
+    pipeline stages.
+
+    The min_pipeline_stages attribute is not intended to guarantee that the proc
+    will schedule in the given number of pipeline stages, only that it is known
+    that it will *not* schedule in fewer than the given number of pipeline
+    stages.
   }];
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     BoolAttr:$is_top,
-    OptionalAttr<ArrayAttr>:$boundary_channel_names
+    OptionalAttr<ArrayAttr>:$boundary_channel_names,
+    DefaultValuedAttr<I64Attr, "1">:$min_pipeline_stages
   );
   let regions = (region
     SizedRegion<1>:$spawns,

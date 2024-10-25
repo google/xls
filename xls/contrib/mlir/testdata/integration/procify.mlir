@@ -91,7 +91,7 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:    %17 = "xls.sel"(%8, %0, %16) : (i1, i32, i32) -> i32
 // CHECK-MLIR:    xls.yield %17 : i32
 // CHECK-MLIR:  }
-// CHECK-MLIR:  xls.eproc @reduce_0_0(%arg0: i32) zeroinitializer {
+// CHECK-MLIR:  xls.eproc @reduce_0_0(%arg0: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64} {
 // CHECK-MLIR:    %0 = xls.after_all  : !xls.token
 // CHECK-MLIR:    %1 = xls.send %0, %arg0, @for_arg_0 : i32
 // CHECK-MLIR:    %2 = xls.after_all %1 : !xls.token

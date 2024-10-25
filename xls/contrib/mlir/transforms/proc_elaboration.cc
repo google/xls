@@ -133,7 +133,8 @@ class ElaborationContext
     StringAttr symbol = makeUniqueSymbol(sproc.getSymName());
 
     EprocOp eproc =
-        builder.create<EprocOp>(sproc.getLoc(), symbol, /*discardable=*/true);
+        builder.create<EprocOp>(sproc.getLoc(), symbol, /*discardable=*/true,
+                                sproc.getMinPipelineStages());
     IRMapping mapping;
     sproc.getNext().cloneInto(&eproc.getBody(), mapping);
     llvm::DenseMap<Value, SymbolRefAttr> chanMap;

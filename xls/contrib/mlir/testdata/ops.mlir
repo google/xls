@@ -391,7 +391,8 @@ func.func @vectorized_call(%arg0: tensor<32xi8>) -> tensor<32xi8> {
 xls.chan @mychan : i32
 xls.chan @vector_chan : tensor<32xi32>
 
-xls.eproc @eproc(%arg: i32) zeroinitializer {
+// CHECK-LABEL: xls.eproc @eproc(%arg0: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64}
+xls.eproc @eproc(%arg: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64} {
   xls.yield %arg : i32
 }
 
@@ -440,7 +441,8 @@ xls.sproc @sproc() {
   }
 }
 
-xls.sproc @mytarget(%chan: !xls.schan<i32, in>, %chan2: !xls.schan<i32, out>) {
+// CHECK-LABEL: xls.sproc @mytarget(%arg0: !xls.schan<i32, in>, %arg1: !xls.schan<i32, out>) attributes {min_pipeline_stages = 2 : i64} {
+xls.sproc @mytarget(%chan: !xls.schan<i32, in>, %chan2: !xls.schan<i32, out>) attributes {min_pipeline_stages = 2 : i64} {
   spawns {
     xls.yield
   }

@@ -369,10 +369,17 @@ void EprocOp::print(OpAsmPrinter& printer) {
   printer << '(';
   llvm::interleaveComma(getBody().getArguments(), printer.getStream(),
                         [&](auto arg) { printer.printRegionArgument(arg); });
-  printer << ") zeroinitializer ";
+  printer << ") zeroinitializer";
   if (getDiscardable()) {
-    printer << "discardable ";
+    printer << " discardable";
   }
+  SmallVector<StringRef> elideAttrNames = {"sym_name", "discardable"};
+  if (getMinPipelineStages() == 1) {
+    elideAttrNames.push_back("min_pipeline_stages");
+  }
+  printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
+                                           elideAttrNames);
+  printer << " ";
   printer.printRegion(getBody(), /*printEntryBlockArgs=*/false);
 }
 
@@ -395,6 +402,9 @@ ParseResult EprocOp::parse(OpAsmParser& parser, OperationState& result) {
   }
   if (succeeded(parser.parseOptionalKeyword("discardable"))) {
     result.addAttribute("discardable", UnitAttr::get(parser.getContext()));
+  }
+  if (parser.parseOptionalAttrDictWithKeyword(result.attributes)) {
+    return failure();
   }
 
   Region* body = result.addRegion();
@@ -452,8 +462,12 @@ void SprocOp::print(OpAsmPrinter& printer) {
   if (getIsTop()) {
     printer << " top";
   }
+  SmallVector<StringRef> elideAttrNames = {"sym_name", "is_top"};
+  if (getMinPipelineStages() == 1) {
+    elideAttrNames.push_back("min_pipeline_stages");
+  }
   printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
-                                           {"sym_name", "is_top"});
+                                           elideAttrNames);
   printer << " {";
   printer.increaseIndent();
   printer.printNewline();

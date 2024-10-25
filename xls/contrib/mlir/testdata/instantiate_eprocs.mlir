@@ -2,14 +2,16 @@
 
 // CHECK-LABEL: xls.chan @InstantiateTwice : i32
 // CHECK: xls.eproc @p_1
+// CHECK-SAME: min_pipeline_stages = 3
 // CHECK: xls.blocking_receive %0, @InstantiateTwice
 // CHECK: xls.eproc @p_0
+// CHECK-SAME: min_pipeline_stages = 3
 // CHECK: xls.blocking_receive %0, @InstantiateTwice2
 xls.chan @InstantiateTwice : i32
 xls.chan @InstantiateTwice2 : i32
 
 xls.chan @Local : i32
-xls.eproc @p(%arg0: i32) zeroinitializer discardable {
+xls.eproc @p(%arg0: i32) zeroinitializer discardable attributes {min_pipeline_stages = 3 : i64} {
   %0 = xls.after_all  : !xls.token
   %tkn_out, %result = xls.blocking_receive %0, @Local : i32
   xls.yield %arg0 : i32

@@ -421,6 +421,11 @@ LogicalResult convertForOpToSprocCall(scf::ForOp forOp) {
 
   fixupSproc(parent);
   fixupSproc(controller);
+
+  // In the parent we have added a receive(send(...)) sequence, so it now won't
+  // schedule unless it has at least one more pipeline stage.
+  parent.setMinPipelineStages(parent.getMinPipelineStages() + 1);
+
   return success();
 }
 
