@@ -187,20 +187,20 @@ fn point_dims() -> u32 {
                HasSubstr("Struct 'Point' has no impl defining 'NUM_DIMS'")));
 }
 
-TEST(TypecheckTest, ImplWithMultipleParametricStructs) {
+TEST(TypecheckTest, ImplWithMultipleStructInstance) {
   constexpr std::string_view kProgram = R"(
-struct Point<MAX_X: u32> { x: u32, y: u32 }
+struct Point<X: u32> {}
 
-impl Point<MAX_X> {
-    const NUM_DIMS = u32:2;
-    const MAX_WIDTH = u32:2 * MAX_X;
+impl Point<X> {
+    const DOUBLE = u32:2 * X;
+    const ZERO = uN[DOUBLE]:0;
 }
 
-fn use_point() {
-    let p = Point<u32:5>{ x: u32:1, y: u32:0 };
-    let pa = Point<u32:4>{ x: u32:0, y: u32:0 };
-    assert_eq(uN[p::MAX_WIDTH]:0, u10:0);
-    assert_eq(uN[pa::MAX_WIDTH]:0, u8:0);
+fn use_points() {
+     let pa = Point<u32:2>{};
+     let pb = Point<u32:4>{};
+     assert_eq(pa::ZERO, u4:0);
+     assert_eq(pb::ZERO, u8:0);
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
@@ -393,6 +393,26 @@ fn main() -> uN[6] {
       ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
   XLS_EXPECT_OK(
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, ParametricImplInstantiatedByGlobal) {
+  constexpr std::string_view program = R"(
+struct MyStruct<WIDTH: u32> {
+  f: bits[WIDTH]
+}
+
+impl MyStruct<WIDTH> {
+  const EXP = WIDTH;
+}
+
+fn p<FIELD_WIDTH: u32>(s: MyStruct<FIELD_WIDTH>) -> uN[FIELD_WIDTH] {
+  uN[s::EXP]:0
+}
+
+const GLOBAL = u32:15;
+fn f(s: MyStruct<GLOBAL>) -> u15 { p(s) }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
 }
 
 }  // namespace

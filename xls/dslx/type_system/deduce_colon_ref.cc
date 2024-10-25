@@ -46,6 +46,7 @@
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_enum_def.h"
 #include "xls/dslx/type_system/deduce_utils.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/scoped_fn_stack_entry.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -252,6 +253,15 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToStructType(
     if (std::holds_alternative<InterpValue>(instance_val.value())) {
       impl_ctx->type_info()->NoteConstExpr(
           binding->name_def(), std::get<InterpValue>(instance_val.value()));
+    } else {
+      auto& owned_param =
+          std::get<TypeDim::OwnedParametric>(instance_val.value());
+      ParametricExpression::Evaluated evaluated = owned_param->Evaluate(
+          ToParametricEnv(ctx->GetCurrentParametricEnv()));
+      if (std::holds_alternative<InterpValue>(evaluated)) {
+        impl_ctx->type_info()->NoteConstExpr(binding->name_def(),
+                                             std::get<InterpValue>(evaluated));
+      }
     }
   }
 
