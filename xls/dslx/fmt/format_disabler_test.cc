@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -32,6 +33,8 @@
 
 namespace xls::dslx {
 namespace {
+
+constexpr std::string_view kFmtOn = "// dslx-fmt::on\n";
 
 TEST(FormatDisablerTest, NotDisabled) {
   // Arrange.
@@ -82,9 +85,9 @@ TEST(FormatDisablerTest, NotDisabled_WithComments) {
 }
 
 TEST(FormatDisablerTest, DisabledAroundImport) {
-  const std::string kImportOnly = "  import\n  bar;\n";
+  const std::string kImport = "  import\n  bar;\n";
   const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kImportOnly, "// dslx-fmt::on\n");
+      absl::StrCat("// dslx-fmt::off\n", kImport, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -103,14 +106,14 @@ TEST(FormatDisablerTest, DisabledAroundImport) {
   VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
-  EXPECT_EQ(actual_node->text(), kImportOnly);
+  EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
 }
 
 TEST(FormatDisablerTest, EnabledOnSameLine) {
   // Note trailing space, which we want to be part of the unformatted text.
-  const std::string kImportOnly = "  import  bar; ";
+  const std::string kImport = "  import  bar; ";
   const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kImportOnly, "// dslx-fmt::on\n");
+      absl::StrCat("// dslx-fmt::off\n", kImport, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -129,14 +132,14 @@ TEST(FormatDisablerTest, EnabledOnSameLine) {
   VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
-  EXPECT_EQ(actual_node->text(), kImportOnly);
+  EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
 }
 
 TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
   // Note trailing space, which we want to be part of the unformatted text.
-  const std::string kImportOnly = "  import\n bar; ";
+  const std::string kImport = "  import\n bar; ";
   const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kImportOnly, "// dslx-fmt::on\n");
+      absl::StrCat("// dslx-fmt::off\n", kImport, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -155,13 +158,13 @@ TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
   VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
-  EXPECT_EQ(actual_node->text(), kImportOnly);
+  EXPECT_EQ(actual_node->text(), absl::StrCat(kImport, kFmtOn));
 }
 
 TEST(FormatDisablerTest, MultipleDisabledStatements) {
   const std::string kTwoImports = "  import\n  foo;\n  import  bar;\n";
   const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kTwoImports, "// dslx-fmt::on\n");
+      absl::StrCat("// dslx-fmt::off\n", kTwoImports, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -183,7 +186,7 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
   ASSERT_NE(first_verbatim_node, nullptr);
 
   // Text should be the two imports concatenated.
-  EXPECT_EQ(first_verbatim_node->text(), kTwoImports);
+  EXPECT_EQ(first_verbatim_node->text(), absl::StrCat(kTwoImports, kFmtOn));
 
   // The second node should be replaced with an empty verbatim node since it's
   // within the "disable" range.
@@ -198,9 +201,8 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
 
 TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
   const std::string kUnformattedImport = "  import\n  foo;\n";
-  const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kUnformattedImport,
-                   "// dslx-fmt::on\n", "import bar;\n");
+  const std::string kProgram = absl::StrCat(
+      "// dslx-fmt::off\n", kUnformattedImport, kFmtOn, "import bar;\n");
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -222,7 +224,7 @@ TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
   ASSERT_NE(actual_node, nullptr);
 
   // Text should be just the first import.
-  EXPECT_EQ(actual_node->text(), kUnformattedImport);
+  EXPECT_EQ(actual_node->text(), absl::StrCat(kUnformattedImport, kFmtOn));
 
   // The second import should be left as-is since it's outside the "disable"
   // range.
@@ -285,8 +287,8 @@ TEST(FormatDisablerTest, EnabledOnly) {
 }
 
 TEST(FormatDisablerTest, NeverEnabled) {
-  const std::string kImportOnly = "  import\n  bar;\n";
-  const std::string kProgram = absl::StrCat("// dslx-fmt::off\n", kImportOnly);
+  const std::string kImport = "  import\n  bar;\n";
+  const std::string kProgram = absl::StrCat("// dslx-fmt::off\n", kImport);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -305,7 +307,7 @@ TEST(FormatDisablerTest, NeverEnabled) {
   VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
-  EXPECT_EQ(actual_node->text(), kImportOnly);
+  EXPECT_EQ(actual_node->text(), kImport);
 }
 
 }  // namespace

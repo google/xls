@@ -83,8 +83,9 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   // The limit defaults to the end of the module.
   Pos limit = node->owner()->span().limit();
   if (enable_comment.has_value()) {
-    // Use the start of the enable comment as the end position.
-    limit = enable_comment.value()->span.start();
+    // Use the end of the enable comment as the end position, so it is also left
+    // unformatted.
+    limit = enable_comment.value()->span.limit();
   }
 
   // b. Extract the content between the disable comment and the end position
