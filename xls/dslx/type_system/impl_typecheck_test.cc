@@ -19,6 +19,8 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 
 namespace xls::dslx {
@@ -302,5 +304,96 @@ fn use_point() -> u4 {
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
+
+TEST(TypecheckTest, ImplUsingDerivedParametric) {
+  constexpr std::string_view kProgram = R"(
+struct Point<MAX_X: u32, MAX_Y: u32 = { MAX_X * u32:2 }> { x: u32, y: u32 }
+
+impl Point<MAX_X, MAX_Y> {
+    const NUM_DIMS = u32:2;
+    const MAX_WIDTH = u32:2 * MAX_X;
+    const MAX_HEIGHT = u32:2 * MAX_Y;
+}
+
+fn use_point() -> u8 {
+    let p = Point<u32: 2>{ x: u32:1, y: u32:0 };
+    uN[p::MAX_HEIGHT]:0
+}
+
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ImportedImpl) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty { }
+
+impl Empty {
+   const IMPORTED = u32:6;
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[6] {
+    uN[imported::Empty::IMPORTED]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, ImportedImplWithInstance) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty { }
+
+impl Empty {
+   const IMPORTED = u32:6;
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[6] {
+    let e = imported::Empty{};
+    uN[e::IMPORTED]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, ImportedImplParametric) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty<X: u32> { }
+
+impl Empty<X> {
+   const IMPORTED = u32:2 * X;
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[6] {
+    let e = imported::Empty<u32: 3>{};
+    uN[e::IMPORTED]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
 }  // namespace
 }  // namespace xls::dslx

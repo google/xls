@@ -447,11 +447,12 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
       td.value());
 }
 
-static absl::StatusOr<Impl*> ImplFromTypeRef(TypeRefTypeAnnotation* type_ref) {
-  XLS_RET_CHECK(type_ref != nullptr);
+static absl::StatusOr<Impl*> ImplFromTypeRef(Span span,
+                                             const TypeAnnotation& type_ref,
+                                             const TypeInfo* type_info) {
   XLS_ASSIGN_OR_RETURN(
       StructDef * struct_def,
-      ResolveLocalStructDef(type_ref->type_ref()->type_definition()));
+      DerefToStruct(span, type_ref.ToString(), type_ref, type_info));
   XLS_RET_CHECK(struct_def->impl().has_value());
   return struct_def->impl().value();
 }
@@ -477,17 +478,19 @@ ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
             XLS_RET_CHECK(impl.has_value());
             return impl.value();
           },
-          [](Param* x) -> ReturnT {
-            TypeRefTypeAnnotation* type_ref =
-                dynamic_cast<TypeRefTypeAnnotation*>(x->type_annotation());
-            return ImplFromTypeRef(type_ref);
+          [&](Param* x) -> ReturnT {
+            const TypeAnnotation* type_annot = x->type_annotation();
+            XLS_ASSIGN_OR_RETURN(
+                Impl * impl,
+                ImplFromTypeRef(colon_ref->span(), *type_annot, type_info));
+            return impl;
           },
-          [](StructInstance* x) -> ReturnT {
-            TypeAnnotation* struct_ref = x->struct_ref();
-            XLS_RET_CHECK(struct_ref != nullptr);
-            TypeRefTypeAnnotation* type_ref =
-                dynamic_cast<TypeRefTypeAnnotation*>(struct_ref);
-            return ImplFromTypeRef(type_ref);
+          [&](StructInstance* x) -> ReturnT {
+            const TypeAnnotation* struct_ref = x->struct_ref();
+            XLS_ASSIGN_OR_RETURN(
+                Impl * impl,
+                ImplFromTypeRef(colon_ref->span(), *struct_ref, type_info));
+            return impl;
           },
           [](ColonRef*) -> ReturnT {
             return absl::InternalError(
@@ -559,7 +562,7 @@ absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
 absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          std::string_view original_ref_text,
                                          TypeDefinition current,
-                                         TypeInfo* type_info) {
+                                         const TypeInfo* type_info) {
   const FileTable& file_table = type_info->file_table();
   while (true) {
     StructDef* retval = nullptr;
@@ -646,7 +649,7 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
 absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          std::string_view original_ref_text,
                                          const TypeAnnotation& type_annotation,
-                                         TypeInfo* type_info) {
+                                         const TypeInfo* type_info) {
   const FileTable& file_table = type_info->file_table();
   auto* type_ref_type_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(&type_annotation);

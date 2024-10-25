@@ -155,14 +155,14 @@ absl::StatusOr<std::vector<ParametricWithType>> ParametricBindingsToTyped(
 absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          std::string_view original_ref_text,
                                          TypeDefinition current,
-                                         TypeInfo* type_info);
+                                         const TypeInfo* type_info);
 
 // Wrapper around the DerefToStruct above (that works on TypeDefinitions) that
 // takes a `TypeAnnotation` instead.
 absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                                          std::string_view original_ref_text,
                                          const TypeAnnotation& type_annotation,
-                                         TypeInfo* type_info);
+                                         const TypeInfo* type_info);
 
 // Checks that the number of tuple elements in the name def tree matches the
 // number of tuple elements in the type; if a "rest of tuple" leaf is
