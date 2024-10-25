@@ -332,15 +332,28 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
         "#pipelining-and-scheduling-options for details.");
   }
 
-  int64_t input_delay = options.additional_input_delay_ps().has_value()
-                            ? options.additional_input_delay_ps().value()
-                            : 0;
+  int64_t input_delay = options.additional_input_delay_ps().value_or(0);
+  int64_t output_delay = options.additional_output_delay_ps().value_or(0);
+  // Sends and receives each have inputs and outputs from the flow control
+  // signals, so the max of input and output delays is the amount needed for
+  // each channel.
+  int64_t max_io_delay = std::max(input_delay, output_delay);
 
-  DecoratingDelayEstimator input_delay_added(
-      "input_delay_added", delay_estimator,
-      [input_delay](Node* node, int64_t base_delay) {
-        return node->op() == Op::kReceive ? base_delay + input_delay
-                                          : base_delay;
+  DecoratingDelayEstimator io_delay_added(
+      "io_delay_added", delay_estimator, [&](Node* node, int64_t base_delay) {
+        if (node->Is<ChannelNode>()) {
+          return base_delay + max_io_delay;
+        }
+        if (node->function_base()->IsFunction()) {
+          if (node->Is<Param>()) {
+            return base_delay + input_delay;
+          }
+          if (node->function_base()->AsFunctionOrDie()->return_value() ==
+              node) {
+            return base_delay + output_delay;
+          }
+        }
+        return base_delay;
       });
 
   if (options.worst_case_throughput().has_value()) {
@@ -370,7 +383,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
   auto initialize_sdc_scheduler = [&]() -> absl::Status {
     if (sdc_scheduler == nullptr) {
       XLS_ASSIGN_OR_RETURN(sdc_scheduler,
-                           SDCScheduler::Create(f, input_delay_added));
+                           SDCScheduler::Create(f, io_delay_added));
       XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
     }
     return absl::OkStatus();
@@ -404,7 +417,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
     XLS_ASSIGN_OR_RETURN(
         clock_period_ps,
-        FindMinimumClockPeriod(f, options.pipeline_stages(), input_delay_added,
+        FindMinimumClockPeriod(f, options.pipeline_stages(), io_delay_added,
                                *sdc_scheduler, options.failure_behavior()));
     min_clock_period_ps_for_tracing = clock_period_ps;
 
@@ -504,7 +517,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
           int64_t target_clock_period_ps = clock_period_ps + 1;
           XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
           absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
-              f, options.pipeline_stages(), input_delay_added, *sdc_scheduler,
+              f, options.pipeline_stages(), io_delay_added, *sdc_scheduler,
               options.failure_behavior(), target_clock_period_ps);
           if (min_clock_period_ps.ok()) {
             min_clock_period_ps_for_tracing = *min_clock_period_ps;
@@ -548,7 +561,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
         // Check if just increasing the clock period would have helped.
         XLS_ASSIGN_OR_RETURN(int64_t pessimistic_clock_period_ps,
-                             ComputeCriticalPath(f, input_delay_added));
+                             ComputeCriticalPath(f, io_delay_added));
         // Make a copy of failure behavior with explain_feasibility true- we
         // always want to produce an error message because this we are
         // re-running the scheduler for its error message.
@@ -588,16 +601,16 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     // Run an initial ASAP/ALAP scheduling pass, which we'll refine with the
     // chosen scheduler.
     sched::ScheduleBounds bounds(f, TopoSort(f), clock_period_ps,
-                                 input_delay_added);
+                                 io_delay_added);
     XLS_RETURN_IF_ERROR(TightenBounds(bounds, f, options.pipeline_stages()));
 
     if (options.strategy() == SchedulingStrategy::MIN_CUT) {
-      XLS_ASSIGN_OR_RETURN(cycle_map,
-                           MinCutScheduler(f,
-                                           options.pipeline_stages().value_or(
-                                               bounds.max_lower_bound() + 1),
-                                           clock_period_ps, input_delay_added,
-                                           &bounds, options.constraints()));
+      XLS_ASSIGN_OR_RETURN(
+          cycle_map,
+          MinCutScheduler(
+              f,
+              options.pipeline_stages().value_or(bounds.max_lower_bound() + 1),
+              clock_period_ps, io_delay_added, &bounds, options.constraints()));
     } else if (options.strategy() == SchedulingStrategy::RANDOM) {
       std::mt19937_64 gen(options.seed().value_or(0));
 
@@ -625,8 +638,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
   auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages(),
                                    min_clock_period_ps_for_tracing);
   XLS_RETURN_IF_ERROR(schedule.Verify());
-  XLS_RETURN_IF_ERROR(
-      schedule.VerifyTiming(clock_period_ps, input_delay_added));
+  XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, io_delay_added));
   XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
                                                  f->GetInitiationInterval()));
 

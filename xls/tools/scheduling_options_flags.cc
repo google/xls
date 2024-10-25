@@ -84,7 +84,9 @@ ABSL_FLAG(std::optional<int64_t>, worst_case_throughput, std::nullopt,
           "If negative, XLS will find the fastest throughput achievable given "
           "all other constraints specified.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
-          "The additional delay added to each receive node.");
+          "The additional delay added to each input.");
+ABSL_FLAG(int64_t, additional_output_delay_ps, 0,
+          "The additional delay added to each output.");
 ABSL_FLAG(int64_t, ffi_fallback_delay_ps, 0,
           "Delay of foreign function calls if not otherwise specified.");
 ABSL_FLAG(std::vector<std::string>, io_constraints, {},
@@ -204,6 +206,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
             .value_or(proto.minimize_worst_case_throughput() ? 0 : 1));
   }
   POPULATE_FLAG(additional_input_delay_ps);
+  POPULATE_FLAG(additional_output_delay_ps);
   POPULATE_FLAG(ffi_fallback_delay_ps);
   POPULATE_REPEATED_FLAG(io_constraints);
   POPULATE_FLAG(receives_first_sends_last);

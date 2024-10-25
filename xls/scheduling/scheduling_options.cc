@@ -67,6 +67,10 @@ absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     scheduling_options.additional_input_delay_ps(
         proto.additional_input_delay_ps());
   }
+  if (proto.additional_output_delay_ps() != 0) {
+    scheduling_options.additional_output_delay_ps(
+        proto.additional_output_delay_ps());
+  }
   if (proto.ffi_fallback_delay_ps() != 0) {
     scheduling_options.ffi_fallback_delay_ps(proto.ffi_fallback_delay_ps());
   }

@@ -344,7 +344,7 @@ class SchedulingOptions {
     return worst_case_throughput_;
   }
 
-  // Sets/gets the additional delay added to each receive node.
+  // Sets/gets the additional delay added to each input.
   //
   // TODO(tedhong): 2022-02-11, Update so that this sets/gets the
   // additional delay added to each input path.
@@ -354,6 +354,15 @@ class SchedulingOptions {
   }
   std::optional<int64_t> additional_input_delay_ps() const {
     return additional_input_delay_ps_;
+  }
+
+  // Sets/gets the additional delay added to each output.
+  SchedulingOptions& additional_output_delay_ps(int64_t value) {
+    additional_output_delay_ps_ = value;
+    return *this;
+  }
+  std::optional<int64_t> additional_output_delay_ps() const {
+    return additional_output_delay_ps_;
   }
 
   // Set fallback estimation for ffi calls used in absence of more information.
@@ -538,6 +547,7 @@ class SchedulingOptions {
   bool minimize_worst_case_throughput_;
   std::optional<int64_t> worst_case_throughput_;
   std::optional<int64_t> additional_input_delay_ps_;
+  std::optional<int64_t> additional_output_delay_ps_;
   std::optional<int64_t> ffi_fallback_delay_ps_;
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;

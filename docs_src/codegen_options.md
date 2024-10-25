@@ -95,7 +95,13 @@ control the scheduler.
 
 -   `--additional_input_delay_ps=...` adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
-    RTL.
+    RTL. Note that flow-controlled channel operations all have inputs and
+    outputs, so this adds delay to both sends and receives.
+
+-   `--additional_output_delay_ps=...` adds additional output delay to the
+    outputs. This can be helpful to meet timing when integrating XLS designs
+    with other RTL. Note that flow-controlled channel operations all have inputs
+    and outputs, so this adds delay to both sends and receives.
 
 -   `--ffi_fallback_delay_ps=...` Delay of foreign function calls if not
     otherwise specified. If there is no measurement or configuration for the

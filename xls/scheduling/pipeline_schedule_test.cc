@@ -84,12 +84,30 @@ MATCHER_P2(CyclesMatch, lhs, rhs, "") {
   return true;
 }
 
+MATCHER_P(OperationDelayInPs, matcher,
+          absl::StrCat("operation delay ",
+                       ::testing::DescribeMatcher<absl::StatusOr<int64_t>>(
+                           matcher, negation))) {
+  xls::TestDelayEstimator estimator;
+  absl::StatusOr<int64_t> delay = estimator.GetOperationDelayInPs(arg);
+  if (delay.ok()) {
+    *result_listener << absl::StreamFormat("operation delay is %d", *delay);
+  } else {
+    *result_listener << "operation delay is not ok: " << delay.status();
+  }
+  return ::testing::ExplainMatchResult(matcher, delay, result_listener);
+}
+
 namespace xls {
 namespace {
 
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::Contains;
 using ::testing::Each;
+using ::testing::Gt;
 using ::testing::HasSubstr;
+using ::testing::IsSupersetOf;
 using ::testing::UnorderedElementsAre;
 using ::testing::UnorderedPointwise;
 
@@ -1566,6 +1584,57 @@ TEST_F(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
   EXPECT_EQ(schedule.cycle(a.node()), schedule.cycle(next_b.node()));
 }
 
+TEST_F(PipelineScheduleTest, FunctionScheduleWithInputAndOutputDelay) {
+  Package p("p");
+
+  Type* u16 = p.GetBitsType(16);
+
+  FunctionBuilder fb("f", &p);
+
+  BValue x = fb.Param("x", u16);
+  BValue y = fb.Param("y", u16);
+  BValue prod = fb.UMul(x, y);
+  BValue negate = fb.Negate(prod);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(negate));
+
+  // No additional input/output delay, we get [{x, y, prod, negate}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(f, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
+  ASSERT_EQ(schedule.length(), 1);
+  EXPECT_THAT(
+      schedule.nodes_in_cycle(0),
+      UnorderedElementsAre(x.node(), y.node(), prod.node(), negate.node()));
+
+  // Additional input delay bumps prod to stage 2, we get
+  // [{x,y}, {prod, negate}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule,
+      RunPipelineSchedule(
+          f, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(2).additional_input_delay_ps(2)));
+  ASSERT_EQ(schedule.length(), 2);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              UnorderedElementsAre(x.node(), y.node()));
+  EXPECT_THAT(schedule.nodes_in_cycle(1),
+              UnorderedElementsAre(prod.node(), negate.node()));
+
+  // Additional output delay bumps negate to stage 3, we get
+  // [{x,y}, {prod}, {negate}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule, RunPipelineSchedule(f, TestDelayEstimator(),
+                                    SchedulingOptions()
+                                        .clock_period_ps(2)
+                                        .additional_input_delay_ps(2)
+                                        .additional_output_delay_ps(1)));
+  ASSERT_EQ(schedule.length(), 3);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              UnorderedElementsAre(x.node(), y.node()));
+  EXPECT_THAT(schedule.nodes_in_cycle(1), UnorderedElementsAre(prod.node()));
+  EXPECT_THAT(schedule.nodes_in_cycle(2), UnorderedElementsAre(negate.node()));
+}
+
 TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   Package p("p");
 
@@ -1589,41 +1658,102 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, TestDelayEstimator(),
-                          SchedulingOptions().pipeline_stages(2)));
+                          SchedulingOptions().clock_period_ps(4)));
   EXPECT_EQ(schedule.length(), 2);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 1);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              Contains(OperationDelayInPs(IsOkAndHolds(Gt(0)))));
 
-  for (int64_t input_delay : std::vector{2, 5, 10}) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        PipelineSchedule schedule_with_input_delay,
-        RunPipelineSchedule(
-            proc, TestDelayEstimator(),
-            SchedulingOptions().pipeline_stages(2).additional_input_delay_ps(
-                input_delay)));
+  // Input delay of 1 is not large enough to bump all non-zero-latency nodes to
+  // later stages.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(4).additional_input_delay_ps(1)));
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              Contains(OperationDelayInPs(IsOkAndHolds(Gt(0)))));
 
-    absl::Span<Node* const> nodes_in_first_cycle =
-        schedule_with_input_delay.nodes_in_cycle(0);
+  // With a large enough input delay the only things that will
+  // be scheduled in the first cycle is the receive, token, and state, as
+  // well as potentially some zero-latency nodes.
+  //
+  // tkn: token = param(tkn, id=1)
+  // receive.3: (token, bits[16]) = receive(tkn, channel_id=0, id=3)
+  // st: () = param(st, id=2)
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(4).additional_input_delay_ps(4)));
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              Each(OperationDelayInPs(IsOkAndHolds(0))));
+}
 
-    if (input_delay >= 5) {
-      // With a large enough input delay the only things that will
-      // be scheduled in the first cycle is the receive, token, and state, as
-      // well as potentially some zero-latency nodes.
-      //
-      // tkn: token = param(tkn, id=1)
-      // receive.3: (token, bits[16]) = receive(tkn, channel_id=0, id=3)
-      // st: () = param(st, id=2)
-      EXPECT_GE(nodes_in_first_cycle.size(), 3);
-      EXPECT_EQ(nodes_in_first_cycle.size(), 4);  // adjust if scheduler changes
-      EXPECT_TRUE(
-          std::all_of(nodes_in_first_cycle.begin(), nodes_in_first_cycle.end(),
-                      [](Node* node) -> bool {
-                        TestDelayEstimator estimator;
-                        absl::StatusOr<int64_t> zero = 0;
-                        return estimator.GetOperationDelayInPs(node) == zero;
-                      }));
-    }
-  }
+TEST_F(PipelineScheduleTest, ProcScheduleWithInputAndOutputDelay) {
+  Package p("p");
+
+  Type* u16 = p.GetBitsType(16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+
+  BValue rcv = pb.Receive(in_ch);
+  BValue negate = pb.Negate(rcv);
+  BValue send = pb.Send(out_ch, negate);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  // No input delay, we get [{rcv, negate, send}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().clock_period_ps(2)));
+  ASSERT_EQ(schedule.length(), 1);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              IsSupersetOf({rcv.node(), negate.node(), send.node()}));
+
+  // Input delay bumps send to stage 1, we get [{rcv, negate}, {send}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(2).additional_input_delay_ps(1)));
+  ASSERT_EQ(schedule.length(), 2);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              IsSupersetOf({rcv.node(), negate.node()}));
+  EXPECT_THAT(schedule.nodes_in_cycle(1), IsSupersetOf({send.node()}));
+
+  // Output delay also bumps send to stage 1, we get [{rcv, negate}, {send}]
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule,
+      RunPipelineSchedule(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(2).additional_output_delay_ps(
+              1)));
+  ASSERT_EQ(schedule.length(), 2);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              IsSupersetOf({rcv.node(), negate.node()}));
+  EXPECT_THAT(schedule.nodes_in_cycle(1), IsSupersetOf({send.node()}));
+
+  // Specifying both input and output delay doesn't change anything.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      schedule, RunPipelineSchedule(proc, TestDelayEstimator(),
+                                    SchedulingOptions()
+                                        .clock_period_ps(2)
+                                        .additional_input_delay_ps(1)
+                                        .additional_output_delay_ps(1)));
+  ASSERT_EQ(schedule.length(), 2);
+  EXPECT_THAT(schedule.nodes_in_cycle(0),
+              IsSupersetOf({rcv.node(), negate.node()}));
+  EXPECT_THAT(schedule.nodes_in_cycle(1), IsSupersetOf({send.node()}));
 }
 
 TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {

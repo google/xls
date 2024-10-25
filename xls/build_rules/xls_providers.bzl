@@ -155,8 +155,12 @@ SCHEDULING_FIELDS = {
                              "(full throughput).\n" +
                              "\n" +
                              "If zero or negative, no throughput bound will be enforced.",
-    "additional_input_delay_ps": "The additional delay added to each receive " +
-                                 "node.",
+    "additional_input_delay_ps": "The additional delay added to each input. Note that " +
+                                 "flow-controlled channel operations all have inputs and " +
+                                 "outputs, so this delay is added to sends and receives.",
+    "additional_output_delay_ps": "The additional delay added to each output. Note that " +
+                                  "flow-controlled channel operations all have inputs and " +
+                                  "outputs, so this delay is added to sends and receives.",
     "ffi_fallback_delay_ps": "Delay of foreign function calls if not " +
                              "otherwise specified.",
     "io_constraints": "A comma-separated list of IO constraints.",
