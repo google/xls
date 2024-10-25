@@ -37,15 +37,19 @@
 namespace xls::dslx {
 
 absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
-    AstNode *node) {
+    const AstNode *node) {
   if (unformatted_end_.has_value()) {
     // We are in "format disabled" mode.
+
+    // TODO: https://github.com/google/xls/issues/1320 - deal with a node with
+    // no span.
     if (node->GetSpan().value().start() < unformatted_end_.value()) {
       // This node is within the unformatted range; delete it by returning
-      // std::nullopt. This is safe because its text has already been extracted
-      // in a VerbatimNode.
+      // an empty VerbatimNode. This is safe because its text has already been
+      // extracted in a VerbatimNode.
       previous_node_ = node;
-      return std::nullopt;
+
+      return node->owner()->Make<VerbatimNode>(node->GetSpan().value(), "");
 
       // TODO: https://github.com/google/xls/issues/1320 - also remove comments
       // that are in this range; their text will be included in the previous
@@ -63,7 +67,8 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   std::optional<const CommentData *> disable_comment = FindDisableBefore(node);
   if (!disable_comment.has_value()) {
     previous_node_ = node;
-    return node;
+    // Node should be unchanged.
+    return std::nullopt;
   }
 
   // TODO: https://github.com/google/xls/issues/1320 - detect two disable
@@ -88,7 +93,8 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   absl::StatusOr<std::string> text = GetTextInSpan(unformatted_span);
   if (!text.ok()) {
     // TODO: https://github.com/google/xls/issues/1320 - Log the error
-    return node;
+    // Node should be unchanged.
+    return std::nullopt;
   }
 
   // c. Create a new VerbatimNode with the content from step b.
@@ -117,7 +123,7 @@ std::optional<const CommentData *> FormatDisabler::FindCommentWithText(
 }
 
 std::optional<const CommentData *> FormatDisabler::FindDisableBefore(
-    AstNode *node) {
+    const AstNode *node) {
   if (!node->GetSpan().has_value()) {
     return std::nullopt;
   }
@@ -134,7 +140,7 @@ std::optional<const CommentData *> FormatDisabler::FindDisableBefore(
 }
 
 std::optional<const CommentData *> FormatDisabler::FindEnableAfter(
-    AstNode *node) {
+    const AstNode *node) {
   if (!node->GetSpan().has_value()) {
     return std::nullopt;
   }

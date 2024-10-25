@@ -43,7 +43,7 @@ class FormatDisabler {
       : comments_(comments), path_(path) {};
 
   // Functor that implements the 'CloneReplacer' interface.
-  absl::StatusOr<std::optional<AstNode *>> operator()(AstNode *node);
+  absl::StatusOr<std::optional<AstNode *>> operator()(const AstNode *node);
 
  private:
   // Returns the text in the given span.
@@ -60,16 +60,16 @@ class FormatDisabler {
 
   // Find a CommentData object that is a disable comment between the "prevoius"
   // node and the given one.
-  std::optional<const CommentData *> FindDisableBefore(AstNode *node);
+  std::optional<const CommentData *> FindDisableBefore(const AstNode *node);
 
   // Find a CommentData object that is a enable comment after the given node
-  std::optional<const CommentData *> FindEnableAfter(AstNode *node);
+  std::optional<const CommentData *> FindEnableAfter(const AstNode *node);
 
   const Comments &comments_;
 
   // The previous node that was processed. We use this to find any "disable"
   // comments between there and the current node.
-  AstNode *previous_node_ = nullptr;
+  const AstNode *previous_node_ = nullptr;
 
   // The position where we should resume formatting.
   std::optional<Pos> unformatted_end_ = std::nullopt;

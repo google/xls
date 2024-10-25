@@ -52,10 +52,8 @@ TEST(FormatDisablerTest, NotDisabled) {
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
-  // Assert.
-  ASSERT_TRUE(actual.has_value());
-  // Same exact node.
-  EXPECT_EQ(actual, import_node);
+  // Assert that it is nullopt, which indicates "node not modified".
+  EXPECT_EQ(actual, std::nullopt);
 }
 
 TEST(FormatDisablerTest, NotDisabled_WithComments) {
@@ -80,8 +78,7 @@ TEST(FormatDisablerTest, NotDisabled_WithComments) {
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
-  ASSERT_TRUE(actual.has_value());
-  EXPECT_EQ(actual, import_node);
+  EXPECT_EQ(actual, std::nullopt);
 }
 
 TEST(FormatDisablerTest, DisabledAroundImport) {
@@ -103,7 +100,7 @@ TEST(FormatDisablerTest, DisabledAroundImport) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(actual.value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), kImportOnly);
@@ -129,7 +126,7 @@ TEST(FormatDisablerTest, EnabledOnSameLine) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(actual.value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), kImportOnly);
@@ -155,7 +152,7 @@ TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(actual.value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), kImportOnly);
@@ -182,16 +179,21 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
                            disabler(first_import_node));
 
   ASSERT_TRUE(first_actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(first_actual.value());
-  ASSERT_NE(actual_node, nullptr);
+  VerbatimNode* first_verbatim_node = down_cast<VerbatimNode*>(*first_actual);
+  ASSERT_NE(first_verbatim_node, nullptr);
 
   // Text should be the two imports concatenated.
-  EXPECT_EQ(actual_node->text(), kTwoImports);
+  EXPECT_EQ(first_verbatim_node->text(), kTwoImports);
 
-  // The second node should be deleted since it's within the disable range.
+  // The second node should be replaced with an empty verbatim node since it's
+  // within the "disable" range.
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> second_actual,
                            disabler(second_import_node));
-  ASSERT_EQ(second_actual, std::nullopt);
+  ASSERT_TRUE(second_actual.has_value());
+  VerbatimNode* second_verbatim_node = down_cast<VerbatimNode*>(*second_actual);
+  ASSERT_NE(second_verbatim_node, nullptr);
+
+  EXPECT_EQ(second_verbatim_node->text(), "");
 }
 
 TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
@@ -216,17 +218,17 @@ TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
                            disabler(first_import_node));
 
   ASSERT_TRUE(first_actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(first_actual.value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*first_actual);
   ASSERT_NE(actual_node, nullptr);
 
   // Text should be just the first import.
   EXPECT_EQ(actual_node->text(), kUnformattedImport);
 
-  // The second import should be left as-is since it's outside the disable
+  // The second import should be left as-is since it's outside the "disable"
   // range.
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> second_actual,
                            disabler(second_import_node));
-  ASSERT_EQ(second_actual, second_import_node);
+  EXPECT_EQ(second_actual, std::nullopt);
 }
 
 TEST(FormatDisablerTest, MultipleEnabledStatements) {
@@ -250,12 +252,12 @@ TEST(FormatDisablerTest, MultipleEnabledStatements) {
   // before it.
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> first_actual,
                            disabler(first_import_node));
-  EXPECT_EQ(first_actual, first_import_node);
+  EXPECT_EQ(first_actual, std::nullopt);
 
   // The second node should be returned as-is too.
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> second_actual,
                            disabler(second_import_node));
-  EXPECT_EQ(second_actual, second_import_node);
+  EXPECT_EQ(second_actual, std::nullopt);
 }
 
 TEST(FormatDisablerTest, EnabledOnly) {
@@ -278,9 +280,8 @@ TEST(FormatDisablerTest, EnabledOnly) {
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
-  ASSERT_TRUE(actual.has_value());
   // No change.
-  EXPECT_EQ(actual, import_node);
+  EXPECT_EQ(actual, std::nullopt);
 }
 
 TEST(FormatDisablerTest, NeverEnabled) {
@@ -301,7 +302,7 @@ TEST(FormatDisablerTest, NeverEnabled) {
                            disabler(import_node));
 
   ASSERT_TRUE(actual.has_value());
-  VerbatimNode* actual_node = down_cast<VerbatimNode*>(actual.value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
   ASSERT_NE(actual_node, nullptr);
 
   EXPECT_EQ(actual_node->text(), kImportOnly);
