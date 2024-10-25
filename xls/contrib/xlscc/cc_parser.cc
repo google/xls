@@ -1242,14 +1242,6 @@ bool __xlscc_on_reset = false;
 __xls_bits<64> __xlscc_fixed_32_32_bits_for_double(double input);
 __xls_bits<64> __xlscc_fixed_32_32_bits_for_float(float input);
 
-// For use with loops
-void __xlscc_pipeline(long long factor) { }
-void __xlscc_unroll(long long factor) { }
-
-// Place at the beginning of the token graph, connected to the end, in parallel
-// to anything else, rather than serializing as by default
-void __xlscc_asap() { }
-
 #endif//__XLS_BUILTIN_H
           )"));
 

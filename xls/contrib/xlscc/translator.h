@@ -1074,10 +1074,6 @@ struct TranslationContext {
 
   bool allow_default_pad = false;
 
-  // TODO(seanhaskell): Remove both of these once b/371085056 is fixed
-  const clang::CallExpr* last_intrinsic_annotation_call = nullptr;
-  const clang::Stmt* last_stmt = nullptr;
-
   // Number of times a variable is accessed
   // Always propagates up
   absl::flat_hash_map<const clang::NamedDecl*, int64_t> variables_accessed;
@@ -2251,11 +2247,6 @@ class Translator {
 
   absl::StatusOr<xls::solvers::z3::IrTranslator*> GetZ3Translator(
       xls::FunctionBase* func) ABSL_ATTRIBUTE_LIFETIME_BOUND;
-
-  bool IsIntrinsicCallAnnotation(const clang::CallExpr* call);
-
-  // TODO(seanhaskell): Remove both of these once b/371085056 is fixed
-  const clang::CallExpr* FindIntrinsicCallFor(const clang::Stmt* stmt);
 
   absl::flat_hash_map<xls::FunctionBase*,
                       std::unique_ptr<xls::solvers::z3::IrTranslator>>

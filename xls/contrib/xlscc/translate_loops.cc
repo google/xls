@@ -77,41 +77,11 @@ absl::Status Translator::GenerateIR_Loop(
     }
   }
 
-  bool intrinsic_asap = false;
-  bool intrinsic_pipeline = false;
-  bool intrinsic_unroll = false;
-
-  const clang::CallExpr* intrinsic_call = FindIntrinsicCallFor(loop_stmt);
-  if (intrinsic_call != nullptr) {
-    const std::string& intrinsic_name =
-        intrinsic_call->getDirectCallee()->getNameAsString();
-
-    if (intrinsic_name == "__xlscc_pipeline") {
-      intrinsic_pipeline = true;
-    } else if (intrinsic_name == "__xlscc_unroll") {
-      intrinsic_unroll = true;
-    } else if (intrinsic_name == "__xlscc_asap") {
-      intrinsic_asap = true;
-    }
-  }
-
   int64_t init_interval = -1;
-  if (intrinsic_pipeline) {
-    XLSCC_CHECK(!intrinsic_unroll, loc);
-    XLSCC_CHECK_EQ(intrinsic_call->getNumArgs(), 1, loc);
-    XLS_ASSIGN_OR_RETURN(init_interval,
-                         EvaluateInt64(*intrinsic_call->getArg(0), ctx, loc));
-    if (init_interval <= 0) {
-      return absl::InvalidArgumentError(
-          ErrorMessage(loc, "Invalid initiation interval %i", init_interval));
-    }
-  }
-
-  int64_t unroll_factor =
-      (context().for_loops_default_unroll || intrinsic_unroll)
-          ? std::numeric_limits<int64_t>::max()
-          : 0;
-  bool is_asap = intrinsic_asap;
+  int64_t unroll_factor = context().for_loops_default_unroll
+                              ? std::numeric_limits<int64_t>::max()
+                              : 0;
+  bool is_asap = false;
   for (const clang::Attr* attr : attrs) {
     if (const clang::AnnotateAttr* annotate =
             llvm::dyn_cast<clang::AnnotateAttr>(attr);

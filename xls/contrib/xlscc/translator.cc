@@ -215,8 +215,6 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   context().return_cval = popped.return_cval;
   context().last_return_condition = popped.last_return_condition;
   context().have_returned_condition = popped.have_returned_condition;
-  context().last_intrinsic_annotation_call =
-      popped.last_intrinsic_annotation_call;
 
   for (const auto& [decl, count] : popped.variables_accessed) {
     if (!context().variables_accessed.contains(decl)) {
@@ -2828,10 +2826,6 @@ absl::StatusOr<std::string> Translator::GetStringLiteral(
 absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     const clang::CallExpr* call, const xls::SourceInfo& loc) {
   const clang::FunctionDecl* funcdecl = call->getDirectCallee();
-  if (IsIntrinsicCallAnnotation(call)) {
-    context().last_intrinsic_annotation_call = call;
-    return std::make_pair(true, CValue());
-  }
 
   if (funcdecl->getNameAsString() == "__xlscc_unimplemented") {
     return absl::UnimplementedError(ErrorMessage(loc, "Unimplemented marker"));
@@ -5063,16 +5057,6 @@ absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
 
 absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                                          clang::ASTContext& ctx) {
-  // TODO(seanhaskell): Remove both of these once b/371085056 is fixed
-  // Intrinsic calls only apply to the next statement
-  context().last_stmt = stmt;
-  auto null_last_intrinsic_call = MakeLambdaGuard([this]() {
-    if (context().last_stmt == context().last_intrinsic_annotation_call) {
-      return;
-    }
-    context().last_intrinsic_annotation_call = nullptr;
-  });
-
   const xls::SourceInfo loc = GetLoc(*stmt);
 
   std::vector<const clang::Attr*> attrs;
@@ -6180,34 +6164,6 @@ absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
             /*source=*/nullptr, /*allow_unsupported=*/false));
   }
   return iter->second.get();
-}
-
-bool Translator::IsIntrinsicCallAnnotation(const clang::CallExpr* call) {
-  const clang::FunctionDecl* funcdecl = call->getDirectCallee();
-  CHECK(funcdecl != nullptr);
-  if (funcdecl->getNameAsString() == "__xlscc_pipeline" ||
-      funcdecl->getNameAsString() == "__xlscc_unroll" ||
-      funcdecl->getNameAsString() == "__xlscc_asap") {
-    return true;
-  }
-  return false;
-}
-
-const clang::CallExpr* Translator::FindIntrinsicCallFor(
-    const clang::Stmt* stmt) {
-  const clang::Stmt* last_stmt = context().last_stmt;
-  while (clang::isa<clang::AttributedStmt>(last_stmt) ||
-         clang::isa<clang::LabelStmt>(last_stmt)) {
-    if (const clang::AttributedStmt* as =
-            clang::dyn_cast<clang::AttributedStmt>(last_stmt);
-        as != nullptr) {
-      last_stmt = as->getSubStmt();
-    } else {
-      last_stmt = clang::dyn_cast<clang::LabelStmt>(last_stmt)->getSubStmt();
-    }
-  }
-  CHECK_EQ(last_stmt, stmt);
-  return context().last_intrinsic_annotation_call;
 }
 
 }  // namespace xlscc
