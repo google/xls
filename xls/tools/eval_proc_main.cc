@@ -858,6 +858,9 @@ static absl::Status RunBlock(
   int64_t last_output_cycle = 0;
   int64_t matched_outputs = 0;
   absl::Time start_time = absl::Now();
+  if (signature.reset().name().empty()) {
+    LOG(WARNING) << "No reset found in signature!";
+  }
   for (int64_t cycle = 0;; ++cycle) {
     // Idealized reset behavior
     const bool resetting = (cycle == 0);
@@ -876,8 +879,6 @@ static absl::Status RunBlock(
     if (!signature.reset().name().empty()) {
       input_set[signature.reset().name()] = Value(
           xls::UBits((resetting ^ signature.reset().active_low()) ? 1 : 0, 1));
-    } else {
-      LOG(WARNING) << "No reset found in signature!";
     }
 
     for (const auto& [name, _] : inputs_for_channels) {
