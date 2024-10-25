@@ -468,6 +468,7 @@ cc_binary(
         ":mlir_xls",
         ":normalize_xls_calls",
         ":proc_elaboration",
+        ":proc_utils",
         ":scalarize",
         ":scf_to_xls",
         ":transforms/lower_counted_for",
@@ -592,5 +593,22 @@ cc_library(
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:Support",
+    ],
+)
+
+cc_library(
+    name = "proc_utils",
+    srcs = ["util/proc_utils.cc"],
+    hdrs = ["util/proc_utils.h"],
+    deps = [
+        ":mlir_xls",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//mlir:Analysis",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:SCFDialect",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
     ],
 )

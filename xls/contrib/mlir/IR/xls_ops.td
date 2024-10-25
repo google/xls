@@ -1407,6 +1407,13 @@ def Xls_SchanOp : Xls_Op<"schan", [Pure, HasParent<"SprocOp">]> {
     Xls_SchanType:$in
   );
   let hasCustomAssemblyFormat = 1;
+  let builders = [
+    OpBuilder<(ins "::mlir::StringRef":$name, "::mlir::Type":$element_type), [{
+      auto inChanTy = SchanType::get($_builder.getContext(), element_type, /*isInput=*/true);
+      auto outChanTy = SchanType::get($_builder.getContext(), element_type, /*isInput=*/false);
+      build($_builder, $_state, ::mlir::TypeRange{outChanTy, inChanTy}, name, element_type);
+    }]>
+  ];
 }
 
 def Xls_SprocOp : Xls_Op<"sproc", [
@@ -1629,11 +1636,11 @@ def Xls_SSendOp : Xls_Op<"ssend", []> {
   );
   let builders = [
     OpBuilder<(ins "::mlir::Value":$token, "::mlir::Value":$value, "::mlir::Value":$channel), [{
-      build($_builder, $_state, value.getType(), token, value, channel, nullptr);
+      build($_builder, $_state, token.getType(), token, value, channel, nullptr);
     }]>,
     OpBuilder<(ins "::mlir::Value":$value, "::mlir::Value":$channel), [{
       ::mlir::Value token = $_builder.create<AfterAllOp>($_builder.getUnknownLoc());
-      build($_builder, $_state, value.getType(), token, value, channel, nullptr);
+      build($_builder, $_state, token.getType(), token, value, channel, nullptr);
     }]>
   ];
 

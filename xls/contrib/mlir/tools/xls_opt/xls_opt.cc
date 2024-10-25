@@ -23,6 +23,7 @@
 #include "xls/contrib/mlir/transforms/passes.h"
 #include "xls/contrib/mlir/transforms/xls_lower.h"
 #include "xls/contrib/mlir/util/extraction_utils.h"
+#include "xls/contrib/mlir/util/proc_utils.h"
 
 int main(int argc, char** argv) {
   mlir::registerAllPasses();
@@ -39,6 +40,7 @@ int main(int argc, char** argv) {
   mlir::xls::registerXlsTransformsPasses();
   mlir::xls::RegisterXlsLowerPassPipeline();
   mlir::xls::test::registerTestExtractAsTopLevelModulePass();
+  mlir::xls::test::registerTestConvertForOpToSprocCallPass();
   return failed(
       mlir::MlirOptMain(argc, argv, "MLIR XLS pass driver\n", registry));
 }
