@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
@@ -45,6 +46,19 @@
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
+
+absl::Status RealFilesystem::FileExists(const std::filesystem::path& path) {
+  return xls::FileExists(path);
+}
+
+absl::StatusOr<std::string> RealFilesystem::GetFileContents(
+    const std::filesystem::path& path) {
+  return xls::GetFileContents(path);
+}
+
+absl::StatusOr<std::filesystem::path> RealFilesystem::GetCurrentDirectory() {
+  return xls::GetCurrentDirectory();
+}
 
 /* static */ absl::StatusOr<ImportTokens> ImportTokens::FromString(
     std::string_view module_name) {
@@ -183,6 +197,10 @@ absl::Status ImportData::AddToImporterStack(
       return RecursiveImportErrorStatus(importer_span, existing.imported_from,
                                         cycle, file_table());
     }
+  }
+
+  if (importer_stack_observer_ != nullptr) {
+    importer_stack_observer_(importer_span, imported);
   }
 
   VLOG(3) << "Adding import span to stack: "

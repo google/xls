@@ -284,19 +284,6 @@ class AdapterBuilder {
   std::vector<ChannelReference*> adapter_instantiation_args_;
 };
 
-// Get the token operand number for a given channel op.
-absl::StatusOr<int64_t> TokenOperandNumberForChannelOp(Node* node) {
-  switch (node->op()) {
-    case Op::kSend:
-      return Send::kTokenOperand;
-    case Op::kReceive:
-      return Receive::kTokenOperand;
-    default:
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Expected channel op, got %s.", node->ToString()));
-  }
-}
-
 struct ChannelSends {
   Channel* channel;
   std::vector<Send*> sends;

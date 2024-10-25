@@ -32,7 +32,6 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/config/xls_config.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -48,7 +47,8 @@ namespace xls::dslx {
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const ImportTokens& subject, const std::filesystem::path& stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths,
-    const Span& import_span, const FileTable& file_table) {
+    const Span& import_span, const FileTable& file_table,
+    VirtualizableFilesystem& vfs) {
   absl::Span<std::string const> pieces = subject.pieces();
   std::optional<std::string> subject_parent_path;
   const absl::flat_hash_set<std::string> builtins = {
@@ -66,13 +66,13 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   std::vector<std::string> attempted;
 
   // Helper that tries to see if "path" is present relative to "base".
-  auto try_path = [&attempted](const std::filesystem::path& base,
-                               const std::filesystem::path& path)
+  auto try_path = [&attempted, &vfs](const std::filesystem::path& base,
+                                     const std::filesystem::path& path)
       -> std::optional<std::filesystem::path> {
     auto full_path = std::filesystem::path(base) / path;
     VLOG(3) << "Trying path: " << full_path;
     attempted.push_back(std::string{full_path});
-    if (FileExists(full_path).ok()) {
+    if (vfs.FileExists(full_path).ok()) {
       VLOG(3) << "Found existing file for import path: " << full_path;
       return full_path;
     }
@@ -104,7 +104,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   VLOG(3) << "Attempting runfile-based import path via " << subject_path;
   if (absl::StatusOr<std::string> runfile_path =
           GetXlsRunfilePath(GetXLSRootDir() / subject_path);
-      runfile_path.ok() && FileExists(*runfile_path).ok()) {
+      runfile_path.ok() && vfs.FileExists(*runfile_path).ok()) {
     return *runfile_path;
   }
 
@@ -121,7 +121,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
             << *subject_parent_path;
     if (absl::StatusOr<std::string> runfile_path = GetXlsRunfilePath(
             absl::StrCat(GetXLSRootDir(), *subject_parent_path));
-        runfile_path.ok() && FileExists(*runfile_path).ok()) {
+        runfile_path.ok() && vfs.FileExists(*runfile_path).ok()) {
       return *runfile_path;
     }
   }
@@ -138,13 +138,14 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
       "attempted: [ %s ]; working "
       "directory: \"%s\"; stdlib directory: \"%s\"",
       import_span.ToString(file_table), absl::StrJoin(attempted, " :: "),
-      GetCurrentDirectory().value(), stdlib_path));
+      vfs.GetCurrentDirectory().value(), stdlib_path));
 }
 
 absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
                                      const ImportTokens& subject,
                                      ImportData* import_data,
-                                     const Span& import_span) {
+                                     const Span& import_span,
+                                     VirtualizableFilesystem& vfs) {
   XLS_RET_CHECK(import_data != nullptr);
   if (import_data->Contains(subject)) {
     VLOG(3) << "DoImport (cached) subject: " << subject.ToString();
@@ -157,13 +158,13 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
   XLS_ASSIGN_OR_RETURN(std::filesystem::path found_path,
                        FindExistingPath(subject, import_data->stdlib_path(),
                                         import_data->additional_search_paths(),
-                                        import_span, file_table));
+                                        import_span, file_table, vfs));
 
   XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(import_span, found_path));
   absl::Cleanup cleanup = absl::MakeCleanup(
       [&] { CHECK_OK(import_data->PopFromImporterStack(import_span)); });
 
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(found_path));
+  XLS_ASSIGN_OR_RETURN(std::string contents, vfs.GetFileContents(found_path));
 
   absl::Span<std::string const> pieces = subject.pieces();
   std::string fully_qualified_name = absl::StrJoin(pieces, ".");

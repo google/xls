@@ -568,7 +568,8 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
     absl::Span<const std::filesystem::path> dslx_paths,
     std::string_view validator_dslx) {
   dslx::ImportData import_data(dslx::CreateImportData(
-      std::string(dslx_stdlib_path), dslx_paths, dslx::kDefaultWarningsSet));
+      std::string(dslx_stdlib_path), dslx_paths, dslx::kDefaultWarningsSet,
+      std::make_unique<dslx::RealFilesystem>()));
   XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule module,
                        dslx::ParseAndTypecheck(validator_dslx, "fake_path",
                                                kPackageName, &import_data));

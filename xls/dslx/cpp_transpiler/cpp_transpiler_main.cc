@@ -70,9 +70,9 @@ absl::Status RealMain(const std::filesystem::path& module_path,
                       std::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
-  ImportData import_data(
-      CreateImportData(dslx_stdlib_path, /*additional_search_paths=*/dslx_paths,
-                       kDefaultWarningsSet));
+  ImportData import_data(CreateImportData(
+      dslx_stdlib_path, /*additional_search_paths=*/dslx_paths,
+      kDefaultWarningsSet, std::make_unique<RealFilesystem>()));
   XLS_ASSIGN_OR_RETURN(TypecheckedModule module,
                        ParseAndTypecheck(module_text, std::string(module_path),
                                          "source", &import_data));

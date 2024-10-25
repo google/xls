@@ -37,6 +37,7 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 std::string DebugString(const verible::lsp::Position& pos) {
   return absl::StrFormat("Position{.line=%d, .character=%d}", pos.line,
@@ -379,6 +380,62 @@ fn f() -> u32 { FOO })"));
 
   // Then use in the function definition.
   EXPECT_EQ(highlights[3].range.start.line, 4);
+}
+
+// This models a scenario where we observe a problem in `outer.x`, but that
+// problem actually stems from the import of `inner.x`.
+//
+// Even though `outer.x` does not successfully import `inner.x` we test that
+// the module DAG information contains "outer tried to import inner" -- we use
+// this DAG information to walk upwards and check whether `outer.x` is ok once
+// `inner.x` is fixed.
+TEST(LanguageServerAdapterTest, DagShowsUnsuccessfulImports) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory tempdir, TempDirectory::Create());
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath,
+                                /*dslx_paths=*/{tempdir.path()});
+
+  std::string inner_uri = absl::StrFormat("file://%s/inner.x", tempdir.path());
+  const std::string bad_inner_contents = R"(const FOO = u32:42;)";
+  const std::string good_inner_contents = R"(pub const FOO = u32:42;)";
+  XLS_ASSERT_OK(
+      SetFileContents(tempdir.path() / "inner.x", bad_inner_contents));
+  XLS_ASSERT_OK(adapter.Update(inner_uri, bad_inner_contents));
+
+  std::string outer_uri = absl::StrFormat("file://%s/outer.x", tempdir.path());
+  std::string outer_contents = R"(import inner;
+
+const OUTER_FOO = inner::FOO;  // this is not public, at first
+)";
+  EXPECT_THAT(
+      adapter.Update(outer_uri, outer_contents),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Attempted to refer to module member const FOO")));
+  std::vector<verible::lsp::Diagnostic> diags =
+      adapter.GenerateParseDiagnostics(outer_uri);
+  ASSERT_EQ(diags.size(), 1);
+
+  // Now we make our correction to inner in our text buffer.
+  //
+  // This should cause outer to be re-evaluated, and we should no longer see
+  // error diagnostics for it.
+  XLS_ASSERT_OK(adapter.Update(inner_uri, good_inner_contents));
+  auto sensitive_set =
+      adapter.import_sensitivity().GatherAllSensitiveToChangeIn(inner_uri);
+  ASSERT_EQ(sensitive_set.size(), 2);
+  EXPECT_THAT(sensitive_set,
+              testing::UnorderedElementsAre(inner_uri, outer_uri));
+
+  for (const std::string& sensitive : sensitive_set) {
+    if (sensitive == inner_uri) {
+      continue;
+    }
+
+    XLS_ASSERT_OK(adapter.Update(sensitive, std::nullopt))
+        << "due to update of: " << sensitive;
+  }
+
+  diags = adapter.GenerateParseDiagnostics(outer_uri);
+  ASSERT_TRUE(diags.empty());
 }
 
 }  // namespace

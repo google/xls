@@ -37,6 +37,8 @@
 #include "external/verible/common/lsp/lsp-protocol-enums.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/casts.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/extract_module_name.h"
@@ -137,6 +139,47 @@ absl::StatusOr<std::string> MaybeRelpathToUri(
 
 }  // namespace
 
+// Implements an overlay on top of the underlying filesystem that prefers the
+// language server's versions when they are present.
+//
+// TODO(cdleary): 2024-10-20 Note that this is not currently hooked into
+// workspace file creation/deletion events explicitly, so everything comes via
+// textual updates.
+class LanguageServerFilesystem : public VirtualizableFilesystem {
+ public:
+  explicit LanguageServerFilesystem(LanguageServerAdapter& parent)
+      : parent_(parent) {}
+
+  absl::Status FileExists(const std::filesystem::path& path) override {
+    std::string uri = verible::lsp::PathToLSPUri(path.c_str());
+    auto it = parent_.vfs_contents().find(uri);
+    if (it == parent_.vfs_contents().end()) {
+      return xls::FileExists(path);
+    }
+
+    return absl::OkStatus();
+  }
+
+  absl::StatusOr<std::string> GetFileContents(
+      const std::filesystem::path& path) override {
+    // First we check if it exists in the virtual layer.
+    std::string uri = verible::lsp::PathToLSPUri(path.c_str());
+    auto it = parent_.vfs_contents().find(uri);
+    if (it == parent_.vfs_contents().end()) {
+      return xls::GetFileContents(path);
+    }
+
+    return it->second;
+  }
+
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override {
+    return xls::GetCurrentDirectory();
+  }
+
+ private:
+  LanguageServerAdapter& parent_;
+};
+
 LanguageServerAdapter::LanguageServerAdapter(
     std::string_view stdlib,
     const std::vector<std::filesystem::path>& dslx_paths)
@@ -150,8 +193,21 @@ LanguageServerAdapter::ParseData* LanguageServerAdapter::FindParsedForUri(
   return nullptr;
 }
 
-absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
-                                           std::string_view dslx_code) {
+absl::Status LanguageServerAdapter::Update(
+    std::string_view file_uri, std::optional<std::string_view> dslx_code) {
+  // Either update or get the last contents from the virtual filesystem map.
+  if (dslx_code.has_value()) {
+    vfs_contents_[file_uri] = std::string{dslx_code.value()};
+  } else {
+    auto it = vfs_contents_.find(file_uri);
+    if (it == vfs_contents_.end()) {
+      return absl::NotFoundError(absl::StrCat(
+          "Could not find previous contents for file URI: ", file_uri));
+    }
+    dslx_code = it->second;
+  }
+  XLS_RET_CHECK(dslx_code.has_value());
+
   const absl::Time start = absl::Now();
   absl::StatusOr<std::string> module_name_or = ExtractModuleName(file_uri);
   if (!module_name_or.ok()) {
@@ -164,12 +220,26 @@ absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
   std::unique_ptr<ParseData>& insert_value = inserted.first->second;
 
   ImportData import_data =
-      CreateImportData(stdlib_, dslx_paths_, kAllWarningsSet);
+      CreateImportData(stdlib_, dslx_paths_, kAllWarningsSet,
+                       std::make_unique<LanguageServerFilesystem>(*this));
+
+  import_data.SetImporterStackObserver(
+      [&](const Span& importer_span, const std::filesystem::path& imported) {
+        std::string_view importer_filename =
+            importer_span.GetFilename(import_data.file_table());
+        CHECK(absl::StartsWith(importer_filename, "file://") ||
+              absl::StartsWith(importer_filename, "memfile://"))
+            << "importer_filename: " << importer_filename
+            << " imported: " << imported;
+        std::string imported_uri = verible::lsp::PathToLSPUri(imported.c_str());
+        import_sensitivity_.NoteImportAttempt(importer_filename, imported_uri);
+      });
+
   const std::string& module_name = module_name_or.value();
 
   std::vector<CommentData> comments;
   absl::StatusOr<TypecheckedModule> typechecked_module =
-      ParseAndTypecheck(dslx_code, /*path=*/file_uri,
+      ParseAndTypecheck(dslx_code.value(), /*path=*/file_uri,
                         /*module_name=*/module_name, &import_data, &comments);
 
   if (typechecked_module.ok()) {

@@ -37,7 +37,7 @@ absl::StatusOr<InterpValue> InterpValueFromString(
   ImportData import_data = CreateImportData(
       dslx_stdlib_path,
       /*additional_search_paths=*/absl::Span<const std::filesystem::path>{},
-      kDefaultWarningsSet);
+      kDefaultWarningsSet, std::make_unique<RealFilesystem>());
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
                        ParseAndTypecheck(program, "cmdline_constant.x",
                                          "cmdline_constant", &import_data));

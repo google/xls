@@ -289,9 +289,10 @@ DslxBuilder::DslxBuilder(
     : additional_search_paths_(
           WrapOptionalPathInVector(additional_search_path)),
       dslx_stdlib_path_(dslx_stdlib_path),
-      import_data_(dslx::CreateImportData(
-          dslx_stdlib_path_, additional_search_paths_,
-          /*enabled_warnings=*/dslx::kDefaultWarningsSet)),
+      import_data_(
+          dslx::CreateImportData(dslx_stdlib_path_, additional_search_paths_,
+                                 /*enabled_warnings=*/dslx::kDefaultWarningsSet,
+                                 std::make_unique<dslx::RealFilesystem>())),
       module_(std::string(main_module_name), /*fs_path=*/std::nullopt,
               import_data_.file_table()),
       resolver_(resolver),
@@ -524,7 +525,8 @@ absl::StatusOr<dslx::Import*> DslxBuilder::GetOrImportModule(
                                return dslx::TypecheckModule(
                                    module, &import_data_, &warnings_);
                              },
-                             import_tokens, &import_data_, dslx::Span::Fake()));
+                             import_tokens, &import_data_, dslx::Span::Fake(),
+                             import_data_.vfs()));
 
     auto* name_def = resolver_->MakeNameDef(*this, dslx::Span::Fake(), tail);
     VLOG(2) << "Creating import node via name definition `"
@@ -731,7 +733,8 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
   const std::string file_name = module_.name() + ".x";
   auto import_data =
       dslx::CreateImportData(dslx_stdlib_path_, additional_search_paths_,
-                             /*enabled_warnings=*/dslx::kDefaultWarningsSet);
+                             /*enabled_warnings=*/dslx::kDefaultWarningsSet,
+                             std::make_unique<dslx::RealFilesystem>());
   dslx::Fileno fileno = import_data.file_table().GetOrCreate(file_name);
   dslx::Scanner scanner(import_data.file_table(), fileno, text);
   dslx::Parser parser(module_.name(), &scanner);

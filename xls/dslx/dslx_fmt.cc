@@ -78,7 +78,8 @@ absl::Status RealMain(std::string_view input_path,
 
   ImportData import_data =
       CreateImportData(xls::kDefaultDslxStdlibPath,
-                       /*additional_search_paths=*/{}, kNoWarningsSet);
+                       /*additional_search_paths=*/{}, kNoWarningsSet,
+                       std::make_unique<RealFilesystem>());
   std::string formatted;
   if (mode == "autofmt") {
     std::vector<CommentData> comments;

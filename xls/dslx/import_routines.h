@@ -28,27 +28,30 @@ namespace xls::dslx {
 // Type-checking callback lambda.
 using TypecheckModuleFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 
-// Imports the module identified (globally) by 'subject'.
+// Imports the module identified (globally) by `subject`.
 //
 // Importing means: locating, parsing, typechecking, and caching in the import
 // cache.
 //
-// Resolves against an existing import in 'cache' if it is present.
+// Resolves against an existing import in `import_data` if it is present.
 //
 // Args:
 //  ftypecheck: Function that can be used to get type information for a module.
 //  subject: Tokens that globally uniquely identify the module to import; e.g.
-//      something built-in like ('std',) for the standard library or something
-//      fully qualified like ('xls', 'lib', 'math').
-//  cache: Cache that we resolve against so we don't waste resources
+//      something built-in like `{"std"}` for the standard library or something
+//      fully qualified like `{"xls", "lib", "math"}`.
+//  import_data: Cache that we resolve against so we don't waste resources
 //      re-importing things in the import DAG.
+//  import_span: Indicates the "importer" (i.e. the AST node, lexically) that
+//      caused this attempt to import.
 //
 // Returns:
 //  The imported module information.
 absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
                                      const ImportTokens& subject,
                                      ImportData* import_data,
-                                     const Span& import_span);
+                                     const Span& import_span,
+                                     VirtualizableFilesystem& vfs);
 
 }  // namespace xls::dslx
 

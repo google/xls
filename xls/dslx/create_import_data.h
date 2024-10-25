@@ -32,7 +32,7 @@ namespace xls::dslx {
 ImportData CreateImportData(
     const std::filesystem::path& stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths,
-    WarningKindSet warnings);
+    WarningKindSet warnings, std::unique_ptr<VirtualizableFilesystem> vfs);
 
 // Creates an ImportData with reasonable defaults (standard path to the stdlib
 // and no additional search paths).

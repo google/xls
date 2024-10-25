@@ -312,7 +312,8 @@ absl::Status CommandReload() {
   dslx::ImportData import_data(dslx::CreateImportData(
       /*dslx_stdlib_path=*/"",
       /*additional_search_paths=*/{},
-      /*enabled_warnings=*/dslx::kDefaultWarningsSet));
+      /*enabled_warnings=*/dslx::kDefaultWarningsSet,
+      std::make_unique<dslx::RealFilesystem>()));
 
   dslx::FileTable& file_table = import_data.file_table();
 
