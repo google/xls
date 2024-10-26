@@ -16,6 +16,7 @@
 
 #include <filesystem>  // NOLINT
 #include <memory>
+#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/types/span.h"

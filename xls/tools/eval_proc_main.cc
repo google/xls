@@ -79,7 +79,6 @@
 #include "xls/jit/block_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/tests/testvector.pb.h"
 #include "xls/tools/eval_utils.h"
 #include "xls/tools/node_coverage_utils.h"
 

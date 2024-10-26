@@ -34,6 +34,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/public/ir_parser.h"

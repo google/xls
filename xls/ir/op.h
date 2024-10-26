@@ -22,7 +22,6 @@
 #include <string_view>
 #include <type_traits>
 
-#include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/op.pb.h"
 #include "xls/ir/op_list.h"

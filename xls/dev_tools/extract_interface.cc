@@ -22,6 +22,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
+#include "xls/ir/type.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls {

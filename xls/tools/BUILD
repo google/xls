@@ -313,7 +313,6 @@ cc_binary(
         "//xls/jit:block_jit",
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",
-        "//xls/tests:testvector_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

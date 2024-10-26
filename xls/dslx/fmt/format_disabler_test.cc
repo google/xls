@@ -27,7 +27,6 @@
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/comment_data.h"
-#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
 

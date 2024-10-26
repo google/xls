@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>

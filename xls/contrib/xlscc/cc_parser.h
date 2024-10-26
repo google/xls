@@ -15,12 +15,10 @@
 #ifndef XLS_CONTRIB_XLSCC_PARSE_CPP_H_
 #define XLS_CONTRIB_XLSCC_PARSE_CPP_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <tuple>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

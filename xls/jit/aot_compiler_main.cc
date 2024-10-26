@@ -24,7 +24,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"

@@ -2300,7 +2300,7 @@ class StructDefBase : public AstNode {
                 std::vector<ParametricBinding*> parametric_bindings,
                 std::vector<StructMember> members, bool is_public);
 
-  virtual ~StructDefBase();
+  ~StructDefBase() override;
 
   // Returns a string for what to call the type of entity represented by this
   // `StructDefBase` in error messages such as "A %s can't have two members with

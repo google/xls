@@ -30,7 +30,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/synchronization/blocking_counter.h"
@@ -692,7 +691,7 @@ class HlsArgsPragmaHandler : public clang::PragmaHandler {
       : clang::PragmaHandler(pragma_name), num_args_(num_args) {}
 
   void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken) override final {
+                    clang::Token& firstToken) final {
     std::optional<std::vector<clang::Token>> lexed_args_opt = LexPragmaArgs(
         PP, firstToken, num_args_, clang::PragmaHandler::getName());
 

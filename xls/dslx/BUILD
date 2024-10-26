@@ -348,7 +348,6 @@ cc_library(
     deps = [
         ":import_data",
         "//xls/common/config:xls_config",
-        "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

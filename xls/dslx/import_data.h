@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>

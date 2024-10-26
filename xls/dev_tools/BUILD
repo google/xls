@@ -116,6 +116,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:register",
+        "//xls/ir:type",
         "//xls/ir:xls_ir_interface_cc_proto",
     ],
 )
@@ -553,7 +554,6 @@ cc_binary(
         "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
-        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:type",

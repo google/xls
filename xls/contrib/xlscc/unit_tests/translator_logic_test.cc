@@ -4362,7 +4362,7 @@ TEST_F(TranslatorLogicTest, ArrayExtendError) {
                          /*io_test_mode=*/false,
                          /*error_on_init_interval=*/false,
                          /*error_on_uninitialized=*/true));
-  package_.reset(new xls::Package("my_package"));
+  package_ = std::make_unique<xls::Package>("my_package");
   HLSBlock block_spec;
   ASSERT_THAT(
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,

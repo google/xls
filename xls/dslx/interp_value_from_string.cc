@@ -15,6 +15,7 @@
 #include "xls/dslx/interp_value_from_string.h"
 
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
 

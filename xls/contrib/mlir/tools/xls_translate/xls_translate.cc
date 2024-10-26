@@ -68,11 +68,7 @@
 #include "xls/public/ir.h"
 #include "xls/public/ir_parser.h"
 #include "xls/public/runtime_build_actions.h"
-#include "xls/tools/codegen_flags.h"
-#include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/opt.h"
-#include "xls/tools/scheduling_options_flags.h"
-#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace mlir::xls {
 namespace {

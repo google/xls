@@ -243,6 +243,7 @@ cc_library(
     # Allow jit-wrapper users to see this.
     visibility = ["//xls:xls_users"],
     deps = [
+        ":aot_entrypoint_cc_proto",
         ":block_jit",
         ":function_base_jit",
         "//xls/common/status:ret_check",
@@ -250,12 +251,10 @@ cc_library(
         "//xls/interpreter:evaluator_options",
         "//xls/ir",
         "//xls/ir:value",
-        "//xls/ir:value_utils",
         "//xls/public:ir_parser",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )

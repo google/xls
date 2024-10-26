@@ -113,7 +113,7 @@ void TextChangeHandler(const std::string& file_uri,
   // being an import-time error to having no import-time error).
   std::vector<std::string> sensitive_uris =
       adapter.import_sensitivity().GatherAllSensitiveToChangeIn(file_uri);
-  for (std::string sensitive_uri : sensitive_uris) {
+  for (const std::string& sensitive_uri : sensitive_uris) {
     // Note to all dependent files that an update has occurred.
     // We don't need to do this for the file that we updated directly.
     if (sensitive_uri != file_uri) {
