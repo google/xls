@@ -440,12 +440,18 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     //       throughput (if minimization is requested), even if we're not using
     //       it for the final schedule.
     XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
-    XLS_ASSIGN_OR_RETURN(worst_case_throughput,
-                         FindMinimumWorstCaseThroughput(
-                             f, options.pipeline_stages(), clock_period_ps,
-                             *sdc_scheduler, options.failure_behavior()));
-    LOG(INFO) << "Minimized worst-case throughput for proc '" << f->name()
-              << "': " << *worst_case_throughput;
+    absl::StatusOr<int64_t> wct = FindMinimumWorstCaseThroughput(
+        f, options.pipeline_stages(), clock_period_ps, *sdc_scheduler,
+        /*failure_behavior=*/{.explain_infeasibility = false});
+    if (wct.ok()) {
+      worst_case_throughput = *wct;
+      LOG(INFO) << "Minimized worst-case throughput for proc '" << f->name()
+                << "': " << *worst_case_throughput;
+    } else {
+      VLOG(2) << "Failed to minimize worst-case throughput for proc '"
+              << f->name() << "', continuing to allow normal error handling: "
+              << wct.status();
+    }
   }
 
   ScheduleCycleMap cycle_map;
