@@ -120,6 +120,8 @@ cc_library(
         "deduce_spawn.h",
         "deduce_struct_def.cc",
         "deduce_struct_def.h",
+        "deduce_struct_def_base_utils.cc",
+        "deduce_struct_def_base_utils.h",
         "deduce_struct_instance.cc",
         "deduce_struct_instance.h",
     ],
