@@ -204,11 +204,18 @@ class LegalizeTensorConcatPattern
     : public OpConversionPattern<mlir::tensor::ConcatOp> {
   using OpConversionPattern::OpConversionPattern;
 
+  // Returns true if dim is zero (leading dimension) or if all more major
+  // dimensions are unit sized.
+  bool isEffectivelyLeadingDim(mlir::tensor::ConcatOp op) const {
+    return all_of(op.getResultType().getShape().take_front(op.getDim()),
+                  [](int64_t size) { return size == 1; });
+  }
+
   LogicalResult matchAndRewrite(
       mlir::tensor::ConcatOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    if (op.getDim() != 0) {
-      return rewriter.notifyMatchFailure(op, "dim != 0 not supported");
+    if (!isEffectivelyLeadingDim(op)) {
+      return rewriter.notifyMatchFailure(op, "concat on non-leading dimension");
     }
 
     if (isa<IntegerType>(op.getResult().getType())) {
@@ -290,13 +297,14 @@ bool isSingleContiguousSlice(ArrayRef<int64_t> sizes,
 // sizes are of the form `(1, ..., 1, k, N, M, ...)`, where `k` is an arbitrary
 // value and `N`, `M`, ... are the sizes of the corresponding dimensions in the
 // input. This pattern is preferred over (and, thus, has a higher benefit than)
-// `LegalizeTensorExtractSliceUnrollPattern` because it is produces a single
-// `array_slice` op instead of one op per element.
+// `RankReduceTensorExtractSlicePattern` since it terminates the recursion
+// chain
 class LegalizeTensorExtractSingleSlicePattern
     : public OpConversionPattern<mlir::tensor::ExtractSliceOp> {
-  explicit LegalizeTensorExtractSingleSlicePattern(mlir::MLIRContext* context)
-      : OpConversionPattern(context, /*benefit=*/2) {}
-  using OpConversionPattern::OpConversionPattern;
+ public:
+  LegalizeTensorExtractSingleSlicePattern(TypeConverter& tc,
+                                          mlir::MLIRContext* context)
+      : OpConversionPattern(tc, context, /*benefit=*/3) {}
 
   LogicalResult matchAndRewrite(
       mlir::tensor::ExtractSliceOp op, OpAdaptor adaptor,
@@ -352,6 +360,94 @@ class LegalizeTensorExtractSingleSlicePattern
   }
 };
 
+// Helps to legalize `tensor.extract_slice` by breaking it on its first non-unit
+// dimension into N smaller `tensor.extract_slice`, followed by a
+// `tensor.concat`. Eventually the `tensor.extract_slice`s will be legalized by
+// `LegalizeTensorExtractSingleSlicePattern`.
+class RankReduceTensorExtractSlicePattern
+    : public OpConversionPattern<mlir::tensor::ExtractSliceOp> {
+ public:
+  RankReduceTensorExtractSlicePattern(TypeConverter& tc,
+                                      mlir::MLIRContext* context)
+      : OpConversionPattern(tc, context, /*benefit=*/2) {
+    // Each recursion step produces a tensor.extract_slice with more unit
+    // dimensions. The recursion is bounded by the rank.
+    setHasBoundedRewriteRecursion();
+  }
+
+  // Returns the first dimension that is not unit sized. Returns -1 if all
+  // dimensions are unit sized, or if the first non-unit-sized dimension is
+  // dynamic.
+  int64_t getFirstNonUnitDimension(ArrayRef<int64_t> offsets,
+                                   ArrayRef<int64_t> sizes) const {
+    for (auto [i, size] : enumerate(sizes)) {
+      if (size == 1) {
+        continue;
+      }
+      if (ShapedType::isDynamic(offsets[i])) {
+        return -1;
+      }
+      return i;
+    }
+    return -1;
+  }
+
+  LogicalResult matchAndRewrite(
+      mlir::tensor::ExtractSliceOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    // Bail on unsupported cases.
+    for (int64_t size : op.getStaticSizes()) {
+      if (ShapedType::isDynamic(size)) {
+        return rewriter.notifyMatchFailure(op, "dynamic sizes not supported");
+      }
+    }
+
+    for (int64_t size : op.getStaticStrides()) {
+      if (size != 1) {
+        return rewriter.notifyMatchFailure(op, "only unit strides supported");
+      }
+    }
+
+    // Find the first non-unit size dimension to split on. If that dimension is
+    // dynamic, then LegalizeTensorExtractSingleSlicePattern should kick in
+    // instead.
+    int64_t splitDim =
+        getFirstNonUnitDimension(op.getStaticOffsets(), op.getStaticSizes());
+    if (splitDim == -1) {
+      return rewriter.notifyMatchFailure(op,
+                                         "no non-unit size static dimension");
+    }
+    int64_t splitSize = op.getStaticSizes()[splitDim];
+
+    auto sizes = to_vector(op.getMixedSizes());
+    sizes[splitDim] = rewriter.getIndexAttr(1);
+    auto offsets = to_vector(op.getMixedOffsets());
+
+    // adaptor.getSource() is what we want, but it's an ArrayType and
+    // ExtractSliceOp expects a TensorType (and will crash in tryFold if it
+    // doesn't get one). So make it a TensorType and rely on the type converter
+    // to remove the unnecessary cast after it's converted the child
+    // ExtractSliceOp.
+    Value sourceAsTensor =
+        rewriter
+            .create<UnrealizedConversionCastOp>(op.getLoc(), op.getSourceType(),
+                                                adaptor.getSource())
+            .getResult(0);
+
+    SmallVector<Value> elements;
+    for (int64_t i = op.getStaticOffset(splitDim); i < splitSize; ++i) {
+      offsets[splitDim] = rewriter.getIndexAttr(i);
+      tensor::ExtractSliceOp cloned = rewriter.create<tensor::ExtractSliceOp>(
+          op.getLoc(), sourceAsTensor, offsets, sizes, op.getMixedStrides());
+      elements.push_back(cloned);
+    }
+    // Stick the smaller slices back together. This is guaranteed to be a
+    // concatenate on an effectively leading dimension.
+    rewriter.replaceOpWithNewOp<tensor::ConcatOp>(op, splitDim, elements);
+    return success();
+  }
+};
+
 class LegalizeTensorInsertSingleSlicePattern
     : public OpConversionPattern<mlir::tensor::InsertSliceOp> {
   explicit LegalizeTensorInsertSingleSlicePattern(mlir::MLIRContext* context)
@@ -401,98 +497,6 @@ class LegalizeTensorInsertSingleSlicePattern
                                                     adaptor.getSource(), start);
 
     return success();
-  }
-};
-
-// Rewrites `tensor.extract_slice` to `tensor.extract`s and
-// `tensor.from_elements`, which can then be legalized by other patterns. This
-// is more general than `LegalizeTensorExtractSingleSlicePattern` but produces
-// more ops and, thus, has a lower benefit.
-class LegalizeTensorExtractSliceUnrollPattern
-    : public OpConversionPattern<mlir::tensor::ExtractSliceOp> {
-  explicit LegalizeTensorExtractSliceUnrollPattern(mlir::MLIRContext* context)
-      : OpConversionPattern(context, /*benefit=*/1) {}
-  using OpConversionPattern::OpConversionPattern;
-
-  LogicalResult matchAndRewrite(
-      mlir::tensor::ExtractSliceOp op, OpAdaptor adaptor,
-      ConversionPatternRewriter& rewriter) const override {
-    // Bail on unsupported cases.
-    for (int64_t size : op.getStaticSizes()) {
-      if (ShapedType::isDynamic(size)) {
-        return rewriter.notifyMatchFailure(op, "dynamic sizes not supported");
-      }
-    }
-
-    for (int64_t size : op.getStaticStrides()) {
-      if (size != 1) {
-        return rewriter.notifyMatchFailure(op, "only unit strides supported");
-      }
-    }
-
-    Location loc = op.getLoc();
-
-    // Assemble `Value`s dynamic offsets, including static ones.
-    SmallVector<Value> offsets;
-    buildOffsetValues(adaptor.getOffsets(), op.getStaticOffsets(), loc,
-                      rewriter, offsets);
-
-    // Extract individual elements from the source tensor.
-    SmallVector<Value> elements;
-    SmallVector<Value> indices;
-    indices.reserve(offsets.size());
-    buildExtractOps(loc, op.getSource(), offsets, op.getStaticSizes(), rewriter,
-                    indices, elements);
-
-    // Assemble a new tensor from the extracted elements.
-    rewriter.replaceOpWithNewOp<mlir::tensor::FromElementsOp>(
-        op, op.getResultType(), elements);
-
-    return success();
-  }
-
- private:
-  // Builds `tensor.extract` ops for all elements of `source` in the slice
-  // defined by `offsets` and `sizes`. The extracted elements are appended to
-  // `elements`. The function is implemented recursively removing one dimension
-  // from the front of `offsets` and `sizes` per recursion step until they are
-  // empty. In the recursive case, the function iterators over all values in the
-  // first dimension and calls itself recursively for the next dimension,
-  // building up `indices` along the way. In the base case, the function
-  // extracts the element at position given by `indices` and appends it to
-  // `elements`.
-  void buildExtractOps(Location loc, Value source, ValueRange offsets,
-                       mlir::ArrayRef<int64_t> sizes,
-                       ConversionPatternRewriter& rewriter,
-                       SmallVector<Value>& indices,
-                       SmallVector<Value>& elements) const {
-    assert(offsets.size() == sizes.size() &&
-           "offsets and sizes must have the same size");
-
-    // Base case: extract one element at the given indices.
-    if (offsets.empty()) {
-      Value element =
-          rewriter.create<mlir::tensor::ExtractOp>(loc, source, indices);
-      elements.push_back(element);
-      return;
-    }
-
-    // Recursive case: co-iterate over the first level of offsets and sizes and
-    // call the function recursively for each index between offset and offset +
-    // size.
-    Type idxType = rewriter.getIndexType();
-    for (int64_t i = 0; i < sizes[0]; ++i) {
-      Value offset = castTo(rewriter, idxType, offsets[0]);
-      if (i != 0) {
-        Value iVal = rewriter.create<mlir::arith::ConstantOp>(
-            loc, idxType, rewriter.getIndexAttr(i));
-        offset = rewriter.create<xls::AddOp>(loc, offset, iVal);
-      }
-      indices.push_back(offset);
-      buildExtractOps(loc, source, offsets.drop_front(1), sizes.drop_front(1),
-                      rewriter, indices, elements);
-      indices.pop_back();
-    }
   }
 };
 
@@ -881,6 +885,10 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
              absl::c_all_of(op->getResultTypes(), is_legal);
     });
     target.addIllegalOp<VectorizedCallOp>();
+    // Theoretically this should not be required and the dialect converter can
+    // handle them all for us, but with deep nesting of patterns this seems to
+    // be required.
+    target.addLegalOp<UnrealizedConversionCastOp>();
     RewritePatternSet patterns(&getContext());
     patterns.add<
         // clang-format off
@@ -895,7 +903,7 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
         LegalizeTensorEmptyPattern,
         LegalizeTensorExtractPattern,
         LegalizeTensorExtractSingleSlicePattern,
-        LegalizeTensorExtractSliceUnrollPattern,
+        RankReduceTensorExtractSlicePattern,
         LegalizeTensorFromElementsPattern,
         LegalizeTensorInsertSingleSlicePattern,
         LegalizeTensorInsertPattern,

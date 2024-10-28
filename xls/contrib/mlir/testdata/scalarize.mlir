@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -scalarize -canonicalize %s 2>&1 | FileCheck %s
+// RUN: xls/contrib/mlir/xls_opt -scalarize -canonicalize -cse %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: @signature
 // CHECK-NEXT: {{constant_scalar.*value = 6}}
@@ -132,14 +132,57 @@ func.func @tensor_extract_single_slice_2d_all(%arg0: tensor<3x3xi32>, %arg1: ind
   return %0 : tensor<3x3xi32>
 }
 
-// CHECK-LABEL: @tensor_extract_slice_unroll
-// CHECK: xls.array_index
-// CHECK: xls.array_index
-// CHECK: xls.array_index
-// CHECK: xls.array_index
-// CHECK-NOT: xls.array_index
-// CHECK: xls.array {{.*}} -> !xls.array<4 x i32>
-// CHECK: return %{{.*}} : !xls.array<4 x i32>
+// CHECK-LABEL:   func.func @tensor_extract_non_leading_slice(
+// CHECK-SAME:                                                %[[ARG_0:.*]]: !xls.array<24 x i32>,
+// CHECK-SAME:                                                %[[ARG_1:.*]]: index) -> !xls.array<12 x i32> attributes {xls = true} {
+// CHECK:           %[[C16:.*]] = "xls.constant_scalar"() <{value = 16 : index}> : () -> index
+// CHECK:           %[[C8:.*]] = "xls.constant_scalar"() <{value = 8 : index}> : () -> index
+// CHECK:           %[[C4:.*]] = "xls.constant_scalar"() <{value = 4 : index}> : () -> index
+// CHECK:           %[[C0:.*]] = "xls.constant_scalar"() <{value = 0 : index}> : () -> index
+// CHECK:           %[[VAL_6:.*]] = arith.constant 2 : index
+// CHECK:           %[[VAL_7:.*]] = xls.umul %[[ARG_1]], %[[VAL_6]] : index
+// CHECK:           %[[VAL_8:.*]] = xls.add %[[C0]], %[[VAL_7]] : index
+// CHECK:           %[[VAL_9:.*]] = xls.add %[[VAL_8]], %[[C0]] : index
+// CHECK:           %[[VAL_10:.*]] = xls.add %[[VAL_9]], %[[C0]] : index
+// CHECK:           %[[VAL_11:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_10]]) <{width = 2 : i64}> : (!xls.array<24 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_12:.*]] = xls.add %[[VAL_8]], %[[C4]] : index
+// CHECK:           %[[VAL_13:.*]] = xls.add %[[VAL_12]], %[[C0]] : index
+// CHECK:           %[[VAL_14:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_13]]) <{width = 2 : i64}> : (!xls.array<24 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_15:.*]] = xls.array_concat %[[VAL_11]], %[[VAL_14]] : (!xls.array<2 x i32>, !xls.array<2 x i32>) -> !xls.array<4 x i32>
+// CHECK:           %[[VAL_16:.*]] = xls.add %[[VAL_9]], %[[C8]] : index
+// CHECK:           %[[VAL_17:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_16]]) <{width = 2 : i64}> : (!xls.array<24 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_18:.*]] = xls.add %[[VAL_12]], %[[C8]] : index
+// CHECK:           %[[VAL_19:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_18]]) <{width = 2 : i64}> : (!xls.array<24 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_20:.*]] = xls.array_concat %[[VAL_17]], %[[VAL_19]] : (!xls.array<2 x i32>, !xls.array<2 x i32>) -> !xls.array<4 x i32>
+// CHECK:           %[[VAL_21:.*]] = xls.add %[[VAL_9]], %[[C16]] : index
+// CHECK:           %[[VAL_22:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_21]]) <{width = 2 : i64}> : (!xls.array<24 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_23:.*]] = xls.add %[[VAL_12]], %[[C16]] : index
+// CHECK:           %[[VAL_24:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_23]]) <{width = 2 : i64}> : (!xls.array<24 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_25:.*]] = xls.array_concat %[[VAL_22]], %[[VAL_24]] : (!xls.array<2 x i32>, !xls.array<2 x i32>) -> !xls.array<4 x i32>
+// CHECK:           %[[VAL_26:.*]] = xls.array_concat %[[VAL_15]], %[[VAL_20]], %[[VAL_25]] : (!xls.array<4 x i32>, !xls.array<4 x i32>, !xls.array<4 x i32>) -> !xls.array<12 x i32>
+// CHECK:           return %[[VAL_26]] : !xls.array<12 x i32>
+// CHECK:         }
+func.func @tensor_extract_non_leading_slice(%arg0: tensor<3x2x2x2xi32>, %arg1: index) ->  tensor<3x2x1x2xi32> attributes { "xls" = true } {
+  %0 = tensor.extract_slice %arg0[0, 0, %arg1, 0] [3, 2, 1, 2] [1, 1, 1, 1] : tensor<3x2x2x2xi32> to tensor<3x2x1x2xi32>
+  return %0 :  tensor<3x2x1x2xi32>
+}
+
+// CHECK-LABEL:   func.func @tensor_extract_slice_unroll(
+// CHECK-SAME:                                           %[[ARG_0:.*]]: !xls.array<9 x i32>,
+// CHECK-SAME:                                           %[[ARG_1:.*]]: index) -> !xls.array<4 x i32> attributes {xls = true} {
+// CHECK:           %[[C3:.*]] = "xls.constant_scalar"() <{value = 3 : index}> : () -> index
+// CHECK:           %[[C0:.*]] = "xls.constant_scalar"() <{value = 0 : index}> : () -> index
+// CHECK:           %[[VAL_4:.*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_5:.*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_6:.*]] = xls.umul %[[ARG_1]], %[[VAL_5]] : index
+// CHECK:           %[[VAL_7:.*]] = xls.add %[[VAL_4]], %[[VAL_6]] : index
+// CHECK:           %[[VAL_8:.*]] = xls.add %[[VAL_7]], %[[C0]] : index
+// CHECK:           %[[VAL_9:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_8]]) <{width = 2 : i64}> : (!xls.array<9 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_10:.*]] = xls.add %[[VAL_7]], %[[C3]] : index
+// CHECK:           %[[VAL_11:.*]] = "xls.array_slice"(%[[ARG_0]], %[[VAL_10]]) <{width = 2 : i64}> : (!xls.array<9 x i32>, index) -> !xls.array<2 x i32>
+// CHECK:           %[[VAL_12:.*]] = xls.array_concat %[[VAL_9]], %[[VAL_11]] : (!xls.array<2 x i32>, !xls.array<2 x i32>) -> !xls.array<4 x i32>
+// CHECK:           return %[[VAL_12]] : !xls.array<4 x i32>
+// CHECK:         }
 func.func @tensor_extract_slice_unroll(%arg0: tensor<3x3xi32>, %arg1: index) -> tensor<2x2xi32> attributes { "xls" = true } {
   %0 = tensor.extract_slice %arg0[0, %arg1] [2, 2] [1, 1] : tensor<3x3xi32> to tensor<2x2xi32>
   return %0 : tensor<2x2xi32>
