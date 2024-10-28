@@ -210,6 +210,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       Node* to_replace, const QueryEngine& query_engine,
       const std::function<absl::Status(const Value&)>& replace_with,
       std::string_view context) {
+    if (to_replace->Is<Literal>()) {
+      // Don't replace literals since they can only be replaced with themselves
+      // which is not useful.
+      return false;
+    }
     std::optional<LeafTypeTree<TernaryVector>> ternary =
         query_engine.GetTernary(to_replace);
     if (!ternary.has_value()) {

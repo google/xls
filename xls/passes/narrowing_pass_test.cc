@@ -1464,6 +1464,17 @@ TEST_P(NarrowingPassTest, TracksUpdates) {
                                      m::Type("bits[4]"), m::Decode())))))));
 }
 
+TEST_P(NarrowingPassTest, NarrowingDoesNotReplaceLiteralWithItself) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Select(fb.Param("foo", p->GetBitsType(1)),
+            fb.Param("param", p->GetBitsType(16)), fb.Literal(UBits(12, 16)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence sve(f);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,
