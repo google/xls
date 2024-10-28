@@ -3313,10 +3313,13 @@ class VerbatimNode : public AstNode {
  public:
   VerbatimNode(Module* owner, Span span, const std::string text)
       : AstNode(owner), span_(std::move(span)), text_(std::move(text)) {}
+  VerbatimNode(Module* owner, Span span)
+      : AstNode(owner), span_(std::move(span)), text_("") {}
 
   ~VerbatimNode() override;
 
   std::string text() const { return text_; }
+  bool IsEmpty() const { return text_.empty(); }
 
   AstNodeKind kind() const override { return AstNodeKind::kVerbatimNode; }
 

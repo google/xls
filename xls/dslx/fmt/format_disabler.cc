@@ -49,7 +49,7 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
       // extracted in a VerbatimNode.
       previous_node_ = node;
 
-      return node->owner()->Make<VerbatimNode>(node->GetSpan().value(), "");
+      return node->owner()->Make<VerbatimNode>(node->GetSpan().value());
 
       // TODO: https://github.com/google/xls/issues/1320 - also remove comments
       // that are in this range; their text will be included in the previous

@@ -195,7 +195,7 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
   VerbatimNode* second_verbatim_node = down_cast<VerbatimNode*>(*second_actual);
   ASSERT_NE(second_verbatim_node, nullptr);
 
-  EXPECT_EQ(second_verbatim_node->text(), "");
+  EXPECT_TRUE(second_verbatim_node->IsEmpty());
 }
 
 TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
