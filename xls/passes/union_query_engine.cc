@@ -242,9 +242,13 @@ std::optional<TernaryVector> UnownedUnionQueryEngine::ImpliedNodeTernary(
 
 Bits UnownedUnionQueryEngine::MaxUnsignedValue(Node* node) const {
   CHECK(node->GetType()->IsBits()) << node;
-  Bits result = engines_.front()->MaxUnsignedValue(node);
+  Bits result = engines_.front()->IsTracked(node)
+                    ? engines_.front()->MaxUnsignedValue(node)
+                    : Bits::AllOnes(node->BitCountOrDie());
   for (const auto& engine : absl::MakeConstSpan(engines_).subspan(1)) {
-    Bits eng_res = engine->MaxUnsignedValue(node);
+    Bits eng_res = engine->IsTracked(node)
+                       ? engine->MaxUnsignedValue(node)
+                       : Bits::AllOnes(node->BitCountOrDie());
     if (bits_ops::ULessThan(eng_res, result)) {
       result = std::move(eng_res);
     }
@@ -255,9 +259,12 @@ Bits UnownedUnionQueryEngine::MaxUnsignedValue(Node* node) const {
 Bits UnownedUnionQueryEngine::MinUnsignedValue(Node* node) const {
   CHECK(node->GetType()->IsBits()) << node;
   CHECK(node->GetType()->IsBits()) << node;
-  Bits result = engines_.front()->MinUnsignedValue(node);
+  Bits result = engines_.front()->IsTracked(node)
+                    ? engines_.front()->MinUnsignedValue(node)
+                    : Bits(node->BitCountOrDie());
   for (const auto& engine : absl::MakeConstSpan(engines_).subspan(1)) {
-    Bits eng_res = engine->MinUnsignedValue(node);
+    Bits eng_res = engine->IsTracked(node) ? engine->MinUnsignedValue(node)
+                                           : Bits(node->BitCountOrDie());
     if (bits_ops::UGreaterThan(eng_res, result)) {
       result = std::move(eng_res);
     }

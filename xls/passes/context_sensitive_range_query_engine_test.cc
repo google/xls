@@ -1716,6 +1716,37 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, HandlesAllArms) {
             add_ten_alternate_ist);
 }
 
+TEST_F(ContextSensitiveRangeQueryEngineTest, MaxMinValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue idx = fb.Param("idx", p->GetBitsType(16));
+  BValue sel = fb.Select(fb.ULt(idx, fb.Literal(UBits(10, 16))),
+                         {fb.Literal(UBits(0, 16)), idx});
+  BValue sel2 = fb.Select(fb.UGt(idx, fb.Literal(UBits(10, 16))),
+                          {fb.Literal(UBits(10, 16)), idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Tuple({sel, sel2})));
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(engine.GetIntervals(sel.node()),
+            BitsLTT(sel.node(), {Interval(UBits(0, 16), UBits(9, 16))}));
+  EXPECT_EQ(engine.GetIntervals(sel2.node()),
+            BitsLTT(sel2.node(), {Interval(UBits(10, 16), Bits::AllOnes(16))}));
+  EXPECT_EQ(engine.MinUnsignedValue(sel2.node()), UBits(10, 16));
+  EXPECT_EQ(engine
+                .SpecializeGivenPredicate(
+                    {PredicateState(sel2.node()->As<Select>(), kConsequentArm)})
+                ->MinUnsignedValue(idx.node()),
+            UBits(11, 16));
+  EXPECT_EQ(engine
+                .SpecializeGivenPredicate(
+                    {PredicateState(sel.node()->As<Select>(), kConsequentArm)})
+                ->MaxUnsignedValue(idx.node()),
+            UBits(9, 16));
+}
+
 TEST_F(ContextSensitiveRangeQueryEngineTest, SelectValue) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

@@ -115,6 +115,9 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::flat_hash_set<PredicateState>& state) const override;
 
+  Bits MaxUnsignedValue(Node* node) const override;
+  Bits MinUnsignedValue(Node* node) const override;
+
  private:
   RangeQueryEngine base_case_ranges_;
   std::vector<std::unique_ptr<const RangeQueryEngine>> arena_;

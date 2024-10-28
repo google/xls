@@ -409,15 +409,33 @@ class ForwardingQueryEngine final : public QueryEngine {
     return real_.KnownNotEquals(a, b);
   }
 
+  bool AtMostOneBitTrue(Node* node) const override {
+    return real_.AtMostOneBitTrue(node);
+  }
+  bool AtLeastOneBitTrue(Node* node) const override {
+    return real_.AtLeastOneBitTrue(node);
+  }
+  bool ExactlyOneBitTrue(Node* node) const override {
+    return real_.ExactlyOneBitTrue(node);
+  }
   bool IsKnown(const TreeBitLocation& bit) const override {
     return real_.IsKnown(bit);
   }
   std::optional<bool> KnownValue(const TreeBitLocation& bit) const override {
     return real_.KnownValue(bit);
   }
+  std::optional<Value> KnownValue(Node* node) const override {
+    return real_.KnownValue(node);
+  }
   bool IsAllZeros(Node* n) const override { return real_.IsAllZeros(n); }
   bool IsAllOnes(Node* n) const override { return real_.IsAllOnes(n); }
   bool IsFullyKnown(Node* n) const override { return real_.IsFullyKnown(n); }
+  Bits MaxUnsignedValue(Node* node) const override {
+    return real_.MaxUnsignedValue(node);
+  }
+  Bits MinUnsignedValue(Node* node) const override {
+    return real_.MinUnsignedValue(node);
+  }
 
  private:
   const QueryEngine& real_;

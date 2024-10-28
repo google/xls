@@ -474,6 +474,14 @@ class ProxyContextQueryEngine final : public QueryEngine {
     return a_value != b_value;
   }
 
+  Bits MaxUnsignedValue(Node* node) const override {
+    return MostSpecific(node).MaxUnsignedValue(node);
+  }
+
+  virtual Bits MinUnsignedValue(Node* node) const override {
+    return MostSpecific(node).MinUnsignedValue(node);
+  }
+
  private:
   TernaryVector GetTernaryOf(absl::Span<TreeBitLocation const> bits) const {
     // TODO(allight): Very inefficient but the AtMost/AtLeastOne don't seem to
@@ -625,6 +633,20 @@ ContextSensitiveRangeQueryEngine::GetTernary(Node* node) const {
   }
   return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
       node->GetType(), *select_ranges_.at(node).ternary);
+}
+Bits ContextSensitiveRangeQueryEngine::MaxUnsignedValue(Node* node) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.MaxUnsignedValue(node);
+  }
+  return select_ranges_.at(node).interval_set.Get({}).UpperBound().value_or(
+      Bits::AllOnes(node->BitCountOrDie()));
+}
+Bits ContextSensitiveRangeQueryEngine::MinUnsignedValue(Node* node) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.MinUnsignedValue(node);
+  }
+  return select_ranges_.at(node).interval_set.Get({}).LowerBound().value_or(
+      Bits(node->BitCountOrDie()));
 }
 
 }  // namespace xls
