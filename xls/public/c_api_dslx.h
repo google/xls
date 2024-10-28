@@ -135,6 +135,9 @@ void xls_dslx_interp_value_free(struct xls_dslx_interp_value*);
 const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_def(
     struct xls_dslx_type_info*, struct xls_dslx_struct_def*);
 
+const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_member(
+    struct xls_dslx_type_info*, struct xls_dslx_struct_member*);
+
 const struct xls_dslx_type* xls_dslx_type_info_get_type_enum_def(
     struct xls_dslx_type_info*, struct xls_dslx_enum_def*);
 

@@ -15,6 +15,7 @@
 # Public (exported) XLS APIs.
 
 # pytype binary only
+load("//xls/public:xls_public_macros.oss.bzl", "libxls_dylib_binary", "pytype_test_test_c_api_symbols")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -255,3 +256,46 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+# This allows export of all symbols that start with `xls_`
+filegroup(
+    name = "exported_symbols_map",
+    srcs = ["exported_symbols.map"],
+)
+
+# We have to note that all these symbols, though unused, should be
+# included/exposed in the resulting artifact's symbol set.
+genrule(
+    name = "generate_linker_params",
+    srcs = ["c_api_symbols.txt"],
+    outs = ["dso_linker_params.txt"],
+    cmd = "sed 's|^|-Wl,-u,|' $(location c_api_symbols.txt) > $@",
+)
+
+# As above, but with leading underscores for OS X.
+genrule(
+    name = "generate_linker_params_underscores",
+    srcs = ["c_api_symbols.txt"],
+    outs = ["dso_linker_params_underscores.txt"],
+    cmd = "sed 's|^|-Wl,-u,_|' $(location c_api_symbols.txt) > $@",
+)
+
+cc_binary(
+    name = "libxls.so",
+    additional_linker_inputs = [
+        ":exported_symbols_map",
+        ":generate_linker_params",
+    ],
+    linkopts = [
+        "-Wl,--version-script=$(location :exported_symbols_map)",
+        "@$(location :generate_linker_params)",
+    ],
+    linkshared = True,
+    deps = [
+        ":c_api",
+    ],
+)
+
+libxls_dylib_binary()
+
+pytype_test_test_c_api_symbols()
