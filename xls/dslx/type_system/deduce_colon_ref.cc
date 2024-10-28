@@ -232,7 +232,10 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToStructType(
     return DeduceColonRefToImpl(impl, node, impl_ctx.get(), ctx->type_info());
   }
 
-  const StructType& struct_type = type.value()->AsStruct();
+  XLS_RET_CHECK(type.value()->IsMeta());
+  const MetaType& meta_type = type.value()->AsMeta();
+  const Type* wrapped = meta_type.wrapped().get();
+  const StructType& struct_type = wrapped->AsStruct();
 
   const absl::flat_hash_map<std::string, TypeDim>& dims =
       struct_type.nominal_type_dims_by_identifier();
@@ -329,36 +332,21 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
               },
 
               // Possible subjects for impl colon ref. In these cases, use the
-              // colon-ref `DeduceCtx`. The `impl` ctx will be created within
+              // colon-ref `DeduceCtx`. The `impl` ctx will be accessed within
               // `DeduceColonRefToStructType`.
               [&](StructDef* struct_def) -> ReturnT {
                 return DeduceColonRefToStructType(struct_def, std::nullopt,
                                                   node, ctx);
               },
-              [&](StructInstance* struct_instance) -> ReturnT {
-                TypeAnnotation* struct_ref = struct_instance->struct_ref();
-                XLS_RET_CHECK(struct_ref != nullptr);
+              [&](TypeRefTypeAnnotation* struct_ref) -> ReturnT {
                 XLS_ASSIGN_OR_RETURN(
                     StructDef * struct_def,
                     DerefToStruct(node->span(), struct_ref->ToString(),
                                   *struct_ref, ctx->type_info()));
                 return DeduceColonRefToStructType(
-                    struct_def, ctx->type_info()->GetItem(struct_instance),
-                    node, ctx);
+                    struct_def, ctx->type_info()->GetItem(struct_ref), node,
+                    ctx);
               },
-              [&](Param* param) -> ReturnT {
-                TypeRefTypeAnnotation* type_ref =
-                    dynamic_cast<TypeRefTypeAnnotation*>(
-                        param->type_annotation());
-                XLS_RET_CHECK(type_ref != nullptr);
-                XLS_ASSIGN_OR_RETURN(
-                    StructDef * struct_def,
-                    ResolveLocalStructDef(
-                        type_ref->type_ref()->type_definition()));
-                return DeduceColonRefToStructType(
-                    struct_def, ctx->type_info()->GetItem(param), node, ctx);
-              },
-
               [&](ColonRef* colon_ref) -> ReturnT {
                 // Note: this should be unreachable, as it's a colon-reference
                 // that refers *directly* to another colon-ref. Generally you
