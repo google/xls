@@ -184,6 +184,7 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 // periods than this.
 absl::StatusOr<int64_t> FindMinimumClockPeriod(
     FunctionBase* f, std::optional<int64_t> pipeline_stages,
+    std::optional<int64_t> worst_case_throughput,
     const DelayEstimator& delay_estimator, SDCScheduler& scheduler,
     SchedulingFailureBehavior failure_behavior,
     std::optional<int64_t> target_clock_period_ps = std::nullopt) {
@@ -222,7 +223,8 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   XLS_RETURN_IF_ERROR(scheduler
                           .Schedule(pipeline_stages, pessimistic_clk_period_ps,
                                     failure_behavior,
-                                    /*check_feasibility=*/true)
+                                    /*check_feasibility=*/true,
+                                    worst_case_throughput)
                           .status())
           .SetPrepend()
       << absl::StrFormat("Impossible to schedule %s %s as specified; ",
@@ -236,7 +238,7 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
       [&](int64_t clk_period_ps) {
         return scheduler
             .Schedule(pipeline_stages, clk_period_ps, failure_behavior,
-                      /*check_feasibility=*/true)
+                      /*check_feasibility=*/true, worst_case_throughput)
             .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
@@ -391,7 +393,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
   std::optional<int64_t> min_clock_period_ps_for_tracing;
   int64_t clock_period_ps;
-  if (options.clock_period_ps().has_value()) {
+  if (options.clock_period_ps().has_value() &&
+      !(options.minimize_clock_on_failure().value_or(false) &&
+        options.recover_after_minimizing_clock().value_or(false))) {
     clock_period_ps = *options.clock_period_ps();
 
     if (options.clock_margin_percent().has_value()) {
@@ -407,9 +411,11 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
       }
     }
   } else {
-    // A pipeline length is specified, but no target clock period. Determine the
-    // minimum clock period for which the function can be scheduled in the given
-    // pipeline length.
+    // We don't know the exact target clock period - either none was provided,
+    // or we want to fall back to the minimum feasible clock period if the
+    // target is infeasible. Determine the minimum clock period (no smaller than
+    // the target, if provided) for which the function can be scheduled in the
+    // given pipeline length.
     //
     // NOTE: We currently use the SDC scheduler to determine the minimum clock
     //       period (if not specified), even if we're not using it for the final
@@ -417,15 +423,31 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
     XLS_ASSIGN_OR_RETURN(
         clock_period_ps,
-        FindMinimumClockPeriod(f, options.pipeline_stages(), io_delay_added,
-                               *sdc_scheduler, options.failure_behavior()));
+        FindMinimumClockPeriod(
+            f, options.pipeline_stages(),
+            /*worst_case_throughput=*/f->IsProc() ? f->GetInitiationInterval()
+                                                  : std::nullopt,
+            io_delay_added, *sdc_scheduler, options.failure_behavior(),
+            /*target_clock_period_ps=*/options.clock_period_ps()));
     min_clock_period_ps_for_tracing = clock_period_ps;
 
-    if (!options.clock_period_ps().has_value() &&
+    if (clock_period_ps != options.clock_period_ps() &&
         options.period_relaxation_percent().has_value()) {
+      // We found the minimum feasible clock period; apply the user-specified
+      // relaxation to allow less evenly distributed slack.
       int64_t relaxation_percent = options.period_relaxation_percent().value();
-
       clock_period_ps += (clock_period_ps * relaxation_percent + 50) / 100;
+    }
+
+    if (options.clock_period_ps().has_value() &&
+        clock_period_ps != *options.clock_period_ps()) {
+      CHECK(options.minimize_clock_on_failure().value_or(false));
+      CHECK(options.recover_after_minimizing_clock().value_or(false));
+      LOG(WARNING) << "Target clock period was " << *options.clock_period_ps()
+                   << ", but shortest feasible clock period is "
+                   << *min_clock_period_ps_for_tracing
+                   << " ps; continuing with clock period = " << clock_period_ps
+                   << " ps.";
     }
   }
 
@@ -501,11 +523,9 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
                                 /*check_feasibility=*/false,
                                 worst_case_throughput);
     if (!schedule_cycle_map.ok()) {
-      if (absl::IsInvalidArgument(schedule_cycle_map.status()) &&
-          (!options.minimize_clock_on_failure().value_or(false) ||
-           !options.recover_after_minimizing_clock().value_or(false))) {
-        // The scheduler was able to explain the failure, and we're not supposed
-        // to try to recover; report it up without further analysis.
+      if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
+        // The scheduler was able to explain the failure; report it up without
+        // further analysis.
         return std::move(schedule_cycle_map).status();
       }
       if (options.clock_period_ps().has_value()) {
@@ -523,27 +543,11 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
           int64_t target_clock_period_ps = clock_period_ps + 1;
           XLS_RETURN_IF_ERROR(initialize_sdc_scheduler());
           absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
-              f, options.pipeline_stages(), io_delay_added, *sdc_scheduler,
-              options.failure_behavior(), target_clock_period_ps);
+              f, options.pipeline_stages(), worst_case_throughput,
+              io_delay_added, *sdc_scheduler, options.failure_behavior(),
+              target_clock_period_ps);
           if (min_clock_period_ps.ok()) {
             min_clock_period_ps_for_tracing = *min_clock_period_ps;
-            if (options.recover_after_minimizing_clock().value_or(false)) {
-              int64_t new_clock_period_ps = *min_clock_period_ps;
-              if (options.period_relaxation_percent().has_value()) {
-                int64_t relaxation_percent =
-                    options.period_relaxation_percent().value();
-                new_clock_period_ps +=
-                    (new_clock_period_ps * relaxation_percent + 50) / 100;
-              }
-              LOG(WARNING) << "Shortest feasible clock period is "
-                           << *min_clock_period_ps
-                           << "; continuing with clock period = "
-                           << new_clock_period_ps << " ps.";
-              SchedulingOptions new_clock_options(options);
-              new_clock_options.clock_period_ps(new_clock_period_ps);
-              return RunPipelineSchedule(f, delay_estimator, new_clock_options,
-                                         synthesizer);
-            }
             // Just increasing the clock period suffices.
             return absl::InvalidArgumentError(absl::StrFormat(
                 "cannot achieve the specified clock period. Try "
