@@ -295,7 +295,8 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Eq) {
   IntervalSetTree add_ten_ist_global =
       BitsLTT(x.node(), {Interval::Maximal(8)});
   IntervalSetTree cond_ist = BitsLTT(cond.node(), {Interval::Maximal(1)});
-  IntervalSetTree res_ist = BitsLTT(res.node(), {Interval::Maximal(8)});
+  IntervalSetTree res_ist = BitsLTT(
+      res.node(), {Interval::Complement(Interval::Precise(UBits(12, 8)))});
 
   EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
   EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_ist_global);
@@ -310,11 +311,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Eq) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but it's not clear
-  // that we actually want to bother to calculate it. Instead just verify that
-  // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
-              AnyOf(Eq(x_ist), Eq(res_ist)));
+  EXPECT_EQ(consequent_arm_range->GetIntervals(res.node()), res_ist);
 }
 
 TEST_F(ContextSensitiveRangeQueryEngineTest, Ne) {
@@ -345,7 +342,8 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Ne) {
   IntervalSetTree add_ten_ist_global =
       BitsLTT(x.node(), {Interval::Maximal(8)});
   IntervalSetTree cond_ist = BitsLTT(cond.node(), {Interval::Maximal(1)});
-  IntervalSetTree res_ist = BitsLTT(res.node(), {Interval::Maximal(8)});
+  IntervalSetTree res_ist = BitsLTT(
+      res.node(), {Interval::Complement(Interval::Precise(UBits(12, 8)))});
 
   EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
   EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_ist_global);
@@ -361,11 +359,7 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Ne) {
 
   EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
-  // NB There is a restricted value for res given cond == 0 but it's not clear
-  // that we actually want to bother to calculate it. Instead just verify that
-  // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
-              AnyOf(Eq(x_ist), Eq(res_ist)));
+  EXPECT_EQ(alternate_arm_range->GetIntervals(res.node()), res_ist);
 }
 
 TEST_F(ContextSensitiveRangeQueryEngineTest, DeadBranchEq) {
@@ -1606,7 +1600,10 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, DirectUse) {
       BitsLTT(x_plus_one.node(), {Interval::Maximal(8)});
   IntervalSetTree x_plus_two_global_ist =
       BitsLTT(x_plus_two.node(), {Interval::Maximal(8)});
-  IntervalSetTree res_global_ist = BitsLTT(res.node(), {Interval::Maximal(8)});
+  IntervalSetTree res_global_ist =
+      BitsLTT(res.node(),
+              {Interval::Precise(UBits(0, 8)), Interval::Precise(UBits(4, 8)),
+               Interval::Precise(UBits(6, 8))});
 
   IntervalSetTree x_3_ist = BitsLTT(x.node(), {Interval::Precise(UBits(3, 8))});
   IntervalSetTree x_plus_one_3_ist =
@@ -1717,6 +1714,41 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, HandlesAllArms) {
   EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_global_ist);
   EXPECT_EQ(alternate_arm_range->GetIntervals(add_ten.node()),
             add_ten_alternate_ist);
+}
+
+TEST_F(ContextSensitiveRangeQueryEngineTest, SelectValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue idx = fb.Param("idx", p->GetBitsType(16));
+  BValue sel = fb.Select(fb.ULt(idx, fb.Literal(UBits(10, 16))),
+                         {fb.Literal(UBits(0, 16)), idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(engine.GetIntervals(sel.node()),
+            BitsLTT(sel.node(), {Interval(UBits(0, 16), UBits(9, 16))}));
+}
+
+TEST_F(ContextSensitiveRangeQueryEngineTest,
+       SelectValueWithImpossibleBranches) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue unconstrained = fb.Param("unconstrained", p->GetBitsType(16));
+  BValue idx = fb.Param("idx", p->GetBitsType(16));
+  // NB Only entry 2 and default are possible.
+  BValue sel =
+      fb.Select(fb.Add(fb.ZeroExtend(idx, 32), fb.Literal(UBits(2, 32))),
+                {unconstrained, unconstrained, fb.Literal(UBits(1, 16))},
+                fb.Literal(UBits(0, 16)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ContextSensitiveRangeQueryEngine engine;
+
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(engine.GetIntervals(sel.node()),
+            BitsLTT(sel.node(), {Interval(UBits(0, 16), UBits(1, 16))}));
 }
 
 INSTANTIATE_TEST_SUITE_P(Signed, SignedContextSensitiveRangeQueryEngineTest,

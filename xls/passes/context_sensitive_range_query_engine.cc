@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -211,6 +212,7 @@ class Analysis {
     std::vector<PredicateState> all_states;
     // Iterate in same order we walk.
     for (Node* n : topo_sort_) {
+      // TODO(allight): Support priority-select
       if (n->Is<Select>()) {
         for (int64_t idx = 0; idx < n->As<Select>()->cases().size(); ++idx) {
           all_states.push_back(PredicateState(n->As<Select>(), idx));
@@ -496,6 +498,10 @@ class ProxyContextQueryEngine final : public QueryEngine {
     return base_;
   }
   const QueryEngine& MostSpecific(Node* node) const {
+    if (node->OpIn({Op::kSel})) {
+      // Better results just looking at the combination.
+      return base_;
+    }
     if (range_data_.HasKnownIntervals(node)) {
       return range_data_;
     }
@@ -505,12 +511,84 @@ class ProxyContextQueryEngine final : public QueryEngine {
   const RangeQueryEngine& range_data_;
 };
 
+std::vector<std::unique_ptr<QueryEngine>> SpecializedForArms(
+    const ContextSensitiveRangeQueryEngine* base, Select* n) {
+  std::vector<std::unique_ptr<QueryEngine>> res;
+  res.reserve(n->operand_count() - 1);
+  for (int64_t i = 0; i < n->As<Select>()->cases().size(); ++i) {
+    res.push_back(
+        base->SpecializeGivenPredicate({PredicateState(n->As<Select>(), i)}));
+  }
+  if (n->As<Select>()->default_value()) {
+    res.push_back(base->SpecializeGivenPredicate(
+        {PredicateState(n->As<Select>(), PredicateState::kDefaultArm)}));
+  }
+  return res;
+}
+std::vector<Interval> GetBranchIntervals(Select* n) {
+  std::vector<Interval> res;
+  res.reserve(n->operand_count() - 1);
+  for (int64_t i = 0; i < n->cases().size(); ++i) {
+    res.push_back(Interval::Precise(UBits(i, n->selector()->BitCountOrDie())));
+  }
+  if (n->default_value()) {
+    res.push_back(Interval::Closed(
+        UBits(n->cases().size(), n->selector()->BitCountOrDie()),
+        Bits::AllOnes(n->selector()->BitCountOrDie())));
+  }
+  return res;
+}
 }  // namespace
 
 absl::StatusOr<ReachedFixpoint> ContextSensitiveRangeQueryEngine::Populate(
     FunctionBase* f) {
   Analysis analysis(base_case_ranges_, arena_, one_hot_ranges_);
-  return analysis.Execute(f);
+  XLS_ASSIGN_OR_RETURN(ReachedFixpoint fixpoint, analysis.Execute(f));
+  // Fill in select ranges before any changes occur to the function.
+  for (Node* n : TopoSort(f)) {
+    // TODO(allight): Support priority-select
+    if (n->Is<Select>()) {
+      std::optional<RangeData> data;
+      IntervalSet selector_interval =
+          GetIntervals(n->As<Select>()->selector()).Get({});
+      for (const auto& [branch, qe, branch_req_interval] :
+           iter::zip(n->operands().subspan(1),
+                     SpecializedForArms(this, n->As<Select>()),
+                     GetBranchIntervals(n->As<Select>()))) {
+        if (IntervalSet::Disjoint(selector_interval,
+                                  IntervalSet::Of({branch_req_interval}))) {
+          // Selector cannot actually take this branch.
+          continue;
+        }
+        if (!data) {
+          data = RangeData{
+              .ternary =
+                  n->GetType()->IsBits()
+                      ? std::make_optional(qe->GetTernary(branch)->Get({}))
+                      : std::nullopt,
+              .interval_set = qe->GetIntervals(branch),
+          };
+        } else {
+          XLS_RETURN_IF_ERROR(
+              (leaf_type_tree::UpdateFrom<IntervalSet, IntervalSet>(
+                  data->interval_set.AsMutableView(),
+                  qe->GetIntervals(branch).AsView(),
+                  [](Type* t, IntervalSet& l, const IntervalSet& r,
+                     absl::Span<int64_t const> idx) -> absl::Status {
+                    l = IntervalSet::Combine(l, r);
+                    return absl::OkStatus();
+                  })));
+          if (data->ternary) {
+            ternary_ops::UpdateWithIntersection(
+                *data->ternary, qe->GetTernary(branch)->Get({}));
+          }
+        }
+      }
+      XLS_RET_CHECK(data) << "No branch is selectable for " << n;
+      select_ranges_[n] = *std::move(data);
+    }
+  }
+  return fixpoint;
 }
 
 std::unique_ptr<QueryEngine>
@@ -527,6 +605,26 @@ ContextSensitiveRangeQueryEngine::SpecializeGivenPredicate(
   }
   return std::make_unique<ProxyContextQueryEngine>(
       *this, *one_hot_ranges_.at(*state.cbegin()));
+}
+
+LeafTypeTree<IntervalSet> ContextSensitiveRangeQueryEngine::GetIntervals(
+    Node* node) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.GetIntervals(node);
+  }
+  return select_ranges_.at(node).interval_set;
+}
+
+std::optional<LeafTypeTree<TernaryVector>>
+ContextSensitiveRangeQueryEngine::GetTernary(Node* node) const {
+  if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
+    return base_case_ranges_.GetTernary(node);
+  }
+  if (!select_ranges_.at(node).ternary) {
+    return std::nullopt;
+  }
+  return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+      node->GetType(), *select_ranges_.at(node).ternary);
 }
 
 }  // namespace xls

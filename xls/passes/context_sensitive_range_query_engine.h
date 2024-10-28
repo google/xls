@@ -52,9 +52,9 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
-  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
-    return base_case_ranges_.GetIntervals(node);
-  }
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node) const override;
 
   LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
       Node* node, const absl::flat_hash_set<PredicateState>& state) const {
@@ -63,11 +63,6 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
 
   bool IsTracked(Node* node) const override {
     return base_case_ranges_.IsTracked(node);
-  }
-
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
-      Node* node) const override {
-    return base_case_ranges_.GetTernary(node);
   }
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
@@ -124,6 +119,7 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
   RangeQueryEngine base_case_ranges_;
   std::vector<std::unique_ptr<const RangeQueryEngine>> arena_;
   absl::flat_hash_map<PredicateState, const RangeQueryEngine*> one_hot_ranges_;
+  absl::flat_hash_map<Node*, RangeData> select_ranges_;
 };
 
 }  // namespace xls
