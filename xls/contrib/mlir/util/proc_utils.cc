@@ -32,6 +32,7 @@
 #include "mlir/include/mlir/IR/Location.h"
 #include "mlir/include/mlir/IR/Matchers.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
+#include "mlir/include/mlir/IR/SymbolTable.h"
 #include "mlir/include/mlir/IR/TypeRange.h"
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/ValueRange.h"
@@ -70,12 +71,13 @@ auto concat(RangeT... ranges) {
 // corresponding to inputs and results. inputs/results should NOT be channel
 // types, they should be the underlying types. An i32 state is created.
 SprocOp createSprocSkeleton(ImplicitLocOpBuilder& builder, TypeRange inputs,
-                            TypeRange results, TypeRange stateTypes,
-                            Twine name) {
+                            TypeRange results, TypeRange stateTypes, Twine name,
+                            SymbolTable& symbolTable) {
   OpBuilder::InsertionGuard guard(builder);
   auto sproc = builder.create<SprocOp>(builder.getStringAttr(name),
                                        /*is_top=*/false,
                                        /*boundary_channel_names=*/nullptr);
+  symbolTable.insert(sproc);
   Block& spawns = sproc.getSpawns().emplaceBlock();
   Block& next = sproc.getNext().emplaceBlock();
   for (Type input : inputs) {
@@ -101,7 +103,7 @@ SprocOp createSprocSkeleton(ImplicitLocOpBuilder& builder, TypeRange inputs,
 // Creates a skeleton for the body Sproc. The body has input and output channels
 // corresponding to the ForOp's region arguments plus invariants, and results.
 SprocOp createBodySkeleton(scf::ForOp forOp, SprocOp parent,
-                           TypeRange invariants) {
+                           TypeRange invariants, SymbolTable& symbolTable) {
   ImplicitLocOpBuilder builder(forOp.getLoc(), parent);
   Operation* forTerminator = forOp.getBody()->getTerminator();
   SmallVector<Type> inputs;
@@ -110,16 +112,17 @@ SprocOp createBodySkeleton(scf::ForOp forOp, SprocOp parent,
   inputs.insert(inputs.end(), invariants.begin(), invariants.end());
   // TODO(jmolloy): If XLS can handle it, we can just use an empty tuple as the
   // state type.
-  return createSprocSkeleton(builder, inputs, forTerminator->getOperandTypes(),
-                             builder.getI32Type(),
-                             llvm::Twine(parent.getSymName()) + "_for_body");
+  return createSprocSkeleton(
+      builder, inputs, forTerminator->getOperandTypes(), builder.getI32Type(),
+      llvm::Twine(parent.getSymName()) + "_for_body", symbolTable);
 }
 
 // Creates a skeleton for the controller Sproc. The controller has input and
 // output channels corresponding to the ForOp's init operands + invariants and
 // results.
 SprocOp createControllerSkeleton(scf::ForOp forOp, SprocOp parent,
-                                 TypeRange invariants) {
+                                 TypeRange invariants,
+                                 SymbolTable& symbolTable) {
   ImplicitLocOpBuilder builder(forOp.getLoc(), parent);
   SmallVector<Type> inputs;
   inputs.insert(inputs.end(), forOp.getInits().getTypes().begin(),
@@ -130,7 +133,7 @@ SprocOp createControllerSkeleton(scf::ForOp forOp, SprocOp parent,
   stateTypes.insert(stateTypes.end(), invariants.begin(), invariants.end());
   return createSprocSkeleton(
       builder, inputs, forOp.getResultTypes(), stateTypes,
-      llvm::Twine(parent.getSymName()) + "_for_controller");
+      llvm::Twine(parent.getSymName()) + "_for_controller", symbolTable);
 }
 
 // Creates SchanOps for the given types. Returns [outChannels, inChannels].
@@ -288,7 +291,8 @@ void populateController(SprocOp controller, scf::ForOp forOp,
 //   arg[...] = invariants
 //   arg[...] = forOp.getResultTypes()
 //   arg[-1]  = state
-void populateBody(SprocOp body, scf::ForOp forOp, ValueRange invariants) {
+void populateBody(SprocOp body, scf::ForOp forOp, ValueRange invariants,
+                  ValueRange toClone) {
   Block& next = body.getNext().front();
   auto builder = ImplicitLocOpBuilder::atBlockBegin(forOp.getLoc(), &next);
   IRMapping mapper;
@@ -301,6 +305,9 @@ void populateBody(SprocOp body, scf::ForOp forOp, ValueRange invariants) {
        zip(invariants, next.getArguments().slice(forBodyArguments.size(),
                                                  invariants.size()))) {
     mapper.map(from, builder.create<SBlockingReceiveOp>(token, to).getResult());
+  }
+  for (Value value : toClone) {
+    builder.clone(*value.getDefiningOp(), mapper);
   }
   Operation* yieldTerminator = next.getTerminator();
   IRRewriter rewriter(forOp.getContext());
@@ -374,29 +381,53 @@ FailureOr<int64_t> getTripCount(scf::ForOp forOp) {
   return (upperBound - lowerBound).getLimitedValue();
 }
 
+// Splits the given invariants into two groups: those that must be captured and
+// those that can be cloned.
+//
+// The cloned values have a defining op that has zero arguments.
+std::pair<SmallVector<Value>, SmallVector<Value>> splitOutInvariantsToClone(
+    ValueRange invariants) {
+  SmallVector<Value> toKeep;
+  SmallVector<Value> toClone;
+  for (Value invariant : invariants) {
+    if (isa_and_present<arith::ConstantOp, xls::ConstantScalarOp>(
+            invariant.getDefiningOp())) {
+      toClone.push_back(invariant);
+    } else {
+      toKeep.push_back(invariant);
+    }
+  }
+  return {toKeep, toClone};
+}
+
 }  // namespace
 
-LogicalResult convertForOpToSprocCall(scf::ForOp forOp) {
+LogicalResult convertForOpToSprocCall(scf::ForOp forOp,
+                                      SymbolTable& symbolTable) {
   auto tripCount = getTripCount(forOp);
   if (failed(tripCount)) {
     return failure();
   }
-  SprocOp parent = cast<SprocOp>(forOp->getParentOp());
+  SprocOp parent = forOp->getParentOfType<SprocOp>();
 
   SetVector<Value> invariantsAsSetVector;
   mlir::getUsedValuesDefinedAbove(forOp.getBodyRegion(), invariantsAsSetVector);
+  auto [toCapture, toClone] =
+      splitOutInvariantsToClone(invariantsAsSetVector.getArrayRef());
 
-  ValueRange invariants = invariantsAsSetVector.getArrayRef();
-  SprocOp body = createBodySkeleton(forOp, parent, invariants);
-  SprocOp controller = createControllerSkeleton(forOp, parent, invariants);
-  populateController(controller, forOp, invariants, body, *tripCount);
-  populateBody(body, forOp, invariants);
+  SprocOp body =
+      createBodySkeleton(forOp, parent, ValueRange(toCapture), symbolTable);
+  SprocOp controller = createControllerSkeleton(
+      forOp, parent, ValueRange(toCapture), symbolTable);
+  populateController(controller, forOp, ValueRange(toCapture), body,
+                     *tripCount);
+  populateBody(body, forOp, toCapture, toClone);
 
   ImplicitLocOpBuilder builder(forOp.getLoc(), forOp);
   SmallVector<Value> sendArgs;
   sendArgs.insert(sendArgs.end(), forOp.getInits().begin(),
                   forOp.getInits().end());
-  sendArgs.insert(sendArgs.end(), invariants.begin(), invariants.end());
+  sendArgs.insert(sendArgs.end(), toCapture.begin(), toCapture.end());
   auto [sendChanOuts, sendChanIns] =
       createChannels(builder, "for_arg", ValueRange(sendArgs));
   auto [recvChanOuts, recvChanIns] =
@@ -447,11 +478,13 @@ struct TestConvertForOpToSprocCallPass
   void runOnOperation() override {
     // We need to transform in pre-order, but MLIR's walkers require that if we
     // erase forOp we must interrupt the walk. So we run the walk to fixpoint.
+    SymbolTable symbolTable(getOperation());
     bool changed = true;
     while (changed) {
       changed = false;
       getOperation()->walk<WalkOrder::PreOrder>([&](scf::ForOp forOp) {
-        bool thisChanged = succeeded(convertForOpToSprocCall(forOp));
+        bool thisChanged =
+            succeeded(convertForOpToSprocCall(forOp, symbolTable));
         changed |= thisChanged;
         return thisChanged ? WalkResult::interrupt() : WalkResult::advance();
       });

@@ -379,6 +379,7 @@ cc_library(
         ":math_to_xls",  # buildcleaner: keep
         ":normalize_xls_calls",  # buildcleaner: keep
         ":proc_elaboration",  # buildcleaner: keep
+        ":procify_loops",  # buildcleaner: keep
         ":scalarize",  # buildcleaner: keep
         ":scf_to_xls",  # buildcleaner: keep
         ":transforms/lower_counted_for",  # buildcleaner: keep
@@ -456,6 +457,24 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "procify_loops",
+    srcs = ["transforms/procify_loops.cc"],
+    deps = [
+        ":mlir_xls",
+        ":proc_utils",
+        ":xls_transforms_passes",
+        ":xls_transforms_passes_inc_gen",
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:SCFDialect",
+        "@llvm-project//mlir:SCFUtils",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
 cc_binary(
     name = "xls_opt",
     srcs = ["tools/xls_opt/xls_opt.cc"],
@@ -469,6 +488,7 @@ cc_binary(
         ":normalize_xls_calls",
         ":proc_elaboration",
         ":proc_utils",
+        ":procify_loops",
         ":scalarize",
         ":scf_to_xls",
         ":transforms/lower_counted_for",

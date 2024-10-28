@@ -23,6 +23,10 @@ namespace mlir::xls {
 
 void XlsLowerPassPipeline(OpPassManager& pm,
                           const XlsLowerPassPipelineOptions& options) {
+  pm.addPass(createProcifyLoopsPass({
+      .apply_by_default = options.procify_loops_apply_by_default,
+  }));
+  pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(createProcElaborationPass());
   if (options.instantiate_eprocs) {
     pm.addPass(createInstantiateEprocsPass());

@@ -44,6 +44,12 @@ struct XlsLowerPassPipelineOptions
                      "emission easier, but it should be used sparingly as XLS "
                      "should perform better optimizations on arrays."),
       llvm::cl::init(false)};
+
+  PassOptions::Option<bool> procify_loops_apply_by_default{
+      *this, "procify-loops-apply-by-default",
+      llvm::cl::desc(
+          "If true, procify-loops is applied by default to all scf.for ops"),
+      llvm::cl::init(false)};
 };
 
 // A Pass pipeline that lowers to a form that can be translated to XLS.

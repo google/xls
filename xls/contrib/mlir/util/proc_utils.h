@@ -16,6 +16,7 @@
 #define XLS_CONTRIB_MLIR_UTIL_PROC_UTILS_H_
 
 #include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/include/mlir/IR/SymbolTable.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 
 namespace mlir::xls {
@@ -87,7 +88,10 @@ namespace mlir::xls {
 // ForOp's site and plumbed through to the body. Conceptually we can simply
 // make the ForOp isolatedFromAbove, capturing the invariants as iter_args, but
 // we plumb them through explicitly instead to allow for optimizations.
-LogicalResult convertForOpToSprocCall(scf::ForOp forOp);
+//
+// The SymbolTable is updated.
+LogicalResult convertForOpToSprocCall(scf::ForOp forOp,
+                                      SymbolTable& symbolTable);
 
 // Registers the test pass for extracting as a top level module.
 namespace test {

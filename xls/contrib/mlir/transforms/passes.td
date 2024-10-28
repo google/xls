@@ -119,4 +119,32 @@ def ArrayToBitsPass : Pass<"array-to-bits", "mlir::ModuleOp"> {
   ];
 }
 
+def ProcifyLoopsPass : Pass<"procify-loops", "mlir::ModuleOp"> {
+  let summary = "Converts loops into sprocs";
+  let description = [{
+    Pass that converts xls.for loops into sprocs.
+
+    The body of each xls.for op is converted into an sproc, and the op is
+    replaced with a pair of `xls.ssend` and `xls.sblocking_recv` ops.
+
+    The pass is controlled by the dialect-specific "xls.unroll" boolean attribute.
+
+    xls.unroll=false will trigger this pass, xls.unroll=true will not.
+
+    The apply_by_default pass option controls what happens when the attribute is
+    not present.
+  }];
+  let dependentDialects = [
+    "mlir::xls::XlsDialect",
+    "mlir::scf::SCFDialect",
+    "mlir::arith::ArithDialect",
+    "mlir::affine::AffineDialect",
+  ];
+  let options = [
+    Option<"apply_by_default", "apply-by-default", "bool",
+    /*default=*/"false",
+    "Apply the pass by default if the attribute is not present">
+  ];
+}
+
 #endif // MLIR_XLS_TRANSFORMS_PASSES
