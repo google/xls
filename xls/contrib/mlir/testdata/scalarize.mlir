@@ -194,7 +194,7 @@ func.func @tensor_extract_slice_unroll(%arg0: tensor<3x3xi32>, %arg1: index) -> 
 // CHECK-SAME:          %[[INVARIANT:.*]]: !xls.array<2 x i32>):
 // CHECK-DAG:       %[[V1:.*]] = arith.constant 0 : index
 // CHECK-DAG:       %[[V2:.*]] = arith.constant 1 : index
-// CHECK-DAG:       %[[V3:.*]] = arith.index_cast %[[INDVAR]] : i32 to index 
+// CHECK-DAG:       %[[V3:.*]] = arith.index_cast %[[INDVAR]] : i32 to index
 // CHECK-DAG:       %[[V4:.*]] = xls.umul %[[V3]], %[[V2]] : index
 // CHECK-DAG:       %[[V5:.*]] = xls.add %[[V1]], %[[V4]] : index
 // CHECK-DAG:       %[[V6:.*]] = "xls.array_index"(%[[INVARIANT]], %[[V5]]) : (!xls.array<2 x i32>, index) -> i32
@@ -218,13 +218,14 @@ func.func @for(%arg0: tensor<2xi32>) -> i32 attributes {xls = true} {
 
 
 func.func private @callee(%arg0: i8) -> i8
-
 // CHECK-LABEL: vectorized_call
-// CHECK: %0 = "xls.array_index_static"(%arg0) <{index = 0 : i64}> : (!xls.array<2 x i8>) -> i8
-// CHECK: %1 = call @callee(%0) : (i8) -> i8
-// CHECK: %2 = "xls.array_index_static"(%arg0) <{index = 1 : i64}> : (!xls.array<2 x i8>) -> i8
-// CHECK: %3 = call @callee(%2) : (i8) -> i8
-// CHECK: %4 = xls.array %1, %3 : (i8, i8) -> !xls.array<2 x i8>
+// CHECK-DAG: xls.for inits(%[[_:.*]]) invariants(%arg0) {
+// CHECK-DAG: ^bb0(%indvar: i32, %carry: !xls.array<2 x i8>, %invariant: !xls.array<2 x i8>):
+// CHECK-DAG:    %[[ELT:.*]] = "xls.array_index"(%invariant, %indvar) : (!xls.array<2 x i8>, i32) -> i8
+// CHECK-DAG:    %[[CALL:.*]] = func.call @callee(%[[ELT]]) : (i8) -> i8
+// CHECK-DAG:    %[[UPDATE:.*]] = "xls.array_update"(%carry, %[[CALL]], %indvar) : (!xls.array<2 x i8>, i8, i32) -> !xls.array<2 x i8>
+// CHECK-DAG:    xls.yield %[[UPDATE]] : !xls.array<2 x i8>
+// CHECK-DAG: } {trip_count = 2 : i64} : (!xls.array<2 x i8>, !xls.array<2 x i8>) -> !xls.array<2 x i8>
 func.func @vectorized_call(%arg0: tensor<2xi8>) -> tensor<2xi8> attributes {xls = true} {
   %0 = xls.vectorized_call @callee(%arg0) : (tensor<2xi8>) -> tensor<2xi8>
   return %0 : tensor<2xi8>
@@ -257,20 +258,26 @@ xls.eproc @eproc(%arg: i32) zeroinitializer {
 
 // CHECK-LABEL: @call_dslx
 func.func @call_dslx(%arg0: tensor<4xi32>) -> tensor<4xf32> attributes {xls = true} {
-  // CHECK: xls.call_dslx "foo.x" : "f"(%0) : (i32) -> f32
-  // CHECK: xls.call_dslx "foo.x" : "f"
-  // CHECK: xls.call_dslx "foo.x" : "f"
-  // CHECK: xls.call_dslx "foo.x" : "f"
+// CHECK-DAG: xls.for inits(%[[_:.*]]) invariants(%arg0) {
+// CHECK-DAG: ^bb0(%indvar: i32, %carry: !xls.array<4 x f32>, %invariant: !xls.array<4 x i32>):
+// CHECK-DAG:   %[[ELT:.*]] = "xls.array_index"(%invariant, %indvar) : (!xls.array<4 x i32>, i32) -> i32
+// CHECK-DAG:   %[[CALL:.*]] = xls.call_dslx "foo.x" : "f"(%[[ELT]]) : (i32) -> f32
+// CHECK-DAG:   %[[UPDATE:.*]] = "xls.array_update"(%carry, %[[CALL]], %indvar) : (!xls.array<4 x f32>, f32, i32) -> !xls.array<4 x f32>
+// CHECK-DAG:   xls.yield %[[UPDATE]] : !xls.array<4 x f32>
+// CHECK-DAG: } {trip_count = 4 : i64} : (!xls.array<4 x f32>, !xls.array<4 x i32>) -> !xls.array<4 x f32>
   %0 = xls.call_dslx "foo.x": "f"(%arg0) : (tensor<4xi32>) -> tensor<4xf32>
   return %0 : tensor<4xf32>
 }
 
 // CHECK-LABEL: @call_dslx_with_splat
 func.func @call_dslx_with_splat(%arg0: tensor<4xi32>, %arg1: i32) -> tensor<4xf32> attributes {xls = true} {
-  // CHECK: xls.call_dslx "foo.x" : "f"(%0, %arg1) : (i32, i32) -> f32
-  // CHECK: xls.call_dslx "foo.x" : "f"
-  // CHECK: xls.call_dslx "foo.x" : "f"
-  // CHECK: xls.call_dslx "foo.x" : "f"
+// CHECK-DAG: xls.for inits(%[[_:.*]]) invariants(%arg0, %arg1) {
+// CHECK-DAG: ^bb0(%indvar: i32, %carry: !xls.array<4 x f32>, %invariant: !xls.array<4 x i32>, %invariant_0: i32):
+// CHECK-DAG:   %[[ELT:.*]] = "xls.array_index"(%invariant, %indvar) : (!xls.array<4 x i32>, i32) -> i32
+// CHECK-DAG:   %[[CALL:.*]] = xls.call_dslx "foo.x" : "f"(%[[ELT]], %invariant_0) : (i32, i32) -> f32
+// CHECK-DAG:   %[[UPDATE:.*]] = "xls.array_update"(%carry, %[[CALL]], %indvar) : (!xls.array<4 x f32>, f32, i32) -> !xls.array<4 x f32>
+// CHECK-DAG:   xls.yield %[[UPDATE]] : !xls.array<4 x f32>
+// CHECK-DAG: } {trip_count = 4 : i64} : (!xls.array<4 x f32>, !xls.array<4 x i32>, i32) -> !xls.array<4 x f32>
   %0 = xls.call_dslx "foo.x": "f"(%arg0, %arg1) : (tensor<4xi32>, i32) -> tensor<4xf32>
   return %0 : tensor<4xf32>
 }

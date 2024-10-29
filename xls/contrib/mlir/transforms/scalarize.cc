@@ -723,6 +723,65 @@ class ReturnLikeOpPattern
   }
 };
 
+// Helper to expand call ops on tensors to for loops on scalar function calls.
+template <typename CallOpTy>
+LogicalResult convertVectorizedCall(mlir::Operation* op,
+                                    ValueRange adapterOperands,
+                                    const TypeConverter& typeConverter,
+                                    ConversionPatternRewriter& rewriter) {
+  SmallVector<Type> resultTypes;
+  if (failed(typeConverter.convertTypes(op->getResultTypes(), resultTypes))) {
+    return failure();
+  }
+
+  int size = getArraySize(adapterOperands);
+  if (size == 0) {
+    // No vectors to unwrap - just call.
+    rewriter.replaceOpWithNewOp<CallOpTy>(op, resultTypes, adapterOperands,
+                                          op->getAttrs());
+    return success();
+  }
+
+  SmallVector<Value> forOperands;
+  for (Type resultType : resultTypes) {
+    assert(isa<ArrayType>(resultType));
+    forOperands.push_back(
+        rewriter.create<ArrayZeroOp>(op->getLoc(), resultType));
+  }
+
+  ForOp forOp = rewriter.replaceOpWithNewOp<ForOp>(op, resultTypes, forOperands,
+                                                   adapterOperands, size);
+  Block* block = &forOp.getBody().emplaceBlock();
+  rewriter.setInsertionPointToStart(block);
+
+  Value indvar = block->addArgument(rewriter.getI32Type(), op->getLoc());
+  SmallVector<Value> resultArgs;
+  for (Type resultType : resultTypes) {
+    resultArgs.push_back(block->addArgument(resultType, op->getLoc()));
+  }
+  SmallVector<Value> operands;
+  auto loc = op->getLoc();
+  for (Value operand : adapterOperands) {
+    // We allow for scalar implicit broadcasting.
+    Value blockArg = block->addArgument(operand.getType(), operand.getLoc());
+    Value arg = isa<ArrayType>(operand.getType())
+                    ? rewriter.create<ArrayIndexOp>(loc, blockArg, indvar)
+                    : blockArg;
+    operands.push_back(arg);
+  }
+  auto thisResultTypes = llvm::to_vector<4>(llvm::map_range(
+      resultTypes, [](Type type) { return mlir::getElementTypeOrSelf(type); }));
+  Operation* newOp = rewriter.create<CallOpTy>(op->getLoc(), thisResultTypes,
+                                               operands, op->getAttrs());
+  SmallVector<Value> results;
+  for (auto [i, _] : llvm::enumerate(resultTypes)) {
+    results.push_back(rewriter.create<ArrayUpdateOp>(
+        op->getLoc(), resultArgs[i], newOp->getResult(i), indvar));
+  }
+  rewriter.create<YieldOp>(op->getLoc(), results);
+  return success();
+}
+
 class LegalizeVectorizedCallPattern
     : public OpConversionPattern<VectorizedCallOp> {
  public:
@@ -738,48 +797,11 @@ class LegalizeVectorizedCallPattern
       return failure();
     }
 
-    int size = getArraySize(adaptor.getOperands());
-    if (size == 0) {
-      // No vectors to unwrap - just call.
-      rewriter.replaceOpWithNewOp<mlir::func::CallOp>(op, callee,
-                                                      adaptor.getOperands());
-      return success();
-    }
-
-    std::map<int, SmallVector<Value>> resultArrayMembers;
-    for (int i = 0; i < size; ++i) {
-      mlir::IRMapping mapping;
-      SmallVector<Value> newOperands;
-      for (Value operand : adaptor.getOperands()) {
-        if (ArrayType vtype = dyn_cast<ArrayType>(operand.getType())) {
-          newOperands.push_back(rewriter.create<ArrayIndexStaticOp>(
-              op->getLoc(), vtype.getElementType(), operand,
-              rewriter.getI64IntegerAttr(i)));
-        } else {
-          newOperands.push_back(operand);
-        }
-      }
-      Operation* newOp = rewriter.create<mlir::func::CallOp>(
-          op->getLoc(), callee, newOperands);
-      for (int j = 0, e = newOp->getResultTypes().size(); j < e; ++j) {
-        resultArrayMembers[j].push_back(newOp->getResult(j));
-      }
-    }
-
-    SmallVector<Value> newResultArrays;
-    for (auto [i, result_array] : resultArrayMembers) {
-      newResultArrays.push_back(rewriter.create<ArrayOp>(
-          op->getLoc(),
-          ArrayType::get(rewriter.getContext(), result_array.size(),
-                         result_array.front().getType()),
-          result_array));
-    }
-
-    rewriter.replaceOp(op, newResultArrays);
-
-    return success();
+    return convertVectorizedCall<func::CallOp>(op, adaptor.getOperands(),
+                                               *typeConverter, rewriter);
   }
 };
+
 class LegalizeCallDslxPattern : public OpConversionPattern<CallDslxOp> {
  public:
   using OpConversionPattern::OpConversionPattern;
@@ -787,59 +809,8 @@ class LegalizeCallDslxPattern : public OpConversionPattern<CallDslxOp> {
   LogicalResult matchAndRewrite(
       CallDslxOp op, OpAdaptor adaptor,
       ConversionPatternRewriter& rewriter) const override {
-    SmallVector<Type> resultTypes;
-    if (failed(
-            typeConverter->convertTypes(op->getResultTypes(), resultTypes))) {
-      return failure();
-    }
-
-    int size = getArraySize(adaptor.getOperands());
-    if (size == 0) {
-      // No vectors to unwrap - just call.
-      rewriter.replaceOpWithNewOp<CallDslxOp>(
-          op, resultTypes, adaptor.getOperands(), op->getAttrs());
-      return success();
-    }
-
-    std::map<int, SmallVector<Value>> resultArrayMembers;
-    for (int i = 0; i < size; ++i) {
-      mlir::IRMapping mapping;
-      SmallVector<Value> newOperands;
-      for (Value operand : adaptor.getOperands()) {
-        if (ArrayType vtype = dyn_cast<ArrayType>(operand.getType())) {
-          newOperands.push_back(rewriter.create<ArrayIndexStaticOp>(
-              op->getLoc(), vtype.getElementType(), operand,
-              rewriter.getI64IntegerAttr(i)));
-        } else {
-          newOperands.push_back(operand);
-        }
-      }
-      SmallVector<Type> thisResultTypes;
-      for (Type resultType : resultTypes) {
-        if (ArrayType vtype = dyn_cast<ArrayType>(resultType)) {
-          thisResultTypes.push_back(vtype.getElementType());
-        } else {
-          thisResultTypes.push_back(resultType);
-        }
-      }
-      Operation* newOp = rewriter.create<CallDslxOp>(
-          op->getLoc(), thisResultTypes, newOperands, op->getAttrs());
-      for (int j = 0, e = newOp->getResultTypes().size(); j < e; ++j) {
-        resultArrayMembers[j].push_back(newOp->getResult(j));
-      }
-    }
-
-    SmallVector<Value> newResultArrays;
-    for (auto [i, result_array] : resultArrayMembers) {
-      newResultArrays.push_back(rewriter.create<ArrayOp>(
-          op->getLoc(),
-          ArrayType::get(rewriter.getContext(), result_array.size(),
-                         result_array.front().getType()),
-          result_array));
-    }
-
-    rewriter.replaceOp(op, newResultArrays);
-    return success();
+    return convertVectorizedCall<CallDslxOp>(op, adaptor.getOperands(),
+                                             *typeConverter, rewriter);
   }
 };
 
@@ -880,9 +851,9 @@ class ScalarizePass : public impl::ScalarizePassBase<ScalarizePass> {
     // to create ops (such as `arith.addi`) that the remainder of the
     // `xls-lower` pipeline does not handle.
     target.markUnknownOpDynamicallyLegal([&](Operation* op) {
-      auto is_legal = [&](auto type) { return typeConverter.isLegal(type); };
-      return absl::c_all_of(op->getOperandTypes(), is_legal) &&
-             absl::c_all_of(op->getResultTypes(), is_legal);
+      auto isLegal = [&](auto type) { return typeConverter.isLegal(type); };
+      return absl::c_all_of(op->getOperandTypes(), isLegal) &&
+             absl::c_all_of(op->getResultTypes(), isLegal);
     });
     target.addIllegalOp<VectorizedCallOp>();
     // Theoretically this should not be required and the dialect converter can
