@@ -28,6 +28,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
@@ -48,6 +49,7 @@ namespace {
 using ::absl::ScopedMockLog;
 using ::absl_testing::IsOkAndHolds;
 using ::xls::solvers::z3::ScopedVerifyEquivalence;
+using ::xls::solvers::z3::ScopedVerifyProcEquivalence;
 
 using ::testing::_;
 using ::testing::AllOf;
@@ -1473,6 +1475,40 @@ TEST_P(NarrowingPassTest, NarrowingDoesNotReplaceLiteralWithItself) {
 
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_P(NarrowingPassTest, ProcStateInformationIsUsed) {
+  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
+    GTEST_SKIP() << "Ternary narrowing does not take into account proc-state "
+                    "information";
+  }
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan, p->CreateSingleValueChannel("chan", ChannelOps::kSendOnly,
+                                             p->GetBitsType(1)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue param = pb.StateElement("foo", UBits(0, 64));
+  // The sent value is always true.
+  BValue snd = pb.Send(chan, pb.Literal(Value::Token()),
+                       pb.ULt(param, pb.Literal(UBits(12, 64))));
+  BValue incr = pb.Next(param, pb.Add(param, pb.Literal(UBits(1, 64))),
+                        pb.ULt(param, pb.Literal(UBits(10, 64))));
+  BValue rst = pb.Next(param, pb.Literal(UBits(0, 64)),
+                       pb.UGe(param, pb.Literal(UBits(10, 64))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
+  // Narrowing won't actually mess with the state variables themselves so we can
+  // ensure they remain consistent.
+  ScopedVerifyProcEquivalence sve(pr, /*activation_count=*/25,
+                                  /*include_state=*/true);
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(snd.node(),
+              m::Send(m::Literal(Value::Token()), m::Literal(UBits(1, 1))));
+  EXPECT_THAT(incr.node(),
+              m::Next(m::Param(), m::ZeroExt(m::Add()),
+                      m::ULt(m::Type("bits[4]"), m::Type("bits[4]"))));
+  EXPECT_THAT(rst.node(),
+              m::Next(m::Param(), m::Literal(),
+                      m::UGe(m::Type("bits[4]"), m::Type("bits[4]"))));
 }
 
 INSTANTIATE_TEST_SUITE_P(

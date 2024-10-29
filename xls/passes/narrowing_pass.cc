@@ -50,6 +50,7 @@
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -66,6 +67,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/predicate_dominator_analysis.h"
 #include "xls/passes/predicate_state.h"
+#include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
@@ -1745,32 +1747,28 @@ void AnalysisLog(FunctionBase* f, const QueryEngine& query_engine) {
 
 absl::StatusOr<AliasingQueryEngine> GetQueryEngine(FunctionBase* f,
                                                    AnalysisType analysis) {
-  std::unique_ptr<QueryEngine> query_engine;
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<StatelessQueryEngine>());
   if (analysis == AnalysisType::kRangeWithContext) {
-    auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
-    auto range_query_engine =
-        std::make_unique<ContextSensitiveRangeQueryEngine>();
-
-    std::vector<std::unique_ptr<QueryEngine>> engines;
-    engines.push_back(std::make_unique<StatelessQueryEngine>());
-    engines.push_back(std::move(ternary_query_engine));
-    engines.push_back(std::move(range_query_engine));
-    query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
+    if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
+      // NB ProcStateRange already includes a ternary qe
+      engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
+    } else {
+      engines.push_back(std::make_unique<TernaryQueryEngine>());
+    }
+    engines.push_back(std::make_unique<ContextSensitiveRangeQueryEngine>());
   } else if (analysis == AnalysisType::kRange) {
-    auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
-    auto range_query_engine = std::make_unique<RangeQueryEngine>();
-
-    std::vector<std::unique_ptr<QueryEngine>> engines;
-    engines.push_back(std::make_unique<StatelessQueryEngine>());
-    engines.push_back(std::move(ternary_query_engine));
-    engines.push_back(std::move(range_query_engine));
-    query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
+    if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
+      // NB ProcStateRange already includes a ternary qe
+      engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
+    } else {
+      engines.push_back(std::make_unique<TernaryQueryEngine>());
+      engines.push_back(std::make_unique<RangeQueryEngine>());
+    }
   } else {
-    std::vector<std::unique_ptr<QueryEngine>> engines;
-    engines.push_back(std::make_unique<StatelessQueryEngine>());
     engines.push_back(std::make_unique<TernaryQueryEngine>());
-    query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
   }
+  auto query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
   XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
   if (VLOG_IS_ON(3)) {
     AnalysisLog(f, *query_engine);
