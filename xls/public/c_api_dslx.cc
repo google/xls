@@ -42,11 +42,10 @@
 #include "xls/public/c_api_impl_helpers.h"
 
 namespace {
-template <typename T>
-inline const struct xls_dslx_type* GetMetaTypeHelper(
-    struct xls_dslx_type_info* type_info, T* c_node) {
+const struct xls_dslx_type* GetMetaTypeHelper(
+    struct xls_dslx_type_info* type_info, xls::dslx::AstNode* cpp_node) {
+  CHECK(cpp_node != nullptr);
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
-  auto* cpp_node = reinterpret_cast<xls::dslx::AstNode*>(c_node);
   std::optional<xls::dslx::Type*> maybe_type = cpp_type_info->GetItem(cpp_node);
   if (!maybe_type.has_value()) {
     return nullptr;
@@ -244,9 +243,10 @@ struct xls_dslx_type_ref* xls_dslx_type_ref_type_annotation_get_type_ref(
 struct xls_dslx_type_definition* xls_dslx_type_ref_get_type_definition(
     struct xls_dslx_type_ref* n) {
   auto* cpp = reinterpret_cast<xls::dslx::TypeRef*>(n);
-  // const_cast is ok because the C API can only do immutable query-like things with
-  // the node anyway.
-  auto& cpp_type_def = const_cast<xls::dslx::TypeDefinition&>(cpp->type_definition());
+  // const_cast is ok because the C API can only do immutable query-like things
+  // with the node anyway.
+  auto& cpp_type_def =
+      const_cast<xls::dslx::TypeDefinition&>(cpp->type_definition());
   return reinterpret_cast<xls_dslx_type_definition*>(&cpp_type_def);
 }
 
@@ -306,27 +306,32 @@ struct xls_dslx_expr* xls_dslx_enum_member_get_value(
 const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_def(
     struct xls_dslx_type_info* type_info,
     struct xls_dslx_struct_def* struct_def) {
-  return GetMetaTypeHelper(type_info, struct_def);
+  auto* node = reinterpret_cast<xls::dslx::AstNode*>(struct_def);
+  return GetMetaTypeHelper(type_info, node);
 }
 
 const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_member(
-    struct xls_dslx_type_info* type_info, struct xls_dslx_struct_member* struct_member) {
+    struct xls_dslx_type_info* type_info,
+    struct xls_dslx_struct_member* struct_member) {
   // Note: StructMember is not itself an AST node, it's just a POD struct, so
   // we need to traverse to its type annotation.
-  auto* cpp_struct_member = reinterpret_cast<xls::dslx::StructMember*>(struct_member);
-  xls::dslx::TypeAnnotation* type = cpp_struct_member->type;
-  return GetMetaTypeHelper(type_info, type);
+  auto* cpp_struct_member =
+      reinterpret_cast<xls::dslx::StructMember*>(struct_member);
+  xls::dslx::TypeAnnotation* node = cpp_struct_member->type;
+  return GetMetaTypeHelper(type_info, node);
 }
 
 const struct xls_dslx_type* xls_dslx_type_info_get_type_enum_def(
     struct xls_dslx_type_info* type_info, struct xls_dslx_enum_def* enum_def) {
-  return GetMetaTypeHelper(type_info, enum_def);
+  auto* node = reinterpret_cast<xls::dslx::AstNode*>(enum_def);
+  return GetMetaTypeHelper(type_info, node);
 }
 
 const struct xls_dslx_type* xls_dslx_type_info_get_type_type_annotation(
     struct xls_dslx_type_info* type_info,
     struct xls_dslx_type_annotation* type_annotation) {
-  return GetMetaTypeHelper(type_info, type_annotation);
+  auto* node = reinterpret_cast<xls::dslx::AstNode*>(type_annotation);
+  return GetMetaTypeHelper(type_info, node);
 }
 
 bool xls_dslx_type_get_total_bit_count(const struct xls_dslx_type* type,
@@ -447,17 +452,20 @@ bool xls_dslx_type_is_array(const struct xls_dslx_type* type) {
   return cpp_type->IsArray();
 }
 
-struct xls_dslx_type* xls_dslx_type_array_get_element_type(struct xls_dslx_type* type) {
+struct xls_dslx_type* xls_dslx_type_array_get_element_type(
+    struct xls_dslx_type* type) {
   const auto* cpp_type = reinterpret_cast<const xls::dslx::Type*>(type);
   CHECK(cpp_type->IsArray());
   const xls::dslx::Type& cpp_element_type = cpp_type->AsArray().element_type();
-  const auto* element_type = reinterpret_cast<const xls_dslx_type*>(&cpp_element_type);
-  // const_cast is ok because the C API can only do immutable query-like things with
-  // the type anyway.
+  const auto* element_type =
+      reinterpret_cast<const xls_dslx_type*>(&cpp_element_type);
+  // const_cast is ok because the C API can only do immutable query-like things
+  // with the type anyway.
   return const_cast<xls_dslx_type*>(element_type);
 }
 
-struct xls_dslx_type_dim* xls_dslx_type_array_get_size(struct xls_dslx_type* type) {
+struct xls_dslx_type_dim* xls_dslx_type_array_get_size(
+    struct xls_dslx_type* type) {
   const auto* cpp_type = reinterpret_cast<const xls::dslx::Type*>(type);
   CHECK(cpp_type->IsArray());
   const xls::dslx::TypeDim& cpp_size = cpp_type->AsArray().size();
@@ -465,25 +473,29 @@ struct xls_dslx_type_dim* xls_dslx_type_array_get_size(struct xls_dslx_type* typ
   return reinterpret_cast<xls_dslx_type_dim*>(cpp_type_dim);
 }
 
-struct xls_dslx_enum_def* xls_dslx_type_get_enum_def(struct xls_dslx_type* type) {
+struct xls_dslx_enum_def* xls_dslx_type_get_enum_def(
+    struct xls_dslx_type* type) {
   auto* cpp_type = reinterpret_cast<xls::dslx::Type*>(type);
   CHECK(cpp_type->IsEnum());
   const xls::dslx::EnumType& enum_type = cpp_type->AsEnum();
   const xls::dslx::EnumDef& cpp_enum_def = enum_type.nominal_type();
-  const auto* enum_def = reinterpret_cast<const xls_dslx_enum_def*>(&cpp_enum_def);
-  // const_cast is ok because the C API can only do immutable query-like things with
-  // the node anyway.
+  const auto* enum_def =
+      reinterpret_cast<const xls_dslx_enum_def*>(&cpp_enum_def);
+  // const_cast is ok because the C API can only do immutable query-like things
+  // with the node anyway.
   return const_cast<xls_dslx_enum_def*>(enum_def);
 }
 
-struct xls_dslx_struct_def* xls_dslx_type_get_struct_def(struct xls_dslx_type* type) {
+struct xls_dslx_struct_def* xls_dslx_type_get_struct_def(
+    struct xls_dslx_type* type) {
   auto* cpp_type = reinterpret_cast<xls::dslx::Type*>(type);
   CHECK(cpp_type->IsStruct());
   const xls::dslx::StructType& struct_type = cpp_type->AsStruct();
   const xls::dslx::StructDef& cpp_struct_def = struct_type.nominal_type();
-  const auto* struct_def = reinterpret_cast<const xls_dslx_struct_def*>(&cpp_struct_def);
-  // const_cast is ok because the C API can only do immutable query-like things with
-  // the node anyway.
+  const auto* struct_def =
+      reinterpret_cast<const xls_dslx_struct_def*>(&cpp_struct_def);
+  // const_cast is ok because the C API can only do immutable query-like things
+  // with the node anyway.
   return const_cast<xls_dslx_struct_def*>(struct_def);
 }
 
@@ -499,15 +511,18 @@ bool xls_dslx_type_is_bits_like(struct xls_dslx_type* type,
                                 struct xls_dslx_type_dim** is_signed,
                                 struct xls_dslx_type_dim** size) {
   const auto* cpp_type = reinterpret_cast<const xls::dslx::Type*>(type);
-  std::optional<xls::dslx::BitsLikeProperties> properties = GetBitsLike(*cpp_type);
+  std::optional<xls::dslx::BitsLikeProperties> properties =
+      GetBitsLike(*cpp_type);
   if (!properties.has_value()) {
     *is_signed = nullptr;
     *size = nullptr;
     return false;
   }
 
-  *is_signed = reinterpret_cast<xls_dslx_type_dim*>(new xls::dslx::TypeDim(std::move(properties->is_signed)));
-  *size = reinterpret_cast<xls_dslx_type_dim*>(new xls::dslx::TypeDim(std::move(properties->size)));
+  *is_signed = reinterpret_cast<xls_dslx_type_dim*>(
+      new xls::dslx::TypeDim(std::move(properties->is_signed)));
+  *size = reinterpret_cast<xls_dslx_type_dim*>(
+      new xls::dslx::TypeDim(std::move(properties->size)));
   return true;
 }
 

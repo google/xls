@@ -226,7 +226,8 @@ struct xls_dslx_enum_def* xls_dslx_type_get_enum_def(struct xls_dslx_type*);
 struct xls_dslx_struct_def* xls_dslx_type_get_struct_def(struct xls_dslx_type*);
 
 // Precondition: xls_dslx_type_is_array
-struct xls_dslx_type* xls_dslx_type_array_get_element_type(struct xls_dslx_type*);
+struct xls_dslx_type* xls_dslx_type_array_get_element_type(
+    struct xls_dslx_type*);
 
 // Note: returned xls_dslx_type_dim is owned by the caller and must be
 // deallocated.
@@ -236,11 +237,11 @@ struct xls_dslx_type_dim* xls_dslx_type_array_get_size(struct xls_dslx_type*);
 
 bool xls_dslx_type_dim_is_parametric(struct xls_dslx_type_dim*);
 
-bool xls_dslx_type_dim_get_as_bool(struct xls_dslx_type_dim*,
-                                   char** error_out, bool* result_out);
+bool xls_dslx_type_dim_get_as_bool(struct xls_dslx_type_dim*, char** error_out,
+                                   bool* result_out);
 
-bool xls_dslx_type_dim_get_as_int64(struct xls_dslx_type_dim*,
-                                    char** error_out, int64_t* result_out);
+bool xls_dslx_type_dim_get_as_int64(struct xls_dslx_type_dim*, char** error_out,
+                                    int64_t* result_out);
 
 void xls_dslx_type_dim_free(struct xls_dslx_type_dim*);
 
