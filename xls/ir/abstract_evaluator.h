@@ -208,6 +208,9 @@ class AbstractEvaluator {
     }
     return result;
   }
+  Element ULessThanOrEqual(Span a, Span b) { return Not(ULessThan(b, a)); }
+  Element UGreaterThan(Span a, Span b) { return ULessThan(b, a); }
+  Element UGreaterThanOrEqual(Span a, Span b) { return Not(ULessThan(a, b)); }
 
   Vector OneHotSelect(Span selector, SpanOfSpan cases,
                       bool selector_can_be_zero) {

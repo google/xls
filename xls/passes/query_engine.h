@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -80,6 +81,19 @@ class TreeBitLocation {
   std::vector<int64_t> tree_index_;
 };
 
+using TernaryTree = LeafTypeTree<TernaryVector>;
+using TernaryTreeView = LeafTypeTreeView<TernaryVector>;
+using MutableTernaryTreeView = MutableLeafTypeTreeView<TernaryVector>;
+
+using IntervalSetTree = LeafTypeTree<IntervalSet>;
+using IntervalSetTreeView = LeafTypeTreeView<IntervalSet>;
+using MutableIntervalSetTreeView = MutableLeafTypeTreeView<IntervalSet>;
+
+struct ValueKnowledge {
+  std::optional<TernaryTree> ternary;
+  std::optional<IntervalSetTree> intervals;
+};
+
 enum class ReachedFixpoint { Unchanged, Changed, Unknown };
 
 // An abstract base class providing an interface for answering queries about the
@@ -116,6 +130,11 @@ class QueryEngine {
   // behavior. In the future we might relax this restriction.
   virtual std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::flat_hash_set<PredicateState>& state) const;
+
+  // Return a query engine which is specialized with the given information. The
+  // reference has an lifetime of the source engine.
+  virtual std::unique_ptr<QueryEngine> SpecializeGiven(
+      const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const;
 
   // Returns a `LeafTypeTree<IntervalSet>` indicating which interval sets the
   // various parts of the value for a given node can exist in.

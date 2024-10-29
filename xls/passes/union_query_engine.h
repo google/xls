@@ -61,6 +61,9 @@ class UnownedUnionQueryEngine : public QueryEngine {
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::flat_hash_set<PredicateState>& state) const override;
 
+  std::unique_ptr<QueryEngine> SpecializeGiven(
+      const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const override;
+
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
 
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;

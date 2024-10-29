@@ -24,6 +24,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/base/optimization.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
@@ -443,6 +444,11 @@ class ForwardingQueryEngine final : public QueryEngine {
 
 std::unique_ptr<QueryEngine> QueryEngine::SpecializeGivenPredicate(
     const absl::flat_hash_set<PredicateState>& state) const {
+  return std::make_unique<ForwardingQueryEngine>(*this);
+}
+
+std::unique_ptr<QueryEngine> QueryEngine::SpecializeGiven(
+    const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
   return std::make_unique<ForwardingQueryEngine>(*this);
 }
 

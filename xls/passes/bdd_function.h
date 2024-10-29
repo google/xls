@@ -73,6 +73,8 @@ class BddFunction {
   const BinaryDecisionDiagram& bdd() const { return bdd_; }
   BinaryDecisionDiagram& bdd() { return bdd_; }
 
+  FunctionBase* function_base() const { return func_base_; }
+
   // Returns the node associated with the given bit.
   BddNodeIndex GetBddNode(Node* node, int64_t bit_index) const {
     std::optional<BddNodeIndex> bdd_node = TryGetBddNode(node, bit_index);

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -138,6 +139,16 @@ std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGivenPredicate(
   engines.reserve(engines_.size());
   for (const auto& engine : engines_) {
     engines.push_back(engine->SpecializeGivenPredicate(state));
+  }
+  return std::make_unique<UnionQueryEngine>(std::move(engines));
+}
+
+std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGiven(
+    const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.reserve(engines_.size());
+  for (const auto& engine : engines_) {
+    engines.push_back(engine->SpecializeGiven(givens));
   }
   return std::make_unique<UnionQueryEngine>(std::move(engines));
 }

@@ -22,6 +22,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/visitor.h"
 #include "xls/ir/node.h"
@@ -42,13 +43,28 @@ struct DefaultArm : public std::monostate {
   }
 };
 
-// Abstraction representing a the state of some select operation.
+// Special value denoting the 'in bounds' arm.
+struct InBoundsArm : public std::monostate {
+  template <typename H>
+  friend H AbslHashValue(H h, const InBoundsArm& a) {
+    return H::combine(std::move(h), std::monostate{});
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const InBoundsArm& arm) {
+    absl::Format(&sink, "IN_BOUNDS");
+  }
+};
+
+// Abstraction representing the state of some operation where access to a value
+// is predicated.
 class PredicateState {
  public:
-  using ArmT = std::variant<int64_t, DefaultArm>;
+  using ArmT = std::variant<int64_t, DefaultArm, InBoundsArm>;
   static constexpr ArmT kDefaultArm{DefaultArm{}};
-  using SelectT =
-      std::variant<Select*, OneHotSelect*, PrioritySelect*, std::nullptr_t>;
+  static constexpr ArmT kInBoundsArm{InBoundsArm{}};
+  using SelectT = std::variant<Select*, OneHotSelect*, PrioritySelect*,
+                               ArrayUpdate*, std::nullptr_t>;
   PredicateState() : node_(nullptr), index_(kDefaultArm) {}
   PredicateState(SelectT node, ArmT index) : node_(node), index_(index) {}
   PredicateState(const PredicateState&) = default;
@@ -61,19 +77,50 @@ class PredicateState {
     return std::holds_alternative<std::nullptr_t>(node_);
   }
 
+  // Does this state represent a predicate for a select.
+  bool IsSelectPredicate() const {
+    return std::holds_alternative<Select*>(node_) ||
+           std::holds_alternative<OneHotSelect*>(node_) ||
+           std::holds_alternative<PrioritySelect*>(node_);
+  }
+
+  // Does this state represent a predicate for an array update.
+  bool IsArrayUpdatePredicate() const {
+    return std::holds_alternative<ArrayUpdate*>(node_);
+  }
+
   // Is the arm the 'default' arm (assuming that's even meaningful for the
-  // select).
+  // node).
   bool IsDefaultArm() const { return kDefaultArm == index_; }
+
+  // Is the arm the 'in bounds' arm (assuming that's even meaningful for the
+  // node).
+  bool IsInBoundsArm() const { return kInBoundsArm == index_; }
 
   // The select this predicate represents as a node.
   Node* node() const {
     return absl::visit([](auto v) -> Node* { return v; }, node_);
   }
 
+  absl::Span<Node* const> indices() const {
+    CHECK(!IsBasePredicate());
+    return absl::visit(
+        xls::Visitor{[&](ArrayUpdate* u) -> absl::Span<Node* const> {
+                       return u->indices();
+                     },
+                     [&](auto n) -> absl::Span<Node* const> {
+                       return absl::Span<Node* const>();
+                     }},
+        node_);
+  }
+
   // The value which controls the select
   Node* selector() const {
     CHECK(!IsBasePredicate());
-    // All have selector as op(0)
+    if (std::holds_alternative<ArrayUpdate*>(node_)) {
+      return nullptr;
+    }
+    // All selects have selector as op(0)
     return node()->operand(0);
   }
 
@@ -91,6 +138,12 @@ class PredicateState {
                                     [&](PrioritySelect* s) -> Node* {
                                       CHECK(!IsDefaultArm());
                                       return s->get_case(arm_index());
+                                    },
+                                    [&](ArrayUpdate* s) -> Node* {
+                                      if (IsDefaultArm()) {
+                                        return s->array_to_update();
+                                      }
+                                      return nullptr;
                                     },
                                     [](std::nullptr_t) -> Node* {
                                       LOG(FATAL) << "Unreachable";

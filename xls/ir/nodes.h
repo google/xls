@@ -176,6 +176,7 @@ class ArrayUpdate final : public Node {
   static constexpr std::array<Op, 1> kOps = {Op::kArrayUpdate};
   static constexpr int64_t kArgOperand = 0;
   static constexpr int64_t kUpdateValueOperand = 1;
+  static constexpr int64_t kIndexOperandStart = 2;
 
   ArrayUpdate(const SourceInfo& loc, Node* arg, Node* update_value,
               absl::Span<Node* const> indices, bool known_in_bounds,

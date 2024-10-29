@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -30,7 +31,9 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"
+#include "xls/ir/value.h"
 #include "xls/passes/bdd_function.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -69,6 +72,11 @@ class BddQueryEngine : public QueryEngine {
         node->GetType(), std::move(ternary));
   }
 
+  std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
+      const absl::flat_hash_set<PredicateState>& state) const override;
+  std::unique_ptr<QueryEngine> SpecializeGiven(
+      const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const override;
+
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;
   bool Implies(const TreeBitLocation& a,
@@ -84,15 +92,52 @@ class BddQueryEngine : public QueryEngine {
   bool KnownNotEquals(const TreeBitLocation& a,
                       const TreeBitLocation& b) const override;
 
+  using QueryEngine::IsAllOnes;
+  using QueryEngine::IsAllZeros;
+  using QueryEngine::IsFullyKnown;
+  using QueryEngine::IsKnown;
+  using QueryEngine::KnownValue;
+
   // Returns the underlying BddFunction representing the XLS function.
   const BddFunction& bdd_function() const { return *bdd_function_; }
 
  private:
+  class AssumingBddQueryEngine;
+
   // Returns the underlying BDD. This method is const, but queries on a BDD
   // generally mutate the object. We sneakily avoid conflicts with C++ const
   // because the BDD is only held indirectly via pointers.
   // TODO(meheff): Enable queries on a BDD with out mutating the BDD itself.
   BinaryDecisionDiagram& bdd() const { return bdd_function_->bdd(); }
+
+  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+      Node* node, BddNodeIndex assumption) const;
+
+  bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits,
+                     std::optional<BddNodeIndex> assumption) const;
+  bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits,
+                      std::optional<BddNodeIndex> assumption) const;
+  std::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node, std::optional<BddNodeIndex> assumption) const;
+  std::optional<TernaryVector> ImpliedNodeTernary(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node, std::optional<BddNodeIndex> assumption) const;
+  bool KnownEquals(const TreeBitLocation& a, const TreeBitLocation& b,
+                   std::optional<BddNodeIndex> assumption) const;
+  bool KnownNotEquals(const TreeBitLocation& a, const TreeBitLocation& b,
+                      std::optional<BddNodeIndex> assumption) const;
+
+  bool IsKnown(const TreeBitLocation& bit,
+               std::optional<BddNodeIndex> assumption) const;
+  std::optional<bool> KnownValue(const TreeBitLocation& bit,
+                                 std::optional<BddNodeIndex> assumption) const;
+  std::optional<Value> KnownValue(Node* node,
+                                  std::optional<BddNodeIndex> assumption) const;
+
+  bool IsAllZeros(Node* n, std::optional<BddNodeIndex> assumption) const;
+  bool IsAllOnes(Node* n, std::optional<BddNodeIndex> assumption) const;
+  bool IsFullyKnown(Node* n, std::optional<BddNodeIndex> assumption) const;
 
   // Returns the BDD node associated with the given bit, if there is one;
   // otherwise returns std::nullopt.
@@ -114,6 +159,9 @@ class BddQueryEngine : public QueryEngine {
   bool ExceedsPathLimit(BddNodeIndex node) const {
     return path_limit_ > 0 && bdd().GetNode(node).path_count > path_limit_;
   }
+
+  // Returns true if the known bits for the nodes have changed.
+  bool RecomputeKnownBits();
 
   // The maximum number of paths in expression in the BDD before truncating.
   int64_t path_limit_;

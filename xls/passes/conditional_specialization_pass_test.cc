@@ -408,6 +408,39 @@ fn f(a: bits[2], y: bits[32]) -> bits[32] {
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
+TEST_F(ConditionalSpecializationPassTest, SpecializeSelectOnArrayUpdate) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32][8], i: bits[16], z: bits[32], q: bits[32]) -> bits[32][8] {
+  array_bound: bits[16] = literal(value=8)
+  is_in_bounds: bits[1] = ult(i, array_bound)
+  update_val: bits[32] = sel(is_in_bounds, cases=[q, z])
+  ret new_a: bits[32][8] = array_update(a, update_val, indices=[i])
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"), m::Param("z"), {m::Param("i")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       SpecializeSelectOnNonPowerOfTwoArrayUpdate) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+fn f(a: bits[32][7], i: bits[16], z: bits[32], q: bits[32]) -> bits[32][7] {
+  array_bound: bits[16] = literal(value=7)
+  is_in_bounds: bits[1] = ult(i, array_bound)
+  update_val: bits[32] = sel(is_in_bounds, cases=[q, z])
+  ret new_a: bits[32][7] = array_update(a, update_val, indices=[i])
+}
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayUpdate(m::Param("a"), m::Param("z"), {m::Param("i")}));
+}
+
 TEST_F(ConditionalSpecializationPassTest, LongSelectChain) {
   // Build a long transformable select chain (first and last select share a
   // selector).

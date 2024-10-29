@@ -42,7 +42,6 @@
 #include "xls/common/stopwatch.h"
 #include "xls/data_structures/binary_decision_diagram.h"
 #include "xls/interpreter/ir_interpreter.h"
-#include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
@@ -52,122 +51,10 @@
 #include "xls/ir/op.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/passes/bdd_evaluator.h"
 
 namespace xls {
 namespace {
-
-// Construct a BDD-based abstract evaluator. The expressions in the BDD
-// saturates at a particular number of paths from the expression node to the
-// terminal nodes 0 and 1 in the BDD. When the path limit is met, a new BDD
-// variable is created in its place effective forgetting any information about
-// the value. This avoids exponential blowup problems when constructing the BDD
-// at the cost of precision. The primitive bit element of the abstract evaluator
-// is a sum type consisting of a BDD node and a sentinel value TooManyPaths. The
-// TooManyPaths value is produced if the number of paths in the computed
-// expression exceed some limit. Any logical operation performed with a
-// TooManyPaths value produces a TooManyPaths value.
-struct TooManyPaths {};
-using SaturatingBddNodeIndex = std::variant<BddNodeIndex, TooManyPaths>;
-using SaturatingBddNodeVector = std::vector<SaturatingBddNodeIndex>;
-
-// The AbstractEvaluator requires equals to and not equals to operations on the
-// primitive element.
-bool operator==(const SaturatingBddNodeIndex& a,
-                const SaturatingBddNodeIndex& b) {
-  if (std::holds_alternative<TooManyPaths>(a) ||
-      std::holds_alternative<TooManyPaths>(b)) {
-    return false;
-  }
-  return std::get<BddNodeIndex>(a) == std::get<BddNodeIndex>(b);
-}
-
-bool operator!=(const SaturatingBddNodeIndex& a,
-                const SaturatingBddNodeIndex& b) {
-  return !(a == b);
-}
-
-// Converts the given saturating BDD vector to a normal vector of BDD nodes. The
-// input vector must not contain any TooManyPaths values.
-BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
-  BddNodeVector result(input.size());
-  for (int64_t i = 0; i < input.size(); ++i) {
-    CHECK(std::holds_alternative<BddNodeIndex>(input[i]));
-    result[i] = std::get<BddNodeIndex>(input[i]);
-  }
-  return result;
-}
-
-// The abstract evaluator based on a BDD with path-saturating logic.
-class SaturatingBddEvaluator
-    : public AbstractEvaluator<SaturatingBddNodeIndex, SaturatingBddEvaluator> {
- public:
-  SaturatingBddEvaluator(int64_t path_limit, BinaryDecisionDiagram* bdd)
-      : path_limit_(path_limit), bdd_(bdd) {}
-
-  SaturatingBddNodeIndex One() const { return bdd_->one(); }
-
-  SaturatingBddNodeIndex Zero() const { return bdd_->zero(); }
-
-  SaturatingBddNodeIndex Not(const SaturatingBddNodeIndex& input) const {
-    if (std::holds_alternative<TooManyPaths>(input)) {
-      return TooManyPaths();
-    }
-    BddNodeIndex result = bdd_->Not(std::get<BddNodeIndex>(input));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
-      return TooManyPaths();
-    }
-    return result;
-  }
-
-  SaturatingBddNodeIndex And(const SaturatingBddNodeIndex& a,
-                             const SaturatingBddNodeIndex& b) const {
-    if (std::holds_alternative<TooManyPaths>(a) ||
-        std::holds_alternative<TooManyPaths>(b)) {
-      return TooManyPaths();
-    }
-    BddNodeIndex result =
-        bdd_->And(std::get<BddNodeIndex>(a), std::get<BddNodeIndex>(b));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
-      return TooManyPaths();
-    }
-    return result;
-  }
-
-  SaturatingBddNodeIndex Or(const SaturatingBddNodeIndex& a,
-                            const SaturatingBddNodeIndex& b) const {
-    if (std::holds_alternative<TooManyPaths>(a) ||
-        std::holds_alternative<TooManyPaths>(b)) {
-      return TooManyPaths();
-    }
-    BddNodeIndex result =
-        bdd_->Or(std::get<BddNodeIndex>(a), std::get<BddNodeIndex>(b));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
-      return TooManyPaths();
-    }
-    return result;
-  }
-
-  SaturatingBddNodeIndex If(const SaturatingBddNodeIndex& sel,
-                            const SaturatingBddNodeIndex& consequent,
-                            const SaturatingBddNodeIndex& alternate) const {
-    if (std::holds_alternative<TooManyPaths>(sel) ||
-        std::holds_alternative<TooManyPaths>(consequent) ||
-        std::holds_alternative<TooManyPaths>(alternate)) {
-      return TooManyPaths();
-    }
-    BddNodeIndex result = bdd_->IfThenElse(std::get<BddNodeIndex>(sel),
-                                           std::get<BddNodeIndex>(consequent),
-                                           std::get<BddNodeIndex>(alternate));
-    if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
-      return TooManyPaths();
-    }
-    return result;
-  }
-
- private:
-  int64_t path_limit_;
-  BinaryDecisionDiagram* bdd_;
-};
 
 // Returns whether the given op should be included in BDD computations.
 bool ShouldEvaluate(Node* node) {

@@ -688,8 +688,7 @@ TEST_P(QueryEngineTest, NodesKnownUnsignedEquals) {
 }
 
 TEST_P(QueryEngineTest, DefaultSpecializeDoesNothing) {
-  if (GetParam() != QueryEngineType::kTernary &&
-      GetParam() != QueryEngineType::kBdd) {
+  if (GetParam() != QueryEngineType::kTernary) {
     // Only these two should not have any specializations.
     return;
   }
