@@ -579,7 +579,8 @@ proc MemReaderTest {
 
         let tok = send(tok, axi_r_s, AxiR {
             id: AxiId:0x0,
-            data: AxiData:0x1122_3344_5566_7788_9900_AABB_CCDD_EEFF,
+            data: AxiData:0x1122_3344_5566_7788_9900_AABB_CCDD_EE55,
+            // Addresses:    ^ 0xFFF                              ^ 0xFF0
             resp: AxiResp::OKAY,
             last: AxiLast:true
         });
@@ -599,7 +600,8 @@ proc MemReaderTest {
 
         let tok = send(tok, axi_r_s, AxiR {
             id: AxiId:0x0,
-            data: AxiData:0x1122_3344_5566_7788_9900_AABB_CCDD_EEFF,
+            data: AxiData:0x5522_3344_5566_7788_9900_AABB_CCDD_EEFF,
+            // Addresses:    ^ 0x100F                             ^ 0x1000
             resp: AxiResp::OKAY,
             last: AxiLast:true
         });
@@ -607,7 +609,8 @@ proc MemReaderTest {
         let (tok, resp) = recv(tok, resp_r);
         assert_eq(resp, Resp {
             status: Status::OKAY,
-            data: Data:0x11FF,
+            data: Data:0xFF11,
+            //     0x1000 ^ ^ 0x0FFF
             length: Length:2,
             last: true
         });
