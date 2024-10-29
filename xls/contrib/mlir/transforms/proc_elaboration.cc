@@ -103,25 +103,6 @@ class ElaborationContext
 
   OpBuilder& getBuilder() { return builder; }
 
-  StringAttr makeUniqueSymbol(StringRef name) {
-    auto existsAlready = [this](StringRef name) {
-      return symbolTable.lookup(name) != nullptr ||
-             addedSymbols.contains(name.str());
-    };
-    if (!existsAlready(name)) {
-      addedSymbols.insert(name.str());
-      return builder.getStringAttr(name);
-    }
-
-    unsigned counter = 0;
-    // Note the template parameter is the length of the returned SmallString,
-    // not the number of probes to do!
-    SmallString<32> str =
-        symbolTable.generateSymbolName<32>(name, existsAlready, counter);
-    addedSymbols.insert(str.str().str());
-    return builder.getStringAttr(str);
-  }
-
   // Creates an eproc for the given sproc if none has yet been created. New
   // local channels are created for the eproc and are returned.
   //
@@ -130,11 +111,11 @@ class ElaborationContext
     if (auto it = procCache.find(sproc); it != procCache.end()) {
       return it->second;
     }
-    StringAttr symbol = makeUniqueSymbol(sproc.getSymName());
 
-    EprocOp eproc =
-        builder.create<EprocOp>(sproc.getLoc(), symbol, /*discardable=*/true,
-                                sproc.getMinPipelineStages());
+    EprocOp eproc = builder.create<EprocOp>(sproc.getLoc(), sproc.getSymName(),
+                                            /*discardable=*/true,
+                                            sproc.getMinPipelineStages());
+    symbolTable.insert(eproc);
     IRMapping mapping;
     sproc.getNext().cloneInto(&eproc.getBody(), mapping);
     llvm::DenseMap<Value, SymbolRefAttr> chanMap;
@@ -172,6 +153,8 @@ class ElaborationContext
                                        builder.getArrayAttr(localSymbols));
   }
 
+  SymbolTable& getSymbolTable() { return symbolTable; }
+
  private:
   OpBuilder& builder;
   SymbolTable symbolTable;
@@ -195,9 +178,9 @@ class ElaborationInterpreter
   }
 
   absl::Status Interpret(SchanOp op, ElaborationContext& ctx) {
-    StringAttr symbol = ctx.makeUniqueSymbol(op.getName());
-    ChanOp chan =
-        ctx.getBuilder().create<ChanOp>(op.getLoc(), symbol, op.getType());
+    ChanOp chan = ctx.getBuilder().create<ChanOp>(op.getLoc(), op.getName(),
+                                                  op.getType());
+    ctx.getSymbolTable().insert(chan);
     ctx.Set(op.getResult(0), chan);
     ctx.Set(op.getResult(1), chan);
 

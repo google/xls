@@ -2,12 +2,12 @@
 // RUN: | FileCheck --check-prefix=CHECK-MLIR %s
 
 // RUN: xls/contrib/mlir/xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
-// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-xls --main-function=reduce_0_0 \
+// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-xls --main-function=reduce_2_0 \
 // RUN: > %t
 
 // RUN: xls/contrib/mlir/xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
 // RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-verilog \
-// RUN:   --main-function=reduce_0_0 -- --delay_model=asap7 \
+// RUN:   --main-function=reduce_2_0 -- --delay_model=asap7 \
 // RUN:   --generator=pipeline --pipeline_stages=2 --worst_case_throughput=2 --reset=rst \
 // RUN: | FileCheck --check-prefix=CHECK-VERILOG %s
 
@@ -68,7 +68,7 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:    %5 = xls.send %4, %1, @body_result_0 : i32
 // CHECK-MLIR:    xls.yield %arg0 : i32
 // CHECK-MLIR:  }
-// CHECK-MLIR:  xls.eproc @reduce_for_controller_0_1(%arg0: i32) zeroinitializer {
+// CHECK-MLIR:  xls.eproc @reduce_for_controller_1_1(%arg0: i32) zeroinitializer {
 // CHECK-MLIR:    %0 = "xls.constant_scalar"() <{value = 0 : i32}> : () -> i32
 // CHECK-MLIR:    %1 = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
 // CHECK-MLIR:    %2 = "xls.constant_scalar"() <{value = 3 : i32}> : () -> i32
@@ -91,7 +91,7 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:    %17 = "xls.sel"(%8, %0, %16) : (i1, i32, i32) -> i32
 // CHECK-MLIR:    xls.yield %17 : i32
 // CHECK-MLIR:  }
-// CHECK-MLIR:  xls.eproc @reduce_0_0(%arg0: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64} {
+// CHECK-MLIR:  xls.eproc @reduce_2_0(%arg0: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64} {
 // CHECK-MLIR:    %0 = xls.after_all  : !xls.token
 // CHECK-MLIR:    %1 = xls.send %0, %arg0, @for_arg_0 : i32
 // CHECK-MLIR:    %2 = xls.after_all %1 : !xls.token
