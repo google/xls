@@ -25,6 +25,7 @@
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
+#include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/InitAllDialects.h"
@@ -34,6 +35,7 @@
 #include "mlir/include/mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/include/mlir/Tools/mlir-translate/Translation.h"
 #include "xls/contrib/mlir/IR/register.h"
+#include "xls/contrib/mlir/tools/xls_translate/xls_stitch.h"
 #include "xls/contrib/mlir/tools/xls_translate/xls_translate.h"
 #include "xls/public/c_api.h"
 
@@ -91,6 +93,11 @@ LogicalResult mlirXlsToVerilogTranslate(Operation* op,
   return MlirXlsToXlsTranslate(op, output, options);
 }
 
+LogicalResult mlirXlsStitch(Operation* op, llvm::raw_ostream& output) {
+  XlsStitchOptions options;
+  return XlsStitch(cast<ModuleOp>(op), output, options);
+}
+
 TranslateFromMLIRRegistration mlirXlsToXlsTranslateRegistration(
     "mlir-xls-to-xls", "convert from MLIR XLS dialect to XLS",
     mlirXlsToXlsTranslate, registerInputDialects);
@@ -98,6 +105,10 @@ TranslateFromMLIRRegistration mlirXlsToXlsTranslateRegistration(
 TranslateFromMLIRRegistration mlirXlsToVerilogTranslateRegistration(
     "mlir-xls-to-verilog", "convert from MLIR XLS dialect to Verilog",
     mlirXlsToVerilogTranslate, registerInputDialects);
+
+TranslateFromMLIRRegistration mlirXlsStitchRegistration(
+    "mlir-xls-stitch", "stitch together XLS modules", mlirXlsStitch,
+    registerInputDialects);
 
 }  // namespace
 }  // namespace mlir::xls

@@ -1130,6 +1130,18 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       chan_op.emitOpError("unsupported channel type");
       return WalkResult::interrupt();
     }
+
+    // If this channel is only used by instantiate_eproc ops, we can (and
+    // should) skip it. XLS doesn't like orphan channels with no sends or
+    // receives.
+    auto range = chan_op.getSymbolUses(module);
+    if (range.has_value() &&
+        llvm::all_of(*range, [](SymbolTable::SymbolUse user) {
+          return isa<InstantiateEprocOp>(user.getUser());
+        })) {
+      return WalkResult::advance();
+    }
+
     std::string name = chan_op.getSymName().str();
     ::xls::ChannelOps kind = ::xls::ChannelOps::kSendReceive;  // NOLINT
     if (!chan_op.getSendSupported()) {

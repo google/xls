@@ -505,8 +505,14 @@ cc_binary(
 
 cc_library(
     name = "xls_translate_lib",
-    srcs = ["tools/xls_translate/xls_translate.cc"],
-    hdrs = ["tools/xls_translate/xls_translate.h"],
+    srcs = [
+        "tools/xls_translate/xls_stitch.cc",
+        "tools/xls_translate/xls_translate.cc",
+    ],
+    hdrs = [
+        "tools/xls_translate/xls_stitch.h",
+        "tools/xls_translate/xls_translate.h",
+    ],
     data = [
         "stdlib/fp_ext_trunc.x",
     ],
