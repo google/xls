@@ -1,0 +1,26 @@
+module array_idx_in_bounds(
+  input wire [4:0] idx,
+  input wire [511:0] arr,
+  output wire [31:0] out
+);
+  wire [31:0] arr_unflattened[16];
+  assign arr_unflattened[0] = arr[31:0];
+  assign arr_unflattened[1] = arr[63:32];
+  assign arr_unflattened[2] = arr[95:64];
+  assign arr_unflattened[3] = arr[127:96];
+  assign arr_unflattened[4] = arr[159:128];
+  assign arr_unflattened[5] = arr[191:160];
+  assign arr_unflattened[6] = arr[223:192];
+  assign arr_unflattened[7] = arr[255:224];
+  assign arr_unflattened[8] = arr[287:256];
+  assign arr_unflattened[9] = arr[319:288];
+  assign arr_unflattened[10] = arr[351:320];
+  assign arr_unflattened[11] = arr[383:352];
+  assign arr_unflattened[12] = arr[415:384];
+  assign arr_unflattened[13] = arr[447:416];
+  assign arr_unflattened[14] = arr[479:448];
+  assign arr_unflattened[15] = arr[511:480];
+  wire [4:0] sel_15;
+  assign sel_15 = idx < 5'h10 ? (5'h01 >= 5'h05 ? 5'h00 : idx >> 5'h01) : idx;
+  assign out = arr_unflattened[sel_15];
+endmodule

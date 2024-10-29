@@ -741,17 +741,15 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
     Expression* clamped_index;
     // Out-of-bounds accesses return the final element of the array. Clamp the
     // index to the maximum index value. In some cases, clamping is not
-    // necessary (index is a literal or not wide enough to express an OOB
-    // index). This testing about whether a bounds check would be better handled
-    // via another mechanism (e.g., an annotation on the array operation
-    // indicating that the access is inbounds).
+    // necessary (index is a literal, or not wide enough to express an OOB
+    // index, or other analyses have already proven the access is good).
     // TODO(meheff) 2021-03-25 Simplify this when we have a better way of
     // handling OOB accesses.
-    if (!options.array_index_bounds_checking() ||
+    if (array_index->known_in_bounds() ||
+        !options.array_index_bounds_checking() ||
         Bits::MinBitCountUnsigned(array_type->size()) >
             index_type->bit_count()) {
-      // Index cannot be out-of-bounds because it is not wide enough to express
-      // an out-of-bounds value.
+      // Index has been proven/assumed to be in bounds.
       clamped_index = index;
     } else if (index->IsLiteral() &&
                bits_ops::ULessThan(index->AsLiteralOrDie()->bits(),

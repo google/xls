@@ -54,9 +54,11 @@
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -2038,6 +2040,43 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  options.max_inline_depth(10);
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           FunctionToCombinationalBlock(f, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(unit.top_block, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, unit.top_block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+}
+
+TEST_P(BlockGeneratorTest, ArrayIndexBounds) {
+  auto p = std::make_unique<VerifiedPackage>(TestName());
+  FunctionBuilder fb(TestName(), p.get());
+  // Do a basic array-read that doesn't need bounds checks.
+  BValue param = fb.Param("idx", p->GetBitsType(5));
+  // Definitely less than 16
+  BValue idx = fb.Select(fb.ULt(param, fb.Literal(UBits(16, 5))),
+                         {fb.Shrl(param, fb.Literal(UBits(1, 5)))}, param);
+  fb.ArrayIndex(fb.Param("arr", p->GetArrayType(16, p->GetBitsType(32))), {idx},
+                /*known_in_bounds=*/true);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
+                /*reset_data_path=*/true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("array_idx_in_bounds");
   options.use_system_verilog(UseSystemVerilog());
 
   options.max_inline_depth(10);
