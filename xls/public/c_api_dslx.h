@@ -146,6 +146,8 @@ struct xls_dslx_type_definition* xls_dslx_type_ref_get_type_definition(
 
 // -- type_definition
 
+// Note: this is a variant accessor, if the variant is not a ColonRef then
+// nullptr is returned.
 struct xls_dslx_colon_ref* xls_dslx_type_definition_get_colon_ref(
     struct xls_dslx_type_definition*);
 
