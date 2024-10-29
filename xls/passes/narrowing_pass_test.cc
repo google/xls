@@ -1511,6 +1511,39 @@ TEST_P(NarrowingPassTest, ProcStateInformationIsUsed) {
                       m::UGe(m::Type("bits[4]"), m::Type("bits[4]"))));
 }
 
+TEST_P(NarrowingPassTest, ArrayBoundsContextual) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue idx = fb.Param("idx", p->GetBitsType(16));
+  fb.ArrayIndex(fb.Param("arr", p->GetArrayType(10, p->GetBitsType(32))),
+                {fb.Select(fb.ULt(idx, fb.Literal(UBits(10, 16))),
+                           {fb.Literal(UBits(0, 16)), idx})});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  bool is_context_analysis =
+      analysis() == NarrowingPass::AnalysisType::kRangeWithContext;
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(is_context_analysis));
+  if (is_context_analysis) {
+    EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::KnownInBounds()));
+  }
+}
+
+TEST_P(NarrowingPassTest, ArrayBoundsProof) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue idx = fb.Param("idx", p->GetBitsType(3));
+  // 5 bits
+  fb.ArrayIndex(fb.Param("arr", p->GetArrayType(32, p->GetBitsType(32))),
+                // Definitely less than 24 even with ternary.
+                {fb.Add(fb.Literal(UBits(16, 32)), fb.ZeroExtend(idx, 32))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::KnownInBounds()));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     ::testing::Values(NarrowingPass::AnalysisType::kTernary,

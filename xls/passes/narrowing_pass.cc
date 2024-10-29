@@ -251,6 +251,18 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   bool changed() const { return changed_; }
 
   absl::Status DefaultHandler(Node* node) override { return NoChange(); }
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
+    if (!update->known_in_bounds() &&
+        ArrayIndicesKnownInBounds(
+            update, update->indices(),
+            update->array_to_update()->GetType()->AsArrayOrDie())) {
+      update->SetKnownInBounds(true);
+      VLOG(3) << "analysis proves that " << update
+              << " does not require bounds checks";
+      return Change();
+    }
+    return NoChange();
+  }
   absl::Status HandleGate(Gate* gate) override {
     // We explicitly never want anything to occur here except being replaced
     // with a constant.
@@ -1057,7 +1069,16 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
     bool changed = false;
+    bool known_in_bounds = array_index->known_in_bounds();
 
+    if (!known_in_bounds &&
+        ArrayIndicesKnownInBounds(
+            array_index, array_index->indices(),
+            array_index->array()->GetType()->AsArrayOrDie())) {
+      VLOG(3) << "analysis proves that " << index
+              << " does not require bounds checks";
+      known_in_bounds = true;
+    }
     if (analysis_ == AnalysisType::kRange &&
         options_.convert_array_index_to_select.has_value()) {
       int64_t threshold = options_.convert_array_index_to_select.value();
@@ -1137,10 +1158,16 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       new_indices.push_back(index);
     }
     if (changed) {
-      XLS_ASSIGN_OR_RETURN(Node * new_idx,
-                           array_index->ReplaceUsesWithNew<ArrayIndex>(
-                               array_index->array(), new_indices));
+      XLS_ASSIGN_OR_RETURN(
+          Node * new_idx,
+          array_index->ReplaceUsesWithNew<ArrayIndex>(
+              array_index->array(), new_indices, known_in_bounds));
       return Change(/*original=*/array_index, /*replacement=*/new_idx);
+    }
+    if (known_in_bounds != array_index->known_in_bounds()) {
+      array_index->SetKnownInBounds(known_in_bounds);
+      // The pointer doesn't change so no need to add an alias.
+      return Change();
     }
     return NoChange();
   }
@@ -1286,6 +1313,20 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
 
  private:
+  bool ArrayIndicesKnownInBounds(Node* user, absl::Span<Node* const> indices,
+                                 ArrayType* array_type) {
+    Type* ty = array_type;
+    for (Node* n : indices) {
+      const QueryEngine& node_query_engine =
+          specialized_query_engine_.ForNode(user);
+      if (bits_ops::UGreaterThanOrEqual(node_query_engine.MaxUnsignedValue(n),
+                                        ty->AsArrayOrDie()->size())) {
+        return false;
+      }
+      ty = ty->AsArrayOrDie()->element_type();
+    }
+    return true;
+  }
   // Return the number of trailing known zeros in the given nodes values when
   // used as an argument to 'user'. If user is std::nullopt the context isn't
   // used.
