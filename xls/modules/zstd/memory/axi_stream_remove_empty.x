@@ -130,7 +130,6 @@ pub proc AxiStreamRemoveEmpty<
         let exact_transfer = (empty_input_bytes == state.len);
 
         let combined_state_data = state.data | data << state.len;
-        let combined_input_data = data | state.data << len;
 
         let overflow_len = get_overflow_len<DATA_W>(state.len, len);
         let sum_len = state.len + len;
@@ -172,7 +171,7 @@ pub proc AxiStreamRemoveEmpty<
             // store
             (
                 State {
-                    data: combined_input_data,
+                    data: combined_state_data,
                     len: sum_len,
                     ..state
                 },
@@ -405,6 +404,67 @@ proc AxiStreamRemoveEmptyTest {
             dest: Dest:0,
         });
 
+        // Test 6: Some bits set, last set in the last transfer.
+
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x0000_00B9,
+            str: Str:0b0001,
+            keep: Keep:0b0001,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x0000_007F,
+            str: Str:0b0001,
+            keep: Keep:0b0001,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x0000_0069,
+            str: Str:0b0001,
+            keep: Keep:0b0001,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x00DF_5EF7,
+            str: Str:0b0111,
+            keep: Keep:0b0111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x0000_C735,
+            str: Str:0b0011,
+            keep: Keep:0b0011,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xF769_7FB9,
+            str: Str:0xF,
+            keep: Keep:0xF,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xC735_DF5E,
+            str: Str:0xF,
+            keep: Keep:0xF,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
         send(tok, terminator, true);
     }
 }
