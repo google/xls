@@ -157,6 +157,12 @@ struct xls_value* xls_value_make_false() {
   return reinterpret_cast<xls_value*>(value);
 }
 
+int64_t xls_bits_get_bit_count(const struct xls_bits* bits) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  return cpp_bits->bit_count();
+}
+
 void xls_bits_free(xls_bits* b) { delete reinterpret_cast<xls::Bits*>(b); }
 
 void xls_value_free(xls_value* v) {
