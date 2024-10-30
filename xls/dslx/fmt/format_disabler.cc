@@ -38,11 +38,15 @@ namespace xls::dslx {
 
 absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
     const AstNode *node) {
+  if (node == nullptr || !node->GetSpan().has_value()) {
+    // If there's no node, or no span, we can't know if it's in the unformatted
+    // range, so just return nullopt to indicate it should be unchanged.
+    return std::nullopt;
+  }
+
   if (unformatted_end_.has_value()) {
     // We are in "format disabled" mode.
 
-    // TODO: https://github.com/google/xls/issues/1320 - deal with a node with
-    // no span.
     if (node->GetSpan().value().start() < unformatted_end_.value()) {
       // This node is within the unformatted range; delete it by returning
       // an empty VerbatimNode. This is safe because its text has already been

@@ -309,5 +309,27 @@ TEST(FormatDisablerTest, NeverEnabled) {
   EXPECT_EQ(actual_node->text(), kImport);
 }
 
+TEST(FormatDisablerTest, NoSpan) {
+  // First we have to get it into "unformatted" mode.
+  const std::string kProgram = "// dslx-fmt::off\nimport m;\n";
+  std::vector<CommentData> comments_list;
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> m,
+      ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
+  const Comments comments = Comments::Create(comments_list);
+
+  Import* import_node = std::get<Import*>(m->top().at(0));
+  FormatDisabler disabler(comments, kProgram);
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
+                           disabler(import_node));
+
+  // Now we can give it a node with no span.
+  BuiltinNameDef built_in(nullptr, "identifier");
+  XLS_ASSERT_OK_AND_ASSIGN(actual, disabler(&built_in));
+
+  ASSERT_FALSE(actual.has_value());
+}
+
 }  // namespace
 }  // namespace xls::dslx
