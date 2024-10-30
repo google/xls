@@ -688,6 +688,10 @@ absl::StatusOr<llvm::Function*> CreateLlvmFunction(
 // example, emitting a node as a separate function.
 class NodeIrContext {
  public:
+  // Returns the name of the LLVM function to use for a given node.
+  static std::string CreateFunctionName(Node* node,
+                                        JitBuilderContext& jit_context);
+
   // Possible node function signatures:
   //
   // bool f(void* operand_ptr_0, ..., void* operand_ptr_n,
@@ -717,6 +721,13 @@ class NodeIrContext {
   static absl::StatusOr<NodeIrContext> Create(
       Node* node, absl::Span<const std::string> operand_names,
       int64_t output_arg_count, bool include_wrapper_args,
+      const JitCompilationMetadata& metadata, JitBuilderContext& jit_context);
+
+  // Similar to above, but for a node which is an input to a function.
+  // These node functions do not produce an output, they only exist to invoke
+  // callbacks.
+  static absl::StatusOr<NodeIrContext> CreateForInputNode(
+      Node* node, bool include_wrapper_args,
       const JitCompilationMetadata& metadata, JitBuilderContext& jit_context);
 
   // Completes the LLVM function by adding a return statement with the given
@@ -764,6 +775,11 @@ class NodeIrContext {
   // builder used to construct any IR required to get the operand ptr. If
   // `builder` is not specified then the entry builder is used.
   llvm::Value* GetOperandPtr(int64_t i, llvm::IRBuilder<>* builder = nullptr);
+
+  // Similar to GetOperandPtr, but for a node which is an input to a function.
+  // These nodes are special as the input nodes have no operands and the node
+  // functions do not produce an output, they only exist to invoke callbacks.
+  llvm::Value* GetInputNodePtr(Node* node);
 
   // Returns the output pointer arguments.
   absl::Span<llvm::Value* const> GetOutputPtrs() const { return output_ptrs_; }
@@ -837,7 +853,14 @@ class NodeIrContext {
       materialized_cache_;
 };
 
-absl::StatusOr<NodeIrContext> NodeIrContext::Create(
+/* static */ std::string NodeIrContext::CreateFunctionName(
+    Node* node, JitBuilderContext& jit_context) {
+  return absl::StrFormat("__%s_%s_%d",
+                         jit_context.MangleFunctionName(node->function_base()),
+                         node->GetName(), node->id());
+}
+
+/*static */ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     Node* node, absl::Span<const std::string> operand_names,
     int64_t output_arg_count, bool include_wrapper_args,
     const JitCompilationMetadata& metadata, JitBuilderContext& jit_context) {
@@ -876,9 +899,7 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
       llvm::Type::getInt1Ty(jit_context.module()->getContext()), param_types,
       /*isVarArg=*/false);
 
-  std::string function_name = absl::StrFormat(
-      "__%s_%s_%d", jit_context.MangleFunctionName(node->function_base()),
-      node->GetName(), node->id());
+  std::string function_name = CreateFunctionName(node, jit_context);
   XLS_ASSIGN_OR_RETURN(
       nc.llvm_function_,
       CreateLlvmFunction(function_name, function_type, jit_context.module()));
@@ -919,6 +940,63 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     nc.output_ptrs_.push_back(
         nc.llvm_function_->getArg(nc.operand_args_.size() + i));
   }
+  return nc;
+}
+
+/* static */
+absl::StatusOr<NodeIrContext> NodeIrContext::CreateForInputNode(
+    Node* node, bool include_wrapper_args,
+    const JitCompilationMetadata& metadata, JitBuilderContext& jit_context) {
+  NodeIrContext nc(node, include_wrapper_args, metadata, jit_context);
+  nc.operand_args_.push_back(node);
+  nc.operand_to_arg_[node] = 0;
+
+  // Deduplicate the operands. If an operand appears more than once in the IR
+  // node, map them to a single argument in the llvm Function for the mode.
+  int64_t param_count = 1;
+  if (include_wrapper_args) {
+    param_count += 6;
+  } else {
+    // Instance context is always passed.
+    param_count += 1;
+  }
+  std::vector<llvm::Type*> param_types(
+      param_count,
+      llvm::PointerType::get(jit_context.module()->getContext(), 0));
+  llvm::FunctionType* function_type = llvm::FunctionType::get(
+      llvm::Type::getInt1Ty(jit_context.module()->getContext()), param_types,
+      /*isVarArg=*/false);
+
+  std::string function_name = CreateFunctionName(node, jit_context);
+  XLS_ASSIGN_OR_RETURN(
+      nc.llvm_function_,
+      CreateLlvmFunction(function_name, function_type, jit_context.module()));
+
+  // Mark as private so function can be deleted after inlining.
+  nc.llvm_function_->setLinkage(llvm::GlobalValue::PrivateLinkage);
+
+  // Set names of LLVM function arguments to improve readability of LLVM
+  // IR. Operands are deduplicated so some names passed in via `operand_names`
+  // may not appear as argument names.
+  nc.llvm_function_->getArg(0)->setName(
+      absl::StrCat(OpToString(node->op()), "_ptr"));
+  int64_t arg_no = 1;
+  if (include_wrapper_args) {
+    nc.llvm_function_->getArg(arg_no++)->setName("inputs");
+    nc.llvm_function_->getArg(arg_no++)->setName("outputs");
+    nc.llvm_function_->getArg(arg_no++)->setName("temp_buffer");
+    nc.llvm_function_->getArg(arg_no++)->setName("events");
+    nc.llvm_function_->getArg(arg_no++)->setName("instance_context");
+    nc.llvm_function_->getArg(arg_no++)->setName("jit_runtime");
+  } else {
+    nc.llvm_function_->getArg(arg_no++)->setName("instance_context");
+  }
+
+  nc.entry_builder_ =
+      std::make_unique<llvm::IRBuilder<>>(llvm::BasicBlock::Create(
+          jit_context.module()->getContext(), "entry", nc.llvm_function_,
+          /*InsertBefore=*/nullptr));
+
   return nc;
 }
 
@@ -964,6 +1042,11 @@ llvm::Value* NodeIrContext::LoadOperand(int64_t i, llvm::IRBuilder<>* builder) {
   llvm::Value* load = b.CreateLoad(operand_type, operand_ptr);
   load->setName(operand->GetName());
   return load;
+}
+
+llvm::Value* NodeIrContext::GetInputNodePtr(Node* node) {
+  CHECK(node->Is<Param>() || node->Is<RegisterRead>() || node->Is<InputPort>());
+  return llvm_function_->getArg(operand_to_arg_.at(node));
 }
 
 llvm::Value* NodeIrContext::GetOperandPtr(int64_t i,
@@ -1067,6 +1150,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
 
   absl::Status DefaultHandler(Node* node) override;
 
+  absl::Status HandleRegisterRead(RegisterRead* read) override;
   absl::Status HandleRegisterWrite(RegisterWrite* write) override;
   absl::Status HandleOutputPort(OutputPort* write) override;
   absl::Status HandleAdd(BinOp* binop) override;
@@ -1093,6 +1177,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleEq(CompareOp* eq) override;
   absl::Status HandleGate(Gate* gate) override;
   absl::Status HandleIdentity(UnOp* identity) override;
+  absl::Status HandleInputPort(InputPort* input_port) override;
   absl::Status HandleInvoke(Invoke* invoke) override;
   absl::Status HandleLiteral(Literal* literal) override;
   absl::Status HandleMap(Map* map) override;
@@ -1108,6 +1193,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* op) override;
+  absl::Status HandleParam(Param* param) override;
   absl::Status HandlePrioritySel(PrioritySelect* sel) override;
   absl::Status HandleReceive(Receive* recv) override;
   absl::Status HandleReverse(UnOp* reverse) override;
@@ -1182,6 +1268,9 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
       Node* node, absl::Span<const std::string> operand_names,
       bool include_wrapper_args = false);
 
+  absl::StatusOr<NodeIrContext> NewInputNodeIrContext(
+      Node* node, bool include_wrapper_args = false);
+
   // Finalizes the given NodeIrContext (adds a return statement with the given
   // result) and adds a call in the top-level LLVM function to the node
   // function.
@@ -1234,6 +1323,12 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
 absl::Status IrBuilderVisitor::DefaultHandler(Node* node) {
   return absl::UnimplementedError(
       absl::StrCat("Unhandled node: ", node->ToString()));
+}
+
+absl::Status IrBuilderVisitor::HandleRegisterRead(RegisterRead* read) {
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context, NewInputNodeIrContext(read));
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), node_context.GetInputNodePtr(read));
 }
 
 absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
@@ -2263,6 +2358,13 @@ absl::Status IrBuilderVisitor::HandleIdentity(UnOp* identity) {
                                                  operand_ptr);
 }
 
+absl::Status IrBuilderVisitor::HandleInputPort(InputPort* input_port) {
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewInputNodeIrContext(input_port));
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), node_context.GetInputNodePtr(input_port));
+}
+
 absl::Status IrBuilderVisitor::HandleInvoke(Invoke* invoke) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
@@ -2735,6 +2837,13 @@ absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
                                                  output_buffer, builder.get());
 }
 
+absl::Status IrBuilderVisitor::HandleParam(Param* param) {
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewInputNodeIrContext(param));
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), node_context.GetInputNodePtr(param));
+}
+
 absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
   std::vector<std::string> operand_names = ConcatVectors(
       ConcatVectors({"selector"}, NumberedStrings("case", sel->cases().size())),
@@ -3115,6 +3224,12 @@ absl::StatusOr<NodeIrContext> IrBuilderVisitor::NewNodeIrContext(
     bool include_wrapper_args) {
   return NodeIrContext::Create(node, operand_names, output_arg_count_,
                                include_wrapper_args, metadata_, jit_context_);
+}
+
+absl::StatusOr<NodeIrContext> IrBuilderVisitor::NewInputNodeIrContext(
+    Node* node, bool include_wrapper_args) {
+  return NodeIrContext::CreateForInputNode(node, include_wrapper_args,
+                                           metadata_, jit_context_);
 }
 
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithValue(

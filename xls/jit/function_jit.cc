@@ -143,15 +143,6 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
   XLS_RETURN_IF_ERROR(
       jit_runtime_->PackArgs(args, param_types, arg_buffers_.pointers()));
 
-  // Call observers with function params.
-  if (CurrentRuntimeObserver() != nullptr) {
-    for (int64_t i = 0; i < function()->params().size(); ++i) {
-      CurrentRuntimeObserver()->RecordNodeValue(
-          static_cast<int64_t>(
-              reinterpret_cast<intptr_t>(function()->params()[i])),
-          arg_buffers_.pointers()[i]);
-    }
-  }
   InterpreterEvents events;
   jitted_function_base_.RunJittedFunction(
       arg_buffers_, result_buffers_, temp_buffer_, &events,

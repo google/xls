@@ -349,24 +349,6 @@ std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
-  if (continuation.observer() != nullptr) {
-    int64_t ip_idx = 0;
-    for (Node* ip : continuation.block_->GetInputPorts()) {
-      continuation.observer()->RecordNodeValue(
-          static_cast<int64_t>(reinterpret_cast<intptr_t>(ip)),
-          continuation.input_port_pointers()[ip_idx]);
-      ip_idx++;
-    }
-    int64_t reg_idx = 0;
-    for (Register* reg : continuation.block_->GetRegisters()) {
-      XLS_ASSIGN_OR_RETURN(Node * read,
-                           continuation.block_->GetRegisterRead(reg));
-      continuation.observer()->RecordNodeValue(
-          static_cast<int64_t>(reinterpret_cast<intptr_t>(read)),
-          continuation.register_pointers()[reg_idx]);
-      reg_idx++;
-    }
-  }
   function_.RunJittedFunction(
       continuation.input_buffers_.current(),
       continuation.output_buffers_.current(), continuation.temp_buffer_,

@@ -362,16 +362,6 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   XLS_RET_CHECK_NE(cont, nullptr)
       << "ProcJit requires a continuation of type ProcJitContinuation";
   int64_t start_continuation_point = cont->GetContinuationPoint();
-  if (start_continuation_point == 0) {
-    // notify the value of all state params
-    if (cont->GetObserver()) {
-      auto it = cont->proc()->StateParams().begin();
-      for (const Value& v : cont->GetState()) {
-        cont->GetObserver().value()->NodeEvaluated(*it, v);
-        ++it;
-      }
-    }
-  }
 
   // The jitted function returns the early exit point at which execution
   // halted. A return value of zero indicates that the tick completed.

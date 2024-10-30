@@ -567,9 +567,8 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
   absl::flat_hash_map<Node*, llvm::Value*> value_buffers;
   for (Node* node : partition.nodes) {
     if (wrapper.IsInputNode(node)) {
-      // Node is an input node. There is no need to generate a node function for
-      // this node (its value is an input and already computed). Simply copy the
-      // value to output buffers associated with `node` (if any).
+      // Node is an input node. We need to generate a node function for  this
+      // node to call callbacks on the node.
       XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
       if (wrapper.IsOutputNode(node)) {
         // `node` is also an output node. This can occur, for example, if a
@@ -582,7 +581,6 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
               b);
         }
       }
-      continue;
     }
 
     // Gather the buffers to which the value of `node` must be written.
@@ -594,6 +592,9 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       XLS_RET_CHECK(allocator.GetAllocationKind(param) ==
                     AllocationKind::kNone);
       output_buffers = wrapper.GetOutputBuffers(param, b);
+    } else if (wrapper.IsInputNode(node)) {
+      XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
+      output_buffers = {};
     } else if (wrapper.IsOutputNode(node)) {
       XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
       output_buffers = wrapper.GetOutputBuffers(node, b);
@@ -618,7 +619,9 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       continue;
     }
 
-    value_buffers[node] = output_buffers.front();
+    if (!output_buffers.empty()) {
+      value_buffers[node] = output_buffers.front();
+    }
 
     // Create the function which computes the node value.
     XLS_ASSIGN_OR_RETURN(
