@@ -167,6 +167,12 @@ absl::StatusOr<int64_t> DataflowGraphAnalysis::GetUnknownBitsFor(Node* node) {
   return max_flow_->GetOptimalFlow();
 }
 
+absl::StatusOr<int64_t> DataflowGraphAnalysis::GetUnknownBitsThrough(
+    Node* node, Node* point) {
+  XLS_RETURN_IF_ERROR(SolveFor(node));
+  return max_flow_->Flow(internal_arcs_[point]);
+}
+
 absl::StatusOr<std::vector<Node*>> DataflowGraphAnalysis::GetMinCutFor(
     Node* node, std::optional<int64_t> max_unknown_bits,
     int64_t* unknown_bits) {

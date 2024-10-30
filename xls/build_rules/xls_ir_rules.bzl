@@ -269,6 +269,8 @@ def _optimize_ir(ctx, src, original_input_files):
         "area_model",
         "delay_model",
         "top",
+        "delay_model",
+        "area_model",
     )
 
     is_args_valid(opt_ir_args, IR_OPT_FLAGS)

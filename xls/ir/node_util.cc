@@ -315,17 +315,25 @@ absl::StatusOr<Node*> FromTreeOfNodes(FunctionBase* f,
 
 // TODO(allight): We should clean this up and deduplicate this and
 // RemoveKnownBits.
-absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask) {
+absl::StatusOr<Node*> GatherBits(Node* node,
+                                 std::optional<LeafTypeTreeView<Bits>> mask) {
   std::vector<Node*> gathered_bits;
-  XLS_RET_CHECK_EQ(mask.type(), node->GetType()) << "Type mismatch";
   XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> tree_nodes, ToTreeOfNodes(node));
-  for (const auto& [n, mask] :
-       iter::zip(tree_nodes.elements(), mask.elements())) {
-    if (mask.IsZero()) {
-      continue;
+  if (mask.has_value()) {
+    XLS_RET_CHECK_EQ(mask->type(), node->GetType()) << "Type mismatch";
+    for (const auto& [leaf, leaf_mask] :
+         iter::zip(tree_nodes.elements(), mask->elements())) {
+      if (leaf_mask.IsZero()) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(Node * gathered, GatherBits(leaf, leaf_mask));
+      gathered_bits.push_back(gathered);
     }
-    XLS_ASSIGN_OR_RETURN(Node * gathered, GatherBits(n, mask));
-    gathered_bits.push_back(gathered);
+  } else {
+    for (const auto& leaf : tree_nodes.elements()) {
+      CHECK(leaf->GetType()->IsBits());
+      gathered_bits.push_back(leaf);
+    }
   }
 
   XLS_RET_CHECK(!gathered_bits.empty());
