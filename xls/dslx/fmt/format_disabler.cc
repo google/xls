@@ -47,13 +47,13 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   if (unformatted_end_.has_value()) {
     // We are in "format disabled" mode.
 
-    if (node->GetSpan().value().start() < unformatted_end_.value()) {
+    if (node->GetSpan()->start() < *unformatted_end_) {
       // This node is within the unformatted range; delete it by returning
       // an empty VerbatimNode. This is safe because its text has already been
       // extracted in a VerbatimNode.
       previous_node_ = node;
 
-      return node->owner()->Make<VerbatimNode>(node->GetSpan().value());
+      return node->owner()->Make<VerbatimNode>(*node->GetSpan());
 
       // TODO: https://github.com/google/xls/issues/1320 - also remove comments
       // that are in this range; their text will be included in the previous
@@ -89,22 +89,17 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   if (enable_comment.has_value()) {
     // Use the end of the enable comment as the end position, so it is also left
     // unformatted.
-    limit = enable_comment.value()->span.limit();
+    limit = (*enable_comment)->span.limit();
   }
 
   // b. Extract the content between the disable comment and the end position
   // from the original text.
-  Span unformatted_span(disable_comment.value()->span.limit(), limit);
-  absl::StatusOr<std::string> text = GetTextInSpan(unformatted_span);
-  if (!text.ok()) {
-    // TODO: https://github.com/google/xls/issues/1320 - Log the error
-    // Node should be unchanged.
-    return std::nullopt;
-  }
+  Span unformatted_span((*disable_comment)->span.limit(), limit);
+  XLS_ASSIGN_OR_RETURN(std::string text, GetTextInSpan(unformatted_span));
 
   // c. Create a new VerbatimNode with the content from step b.
   VerbatimNode *verbatim_node =
-      node->owner()->Make<VerbatimNode>(unformatted_span, text.value());
+      node->owner()->Make<VerbatimNode>(unformatted_span, text);
 
   // d. Set a field that indicates the ending position of the last node that
   // should be unformatted.
@@ -137,10 +132,10 @@ std::optional<const CommentData *> FormatDisabler::FindDisableBefore(
   Pos start = node->owner()->span().start();
   if (previous_node_ != nullptr && previous_node_->GetSpan().has_value()) {
     // Span from end of previous node to start of this node.
-    start = previous_node_->GetSpan().value().start();
+    start = previous_node_->GetSpan()->start();
   }
 
-  Span span(start, node->GetSpan().value().start());
+  Span span(start, node->GetSpan()->start());
   return FindCommentWithText(" dslx-fmt::off\n", span);
 }
 
@@ -151,7 +146,7 @@ std::optional<const CommentData *> FormatDisabler::FindEnableAfter(
   }
 
   // The limit of the span is the end of the module.
-  Span span(node->GetSpan().value().limit(), node->owner()->span().limit());
+  Span span(node->GetSpan()->limit(), node->owner()->span().limit());
   return FindCommentWithText(" dslx-fmt::on\n", span);
 }
 
@@ -169,11 +164,11 @@ absl::Status FormatDisabler::SetContents() {
     if (!path_.has_value()) {
       return absl::NotFoundError("Path not found");
     }
-    XLS_ASSIGN_OR_RETURN(contents_, GetFileContents(path_.value()));
+    XLS_ASSIGN_OR_RETURN(contents_, GetFileContents(*path_));
   }
 
   if (lines_.empty()) {
-    lines_ = absl::StrSplit(contents_.value(), '\n');
+    lines_ = absl::StrSplit(*contents_, '\n');
   }
   return absl::OkStatus();
 }
