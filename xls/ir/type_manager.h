@@ -16,6 +16,7 @@
 #define XLS_IR_TYPE_MANAGER_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -33,8 +34,10 @@ namespace xls {
 class TypeManager {
  public:
   explicit TypeManager();
-  TypeManager(TypeManager&&) = delete;
-  TypeManager& operator=(TypeManager&&) = delete;
+
+  // Type manager is move-only.
+  TypeManager(TypeManager&&) = default;
+  TypeManager& operator=(TypeManager&&) = default;
   TypeManager(const TypeManager&) = delete;
   TypeManager& operator=(const TypeManager&) = delete;
   // Returns whether the given type is one of the types owned by this package.
@@ -86,7 +89,7 @@ class TypeManager {
   absl::node_hash_map<TypeVec, TupleType> tuple_types_;
 
   // Owned token type.
-  TokenType token_type_;
+  std::unique_ptr<TokenType> token_type_;
 
   // Mapping from Type:ToString to the owned function type. Use
   // node_hash_map for pointer stability.

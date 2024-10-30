@@ -15,7 +15,9 @@
 #include "xls/ir/type_manager.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
@@ -32,7 +34,10 @@
 
 namespace xls {
 
-TypeManager::TypeManager() { owned_types_.insert(&token_type_); }
+TypeManager::TypeManager() {
+  token_type_ = std::make_unique<TokenType>();
+  owned_types_.insert(token_type_.get());
+}
 BitsType* TypeManager::GetBitsType(int64_t bit_count) {
   if (bit_count_to_type_.find(bit_count) != bit_count_to_type_.end()) {
     return &bit_count_to_type_.at(bit_count);
@@ -71,7 +76,7 @@ TupleType* TypeManager::GetTupleType(absl::Span<Type* const> element_types) {
   return new_type;
 }
 
-TokenType* TypeManager::GetTokenType() { return &token_type_; }
+TokenType* TypeManager::GetTokenType() { return token_type_.get(); }
 
 absl::StatusOr<Type*> TypeManager::MapTypeFromOtherArena(
     Type* other_arena_type) {
@@ -203,5 +208,8 @@ Type* TypeManager::GetTypeForValue(const Value& value) {
   }
   LOG(FATAL) << "Invalid value for type extraction.";
 }
+
+static_assert(std::is_move_constructible_v<TypeManager>);
+static_assert(std::is_move_assignable_v<TypeManager>);
 
 }  // namespace xls
