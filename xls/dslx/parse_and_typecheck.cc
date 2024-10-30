@@ -77,11 +77,12 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModule(
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
     std::string_view file_path, std::string_view module_name,
-    FileTable& file_table) {
+    ImportData* import_data) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
                        GetXlsRunfilePath(file_path));
   XLS_ASSIGN_OR_RETURN(std::string text_dslx, GetFileContents(path));
-  return ParseModule(text_dslx, file_path, module_name, file_table);
+  return ParseModule(text_dslx, file_path, module_name,
+                     import_data->file_table());
 }
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(

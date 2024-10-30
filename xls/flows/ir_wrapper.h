@@ -97,9 +97,9 @@ class DslxModuleAndPath {
       std::unique_ptr<dslx::Module> module, std::string_view file_path);
 
   // Parse dslx file from path and create a new object.
-  static absl::StatusOr<DslxModuleAndPath> Create(std::string_view module_name,
-                                                  std::string_view file_path,
-                                                  dslx::FileTable& file_table);
+  static absl::StatusOr<DslxModuleAndPath> Create(
+      std::string_view module_name, std::string_view file_path,
+      dslx::ImportData* import_data);
 
   // Gives up ownership the dslx module.
   std::unique_ptr<dslx::Module> GiveUpDslxModule() {
@@ -184,23 +184,19 @@ class IrWrapper {
   static absl::StatusOr<IrWrapper> Create(
       std::string_view ir_package_name, DslxModuleAndPath top_module,
       std::vector<DslxModuleAndPath> import_modules,
-      Flags flags = Flags::kDefault);
+      dslx::ImportData* import_data, Flags flags = Flags::kDefault);
 
   static absl::StatusOr<IrWrapper> Create(
       std::string_view ir_package_name,
       std::unique_ptr<dslx::Module> top_module,
-      std::string_view top_module_path,
+      std::string_view top_module_path, dslx::ImportData* import_data,
       std::unique_ptr<dslx::Module> other_module = nullptr,
       std::string_view other_module_path = "", Flags flags = Flags::kDefault);
 
  private:
   // Construct this object with a default ImportData.
-  explicit IrWrapper()
-      : import_data_(
-            dslx::CreateImportData(xls::kDefaultDslxStdlibPath,
-                                   /*additional_search_paths=*/{},
-                                   /*enabled_warnings=*/dslx::kAllWarningsSet,
-                                   std::make_unique<dslx::RealFilesystem>())) {}
+  explicit IrWrapper(dslx::ImportData* import_data)
+      : import_data_(import_data) {}
 
   // Pointers to the each of the DSLX modules explicitly given to this wrapper.
   //
@@ -209,7 +205,7 @@ class IrWrapper {
   std::vector<dslx::Module*> other_modules_;
 
   // Holds typechecked DSLX modules.
-  dslx::ImportData import_data_;
+  dslx::ImportData* import_data_;
 
   // IR Package.
   std::unique_ptr<Package> package_;

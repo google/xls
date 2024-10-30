@@ -58,7 +58,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModule(
 //   path - path to the file to read and parse.
 //   module_name - the name given to the returned Module;
 absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
-    std::string_view path, std::string_view module_name, FileTable& file_table);
+    std::string_view path, std::string_view module_name,
+    ImportData* import_data);
 
 // Helper that typechecks an already parsed module, ownership of
 // the module will be given to import_data.

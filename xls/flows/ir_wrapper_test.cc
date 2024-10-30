@@ -29,9 +29,13 @@
 #include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -65,19 +69,25 @@ pub fn GetLatency() -> s64 {
     param::params.latency
 })";
 
-  dslx::FileTable file_table;
+  dslx::ImportData import_data =
+      dslx::CreateImportData(xls::kDefaultDslxStdlibPath,
+                             /*additional_search_paths=*/{},
+                             /*enabled_warnings=*/dslx::kAllWarningsSet,
+                             std::make_unique<dslx::RealFilesystem>());
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<dslx::Module> params_module,
-      dslx::ParseModule(kParamsDslx, "params_module.x", "param", file_table));
+      dslx::ParseModule(kParamsDslx, "params_module.x", "param",
+                        import_data.file_table()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<dslx::Module> top_module,
-      dslx::ParseModule(kTopDslx, "top_module.x", "top", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> top_module,
+                           dslx::ParseModule(kTopDslx, "top_module.x", "top",
+                                             import_data.file_table()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       IrWrapper ir_wrapper,
       IrWrapper::Create("test_package", std::move(top_module), "top_module.x",
-                        std::move(params_module), "params_module.x"));
+                        &import_data, std::move(params_module),
+                        "params_module.x"));
 
   // Test that modules can be retrieved.
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * params,
@@ -130,14 +140,19 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
     }
 })";
 
-  dslx::FileTable file_table;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<dslx::Module> top_module,
-      dslx::ParseModule(kTopDslx, "top_module.x", "top", file_table));
+  dslx::ImportData import_data =
+      dslx::CreateImportData(xls::kDefaultDslxStdlibPath,
+                             /*additional_search_paths=*/{},
+                             /*enabled_warnings=*/dslx::kAllWarningsSet,
+                             std::make_unique<dslx::RealFilesystem>());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> top_module,
+                           dslx::ParseModule(kTopDslx, "top_module.x", "top",
+                                             import_data.file_table()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       IrWrapper ir_wrapper,
-      IrWrapper::Create("test_package", std::move(top_module), "top_module.x"));
+      IrWrapper::Create("test_package", std::move(top_module), "top_module.x",
+                        &import_data));
 
   // Test that modules can be retrieved.
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * top, ir_wrapper.GetDslxModule("top"));
