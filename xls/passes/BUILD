@@ -1498,6 +1498,7 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
         "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",

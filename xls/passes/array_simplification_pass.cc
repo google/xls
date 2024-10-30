@@ -41,6 +41,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -207,6 +208,33 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
                                array_index->ToString());
     XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(array_index->array()));
     return SimplifyResult::Changed({array_index->array()});
+  }
+
+  // An array index which indexes into a 1-element array can have its index
+  // replaced with a literal 0, since the clamping behavior makes all indexing
+  // equivalent:
+  //
+  //   array_index(T[1], {x}) => array_index(T[1], {0})
+  //
+  // We do this for all 1-element dimensions of multidimensional arrays as well.
+  bool had_trivial_dimension = false;
+  Type* array_type = array_index->array()->GetType();
+  for (int64_t i = 0; i < array_index->indices().size(); ++i) {
+    Node* index = array_index->indices()[i];
+    if (!index->Is<Literal>() && array_type->AsArrayOrDie()->size() == 1) {
+      had_trivial_dimension = true;
+
+      const int64_t operand_no = i + ArrayIndex::kIndexOperandStart;
+      XLS_ASSIGN_OR_RETURN(Node * zero,
+                           array_index->function_base()->MakeNode<Literal>(
+                               SourceInfo(), Value(UBits(0, 1))));
+      XLS_RETURN_IF_ERROR(array_index->ReplaceOperandNumber(
+          operand_no, zero, /*type_must_match=*/false));
+    }
+    array_type = array_type->AsArrayOrDie()->element_type();
+  }
+  if (had_trivial_dimension) {
+    return SimplifyResult::Changed({array_index});
   }
 
   // An array index which indexes into a kArray operation and whose first
@@ -630,6 +658,84 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
           array_update->ReplaceUsesWith(array_update->array_to_update()));
       return SimplifyResult::Changed({});
     }
+  }
+
+  // An array update on a 1-element array can be replaced with a select between
+  // an array-packed version of the update value and the original array.
+  //
+  //   array_update(T[1], v, {x}) => priority_sel(x == 0, {[v]}, default=x)
+  //
+  // This also supports multi-dimensional arrays where the first N dimensions
+  // are of size 1.
+  int64_t num_unit_dimensions = 0;
+  Type* leaf_type = array_update->array_to_update()->GetType();
+  while (num_unit_dimensions < array_update->indices().size() &&
+         leaf_type->IsArray() && leaf_type->AsArrayOrDie()->size() == 1) {
+    ++num_unit_dimensions;
+    leaf_type = leaf_type->AsArrayOrDie()->element_type();
+  }
+  if (num_unit_dimensions > 0) {
+    Node* updated_value;
+    std::vector<Node*> new_array_ops;
+    absl::Span<Node* const> remaining_indices =
+        array_update->indices().subspan(num_unit_dimensions);
+    new_array_ops.reserve(array_update->indices().size() + num_unit_dimensions +
+                          1);
+    if (remaining_indices.empty()) {
+      updated_value = array_update->update_value();
+    } else {
+      XLS_ASSIGN_OR_RETURN(Node * zero, func->MakeNode<Literal>(
+                                            SourceInfo(), Value(UBits(0, 1))));
+      XLS_ASSIGN_OR_RETURN(
+          Node * remaining_array,
+          array_update->function_base()->MakeNode<ArrayIndex>(
+              array_update->loc(), array_update->array_to_update(),
+              std::vector<Node*>(num_unit_dimensions, zero),
+              /*known_in_bounds=*/true));
+      new_array_ops.push_back(remaining_array);
+      XLS_ASSIGN_OR_RETURN(
+          updated_value,
+          array_update->function_base()->MakeNode<ArrayUpdate>(
+              array_update->loc(), remaining_array,
+              array_update->update_value(), remaining_indices,
+              /*known_in_bounds=*/array_update->known_in_bounds()));
+      new_array_ops.push_back(updated_value);
+    }
+    Node* wrapped_value = updated_value;
+    std::vector<Node*> unit_indices_are_zero;
+    if (!array_update->known_in_bounds()) {
+      unit_indices_are_zero.reserve(num_unit_dimensions);
+    }
+    for (int64_t i = 0; i < num_unit_dimensions; ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          wrapped_value,
+          array_update->function_base()->MakeNode<Array>(
+              array_update->loc(), absl::MakeConstSpan({wrapped_value}),
+              wrapped_value->GetType()));
+      new_array_ops.push_back(wrapped_value);
+      if (!array_update->known_in_bounds()) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * index_is_zero,
+            CompareLiteral(array_update->indices()[i], 0, Op::kEq));
+        unit_indices_are_zero.push_back(index_is_zero);
+      }
+    }
+
+    if (array_update->known_in_bounds()) {
+      XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(wrapped_value));
+      return SimplifyResult::Changed(new_array_ops);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * indices_in_bounds,
+        NaryAndIfNeeded(array_update->function_base(), unit_indices_are_zero));
+    XLS_ASSIGN_OR_RETURN(
+        Node * select,
+        array_update->ReplaceUsesWithNew<PrioritySelect>(
+            indices_in_bounds, absl::MakeConstSpan({wrapped_value}),
+            array_update->array_to_update()));
+    new_array_ops.push_back(select);
+    return SimplifyResult::Changed(new_array_ops);
   }
 
   // Try to simplify a kArray operation followed by an ArrayUpdate operation

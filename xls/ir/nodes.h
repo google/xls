@@ -117,6 +117,7 @@ class ArrayIndex final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kArrayIndex};
   static constexpr int64_t kArgOperand = 0;
+  static constexpr int64_t kIndexOperandStart = 1;
 
   ArrayIndex(const SourceInfo& loc, Node* arg, absl::Span<Node* const> indices,
              bool known_in_bounds, std::string_view name,

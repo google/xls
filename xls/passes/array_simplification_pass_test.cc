@@ -1430,5 +1430,90 @@ TEST_F(ArraySimplificationPassTest, NoOpArrayUpdate) {
               m::ArrayIndex(m::Param("array"), {m::Param("second_idx")}));
 }
 
+TEST_F(ArraySimplificationPassTest, UnitArrayIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue arr = fb.Param("array", p->GetArrayType(1, u32));
+  BValue idx = fb.Param("idx", u32);
+  fb.ArrayIndex(arr, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(m::Param("array"), {m::Literal(0)}));
+}
+
+TEST_F(ArraySimplificationPassTest, MultidimensionalUnitArrayIndex) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue arr = fb.Param(
+      "array",
+      p->GetArrayType(
+          1, p->GetArrayType(
+                 2, p->GetArrayType(
+                        1, p->GetArrayType(2, p->GetArrayType(1, u32))))));
+  BValue idx = fb.Param("idx", u32);
+  fb.ArrayIndex(arr, {idx, idx, idx, idx, idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(m::Param("array"),
+                            {m::Literal(0), m::Param("idx"), m::Literal(0),
+                             m::Param("idx"), m::Literal(0)}));
+}
+
+TEST_F(ArraySimplificationPassTest, UnitArrayUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue arr = fb.Param("array", p->GetArrayType(1, u32));
+  BValue idx = fb.Param("idx", u32);
+  BValue val = fb.Param("val", u32);
+  fb.ArrayUpdate(arr, val, {idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Eq(m::Param("idx"), m::Literal(0)),
+                                {m::Array(m::Param("val"))},
+                                /*default_value=*/m::Param("array")));
+}
+
+TEST_F(ArraySimplificationPassTest, MultidimensionalUnitArrayUpdate) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue arr = fb.Param(
+      "array",
+      p->GetArrayType(
+          1, p->GetArrayType(
+                 1, p->GetArrayType(
+                        2, p->GetArrayType(2, p->GetArrayType(1, u32))))));
+  BValue idx = fb.Param("idx", u32);
+  BValue val = fb.Param("val", u32);
+  fb.ArrayUpdate(arr, val, {idx, idx, idx, idx, idx});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::PrioritySelect(
+          m::And(m::Eq(m::Param("idx"), m::Literal(0)),
+                 m::Eq(m::Param("idx"), m::Literal(0))),
+          {m::Array(m::Array(m::ArrayUpdate(
+              m::ArrayIndex(m::Param("array"), {m::Literal(0), m::Literal(0)},
+                            m::KnownInBounds()),
+              m::Param("val"),
+              {m::Param("idx"), m::Param("idx"), m::Param("idx")})))},
+          /*default_value=*/m::Param("array")));
+}
+
 }  // namespace
 }  // namespace xls
