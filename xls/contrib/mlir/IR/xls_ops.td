@@ -1,15 +1,16 @@
 #ifndef HWIR_XLS_OPS
 #define HWIR_XLS_OPS
 
-include "mlir/Interfaces/InferTypeOpInterface.td"
-include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
-include "mlir/IR/OpBase.td"
-include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/CommonTypeConstraints.td"
+include "mlir/IR/EnumAttr.td"
+include "mlir/IR/OpAsmInterface.td"
+include "mlir/IR/OpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/FunctionInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 include "xls/contrib/mlir/IR/interfaces.td"
 
 def Xls_Dialect : Dialect {
@@ -103,6 +104,18 @@ class Xls_Attr<string name, list<Trait> traits = []>
   let mnemonic = ?;
 }
 
+// Perform one of two kinds of linkage:
+// - import - import to XLS and allow co-optimization;
+// - foreign - import to XLS but tag as foreign/do not allow co-optimization;
+def Xls_LinkageKindImport : I32EnumAttrCase<"kImport", 0, "import">;
+def Xls_LinkageKindForeign : I32EnumAttrCase<"kForeign", 1, "foreign">;
+def Xls_LinkageKind : I32EnumAttr<"LinkageKind", "XLS linkage kind",
+  [Xls_LinkageKindImport, Xls_LinkageKindForeign]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::mlir::xls";
+}
+def Xls_LinkageKindAttr : EnumAttr<Xls_Dialect, Xls_LinkageKind, "linkage_kind">;
+
 def Xls_TranslationLinkage : Xls_Attr<"TranslationLinkage"> {
   let summary = "Translation linkage attribute";
   let description = [{
@@ -110,9 +123,10 @@ def Xls_TranslationLinkage : Xls_Attr<"TranslationLinkage"> {
   }];
   let parameters = (ins
     "::mlir::SymbolRefAttr":$package,
-    "::mlir::StringAttr":$function);
+    "::mlir::StringAttr":$function,
+    DefaultValuedParameter<"mlir::xls::LinkageKind", "LinkageKind::kImport">:$kind);
   let mnemonic = "translation_linkage";
-  let assemblyFormat = "`<` $package `:` $function`>`";
+  let assemblyFormat = "`<` $package `:` $function (`,` $kind^)? `>`";
   let attrName = "xls.translation_linkage";
 }
 

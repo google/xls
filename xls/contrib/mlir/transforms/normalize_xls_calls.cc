@@ -84,7 +84,7 @@ void NormalizeXlsCallsPass::runOnOperation() {
         func->setAttr("xls.linkage", xls::TranslationLinkage::get(
                                          builder.getContext(),
                                          SymbolRefAttr::get(it->second.front()),
-                                         call.getFunctionAttr()));
+                                         call.getFunctionAttr(), /*kind=*/{}));
         // Ensure unique symbol name.
         symbolTable.insert(func);
         fIt->second.push_back(func);

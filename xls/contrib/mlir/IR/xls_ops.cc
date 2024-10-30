@@ -49,6 +49,9 @@
 #include "mlir/include/mlir/Transforms/InliningUtils.h"
 #include "xls/contrib/mlir/IR/assembly_format.h"  // IWYU pragma: keep
 
+// Generate enum printer/parsers.
+#include "xls/contrib/mlir/IR/xls_ops_enums.cc.inc"
+
 using namespace mlir;  // NOLINT
 
 namespace mlir::xls {

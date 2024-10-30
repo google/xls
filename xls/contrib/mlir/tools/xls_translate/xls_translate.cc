@@ -63,6 +63,8 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/foreign_function.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
 #include "xls/public/function_builder.h"
 #include "xls/public/ir.h"
@@ -1176,102 +1178,131 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
 
     // Currently this only works over functions and creates a new XLS function
     // for each function in the module.
-    if (auto xls_region = dyn_cast<XlsRegionOpInterface>(op)) {
-      // Skip function declarations for now.
-      if (auto func = dyn_cast<FuncOp>(op); func && func.isDeclaration()) {
-        if (auto linkage =
-                func->getAttrOfType<TranslationLinkage>("xls.linkage")) {
-          translation_state.addLinkage(xls_region.getName(), linkage);
-          // Eagerly import the function.
-          auto xlsFunc = getFunction(translation_state, xls_region.getName());
-          if (!xlsFunc.ok()) {
-            llvm::errs() << "Failed to get function " << xls_region.getName()
-                         << ": " << xlsFunc.status().message() << "\n";
-            return failure();
-          }
-          if (failed(
-                  translation_state.recordOpaqueTypes(func, xlsFunc.value()))) {
-            return failure();
-          }
-        }
+    auto xls_region = dyn_cast<XlsRegionOpInterface>(op);
+    if (!xls_region) {
+      continue;
+    }
+
+    // TODO(jpienaar): Do something better here with names.
+    DenseMap<Value, std::string> valueNameMap;
+    llvm::StringMap<int> usedNames;
+    auto get_name = [&](Value v) -> std::string {
+      if (auto it = valueNameMap.find(v); it != valueNameMap.end()) {
+        return it->second;
+      }
+      std::string name;
+      if (auto loc = dyn_cast<NameLoc>(v.getLoc())) {
+        name = ::xls::verilog::SanitizeIdentifier(loc.getName().str());
+      } else {
+        name = ::xls::verilog::SanitizeIdentifier(debugString(v.getLoc()));
+      }
+      auto& count = usedNames[name];
+      // If not unique, append counter.
+      if (count > 0) {
+        name += std::to_string(count);
+      }
+      ++count;
+      return valueNameMap[v] = name;
+    };
+
+    // Skip function declarations for now.
+    if (auto func = dyn_cast<FuncOp>(op); func && func.isDeclaration()) {
+      auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+      if (!linkage) {
         continue;
       }
-
-      // TODO(jpienaar): Do something better here with names.
-      DenseMap<Value, std::string> valueNameMap;
-      llvm::StringMap<int> usedNames;
-      auto get_name = [&](Value v) -> std::string {
-        if (auto it = valueNameMap.find(v); it != valueNameMap.end()) {
-          return it->second;
+      translation_state.addLinkage(xls_region.getName(), linkage);
+      // Eagerly import the function.
+      auto xlsFunc = getFunction(translation_state, xls_region.getName());
+      if (!xlsFunc.ok()) {
+        llvm::errs() << "Failed to get function " << xls_region.getName()
+                     << ": " << xlsFunc.status().message() << "\n";
+        return failure();
+      }
+      if (failed(translation_state.recordOpaqueTypes(func, xlsFunc.value()))) {
+        return failure();
+      }
+      if (linkage.getKind() == LinkageKind::kForeign) {
+        std::string codeTemplate;
+        llvm::raw_string_ostream os(codeTemplate);
+        os << xls_region.getName() << " {fn}(";
+        for (::xls::Param* param : xlsFunc.value()->params()) {
+          std::string_view name = param->name();
+          os << '.' << name << "({" << name << "}), ";
         }
-        std::string name;
-        if (auto loc = dyn_cast<NameLoc>(v.getLoc())) {
-          name = ::xls::verilog::SanitizeIdentifier(loc.getName().str());
+        if (func.getResultTypes().front().isInteger()) {
+          os << ".return({return}) )";
         } else {
-          name = ::xls::verilog::SanitizeIdentifier(debugString(v.getLoc()));
+          // Float is expanded to tuple of 3 ints. We don't yet support more
+          // general than that.
+          os << ".return.0({return.0}), "
+             << ".return.1({return.1}), "
+             << ".return.2({return.2}) )";
         }
-        auto& count = usedNames[name];
-        // If not unique, append counter.
-        if (count > 0) {
-          name += std::to_string(count);
-        }
-        ++count;
-        return valueNameMap[v] = name;
-      };
-
-      DenseMap<Value, BValue> valueMap;
-      translation_state.setValueMap(valueMap);
-
-      if (auto eproc = dyn_cast<EprocOp>(op)) {
-        // Populate the state argument values.
-        ProcBuilder fb(xls_region.getName(), package.get());
-        for (auto arg : xls_region.getBodyRegion().getArguments()) {
-          auto literal = zeroLiteral(arg.getType());
-          if (failed(literal)) {
-            return failure();
-          }
-          valueMap[arg] = fb.StateElement(get_name(arg), *literal);
-        }
-        auto out = convertFunction(translation_state, xls_region, valueMap, fb);
-        if (failed(out)) {
-          return eproc->emitOpError() << "unable to convert eproc";
-        }
-        std::vector<BValue> next_state;
-        for (Value arg : eproc.getYieldedArguments()) {
-          next_state.push_back(valueMap[arg]);
-        }
-        if (absl::StatusOr<::xls::Proc*> s = fb.Build(next_state); !s.ok()) {
-          llvm::errs() << "Failed to build proc: " << s.status().message()
-                       << "\n";
+        absl::StatusOr<::xls::ForeignFunctionData> ffd =
+            ::xls::ForeignFunctionDataCreateFromTemplate(codeTemplate);
+        if (!ffd.ok()) {
+          llvm::errs() << "Failed to create foreign function data: "
+                       << ffd.status().message() << "\n";
           return failure();
         }
+        xlsFunc.value()->SetForeignFunctionData(ffd.value());
+      }
+      continue;
+    }
+
+    DenseMap<Value, BValue> valueMap;
+    translation_state.setValueMap(valueMap);
+
+    if (auto eproc = dyn_cast<EprocOp>(op)) {
+      // Populate the state argument values.
+      ProcBuilder fb(xls_region.getName(), package.get());
+      for (auto arg : xls_region.getBodyRegion().getArguments()) {
+        auto literal = zeroLiteral(arg.getType());
+        if (failed(literal)) {
+          return failure();
+        }
+        valueMap[arg] = fb.StateElement(get_name(arg), *literal);
+      }
+      auto out = convertFunction(translation_state, xls_region, valueMap, fb);
+      if (failed(out)) {
+        return eproc->emitOpError() << "unable to convert eproc";
+      }
+      std::vector<BValue> next_state;
+      for (Value arg : eproc.getYieldedArguments()) {
+        next_state.push_back(valueMap[arg]);
+      }
+      if (absl::StatusOr<::xls::Proc*> s = fb.Build(next_state); !s.ok()) {
+        llvm::errs() << "Failed to build proc: " << s.status().message()
+                     << "\n";
+        return failure();
+      }
+    } else {
+      assert(isa<FuncOp>(op) && "Expected func op");
+      FunctionBuilder fb(xls_region.getName(), package.get());
+
+      // Populate the function argument values.
+      for (Value arg : xls_region.getBodyRegion().getArguments()) {
+        ::xls::Type* xls_type = translation_state.getType(arg.getType());
+        if (xls_type == nullptr) {
+          return failure();
+        }
+        valueMap[arg] = fb.Param(get_name(arg), xls_type);
+      }
+
+      auto out = convertFunction(translation_state, xls_region, valueMap, fb);
+      if (failed(out)) {
+        return failure();
+      }
+
+      if (absl::StatusOr<::xls::Function*> s = fb.BuildWithReturnValue(*out);
+          !s.ok()) {
+        llvm::errs() << "Failed to build function: " << s.status().message()
+                     << "\n";
+        return failure();
       } else {
-        assert(isa<FuncOp>(op) && "Expected func op");
-        FunctionBuilder fb(xls_region.getName(), package.get());
-
-        // Populate the function argument values.
-        for (Value arg : xls_region.getBodyRegion().getArguments()) {
-          ::xls::Type* xls_type = translation_state.getType(arg.getType());
-          if (xls_type == nullptr) {
-            return failure();
-          }
-          valueMap[arg] = fb.Param(get_name(arg), xls_type);
-        }
-
-        auto out = convertFunction(translation_state, xls_region, valueMap, fb);
-        if (failed(out)) {
-          return failure();
-        }
-
-        if (absl::StatusOr<::xls::Function*> s = fb.BuildWithReturnValue(*out);
-            !s.ok()) {
-          llvm::errs() << "Failed to build function: " << s.status().message()
-                       << "\n";
-          return failure();
-        } else {
-          // Capture mapping to built function.
-          translation_state.addFunction(xls_region.getName(), s.value());
-        }
+        // Capture mapping to built function.
+        translation_state.addFunction(xls_region.getName(), s.value());
       }
     }
   }
