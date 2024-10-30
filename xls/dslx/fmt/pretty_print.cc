@@ -372,50 +372,50 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
 }  // namespace
 
 std::string Doc::ToDebugString(const DocArena& arena) const {
-  std::string payload = absl::visit(
+  const std::string payload = absl::visit(
       Visitor{
-          [&](const std::string& p) -> std::string {
+          [&](const std::string& p) {
             return absl::StrFormat("\"%s\"", absl::CEscape(p));
           },
-          [&](const HardLine& p) -> std::string { return "HardLine"; },
-          [&](const FlatChoice& p) -> std::string {
+          [&](const HardLine& p) { return std::string("HardLine"); },
+          [&](const FlatChoice& p) {
             return absl::StrFormat(
                 "FlatChoice{on_flat=%s, on_break=%s}",
                 arena.Deref(p.on_flat).ToDebugString(arena),
                 arena.Deref(p.on_break).ToDebugString(arena));
           },
-          [&](const Group& p) -> std::string {
+          [&](const Group& p) {
             return absl::StrFormat("Group{%s}",
                                    arena.Deref(p.arg).ToDebugString(arena));
           },
-          [&](const ModeSelect& p) -> std::string {
+          [&](const ModeSelect& p) {
             return absl::StrFormat(
                 "ModeSelect{%d, .on_flat=%s, .on_break=%s}", p.flat_requirement,
                 arena.Deref(p.on_flat).ToDebugString(arena),
                 arena.Deref(p.on_break).ToDebugString(arena));
           },
-          [&](const NestIfFlatFits& p) -> std::string {
+          [&](const NestIfFlatFits& p) {
             return absl::StrFormat(
                 "NestIfFlatFits{on_flat=%s, on_break=%s}",
                 arena.Deref(p.on_nested_flat).ToDebugString(arena),
                 arena.Deref(p.on_other).ToDebugString(arena));
           },
-          [&](const Concat& p) -> std::string {
+          [&](const Concat& p) {
             return absl::StrFormat("Concat{%s, %s}",
                                    arena.Deref(p.lhs).ToDebugString(arena),
                                    arena.Deref(p.rhs).ToDebugString(arena));
           },
-          [&](const ReduceTextWidth& p) -> std::string {
+          [&](const ReduceTextWidth& p) {
             return absl::StrFormat("ReduceTextWidth{%s, %d}",
                                    arena.Deref(p.arg).ToDebugString(arena),
                                    p.cols);
           },
-          [&](const Nest& p) -> std::string { return "Nest"; },
-          [&](const Align& p) -> std::string {
+          [&](const Nest& p) { return std::string("Nest"); },
+          [&](const Align& p) {
             return absl::StrFormat("Align{%s}",
                                    arena.Deref(p.arg).ToDebugString(arena));
           },
-          [&](const PrefixedReflow& p) -> std::string {
+          [&](const PrefixedReflow& p) {
             return absl::StrFormat("PrefixedReflow{\"%s\", \"%s\"}",
                                    absl::CEscape(p.prefix),
                                    absl::CEscape(p.text));
