@@ -202,9 +202,9 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> ComputeTopoSortedTokenDAG(
     NodeAndPredecessors entry{.node = node};
     for (Node* operand : node->operands()) {
       if (operand->GetType()->IsToken()) {
-        const absl::flat_hash_set<Node*>& child =
-            visitor.GetValue(operand).Get({});
-        entry.predecessors.insert(child.cbegin(), child.cend());
+        for (Node* child : visitor.GetValue(operand).Get({})) {
+          entry.predecessors.insert(child);
+        }
       }
     }
     result.push_back(std::move(entry));

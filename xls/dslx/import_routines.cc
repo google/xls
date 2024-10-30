@@ -44,7 +44,16 @@
 
 namespace xls::dslx {
 
-static absl::StatusOr<std::filesystem::path> FindExistingPath(
+// Data structure holding a path to a DSLX source file.
+struct DslxPath {
+  // The path to the source file as passed to the tool or import statement.
+  std::filesystem::path source_path;
+  // Path to the source file in the filesystem. This may include gobbledy gook
+  // (runtimes path) build system path for embedded files in build targets.
+  std::filesystem::path filesystem_path;
+};
+
+static absl::StatusOr<DslxPath> FindExistingPath(
     const ImportTokens& subject, const std::filesystem::path& stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths,
     const Span& import_span, const FileTable& file_table,
@@ -79,17 +88,17 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
     return std::nullopt;
   };
   // Helper that tries to see if the path/parent_path are present
-  auto try_paths = [&try_path, subject_path,
-                    subject_parent_path](const std::filesystem::path& base)
-      -> std::optional<std::filesystem::path> {
+  auto try_paths =
+      [&try_path, subject_path, subject_parent_path](
+          const std::filesystem::path& base) -> std::optional<DslxPath> {
     if (std::optional<std::filesystem::path> result =
             try_path(base, subject_path)) {
-      return result;
+      return DslxPath{.source_path = *result, .filesystem_path = *result};
     }
     if (subject_parent_path.has_value()) {
       if (std::optional<std::filesystem::path> result =
               try_path(base, *subject_parent_path)) {
-        return result;
+        return DslxPath{.source_path = *result, .filesystem_path = *result};
       }
     }
     return std::nullopt;
@@ -98,14 +107,16 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   VLOG(3) << "Attempting CWD-relative import path.";
   if (std::optional<std::filesystem::path> cwd_relative_path =
           try_path("", subject_path)) {
-    return *cwd_relative_path;
+    return DslxPath{.source_path = *cwd_relative_path,
+                    .filesystem_path = *cwd_relative_path};
   }
 
   VLOG(3) << "Attempting runfile-based import path via " << subject_path;
   if (absl::StatusOr<std::string> runfile_path =
           GetXlsRunfilePath(GetXLSRootDir() / subject_path);
       runfile_path.ok() && vfs.FileExists(*runfile_path).ok()) {
-    return *runfile_path;
+    return DslxPath{.source_path = subject_path,
+                    .filesystem_path = *runfile_path};
   }
 
   if (subject_parent_path.has_value()) {
@@ -115,14 +126,16 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
             << *subject_parent_path;
     if (std::optional<std::filesystem::path> cwd_relative_path =
             try_path("", *subject_parent_path)) {
-      return *cwd_relative_path;
+      return DslxPath{.source_path = *subject_parent_path,
+                      .filesystem_path = *cwd_relative_path};
     }
     VLOG(3) << "Attempting runfile-based parent import path via "
             << *subject_parent_path;
     if (absl::StatusOr<std::string> runfile_path = GetXlsRunfilePath(
-            absl::StrCat(GetXLSRootDir(), *subject_parent_path));
+            absl::StrCat(GetXLSRootDir(), subject_parent_path->c_str()));
         runfile_path.ok() && vfs.FileExists(*runfile_path).ok()) {
-      return *runfile_path;
+      return DslxPath{.source_path = subject_path,
+                      .filesystem_path = *runfile_path};
     }
   }
   // Look through the externally-supplied additional search paths.
@@ -155,22 +168,32 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
   VLOG(3) << "DoImport (uncached) subject: " << subject.ToString();
 
   FileTable& file_table = import_data->file_table();
-  XLS_ASSIGN_OR_RETURN(std::filesystem::path found_path,
+  XLS_ASSIGN_OR_RETURN(DslxPath dslx_path,
                        FindExistingPath(subject, import_data->stdlib_path(),
                                         import_data->additional_search_paths(),
                                         import_span, file_table, vfs));
 
-  XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(import_span, found_path));
+  XLS_RETURN_IF_ERROR(
+      import_data->AddToImporterStack(import_span, dslx_path.source_path));
   absl::Cleanup cleanup = absl::MakeCleanup(
       [&] { CHECK_OK(import_data->PopFromImporterStack(import_span)); });
 
-  XLS_ASSIGN_OR_RETURN(std::string contents, vfs.GetFileContents(found_path));
+  // Use the "filesystem_path" for reading the contents but the "source_path"
+  // for other uses. This avoids decorated paths like
+  // "/build/work/.../runfiles/...a/b/c/foo.x" appearing in the file table and
+  // artifacts. Instead the original "a/b/c/foo.x" path is used.
+  XLS_ASSIGN_OR_RETURN(std::string contents,
+                       vfs.GetFileContents(dslx_path.filesystem_path));
 
   absl::Span<std::string const> pieces = subject.pieces();
   std::string fully_qualified_name = absl::StrJoin(pieces, ".");
   VLOG(3) << "Parsing and typechecking " << fully_qualified_name << ": start";
 
-  Fileno fileno = file_table.GetOrCreate(found_path.c_str());
+  VLOG(4) << "Subject = " << subject.ToString();
+  VLOG(4) << "Source path = " << dslx_path.source_path.c_str();
+  VLOG(4) << "Filesystem path = " << dslx_path.filesystem_path.c_str();
+
+  Fileno fileno = file_table.GetOrCreate(dslx_path.source_path.c_str());
   Scanner scanner(file_table, fileno, contents);
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
@@ -180,7 +203,7 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
 
   return import_data->Put(
       subject, std::make_unique<ModuleInfo>(std::move(module), type_info,
-                                            std::move(found_path)));
+                                            std::move(dslx_path.source_path)));
 }
 
 }  // namespace xls::dslx

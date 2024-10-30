@@ -241,6 +241,7 @@ std::string PartialLineSpans::ToString() const {
 
 void LineInfo::Start(const VastNode* node) {
   if (!spans_.contains(node)) {
+    nodes_.push_back(node);
     spans_[node];
   }
   CHECK(!spans_.at(node).hanging_start_line.has_value())

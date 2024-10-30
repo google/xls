@@ -20,9 +20,11 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/strong_int.h"
@@ -44,18 +46,35 @@ class FileTable {
   }
 
   Fileno GetOrCreate(std::string_view path) {
+    VLOG(5) << absl::StreamFormat("FileTable::GetOrCreate: %s", path);
     auto it = path_to_number_.find(path);
     if (it == path_to_number_.end()) {
       Fileno this_fileno = next_fileno_++;
       path_to_number_.emplace_hint(it, std::string(path), this_fileno);
       number_to_path_.emplace(this_fileno, std::string(path));
+      VLOG(5) << "Added to filetable";
       return this_fileno;
     }
+    VLOG(5) << "Already in filetable";
     return it->second;
   }
 
   std::string_view Get(Fileno fileno) const {
     return number_to_path_.at(fileno);
+  }
+
+  std::string ToString() const {
+    std::string res = "FileTable:\n";
+    std::vector<Fileno> filenos;
+    for (const auto& [n, _] : number_to_path_) {
+      filenos.push_back(n);
+    }
+    std::sort(filenos.begin(), filenos.end());
+    for (Fileno n : filenos) {
+      absl::StrAppendFormat(&res, "  %d : %s\n", n.value(),
+                            number_to_path_.at(n));
+    }
+    return res;
   }
 
  private:

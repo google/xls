@@ -1022,7 +1022,7 @@ absl::StatusOr<std::string> GenerateVerilog(
   LineInfo line_info;
   std::string text = file.Emit(&line_info);
   if (verilog_line_map != nullptr) {
-    for (const auto& [vast_node, partial_spans] : line_info.Spans()) {
+    for (const VastNode* vast_node : line_info.nodes()) {
       std::optional<std::vector<LineSpan>> spans =
           line_info.LookupNode(vast_node);
       if (!spans.has_value()) {

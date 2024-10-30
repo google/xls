@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
@@ -55,14 +56,13 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f);
 
 struct NodeAndPredecessors {
   Node* node;
-  absl::flat_hash_set<Node*> predecessors;
+
+  using PredecessorSet = absl::btree_set<Node*, Node::NodeIdLessThan>;
+  PredecessorSet predecessors;
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const NodeAndPredecessors& p) {
-    std::vector<Node*> sorted_predecessors(p.predecessors.begin(),
-                                           p.predecessors.end());
-    absl::c_sort(sorted_predecessors, Node::NodeIdLessThan());
     absl::Format(&sink, "%v: {%s}", *p.node,
-                 absl::StrJoin(sorted_predecessors, ", "));
+                 absl::StrJoin(p.predecessors, ", "));
   }
 };
 

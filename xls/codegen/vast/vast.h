@@ -136,10 +136,8 @@ class LineInfo {
   // sequence of calls that does not include negative numbers.
   void Increase(int64_t delta);
 
-  // Returns the underlying relation between nodes and spans.
-  const absl::flat_hash_map<const VastNode*, PartialLineSpans>& Spans() const {
-    return spans_;
-  }
+  // Returns the nodes associated with this lineinfo.
+  absl::Span<const VastNode* const> nodes() const { return nodes_; }
 
   // Returns the line spans that a given node covers.
   // Returns std::nullopt if the given node has a hanging span (Start w/o End).
@@ -149,6 +147,8 @@ class LineInfo {
  private:
   int64_t current_line_number_ = 0;
   absl::flat_hash_map<const VastNode*, PartialLineSpans> spans_;
+  // The vector of nodes in spans_ in insertion order.
+  std::vector<const VastNode*> nodes_;
 };
 
 // Returns a sanitized identifier string based on the given name. Invalid

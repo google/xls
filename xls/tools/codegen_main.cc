@@ -125,9 +125,9 @@ absl::Status RealMain(std::string_view ir_path) {
 
   const std::string& verilog_path = absl::GetFlag(FLAGS_output_verilog_path);
   if (!verilog_path.empty()) {
-    std::filesystem::path absolute = std::filesystem::absolute(verilog_path);
     for (int64_t i = 0; i < result.verilog_line_map.mapping_size(); ++i) {
-      result.verilog_line_map.mutable_mapping(i)->set_verilog_file(absolute);
+      result.verilog_line_map.mutable_mapping(i)->set_verilog_file(
+          verilog_path);
     }
   }
 

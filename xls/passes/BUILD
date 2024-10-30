@@ -1001,6 +1001,7 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:type",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",

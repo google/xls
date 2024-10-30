@@ -534,9 +534,9 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
     return result_vector;
   }
 
-  // result_map maps nodes to a flat_hash_set pointer owned by result_vector
-  // (avoids extra copies).
-  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>*> result_map;
+  // result_map maps nodes to a set pointer owned by result_vector (avoids extra
+  // copies).
+  absl::flat_hash_map<Node*, NodeAndPredecessors::PredecessorSet*> result_map;
   result_map.reserve(operations.size());
 
   // Use btree set that sorts FunctionBases by name to ensure stable order of
@@ -551,7 +551,8 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
     XLS_ASSIGN_OR_RETURN(std::vector<NodeAndPredecessors> fbs_result,
                          ComputeTopoSortedTokenDAG(fb));
     // Resolve side-effecting nodes and after_alls.
-    absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> resolved_ops;
+    absl::flat_hash_map<Node*, NodeAndPredecessors::PredecessorSet>
+        resolved_ops;
     // Initialize with all token-typed params & literals having no predecessors.
     for (Node* node : fb->nodes()) {
       if (node->GetType()->IsToken() &&
@@ -562,12 +563,13 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
     // Keep track of prev_node which will be used if we choose a stricter order.
     std::optional<Node*> prev_node = std::nullopt;
     for (NodeAndPredecessors& fb_result : fbs_result) {
-      absl::flat_hash_set<Node*> resolved_predecessors;
+      NodeAndPredecessors::PredecessorSet resolved_predecessors;
       for (Node* predecessor : fb_result.predecessors) {
         // If a predecessor is not type T, resolve its predecessors of type T.
         if (!predecessor->Is<T>() ||
             !operation_set.contains(predecessor->As<T>())) {
-          absl::flat_hash_set<Node*>& resolved = resolved_ops.at(predecessor);
+          const NodeAndPredecessors::PredecessorSet& resolved =
+              resolved_ops.at(predecessor);
           resolved_predecessors.insert(resolved.begin(), resolved.end());
           continue;
         }
@@ -594,10 +596,10 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
           }
         }
       }
-      absl::flat_hash_set<Node*> transitive_predecessors(
+      NodeAndPredecessors::PredecessorSet transitive_predecessors(
           resolved_predecessors.begin(), resolved_predecessors.end());
       for (Node* predecessor : resolved_predecessors) {
-        absl::flat_hash_set<Node*>* grand_predecessors =
+        NodeAndPredecessors::PredecessorSet* grand_predecessors =
             result_map.at(predecessor);
         transitive_predecessors.insert(grand_predecessors->begin(),
                                        grand_predecessors->end());
@@ -1058,7 +1060,7 @@ absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
   for (int64_t instance_number = 0; instance_number < token_dag.size();
        ++instance_number) {
     Node* node = token_dag[instance_number].node;
-    const absl::flat_hash_set<Node*>& predecessors =
+    const NodeAndPredecessors::PredecessorSet& predecessors =
         token_dag[instance_number].predecessors;
 
     const AdapterInputChannel& pred_input_channel = pred_channels.at(node);
