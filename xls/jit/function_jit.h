@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -30,6 +31,8 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
@@ -57,8 +60,8 @@ class FunctionJit {
   // Returns an object containing an AOT-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateFromAot(
-      Function* xls_function, const AotEntrypointProto& entrypoint,
-      std::string_view data_layout, JitFunctionType function_unpacked,
+      const AotEntrypointProto& entrypoint, std::string_view data_layout,
+      JitFunctionType function_unpacked,
       std::optional<JitFunctionType> function_packed = std::nullopt);
 
   // Returns the bytes of an object file containing the compiled XLS function.
@@ -143,9 +146,6 @@ class FunctionJit {
         args...);
   }
 
-  // Returns the function that the JIT executes.
-  Function* function() { return xls_function_; }
-
   const JittedFunctionBase& jitted_function_base() const {
     return jitted_function_base_;
   }
@@ -208,11 +208,28 @@ class FunctionJit {
   bool SupportsObservers() const { return has_observer_callbacks_; }
 
  private:
-  FunctionJit(Function* xls_function, std::unique_ptr<OrcJit>&& orc_jit,
+  struct InterfaceMetadata {
+    std::string name;
+
+    // Package only used as owner of types.
+    std::unique_ptr<Package> package;
+    std::vector<std::string> param_names;
+    std::vector<Type*> param_types;
+    Type* return_type;
+
+    static absl::StatusOr<InterfaceMetadata> CreateFromFunction(
+        Function* function);
+    static absl::StatusOr<InterfaceMetadata> CreateFromAotEntrypoint(
+        const AotEntrypointProto& entrypoint);
+
+    int64_t ParamCount() const { return param_names.size(); }
+  };
+
+  FunctionJit(InterfaceMetadata&& metadata, std::unique_ptr<OrcJit>&& orc_jit,
               JittedFunctionBase&& jitted_function_base,
               bool has_observer_callbacks,
               std::unique_ptr<JitRuntime>&& runtime)
-      : xls_function_(xls_function),
+      : metadata_(std::move(metadata)),
         orc_jit_(std::move(orc_jit)),
         jitted_function_base_(std::move(jitted_function_base)),
         arg_buffers_(jitted_function_base_.CreateInputBuffer()),
@@ -282,7 +299,7 @@ class FunctionJit {
                                   uint8_t* output_buffer,
                                   InterpreterEvents* events);
 
-  Function* xls_function_;
+  InterfaceMetadata metadata_;
 
   std::unique_ptr<OrcJit> orc_jit_;
 

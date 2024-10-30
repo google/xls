@@ -23,6 +23,7 @@
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/package.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/observer.h"
@@ -41,7 +42,7 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateJitSerialProcRuntime(
 
 struct ProcAotEntrypoints {
   // What proc these entrypoints are associated with.
-  Proc* proc;
+  PackageInterfaceProto::Proc proc_interface_proto;
   // unpacked entrypoint
   JitFunctionType unpacked;
   // packed entrypoint

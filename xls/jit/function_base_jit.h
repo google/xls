@@ -100,8 +100,7 @@ class JittedFunctionBase {
   // Builds and returns a JittedFunctionBase using code and ABIs provided by an
   // earlier AOT compile.
   static absl::StatusOr<JittedFunctionBase> BuildFromAot(
-      FunctionBase* function, const AotEntrypointProto& abi,
-      JitFunctionType entrypoint,
+      const AotEntrypointProto& abi, JitFunctionType entrypoint,
       std::optional<JitFunctionType> packed_entrypoint = std::nullopt);
 
   // Create a buffer with space for all inputs, correctly aligned.
@@ -198,7 +197,7 @@ class JittedFunctionBase {
 
   int64_t temp_buffer_alignment() const { return temp_buffer_alignment_; }
 
-  const absl::flat_hash_map<int64_t, Node*>& continuation_points() const {
+  const absl::flat_hash_map<int64_t, int64_t>& continuation_points() const {
     return continuation_points_;
   }
 
@@ -230,7 +229,7 @@ class JittedFunctionBase {
                      std::vector<int64_t> packed_input_buffer_sizes,
                      std::vector<int64_t> packed_output_buffer_sizes,
                      int64_t temp_buffer_size, int64_t temp_buffer_alignment,
-                     absl::flat_hash_map<int64_t, Node*> continuation_points,
+                     absl::flat_hash_map<int64_t, int64_t> continuation_points,
                      absl::btree_map<std::string, int64_t> queue_indices)
       : function_name_(std::move(function_name)),
         function_(function),
@@ -287,9 +286,9 @@ class JittedFunctionBase {
   // Alignment of the temporary buffer required by `function`
   int64_t temp_buffer_alignment_ = -1;
 
-  // Map from the continuation point return value to the corresponding node at
-  // which execution was interrupted.
-  absl::flat_hash_map<int64_t, Node*> continuation_points_;
+  // Map from the continuation point return value to the corresponding node id
+  // at which execution was interrupted.
+  absl::flat_hash_map<int64_t, int64_t> continuation_points_;
 
   // The map from channel reference name to the index of the respective queue in
   // the instance context.

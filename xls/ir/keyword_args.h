@@ -20,6 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/value.h"
 
@@ -29,6 +30,12 @@ namespace xls {
 // of positional arguments.
 absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
     const FunctionBase& function,
+    const absl::flat_hash_map<std::string, Value>& kwargs);
+
+// Overload of the above that takes a list of parameter names instead of a
+// FunctionBase.
+absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
+    absl::Span<std::string const> param_names,
     const absl::flat_hash_map<std::string, Value>& kwargs);
 
 }  // namespace xls

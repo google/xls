@@ -21,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -34,6 +35,8 @@
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
@@ -48,14 +51,35 @@ namespace xls {
 class BlockJitContinuation;
 class BlockJit {
  public:
+  struct InterfaceMetadata {
+    std::string block_name;
+
+    // Owns types in input/output/register type vectors.
+    TypeManager type_manager;
+    std::vector<std::string> input_port_names;
+    std::vector<Type*> input_port_types;
+    std::vector<std::string> output_port_names;
+    std::vector<Type*> output_port_types;
+    std::vector<std::string> register_names;
+    std::vector<Type*> register_types;
+
+    static absl::StatusOr<InterfaceMetadata> CreateFromBlock(Block* block);
+    static absl::StatusOr<InterfaceMetadata> CreateFromAotEntrypoint(
+        const AotEntrypointProto& entrypoint);
+
+    int64_t InputPortCount() const { return input_port_names.size(); }
+    int64_t OutputPortCount() const { return output_port_names.size(); }
+    int64_t RegisterCount() const { return register_names.size(); }
+  };
+
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
       Block* block, bool support_observer_callbacks = false);
   static absl::StatusOr<std::unique_ptr<BlockJit>> Create(
       const BlockElaboration& elab, bool support_observer_callbacks = false);
 
   static absl::StatusOr<std::unique_ptr<BlockJit>> CreateFromAot(
-      Block* inlined_block, const AotEntrypointProto& entrypoint,
-      std::string_view data_layout, JitFunctionType func_ptr);
+      const AotEntrypointProto& entrypoint, std::string_view data_layout,
+      JitFunctionType func_ptr);
 
   // Returns the bytes of an object file containing the compiled XLS function.
   static absl::StatusOr<JitObjectCode> CreateObjectCode(
@@ -78,28 +102,28 @@ class BlockJit {
   // Get how large each pointer buffer for the input ports are.
   absl::Span<const int64_t> input_port_sizes() const {
     return absl::MakeConstSpan(function_.input_buffer_sizes())
-        .subspan(0, block_->GetInputPorts().size());
+        .subspan(0, metadata_.InputPortCount());
   }
 
   // Get how large each pointer buffer for the registers are.
   absl::Span<int64_t const> register_sizes() const {
     return absl::MakeConstSpan(function_.input_buffer_sizes())
-        .subspan(block_->GetInputPorts().size());
+        .subspan(metadata_.InputPortCount());
   }
 
   bool supports_observer() const { return supports_observer_; }
 
  protected:
-  BlockJit(Block* block, std::unique_ptr<JitRuntime> runtime,
-           std::unique_ptr<OrcJit> jit, JittedFunctionBase function,
+  BlockJit(InterfaceMetadata&& metadata, std::unique_ptr<JitRuntime>&& runtime,
+           std::unique_ptr<OrcJit>&& jit, JittedFunctionBase&& function,
            bool supports_observer)
-      : block_(block),
+      : metadata_(std::move(metadata)),
         runtime_(std::move(runtime)),
         jit_(std::move(jit)),
         function_(std::move(function)),
         supports_observer_(supports_observer) {}
 
-  Block* block_;
+  InterfaceMetadata metadata_;
   std::unique_ptr<JitRuntime> runtime_;
   std::unique_ptr<OrcJit> jit_;
   JittedFunctionBase function_;
@@ -190,20 +214,20 @@ class BlockJitContinuation {
   // next cycle.
   absl::Span<uint8_t* const> input_port_pointers() const {
     // Registers follow the input-ports in the input vector.
-    return function_inputs().subspan(0, /*len=*/block_->GetInputPorts().size());
+    return function_inputs().subspan(0, /*len=*/metadata_.InputPortCount());
   }
   // Gets pointers to the JIT ABI struct pointers for each register.
   // Write to the pointed-to memory to manually set a register.
   absl::Span<uint8_t* const> register_pointers() const {
     // Previous register values got swapped over to the inputs.
     // Registers follow the input-ports in the input vector.
-    return function_inputs().subspan(block_->GetInputPorts().size());
+    return function_inputs().subspan(metadata_.InputPortCount());
   }
   // Gets the pointers to the JIT ABI output pointers for each output port.
   absl::Span<uint8_t const* const> output_port_pointers() const {
     // output ports are before the registers.
     return function_outputs().subspan(0,
-                                      /*len=*/block_->GetOutputPorts().size());
+                                      /*len=*/metadata_.OutputPortCount());
   }
 
   const InterpreterEvents& GetEvents() const { return events_; }
@@ -223,15 +247,15 @@ class BlockJitContinuation {
   RuntimeObserver* observer() const { return callbacks_.observer; }
 
  protected:
-  BlockJitContinuation(Block* block, BlockJit* jit,
-                       const JittedFunctionBase& jit_func);
+  BlockJitContinuation(const BlockJit::InterfaceMetadata& metadata,
+                       BlockJit* jit, const JittedFunctionBase& jit_func);
 
  private:
   using BufferPair = std::array<JitArgumentSet, 2>;
-  static IOSpace MakeCombinedBuffers(const JittedFunctionBase& jit_func,
-                                     const Block* block,
-                                     const JitArgumentSet& ports,
-                                     const BufferPair& regs, bool input);
+  static IOSpace MakeCombinedBuffers(
+      const JittedFunctionBase& jit_func,
+      const BlockJit::InterfaceMetadata& metadata, const JitArgumentSet& ports,
+      const BufferPair& regs, bool input);
 
   // Create a new aligned buffer with the first 'left_count' elements of left
   // and the rest from right.
@@ -257,7 +281,7 @@ class BlockJitContinuation {
     return output_buffers_.current().pointers();
   }
 
-  const Block* block_;
+  const BlockJit::InterfaceMetadata& metadata_;
   BlockJit* block_jit_;
 
   // Buffers for the registers. Note this includes (unused) space for the input

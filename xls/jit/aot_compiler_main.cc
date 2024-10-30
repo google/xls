@@ -39,6 +39,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/extract_interface.h"
 #include "xls/ir/block_elaboration.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -138,6 +139,10 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
         type_converter
             .CreateTypeLayout(func->AsFunctionOrDie()->GetType()->return_type())
             .ToProto();
+    AotEntrypointProto::FunctionMetadataProto* function_metadata_proto =
+        proto.mutable_function_metadata();
+    *function_metadata_proto->mutable_function_interface() =
+        ExtractFunctionInterface(func->AsFunctionOrDie());
   } else if (func->IsProc()) {
     proto.set_type(AotEntrypointProto::PROC);
     for (const Param* p : func->params()) {
@@ -148,7 +153,17 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
       *proto.mutable_inputs_layout()->add_layouts() = layout_proto;
       *proto.mutable_outputs_layout()->add_layouts() = layout_proto;
     }
+    AotEntrypointProto::ProcMetadataProto* proc_metadata_proto =
+        proto.mutable_proc_metadata();
+    proc_metadata_proto->mutable_continuation_point_node_ids()->insert(
+        object_code.continuation_points().begin(),
+        object_code.continuation_points().end());
+    proc_metadata_proto->mutable_channel_queue_indices()->insert(
+        object_code.queue_indices().begin(), object_code.queue_indices().end());
+    *proc_metadata_proto->mutable_proc_interface() =
+        ExtractProcInterface(func->AsProcOrDie());
   } else {
+    XLS_RET_CHECK(func->IsBlock());
     proto.set_type(AotEntrypointProto::BLOCK);
     for (InputPort* p : func->AsBlockOrDie()->GetInputPorts()) {
       proto.add_inputs_names(p->name());
@@ -162,12 +177,19 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
           type_converter.CreateTypeLayout(p->GetType()).ToProto();
       *proto.mutable_outputs_layout()->add_layouts() = layout_proto;
     }
+    AotEntrypointProto::BlockMetadataProto* block_metadata_proto =
+        proto.mutable_block_metadata();
+
     for (const auto& [orig, translated] : entrypoint.register_aliases) {
-      proto.mutable_register_aliases()->insert({orig, translated});
+      block_metadata_proto->mutable_register_aliases()->insert(
+          {orig, translated});
     }
     for (const auto& [reg, ty] : entrypoint.added_registers) {
-      proto.mutable_added_registers()->insert({reg, ty->ToProto()});
+      block_metadata_proto->mutable_added_registers()->insert(
+          {reg, ty->ToProto()});
     }
+    *block_metadata_proto->mutable_block_interface() =
+        ExtractBlockInterface(func->AsBlockOrDie());
   }
   proto.set_xls_package_name(package->name());
   proto.set_xls_function_identifier(func->name());
@@ -198,12 +220,6 @@ absl::StatusOr<AotEntrypointProto> GenerateEntrypointProto(
 
   proto.set_temp_buffer_size(object_code.temp_buffer_size());
   proto.set_temp_buffer_alignment(object_code.temp_buffer_alignment());
-  for (const auto& [cont, node] : object_code.continuation_points()) {
-    proto.mutable_continuation_point_node_ids()->insert({cont, node->id()});
-  }
-  for (const auto& [chan_name, idx] : object_code.queue_indices()) {
-    proto.mutable_channel_queue_indices()->insert({chan_name, idx});
-  }
   return proto;
 }
 

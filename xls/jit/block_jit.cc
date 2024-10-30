@@ -54,6 +54,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_compiler.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
@@ -103,10 +104,11 @@ std::unique_ptr<verilog::CodegenCompoundPass> PrepareForJitPassPipeline() {
 class ElaboratedBlockJitContinuation : public BlockJitContinuation {
  public:
   ElaboratedBlockJitContinuation(
-      Block* blk, BlockJit* jit, const JittedFunctionBase& jit_func,
+      const BlockJit::InterfaceMetadata& metadata, BlockJit* jit,
+      const JittedFunctionBase& jit_func,
       const absl::flat_hash_map<std::string, std::string>& reg_rename_map,
       const absl::flat_hash_map<std::string, Type*>& materialized_impl_regs)
-      : BlockJitContinuation(blk, jit, jit_func),
+      : BlockJitContinuation(metadata, jit, jit_func),
         reg_rename_map_(reg_rename_map),
         materialized_impl_regs_(materialized_impl_regs) {}
 
@@ -169,25 +171,21 @@ class ElaboratedBlockJit : public BlockJit {
  public:
   std::unique_ptr<BlockJitContinuation> NewContinuation() override {
     return std::make_unique<ElaboratedBlockJitContinuation>(
-        block_, this, function_, reg_rename_map_, materialized_impl_regs_);
+        metadata_, this, function_, reg_rename_map_, materialized_impl_regs_);
   }
 
  private:
   ElaboratedBlockJit(
-      std::unique_ptr<Package> jit_pkg, Block* block,
+      BlockJit::InterfaceMetadata metadata,
       absl::flat_hash_map<std::string, std::string> reg_rename_map,
       absl::flat_hash_map<std::string, Type*> materialized_impl_regs,
       std::unique_ptr<JitRuntime> runtime, std::unique_ptr<OrcJit> orc_jit,
       JittedFunctionBase function, bool support_observer_callbacks)
-      : BlockJit(block, std::move(runtime), std::move(orc_jit),
+      : BlockJit(std::move(metadata), std::move(runtime), std::move(orc_jit),
                  std::move(function), support_observer_callbacks),
-        jit_pkg_(std::move(jit_pkg)),
         reg_rename_map_(std::move(reg_rename_map)),
         materialized_impl_regs_(std::move(materialized_impl_regs)) {}
 
-  // Actual pointer to keep alive the jitted block. Note that on AOT blocks this
-  // might be null.
-  std::unique_ptr<Package> jit_pkg_;
   absl::flat_hash_map<std::string, std::string> reg_rename_map_;
   absl::flat_hash_map<std::string, Type*> materialized_impl_regs_;
 
@@ -238,6 +236,95 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
 
 }  // namespace
 
+/* static */ absl::StatusOr<BlockJit::InterfaceMetadata>
+BlockJit::InterfaceMetadata::CreateFromBlock(Block* block) {
+  InterfaceMetadata metadata;
+  metadata.block_name = block->name();
+  // metadata.type_manager =
+  // std::make_unique<Package>(block->package()->name());
+  metadata.input_port_names.reserve(block->GetInputPorts().size());
+  metadata.output_port_names.reserve(block->GetOutputPorts().size());
+  metadata.register_names.reserve(block->GetRegisters().size());
+  metadata.input_port_types.reserve(block->GetInputPorts().size());
+  metadata.output_port_types.reserve(block->GetOutputPorts().size());
+  metadata.register_types.reserve(block->GetRegisters().size());
+
+  for (InputPort* ip : block->GetInputPorts()) {
+    metadata.input_port_names.push_back(std::string(ip->name()));
+    XLS_ASSIGN_OR_RETURN(
+        Type * mapped_type,
+        metadata.type_manager.MapTypeFromOtherArena(ip->GetType()));
+    metadata.input_port_types.push_back(mapped_type);
+  }
+
+  for (OutputPort* op : block->GetOutputPorts()) {
+    metadata.output_port_names.push_back(std::string(op->name()));
+    XLS_ASSIGN_OR_RETURN(
+        Type * mapped_type,
+        metadata.type_manager.MapTypeFromOtherArena(op->output_type()));
+    metadata.output_port_types.push_back(mapped_type);
+  }
+
+  for (Register* reg : block->GetRegisters()) {
+    metadata.register_names.push_back(std::string(reg->name()));
+    XLS_ASSIGN_OR_RETURN(
+        Type * mapped_type,
+        metadata.type_manager.MapTypeFromOtherArena(reg->type()));
+    metadata.register_types.push_back(mapped_type);
+  }
+
+  return metadata;
+}
+
+/* static */ absl::StatusOr<BlockJit::InterfaceMetadata>
+BlockJit::InterfaceMetadata::CreateFromAotEntrypoint(
+    const AotEntrypointProto& entrypoint) {
+  XLS_RET_CHECK_EQ(entrypoint.type(), AotEntrypointProto::BLOCK);
+  XLS_RET_CHECK(entrypoint.has_block_metadata());
+  const AotEntrypointProto::BlockMetadataProto& block_metadata_proto =
+      entrypoint.block_metadata();
+  InterfaceMetadata metadata;
+  metadata.block_name = block_metadata_proto.block_interface().base().name();
+  metadata.input_port_names.reserve(
+      block_metadata_proto.block_interface().input_ports_size());
+  metadata.input_port_types.reserve(
+      block_metadata_proto.block_interface().input_ports_size());
+  metadata.output_port_names.reserve(
+      block_metadata_proto.block_interface().output_ports_size());
+  metadata.output_port_types.reserve(
+      block_metadata_proto.block_interface().output_ports_size());
+  metadata.register_names.reserve(
+      block_metadata_proto.block_interface().registers_size());
+  metadata.register_types.reserve(
+      block_metadata_proto.block_interface().registers_size());
+
+  for (const PackageInterfaceProto::NamedValue& input_port :
+       block_metadata_proto.block_interface().input_ports()) {
+    metadata.input_port_names.push_back(input_port.name());
+    XLS_ASSIGN_OR_RETURN(
+        Type * mapped_type,
+        metadata.type_manager.GetTypeFromProto(input_port.type()));
+    metadata.input_port_types.push_back(mapped_type);
+  }
+  for (const PackageInterfaceProto::NamedValue& output_port :
+       block_metadata_proto.block_interface().output_ports()) {
+    metadata.output_port_names.push_back(output_port.name());
+    XLS_ASSIGN_OR_RETURN(
+        Type * mapped_type,
+        metadata.type_manager.GetTypeFromProto(output_port.type()));
+    metadata.output_port_types.push_back(mapped_type);
+  }
+  for (const PackageInterfaceProto::NamedValue& reg :
+       block_metadata_proto.block_interface().registers()) {
+    metadata.register_names.push_back(reg.name());
+    XLS_ASSIGN_OR_RETURN(Type * mapped_type,
+                         metadata.type_manager.GetTypeFromProto(reg.type()));
+    metadata.register_types.push_back(mapped_type);
+  }
+
+  return metadata;
+}
+
 absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
     Block* block, bool support_observer_callbacks) {
   XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
@@ -258,57 +345,66 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
   if (elab.top()->block() &&
       (*elab.top()->block())->GetInstantiations().empty()) {
     block = elab.blocks().front();
+    XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
+                         InterfaceMetadata::CreateFromBlock(block));
     XLS_ASSIGN_OR_RETURN(auto function,
                          JittedFunctionBase::Build(block, *orc_jit));
-    return std::unique_ptr<BlockJit>(
-        new BlockJit(block, std::move(jit_runtime), std::move(orc_jit),
-                     std::move(function), support_observer_callbacks));
+    return std::unique_ptr<BlockJit>(new BlockJit(
+        std::move(metadata), std::move(jit_runtime), std::move(orc_jit),
+        std::move(function), support_observer_callbacks));
   }
   XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
                        CloneElaborationPackage(elab));
   XLS_ASSIGN_OR_RETURN(
       JittedFunctionBase jit_entrypoint,
       JittedFunctionBase::Build(jit_data.inlined_block, *orc_jit));
+  XLS_ASSIGN_OR_RETURN(
+      InterfaceMetadata metadata,
+      InterfaceMetadata::CreateFromBlock(jit_data.inlined_block));
+
+  // jit_data.added_registers has types that come from the cloned package, but
+  // we're only going to keep the package in metadata. We need to map the types
+  // to the package we're keeping.
+  for (auto& [_, reg_type] : jit_data.added_registers) {
+    XLS_ASSIGN_OR_RETURN(Type * mapped_type,
+                         metadata.type_manager.MapTypeFromOtherArena(reg_type));
+    reg_type = mapped_type;
+  }
   return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
-      std::move(jit_data.cloned_package), jit_data.inlined_block,
-      std::move(jit_data.renamed_registers),
+      std::move(metadata), std::move(jit_data.renamed_registers),
       std::move(jit_data.added_registers), std::move(jit_runtime),
       std::move(orc_jit), std::move(jit_entrypoint),
       support_observer_callbacks));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::CreateFromAot(
-    Block* block, const AotEntrypointProto& entrypoint,
-    std::string_view data_layout, JitFunctionType func_ptr) {
-  // TODO(allight): It would be better to not do this again but there is an
-  // abstraction mismatch where its difficult to send this to the wrapper.
-  // Because the inlining is a no-op if no instantiations are present however it
-  // is safe to redo it. To maintain compat with using this on already inlined
-  // values the proto maps for registers and such are always used.
-  XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
-                       BlockElaboration::Elaborate(block));
-  XLS_ASSIGN_OR_RETURN(ElaborationJitData jit_data,
-                       CloneElaborationPackage(elab));
-
-  XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
-                       JittedFunctionBase::BuildFromAot(
-                           jit_data.inlined_block, entrypoint, func_ptr,
-                           /*packed_entrypoint=*/std::nullopt));
+    const AotEntrypointProto& entrypoint, std::string_view data_layout,
+    JitFunctionType func_ptr) {
+  XLS_ASSIGN_OR_RETURN(
+      JittedFunctionBase jfb,
+      JittedFunctionBase::BuildFromAot(entrypoint, func_ptr,
+                                       /*packed_entrypoint=*/std::nullopt));
   llvm::Expected<llvm::DataLayout> layout =
       llvm::DataLayout::parse(data_layout);
   XLS_RET_CHECK(layout) << "bad layout: " << data_layout;
+  XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
+                       InterfaceMetadata::CreateFromAotEntrypoint(entrypoint));
   absl::flat_hash_map<std::string, std::string> renamed_regs;
-  renamed_regs.insert(entrypoint.register_aliases().begin(),
-                      entrypoint.register_aliases().end());
+  XLS_RET_CHECK(entrypoint.has_block_metadata());
+  const AotEntrypointProto::BlockMetadataProto& block_metadata_proto =
+      entrypoint.block_metadata();
+  renamed_regs.insert(block_metadata_proto.register_aliases().begin(),
+                      block_metadata_proto.register_aliases().end());
   absl::flat_hash_map<std::string, Type*> added_regs;
-  added_regs.reserve(entrypoint.added_registers_size());
-  for (const auto& [reg_name, reg_ty] : entrypoint.added_registers()) {
+  added_regs.reserve(block_metadata_proto.added_registers_size());
+  for (const auto& [reg_name, reg_ty] :
+       block_metadata_proto.added_registers()) {
     XLS_ASSIGN_OR_RETURN(added_regs[reg_name],
-                         jit_data.cloned_package->GetTypeFromProto(reg_ty));
+                         metadata.type_manager.GetTypeFromProto(reg_ty));
   }
   return std::unique_ptr<BlockJit>(new ElaboratedBlockJit(
-      std::move(jit_data.cloned_package), block, std::move(renamed_regs),
-      std::move(added_regs), std::make_unique<JitRuntime>(*layout),
+      std::move(metadata), std::move(renamed_regs), std::move(added_regs),
+      std::make_unique<JitRuntime>(*layout),
       /*orc_jit=*/nullptr, std::move(jfb),
       /*support_observer_callbacks=*/false));
 }
@@ -345,7 +441,7 @@ absl::StatusOr<std::unique_ptr<BlockJit>> BlockJit::Create(
 
 std::unique_ptr<BlockJitContinuation> BlockJit::NewContinuation() {
   return std::unique_ptr<BlockJitContinuation>(
-      new BlockJitContinuation(block_, this, function_));
+      new BlockJitContinuation(metadata_, this, function_));
 }
 
 absl::Status BlockJit::RunOneCycle(BlockJitContinuation& continuation) {
@@ -403,13 +499,13 @@ absl::StatusOr<JitArgumentSet> BlockJitContinuation::CombineBuffers(
 }
 
 BlockJitContinuation::IOSpace BlockJitContinuation::MakeCombinedBuffers(
-    const JittedFunctionBase& jit_func, const Block* block,
-    const JitArgumentSet& ports, const BlockJitContinuation::BufferPair& regs,
-    bool input) {
+    const JittedFunctionBase& jit_func,
+    const BlockJit::InterfaceMetadata& metadata, const JitArgumentSet& ports,
+    const BlockJitContinuation::BufferPair& regs, bool input) {
   int64_t num_ports =
-      input ? block->GetInputPorts().size() : block->GetOutputPorts().size();
+      input ? metadata.InputPortCount() : metadata.OutputPortCount();
   // Registers use the input port offsets.
-  int64_t num_input_ports = block->GetInputPorts().size();
+  int64_t num_input_ports = metadata.InputPortCount();
   return IOSpace(CombineBuffers(jit_func, ports, num_ports, regs[0],
                                 num_input_ports, input)
                      .value(),
@@ -418,19 +514,20 @@ BlockJitContinuation::IOSpace BlockJitContinuation::MakeCombinedBuffers(
                      .value());
 }
 
-BlockJitContinuation::BlockJitContinuation(Block* block, BlockJit* jit,
-                                           const JittedFunctionBase& jit_func)
-    : block_(block),
+BlockJitContinuation::BlockJitContinuation(
+    const BlockJit::InterfaceMetadata& metadata, BlockJit* jit,
+    const JittedFunctionBase& jit_func)
+    : metadata_(metadata),
       block_jit_(jit),
       register_buffers_memory_{jit_func.CreateInputBuffer(),
                                jit_func.CreateInputBuffer()},
       input_port_buffers_memory_(jit_func.CreateInputBuffer()),
       output_port_buffers_memory_(jit_func.CreateOutputBuffer()),
-      input_buffers_(MakeCombinedBuffers(jit_func, block_,
+      input_buffers_(MakeCombinedBuffers(jit_func, metadata_,
                                          input_port_buffers_memory_,
                                          register_buffers_memory_,
                                          /*input=*/true)),
-      output_buffers_(MakeCombinedBuffers(jit_func, block_,
+      output_buffers_(MakeCombinedBuffers(jit_func, metadata_,
                                           output_port_buffers_memory_,
                                           register_buffers_memory_,
                                           /*input=*/false)),
@@ -444,24 +541,24 @@ BlockJitContinuation::BlockJitContinuation(Block* block, BlockJit* jit,
 
 absl::Status BlockJitContinuation::SetInputPorts(
     absl::Span<const Value> values) {
-  XLS_RET_CHECK_EQ(block_->GetInputPorts().size(), values.size());
-  std::vector<Type*> types;
-  types.reserve(values.size());
+  XLS_RET_CHECK_EQ(metadata_.InputPortCount(), values.size());
   auto it = values.cbegin();
-  for (auto ip : block_->GetInputPorts()) {
-    types.push_back(ip->GetType());
-    XLS_RET_CHECK(ValueConformsToType(*it, ip->GetType()))
-        << "input port " << ip->name() << " cannot be set to value of " << *it
+  for (int64_t i = 0; i < metadata_.InputPortCount(); ++i) {
+    Type* ip_type = metadata_.input_port_types[i];
+    XLS_RET_CHECK(ValueConformsToType(*it, ip_type))
+        << "input port " << metadata_.input_port_names[i]
+        << " cannot be set to value of " << *it
         << " due to type mismatch with input port type of "
-        << ip->GetType()->ToString();
+        << ip_type->ToString();
     ++it;
   }
-  return block_jit_->runtime()->PackArgs(values, types, input_port_pointers());
+  return block_jit_->runtime()->PackArgs(values, metadata_.input_port_types,
+                                         input_port_pointers());
 }
 
 absl::Status BlockJitContinuation::SetInputPorts(
     absl::Span<const uint8_t* const> inputs) {
-  XLS_RET_CHECK_EQ(block_->GetInputPorts().size(), inputs.size());
+  XLS_RET_CHECK_EQ(metadata_.InputPortCount(), inputs.size());
   // TODO(allight): This is a lot of copying. We could do this more efficiently
   for (int i = 0; i < inputs.size(); ++i) {
     memcpy(input_port_pointers()[i], inputs[i],
@@ -472,7 +569,7 @@ absl::Status BlockJitContinuation::SetInputPorts(
 
 absl::Status BlockJitContinuation::SetInputPorts(
     const absl::flat_hash_map<std::string, Value>& inputs) {
-  std::vector<Value> values(block_->GetInputPorts().size());
+  std::vector<Value> values(metadata_.InputPortCount());
   auto input_indices = GetInputPortIndices();
   for (const auto& [name, value] : inputs) {
     if (!input_indices.contains(name)) {
@@ -481,11 +578,11 @@ absl::Status BlockJitContinuation::SetInputPorts(
     }
     values[input_indices.at(name)] = value;
   }
-  if (block_->GetInputPorts().size() != inputs.size()) {
+  if (metadata_.InputPortCount() != inputs.size()) {
     std::ostringstream oss;
-    for (auto p : block_->GetInputPorts()) {
-      if (!inputs.contains(p->name())) {
-        oss << "\n\tMissing input for port '" << p->name() << "'";
+    for (const auto& ip_name : metadata_.input_port_names) {
+      if (!inputs.contains(ip_name)) {
+        oss << "\n\tMissing input for port '" << ip_name << "'";
       }
     }
     return absl::InvalidArgumentError(
@@ -497,24 +594,23 @@ absl::Status BlockJitContinuation::SetInputPorts(
 
 absl::Status BlockJitContinuation::SetRegisters(
     absl::Span<const Value> values) {
-  XLS_RET_CHECK_EQ(block_->GetRegisters().size(), values.size());
-  std::vector<Type*> types;
-  types.reserve(values.size());
+  XLS_RET_CHECK_EQ(metadata_.RegisterCount(), values.size());
   auto it = values.cbegin();
-  for (auto reg : block_->GetRegisters()) {
-    types.push_back(reg->type());
-    XLS_RET_CHECK(ValueConformsToType(*it, reg->type()))
-        << "register " << reg->name() << " cannot be set to value of " << *it
+  for (int64_t i = 0; i < metadata_.RegisterCount(); ++i) {
+    XLS_RET_CHECK(ValueConformsToType(*it, metadata_.register_types[i]))
+        << "register " << metadata_.register_names[i]
+        << " cannot be set to value of " << *it
         << " due to type mismatch with register type of "
-        << reg->type()->ToString();
+        << metadata_.register_types[i]->ToString();
     ++it;
   }
-  return block_jit_->runtime()->PackArgs(values, types, register_pointers());
+  return block_jit_->runtime()->PackArgs(values, metadata_.register_types,
+                                         register_pointers());
 }
 
 absl::Status BlockJitContinuation::SetRegisters(
     absl::Span<const uint8_t* const> regs) {
-  XLS_RET_CHECK_EQ(block_->GetRegisters().size(), regs.size());
+  XLS_RET_CHECK_EQ(metadata_.RegisterCount(), regs.size());
   // TODO(allight): This is a lot of copying. We could do this more efficiently
   for (int i = 0; i < regs.size(); ++i) {
     memcpy(register_pointers()[i], regs[i], block_jit_->register_sizes()[i]);
@@ -534,11 +630,11 @@ absl::Status BlockJitContinuation::SetRegisters(
     values[reg_indices.at(name)] = value;
   }
 
-  if (block_->GetRegisters().size() != regs.size()) {
+  if (metadata_.RegisterCount() != regs.size()) {
     std::ostringstream oss;
-    for (auto p : block_->GetRegisters()) {
-      if (!regs.contains(p->name())) {
-        oss << "\n\tMissing value for port '" << p->name() << "'";
+    for (const auto& reg_name : metadata_.register_names) {
+      if (!regs.contains(reg_name)) {
+        oss << "\n\tMissing value for port '" << reg_name << "'";
       }
     }
     return absl::InvalidArgumentError(
@@ -554,7 +650,7 @@ std::vector<Value> BlockJitContinuation::GetOutputPorts() const {
   int i = 0;
   for (auto ptr : output_port_pointers()) {
     result.push_back(block_jit_->runtime()->UnpackBuffer(
-        ptr, block_->GetOutputPorts()[i++]->operand(0)->GetType()));
+        ptr, metadata_.output_port_types[i++]));
   }
   return result;
 }
@@ -563,8 +659,8 @@ absl::flat_hash_map<std::string, int64_t>
 BlockJitContinuation::GetInputPortIndices() const {
   absl::flat_hash_map<std::string, int64_t> ret;
   int i = 0;
-  for (auto v : block_->GetInputPorts()) {
-    ret[v->name()] = i++;
+  for (const auto& name : metadata_.input_port_names) {
+    ret[name] = i++;
   }
   return ret;
 }
@@ -573,8 +669,8 @@ absl::flat_hash_map<std::string, int64_t>
 BlockJitContinuation::GetOutputPortIndices() const {
   absl::flat_hash_map<std::string, int64_t> ret;
   int i = 0;
-  for (auto v : block_->GetOutputPorts()) {
-    ret[v->name()] = i++;
+  for (const auto& name : metadata_.output_port_names) {
+    ret[name] = i++;
   }
   return ret;
 }
@@ -583,8 +679,8 @@ absl::flat_hash_map<std::string, int64_t>
 BlockJitContinuation::GetRegisterIndices() const {
   absl::flat_hash_map<std::string, int64_t> ret;
   int i = 0;
-  for (auto v : block_->GetRegisters()) {
-    ret[v->name()] = i++;
+  for (const auto& name : metadata_.register_names) {
+    ret[name] = i++;
   }
   return ret;
 }
@@ -606,7 +702,7 @@ std::vector<Value> BlockJitContinuation::GetRegisters() const {
   int i = 0;
   for (auto ptr : register_pointers()) {
     result.push_back(block_jit_->runtime()->UnpackBuffer(
-        ptr, block_->GetRegisters()[i++]->type()));
+        ptr, metadata_.register_types[i++]));
   }
   return result;
 }

@@ -18,7 +18,6 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
-#include <optional>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -31,15 +30,12 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/events.h"
-#include "xls/ir/nodes.h"
-#include "xls/ir/package.h"
-#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
-#include "xls/public/ir_parser.h"
 
 namespace xls {
 
@@ -53,23 +49,17 @@ class BaseFunctionJitWrapper {
   FunctionJit* jit() { return jit_.get(); }
 
  protected:
-  BaseFunctionJitWrapper(std::unique_ptr<Package> package,
-                         std::unique_ptr<FunctionJit> jit,
+  BaseFunctionJitWrapper(std::unique_ptr<FunctionJit> jit,
                          bool needs_fake_token)
-      : package_(std::move(package)),
-        jit_(std::move(jit)),
-        needs_fake_token_(needs_fake_token) {}
+      : jit_(std::move(jit)), needs_fake_token_(needs_fake_token) {}
 
   template <typename RealType>
   static absl::StatusOr<std::unique_ptr<RealType>> Create(
-      std::string_view ir_text, std::string_view function_name,
+      std::string_view function_name,
       absl::Span<uint8_t const> aot_entrypoints_proto_bin,
       JitFunctionType unpacked_entrypoint, JitFunctionType packed_entrypoint)
     requires(std::is_base_of_v<BaseFunctionJitWrapper, RealType>)
   {
-    XLS_ASSIGN_OR_RETURN(auto package,
-                         ParsePackage(ir_text, /*filename=*/std::nullopt));
-    XLS_ASSIGN_OR_RETURN(auto function, package->GetFunction(function_name));
     AotPackageEntrypointsProto proto;
     // NB We could fallback to real jit here maybe?
     XLS_RET_CHECK(proto.ParseFromArray(aot_entrypoints_proto_bin.data(),
@@ -77,23 +67,30 @@ class BaseFunctionJitWrapper {
         << "Unable to parse aot information.";
     XLS_RET_CHECK_EQ(proto.entrypoint_size(), 1)
         << "FunctionWrapper should only have a single XLS function compiled.";
-    XLS_ASSIGN_OR_RETURN(auto jit,
-                         FunctionJit::CreateFromAot(
-                             function, proto.entrypoint(0), proto.data_layout(),
-                             unpacked_entrypoint, packed_entrypoint));
+    const AotEntrypointProto& entrypoint_proto = proto.entrypoint(0);
+    XLS_RET_CHECK_EQ(entrypoint_proto.type(), AotEntrypointProto::FUNCTION);
+    XLS_RET_CHECK(entrypoint_proto.has_function_metadata());
+    XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::CreateFromAot(
+                                       proto.entrypoint(0), proto.data_layout(),
+                                       unpacked_entrypoint, packed_entrypoint));
     return std::unique_ptr<RealType>(
-        new RealType(std::move(package), std::move(jit),
-                     MatchesImplicitToken(function->GetType()->parameters())));
+        new RealType(std::move(jit),
+                     MatchesImplicitToken(entrypoint_proto.function_metadata()
+                                              .function_interface()
+                                              .parameters())));
   }
 
   // Matches the parameter signature for an "implicit token/activation taking"
   // function.
-  static bool MatchesImplicitToken(absl::Span<Type* const> params) {
+  static bool MatchesImplicitToken(
+      absl::Span<const PackageInterfaceProto::NamedValue* const> params) {
     if (params.size() < 2) {
       return false;
     }
-    return params[0]->IsToken() && params[1]->IsBits() &&
-           params[1]->GetFlatBitCount() == 1;
+
+    return params[0]->type().type_enum() == TypeProto::TOKEN &&
+           params[1]->type().type_enum() == TypeProto::BITS &&
+           params[1]->type().bit_count() == 1;
   }
 
   // Run the jitted function using values.
@@ -137,7 +134,6 @@ class BaseFunctionJitWrapper {
     return jit_->RunWithUnpackedViews(args...);
   }
 
-  std::unique_ptr<Package> package_;
   std::unique_ptr<FunctionJit> jit_;
   const bool needs_fake_token_;
 };

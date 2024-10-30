@@ -14,8 +14,11 @@
 
 #include "xls/ir/keyword_args.h"
 
+#include <concepts>
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -23,6 +26,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
@@ -30,31 +35,62 @@
 
 namespace xls {
 
-absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
-    const FunctionBase& function,
+namespace {
+template <typename T, typename U>
+  requires std::invocable<U, T const&> &&
+           std::convertible_to<std::invoke_result_t<U, T const&>,
+                               std::string_view>
+absl::StatusOr<std::vector<Value>> KeywordArgsToPositionalImpl(
+    absl::Span<T> named_arg_span, const U& get_name,
+    std::string_view function_name,
     const absl::flat_hash_map<std::string, Value>& kwargs) {
-  VLOG(2) << "Interpreting function " << function.name() << " with arguments:";
+  VLOG(2) << "Interpreting function " << function_name << " with arguments:";
 
-  // Make nice error messages with the name in the error message if a kwarg is
-  // missing.
-  for (Param* param : function.params()) {
-    if (!kwargs.contains(param->name())) {
+  absl::flat_hash_map<std::string_view, int64_t> param_indices;
+
+  int64_t param_index = 0;
+  for (const T& named_arg : named_arg_span) {
+    std::string_view name = get_name(named_arg);
+    if (!kwargs.contains(name)) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Missing argument '%s' to invocation of function '%s'", param->name(),
-          function.name()));
+          "Missing argument '%s' to invocation of function '%s'", name,
+          function_name));
     }
+    auto [_, inserted] = param_indices.insert({name, param_index++});
+    XLS_RET_CHECK(inserted) << "Duplicate argument name " << name;
   }
+
+  XLS_RET_CHECK_EQ(named_arg_span.size(), kwargs.size())
+      << "Too many arguments in invocation of function " << function_name;
 
   std::vector<Value> positional_args;
   positional_args.resize(kwargs.size());
-  for (const auto& pair : kwargs) {
-    VLOG(2) << "  " << pair.first << " = " << pair.second;
-    XLS_ASSIGN_OR_RETURN(Param * param, function.GetParamByName(pair.first));
-    XLS_ASSIGN_OR_RETURN(int64_t param_index, function.GetParamIndex(param));
-    positional_args.at(param_index) = pair.second;
+  for (const auto& [name, value] : kwargs) {
+    VLOG(2) << "  " << name << " = " << value;
+    int64_t param_index = param_indices.at(name);
+    positional_args[param_index] = value;
   }
 
   return positional_args;
+}
+}  // namespace
+
+absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
+    const FunctionBase& function,
+    const absl::flat_hash_map<std::string, Value>& kwargs) {
+  return KeywordArgsToPositionalImpl(
+      function.params(),
+      [](Param* param) -> std::string_view { return param->name(); },
+      function.name(), kwargs);
+}
+
+absl::StatusOr<std::vector<Value>> KeywordArgsToPositional(
+    absl::Span<std::string const> param_names,
+    const absl::flat_hash_map<std::string, Value>& kwargs) {
+  return KeywordArgsToPositionalImpl(
+      param_names,
+      [](std::string_view name) -> std::string_view { return name; },
+      "<unknown>", kwargs);
 }
 
 }  // namespace xls

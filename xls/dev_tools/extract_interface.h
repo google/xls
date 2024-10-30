@@ -20,6 +20,10 @@
 
 namespace xls {
 
+PackageInterfaceProto::Function ExtractFunctionInterface(Function* func);
+PackageInterfaceProto::Proc ExtractProcInterface(Proc* proc);
+PackageInterfaceProto::Block ExtractBlockInterface(Block* block);
+
 // Create a PackageInterfaceProto based on the given Package.
 PackageInterfaceProto ExtractPackageInterface(Package* package);
 

@@ -28,9 +28,11 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/extract_interface.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
@@ -189,12 +191,16 @@ TEST_F(ProcJitAotTest, Tick) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kCapsGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p0, p->GetProc("proc_0"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p1, p->GetProc("proc_1"));
+  PackageInterfaceProto::Proc p0_interface = ExtractProcInterface(p0);
+  PackageInterfaceProto::Proc p1_interface = ExtractProcInterface(p1);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto aot_runtime,
       CreateAotSerialProcRuntime(
           p.get(), proto,
-          {ProcAotEntrypoints{.proc = p0, .unpacked = proc_0},
-           ProcAotEntrypoints{.proc = p1, .unpacked = proc_1}}));
+          {ProcAotEntrypoints{.proc_interface_proto = p0_interface,
+                              .unpacked = proc_0},
+           ProcAotEntrypoints{.proc_interface_proto = p1_interface,
+                              .unpacked = proc_1}}));
   XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueManager * chan_man,
                            aot_runtime->GetJitChannelQueueManager());
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * chan_input,
@@ -223,12 +229,16 @@ TEST_F(ProcJitAotTest, TickUntilBlocked) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kCapsGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p0, p->GetProc("proc_0"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p1, p->GetProc("proc_1"));
+  PackageInterfaceProto::Proc p0_interface = ExtractProcInterface(p0);
+  PackageInterfaceProto::Proc p1_interface = ExtractProcInterface(p1);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto aot_runtime,
       CreateAotSerialProcRuntime(
           p.get(), proto,
-          {ProcAotEntrypoints{.proc = p0, .unpacked = proc_0},
-           ProcAotEntrypoints{.proc = p1, .unpacked = proc_1}}));
+          {ProcAotEntrypoints{.proc_interface_proto = p0_interface,
+                              .unpacked = proc_0},
+           ProcAotEntrypoints{.proc_interface_proto = p1_interface,
+                              .unpacked = proc_1}}));
   XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueManager * chan_man,
                            aot_runtime->GetJitChannelQueueManager());
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * chan_input,
@@ -262,18 +272,21 @@ TEST_F(ProcJitAotTest, MultipleProcsCanHitSameFunction) {
       Proc * pdouble, p->GetProc("__multi_proc__proc_ten__proc_double_0_next"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * ptop,
                            p->GetProc("__multi_proc__proc_ten_0_next"));
+  PackageInterfaceProto::Proc pquad_interface = ExtractProcInterface(pquad);
+  PackageInterfaceProto::Proc pdouble_interface = ExtractProcInterface(pdouble);
+  PackageInterfaceProto::Proc ptop_interface = ExtractProcInterface(ptop);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto aot_runtime,
       CreateAotSerialProcRuntime(
           p.get(), proto,
           {
               ProcAotEntrypoints{
-                  .proc = pdouble,
+                  .proc_interface_proto = pdouble_interface,
                   .unpacked = __multi_proc__proc_ten__proc_double_0_next},
               ProcAotEntrypoints{
-                  .proc = pquad,
+                  .proc_interface_proto = pquad_interface,
                   .unpacked = __multi_proc__proc_ten__proc_quad_0_next},
-              ProcAotEntrypoints{.proc = ptop,
+              ProcAotEntrypoints{.proc_interface_proto = ptop_interface,
                                  .unpacked = __multi_proc__proc_ten_0_next},
           }));
   XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueManager * chan_man,

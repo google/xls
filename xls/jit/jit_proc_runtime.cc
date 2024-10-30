@@ -180,12 +180,18 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotRuntime(
         .packed = std::nullopt};
   }
   for (const auto& impl : impls) {
-    XLS_RET_CHECK(procs_by_name.contains(impl.proc->name()))
-        << "Unknown implementation of " << impl.proc->name();
-    AotProcJitArgs& args = procs_by_name[impl.proc->name()];
+    XLS_RET_CHECK(
+        procs_by_name.contains(impl.proc_interface_proto.base().name()))
+        << "Unknown implementation of "
+        << impl.proc_interface_proto.base().name();
+    AotProcJitArgs& args =
+        procs_by_name[impl.proc_interface_proto.base().name()];
     XLS_RET_CHECK(args.proc == nullptr)
-        << "Multiple copies of impl for " << impl.proc->name();
-    args.proc = impl.proc;
+        << "Multiple copies of impl for "
+        << impl.proc_interface_proto.base().name();
+    XLS_ASSIGN_OR_RETURN(args.proc,
+                         elaboration.package()->GetProc(
+                             impl.proc_interface_proto.base().name()));
     args.unpacked = impl.unpacked;
     args.packed = impl.packed;
   }

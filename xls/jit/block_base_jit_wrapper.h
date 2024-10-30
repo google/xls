@@ -31,13 +31,10 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/evaluator_options.h"
-#include "xls/ir/block.h"
-#include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/block_jit.h"
 #include "xls/jit/function_base_jit.h"
-#include "xls/public/ir_parser.h"
 
 namespace xls {
 
@@ -124,37 +121,29 @@ class BaseBlockJitWrapper {
         new RealContinuation(jit_->NewContinuation()));
   }
 
-  explicit BaseBlockJitWrapper(std::unique_ptr<Package> pkg,
-                               std::unique_ptr<BlockJit> jit)
-      : pkg_(std::move(pkg)), jit_(std::move(jit)) {}
+  explicit BaseBlockJitWrapper(std::unique_ptr<BlockJit> jit)
+      : jit_(std::move(jit)) {}
 
   template <typename RealType>
   static absl::StatusOr<std::unique_ptr<RealType>> Create(
-      std::string_view inlined_ir_text, std::string_view top_name,
-      absl::Span<uint8_t const> aot_proto, JitFunctionType entrypoint,
-      const EvaluatorOptions& options)
+      std::string_view top_name, absl::Span<uint8_t const> aot_proto,
+      JitFunctionType entrypoint, const EvaluatorOptions& options)
     requires(std::is_base_of_v<BaseBlockJitWrapper, RealType>)
   {
     if (options.support_observers()) {
       return absl::UnimplementedError("Observers not supported by AOT code.");
     }
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<Package> package,
-        ParsePackage(inlined_ir_text, /*filename=*/std::nullopt));
-    XLS_ASSIGN_OR_RETURN(Block * block, package->GetBlock(top_name));
     AotPackageEntrypointsProto proto;
     XLS_RET_CHECK(proto.ParseFromArray(aot_proto.data(), aot_proto.size()));
     XLS_RET_CHECK_EQ(proto.entrypoint_size(), 1)
         << "Wrapper should only have a single XLS block compiled.";
     XLS_ASSIGN_OR_RETURN(
-        auto jit, BlockJit::CreateFromAot(block, proto.entrypoint(0),
+        auto jit, BlockJit::CreateFromAot(proto.entrypoint(0),
                                           proto.data_layout(), entrypoint));
-    return std::unique_ptr<RealType>(
-        new RealType(std::move(package), std ::move(jit)));
+    return std::unique_ptr<RealType>(new RealType(std ::move(jit)));
   }
 
  private:
-  std::unique_ptr<Package> pkg_;
   std::unique_ptr<BlockJit> jit_;
 };
 

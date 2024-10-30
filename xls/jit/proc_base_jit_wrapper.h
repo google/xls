@@ -28,6 +28,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -37,6 +38,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_channel_queue.h"
@@ -68,12 +70,26 @@ class BaseProcJitWrapper {
     AotPackageEntrypointsProto proto;
     XLS_RET_CHECK(proto.ParseFromArray(aot_proto.data(), aot_proto.size()));
 
+    absl::flat_hash_map<std::string, PackageInterfaceProto::Proc>
+        proc_interfaces;
+    for (const auto& e : proto.entrypoint()) {
+      XLS_RET_CHECK(e.has_proc_metadata());
+      const PackageInterfaceProto::Proc& proc_interface =
+          e.proc_metadata().proc_interface();
+      proc_interfaces[proc_interface.base().name()] = proc_interface;
+    }
+
     std::vector<ProcAotEntrypoints> real_entrypoints;
     real_entrypoints.reserve(entrypoints.size());
     for (const AotEntrypoint& e : entrypoints) {
-      XLS_ASSIGN_OR_RETURN(Proc * p, package->GetProc(e.proc_name));
-      real_entrypoints.push_back(
-          ProcAotEntrypoints{.proc = p, .unpacked = e.function_ptr});
+      if (auto interface = proc_interfaces.extract(e.proc_name)) {
+        real_entrypoints.push_back(ProcAotEntrypoints{
+            .proc_interface_proto = std::move(interface.mapped()),
+            .unpacked = e.function_ptr});
+      } else {
+        return absl::InternalError(
+            absl::StrFormat("Proc interface not found for %s.", e.proc_name));
+      }
     }
     XLS_ASSIGN_OR_RETURN(auto aot,
                          CreateAotSerialProcRuntime(package.get(), proto,

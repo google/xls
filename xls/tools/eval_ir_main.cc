@@ -270,7 +270,8 @@ class EvalIrJitObserver final : public JitObserver {
 };
 
 absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
-    std::string_view llvm_ir, FunctionJit* jit, absl::Span<const Value> args) {
+    Function* xls_function, std::string_view llvm_ir, FunctionJit* jit,
+    absl::Span<const Value> args) {
   llvm::SMDiagnostic diag;
   llvm::LLVMContext ctx;
   std::string ir_id =
@@ -318,7 +319,7 @@ absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
   // TODO(allight): Deduplicate with FunctionJit::Run
   std::vector<Type*> arg_types;
   arg_types.reserve(args.size());
-  absl::c_transform(jit->function()->params(), std::back_inserter(arg_types),
+  absl::c_transform(xls_function->params(), std::back_inserter(arg_types),
                     [](const Param* p) { return p->GetType(); });
   JitTempBuffer temp_buffer(jit->jitted_function_base().CreateTempBuffer());
   JitArgumentSet input_set(jit->jitted_function_base().CreateInputBuffer());
@@ -359,7 +360,7 @@ absl::StatusOr<InterpreterResult<Value>> RunLlvmInterpreter(
   }
 
   Value result_value = jit->runtime()->UnpackBuffer(
-      output_set.pointers()[0], jit->function()->GetType()->return_type());
+      output_set.pointers()[0], xls_function->GetType()->return_type());
   return InterpreterResult<Value>{std::move(result_value), std::move(events)};
 }
 
@@ -391,9 +392,9 @@ absl::StatusOr<std::vector<Value>> Eval(
         if (absl::GetFlag(FLAGS_use_llvm_jit_interpreter)) {
           XLS_RET_CHECK(!eval_observer)
               << "Observer not supported with llvm interpreter.";
-          XLS_ASSIGN_OR_RETURN(
-              result, DropInterpreterEvents(RunLlvmInterpreter(
-                          observer.saved_opt_ir(), jit.get(), arg_set.args)));
+          XLS_ASSIGN_OR_RETURN(result, DropInterpreterEvents(RunLlvmInterpreter(
+                                           f, observer.saved_opt_ir(),
+                                           jit.get(), arg_set.args)));
         } else {
           std::optional<RuntimeEvaluationObserverAdapter> adapt;
           if (eval_observer) {

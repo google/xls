@@ -26,6 +26,70 @@
 #include "xls/ir/xls_ir_interface.pb.h"
 
 namespace xls {
+namespace {
+
+void AddTyped(PackageInterfaceProto::NamedValue* n, Node* node, Type* ty) {
+  *n->mutable_type() = ty->ToProto();
+  n->set_name(node->GetName());
+}
+
+void AddNamed(PackageInterfaceProto::NamedValue* n, Node* node) {
+  AddTyped(n, node, node->GetType());
+}
+
+void AddFunctionBase(PackageInterfaceProto::FunctionBase* f, FunctionBase* ir,
+                     bool top) {
+  f->set_name(ir->name());
+  f->set_top(top);
+}
+
+}  // namespace
+
+PackageInterfaceProto::Function ExtractFunctionInterface(Function* func) {
+  PackageInterfaceProto::Function proto;
+  AddFunctionBase(proto.mutable_base(), func,
+                  /*top=*/func->package()->GetTop() == func);
+  for (auto* param : func->params()) {
+    AddNamed(proto.add_parameters(), param);
+  }
+  *proto.mutable_result_type() = func->GetType()->return_type()->ToProto();
+  return proto;
+}
+
+PackageInterfaceProto::Proc ExtractProcInterface(Proc* proc) {
+  PackageInterfaceProto::Proc proto;
+  AddFunctionBase(proto.mutable_base(), proc,
+                  /*top=*/proc->package()->GetTop() == proc);
+  for (auto* param : proc->params()) {
+    AddNamed(proto.add_state(), param);
+  }
+  for (const auto& c : proc->channel_references()) {
+    if (c->direction() == Direction::kSend) {
+      *proto.add_send_channels() = c->name();
+    } else {
+      *proto.add_recv_channels() = c->name();
+    }
+  }
+  return proto;
+}
+
+PackageInterfaceProto::Block ExtractBlockInterface(Block* block) {
+  PackageInterfaceProto::Block proto;
+  AddFunctionBase(proto.mutable_base(), block,
+                  /*top=*/block->package()->GetTop() == block);
+  for (const Register* reg : block->GetRegisters()) {
+    auto* named = proto.add_registers();
+    named->set_name(reg->name());
+    *named->mutable_type() = reg->type()->ToProto();
+  }
+  for (Node* port : block->GetInputPorts()) {
+    AddNamed(proto.add_input_ports(), port);
+  }
+  for (OutputPort* port : block->GetOutputPorts()) {
+    AddTyped(proto.add_output_ports(), port, port->output_type());
+  }
+  return proto;
+}
 
 PackageInterfaceProto ExtractPackageInterface(Package* package) {
   PackageInterfaceProto proto;
@@ -53,55 +117,14 @@ PackageInterfaceProto ExtractPackageInterface(Package* package) {
     }
     chan->set_direction(dir);
   }
-  auto add_common = [&](PackageInterfaceProto::FunctionBase* f,
-                        FunctionBase* ir) {
-    f->set_name(ir->name());
-    f->set_top(package->GetTop() == ir);
-  };
-  auto add_typed = [&](PackageInterfaceProto::NamedValue* n, Node* node,
-                       Type* ty) {
-    *n->mutable_type() = ty->ToProto();
-    n->set_name(node->GetName());
-  };
-  auto add_named = [&](PackageInterfaceProto::NamedValue* n, Node* node) {
-    add_typed(n, node, node->GetType());
-  };
   for (const auto& f : package->functions()) {
-    auto* func = proto.add_functions();
-    add_common(func->mutable_base(), f.get());
-    for (auto* param : f->params()) {
-      add_named(func->add_parameters(), param);
-    }
-    *func->mutable_result_type() = f->GetType()->return_type()->ToProto();
+    *proto.add_functions() = ExtractFunctionInterface(f.get());
   }
   for (const auto& p : package->procs()) {
-    auto* proc = proto.add_procs();
-    add_common(proc->mutable_base(), p.get());
-    for (auto* param : p->params()) {
-      add_named(proc->add_state(), param);
-    }
-    for (const auto& c : p->channel_references()) {
-      if (c->direction() == Direction::kSend) {
-        *proc->add_send_channels() = c->name();
-      } else {
-        *proc->add_recv_channels() = c->name();
-      }
-    }
+    *proto.add_procs() = ExtractProcInterface(p.get());
   }
   for (const auto& b : package->blocks()) {
-    auto* blk = proto.add_blocks();
-    add_common(blk->mutable_base(), b.get());
-    for (const Register* reg : b->GetRegisters()) {
-      auto* named = blk->add_registers();
-      named->set_name(reg->name());
-      *named->mutable_type() = reg->type()->ToProto();
-    }
-    for (Node* port : b->GetInputPorts()) {
-      add_named(blk->add_input_ports(), port);
-    }
-    for (OutputPort* port : b->GetOutputPorts()) {
-      add_typed(blk->add_output_ports(), port, port->output_type());
-    }
+    *proto.add_blocks() = ExtractBlockInterface(b.get());
   }
   return proto;
 }

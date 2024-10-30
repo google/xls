@@ -169,14 +169,12 @@ void CoverageEvalObserver::RecordNodeValue(int64_t node_ptr,
     return;
   }
   Node* node = reinterpret_cast<Node*>(static_cast<intptr_t>(node_ptr));
-  if (!raw_coverage_.contains(node)) {
-    raw_coverage_[node] =
-        std::vector<uint8_t>(jit_.value()->GetTypeByteSize(node->GetType()), 0);
-  }
+  auto [iter, _] = raw_coverage_.try_emplace(
+      node, jit_.value()->GetTypeByteSize(node->GetType()), 0);
   if (node->GetType()->GetFlatBitCount() == 0) {
     return;
   }
-  std::vector<uint8_t>& bits = raw_coverage_[node];
+  std::vector<uint8_t>& bits = iter->second;
   for (int64_t i = 0; i < bits.size(); ++i) {
     bits[i] = bits[i] | data[i];
   }

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package xls;
 
+import "xls/ir/xls_ir_interface.proto";
 import "xls/ir/xls_type.proto";
 import "xls/jit/type_layout.proto";
 
@@ -61,12 +62,39 @@ message AotEntrypointProto {
   optional int64 temp_buffer_size = 13;
   optional int64 temp_buffer_alignment = 14;
 
-  // Map from continuation_point ids to the node ids they represent in the IR.
-  map<int64, int64> continuation_point_node_ids = 15;
+  message FunctionMetadataProto {
+    PackageInterfaceProto.Function function_interface = 1;
+  }
 
-  // Map from the channel name to the queue index they are on in the compiled
-  // code.
-  map<string, int64> channel_queue_indices = 16;
+  message ProcMetadataProto {
+    PackageInterfaceProto.Proc proc_interface = 1;
+
+    // Map from continuation_point ids to the node ids they represent in the IR.
+    map<int64, int64> continuation_point_node_ids = 2;
+
+    // Map from the channel name to the queue index they are on in the compiled
+    // code.
+    map<string, int64> channel_queue_indices = 3;
+  }
+
+  message BlockMetadataProto {
+    PackageInterfaceProto.Block block_interface = 1;
+
+    // Register renames done to inline all blocks into a single mega-block
+    // suitable for compilation.
+    map<string, string> register_aliases = 2;
+    // Any registers added to implement things like fifos for simulation.
+    map<string, TypeProto> added_registers = 3;
+  }
+
+  oneof specialized_metadata_oneof {
+    FunctionMetadataProto function_metadata = 23;
+    ProcMetadataProto proc_metadata = 24;
+    BlockMetadataProto block_metadata = 25;
+  }
+
+  reserved 15, 16;
+
   // If MSAN was compiled in.
   optional bool has_msan = 17;
 
@@ -75,14 +103,6 @@ message AotEntrypointProto {
   optional TypeLayoutsProto outputs_layout = 19;
   repeated string inputs_names = 20;
   repeated string outputs_names = 21;
-
-  // Block specific fields.
-
-  // Register renames done to inline all blocks into a single mega-block
-  // suitable for compilation.
-  map<string, string> register_aliases = 23;
-  // Any registers added to implement things like fifos for simulation.
-  map<string, TypeProto> added_registers = 24;
 }
 
 // A single object file can have entrypoints for many different targets. This is

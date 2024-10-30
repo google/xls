@@ -322,7 +322,7 @@ absl::Status InitializeChannelQueues(
                   /*has_observer_callbacks=*/false));
   XLS_ASSIGN_OR_RETURN(
       jit->jitted_function_base_,
-      JittedFunctionBase::BuildFromAot(proc, entrypoint, unpacked, packed));
+      JittedFunctionBase::BuildFromAot(entrypoint, unpacked, packed));
   XLS_RET_CHECK(jit->jitted_function_base_.InputsAndOutputsAreEquivalent());
   XLS_RETURN_IF_ERROR(InitializeChannelQueues(
       proc, queue_mgr, jit->jitted_function_base_, jit->channel_queues_));
@@ -381,8 +381,10 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   cont->SetContinuationPoint(next_continuation_point);
   XLS_RET_CHECK(jitted_function_base_.continuation_points().contains(
       next_continuation_point));
-  Node* early_exit_node =
+  int64_t early_exit_node_id =
       jitted_function_base_.continuation_points().at(next_continuation_point);
+  XLS_ASSIGN_OR_RETURN(Node * early_exit_node,
+                       cont->proc()->GetNodeById(early_exit_node_id));
   if (early_exit_node->Is<Send>()) {
     // Execution exited after sending data on a channel.
     XLS_ASSIGN_OR_RETURN(

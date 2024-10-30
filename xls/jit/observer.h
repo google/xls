@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -108,6 +109,9 @@ class RuntimeEvaluationObserverAdapter final
                                    const std::function<Node*(int64_t)>& to_node,
                                    JitRuntime* runtime)
       : RuntimeEvaluationObserver(to_node, runtime), real_(obs) {}
+
+  std::optional<RuntimeObserver*> AsRawObserver() override { return this; }
+
   void NodeEvaluated(Node* n, const Value& v) override {
     real_->NodeEvaluated(n, v);
   }

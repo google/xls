@@ -1379,7 +1379,7 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildInternal(
     if (partition.early_exit_point.has_value()) {
       XLS_RET_CHECK_EQ(partition.nodes.size(), 1);
       jitted_function.continuation_points_[partition.early_exit_point->id] =
-          partition.nodes.front();
+          partition.nodes.front()->id();
     }
   }
 
@@ -1410,11 +1410,8 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::Build(
 }
 
 absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildFromAot(
-    FunctionBase* function, const AotEntrypointProto& abi,
-    JitFunctionType entrypoint,
+    const AotEntrypointProto& abi, JitFunctionType entrypoint,
     std::optional<JitFunctionType> packed_entrypoint) {
-  XLS_RET_CHECK_EQ(function->package()->name(), abi.xls_package_name());
-  XLS_RET_CHECK_EQ(function->name(), abi.xls_function_identifier());
   XLS_RET_CHECK(abi.has_function_symbol());
   XLS_RET_CHECK_EQ(abi.input_buffer_sizes().size(),
                    abi.input_buffer_alignments().size());
@@ -1435,24 +1432,17 @@ absl::StatusOr<JittedFunctionBase> JittedFunctionBase::BuildFromAot(
   }
   XLS_RET_CHECK(abi.has_temp_buffer_size());
   XLS_RET_CHECK(abi.has_temp_buffer_alignment());
-  absl::flat_hash_map<int64_t, Node*> continuation_points;
+  XLS_RET_CHECK_EQ(abi.type() == AotEntrypointProto::PROC,
+                   abi.has_proc_metadata());
+  absl::flat_hash_map<int64_t, int64_t> continuation_points;
   absl::btree_map<std::string, int64_t> queue_indices;
-  if (function->IsProc()) {
-    continuation_points.reserve(abi.continuation_point_node_ids_size());
-    for (const auto& [cont_point, node_id] :
-         abi.continuation_point_node_ids()) {
-      XLS_ASSIGN_OR_RETURN(continuation_points[cont_point],
-                           function->GetNodeById(node_id));
-    }
-    for (auto* chan : function->package()->channels()) {
-      if (abi.channel_queue_indices().contains(chan->name())) {
-        queue_indices[chan->name()] =
-            abi.channel_queue_indices().at(chan->name());
-      }
-    }
-  } else {
-    XLS_RET_CHECK_EQ(abi.continuation_point_node_ids_size(), 0);
-    XLS_RET_CHECK_EQ(abi.channel_queue_indices_size(), 0);
+
+  if (abi.type() == AotEntrypointProto::PROC) {
+    continuation_points.insert(
+        abi.proc_metadata().continuation_point_node_ids().begin(),
+        abi.proc_metadata().continuation_point_node_ids().end());
+    queue_indices.insert(abi.proc_metadata().channel_queue_indices().begin(),
+                         abi.proc_metadata().channel_queue_indices().end());
   }
   auto to_vec = [](auto vec_like) {
     return std::vector<int64_t>(vec_like.begin(), vec_like.end());

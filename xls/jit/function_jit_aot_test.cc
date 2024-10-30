@@ -124,11 +124,10 @@ TEST_F(FunctionJitAotTest, CallAot) {
   XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kGoldIr));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction(kGoldTopName));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       auto test_aot, FunctionJit::CreateFromAot(
-                         f, proto.entrypoint(0), proto.data_layout(),
+                         proto.entrypoint(0), proto.data_layout(),
                          __multi_func_with_trace__multi_function_one,
                          __multi_func_with_trace__multi_function_one_packed));
   // Value
@@ -167,7 +166,6 @@ TEST_F(FunctionJitAotTest, InterceptCallAot) {
   XLS_ASSERT_OK_AND_ASSIGN(auto gold_file, GetXlsRunfilePath(kGoldIr));
   XLS_ASSERT_OK_AND_ASSIGN(std::string pkg_text, GetFileContents(gold_file));
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(pkg_text, kGoldIr));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction(kGoldTopName));
 
   static thread_local int64_t called_unpacked_cnt = 0;
   static thread_local int64_t called_packed_cnt = 0;
@@ -178,7 +176,7 @@ TEST_F(FunctionJitAotTest, InterceptCallAot) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto test_aot,
       FunctionJit::CreateFromAot(
-          f, proto.entrypoint(0), proto.data_layout(),
+          proto.entrypoint(0), proto.data_layout(),
           [](const uint8_t* const* inputs, uint8_t* const* outputs,
              void* temp_buffer, xls::InterpreterEvents* events,
              xls::InstanceContext* instance_context,

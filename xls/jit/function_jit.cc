@@ -36,9 +36,11 @@
 #include "xls/ir/function.h"
 #include "xls/ir/keyword_args.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_compiler.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
@@ -47,6 +49,50 @@
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
+
+absl::StatusOr<FunctionJit::InterfaceMetadata>
+FunctionJit::InterfaceMetadata::CreateFromFunction(Function* function) {
+  FunctionJit::InterfaceMetadata metadata;
+  metadata.name = function->name();
+  metadata.package = std::make_unique<Package>(function->package()->name());
+  metadata.param_names.reserve(function->params().size());
+  metadata.param_types.reserve(function->params().size());
+  for (Param* param : function->params()) {
+    metadata.param_names.push_back(std::string(param->name()));
+    XLS_ASSIGN_OR_RETURN(
+        Type * param_type,
+        metadata.package->MapTypeFromOtherPackage(param->GetType()));
+    metadata.param_types.push_back(param_type);
+  }
+  XLS_ASSIGN_OR_RETURN(metadata.return_type,
+                       metadata.package->MapTypeFromOtherPackage(
+                           function->return_value()->GetType()));
+  return metadata;
+}
+
+absl::StatusOr<FunctionJit::InterfaceMetadata>
+FunctionJit::InterfaceMetadata::CreateFromAotEntrypoint(
+    const AotEntrypointProto& entrypoint) {
+  FunctionJit::InterfaceMetadata metadata;
+  XLS_RET_CHECK_EQ(entrypoint.type(), AotEntrypointProto::FUNCTION);
+  XLS_RET_CHECK(entrypoint.has_function_metadata());
+  const PackageInterfaceProto::Function& interface =
+      entrypoint.function_metadata().function_interface();
+  metadata.name = interface.base().name();
+  metadata.package = std::make_unique<Package>("aot_package");
+  metadata.param_names.reserve(interface.parameters_size());
+  metadata.param_types.reserve(interface.parameters_size());
+  for (const PackageInterfaceProto::NamedValue& param :
+       interface.parameters()) {
+    metadata.param_names.push_back(param.name());
+    XLS_ASSIGN_OR_RETURN(Type * param_type,
+                         metadata.package->GetTypeFromProto(param.type()));
+    metadata.param_types.push_back(param_type);
+  }
+  XLS_ASSIGN_OR_RETURN(metadata.return_type, metadata.package->GetTypeFromProto(
+                                                 interface.result_type()));
+  return metadata;
+}
 
 absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
     Function* xls_function, int64_t opt_level, bool include_observer_callbacks,
@@ -58,26 +104,28 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::Create(
 // Returns an object containing an AOT-compiled version of the specified XLS
 // function.
 /* static */ absl::StatusOr<std::unique_ptr<FunctionJit>>
-FunctionJit::CreateFromAot(Function* xls_function,
-                           const AotEntrypointProto& entrypoint,
+FunctionJit::CreateFromAot(const AotEntrypointProto& entrypoint,
                            std::string_view data_layout,
                            JitFunctionType function_unpacked,
                            std::optional<JitFunctionType> function_packed) {
-  XLS_ASSIGN_OR_RETURN(
-      JittedFunctionBase jfb,
-      JittedFunctionBase::BuildFromAot(xls_function, entrypoint,
-                                       function_unpacked, function_packed));
+  XLS_ASSIGN_OR_RETURN(JittedFunctionBase jfb,
+                       JittedFunctionBase::BuildFromAot(
+                           entrypoint, function_unpacked, function_packed));
   llvm::Expected<llvm::DataLayout> layout =
       llvm::DataLayout::parse(data_layout);
   XLS_RET_CHECK(layout) << "Unable to parse '" << data_layout
                         << "' to an llvm data-layout.";
+
+  XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
+                       InterfaceMetadata::CreateFromAotEntrypoint(entrypoint));
+
   // OrcJit is simply the arena that holds the JITed code. Since we are already
   // compiled theres no need to create and initialize it.
   // TODO(allight): Ideally we wouldn't even need to link in the llvm stuff if
   // we go down this path, that's a larger refactor however and just carrying
   // around some extra .so's isn't a huge deal.
   return std::unique_ptr<FunctionJit>(new FunctionJit(
-      xls_function, std::unique_ptr<OrcJit>(nullptr), std::move(jfb),
+      std::move(metadata), std::unique_ptr<OrcJit>(nullptr), std::move(jfb),
       /*has_observer_callbacks=*/false, std::make_unique<JitRuntime>(*layout)));
 }
 
@@ -112,44 +160,40 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
   XLS_ASSIGN_OR_RETURN(auto function_base,
                        JittedFunctionBase::Build(xls_function, *orc_jit));
 
+  XLS_ASSIGN_OR_RETURN(InterfaceMetadata metadata,
+                       InterfaceMetadata::CreateFromFunction(xls_function));
   return std::unique_ptr<FunctionJit>(new FunctionJit(
-      xls_function, std::move(orc_jit), std::move(function_base),
+      std::move(metadata), std::move(orc_jit), std::move(function_base),
       include_observer_callbacks, std::make_unique<JitRuntime>(data_layout)));
 }
 
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
     absl::Span<const Value> args) {
-  absl::Span<Param* const> params = xls_function_->params();
-  if (args.size() != params.size()) {
+  if (args.size() != metadata_.ParamCount()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Arg list to '%s' has the wrong size: %d vs expected %d.",
-        xls_function_->name(), args.size(), xls_function_->params().size()));
+        metadata_.name, args.size(), metadata_.ParamCount()));
   }
 
-  for (int i = 0; i < params.size(); i++) {
-    if (!ValueConformsToType(args[i], params[i]->GetType())) {
+  for (int i = 0; i < metadata_.ParamCount(); i++) {
+    if (!ValueConformsToType(args[i], metadata_.param_types[i])) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Got argument %s for parameter %d which is not of type %s",
-          args[i].ToString(), i, params[i]->GetType()->ToString()));
+          args[i].ToString(), i, metadata_.param_types[i]->ToString()));
     }
   }
 
-  std::vector<Type*> param_types;
-  for (const Param* param : xls_function_->params()) {
-    param_types.push_back(param->GetType());
-  }
-
   // Allocate argument buffers and copy in arg Values.
-  XLS_RETURN_IF_ERROR(
-      jit_runtime_->PackArgs(args, param_types, arg_buffers_.pointers()));
+  XLS_RETURN_IF_ERROR(jit_runtime_->PackArgs(args, metadata_.param_types,
+                                             arg_buffers_.pointers()));
 
   InterpreterEvents events;
   jitted_function_base_.RunJittedFunction(
       arg_buffers_, result_buffers_, temp_buffer_, &events,
       /*instance_context=*/&callbacks_, /*jit_runtime=*/runtime(),
       /*continuation_point=*/0);
-  Value result = jit_runtime_->UnpackBuffer(
-      result_buffers_.pointers()[0], xls_function_->return_value()->GetType());
+  Value result = jit_runtime_->UnpackBuffer(result_buffers_.pointers()[0],
+                                            metadata_.return_type);
 
   return InterpreterResult<Value>{std::move(result), std::move(events)};
 }
@@ -157,7 +201,7 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
 absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
     const absl::flat_hash_map<std::string, Value>& kwargs) {
   XLS_ASSIGN_OR_RETURN(std::vector<Value> positional_args,
-                       KeywordArgsToPositional(*xls_function_, kwargs));
+                       KeywordArgsToPositional(metadata_.param_names, kwargs));
   return Run(positional_args);
 }
 
@@ -165,11 +209,10 @@ template <bool kForceZeroCopy>
 absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
                                        absl::Span<uint8_t> result_buffer,
                                        InterpreterEvents* events) {
-  absl::Span<Param* const> params = xls_function_->params();
-  if (args.size() != params.size()) {
+  if (args.size() != metadata_.ParamCount()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Arg list has the wrong size: %d vs expected %d.",
-                        args.size(), xls_function_->params().size()));
+                        args.size(), metadata_.ParamCount()));
   }
 
   if (result_buffer.size() < GetReturnTypeSize()) {

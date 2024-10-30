@@ -66,6 +66,7 @@ class ScopedRecordNodeCoverage {
  public:
   ScopedRecordNodeCoverage(std::optional<std::string> binproto,
                            std::optional<std::string> txtproto,
+
                            std::optional<JitRuntime*> jit = std::nullopt)
       : binproto_(std::move(binproto)),
         txtproto_(std::move(txtproto)),
