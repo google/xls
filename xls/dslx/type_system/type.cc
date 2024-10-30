@@ -68,6 +68,55 @@ std::vector<std::unique_ptr<Type>> CloneStructMembers(
   return cloned_members;
 }
 
+absl::flat_hash_map<std::string, TypeDim> CombineNominalTypeDims(
+    const StructDefBase& struct_def_base,
+    const absl::flat_hash_map<std::string, TypeDim>& existing_dims,
+    const absl::flat_hash_map<std::string, TypeDim>& added_dims) {
+  absl::flat_hash_map<std::string, TypeDim> combined_dims = existing_dims;
+  for (const ParametricBinding* binding :
+       struct_def_base.parametric_bindings()) {
+    const auto it = added_dims.find(binding->identifier());
+    if (it == added_dims.end()) {
+      continue;
+    }
+    const auto existing_it = combined_dims.find(binding->identifier());
+    if (existing_it != combined_dims.end()) {
+      // Don't overwrite a dim that already has a concrete value. We believe
+      // nothing will attempt this, now that resolution uses
+      // `ResolveNominalTypeDims` to have the `StructType` request the ones it
+      // wants.
+      CHECK(std::holds_alternative<TypeDim::OwnedParametric>(
+          existing_it->second.value()));
+    }
+    combined_dims.insert_or_assign(binding->identifier(), it->second.Clone());
+  }
+  return combined_dims;
+}
+
+absl::flat_hash_map<std::string, TypeDim> ResolveDims(
+    const absl::flat_hash_map<std::string, TypeDim>& dims,
+    const ParametricExpression::Env& env) {
+  absl::flat_hash_map<std::string, TypeDim> new_dims = dims;
+  for (auto& [key, dim] : new_dims) {
+    if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
+      dim = TypeDim(
+          std::get<TypeDim::OwnedParametric>(dim.value())->Evaluate(env));
+    }
+  }
+  return new_dims;
+}
+
+absl::StatusOr<std::vector<std::unique_ptr<Type>>> MapMemberSizes(
+    const StructTypeBase& type,
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) {
+  std::vector<std::unique_ptr<Type>> new_members;
+  for (const std::unique_ptr<Type>& member : type.members()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> mapped, member->MapSize(f));
+    new_members.push_back(std::move(mapped));
+  }
+  return new_members;
+}
+
 }  // namespace
 
 Type::~Type() = default;
@@ -358,6 +407,10 @@ bool Type::IsStruct() const {
   return dynamic_cast<const StructType*>(this) != nullptr;
 }
 
+bool Type::IsProc() const {
+  return dynamic_cast<const ProcType*>(this) != nullptr;
+}
+
 bool Type::IsEnum() const {
   return dynamic_cast<const EnumType*>(this) != nullptr;
 }
@@ -387,6 +440,12 @@ const EnumType& Type::AsEnum() const {
 const StructType& Type::AsStruct() const {
   auto* s = dynamic_cast<const StructType*>(this);
   CHECK(s != nullptr) << "Type is not a struct: " << *this;
+  return *s;
+}
+
+const ProcType& Type::AsProc() const {
+  auto* s = dynamic_cast<const ProcType*>(this);
+  CHECK(s != nullptr) << "Type is not a proc: " << *this;
   return *s;
 }
 
@@ -516,39 +575,39 @@ std::unique_ptr<BitsType> BitsType::ToUBits() const {
   return std::make_unique<BitsType>(false, size_.Clone());
 }
 
-// -- StructType
+// -- StructTypeBase
 
-StructType::StructType(
-    std::vector<std::unique_ptr<Type>> members, const StructDef& struct_def,
+StructTypeBase::StructTypeBase(
+    std::vector<std::unique_ptr<Type>> members, const StructDefBase& struct_def,
     absl::flat_hash_map<std::string, TypeDim> nominal_type_dims_by_identifier)
     : members_(std::move(members)),
-      struct_def_(struct_def),
+      struct_def_base_(struct_def),
       nominal_type_dims_by_identifier_(
           std::move(nominal_type_dims_by_identifier)) {
-  CHECK_EQ(members_.size(), struct_def_.members().size());
+  CHECK_EQ(members_.size(), struct_def_base_.members().size());
   for (const std::unique_ptr<Type>& member_type : members_) {
     CHECK(!member_type->IsMeta()) << *member_type;
   }
 }
 
-bool StructType::HasEnum() const {
+bool StructTypeBase::HasEnum() const {
   return absl::c_any_of(members_,
                         [](const auto& type) { return type->HasEnum(); });
 }
 
-bool StructType::HasToken() const {
+bool StructTypeBase::HasToken() const {
   return absl::c_any_of(members_,
                         [](const auto& type) { return type->HasToken(); });
 }
 
-std::string StructType::ToErrorString() const {
+std::string StructTypeBase::ToErrorString() const {
   return absl::StrFormat("struct '%s' structure: %s",
-                         nominal_type().identifier(),
+                         struct_def_base_.identifier(),
                          ToStringInternal(FullyQualify::kNo, nullptr));
 }
 
-std::string StructType::ToStringInternal(FullyQualify fully_qualify,
-                                         const FileTable* file_table) const {
+std::string StructTypeBase::ToStringInternal(
+    FullyQualify fully_qualify, const FileTable* file_table) const {
   std::string guts;
   for (int64_t i = 0; i < members().size(); ++i) {
     if (i != 0) {
@@ -561,16 +620,17 @@ std::string StructType::ToStringInternal(FullyQualify fully_qualify,
   if (!guts.empty()) {
     guts = absl::StrCat(" ", guts, " ");
   }
-  std::string struct_name = nominal_type().identifier();
+  std::string struct_name = struct_def_base_.identifier();
   if (fully_qualify == FullyQualify::kYes) {
     CHECK(file_table != nullptr);
-    struct_name = absl::StrCat(nominal_type().span().GetFilename(*file_table),
+    struct_name = absl::StrCat(struct_def_base_.span().GetFilename(*file_table),
                                ":", struct_name);
   }
   return absl::StrCat(struct_name, " {", guts, "}");
 }
 
-absl::StatusOr<std::vector<std::string>> StructType::GetMemberNames() const {
+absl::StatusOr<std::vector<std::string>> StructTypeBase::GetMemberNames()
+    const {
   std::vector<std::string> results;
   results.reserve(members().size());
   for (int64_t i = 0; i < members().size(); ++i) {
@@ -579,7 +639,7 @@ absl::StatusOr<std::vector<std::string>> StructType::GetMemberNames() const {
   return results;
 }
 
-absl::StatusOr<int64_t> StructType::GetMemberIndex(
+absl::StatusOr<int64_t> StructTypeBase::GetMemberIndex(
     std::string_view name) const {
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> names, GetMemberNames());
   auto it = std::find(names.begin(), names.end(), name);
@@ -591,7 +651,7 @@ absl::StatusOr<int64_t> StructType::GetMemberIndex(
   return std::distance(names.begin(), it);
 }
 
-std::optional<const Type*> StructType::GetMemberTypeByName(
+std::optional<const Type*> StructTypeBase::GetMemberTypeByName(
     std::string_view target) const {
   for (int64_t i = 0; i < members().size(); ++i) {
     if (GetMemberName(i) == target) {
@@ -601,7 +661,7 @@ std::optional<const Type*> StructType::GetMemberTypeByName(
   return std::nullopt;
 }
 
-std::vector<TypeDim> StructType::GetAllDims() const {
+std::vector<TypeDim> StructTypeBase::GetAllDims() const {
   std::vector<TypeDim> results;
   for (const std::unique_ptr<Type>& type : members_) {
     std::vector<TypeDim> t_dims = type->GetAllDims();
@@ -612,44 +672,7 @@ std::vector<TypeDim> StructType::GetAllDims() const {
   return results;
 }
 
-std::unique_ptr<Type> StructType::AddNominalTypeDims(
-    const absl::flat_hash_map<std::string, TypeDim>& added_dims) const {
-  absl::flat_hash_map<std::string, TypeDim> combined_dims =
-      nominal_type_dims_by_identifier_;
-  for (const ParametricBinding* binding : struct_def_.parametric_bindings()) {
-    const auto it = added_dims.find(binding->identifier());
-    if (it != added_dims.end()) {
-      const auto existing_it = combined_dims.find(binding->identifier());
-      if (existing_it != combined_dims.end()) {
-        // Don't overwrite a dim that already has a concrete value. We believe
-        // nothing will attempt this, now that resolution uses
-        // `ResolveNominalTypeDims` to have the `StructType` request the ones it
-        // wants.
-        CHECK(std::holds_alternative<TypeDim::OwnedParametric>(
-            existing_it->second.value()));
-      }
-      combined_dims.insert_or_assign(binding->identifier(), it->second.Clone());
-    }
-  }
-  return std::make_unique<StructType>(CloneStructMembers(members_), struct_def_,
-                                      std::move(combined_dims));
-}
-
-std::unique_ptr<Type> StructType::ResolveNominalTypeDims(
-    const ParametricExpression::Env& env) const {
-  absl::flat_hash_map<std::string, TypeDim> new_dims =
-      nominal_type_dims_by_identifier_;
-  for (auto& [key, dim] : new_dims) {
-    if (std::holds_alternative<TypeDim::OwnedParametric>(dim.value())) {
-      dim = TypeDim(
-          std::get<TypeDim::OwnedParametric>(dim.value())->Evaluate(env));
-    }
-  }
-  return std::make_unique<StructType>(CloneStructMembers(members_), struct_def_,
-                                      std::move(new_dims));
-}
-
-absl::StatusOr<TypeDim> StructType::GetTotalBitCount() const {
+absl::StatusOr<TypeDim> StructTypeBase::GetTotalBitCount() const {
   auto sum = TypeDim::CreateU32(0);
   for (const std::unique_ptr<Type>& t : members_) {
     XLS_ASSIGN_OR_RETURN(TypeDim elem_bit_count, t->GetTotalBitCount());
@@ -659,18 +682,7 @@ absl::StatusOr<TypeDim> StructType::GetTotalBitCount() const {
   return sum;
 }
 
-absl::StatusOr<std::unique_ptr<Type>> StructType::MapSize(
-    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
-  std::vector<std::unique_ptr<Type>> new_members;
-  for (const std::unique_ptr<Type>& member : members_) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> mapped, member->MapSize(f));
-    new_members.push_back(std::move(mapped));
-  }
-  return std::make_unique<StructType>(std::move(new_members), struct_def_,
-                                      nominal_type_dims_by_identifier_);
-}
-
-bool StructType::HasNamedMember(std::string_view target) const {
+bool StructTypeBase::HasNamedMember(std::string_view target) const {
   for (int64_t i = 0; i < members().size(); ++i) {
     if (GetMemberName(i) == target) {
       return true;
@@ -679,11 +691,64 @@ bool StructType::HasNamedMember(std::string_view target) const {
   return false;
 }
 
-bool StructType::operator==(const Type& other) const {
+bool StructTypeBase::operator==(const Type& other) const {
   if (auto* t = dynamic_cast<const StructType*>(&other)) {
-    return Equal(members_, t->members_) && &struct_def_ == &t->struct_def_;
+    return Equal(members_, t->members_) &&
+           &struct_def_base_ == &t->struct_def_base_;
   }
   return false;
+}
+
+// -- StructType
+
+absl::StatusOr<std::unique_ptr<Type>> StructType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> new_members,
+                       MapMemberSizes(*this, f));
+  return std::make_unique<StructType>(std::move(new_members), nominal_type(),
+                                      nominal_type_dims_by_identifier());
+}
+
+std::unique_ptr<Type> StructType::ResolveNominalTypeDims(
+    const ParametricExpression::Env& env) const {
+  absl::flat_hash_map<std::string, TypeDim> new_dims =
+      ResolveDims(nominal_type_dims_by_identifier(), env);
+  return std::make_unique<StructType>(CloneStructMembers(members()),
+                                      nominal_type(), std::move(new_dims));
+}
+
+std::unique_ptr<Type> StructType::AddNominalTypeDims(
+    const absl::flat_hash_map<std::string, TypeDim>& added_dims) const {
+  return std::make_unique<StructType>(
+      CloneStructMembers(members()), nominal_type(),
+      CombineNominalTypeDims(struct_def_base(),
+                             nominal_type_dims_by_identifier(), added_dims));
+}
+
+// -- ProcType
+
+absl::StatusOr<std::unique_ptr<Type>> ProcType::MapSize(
+    const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> new_members,
+                       MapMemberSizes(*this, f));
+  return std::make_unique<ProcType>(std::move(new_members), nominal_type(),
+                                    nominal_type_dims_by_identifier());
+}
+
+std::unique_ptr<Type> ProcType::ResolveNominalTypeDims(
+    const ParametricExpression::Env& env) const {
+  absl::flat_hash_map<std::string, TypeDim> new_dims =
+      ResolveDims(nominal_type_dims_by_identifier(), env);
+  return std::make_unique<ProcType>(CloneStructMembers(members()),
+                                    nominal_type(), std::move(new_dims));
+}
+
+std::unique_ptr<Type> ProcType::AddNominalTypeDims(
+    const absl::flat_hash_map<std::string, TypeDim>& added_dims) const {
+  return std::make_unique<ProcType>(
+      CloneStructMembers(members()), nominal_type(),
+      CombineNominalTypeDims(struct_def_base(),
+                             nominal_type_dims_by_identifier(), added_dims));
 }
 
 // -- TupleType

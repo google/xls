@@ -36,7 +36,7 @@ namespace xls::dslx {
 namespace {
 
 absl::StatusOr<ValueFormatDescriptor> MakeStructFormatDescriptor(
-    const StructType& struct_type, FormatPreference field_preference) {
+    const StructTypeBase& struct_type, FormatPreference field_preference) {
   std::vector<std::string> field_names;
   std::vector<ValueFormatDescriptor> field_formats;
   field_names.reserve(struct_type.size());
@@ -49,7 +49,7 @@ absl::StatusOr<ValueFormatDescriptor> MakeStructFormatDescriptor(
     field_formats.push_back(std::move(desc));
   }
   return ValueFormatDescriptor::MakeStruct(
-      struct_type.nominal_type().identifier(), field_names, field_formats);
+      struct_type.struct_def_base().identifier(), field_names, field_formats);
 }
 
 absl::StatusOr<ValueFormatDescriptor> MakeTupleFormatDescriptor(
@@ -102,6 +102,11 @@ absl::StatusOr<ValueFormatDescriptor> MakeValueFormatDescriptor(
       return absl::OkStatus();
     }
     absl::Status HandleStruct(const StructType& t) override {
+      XLS_ASSIGN_OR_RETURN(result_,
+                           MakeStructFormatDescriptor(t, field_preference_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleProc(const ProcType& t) override {
       XLS_ASSIGN_OR_RETURN(result_,
                            MakeStructFormatDescriptor(t, field_preference_));
       return absl::OkStatus();

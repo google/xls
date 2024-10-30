@@ -1,0 +1,5 @@
+1:0-1:19: PROC_DEF :: `proc Foo {
+    a: u32,
+}` :: typeof(Foo { a: uN[32] })
+1:5-1:8: NAME_DEF :: `Foo` :: typeof(Foo { a: uN[32] })
+1:14-1:17: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])

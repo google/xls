@@ -178,6 +178,7 @@ class FunctionType;
 class ChannelType;
 class TokenType;
 class StructType;
+class ProcType;
 class TupleType;
 class ArrayType;
 class MetaType;
@@ -195,6 +196,7 @@ class TypeVisitor {
   virtual absl::Status HandleChannel(const ChannelType& t) = 0;
   virtual absl::Status HandleToken(const TokenType& t) = 0;
   virtual absl::Status HandleStruct(const StructType& t) = 0;
+  virtual absl::Status HandleProc(const ProcType& t) = 0;
   virtual absl::Status HandleTuple(const TupleType& t) = 0;
   virtual absl::Status HandleArray(const ArrayType& t) = 0;
   virtual absl::Status HandleMeta(const MetaType& t) = 0;
@@ -223,6 +225,9 @@ class TypeVisitorWithDefault : public TypeVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleStruct(const StructType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleProc(const ProcType& t) override {
     return absl::OkStatus();
   }
   absl::Status HandleTuple(const TupleType& t) override {
@@ -388,12 +393,14 @@ class Type {
   bool IsUnit() const;
   bool IsToken() const;
   bool IsStruct() const;
+  bool IsProc() const;
   bool IsEnum() const;
   bool IsArray() const;
   bool IsMeta() const;
   bool IsTuple() const;
 
   const StructType& AsStruct() const;
+  const ProcType& AsProc() const;
   const EnumType& AsEnum() const;
   const ArrayType& AsArray() const;
   const MetaType& AsMeta() const;
@@ -514,22 +521,16 @@ class TokenType : public Type {
   }
 };
 
-// Represents a struct type -- these are similar in spirit to "tuples with named
-// fields", but they also identify the nominal struct that they correspond to --
-// things like type comparisons
-class StructType : public Type {
+// Base class for the type of a struct or a new-style proc that is formatted
+// like a struct.
+class StructTypeBase : public Type {
  public:
   // Note: members must correspond to struct_def's members (same length and
   // order).
-  StructType(std::vector<std::unique_ptr<Type>> members,
-             const StructDef& struct_def,
-             absl::flat_hash_map<std::string, TypeDim>
-                 nominal_type_dims_by_identifier = {});
-
-  absl::Status Accept(TypeVisitor& v) const override {
-    return v.HandleStruct(*this);
-  }
-  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
+  StructTypeBase(std::vector<std::unique_ptr<Type>> members,
+                 const StructDefBase& struct_def_base,
+                 absl::flat_hash_map<std::string, TypeDim>
+                     nominal_type_dims_by_identifier);
 
   bool operator==(const Type& other) const override;
   std::string ToStringInternal(FullyQualify fully_qualify,
@@ -541,11 +542,6 @@ class StructType : public Type {
   bool HasEnum() const override;
   bool HasToken() const override;
   bool IsAggregate() const override { return true; }
-
-  std::unique_ptr<Type> CloneToUnique() const override {
-    return std::make_unique<StructType>(CloneSpan(members_), struct_def_,
-                                        nominal_type_dims_by_identifier_);
-  }
 
   std::optional<int64_t> IndexOf(const Type& e) const {
     for (int64_t i = 0; i < size(); ++i) {
@@ -560,16 +556,12 @@ class StructType : public Type {
   // definition if one is available.
   std::string ToErrorString() const override;
 
-  std::string ToInlayHintString() const override {
-    return nominal_type().identifier();
-  }
-
   // Returns an InvalidArgument error status if this TupleType does not have
   // named members.
   absl::StatusOr<std::vector<std::string>> GetMemberNames() const;
 
   std::string_view GetMemberName(int64_t i) const {
-    return struct_def_.GetMemberName(i);
+    return struct_def_base_.GetMemberName(i);
   }
 
   const Type& GetMemberType(int64_t i) const { return *members_.at(i); }
@@ -581,8 +573,6 @@ class StructType : public Type {
   absl::StatusOr<int64_t> GetMemberIndex(std::string_view name) const;
 
   std::optional<const Type*> GetMemberTypeByName(std::string_view target) const;
-
-  const StructDef& nominal_type() const { return struct_def_; }
 
   // The values of any parametrics that were explicitly specified in
   // instantiating this type. For example, on instantiating the type
@@ -603,17 +593,89 @@ class StructType : public Type {
 
   const std::vector<std::unique_ptr<Type>>& members() const { return members_; }
 
+  const StructDefBase& struct_def_base() const { return struct_def_base_; }
+
+ private:
+  std::vector<std::unique_ptr<Type>> members_;
+  const StructDefBase& struct_def_base_;
+  const absl::flat_hash_map<std::string, TypeDim>
+      nominal_type_dims_by_identifier_;
+};
+
+// Represents a struct type -- these are similar in spirit to "tuples with named
+// fields", but they also identify the nominal struct that they correspond to --
+// things like type comparisons
+class StructType : public StructTypeBase {
+ public:
+  StructType(std::vector<std::unique_ptr<Type>> members,
+             const StructDef& struct_def,
+             absl::flat_hash_map<std::string, TypeDim>
+                 nominal_type_dims_by_identifier = {})
+      : StructTypeBase(std::move(members), struct_def,
+                       std::move(nominal_type_dims_by_identifier)) {}
+
+  absl::Status Accept(TypeVisitor& v) const override {
+    return v.HandleStruct(*this);
+  }
+
+  std::unique_ptr<Type> CloneToUnique() const override {
+    return std::make_unique<StructType>(CloneSpan(members()), nominal_type(),
+                                        nominal_type_dims_by_identifier());
+  }
+
+  const StructDef& nominal_type() const {
+    return *dynamic_cast<const StructDef*>(&struct_def_base());
+  }
+
+  std::string ToInlayHintString() const override {
+    return nominal_type().identifier();
+  }
+
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
+
   std::unique_ptr<Type> AddNominalTypeDims(
       const absl::flat_hash_map<std::string, TypeDim>& dims) const override;
 
   std::unique_ptr<Type> ResolveNominalTypeDims(
       const ParametricExpression::Env&) const override;
+};
 
- private:
-  std::vector<std::unique_ptr<Type>> members_;
-  const StructDef& struct_def_;
-  const absl::flat_hash_map<std::string, TypeDim>
-      nominal_type_dims_by_identifier_;
+// Represents a proc that is formatted like a struct and may contain members
+// that are instances of procs (hence the need for a type class). There is no
+// counterpart for original style procs.
+class ProcType : public StructTypeBase {
+ public:
+  ProcType(std::vector<std::unique_ptr<Type>> members,
+           const ProcDef& struct_def,
+           absl::flat_hash_map<std::string, TypeDim>
+               nominal_type_dims_by_identifier = {})
+      : StructTypeBase(std::move(members), struct_def,
+                       std::move(nominal_type_dims_by_identifier)) {}
+
+  absl::Status Accept(TypeVisitor& v) const override {
+    return v.HandleProc(*this);
+  }
+
+  std::unique_ptr<Type> CloneToUnique() const override {
+    return std::make_unique<ProcType>(CloneSpan(members()), nominal_type(),
+                                      nominal_type_dims_by_identifier());
+  }
+
+  const ProcDef& nominal_type() const {
+    return *dynamic_cast<const ProcDef*>(&struct_def_base());
+  }
+
+  std::string ToInlayHintString() const override {
+    return nominal_type().identifier();
+  }
+
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
+
+  std::unique_ptr<Type> AddNominalTypeDims(
+      const absl::flat_hash_map<std::string, TypeDim>& dims) const override;
+
+  std::unique_ptr<Type> ResolveNominalTypeDims(
+      const ParametricExpression::Env&) const override;
 };
 
 // Represents a tuple type. Tuples have unnamed members.

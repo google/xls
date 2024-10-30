@@ -68,12 +68,10 @@ class ZipTypeVisitor : public TypeVisitor {
     return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
   absl::Status HandleStruct(const StructType& lhs) override {
-    if (auto* rhs = dynamic_cast<const StructType*>(&rhs_)) {
-      if (&lhs.nominal_type() == &rhs->nominal_type()) {
-        return HandleTupleLike(lhs, *rhs);
-      }
-    }
-    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
+    return HandleStructTypeBase<StructType>(lhs);
+  }
+  absl::Status HandleProc(const ProcType& lhs) override {
+    return HandleStructTypeBase<ProcType>(lhs);
   }
   absl::Status HandleArray(const ArrayType& lhs) override {
     if (auto* rhs = dynamic_cast<const ArrayType*>(&rhs_)) {
@@ -130,6 +128,16 @@ class ZipTypeVisitor : public TypeVisitor {
   }
 
  private:
+  template <typename T>
+  absl::Status HandleStructTypeBase(const T& lhs) {
+    if (auto* rhs = dynamic_cast<const T*>(&rhs_)) {
+      if (&lhs.nominal_type() == &rhs->nominal_type()) {
+        return HandleTupleLike(lhs, *rhs);
+      }
+    }
+    return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
+  }
+
   // Handles tuples and structs which are quite similar.
   template <typename T>
   absl::Status HandleTupleLike(const T& lhs, const T& rhs) {

@@ -37,6 +37,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -63,7 +64,7 @@
 #include "xls/dslx/type_system/deduce_expr.h"
 #include "xls/dslx/type_system/deduce_invocation.h"
 #include "xls/dslx/type_system/deduce_spawn.h"
-#include "xls/dslx/type_system/deduce_struct_def.h"
+#include "xls/dslx/type_system/deduce_struct_def_base_utils.h"
 #include "xls/dslx/type_system/deduce_struct_instance.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -1909,11 +1910,32 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstRef(const ConstRef* node,
   return type;
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceStructDef(const StructDef* node,
+                                                      DeduceCtx* ctx) {
+  XLS_RETURN_IF_ERROR(TypecheckStructDefBase(node, ctx));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<Type>> members,
+      DeduceStructDefBaseMembers(node, ctx, &ValidateStructMember));
+  auto wrapped = std::make_unique<StructType>(std::move(members), *node);
+  auto result = std::make_unique<MetaType>(std::move(wrapped));
+  ctx->type_info()->SetItem(node->name_def(), *result);
+  VLOG(5) << absl::Substitute("Deduced type for struct $0 => $1",
+                              node->ToString(), result->ToString());
+  return result;
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceProcDef(const ProcDef* node,
                                                     DeduceCtx* ctx) {
-  // TODO: https://github.com/google/xls/issues/836 - Support this.
-  return absl::InvalidArgumentError(
-      "Type deduction for impl-style procs is not yet supported.");
+  XLS_RETURN_IF_ERROR(TypecheckStructDefBase(node, ctx));
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<Type>> members,
+      DeduceStructDefBaseMembers(node, ctx, &ValidateProcMember));
+  auto wrapped = std::make_unique<ProcType>(std::move(members), *node);
+  auto result = std::make_unique<MetaType>(std::move(wrapped));
+  ctx->type_info()->SetItem(node->name_def(), *result);
+  VLOG(5) << absl::Substitute("Deduced type for proc $0 => $1",
+                              node->ToString(), result->ToString());
+  return result;
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceImpl(const Impl* node,
@@ -1926,10 +1948,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceImpl(const Impl* node,
       type, UnwrapMetaType(std::move(type), node->span(), "impl struct type",
                            ctx->file_table()));
 
-  auto* struct_type = dynamic_cast<const StructType*>(type.get());
+  auto* struct_type = dynamic_cast<const StructTypeBase*>(type.get());
   if (struct_type == nullptr) {
     return TypeInferenceErrorStatus(node->span(), struct_type,
-                                    "Impl must be for a struct type",
+                                    "Impl must be for a struct or proc type",
                                     ctx->file_table());
   }
   TypeRefTypeAnnotation* type_ref =

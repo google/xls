@@ -110,6 +110,12 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package, const Type& type,
       retval_ = package_->GetTupleType(members);
       return absl::OkStatus();
     }
+    absl::Status HandleProc(const ProcType& t) override {
+      // TODO: https://github.com/google/xls/issues/836 - Support this.
+      return absl::UnimplementedError(
+          "IR lowering for impl-style procs is not yet supported: " +
+          t.ToString());
+    }
     absl::Status HandleTuple(const TupleType& t) override {
       std::vector<xls::Type*> members;
       members.reserve(t.members().size());

@@ -143,5 +143,12 @@ type MyFoo = my_imported_module::Foo;
         /*import_data=*/&import_data);
 }
 
+TEST(TypeInfoToProtoTest, ProcWithImpl) {
+  std::string program = R"(
+proc Foo { a: u32 }
+)";
+  DoRun(program, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx

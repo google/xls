@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -152,6 +153,17 @@ absl::StatusOr<const StructDef*> ImportData::FindStructDef(
                         span.ToString(file_table_), module->name()));
   }
   return struct_def;
+}
+
+absl::StatusOr<const ProcDef*> ImportData::FindProcDef(const Span& span) const {
+  XLS_ASSIGN_OR_RETURN(const Module* module, FindModule(span));
+  const ProcDef* proc_def = module->FindProcDef(span);
+  if (proc_def == nullptr) {
+    return absl::NotFoundError(
+        absl::Substitute("Could not find proc def @ $0 within module $1",
+                         span.ToString(file_table_), module->name()));
+  }
+  return proc_def;
 }
 
 absl::StatusOr<const Module*> ImportData::FindModule(const Span& span) const {

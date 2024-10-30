@@ -17,11 +17,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -33,6 +35,22 @@
 
 namespace xls::dslx {
 namespace {
+
+bool ContainsProc(const Type& type) {
+  if (type.IsArray()) {
+    const Type& element_type = type.AsArray().element_type();
+    return element_type.IsProc() || ContainsProc(element_type);
+  }
+  if (type.IsTuple()) {
+    const TupleType& tuple = type.AsTuple();
+    for (const std::unique_ptr<Type>& member_type : tuple.members()) {
+      if (member_type->IsProc() || ContainsProc(*member_type)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 // Warn folks if it's not following
 // https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
@@ -78,19 +96,35 @@ absl::Status TypecheckStructDefBase(const StructDefBase* node, DeduceCtx* ctx) {
 }
 
 absl::StatusOr<std::vector<std::unique_ptr<Type>>> DeduceStructDefBaseMembers(
-    const StructDefBase* node, DeduceCtx* ctx) {
+    const StructDefBase* node, DeduceCtx* ctx,
+    absl::AnyInvocable<absl::Status(DeduceCtx* ctx, const Span&, const Type&)>
+        validator) {
   std::vector<std::unique_ptr<Type>> members;
   for (const auto& [name_span, name, type] : node->members()) {
     WarnOnInappropriateMemberName(name, name_span, *node->owner(), ctx);
-
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete,
                          ctx->DeduceAndResolve(type));
     XLS_ASSIGN_OR_RETURN(
         concrete, UnwrapMetaType(std::move(concrete), type->span(),
                                  "struct member type", ctx->file_table()));
+    XLS_RETURN_IF_ERROR(validator(ctx, name_span, *concrete));
     members.push_back(std::move(concrete));
   }
   return members;
+}
+
+absl::Status ValidateStructMember(DeduceCtx* ctx, const Span& span,
+                                  const Type& type) {
+  if (type.IsProc() || ContainsProc(type)) {
+    return TypeInferenceErrorStatus(span, nullptr,
+                                    "Structs cannot contain procs as members.",
+                                    ctx->file_table());
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ValidateProcMember(DeduceCtx*, const Span&, const Type&) {
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx

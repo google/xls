@@ -184,6 +184,8 @@ class Module : public AstNode {
 
   const StructDef* FindStructDef(const Span& span) const;
 
+  const ProcDef* FindProcDef(const Span& span) const;
+
   const EnumDef* FindEnumDef(const Span& span) const;
 
   // Obtains all the type definition nodes in the module; e.g. TypeAlias,

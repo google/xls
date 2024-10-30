@@ -79,29 +79,13 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
 }
 
 AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
-  if (std::holds_alternative<EnumDef*>(bn)) {
-    return std::get<EnumDef*>(bn)->name_def();
-  }
-  if (std::holds_alternative<TypeAlias*>(bn)) {
-    return &std::get<TypeAlias*>(bn)->name_def();
-  }
-  if (std::holds_alternative<ConstantDef*>(bn)) {
-    return std::get<ConstantDef*>(bn)->name_def();
-  }
-  if (std::holds_alternative<NameDef*>(bn)) {
-    return std::get<NameDef*>(bn);
-  }
-  if (std::holds_alternative<BuiltinNameDef*>(bn)) {
-    return std::get<BuiltinNameDef*>(bn);
-  }
-  if (std::holds_alternative<StructDef*>(bn)) {
-    return std::get<StructDef*>(bn)->name_def();
-  }
-  if (std::holds_alternative<Import*>(bn)) {
-    return &std::get<Import*>(bn)->name_def();
-  }
-  LOG(FATAL) << "Unsupported BoundNode variant: " << ToAstNode(bn)->ToString()
-             << " " << ToAstNode(bn)->GetNodeTypeName();
+  return absl::visit(
+      Visitor{[](NameDef* node) -> AnyNameDef { return node; },
+              [](BuiltinNameDef* node) -> AnyNameDef { return node; },
+              [](TypeAlias* node) -> AnyNameDef { return &node->name_def(); },
+              [](Import* node) -> AnyNameDef { return &node->name_def(); },
+              [](auto* node) -> AnyNameDef { return node->name_def(); }},
+      bn);
 }
 
 Span BoundNodeGetSpan(BoundNode bn, FileTable& file_table) {

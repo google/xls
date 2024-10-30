@@ -18,13 +18,11 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
@@ -215,91 +213,117 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
   XLS_RET_CHECK_EQ(ctx->fn_stack().size(), 1);
   XLS_RET_CHECK_EQ(ctx->fn_stack().back().f(), nullptr);
 
-  if (std::holds_alternative<Import*>(member)) {
-    Import* import = std::get<Import*>(member);
-    XLS_ASSIGN_OR_RETURN(
-        ModuleInfo * imported,
-        DoImport(ctx->typecheck_module(), ImportTokens(import->subject()),
-                 import_data, import->span(), import_data->vfs()));
-    ctx->type_info()->AddImport(import, &imported->module(),
-                                imported->type_info());
-  } else if (std::holds_alternative<ConstantDef*>(member) ||
-             std::holds_alternative<EnumDef*>(member)) {
-    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
-  } else if (std::holds_alternative<Function*>(member)) {
-    Function* f_ptr = std::get<Function*>(member);
-    XLS_RET_CHECK(f_ptr != nullptr);
-    Function& f = *f_ptr;
+  XLS_RETURN_IF_ERROR(absl::visit(
+      Visitor{
+          [import_data, ctx](Import* import) -> absl::Status {
+            XLS_ASSIGN_OR_RETURN(
+                ModuleInfo * imported,
+                DoImport(ctx->typecheck_module(),
+                         ImportTokens(import->subject()), import_data,
+                         import->span(), import_data->vfs()));
 
-    if (f.IsParametric()) {
-      // Typechecking of parametric functions is driven by invocation sites.
-      return absl::OkStatus();
-    }
+            ctx->type_info()->AddImport(import, &imported->module(),
+                                        imported->type_info());
+            return absl::OkStatus();
+          },
+          [ctx](ConstantDef* member) -> absl::Status {
+            return ctx->Deduce(ToAstNode(member)).status();
+          },
+          [ctx](EnumDef* member) -> absl::Status {
+            return ctx->Deduce(ToAstNode(member)).status();
+          },
+          [ctx](Function* f_ptr) -> absl::Status {
+            XLS_RET_CHECK(f_ptr != nullptr);
+            Function& f = *f_ptr;
 
-    bool within_proc = false;
-    auto maybe_proc = f.proc();
-    if (maybe_proc.has_value()) {
-      within_proc = true;
-      Proc* p = maybe_proc.value();
-      if (!CanTypecheckProc(p)) {
-        return absl::OkStatus();
-      }
-      VLOG(5) << "Determined function was within proc `" << p->identifier()
-              << "` but proc is able to be typechecked";
-      XLS_RETURN_IF_ERROR(TypecheckProcStmts(p, ctx));
-    }
+            if (f.IsParametric()) {
+              // Typechecking of parametric functions is driven by invocation
+              // sites.
+              return absl::OkStatus();
+            }
 
-    VLOG(2) << "Typechecking function: `" << f.ToString() << "`";
+            bool within_proc = false;
+            auto maybe_proc = f.proc();
+            if (maybe_proc.has_value()) {
+              within_proc = true;
+              Proc* p = maybe_proc.value();
+              if (!CanTypecheckProc(p)) {
+                return absl::OkStatus();
+              }
+              VLOG(5) << "Determined function was within proc `"
+                      << p->identifier()
+                      << "` but proc is able to be typechecked";
+              XLS_RETURN_IF_ERROR(TypecheckProcStmts(p, ctx));
+            }
 
-    // Note: we push a function stack entry on top of the "top" entry for the
-    // module as we go in to typecheck this function.
-    ScopedFnStackEntry scoped_entry(
-        f, ctx, within_proc ? WithinProc::kYes : WithinProc::kNo);
-    XLS_RETURN_IF_ERROR(TypecheckFunction(f, ctx));
-    scoped_entry.Finish();
+            VLOG(2) << "Typechecking function: `" << f.ToString() << "`";
 
-    VLOG(2) << "Finished typechecking function: " << f.ToString();
-  } else if (std::holds_alternative<Proc*>(member)) {
-    // Just skip procs, as we typecheck their config & next functions (see the
-    // previous else/if arm).
-  } else if (std::holds_alternative<QuickCheck*>(member)) {
-    QuickCheck* qc = std::get<QuickCheck*>(member);
-    XLS_RETURN_IF_ERROR(TypecheckQuickcheck(qc, ctx));
-  } else if (std::holds_alternative<StructDef*>(member)) {
-    StructDef* struct_def = std::get<StructDef*>(member);
-    VLOG(2) << "Typechecking struct: " << struct_def->ToString();
-    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
-    VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
-  } else if (std::holds_alternative<TestFunction*>(member)) {
-    TestFunction* tf = std::get<TestFunction*>(member);
-    if (tf->fn().IsParametric()) {
-      return TypeInferenceErrorStatus(tf->fn().span(), nullptr,
-                                      "Test functions cannot be parametric.",
-                                      ctx->file_table());
-    }
+            // Note: we push a function stack entry on top of the "top" entry
+            // for the module as we go in to typecheck this function.
+            ScopedFnStackEntry scoped_entry(
+                f, ctx, within_proc ? WithinProc::kYes : WithinProc::kNo);
+            XLS_RETURN_IF_ERROR(TypecheckFunction(f, ctx));
+            scoped_entry.Finish();
 
-    // Note: we push a function stack entry on top of the "top" entry for the
-    // module as we go in to typecheck this test function.
-    ScopedFnStackEntry scoped_entry(tf->fn(), ctx, WithinProc::kNo);
-    XLS_RETURN_IF_ERROR(TypecheckFunction(tf->fn(), ctx));
-    scoped_entry.Finish();
-  } else if (std::holds_alternative<TestProc*>(member)) {
-    XLS_RETURN_IF_ERROR(
-        CheckTestProc(std::get<TestProc*>(member), module, ctx));
-  } else if (std::holds_alternative<TypeAlias*>(member)) {
-    TypeAlias* type_alias = std::get<TypeAlias*>(member);
-    VLOG(2) << "Typechecking type alias: " << type_alias->ToString();
-    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
-    VLOG(2) << "Finished typechecking type alias: " << type_alias->ToString();
-  } else if (std::holds_alternative<ConstAssert*>(member)) {
-    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
-  } else if (std::holds_alternative<Impl*>(member)) {
-    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Unimplemented node for module-level typechecking: ",
-                     ToAstNode(member)->GetNodeTypeName()));
-  }
+            VLOG(2) << "Finished typechecking function: " << f.ToString();
+            return absl::OkStatus();
+          },
+          [](Proc* member) -> absl::Status {
+            // Just skip non-impl-style procs, as we typecheck their config &
+            // next functions (see the previous else/if arm).
+            return absl::OkStatus();
+          },
+          [ctx](QuickCheck* qc) -> absl::Status {
+            return TypecheckQuickcheck(qc, ctx);
+          },
+          [ctx](StructDef* struct_def) -> absl::Status {
+            VLOG(2) << "Typechecking struct: " << struct_def->ToString();
+            XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(struct_def)).status());
+            VLOG(2) << "Finished typechecking struct: "
+                    << struct_def->ToString();
+            return absl::OkStatus();
+          },
+          [ctx](TestFunction* tf) -> absl::Status {
+            if (tf->fn().IsParametric()) {
+              return TypeInferenceErrorStatus(
+                  tf->fn().span(), nullptr,
+                  "Test functions cannot be parametric.", ctx->file_table());
+            }
+
+            // Note: we push a function stack entry on top of the "top" entry
+            // for the module as we go in to typecheck this test function.
+            ScopedFnStackEntry scoped_entry(tf->fn(), ctx, WithinProc::kNo);
+            XLS_RETURN_IF_ERROR(TypecheckFunction(tf->fn(), ctx));
+            scoped_entry.Finish();
+            return absl::OkStatus();
+          },
+          [module, ctx](TestProc* member) -> absl::Status {
+            return CheckTestProc(member, module, ctx);
+          },
+          [ctx](TypeAlias* type_alias) -> absl::Status {
+            VLOG(2) << "Typechecking type alias: " << type_alias->ToString();
+            XLS_RETURN_IF_ERROR(ctx->Deduce(type_alias).status());
+            VLOG(2) << "Finished typechecking type alias: "
+                    << type_alias->ToString();
+            return absl::OkStatus();
+          },
+          [ctx](ConstAssert* member) -> absl::Status {
+            return ctx->Deduce(ToAstNode(member)).status();
+          },
+          [ctx](Impl* member) -> absl::Status {
+            return ctx->Deduce(ToAstNode(member)).status();
+          },
+          [ctx](ProcDef* proc_def) -> absl::Status {
+            VLOG(2) << "Typechecking impl-style proc: " << proc_def->ToString();
+            XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(proc_def)).status());
+            VLOG(2) << "Finished typechecking impl-style proc: "
+                    << proc_def->ToString();
+            return absl::OkStatus();
+          },
+          [](VerbatimNode* verbatim_node) -> absl::Status {
+            return absl::OkStatus();
+          }},
+      member));
 
   XLS_RET_CHECK_EQ(ctx->fn_stack().size(), 1);
   XLS_RET_CHECK_EQ(ctx->fn_stack().back().f(), nullptr);

@@ -18,9 +18,11 @@
 #include <memory>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"
 
@@ -31,9 +33,24 @@ namespace xls::dslx {
 absl::Status TypecheckStructDefBase(const StructDefBase* struct_def,
                                     DeduceCtx* ctx);
 
-// Deduces and type checks the types of all members of a `StructDefBase`.
+// Deduces and type checks the types of all members of a `StructDefBase`. The
+// `validator` is used to decide if each member is acceptable in the context,
+// given the source code span and type of the member. If the `validator` errors,
+// then this function stops processing members and returns that error.
 absl::StatusOr<std::vector<std::unique_ptr<Type>>> DeduceStructDefBaseMembers(
-    const StructDefBase* struct_def, DeduceCtx* ctx);
+    const StructDefBase* struct_def, DeduceCtx* ctx,
+    absl::AnyInvocable<absl::Status(DeduceCtx* ctx, const Span&, const Type&)>
+        validator);
+
+// A validator to be used with `DeduceStructDefBaseMembers` for the members of a
+// struct.
+absl::Status ValidateStructMember(DeduceCtx* ctx, const Span& span,
+                                  const Type& type);
+
+// A validator to be used with `DeduceStructDefBaseMembers` for the members of a
+// proc.
+absl::Status ValidateProcMember(DeduceCtx* ctx, const Span& span,
+                                const Type& type);
 
 }  // namespace xls::dslx
 

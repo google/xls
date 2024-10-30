@@ -383,6 +383,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
     absl::Status HandleStruct(const StructType& t) override {
       return absl::OkStatus();
     }
+    absl::Status HandleProc(const ProcType& t) override {
+      return absl::OkStatus();
+    }
     absl::Status HandleTuple(const TupleType& t) override {
       return absl::OkStatus();
     }

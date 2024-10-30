@@ -188,6 +188,12 @@ class MakeValueVisitor : public TypeVisitor {
     result_ = InterpValue::MakeTuple(std::move(elems));
     return absl::OkStatus();
   }
+  absl::Status HandleProc(const ProcType& t) override {
+    return TypeInferenceErrorStatus(
+        span_, &t,
+        absl::StrCat("Cannot make a ", value_name_, " of proc type."),
+        file_table());
+  }
 
   absl::Status HandleTuple(const TupleType& t) override {
     std::vector<InterpValue> elems;

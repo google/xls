@@ -174,7 +174,8 @@ class Bindings {
     }
     return std::holds_alternative<EnumDef*>(*bn) ||
            std::holds_alternative<TypeAlias*>(*bn) ||
-           std::holds_alternative<StructDef*>(*bn);
+           std::holds_alternative<StructDef*>(*bn) ||
+           std::holds_alternative<ProcDef*>(*bn);
   }
 
   // As above, but flags a ParseError() if the binding cannot be resolved,

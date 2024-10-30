@@ -76,6 +76,11 @@ class Callbacks : public ZipTypesCallbacks {
                   absl::StrCat(p.first->nominal_type().identifier(), "{"));
               return absl::OkStatus();
             },
+            [&](std::pair<const ProcType*, const ProcType*> p) {
+              AddMatchedBoth(
+                  absl::StrCat(p.first->nominal_type().identifier(), "{"));
+              return absl::OkStatus();
+            },
             [&](std::pair<const ArrayType*, const ArrayType*> p) {
               /* goes at the end */
               return absl::OkStatus();
@@ -121,6 +126,11 @@ class Callbacks : public ZipTypesCallbacks {
             },
             [&](std::pair<const StructType*, const StructType*>) {
               AddMatchedBoth("}");
+              return absl::OkStatus();
+            },
+            [&](std::pair<const ProcType*, const ProcType*> p) {
+              AddMatchedBoth(
+                  absl::StrCat(p.first->nominal_type().identifier(), "{"));
               return absl::OkStatus();
             },
             [&](std::pair<const ArrayType*, const ArrayType*> p) {

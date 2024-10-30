@@ -325,9 +325,10 @@ absl::StatusOr<ArrayTypeProto> ToProto(const ArrayType& array_type,
   return proto;
 }
 
-absl::StatusOr<StructDefProto> ToProto(const StructDef& struct_def,
-                                       const FileTable& file_table) {
-  StructDefProto proto;
+template <typename T>
+absl::StatusOr<T> ToProto(const StructDefBase& struct_def,
+                          const FileTable& file_table) {
+  T proto;
   *proto.mutable_span() = ToProto(struct_def.span(), file_table);
   proto.set_identifier(struct_def.identifier());
   proto.set_is_public(struct_def.is_public());
@@ -343,8 +344,21 @@ absl::StatusOr<StructTypeProto> ToProto(const StructType& struct_type,
   for (const std::unique_ptr<Type>& member : struct_type.members()) {
     XLS_ASSIGN_OR_RETURN(*proto.add_members(), ToProto(*member, file_table));
   }
-  XLS_ASSIGN_OR_RETURN(*proto.mutable_struct_def(),
-                       ToProto(struct_type.nominal_type(), file_table));
+  XLS_ASSIGN_OR_RETURN(
+      *proto.mutable_struct_def(),
+      ToProto<StructDefProto>(struct_type.nominal_type(), file_table));
+  return proto;
+}
+
+absl::StatusOr<ProcTypeProto> ToProto(const ProcType& proc_type,
+                                      const FileTable& file_table) {
+  ProcTypeProto proto;
+  for (const std::unique_ptr<Type>& member : proc_type.members()) {
+    XLS_ASSIGN_OR_RETURN(*proto.add_members(), ToProto(*member, file_table));
+  }
+  XLS_ASSIGN_OR_RETURN(
+      *proto.mutable_proc_def(),
+      ToProto<ProcDefProto>(proc_type.nominal_type(), file_table));
   return proto;
 }
 
@@ -427,6 +441,9 @@ absl::StatusOr<TypeProto> ToProto(const Type& type,
   } else if (const auto* struct_type = dynamic_cast<const StructType*>(&type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_struct_type(),
                          ToProto(*struct_type, file_table));
+  } else if (const auto* proc_type = dynamic_cast<const ProcType*>(&type)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_proc_type(),
+                         ToProto(*proc_type, file_table));
   } else if (const auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_type(),
                          ToProto(*enum_type, file_table));
@@ -624,6 +641,20 @@ absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
         members.push_back(std::move(member));
       }
       return std::make_unique<StructType>(std::move(members), *struct_def);
+    }
+    case TypeProto::TypeOneofCase::kProcType: {
+      const ProcTypeProto& ptp = ctp.proc_type();
+      const ProcDefProto& proc_def_proto = ptp.proc_def();
+      XLS_ASSIGN_OR_RETURN(const ProcDef* proc_def,
+                           import_data.FindProcDef(
+                               FromProto(proc_def_proto.span(), file_table)));
+      std::vector<std::unique_ptr<Type>> members;
+      for (const TypeProto& member_proto : ptp.members()) {
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> member,
+                             FromProto(member_proto, import_data, file_table));
+        members.push_back(std::move(member));
+      }
+      return std::make_unique<ProcType>(std::move(members), *proc_def);
     }
     case TypeProto::TypeOneofCase::kMetaType: {
       XLS_ASSIGN_OR_RETURN(

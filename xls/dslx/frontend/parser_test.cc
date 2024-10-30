@@ -300,6 +300,28 @@ impl Foo {
           HasSubstr("Impl-style procs must use commas to separate members.")));
 }
 
+TEST_F(ParserTest, ProcWithImplEmptyInstantiation) {
+  RoundTrip(R"(proc Foo {
+}
+impl Foo {
+}
+fn foo() -> Foo {
+    Foo {  }
+})");
+}
+
+TEST_F(ParserTest, ProcWithImplInstantiation) {
+  RoundTrip(R"(proc Foo<N: u32> {
+    foo: u32,
+    bar: bits[N],
+}
+impl Foo {
+}
+fn foo() -> Foo<u32:8> {
+    Foo<u32:8> { foo: u32:5, bar: u8:6 }
+})");
+}
+
 TEST_F(ParserTest, ProcWithNoImplAndCommaSeparator) {
   constexpr std::string_view kProgram = R"(pub proc Foo {
     x: u32,

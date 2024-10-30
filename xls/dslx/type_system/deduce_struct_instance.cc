@@ -130,6 +130,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceStructInstance(
       type, UnwrapMetaType(std::move(type), node->span(),
                            "struct instance type", ctx->file_table()));
 
+  auto* proc_type = dynamic_cast<const ProcType*>(type.get());
+  if (proc_type != nullptr) {
+    // TODO: https://github.com/google/xls/issues/836 - Support this.
+    return TypeInferenceErrorStatus(
+        node->span(), proc_type,
+        "Instantiation of impl-style procs is not yet supported.",
+        ctx->file_table());
+  }
   auto* struct_type = dynamic_cast<const StructType*>(type.get());
   if (struct_type == nullptr) {
     return TypeInferenceErrorStatus(

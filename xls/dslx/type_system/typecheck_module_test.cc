@@ -231,57 +231,312 @@ TEST(TypecheckTest, LetBadRhs) {
 }
 
 TEST(TypecheckTest, ParametricInvocation) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x + bits[N]:1 }
 fn f() -> u32 { p(u32:3) }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, ParametricInvocationWithTuple) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> (bits[N], bits[N]) { (x, x) }
 fn f() -> (u32, u32) { p(u32:3) }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, DoubleParametricInvocation) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x + bits[N]:1 }
 fn o<M: u32>(x: bits[M]) -> bits[M] { p(x) }
 fn f() -> u32 { o(u32:3) }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, XbitsBinding) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<S: bool, N: u32>(x: xN[S][N]) -> (bool, u32) { (S, N) }
 fn f() -> (bool, u32)[2] { [p(u4:0), p(s8:0)] }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, XbitsCast) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn f(x: u1) -> s1 { x as xN[true][1] }
 fn g() -> s1 { u1:0 as xN[true][1] }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, ParametricPlusGlobal) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 const GLOBAL = u32:4;
 fn p<N: u32>() -> bits[N+GLOBAL] { bits[N+GLOBAL]:0 }
 fn f() -> u32 { p<u32:28>() }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithImplEmpty) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {}
+
+impl Foo {}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithImplAndMembers) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: s8[7],
+}
+
+impl Foo {}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithImplAndParametrics) {
+  constexpr std::string_view kProgram = R"(
+proc Proc<A: u32, B: u32 = {u32:32}, C:u32 = {B / u32:2}> {
+  a: uN[A],
+  b: uN[B],
+  c: uN[C],
+}
+
+impl Proc {}
+  )";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithImplEmptyInstantiation) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {}
+
+impl Foo {}
+
+fn foo() -> Foo {
+  Foo{}
+}
+  )";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Instantiation of impl-style procs is not yet supported.")));
+}
+
+TEST(TypecheckTest, ProcWithImplInstantiation) {
+  constexpr std::string_view kProgram = R"(
+proc Foo<N: u32> {
+  foo: u32,
+  bar: bits[N],
+}
+
+impl Foo {}
+
+fn foo() -> Foo<u32:8> {
+  Foo<u32:8> { foo: u32:5, bar: u8:6 }
+}
+  )";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Instantiation of impl-style procs is not yet supported.")));
+}
+
+TEST(TypecheckTest, FailsOnProcWithImplZero) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+fn foo() -> Foo {
+  zero!<Foo>()
+}
+  )";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot make a zero-value of proc type.")));
+}
+
+TEST(TypecheckTest, FailsOnProcWithImplAsStructMember) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+struct Bar {
+  the_proc: Foo
+}
+
+fn foo() -> Foo {
+  zero!<Bar>()
+}
+  )";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Structs cannot contain procs as members.")));
+}
+
+TEST(TypecheckTest, FailsOnProcWithImplAsStructMemberInArray) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+struct Bar {
+  subprocs: Foo[2]
+}
+
+fn foo() -> Foo {
+  zero!<Bar>()
+}
+  )";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Structs cannot contain procs as members.")));
+}
+
+TEST(TypecheckTest, FailsOnProcWithImplAsStructMemberInTuple) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+struct Bar {
+  subprocs: (Foo, Foo)
+}
+
+fn foo() -> Foo {
+  zero!<Bar>()
+}
+  )";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Structs cannot contain procs as members.")));
+}
+
+TEST(TypecheckTest, ProcWithImplAsProcMember) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+proc Bar {
+  subproc: Foo
+}
+  )";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithImplAsProcMemberInArray) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+proc Bar {
+  subprocs: Foo[2]
+}
+  )";
+
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithImplAsProcMemberInTuple) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+
+proc Bar {
+  subprocs: (Foo, Foo)
+}
+  )";
+
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ProcWithImplAsImportedProcMember) {
+  constexpr std::string_view kImported = R"(
+pub proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+proc Bar {
+  subproc: imported::Foo
+})";
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, FailsOnProcWithImplAsImportedStructMember) {
+  constexpr std::string_view kImported = R"(
+pub proc Foo {
+  foo: u32,
+  bar: bool,
+}
+
+impl Foo {}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+struct Bar {
+  subproc: imported::Foo
+})";
+  auto import_data = CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  EXPECT_THAT(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Structs cannot contain procs as members.")));
 }
 
 TEST(TypecheckTest, ParametricStructInstantiatedByGlobal) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 struct MyStruct<WIDTH: u32> {
   f: bits[WIDTH]
 }
@@ -291,34 +546,34 @@ fn p<FIELD_WIDTH: u32>(s: MyStruct<FIELD_WIDTH>) -> u15 {
 const GLOBAL = u32:15;
 fn f(s: MyStruct<GLOBAL>) -> u15 { p(s) }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, TopLevelConstTypeMismatch) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 const GLOBAL: u64 = u32:4;
 )";
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("uN[64] vs uN[32]: Constant definition's annotated "
                          "type did not match its expression's type")));
 }
 
 TEST(TypecheckTest, TopLevelConstTypeMatch) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 const GLOBAL: u32 = u32:4;
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckErrorTest, ParametricIdentifierLtValue) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
 fn f() -> bool { p < u32:42 }
 )";
-  EXPECT_THAT(Typecheck(program),
+  EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Name 'p' is a parametric function, but it is "
                                  "not being invoked")));
@@ -330,20 +585,20 @@ fn f() -> bool { p < u32:42 }
 // TODO(https://github.com/google/xls/issues/1495): We'd like this to be an
 // error in the future.
 TEST(TypecheckTest, Gh1473_UnboundButAlsoUnusedParametricNoDefaultExpr) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32>(y: uN[Y]) -> u32 { Y }
 fn f() -> u32 { p(u7:0) }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckErrorTest, Gh1473_UnboundButAlsoUnusedParametricWithDefaultExpr) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32 = {X+X}>(y: uN[Y]) -> u32 { Y }
 fn f() -> u32 { p(u7:0) }
 )";
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Parametric expression `X + X` referred to `X` which "
                          "is not present in the parametric environment")));
@@ -352,11 +607,11 @@ fn f() -> u32 { p(u7:0) }
 // In this example we do not bind X via the arguments, but we try to use it in
 // forming a return type.
 TEST(TypecheckErrorTest, Gh1473_UnboundAndUsedParametric) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32>(y: uN[Y]) -> uN[X] { Y }
 fn f() -> u32 { p(u7:0) }
 )";
-  EXPECT_THAT(Typecheck(program),
+  EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("uN[X] Instantiated return type did not have "
                                  "the following parametrics resolved: X")));
@@ -368,43 +623,43 @@ fn f() -> u32 { p(u7:0) }
 // TODO(https://github.com/google/xls/issues/1495): This surprisingly works in
 // type checking but fails when we try to IR convert it, we should fix that.
 TEST(TypecheckTest, Gh1473_UnboundAndUsedParametricInBody) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<X: u32, Y: u32>(y: uN[Y]) -> bool { uN[X]:0 == uN[X]:1 }
 fn f() -> bool { p(u7:0) }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, MapOfParametric) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn p<N: u32>(x: bits[N]) -> bits[N] { x }
 
 fn f() -> u32[3] {
   map(u32[3]:[1, 2, 3], p)
 }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, MapOfParametricExplicit) {
-  std::string program =
+  constexpr std::string_view kProgram =
       R"(
 fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
 fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17>) }
 )";
 
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckTest, MapOfParametricExplicitWithWrongNumberOfArgs) {
-  std::string program =
+  constexpr std::string_view kProgram =
       R"(
 fn f<N:u32, K:u32>(x: u32) -> uN[N] { x as uN[N] + K as uN[N] }
 fn main() -> u5[4] { map(u32[4]:[0, 1, 2, 3], f<u32:5, u32:17, u32:18>) }
 )";
 
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Too many parametric values supplied; limit: 2 given: 3")));
@@ -449,81 +704,81 @@ fn main() -> u32[3] {
 }
 
 TEST(TypecheckErrorTest, ParametricInvocationConflictingArgs) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u32:5) }
 )";
-  EXPECT_THAT(Typecheck(program), StatusIs(absl::StatusCode::kInvalidArgument,
-                                           HasSubstr("saw: 8; then: 32")));
+  EXPECT_THAT(Typecheck(kProgram), StatusIs(absl::StatusCode::kInvalidArgument,
+                                            HasSubstr("saw: 8; then: 32")));
 }
 
 TEST(TypecheckErrorTest, ParametricWrongKind) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id((u8:3,)) }
 )";
-  EXPECT_THAT(Typecheck(program), StatusIs(absl::StatusCode::kInvalidArgument,
-                                           HasSubstr("different kinds")));
+  EXPECT_THAT(Typecheck(kProgram), StatusIs(absl::StatusCode::kInvalidArgument,
+                                            HasSubstr("different kinds")));
 }
 
 TEST(TypecheckErrorTest, ParametricWrongNumberOfDims) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn id<N: u32, M: u32>(x: bits[N][M]) -> bits[N][M] { x }
 fn f() -> u32 { id(u32:42) }
 )";
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("types are different kinds (array vs ubits)")));
 }
 
 TEST(TypecheckErrorTest, RecursionCausesError) {
-  std::string program = "fn f(x: u32) -> u32 { f(x) }";
-  EXPECT_THAT(Typecheck(program),
+  constexpr std::string_view kProgram = "fn f(x: u32) -> u32 { f(x) }";
+  EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Recursion of function `f` detected")));
 }
 
 TEST(TypecheckErrorTest, ParametricRecursionCausesError) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn f<X: u32>(x: bits[X]) -> u32 { f(x) }
 fn g() -> u32 { f(u32: 5) }
 )";
-  EXPECT_THAT(Typecheck(program),
+  EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Recursion of function `f` detected")));
 }
 
 TEST(TypecheckErrorTest, HigherOrderRecursionCausesError) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn h<Y: u32>(y: bits[Y]) -> bits[Y] { h(y) }
 fn g() -> u32[3] {
     let x0 = u32[3]:[0, 1, 2];
     map(x0, h)
 }
 )";
-  EXPECT_THAT(Typecheck(program),
+  EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Recursion of function `h` detected")));
 }
 
 TEST(TypecheckErrorTest, InvokeWrongArg) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn id_u32(x: u32) -> u32 { x }
 fn f(x: u8) -> u8 { id_u32(x) }
 )";
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Mismatch between parameter and argument types")));
 }
 
 TEST(TypecheckErrorTest, InvokeNumberValue) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn f(x: u8) -> u8 { 42(x) }
 )";
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("invocation callee must be either a name reference or "
                          "a colon reference; instead got: number")));
@@ -531,21 +786,21 @@ fn f(x: u8) -> u8 { 42(x) }
 
 // Since the parametric is not instantiated we don't detect this type error.
 TEST(TypecheckTest, InvokeNumberValueInUninstantiatedParametric) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: u8) -> u8 { 42(x) }
 )";
-  XLS_EXPECT_OK(Typecheck(program));
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 TEST(TypecheckErrorTest, BadTupleType) {
-  std::string program = R"(
+  constexpr std::string_view kProgram = R"(
 fn f() -> u32 {
   let (a, b, c): (u32, u32) = (u32:1, u32:2, u32:3);
   a
 }
 )";
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Annotated type did not match inferred type")));
 }
@@ -555,7 +810,8 @@ fn f() -> u32 {
 class LogicalOpTypecheckTest : public testing::TestWithParam<std::string_view> {
  public:
   absl::Status TypecheckOp(std::string_view tmpl) {
-    std::string program = absl::StrReplaceAll(tmpl, {{"$OP", GetParam()}});
+    const std::string program =
+        absl::StrReplaceAll(tmpl, {{"$OP", GetParam()}});
     return Typecheck(program).status();
   }
 };
@@ -2675,8 +2931,8 @@ fn f() -> () {
 }
 
 TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {
-  const std::string program = R"(const mol = u32:42;)";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  const constexpr std::string_view kProgram = R"(const mol = u32:42;)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
   TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
@@ -2685,15 +2941,16 @@ TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {
 }
 
 TEST(TypecheckTest, NonstandardConstantNamingOkViaAllow) {
-  const std::string program = R"(#![allow(nonstandard_constant_naming)]
+  const constexpr std::string_view kProgram =
+      R"(#![allow(nonstandard_constant_naming)]
 const mol = u32:42;)";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
   TypecheckedModule& tm = tr.tm;
   ASSERT_TRUE(tm.warnings.warnings().empty());
 }
 
 TEST(TypecheckTest, BadTraceFmtWithUseOfChannel) {
-  constexpr std::string_view program =
+  constexpr std::string_view kProgram =
       R"(
 proc Counter {
   in_ch: chan<u32> in;
@@ -2715,13 +2972,13 @@ proc Counter {
 )";
 
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Cannot format an expression with channel type")));
 }
 
 TEST(TypecheckTest, BadTraceFmtWithUseOfFunction) {
-  constexpr std::string_view program =
+  constexpr std::string_view kProgram =
       R"(
 pub fn some_function() -> u32 { u32:0 }
 
@@ -2731,7 +2988,7 @@ pub fn other_function() -> u32 {
 )";
 
   EXPECT_THAT(
-      Typecheck(program),
+      Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Cannot format an expression with function type")));
 }
@@ -3113,13 +3370,13 @@ fn f(x: (u32, u33)) -> u32 {
 }
 
 TEST(TypecheckTest, UnusedBindingInBodyGivesWarning) {
-  const std::string program = R"(
+  const constexpr std::string_view kProgram = R"(
 fn f(x: u32) -> u32 {
     let y = x + u32:42;
     x
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
   TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
@@ -3127,13 +3384,13 @@ fn f(x: u32) -> u32 {
 }
 
 TEST(TypecheckTest, FiveUnusedBindingsInLetBindingPattern) {
-  const std::string program = R"(
+  const constexpr std::string_view kProgram = R"(
 fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
     let (a, b, c, d, e) = t;
     t.0
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
   TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 5);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
@@ -3149,14 +3406,14 @@ fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
 }
 
 TEST(TypecheckTest, UnusedMatchBindingInBodyGivesWarning) {
-  const std::string program = R"(
+  const constexpr std::string_view kProgram = R"(
 fn f(x: u32) -> u32 {
   match x {
     y => x
   }
 }
 )";
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(program));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
   TypecheckedModule& tm = tr.tm;
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
@@ -3661,7 +3918,7 @@ fn builtins() -> (u1, u1, u1, u32, u32, u32, $VALUE_TYPE) {
 
   for (const auto& [param_type, value_type, value, want_unsigned_builtins] :
        kTestCases) {
-    std::string program =
+    const std::string program =
         absl::StrReplaceAll(kTemplate, {
                                            {"$PARAM_TYPE", param_type},
                                            {"$VALUE_TYPE", value_type},

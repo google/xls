@@ -27,6 +27,7 @@ namespace xls::dslx {
 using AggregatePair =
     std::variant<std::pair<const TupleType*, const TupleType*>,
                  std::pair<const StructType*, const StructType*>,
+                 std::pair<const ProcType*, const ProcType*>,
                  std::pair<const ArrayType*, const ArrayType*>,
                  std::pair<const ChannelType*, const ChannelType*>,
                  std::pair<const FunctionType*, const FunctionType*>,

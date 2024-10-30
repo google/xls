@@ -191,11 +191,27 @@ message StructDefProto {
   optional bool is_public = 4;
 }
 
+// Serialized data for a proc definition referenced in a proc type -- see
+// `xls::dslx::ProcDef`.
+message ProcDefProto {
+  optional SpanProto span = 1;
+  optional string identifier = 2;
+  repeated string member_names = 3;
+  optional bool is_public = 4;
+}
+
 // Struct type (that has a nominal struct definition associated with it) -- see
 // `xls::dslx::StructType`.
 message StructTypeProto {
   repeated TypeProto members = 1;
   optional StructDefProto struct_def = 2;
+}
+
+// Proc type, for procs that are formatted like structs -- see
+// `xls::dslx::ProcType`.
+message ProcTypeProto {
+  repeated TypeProto members = 1;
+  optional ProcDefProto proc_def = 2;
 }
 
 // Serialized data for an enum definition referenced in an enum type -- see
@@ -245,6 +261,7 @@ message TypeProto {
     MetaTypeProto meta_type = 8;
     ChannelTypeProto channel_type = 9;
     BitsConstructorTypeProto bits_constructor_type = 10;
+    ProcTypeProto proc_type = 11;
   }
 }
 
