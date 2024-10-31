@@ -29,21 +29,6 @@ namespace {
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
-TEST(TypecheckTest, ConstantOnStructInstant) {
-  constexpr std::string_view kProgram = R"(
-struct Point { x: u32, y: u32 }
-
-impl Point {
-    const NUM_DIMS = u32:2;
-}
-
-fn point_dims(p: Point) -> u32 {
-    p::NUM_DIMS
-}
-)";
-  XLS_EXPECT_OK(Typecheck(kProgram));
-}
-
 TEST(TypecheckTest, StaticConstantOnStruct) {
   constexpr std::string_view kProgram = R"(
 struct Point { x: u32, y: u32 }
@@ -197,16 +182,18 @@ impl Point<X> {
 }
 
 fn use_points() {
-     let pa = Point<u32:2>{};
-     let pb = Point<u32:4>{};
-     assert_eq(pa::ZERO, u4:0);
-     assert_eq(pb::ZERO, u8:0);
+     type Point2 = Point<u32:2>;
+     type Point4 = Point<u32:4>;
+     assert_eq(Point2::ZERO, u4:0);
+     assert_eq(Point4::ZERO, u8:0);
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ImplWithParametricStruct) {
+// TODO(google/xls#1277): Allow parsing colonrefs with TypeAnnotation as the
+// subject.
+TEST(TypecheckTest, DISABLED_ImplWithParametricStruct) {
   constexpr std::string_view kProgram = R"(
 struct Point<MAX_X: u32> { x: u32, y: u32 }
 
@@ -216,14 +203,13 @@ impl Point<MAX_X> {
 }
 
 fn use_point() -> u10 {
-    let p = Point<u32:5>{ x: u32:1, y: u32:0 };
-    uN[p::MAX_WIDTH]:0
+    uN[Point<u32:5>::MAX_WIDTH]:0
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, ImplWithParametricStructFromFn) {
+TEST(TypecheckTest, DISABLED_ImplWithParametricStructFromFn) {
   constexpr std::string_view kProgram = R"(
 struct Point<MAX_X: u32> { x: u32, y: u32 }
 
@@ -233,8 +219,7 @@ impl Point<MAX_X> {
 }
 
 fn use_point<MAX_X: u32>() -> uN[u32:2 * MAX_X] {
-    let p = Point<MAX_X>{ x: u32:1, y: u32:0 };
-    uN[p::MAX_WIDTH]:0
+    uN[Point<MAX_X>::MAX_WIDTH]:0
 }
 
 fn main() -> u10 {
@@ -259,48 +244,8 @@ impl APFloat<EXP_SZ, FRACTION_SZ> {
 type BF16 = APFloat<u32:8, u32:7>;
 
 fn bf_ezp() -> u8 {
-    let p = BF16 { sign: u1:0, bexp: u8:0, fraction: u7:0 };
-    uN[p::EXP]:0
+    uN[BF16::EXP]:0
 }
-)";
-  XLS_EXPECT_OK(Typecheck(kProgram));
-}
-
-TEST(TypecheckErrorTest, MissingImplWithStructInstance) {
-  constexpr std::string_view kProgram = R"(
-struct Point<MAX_X: u32> { x: u32, y: u32 }
-
-fn use_point() -> u10 {
-    let p = Point<u32:5>{ x: u32:1, y: u32:0 };
-    uN[p::MAX_WIDTH]:0
-}
-)";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Struct 'Point' has no impl defining 'MAX_WIDTH'")));
-}
-
-TEST(TypecheckTest, ImplWithParametricTypeAliasAsParam) {
-  constexpr std::string_view kProgram = R"(
-struct Point<MAX_X: u32> { x: u32, y: u32 }
-
-impl Point<MAX_X> {
-    const NUM_DIMS = u32:2;
-    const MAX_WIDTH = u32:2 * MAX_X;
-}
-
-type Narrow = Point<u32: 2>;
-
-fn max_width(n: Narrow) -> u32 {
-    n::MAX_WIDTH
-}
-
-fn use_point() -> u4 {
-    let ezm = Narrow{ x: u32:1, y: u32:0 };
-    uN[max_width(ezm)]:0
-}
-
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
@@ -316,8 +261,8 @@ impl Point<MAX_X, MAX_Y> {
 }
 
 fn use_point() -> u8 {
-    let p = Point<u32: 2>{ x: u32:1, y: u32:0 };
-    uN[p::MAX_HEIGHT]:0
+    type MyPoint = Point<u32: 2>;
+    uN[MyPoint::MAX_HEIGHT]:0
 }
 
 )";
@@ -347,30 +292,6 @@ fn main() -> uN[6] {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
-TEST(TypecheckTest, ImportedImplWithInstance) {
-  constexpr std::string_view kImported = R"(
-pub struct Empty { }
-
-impl Empty {
-   const IMPORTED = u32:6;
-}
-
-)";
-  constexpr std::string_view kProgram = R"(
-import imported;
-
-fn main() -> uN[6] {
-    let e = imported::Empty{};
-    uN[e::IMPORTED]:0
-})";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule module,
-      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
-  XLS_EXPECT_OK(
-      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
-}
-
 TEST(TypecheckTest, ImportedImplParametric) {
   constexpr std::string_view kImported = R"(
 pub struct Empty<X: u32> { }
@@ -384,8 +305,8 @@ impl Empty<X> {
 import imported;
 
 fn main() -> uN[6] {
-    let e = imported::Empty<u32: 3>{};
-    uN[e::IMPORTED]:0
+    type MyEmpty = imported::Empty<u32: 3>;
+    uN[MyEmpty::IMPORTED]:0
 })";
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -405,12 +326,12 @@ impl MyStruct<WIDTH> {
   const EXP = WIDTH;
 }
 
-fn p<FIELD_WIDTH: u32>(s: MyStruct<FIELD_WIDTH>) -> uN[FIELD_WIDTH] {
-  uN[s::EXP]:0
+const GLOBAL = u32:15;
+fn f() -> u15 {
+   type GlobalStruct = MyStruct<GLOBAL>;
+   uN[GlobalStruct::EXP]:0
 }
 
-const GLOBAL = u32:15;
-fn f(s: MyStruct<GLOBAL>) -> u15 { p(s) }
 )";
   XLS_EXPECT_OK(Typecheck(program));
 }

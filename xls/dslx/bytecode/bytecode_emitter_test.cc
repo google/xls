@@ -854,8 +854,8 @@ impl Empty<N> {
 
 #[test]
 fn struct_const_ref() -> u4 {
-  let x = Empty<u32:4>{};
-  x::MY_CONST
+  type MyEmpty = Empty<u32:4>;
+  MyEmpty::MY_CONST
 }
 )";
 
@@ -871,12 +871,12 @@ fn struct_const_ref() -> u4 {
                                                  tf->fn(), ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 3);
+  ASSERT_EQ(bytecodes.size(), 1);
 
   const Bytecode* bc = bytecodes.data();
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
+  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
-  EXPECT_THAT(bytecodes.at(2).value_data(),
+  EXPECT_THAT(bytecodes.at(0).value_data(),
               IsOkAndHolds(InterpValue::MakeSBits(4, 7)));
 }
 

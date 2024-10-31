@@ -18,13 +18,10 @@ impl Point {
     const MY_CONST = u32:5;
 }
 
-fn main() -> u32 {
-    let p = Point { x: u32:7, y: u32:8 };
-    p::MY_CONST
-}
+fn main() -> u32 { Point::MY_CONST }
 
 #[test]
 fn use_impl_const() {
-    let p = Point { x: u32:7, y: u32:8 };
-    assert_eq(p::MY_CONST, u32:5);
+    type PointAlias = Point;
+    assert_eq(PointAlias::MY_CONST, u32:5);
 }
