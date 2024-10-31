@@ -1105,6 +1105,92 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
+xls_dslx_library(
+    name = "literals_block_header_dec_dslx",
+    srcs = ["literals_block_header_dec.x"],
+    deps = [
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "literals_block_header_dec_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":literals_block_header_dec_dslx",
+)
+
+
+xls_dslx_verilog(
+    name = "literals_block_header_dec_verilog",
+    codegen_args = window_buffer_codegen_args,
+    dslx_top = "LiteralsHeaderDecoderInst",
+    library = ":literals_block_header_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "literals_block_header_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "literals_block_header_dec_opt_ir_benchmark",
+    src = ":literals_block_header_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "top": "__literals_block_header_dec__LiteralsHeaderDecoderInst__LiteralsHeaderDecoder_0__16_64_next",
+        "pipeline_stages": "10",
+    },
+    tags = ["manual"],
+)
+
+
+xls_dslx_library(
+    name = "sequence_conf_dec_dslx",
+    srcs = ["sequence_conf_dec.x"],
+    deps = [
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "sequence_conf_dec_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":sequence_conf_dec_dslx",
+)
+
+xls_dslx_verilog(
+    name = "sequence_conf_dec_verilog",
+    codegen_args = window_buffer_codegen_args,
+    dslx_top = "SequenceConfDecoderInst",
+    library = ":sequence_conf_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "sequence_conf_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "sequence_conf_dec_opt_ir_benchmark",
+    src = ":sequence_conf_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "top": "__sequence_conf_dec__SequenceConfDecoderInst__SequenceConfDecoder_0__16_64_next",
+        "pipeline_stages": "10",
+    },
+    tags = ["manual"],
+)
+
+#xls_dslx_library(
+#    name = "comp_block_dec_dslx",
+#    srcs = ["comp_block_dec.x"],
+#    deps = [
+#        "//xls/examples:ram_dslx",
+#        "//xls/modules/zstd/memory:mem_reader_dslx",
+#        "//xls/modules/zstd/memory:axi_ram_dslx",
+#        ":fse_proba_freq_dec_dslx",
+#        ":literals_block_header_dec_dslx",
+#    ],
+#)
+#
+#xls_dslx_test(
+#    name = "comp_block_dec_dslx_test",
+#    library = ":comp_block_dec_dslx",
+#)
+
 zstd_dec_deps = [
     ":axi_csr_accessor_dslx",
     ":block_header_dec_dslx",
