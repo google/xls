@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.42">
     
     
       
@@ -4237,7 +4237,7 @@ empty array). The n-th operand becomes the n-th element of the array.</p>
 <h4 id="array_index"><strong><code>array_index</code></strong></h4>
 <p>Returns a single element from an array.</p>
 <p><strong>Syntax</strong></p>
-<div class="highlight"><pre><span></span><code>result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}])
+<div class="highlight"><pre><span></span><code>result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}], known_in_bounds=&lt;true|false&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -4259,6 +4259,34 @@ empty array). The n-th operand becomes the n-th element of the array.</p>
 <tr>
 <td><code>result</code></td>
 <td><code>T</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keyword arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>known_in_bounds</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td>False</td>
+<td>Are all indices proven to</td>
+</tr>
+<tr>
+<td>:                   :        :          :         : be in bounds.             :</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
 </tr>
 </tbody>
 </table>
@@ -4318,6 +4346,11 @@ assuming input array operand <code>A</code>.</p>
 </table>
 <!-- mdformat on -->
 
+<p><code>known_in_bounds</code> is an optional parameter to the node which defaults to <code>false</code>
+if not present. This has no effect on the behavior of the node but informs other
+passes that the all indices in the node are proven to be 'in-bounds'. This
+should only be set by the <code>opt</code> pipeline passes. This information might be used
+in later optimization passes or during verilog codegen.</p>
 <h4 id="array_slice"><strong><code>array_slice</code></strong></h4>
 <p>Returns a slice of an array.</p>
 <p><strong>Syntax</strong></p>
@@ -4375,7 +4408,7 @@ index operation.</p>
 <h4 id="array_update"><strong><code>array_update</code></strong></h4>
 <p>Returns a modified copy of an array.</p>
 <p><strong>Syntax</strong></p>
-<div class="highlight"><pre><span></span><code>result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}])
+<div class="highlight"><pre><span></span><code>result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}], known_in_bounds=&lt;true|false&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -4404,10 +4437,43 @@ index operation.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>Keyword arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>known_in_bounds</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td>False</td>
+<td>Are all indices proven to</td>
+</tr>
+<tr>
+<td>:                   :        :          :         : be in bounds.             :</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
 <p>Returns a copy of the input array with the element at the given indices replaced
 with the given value. If any index is out of bounds, the result is identical to
 the input <code>array</code>. The indexing semantics is identical to <code>array_index</code> with the
 exception of out-of-bounds behavior.</p>
+<p><code>known_in_bounds</code> is an optional parameter to the node which defaults to <code>false</code>
+if not present. This has no effect on the behavior of the node but informs other
+passes that the all indices in the node are proven to be 'in-bounds'. This
+should only be set by the <code>opt</code> pipeline passes. This information might be used
+in later optimization passes or during verilog codegen.</p>
 <h3 id="tuple-operations">Tuple operations</h3>
 <h4 id="tuple_1"><strong><code>tuple</code></strong></h4>
 <p>Constructs a tuple of its operands.</p>

@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.42">
     
     
       
@@ -2171,7 +2171,14 @@ control the scheduler.</p>
 <ul>
 <li><code>--additional_input_delay_ps=...</code> adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
-    RTL.</li>
+    RTL. Note that flow-controlled channel operations all have inputs and
+    outputs, so this adds delay to both sends and receives.</li>
+</ul>
+<ul>
+<li><code>--additional_output_delay_ps=...</code> adds additional output delay to the
+    outputs. This can be helpful to meet timing when integrating XLS designs
+    with other RTL. Note that flow-controlled channel operations all have inputs
+    and outputs, so this adds delay to both sends and receives.</li>
 </ul>
 <ul>
 <li><code>--ffi_fallback_delay_ps=...</code> Delay of foreign function calls if not

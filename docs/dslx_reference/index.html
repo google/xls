@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.42">
     
     
       
@@ -4712,6 +4712,21 @@ refutable patterns (e.g., matching against fully specified enumerators).</p>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">2</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">);</span>
 <span class="w">  </span><span class="c1">// Note: the limit of the range syntax is exclusive.</span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Or on multiple patterns per arm using the <code>|</code> operator:</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">match</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">x</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_f</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">2</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">2</span><span class="p">);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
 <h4 id="redundant-patterns">Redundant Patterns</h4>

@@ -14,7 +14,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.42">
     
     
       
@@ -5799,7 +5799,7 @@ empty array). The n-th operand becomes the n-th element of the array.</p>
 <h4 id="ir_semantics-array_index"><strong><code>array_index</code></strong></h4>
 <p>Returns a single element from an array.</p>
 <p><strong>Syntax</strong></p>
-<div class="highlight"><pre><span></span><code>result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}])
+<div class="highlight"><pre><span></span><code>result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}], known_in_bounds=&lt;true|false&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -5821,6 +5821,34 @@ empty array). The n-th operand becomes the n-th element of the array.</p>
 <tr>
 <td><code>result</code></td>
 <td><code>T</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Keyword arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>known_in_bounds</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td>False</td>
+<td>Are all indices proven to</td>
+</tr>
+<tr>
+<td>:                   :        :          :         : be in bounds.             :</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
 </tr>
 </tbody>
 </table>
@@ -5880,6 +5908,11 @@ assuming input array operand <code>A</code>.</p>
 </table>
 <!-- mdformat on -->
 
+<p><code>known_in_bounds</code> is an optional parameter to the node which defaults to <code>false</code>
+if not present. This has no effect on the behavior of the node but informs other
+passes that the all indices in the node are proven to be 'in-bounds'. This
+should only be set by the <code>opt</code> pipeline passes. This information might be used
+in later optimization passes or during verilog codegen.</p>
 <h4 id="ir_semantics-array_slice"><strong><code>array_slice</code></strong></h4>
 <p>Returns a slice of an array.</p>
 <p><strong>Syntax</strong></p>
@@ -5937,7 +5970,7 @@ index operation.</p>
 <h4 id="ir_semantics-array_update"><strong><code>array_update</code></strong></h4>
 <p>Returns a modified copy of an array.</p>
 <p><strong>Syntax</strong></p>
-<div class="highlight"><pre><span></span><code>result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}])
+<div class="highlight"><pre><span></span><code>result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}], known_in_bounds=&lt;true|false&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -5966,10 +5999,43 @@ index operation.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>Keyword arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Keyword</th>
+<th>Type</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>known_in_bounds</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td>False</td>
+<td>Are all indices proven to</td>
+</tr>
+<tr>
+<td>:                   :        :          :         : be in bounds.             :</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
 <p>Returns a copy of the input array with the element at the given indices replaced
 with the given value. If any index is out of bounds, the result is identical to
 the input <code>array</code>. The indexing semantics is identical to <code>array_index</code> with the
 exception of out-of-bounds behavior.</p>
+<p><code>known_in_bounds</code> is an optional parameter to the node which defaults to <code>false</code>
+if not present. This has no effect on the behavior of the node but informs other
+passes that the all indices in the node are proven to be 'in-bounds'. This
+should only be set by the <code>opt</code> pipeline passes. This information might be used
+in later optimization passes or during verilog codegen.</p>
 <h3 id="ir_semantics-tuple-operations">Tuple operations</h3>
 <h4 id="ir_semantics-tuple_1"><strong><code>tuple</code></strong></h4>
 <p>Constructs a tuple of its operands.</p>
@@ -10363,6 +10429,21 @@ refutable patterns (e.g., matching against fully specified enumerators).</p>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
+<p>Or on multiple patterns per arm using the <code>|</code> operator:</p>
+<div class="highlight"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">f</span><span class="p">(</span><span class="n">x</span><span class="p">:</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="kt">u32</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">match</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">x</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+
+<span class="cp">#[test]</span>
+<span class="k">fn</span><span class="w"> </span><span class="nf">test_f</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">2</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">2</span><span class="p">);</span>
+<span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="kt">u32</span><span class="p">:</span><span class="mi">3</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span><span class="p">:</span><span class="mi">0</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
 <h4 id="dslx_reference-redundant-patterns">Redundant Patterns</h4>
 <p><code>match</code> will flag an error if a <em>syntactically identical</em> pattern is typed
 twice; e.g.,</p>
@@ -13750,7 +13831,14 @@ control the scheduler.</p>
 <ul>
 <li><code>--additional_input_delay_ps=...</code> adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
-    RTL.</li>
+    RTL. Note that flow-controlled channel operations all have inputs and
+    outputs, so this adds delay to both sends and receives.</li>
+</ul>
+<ul>
+<li><code>--additional_output_delay_ps=...</code> adds additional output delay to the
+    outputs. This can be helpful to meet timing when integrating XLS designs
+    with other RTL. Note that flow-controlled channel operations all have inputs
+    and outputs, so this adds delay to both sends and receives.</li>
 </ul>
 <ul>
 <li><code>--ffi_fallback_delay_ps=...</code> Delay of foreign function calls if not
@@ -15356,7 +15444,7 @@ currently produced should be considered INCOMPLETE.</p>
 <p><a id="cc_xls_ir_jit_wrapper"></a></p>
 <h2 id="bazel_rules_macros-cc_xls_ir_jit_wrapper">cc_xls_ir_jit_wrapper</h2>
 <pre>
-cc_xls_ir_jit_wrapper(<a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-name">name</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-src">src</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
+cc_xls_ir_jit_wrapper(<a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-name">name</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-src">src</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-top">top</a>, <a href="#bazel_rules_macros-cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
 </pre>
 
 <p>Invokes the JIT wrapper generator and compiles the result as a cc_library.</p>
@@ -15392,6 +15480,11 @@ identical to this macro.</p>
 <td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-wrapper_type"></a>wrapper_type</td>
 <td style="text-align: left;">The type of XLS construct to wrap. Must be one of 'BLOCK', 'FUNCTION', or 'PROC'. You should use the exported FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE for compatibility.</td>
 <td style="text-align: left;"><code>"FUNCTION"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-top"></a>top</td>
+<td style="text-align: left;">Name of the top function/proc/block.</td>
+<td style="text-align: left;"><code>""</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs</td>

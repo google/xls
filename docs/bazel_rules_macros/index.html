@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.41">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.42">
     
     
       
@@ -3583,7 +3583,7 @@ currently produced should be considered INCOMPLETE.</p>
 <p><a id="cc_xls_ir_jit_wrapper"></a></p>
 <h2 id="cc_xls_ir_jit_wrapper">cc_xls_ir_jit_wrapper</h2>
 <pre>
-cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
+cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-top">top</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
 </pre>
 
 <p>Invokes the JIT wrapper generator and compiles the result as a cc_library.</p>
@@ -3619,6 +3619,11 @@ identical to this macro.</p>
 <td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-wrapper_type"></a>wrapper_type</td>
 <td style="text-align: left;">The type of XLS construct to wrap. Must be one of 'BLOCK', 'FUNCTION', or 'PROC'. You should use the exported FUNCTION_WRAPPER_TYPE, BLOCK_WRAPPER_TYPE, or PROC_WRAPPER_TYPE symbols. Defaults to FUNCTION_WRAPPER_TYPE for compatibility.</td>
 <td style="text-align: left;"><code>"FUNCTION"</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-top"></a>top</td>
+<td style="text-align: left;">Name of the top function/proc/block.</td>
+<td style="text-align: left;"><code>""</code></td>
 </tr>
 <tr>
 <td style="text-align: left;"><a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs</td>
