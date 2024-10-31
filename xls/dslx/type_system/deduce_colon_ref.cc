@@ -342,9 +342,10 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
                 XLS_ASSIGN_OR_RETURN(
                     StructDef * struct_def,
                     DerefToStruct(node->span(), struct_ref->ToString(),
-                                  *struct_ref, ctx->type_info()));
+                                  *struct_ref, subject_type_info));
+
                 return DeduceColonRefToStructType(
-                    struct_def, ctx->type_info()->GetItem(struct_ref), node,
+                    struct_def, subject_type_info->GetItem(struct_ref), node,
                     ctx);
               },
               [&](ColonRef* colon_ref) -> ReturnT {

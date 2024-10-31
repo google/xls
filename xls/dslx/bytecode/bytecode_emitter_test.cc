@@ -880,6 +880,92 @@ fn struct_const_ref() -> u4 {
               IsOkAndHolds(InterpValue::MakeSBits(4, 7)));
 }
 
+TEST(BytecodeEmitterTest, ImportedStructImplConstant) {
+  constexpr std::string_view kImportedProgram = R"(
+pub struct Empty<N: u32> {}
+
+impl Empty<N> {
+  const MY_CONST = uN[N]:7;
+}
+
+  )";
+  constexpr std::string_view kBaseProgram = R"(
+import import_0;
+
+#[test]
+fn struct_const_ref() -> u4 {
+  type MyEmpty = import_0::Empty<u32:4>;
+  MyEmpty::MY_CONST
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                               "import_0", &import_data));
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("struct_const_ref"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), ParametricEnv()));
+}
+
+TEST(BytecodeEmitterTest, ImportedStructAliasWithConstant) {
+  constexpr std::string_view kImportedProgram = R"(
+pub struct Empty<N: u32> {}
+
+impl Empty<N> {
+  const MY_CONST = uN[N]:7;
+}
+
+  )";
+  constexpr std::string_view kImportedAlias = R"(
+import import_0;
+
+pub type MyEmpty = import_0::Empty<u32:4>;
+
+  )";
+  constexpr std::string_view kBaseProgram = R"(
+import import_1;
+
+#[test]
+fn struct_const_ref() -> u4 {
+  import_1::MyEmpty::MY_CONST
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                               "import_0", &import_data));
+  }
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(kImportedAlias, "import_1.x",
+                                               "import_1", &import_data));
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
+                           tm.module->GetTest("struct_const_ref"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), ParametricEnv()));
+}
+
 TEST(BytecodeEmitterTest, ImportedConstant) {
   constexpr std::string_view kImportedProgram = R"(pub const MY_CONST = u3:2;)";
   constexpr std::string_view kBaseProgram = R"(

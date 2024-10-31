@@ -361,5 +361,29 @@ fn main() -> uN[10] {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
+TEST(TypecheckTest, ImportedTypeAlias) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty<X: u32> { }
+
+impl Empty<X> {
+   const IMPORTED = u32:2 * X;
+}
+
+pub type MyEmpty = Empty<u32:5>;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[10] {
+    uN[imported::MyEmpty::IMPORTED]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
 }  // namespace
 }  // namespace xls::dslx

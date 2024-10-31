@@ -444,9 +444,10 @@ ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
             return impl.value();
           },
           [&](TypeRefTypeAnnotation* x) -> ReturnT {
+            const TypeInfo* ti = *(import_data->GetRootTypeInfo(x->owner()));
             XLS_ASSIGN_OR_RETURN(
                 StructDef * struct_def,
-                DerefToStruct(colon_ref->span(), x->ToString(), *x, type_info));
+                DerefToStruct(colon_ref->span(), x->ToString(), *x, ti));
             XLS_RET_CHECK(struct_def->impl().has_value());
             return struct_def->impl().value();
           },
