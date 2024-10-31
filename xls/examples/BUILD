@@ -46,7 +46,7 @@ package(
     licenses = ["notice"],
 )
 
-exports_files(["sha256.x"])
+exports_files(glob(include = ["*.x"]))
 
 filegroup(
     name = "ir_examples",
