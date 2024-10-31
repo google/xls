@@ -19,7 +19,7 @@
 import std;
 import xls.examples.ram;
 
-proc RamWrRespHandler<CNT_WIDTH: u32> {
+pub proc RamWrRespHandler<CNT_WIDTH: u32> {
     type Reset = bool;
     type WriteCnt = bits[CNT_WIDTH];
     type WriteResp = ram::WriteResp;
