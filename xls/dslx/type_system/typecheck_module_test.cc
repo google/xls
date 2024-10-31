@@ -1746,6 +1746,27 @@ fn f(x: u32) -> u32 {
           HasSubstr("Test type for conditional expression is not \"bool\"")));
 }
 
+TEST(TypecheckTest, SizeofImportedType) {
+  constexpr std::string_view kImported = R"(
+pub type foo_t = u32;
+)";
+  constexpr std::string_view kProgram = R"(
+import std;
+import imported;
+
+fn main() -> u32 {
+  std::sizeof(imported::foo_t)
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  EXPECT_THAT(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot pass a type as a function argument.")));
+}
+
 TEST(TypecheckErrorTest, ArraySizeOfBitsType) {
   EXPECT_THAT(
       Typecheck(R"(

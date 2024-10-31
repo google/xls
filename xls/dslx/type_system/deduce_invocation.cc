@@ -234,8 +234,11 @@ absl::Status AppendArgsForInstantiation(
         "AppendArgsForInstantiation; arg: `%s` deduced: `%s` @ %s",
         arg->ToString(), type->ToString(),
         arg->span().ToString(ctx->file_table()));
-    XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
-                                   << " type: " << type->ToString();
+    if (type->IsMeta()) {
+      return TypeInferenceErrorStatus(
+          arg->span(), type.get(), "Cannot pass a type as a function argument.",
+          ctx->file_table());
+    }
     instantiate_args->push_back(InstantiateArg{std::move(type), arg->span()});
   }
 
