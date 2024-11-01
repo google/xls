@@ -1823,6 +1823,8 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
 }
 
 DocRef Fmt(const VerbatimNode* n, DocArena& arena) {
+  // TODO: https://github.com/google/xls/issues/1320 - Should maybe force a
+  // newline, and definitely set indentation to zero
   return arena.MakeText(std::string(n->text()));
 }
 
@@ -2564,6 +2566,46 @@ static bool AreGroupedMembers(const ModuleMember& above,
   return above_effective_lineno + 1 == below_member->span().start().lineno();
 }
 
+// Returns whether the given members are both of the given "MemberT" types.
+template <typename MemberT>
+static bool AreSameTypes(const ModuleMember& above, const ModuleMember& below) {
+  return std::holds_alternative<MemberT*>(above) &&
+         std::holds_alternative<MemberT*>(below);
+}
+
+// Calculates how many hard lines should be emitted after the given node,
+// based on its type and the type of the next one.
+static int NumHardLinesAfter(const AstNode* node, const ModuleMember& member,
+                             absl::Span<ModuleMember const> siblings, int i) {
+  int num_hard_lines = 0;
+  if (i + 1 == siblings.size()) {
+    // For the last module member we just put a trailing newline at EOF.
+    num_hard_lines = 1;
+  } else if (AreGroupedMembers<Import>(member, siblings[i + 1]) ||
+             AreGroupedMembers<TypeAlias>(member, siblings[i + 1]) ||
+             AreGroupedMembers<StructDef>(member, siblings[i + 1]) ||
+             AreGroupedMembers<ConstantDef>(member, siblings[i + 1])) {
+    // If two (e.g. imports) are adjacent to each other (i.e. no intervening
+    // newline) we keep them adjacent to each other in the formatted output.
+    num_hard_lines = 1;
+  } else if (i < siblings.size() - 1 &&
+             AreSameTypes<VerbatimNode>(member, siblings[i + 1])) {
+    // Two adjacent verbatim nodes should not have any newlines
+    // between them because verbatim nodes already have a newline at the
+    // end.
+    num_hard_lines = 1;
+  } else {
+    // For other module members we separate them by an intervening newline.
+    num_hard_lines = 2;
+  }
+
+  if (dynamic_cast<const VerbatimNode*>(node) != nullptr) {
+    // Verbatim nodes already have a newline at the end.
+    num_hard_lines--;
+  }
+  return num_hard_lines;
+}
+
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
 
@@ -2587,7 +2629,7 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
 
   std::optional<Pos> last_entity_pos;
   for (size_t i = 0; i < n.top().size(); ++i) {
-    const auto& member = n.top()[i];
+    const ModuleMember& member = n.top()[i];
 
     const AstNode* node = ToAstNode(member);
 
@@ -2598,8 +2640,23 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
       continue;
     }
 
+    if (const VerbatimNode* v = dynamic_cast<const VerbatimNode*>(node);
+        v != nullptr && v->IsEmpty()) {
+      if (i < n.top().size() - 1 &&
+          !AreSameTypes<VerbatimNode>(member, n.top()[i + 1])) {
+        // Add a newline after this node if the next one is not a verbatim node.
+        // There's no way to know if the contents of the verbatim node should
+        // be part of the previous group or not, so we separate it with a
+        // newline.
+        pieces.push_back(arena.hard_line());
+      }
+      // Skip empty verbatim nodes.
+      continue;
+    }
+
     VLOG(3) << "Fmt; " << node->GetNodeTypeName()
-            << " module member: " << node->ToString();
+            << " module member: " << node->ToString() << " span: "
+            << node->GetSpan().value().ToString(arena.file_table());
 
     // If there are comment blocks between the last member position and the
     // member we're about the process, we need to emit them.
@@ -2647,19 +2704,8 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
         CollectInlineComments(member_limit, last_entity_pos.value(), comments,
                               arena, pieces, last_comment_span);
 
-    if (i + 1 == n.top().size()) {
-      // For the last module member we just put a trailing newline at EOF.
-      pieces.push_back(arena.hard_line());
-    } else if (AreGroupedMembers<Import>(member, n.top()[i + 1]) ||
-               AreGroupedMembers<TypeAlias>(member, n.top()[i + 1]) ||
-               AreGroupedMembers<StructDef>(member, n.top()[i + 1]) ||
-               AreGroupedMembers<ConstantDef>(member, n.top()[i + 1])) {
-      // If two (e.g. imports) are adjacent to each other (i.e. no intervening
-      // newline) we keep them adjacent to each other in the formatted output.
-      pieces.push_back(arena.hard_line());
-    } else {
-      // For other module members we separate them by an intervening newline.
-      pieces.push_back(arena.hard_line());
+    int num_hard_lines = NumHardLinesAfter(node, member, n.top(), i);
+    for (int i = 0; i < num_hard_lines; ++i) {
       pieces.push_back(arena.hard_line());
     }
   }

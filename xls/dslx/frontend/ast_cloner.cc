@@ -25,6 +25,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
@@ -104,7 +105,20 @@ class AstCloner : public AstNodeVisitor {
     std::vector<Statement*> new_statements;
     new_statements.reserve(n->statements().size());
     for (Statement* old : n->statements()) {
-      new_statements.push_back(down_cast<Statement*>(old_to_new_.at(old)));
+      if (!old_to_new_.contains(old)) {
+        return absl::InternalError(absl::StrCat(
+            "Statement not found in old_to_new_: ", old->ToString()));
+      }
+      auto new_stmt = old_to_new_.at(old);
+      if (auto* verbatim = dynamic_cast<VerbatimNode*>(new_stmt)) {
+        if (verbatim->IsEmpty()) {
+          // Intentionally skip empty verbatim nodes.
+          continue;
+        }
+        new_statements.push_back(module_->Make<Statement>(verbatim));
+      } else {
+        new_statements.push_back(down_cast<Statement*>(new_stmt));
+      }
     }
     old_to_new_[n] = module_->Make<StatementBlock>(
         n->span(), std::move(new_statements), n->trailing_semi());
@@ -136,7 +150,7 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleBuiltinTypeAnnotation(
       const BuiltinTypeAnnotation* n) override {
-    XLS_RETURN_IF_ERROR(n->builtin_name_def()->Accept(this));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->builtin_name_def()));
     old_to_new_[n] = module_->Make<BuiltinTypeAnnotation>(
         n->span(), n->builtin_type(),
         down_cast<BuiltinNameDef*>(old_to_new_.at(n->builtin_name_def())));
@@ -441,6 +455,16 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  // If `replacement` is a `VerbatimNode`, return it. Otherwise, return the
+  // `replacement` cast to the given type.
+  template <typename T>
+  static ModuleMember CastOrVerbatim(AstNode* replacement) {
+    if (auto* verbatim = dynamic_cast<VerbatimNode*>(replacement)) {
+      return verbatim;
+    }
+    return down_cast<T>(replacement);
+  }
+
   absl::Status HandleModule(const Module* n) override {
     for (const ModuleMember member : n->top()) {
       ModuleMember new_member;
@@ -448,7 +472,7 @@ class AstCloner : public AstNodeVisitor {
           Visitor{
               [&](auto* old_member) -> absl::Status {
                 XLS_RETURN_IF_ERROR(ReplaceOrVisit(old_member));
-                new_member = down_cast<decltype(old_member)>(
+                new_member = CastOrVerbatim<decltype(old_member)>(
                     old_to_new().at(old_member));
                 return absl::OkStatus();
               },
@@ -617,7 +641,7 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleSpawn(const Spawn* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    XLS_RETURN_IF_ERROR(n->callee()->Accept(this));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->callee()));
     old_to_new_[n] = module_->Make<Spawn>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())),
         down_cast<Invocation*>(old_to_new_.at(n->config())),
@@ -631,7 +655,7 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     // Have to explicitly visit struct ref, since it's not a child.
-    XLS_RETURN_IF_ERROR(n->struct_ref()->Accept(this));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
     TypeAnnotation* new_struct_ref =
         down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
 
@@ -684,7 +708,7 @@ class AstCloner : public AstNodeVisitor {
 
     if (n->impl().has_value()) {
       if (!old_to_new_.contains(n->impl().value())) {
-        XLS_RETURN_IF_ERROR(n->impl().value()->Accept(this));
+        XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->impl().value()));
       }
       auto* new_impl = down_cast<Impl*>(old_to_new_.at(n->impl().value()));
       new_struct_def->set_impl(new_impl);
@@ -715,7 +739,7 @@ class AstCloner : public AstNodeVisitor {
         module_->Make<Impl>(n->span(), nullptr, new_constants, n->is_public());
     old_to_new_[n] = new_impl;
     if (!old_to_new_.contains(n->struct_ref())) {
-      XLS_RETURN_IF_ERROR(n->struct_ref()->Accept(this));
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
     }
     TypeAnnotation* new_struct_ref =
         down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
@@ -727,7 +751,7 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     // Have to explicitly visit struct ref, since it's not a child.
-    XLS_RETURN_IF_ERROR(n->struct_ref()->Accept(this));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
     TypeAnnotation* new_struct_ref =
         down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
 
@@ -768,7 +792,7 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTestFunction(const TestFunction* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    XLS_RETURN_IF_ERROR(n->fn().Accept(this));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->fn()));
     old_to_new_[n] = module_->Make<TestFunction>(
         n->span(), *down_cast<Function*>(old_to_new_.at(&n->fn())));
     return absl::OkStatus();

@@ -29,13 +29,14 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/fmt/comments.h"
+#include "xls/dslx/fmt/format_disabler.h"
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_test_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/comment_data.h"
@@ -183,9 +184,7 @@ TEST(AstFmtTest, FormatVerbatimNodeTop) {
   DocRef doc = Fmt(m, empty_comments, arena);
 
   // Intentionally small text width, should still be formatted verbatim.
-  // Newline is always added to a module.
-  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10),
-            absl::StrCat(verbatim_text, "\n"));
+  EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), verbatim_text);
 }
 
 TEST(AstFmtTest, FormatVerbatimNodeStatement) {
@@ -2455,5 +2454,164 @@ fn f() -> X {
 )");
 }
 
+class DisableFmtTest : public testing::Test {
+ public:
+  void ExpectFormatted(std::string input) {
+    std::vector<CommentData> comments_vec;
+    FileTable file_table;
+    // TODO: https://github.com/google/xls/issues/1320 - fold this into AutoFmt
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Module> m,
+        ParseModule(input, "fake.x", "fake", file_table, &comments_vec));
+    Comments comments = Comments::Create(comments_vec);
+    FormatDisabler disabler(comments, input);
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Module> clone,
+        CloneModule(m.get(),
+                    [&](const AstNode* node)
+                        -> absl::StatusOr<std::optional<AstNode*>> {
+                      return disabler(node);
+                    }));
+    std::string got = AutoFmt(*clone, comments, kDslxDefaultTextWidth);
+
+    EXPECT_EQ(got, input);
+  }
+};
+
+TEST_F(DisableFmtTest, ImportGroups) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+import other;
+import stuff;
+)");
+}
+
+TEST_F(DisableFmtTest, ImportGroupsWithComments) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+// Starting comment
+import other;
+import stuff;
+// Ending comment
+)");
+}
+
+TEST_F(DisableFmtTest, ImportGroupsWithDisableComment) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+// dslx-fmt::off
+import other;
+import stuff;
+// dslx-fmt::on
+
+const foo = u32:26;
+)");
+}
+
+TEST_F(DisableFmtTest, MultipleImportGroupsWithDisableComment) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+// dslx-fmt::off
+  import other;
+import stuff;
+    import morestuff
+    ;
+ // dslx-fmt::on
+
+import other2;
+// The above import needs an extra newline before it because the formatter
+// can't recognize the unformatted imports as being part of the same group as
+// the last one, so it inserts a newline before the next group.
+)");
+}
+
+TEST_F(DisableFmtTest, ImportWithFmtDisabled) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+// dslx-fmt::off
+        import
+ other;
+  // dslx-fmt::on
+
+const foo = u32:26;
+)");
+}
+
+TEST_F(DisableFmtTest, ConstWithFmtDisabled) {
+  ExpectFormatted(R"(import thing1;
+
+// Note intentional trailing space
+// dslx-fmt::off
+        const foo=u32:    26; const 
+      bar=u16:    26;
+// dslx-fmt::on
+)");
+}
+
+TEST_F(DisableFmtTest, ImportGroupsWithFmtDisabled) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+// dslx-fmt::off
+        import
+ other;
+  import   stuff;
+// dslx-fmt::on
+)");
+}
+
+TEST_F(DisableFmtTest, ImportGroupsWithFmtDisabledNeverEnabled) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+// dslx-fmt::off
+        import
+ other;
+  import   stuff;
+
+)");
+}
+
+TEST_F(DisableFmtTest, FnWithFmtDisabled) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+// dslx-fmt::off
+  fn f() -> (u32, u16) {
+let x = u32:42;
+let y = u16:64;   (x,   y)
+}
+  // dslx-fmt::on
+)");
+}
+
+// TODO: https://github.com/google/xls/issues/1320 - The formatter is
+// indenting the first *unformatted* statement, which we have yet to implement.
+TEST_F(DisableFmtTest, DISABLED_StatementsWithFmtDisabled) {
+  ExpectFormatted(R"(import thing1;
+import thing2;
+
+fn f() -> (u32, u16) {
+    let x = u32:42;
+
+    // The next line *should* be indented because it's before the "disable
+    // formatting" range.
+    // dslx-fmt::off
+let y = u16:64;
+let x = 
+  u32:41;
+         (x,   y)
+
+// dslx-fmt::on
+    // The previous line should *not* be indented because it's
+    // *within* the "disable formatting" range.
+}
+)");
+}
 }  // namespace
 }  // namespace xls::dslx

@@ -19,6 +19,7 @@
 #include <string_view>
 #include <variant>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
@@ -31,6 +32,8 @@
 
 namespace xls::dslx {
 namespace {
+
+using ::testing::IsEmpty;
 
 std::optional<TypeRef*> FindFirstTypeRef(AstNode* node) {
   if (auto type_ref = dynamic_cast<TypeRef*>(node); type_ref) {
@@ -880,6 +883,65 @@ TEST(AstClonerTest, CloneAstClonesVerbatimNode) {
   VerbatimNode* clone_node = down_cast<VerbatimNode*>(clone);
   EXPECT_EQ(original.text(), clone_node->text());
   EXPECT_EQ(original.span(), clone_node->span());
+}
+
+TEST(AstClonerTest, CloneStatementBlockSkipsEmptyVerbatimNode) {
+  constexpr std::string_view kProgram = "const FOO = {u32:42};";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  Number number(module.get(), Span(), "3", NumberKind::kOther, nullptr);
+  Statement statement(module.get(), &number);
+  StatementBlock statement_block(module.get(), Span(), {&statement},
+                                 /*trailing_semi=*/true);
+
+  VerbatimNode empty_verbatim(module.get(), Span());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      AstNode * clone,
+      CloneAst(&statement_block,
+               [&](const AstNode* node) -> std::optional<AstNode*> {
+                 if (node->kind() == AstNodeKind::kStatement) {
+                   // Replace with a verbatim node with no text.
+                   return &empty_verbatim;
+                 }
+                 return std::nullopt;
+               }));
+
+  // The clone should have zero children now that we replaced the original node
+  // with an empty VerbatimNode.
+  StatementBlock* clone_node = down_cast<StatementBlock*>(clone);
+  EXPECT_THAT(clone_node->statements(), IsEmpty());
+}
+
+TEST(AstClonerTest, CloneStatementBlockUsesVerbatimNode) {
+  constexpr std::string_view kProgram = "const FOO = {u32:42};";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  Number number(module.get(), Span(), "3", NumberKind::kOther, nullptr);
+  Statement statement(module.get(), &number);
+  StatementBlock statement_block(module.get(), Span(), {&statement},
+                                 /*trailing_semi=*/true);
+
+  VerbatimNode verbatim(module.get(), Span(), "replaced");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      AstNode * clone,
+      CloneAst(&statement_block,
+               [&](const AstNode* node) -> std::optional<AstNode*> {
+                 if (node->kind() == AstNodeKind::kStatement) {
+                   // Replace with the desired verbatim node
+                   return &verbatim;
+                 }
+                 return std::nullopt;
+               }));
+
+  StatementBlock* clone_statement_block = down_cast<StatementBlock*>(clone);
+  ASSERT_EQ(clone_statement_block->statements().size(), 1);
+
+  Statement* first = clone_statement_block->statements().at(0);
+  EXPECT_EQ(std::get<VerbatimNode*>(first->wrapped()), &verbatim);
 }
 
 TEST(AstClonerTest, CloneModuleClonesVerbatimNode) {
