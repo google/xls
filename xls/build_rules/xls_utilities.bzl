@@ -45,8 +45,10 @@ def _check_sha256sum_test_impl(ctx):
                 src.short_path,
             ),
             "if [ $? -ne 0 ]; then",
-            "echo \"Error: sha256sum checksum mismatch for file '{}'.\""
+            "echo \"Error: sha256sum checksum mismatch for file '{}':"
                 .format(src.short_path),
+            "  expected: {}".format(ctx.attr.sha256sum),
+            "  actual:   `sha256sum {} | cut -d ' ' -f1`\"".format(src.short_path),
             "exit -1",
             "fi",
             "exit 0",
@@ -127,8 +129,10 @@ def _check_sha256sum_frozen_impl(ctx):
                 src_path,
             ),
             "if [ $? -ne 0 ]; then",
-            "echo \"Error: sha256sum checksum mismatch for file '{}'.\""
+            "echo \"Error: sha256sum checksum mismatch for file '{}':"
                 .format(src_path),
+            "  expected: {}".format(ctx.attr.sha256sum),
+            "  actual:   `sha256sum {} | cut -d ' ' -f1`\"".format(src_path),
             "exit -1",
             "fi",
             "cat {} > {}".format(src_path, frozen_file.path),
