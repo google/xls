@@ -41,6 +41,9 @@ class Comments {
   // This is a convenient way for nodes to query for all their related comments.
   std::vector<const CommentData*> GetComments(const Span& node_span) const;
 
+  // Removes all comments within the given `node_span`.
+  void RemoveComments(const Span& node_span);
+
   // Returns whether there are any comments contained in the given span.
   bool HasComments(const Span& in_span) const;
 

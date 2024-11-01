@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/casts.h"
@@ -33,6 +34,9 @@
 namespace xls::dslx {
 namespace {
 
+using ::testing::HasSubstr;
+
+constexpr std::string_view kFmtOff = "// dslx-fmt::off\n";
 constexpr std::string_view kFmtOn = "// dslx-fmt::on\n";
 
 TEST(FormatDisablerTest, NotDisabled) {
@@ -44,7 +48,7 @@ TEST(FormatDisablerTest, NotDisabled) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
@@ -71,7 +75,7 @@ TEST(FormatDisablerTest, NotDisabled_WithComments) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
@@ -85,14 +89,13 @@ TEST(FormatDisablerTest, NotDisabled_WithComments) {
 
 TEST(FormatDisablerTest, DisabledAroundImport) {
   const std::string kImport = "  import\n  bar;\n";
-  const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kImport, kFmtOn);
+  const std::string kProgram = absl::StrCat(kFmtOff, kImport, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
@@ -111,14 +114,13 @@ TEST(FormatDisablerTest, DisabledAroundImport) {
 TEST(FormatDisablerTest, EnabledOnSameLine) {
   // Note trailing space, which we want to be part of the unformatted text.
   const std::string kImport = "  import  bar; ";
-  const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kImport, kFmtOn);
+  const std::string kProgram = absl::StrCat(kFmtOff, kImport, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
@@ -137,14 +139,13 @@ TEST(FormatDisablerTest, EnabledOnSameLine) {
 TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
   // Note trailing space, which we want to be part of the unformatted text.
   const std::string kImport = "  import\n bar; ";
-  const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kImport, kFmtOn);
+  const std::string kProgram = absl::StrCat(kFmtOff, kImport, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
@@ -162,14 +163,13 @@ TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
 
 TEST(FormatDisablerTest, MultipleDisabledStatements) {
   const std::string kTwoImports = "  import\n  foo;\n  import  bar;\n";
-  const std::string kProgram =
-      absl::StrCat("// dslx-fmt::off\n", kTwoImports, kFmtOn);
+  const std::string kProgram = absl::StrCat(kFmtOff, kTwoImports, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* first_import_node = std::get<Import*>(m->top().at(0));
   Import* second_import_node = std::get<Import*>(m->top().at(1));
@@ -200,14 +200,14 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
 
 TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
   const std::string kUnformattedImport = "  import\n  foo;\n";
-  const std::string kProgram = absl::StrCat(
-      "// dslx-fmt::off\n", kUnformattedImport, kFmtOn, "import bar;\n");
+  const std::string kProgram =
+      absl::StrCat(kFmtOff, kUnformattedImport, kFmtOn, "import bar;\n");
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* first_import_node = std::get<Import*>(m->top().at(0));
   Import* second_import_node = std::get<Import*>(m->top().at(1));
@@ -241,7 +241,7 @@ TEST(FormatDisablerTest, MultipleEnabledStatements) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* first_import_node = std::get<Import*>(m->top().at(0));
   Import* second_import_node = std::get<Import*>(m->top().at(1));
@@ -262,17 +262,14 @@ TEST(FormatDisablerTest, MultipleEnabledStatements) {
 }
 
 TEST(FormatDisablerTest, EnabledOnly) {
-  const std::string kProgram = R"(
-  import
-  bar;
-// dslx-fmt::on
-)";
+  const std::string kImport = "  import\n  bar;\n";
+  const std::string kProgram = absl::StrCat(kImport, kFmtOn);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
@@ -287,13 +284,13 @@ TEST(FormatDisablerTest, EnabledOnly) {
 
 TEST(FormatDisablerTest, NeverEnabled) {
   const std::string kImport = "  import\n  bar;\n";
-  const std::string kProgram = absl::StrCat("// dslx-fmt::off\n", kImport);
+  const std::string kProgram = absl::StrCat(kFmtOff, kImport);
   std::vector<CommentData> comments_list;
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
@@ -317,7 +314,7 @@ TEST(FormatDisablerTest, NoSpan) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
-  const Comments comments = Comments::Create(comments_list);
+  Comments comments = Comments::Create(comments_list);
 
   Import* import_node = std::get<Import*>(m->top().at(0));
   FormatDisabler disabler(comments, kProgram);
@@ -329,6 +326,45 @@ TEST(FormatDisablerTest, NoSpan) {
   XLS_ASSERT_OK_AND_ASSIGN(actual, disabler(&built_in));
 
   ASSERT_FALSE(actual.has_value());
+}
+
+TEST(FormatDisablerTest, InternalCommentIncludedInVerbatimNode) {
+  const std::string kImport = "  import\n  bar;\n";
+  const std::string kInternalComment = "  // internal comment\n";
+  const std::string kExternalComment = "  // external comment\n";
+  const std::string kProgram = absl::StrCat(kFmtOff, kImport, kInternalComment,
+                                            kFmtOn, kExternalComment);
+  std::vector<CommentData> comments_list;
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> m,
+      ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
+  Comments comments = Comments::Create(comments_list);
+
+  Import* import_node = std::get<Import*>(m->top().at(0));
+  ASSERT_NE(import_node, nullptr);
+
+  FormatDisabler disabler(comments, kProgram);
+  EXPECT_EQ(comments.GetComments(m->GetSpan().value()).size(), 4);
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
+                           disabler(import_node));
+
+  ASSERT_TRUE(actual.has_value());
+  VerbatimNode* actual_node = down_cast<VerbatimNode*>(*actual);
+  ASSERT_NE(actual_node, nullptr);
+
+  // There should be zero comments in the verbatim node's span, and two fewer in
+  // the module span (the enable formatting comment is removed too.)
+  EXPECT_EQ(comments.GetComments(actual_node->GetSpan().value()).size(), 0);
+  ASSERT_EQ(comments.GetComments(m->GetSpan().value()).size(), 2);
+  EXPECT_THAT(kFmtOff,
+              HasSubstr(comments.GetComments(m->GetSpan().value())[0]->text));
+  EXPECT_THAT(kExternalComment,
+              HasSubstr(comments.GetComments(m->GetSpan().value())[1]->text));
+
+  // The text should include the internal comment.
+  EXPECT_EQ(actual_node->text(),
+            absl::StrCat(kImport, kInternalComment, kFmtOn));
 }
 
 }  // namespace

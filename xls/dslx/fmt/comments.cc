@@ -28,6 +28,7 @@
 
 namespace xls::dslx {
 
+// TODO: davidplass - Write tests for this class/file.
 /* static */ Comments Comments::Create(absl::Span<const CommentData> comments) {
   std::optional<Pos> last_data_limit;
   absl::flat_hash_map<int64_t, CommentData> line_to_comment;
@@ -84,6 +85,22 @@ std::vector<const CommentData*> Comments::GetComments(
     }
   }
   return results;
+}
+
+void Comments::RemoveComments(const Span& node_span) {
+  for (int64_t i = node_span.start().lineno(); i <= node_span.limit().lineno();
+       ++i) {
+    if (auto it = line_to_comment_.find(i); it != line_to_comment_.end()) {
+      // Check that the comment is properly contained within the given
+      // "node_span" we were targeting. E.g. the user might be requesting a
+      // subspan of a line, we don't want to give a comment that came
+      // afterwards.
+      const CommentData& cd = it->second;
+      if (InRange(node_span, cd)) {
+        line_to_comment_.erase(it);
+      }
+    }
+  }
 }
 
 }  // namespace xls::dslx

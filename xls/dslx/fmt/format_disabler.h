@@ -37,9 +37,9 @@ namespace xls::dslx {
 // NOTE: this class is stateful and should only be used once per module.
 class FormatDisabler {
  public:
-  FormatDisabler(const Comments &comments, const std::string &contents)
+  FormatDisabler(Comments &comments, const std::string &contents)
       : comments_(comments), contents_(contents) {};
-  FormatDisabler(const Comments &comments, const std::filesystem::path &path)
+  FormatDisabler(Comments &comments, const std::filesystem::path &path)
       : comments_(comments), path_(path) {};
 
   // Functor that implements the 'CloneReplacer' interface.
@@ -65,7 +65,7 @@ class FormatDisabler {
   // Find a CommentData object that is a enable comment after the given node
   std::optional<const CommentData *> FindEnableAfter(const AstNode *node);
 
-  const Comments &comments_;
+  Comments &comments_;
 
   // The previous node that was processed. We use this to find any "disable"
   // comments between there and the current node.

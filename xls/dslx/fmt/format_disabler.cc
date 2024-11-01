@@ -54,11 +54,6 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
       previous_node_ = node;
 
       return node->owner()->Make<VerbatimNode>(*node->GetSpan());
-
-      // TODO: https://github.com/google/xls/issues/1320 - also remove comments
-      // that are in this range; their text will be included in the previous
-      // "VerbatimNode", so they should be removed from the Comments object
-      // (which, sadly, does not support removal of comments).
     }
 
     // We're past the end of the unformatted range; clear the setting.
@@ -100,6 +95,8 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   // c. Create a new VerbatimNode with the content from step b.
   VerbatimNode *verbatim_node =
       node->owner()->Make<VerbatimNode>(unformatted_span, text);
+
+  comments_.RemoveComments(unformatted_span);
 
   // d. Set a field that indicates the ending position of the last node that
   // should be unformatted.
