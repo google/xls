@@ -338,7 +338,7 @@ TEST(IrParserRoundTripTest, ParseArrayIndex) {
   ParseFunctionAndCheckDump(TestName());
 }
 
-TEST(IrParserRoundTripTest, ParseArrayIndexKnownInBounds) {
+TEST(IrParserRoundTripTest, ParseArrayIndexAssumedInBounds) {
   ParseFunctionAndCheckDump(TestName());
 }
 
@@ -350,7 +350,7 @@ TEST(IrParserRoundTripTest, ParseArrayUpdate) {
   ParseFunctionAndCheckDump(TestName());
 }
 
-TEST(IrParserRoundTripTest, ParseArrayUpdateKnownInBounds) {
+TEST(IrParserRoundTripTest, ParseArrayUpdateAssumedInBounds) {
   ParseFunctionAndCheckDump(TestName());
 }
 

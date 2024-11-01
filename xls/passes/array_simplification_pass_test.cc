@@ -732,7 +732,7 @@ TEST_F(ArraySimplificationPassTest, SimplifyDecomposedNestedArray) {
   EXPECT_THAT(f->return_value(),
               m::ArrayIndex(m::Param("a"),
                             /*indices=*/{m::Literal(40), m::Literal(50)},
-                            m::KnownInBounds()));
+                            m::AssumedInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest, SimplifyDecomposedArraySwizzledElements) {
@@ -1082,7 +1082,7 @@ TEST_F(ArraySimplificationPassTest,
           m::Select(m::Param("p"),
                     /*cases=*/{m::ArrayIndex(m::Param("a"),
                                              /*indices=*/{m::Literal(1)},
-                                             m::KnownInBounds()),
+                                             m::AssumedInBounds()),
                                m::Param("v")}),
           /*indices=*/{m::Literal(1)}));
 }
@@ -1126,16 +1126,16 @@ TEST_F(ArraySimplificationPassTest,
                                              // used by the update if the 'i' is
                                              // actually in bounds so we can
                                              // avoid bounds checks here.
-                                             m::NotKnownInBounds())}),
-          /*indices=*/{m::Param("i")}, m::NotKnownInBounds()));
+                                             m::NotAssumedInBounds())}),
+          /*indices=*/{m::Param("i")}, m::NotAssumedInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest,
-       ConditionalAssignmentOfArrayElementUpdatedOnFalseKnownInBounds) {
+       ConditionalAssignmentOfArrayElementUpdatedOnFalseAssumedInBounds) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn func(p: bits[1], a: bits[32][4], v: bits[32], i: bits[16]) -> bits[32][4] {
-  updated_a: bits[32][4] = array_update(a, v, indices=[i], known_in_bounds=true)
+  updated_a: bits[32][4] = array_update(a, v, indices=[i], assumed_in_bounds=true)
   ret result: bits[32][4] = sel(p, cases=[updated_a, a])
  }
   )",
@@ -1154,8 +1154,8 @@ TEST_F(ArraySimplificationPassTest,
                                              // used by the update if the 'i' is
                                              // actually in bounds so we can
                                              // avoid bounds checks here.
-                                             m::KnownInBounds())}),
-          /*indices=*/{m::Param("i")}, m::KnownInBounds()));
+                                             m::AssumedInBounds())}),
+          /*indices=*/{m::Param("i")}, m::AssumedInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -1302,8 +1302,8 @@ TEST_F(ArraySimplificationPassTest,
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn func(p: bits[4], a: bits[32][4], v1: bits[32], v3: bits[32], i: bits[16]) -> bits[32][4] {
-  a_update1: bits[32][4] = array_update(a, v1, indices=[i], known_in_bounds=true)
-  a_update3: bits[32][4] = array_update(a, v3, indices=[i], known_in_bounds=true)
+  a_update1: bits[32][4] = array_update(a, v1, indices=[i], assumed_in_bounds=true)
+  a_update3: bits[32][4] = array_update(a, v3, indices=[i], assumed_in_bounds=true)
   ret result: bits[32][4] = priority_sel(p, cases=[a, a_update1, a, a_update3], default=a)
  }
   )",
@@ -1317,15 +1317,15 @@ TEST_F(ArraySimplificationPassTest,
               m::Param("p"),
               /*cases=*/
               {m::ArrayIndex(m::Param("a"),
-                             /*indices=*/{m::Param("i")}, m::KnownInBounds()),
+                             /*indices=*/{m::Param("i")}, m::AssumedInBounds()),
                m::Param("v1"),
                m::ArrayIndex(m::Param("a"),
-                             /*indices=*/{m::Param("i")}, m::KnownInBounds()),
+                             /*indices=*/{m::Param("i")}, m::AssumedInBounds()),
                m::Param("v3")},
               /*default_value=*/
               m::ArrayIndex(m::Param("a"),
-                            /*indices=*/{m::Param("i")}, m::KnownInBounds())),
-          /*indices=*/{m::Param("i")}, m::KnownInBounds()));
+                            /*indices=*/{m::Param("i")}, m::AssumedInBounds())),
+          /*indices=*/{m::Param("i")}, m::AssumedInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -1417,13 +1417,13 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayConcatInBounds) {
       concat,
       /*indices=*/
       {fb.Literal(Value(UBits(15, 32))), fb.Param("x", p->GetBitsType(32))},
-      /*known_in_bounds=*/true);
+      /*assumed_in_bounds=*/true);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ArrayIndex(m::Param("B"), {m::Literal(5), m::Param("x")},
-                            m::KnownInBounds()));
+                            m::AssumedInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest, IndexingArrayConcatNonConstant) {
@@ -1596,7 +1596,7 @@ TEST_F(ArraySimplificationPassTest, MultidimensionalUnitArrayUpdate) {
                  m::Eq(m::Param("idx"), m::Literal(0))),
           {m::Array(m::Array(m::ArrayUpdate(
               m::ArrayIndex(m::Param("array"), {m::Literal(0), m::Literal(0)},
-                            m::KnownInBounds()),
+                            m::AssumedInBounds()),
               m::Param("val"),
               {m::Param("idx"), m::Param("idx"), m::Param("idx")})))},
           /*default_value=*/m::Param("array")));
@@ -1612,8 +1612,8 @@ TEST_F(ArraySimplificationPassTest, ArrayUpdateIndexInBounds) {
                                fb.Literal(UBits(0, 32)));
   BValue val = fb.Param("val", p->GetBitsType(32));
   BValue update_arr =
-      fb.ArrayUpdate(arr, val, {idx_bound}, /*known_in_bounds=*/true);
-  fb.ArrayIndex(update_arr, {idx_bound}, /*known_in_bounds=*/true);
+      fb.ArrayUpdate(arr, val, {idx_bound}, /*assumed_in_bounds=*/true);
+  fb.ArrayIndex(update_arr, {idx_bound}, /*assumed_in_bounds=*/true);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());

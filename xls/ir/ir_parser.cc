@@ -925,23 +925,23 @@ absl::StatusOr<BValue> Parser::ParseNode(
     case Op::kArrayIndex: {
       std::vector<BValue>* index_args =
           arg_parser.AddKeywordArg<std::vector<BValue>>("indices");
-      std::optional<bool>* known_in_bounds =
-          arg_parser.AddOptionalKeywordArg<bool>("known_in_bounds");
+      std::optional<bool>* assumed_in_bounds =
+          arg_parser.AddOptionalKeywordArg<bool>("assumed_in_bounds");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       bvalue =
           fb->ArrayIndex(operands[0], *index_args,
-                         known_in_bounds->value_or(false), *loc, node_name);
+                         assumed_in_bounds->value_or(false), *loc, node_name);
       break;
     }
     case Op::kArrayUpdate: {
       std::vector<BValue>* index_args =
           arg_parser.AddKeywordArg<std::vector<BValue>>("indices");
-      std::optional<bool>* known_in_bounds =
-          arg_parser.AddOptionalKeywordArg<bool>("known_in_bounds");
+      std::optional<bool>* assumed_in_bounds =
+          arg_parser.AddOptionalKeywordArg<bool>("assumed_in_bounds");
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
       bvalue =
           fb->ArrayUpdate(operands[0], operands[1], *index_args,
-                          known_in_bounds->value_or(false), *loc, node_name);
+                          assumed_in_bounds->value_or(false), *loc, node_name);
       break;
     }
     case Op::kArrayConcat: {

@@ -1525,7 +1525,7 @@ TEST_P(NarrowingPassTest, ArrayBoundsContextual) {
       analysis() == NarrowingPass::AnalysisType::kRangeWithContext;
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(is_context_analysis));
   if (is_context_analysis) {
-    EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::KnownInBounds()));
+    EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::AssumedInBounds()));
   }
 }
 
@@ -1541,7 +1541,7 @@ TEST_P(NarrowingPassTest, ArrayBoundsProof) {
   ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::KnownInBounds()));
+  EXPECT_THAT(f->return_value(), m::ArrayIndex(_, {_}, m::AssumedInBounds()));
 }
 
 INSTANTIATE_TEST_SUITE_P(

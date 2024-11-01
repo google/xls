@@ -745,7 +745,7 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
     // index, or other analyses have already proven the access is good).
     // TODO(meheff) 2021-03-25 Simplify this when we have a better way of
     // handling OOB accesses.
-    if (array_index->known_in_bounds() ||
+    if (array_index->assumed_in_bounds() ||
         !options.array_index_bounds_checking() ||
         Bits::MinBitCountUnsigned(array_type->size()) >
             index_type->bit_count()) {

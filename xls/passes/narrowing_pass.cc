@@ -252,11 +252,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   absl::Status DefaultHandler(Node* node) override { return NoChange(); }
   absl::Status HandleArrayUpdate(ArrayUpdate* update) override {
-    if (!update->known_in_bounds() &&
-        ArrayIndicesKnownInBounds(
+    if (!update->assumed_in_bounds() &&
+        ArrayIndicesAssumedInBounds(
             update, update->indices(),
             update->array_to_update()->GetType()->AsArrayOrDie())) {
-      update->SetKnownInBounds(true);
+      update->SetAssumedInBounds(true);
       VLOG(3) << "analysis proves that " << update
               << " does not require bounds checks";
       return Change();
@@ -1069,15 +1069,15 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
   absl::Status HandleArrayIndex(ArrayIndex* array_index) override {
     bool changed = false;
-    bool known_in_bounds = array_index->known_in_bounds();
+    bool assumed_in_bounds = array_index->assumed_in_bounds();
 
-    if (!known_in_bounds &&
-        ArrayIndicesKnownInBounds(
+    if (!assumed_in_bounds &&
+        ArrayIndicesAssumedInBounds(
             array_index, array_index->indices(),
             array_index->array()->GetType()->AsArrayOrDie())) {
       VLOG(3) << "analysis proves that " << index
               << " does not require bounds checks";
-      known_in_bounds = true;
+      assumed_in_bounds = true;
     }
     if (analysis_ == AnalysisType::kRange &&
         options_.convert_array_index_to_select.has_value()) {
@@ -1161,11 +1161,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(
           Node * new_idx,
           array_index->ReplaceUsesWithNew<ArrayIndex>(
-              array_index->array(), new_indices, known_in_bounds));
+              array_index->array(), new_indices, assumed_in_bounds));
       return Change(/*original=*/array_index, /*replacement=*/new_idx);
     }
-    if (known_in_bounds != array_index->known_in_bounds()) {
-      array_index->SetKnownInBounds(known_in_bounds);
+    if (assumed_in_bounds != array_index->assumed_in_bounds()) {
+      array_index->SetAssumedInBounds(assumed_in_bounds);
       // The pointer doesn't change so no need to add an alias.
       return Change();
     }
@@ -1313,8 +1313,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
 
  private:
-  bool ArrayIndicesKnownInBounds(Node* user, absl::Span<Node* const> indices,
-                                 ArrayType* array_type) {
+  bool ArrayIndicesAssumedInBounds(Node* user, absl::Span<Node* const> indices,
+                                   ArrayType* array_type) {
     Type* ty = array_type;
     for (Node* n : indices) {
       const QueryEngine& node_query_engine =

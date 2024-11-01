@@ -845,9 +845,9 @@ inline ::testing::Matcher<const ::xls::Node*> Receive(
       std::move(token), std::move(predicate), channel_matcher);
 }
 
-class KnownInBoundsMatcher {
+class AssumedInBoundsMatcher {
  public:
-  explicit KnownInBoundsMatcher(::testing::Matcher<bool> inner)
+  explicit AssumedInBoundsMatcher(::testing::Matcher<bool> inner)
       : inner_(inner) {}
 
   bool MatchAndExplain(bool val,
@@ -855,7 +855,7 @@ class KnownInBoundsMatcher {
     return inner_.MatchAndExplain(val, listener);
   }
   void DescribeTo(::std::ostream* os) const {
-    *os << "known_in_bounds is: ";
+    *os << "assumed_in_bounds is: ";
     inner_.DescribeTo(os);
   }
 
@@ -869,14 +869,17 @@ class KnownInBoundsMatcher {
 };
 
 // The known-in-bounds marker is the given value.
-inline KnownInBoundsMatcher KnownInBoundsIs(::testing::Matcher<bool> inner) {
-  return KnownInBoundsMatcher(inner);
+inline AssumedInBoundsMatcher AssumedInBoundsIs(
+    ::testing::Matcher<bool> inner) {
+  return AssumedInBoundsMatcher(inner);
 }
 // The known-in-bounds marker is true.
-inline KnownInBoundsMatcher KnownInBounds() { return KnownInBoundsIs(true); }
+inline AssumedInBoundsMatcher AssumedInBounds() {
+  return AssumedInBoundsIs(true);
+}
 // The known-in-bounds marker is false.
-inline KnownInBoundsMatcher NotKnownInBounds() {
-  return KnownInBoundsIs(false);
+inline AssumedInBoundsMatcher NotAssumedInBounds() {
+  return AssumedInBoundsIs(false);
 }
 
 // ArrayIndex matcher. Supported forms:
@@ -888,8 +891,8 @@ class ArrayIndexMatcher : public NodeMatcher {
  public:
   ArrayIndexMatcher(::testing::Matcher<const Node*> array,
                     std::vector<::testing::Matcher<const Node*>> indices,
-                    KnownInBoundsMatcher known_in_bounds =
-                        KnownInBoundsIs(::testing::A<bool>()))
+                    AssumedInBoundsMatcher assumed_in_bounds =
+                        AssumedInBoundsIs(::testing::A<bool>()))
       : NodeMatcher(Op::kArrayIndex,
                     [&]() {
                       std::vector<::testing::Matcher<const Node*>> operands;
@@ -898,22 +901,22 @@ class ArrayIndexMatcher : public NodeMatcher {
                                       indices.end());
                       return operands;
                     }()),
-        known_in_bounds_(known_in_bounds) {}
+        assumed_in_bounds_(assumed_in_bounds) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
 
  private:
-  KnownInBoundsMatcher known_in_bounds_;
+  AssumedInBoundsMatcher assumed_in_bounds_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> ArrayIndex(
     ::testing::Matcher<const Node*> array,
     std::vector<::testing::Matcher<const Node*>> indices,
-    KnownInBoundsMatcher known_in_bounds =
-        KnownInBoundsIs(::testing::A<bool>())) {
+    AssumedInBoundsMatcher assumed_in_bounds =
+        AssumedInBoundsIs(::testing::A<bool>())) {
   return ::xls::op_matchers::ArrayIndexMatcher(
-      std::move(array), std::move(indices), std::move(known_in_bounds));
+      std::move(array), std::move(indices), std::move(assumed_in_bounds));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> ArrayIndex() {
@@ -930,8 +933,8 @@ class ArrayUpdateMatcher : public NodeMatcher {
   ArrayUpdateMatcher(::testing::Matcher<const Node*> array,
                      ::testing::Matcher<const Node*> value,
                      std::vector<::testing::Matcher<const Node*>> indices,
-                     KnownInBoundsMatcher known_in_bounds =
-                         KnownInBoundsIs(::testing::A<bool>()))
+                     AssumedInBoundsMatcher assumed_in_bounds =
+                         AssumedInBoundsIs(::testing::A<bool>()))
       : NodeMatcher(Op::kArrayUpdate,
                     [&]() {
                       std::vector<::testing::Matcher<const Node*>> operands;
@@ -941,24 +944,24 @@ class ArrayUpdateMatcher : public NodeMatcher {
                                       indices.end());
                       return operands;
                     }()),
-        known_in_bounds_(known_in_bounds) {}
+        assumed_in_bounds_(assumed_in_bounds) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
 
  private:
-  KnownInBoundsMatcher known_in_bounds_;
+  AssumedInBoundsMatcher assumed_in_bounds_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate(
     ::testing::Matcher<const Node*> array,
     ::testing::Matcher<const Node*> value,
     std::vector<::testing::Matcher<const Node*>> indices,
-    KnownInBoundsMatcher known_in_bounds =
-        KnownInBoundsIs(::testing::A<bool>())) {
+    AssumedInBoundsMatcher assumed_in_bounds =
+        AssumedInBoundsIs(::testing::A<bool>())) {
   return ::xls::op_matchers::ArrayUpdateMatcher(
       std::move(array), std::move(value), std::move(indices),
-      std::move(known_in_bounds));
+      std::move(assumed_in_bounds));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate() {

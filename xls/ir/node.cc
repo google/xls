@@ -650,7 +650,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
           "indices=[%s]%s", absl::StrJoin(index->indices(), ", "),
-          index->known_in_bounds() ? ", known_in_bounds=true" : ""));
+          index->assumed_in_bounds() ? ", assumed_in_bounds=true" : ""));
       break;
     }
     case Op::kArraySlice: {
@@ -663,7 +663,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
               update->update_value()->GetName()};
       args.push_back(absl::StrFormat(
           "indices=[%s]%s", absl::StrJoin(update->indices(), ", "),
-          update->known_in_bounds() ? ", known_in_bounds=true" : ""));
+          update->assumed_in_bounds() ? ", assumed_in_bounds=true" : ""));
       break;
     }
     case Op::kAssert:

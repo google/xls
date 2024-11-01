@@ -233,9 +233,9 @@ bool ArrayIndexMatcher::MatchAndExplain(
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (!known_in_bounds_.MatchAndExplain(
-          node->As<::xls::ArrayIndex>()->known_in_bounds(), listener)) {
-    *listener << "Unexpected value of known_in_bounds for " << node;
+  if (!assumed_in_bounds_.MatchAndExplain(
+          node->As<::xls::ArrayIndex>()->assumed_in_bounds(), listener)) {
+    *listener << "Unexpected value of assumed_in_bounds for " << node;
     return false;
   }
   return true;
@@ -245,9 +245,9 @@ bool ArrayUpdateMatcher::MatchAndExplain(
   if (!NodeMatcher::MatchAndExplain(node, listener)) {
     return false;
   }
-  if (!known_in_bounds_.MatchAndExplain(
-          node->As<::xls::ArrayUpdate>()->known_in_bounds(), listener)) {
-    *listener << "Unexpected value of known_in_bounds for " << node;
+  if (!assumed_in_bounds_.MatchAndExplain(
+          node->As<::xls::ArrayUpdate>()->assumed_in_bounds(), listener)) {
+    *listener << "Unexpected value of assumed_in_bounds for " << node;
     return false;
   }
   return true;

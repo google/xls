@@ -2066,7 +2066,7 @@ TEST_P(BlockGeneratorTest, ArrayIndexBounds) {
   BValue idx = fb.Select(fb.ULt(param, fb.Literal(UBits(16, 5))),
                          {fb.Shrl(param, fb.Literal(UBits(1, 5)))}, param);
   fb.ArrayIndex(fb.Param("arr", p->GetArrayType(16, p->GetBitsType(32))), {idx},
-                /*known_in_bounds=*/true);
+                /*assumed_in_bounds=*/true);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   CodegenOptions options;

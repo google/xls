@@ -513,7 +513,7 @@ Returns a single element from an array.
 **Syntax**
 
 ```
-result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}], known_in_bounds=<true|false>)
+result = array_index(array, indices=[idx_{0}, ... , idx_{N-1}], assumed_in_bounds=<true|false>)
 ```
 
 **Types**
@@ -526,10 +526,17 @@ Value     | Type
 
 **Keyword arguments**
 
-| Keyword           | Type   | Required | Default | Description               |
-| ----------------- | ------ | -------- | ------- | ------------------------- |
-| `known_in_bounds` | `bool` | no       | False   | Are all indices proven to |
-:                   :        :          :         : be in bounds.             :
+| Keyword             | Type   | Required | Default | Description   |
+| ------------------- | ------ | -------- | ------- | ------------- |
+| `assumed_in_bounds` | `bool` | no       | False   | Are all       |
+:                     :        :          :         : indices       :
+:                     :        :          :         : assumed to be :
+:                     :        :          :         : in bounds in  :
+:                     :        :          :         : all           :
+:                     :        :          :         : circumstances :
+:                     :        :          :         : where the     :
+:                     :        :          :         : result is     :
+:                     :        :          :         : observable.   :
 
 Returns the element of `array` indexed by the indices `idx_{0} ... idx_{N-1}`.
 The array must have at least as many dimensions as number of index elements `N`.
@@ -556,11 +563,12 @@ assuming input array operand `A`.
 
 <!-- mdformat on -->
 
-`known_in_bounds` is an optional parameter to the node which defaults to `false`
-if not present. This has no effect on the behavior of the node but informs other
-passes that the all indices in the node are proven to be 'in-bounds'. This
-should only be set by the `opt` pipeline passes. This information might be used
-in later optimization passes or during verilog codegen.
+`assumed_in_bounds` is an optional parameter to the node which defaults to
+`false` if not present. This has no effect on the behavior of the node but
+informs other passes that the all indices in the node are proven to be
+'in-bounds' in cases where the result is visible. This should only be set by the
+`opt` pipeline passes. This information might be used in later optimization
+passes or during verilog codegen.
 
 #### **`array_slice`**
 
@@ -599,7 +607,7 @@ Returns a modified copy of an array.
 **Syntax**
 
 ```
-result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}], known_in_bounds=<true|false>)
+result = array_update(array, value, indices=[idx_{0}, ... , idx_{N-1}], assumed_in_bounds=<true|false>)
 ```
 
 **Types**
@@ -613,21 +621,25 @@ Value     | Type
 
 **Keyword arguments**
 
-| Keyword           | Type   | Required | Default | Description               |
-| ----------------- | ------ | -------- | ------- | ------------------------- |
-| `known_in_bounds` | `bool` | no       | False   | Are all indices proven to |
-:                   :        :          :         : be in bounds.             :
+| Keyword             | Type   | Required | Default | Description             |
+| ------------------- | ------ | -------- | ------- | ----------------------- |
+| `assumed_in_bounds` | `bool` | no       | False   | Are all indices assumed |
+:                     :        :          :         : to be in bounds in all  :
+:                     :        :          :         : cases where the result  :
+:                     :        :          :         : of this operation is    :
+:                     :        :          :         : observable.             :
 
 Returns a copy of the input array with the element at the given indices replaced
 with the given value. If any index is out of bounds, the result is identical to
 the input `array`. The indexing semantics is identical to `array_index` with the
 exception of out-of-bounds behavior.
 
-`known_in_bounds` is an optional parameter to the node which defaults to `false`
-if not present. This has no effect on the behavior of the node but informs other
-passes that the all indices in the node are proven to be 'in-bounds'. This
-should only be set by the `opt` pipeline passes. This information might be used
-in later optimization passes or during verilog codegen.
+`assumed_in_bounds` is an optional parameter to the node which defaults to
+`false` if not present. This has no effect on the behavior of the node but
+informs other passes that the all indices in the node may be assumed to be
+'in-bounds'. This should only be set by the `opt` pipeline passes. This
+information might be used in later optimization passes or during verilog
+codegen.
 
 ### Tuple operations
 

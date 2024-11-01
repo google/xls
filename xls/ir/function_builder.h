@@ -500,7 +500,8 @@ class BuilderBase {
   // Adds an multi-dimensional array index expression. The indices should be all
   // bits types.
   BValue ArrayIndex(BValue arg, absl::Span<const BValue> indices,
-                    bool known_in_bounds, const SourceInfo& loc = SourceInfo(),
+                    bool assumed_in_bounds,
+                    const SourceInfo& loc = SourceInfo(),
                     std::string_view name = "");
 
   // Adds an multi-dimensional array index expression. The indices should be all
@@ -508,7 +509,7 @@ class BuilderBase {
   BValue ArrayIndex(BValue arg, absl::Span<const BValue> indices,
                     const SourceInfo& loc = SourceInfo(),
                     std::string_view name = "") {
-    return ArrayIndex(arg, indices, /*known_in_bounds=*/false, loc, name);
+    return ArrayIndex(arg, indices, /*assumed_in_bounds=*/false, loc, name);
   }
 
   // Slices an array with a given start and end position.
@@ -519,7 +520,7 @@ class BuilderBase {
   // Updates the array element at index "idx" to update_value. The indices
   // should be all bits types.
   BValue ArrayUpdate(BValue arg, BValue update_value,
-                     absl::Span<const BValue> indices, bool known_in_bounds,
+                     absl::Span<const BValue> indices, bool assumed_in_bounds,
                      const SourceInfo& loc = SourceInfo(),
                      std::string_view name = "");
 
@@ -529,7 +530,7 @@ class BuilderBase {
                      absl::Span<const BValue> indices,
                      const SourceInfo& loc = SourceInfo(),
                      std::string_view name = "") {
-    return ArrayUpdate(arg, update_value, indices, /*known_in_bounds=*/false,
+    return ArrayUpdate(arg, update_value, indices, /*assumed_in_bounds=*/false,
                        loc, name);
   }
 

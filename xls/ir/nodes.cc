@@ -178,12 +178,12 @@ bool Array::IsDefinitelyEqualTo(const Node* other) const {
 }
 
 ArrayIndex::ArrayIndex(const SourceInfo& loc, Node* arg,
-                       absl::Span<Node* const> indices, bool known_in_bounds,
+                       absl::Span<Node* const> indices, bool assumed_in_bounds,
                        std::string_view name, FunctionBase* function)
     : Node(Op::kArrayIndex,
            GetIndexedElementType(arg->GetType(), indices.size()).value(), loc,
            name, function),
-      known_in_bounds_(known_in_bounds) {
+      assumed_in_bounds_(assumed_in_bounds) {
   CHECK(IsOpClass<ArrayIndex>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `ArrayIndex`.";
   AddOperand(arg);
@@ -198,7 +198,7 @@ bool ArrayIndex::IsDefinitelyEqualTo(const Node* other) const {
     return false;
   }
 
-  return known_in_bounds() == other->As<ArrayIndex>()->known_in_bounds();
+  return assumed_in_bounds() == other->As<ArrayIndex>()->assumed_in_bounds();
 }
 
 ArraySlice::ArraySlice(const SourceInfo& loc, Node* array, Node* start,
@@ -234,10 +234,11 @@ bool ArraySlice::IsDefinitelyEqualTo(const Node* other) const {
 }
 
 ArrayUpdate::ArrayUpdate(const SourceInfo& loc, Node* arg, Node* update_value,
-                         absl::Span<Node* const> indices, bool known_in_bounds,
-                         std::string_view name, FunctionBase* function)
+                         absl::Span<Node* const> indices,
+                         bool assumed_in_bounds, std::string_view name,
+                         FunctionBase* function)
     : Node(Op::kArrayUpdate, arg->GetType(), loc, name, function),
-      known_in_bounds_(known_in_bounds) {
+      assumed_in_bounds_(assumed_in_bounds) {
   CHECK(IsOpClass<ArrayUpdate>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `ArrayUpdate`.";
   AddOperand(arg);
@@ -253,7 +254,7 @@ bool ArrayUpdate::IsDefinitelyEqualTo(const Node* other) const {
     return false;
   }
 
-  return known_in_bounds() == other->As<ArrayUpdate>()->known_in_bounds();
+  return assumed_in_bounds() == other->As<ArrayUpdate>()->assumed_in_bounds();
 }
 
 ArrayConcat::ArrayConcat(const SourceInfo& loc, absl::Span<Node* const> args,
@@ -1308,7 +1309,7 @@ absl::StatusOr<Node*> ArrayIndex::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<ArrayIndex>(
-      loc(), new_operands[0], new_operands.subspan(1), known_in_bounds(),
+      loc(), new_operands[0], new_operands.subspan(1), assumed_in_bounds(),
       GetNameView());
 }
 

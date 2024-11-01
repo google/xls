@@ -120,12 +120,12 @@ class ArrayIndex final : public Node {
   static constexpr int64_t kIndexOperandStart = 1;
 
   ArrayIndex(const SourceInfo& loc, Node* arg, absl::Span<Node* const> indices,
-             bool known_in_bounds, std::string_view name,
+             bool assumed_in_bounds, std::string_view name,
              FunctionBase* function);
 
   ArrayIndex(const SourceInfo& loc, Node* arg, absl::Span<Node* const> indices,
              std::string_view name, FunctionBase* function)
-      : ArrayIndex(loc, arg, indices, /*known_in_bounds=*/false, name,
+      : ArrayIndex(loc, arg, indices, /*assumed_in_bounds=*/false, name,
                    function) {}
 
   absl::StatusOr<Node*> CloneInNewFunction(
@@ -136,16 +136,16 @@ class ArrayIndex final : public Node {
   absl::Span<Node* const> indices() const { return operands().subspan(1); }
 
   // Are the values of all indices known to be in-bounds for the array.
-  bool known_in_bounds() const { return known_in_bounds_; }
+  bool assumed_in_bounds() const { return assumed_in_bounds_; }
 
   // Mark/unmark this array-index as having all of its bounds statically known
   // to be good.
-  void SetKnownInBounds(bool value = true) { known_in_bounds_ = value; }
+  void SetAssumedInBounds(bool value = true) { assumed_in_bounds_ = value; }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:
-  bool known_in_bounds_ = false;
+  bool assumed_in_bounds_ = false;
 };
 
 class ArraySlice final : public Node {
@@ -180,13 +180,13 @@ class ArrayUpdate final : public Node {
   static constexpr int64_t kIndexOperandStart = 2;
 
   ArrayUpdate(const SourceInfo& loc, Node* arg, Node* update_value,
-              absl::Span<Node* const> indices, bool known_in_bounds,
+              absl::Span<Node* const> indices, bool assumed_in_bounds,
               std::string_view name, FunctionBase* function);
   ArrayUpdate(const SourceInfo& loc, Node* arg, Node* update_value,
               absl::Span<Node* const> indices, std::string_view name,
               FunctionBase* function)
-      : ArrayUpdate(loc, arg, update_value, indices, /*known_in_bounds=*/false,
-                    name, function) {}
+      : ArrayUpdate(loc, arg, update_value, indices,
+                    /*assumed_in_bounds=*/false, name, function) {}
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
@@ -198,16 +198,16 @@ class ArrayUpdate final : public Node {
   Node* update_value() const { return operand(1); }
 
   // Are the values of all indices known to be in-bounds for the array.
-  bool known_in_bounds() const { return known_in_bounds_; }
+  bool assumed_in_bounds() const { return assumed_in_bounds_; }
 
   // Mark/unmark this array-index as having all of its bounds statically known
   // to be good.
-  void SetKnownInBounds(bool value = true) { known_in_bounds_ = value; }
+  void SetAssumedInBounds(bool value = true) { assumed_in_bounds_ = value; }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:
-  bool known_in_bounds_;
+  bool assumed_in_bounds_;
 };
 
 class Assert final : public Node {
