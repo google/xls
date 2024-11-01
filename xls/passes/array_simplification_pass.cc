@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -82,10 +83,26 @@ bool IndexIsDefinitelyInBounds(Node* index, ArrayType* array_type,
 // Returns true if the given (multidimensional) indices are definitely in bounds
 // for the given (multidimensional) array type. A multidimensional index is in
 // bounds iff *every one* of the indices are in bounds.
-bool IndicesAreDefinitelyInBounds(absl::Span<Node* const> indices, Type* type,
+template <typename ArrayOp>
+  requires(std::is_same_v<ArrayOp, ArrayIndex> ||
+           std::is_same_v<ArrayOp, ArrayUpdate>)
+bool IndicesAreDefinitelyInBounds(ArrayOp* op,
                                   const QueryEngine& query_engine) {
+  // Technically we could use the full range analysis query engine to calculate
+  // this ourselves but we want to run this a lot and that query engine is heavy
+  // to construct.
+  if (op->known_in_bounds()) {
+    return true;
+  }
+  Type* type;
+  if constexpr (std::is_same_v<ArrayOp, ArrayIndex>) {
+    type = op->array()->GetType();
+  } else {
+    static_assert(std::is_same_v<ArrayOp, ArrayUpdate>);
+    type = op->array_to_update()->GetType();
+  }
   Type* subtype = type;
-  for (Node* index : indices) {
+  for (Node* index : op->indices()) {
     if (!IndexIsDefinitelyInBounds(index, subtype->AsArrayOrDie(),
                                    query_engine)) {
       return false;
@@ -268,7 +285,11 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     XLS_ASSIGN_OR_RETURN(
         ArrayIndex * new_array_index,
         array_index->ReplaceUsesWithNew<ArrayIndex>(
-            array->operand(operand_no), array_index->indices().subspan(1)));
+            array->operand(operand_no), array_index->indices().subspan(1),
+            IndicesAreDefinitelyInBounds(array_index, query_engine)));
+    if (IndicesAreDefinitelyInBounds(new_array_index, query_engine)) {
+      new_array_index->SetKnownInBounds();
+    }
     return SimplifyResult::Changed({new_array_index});
   }
 
@@ -305,7 +326,10 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       for (Node* entry : reachable_operands) {
         XLS_ASSIGN_OR_RETURN(ArrayIndex * subindex,
                              array_index->function_base()->MakeNode<ArrayIndex>(
-                                 array_index->loc(), entry, indices));
+                                 array_index->loc(), entry, indices,
+                                 // NB If the original was known in bounds than
+                                 // the last n-1 indices must also be in bounds.
+                                 array_index->known_in_bounds()));
         new_array_indexes.push_back(subindex);
       }
       cases = absl::MakeConstSpan(new_array_indexes);
@@ -377,9 +401,13 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
               Value(UBits(index,
                           array_index->indices().front()->BitCountOrDie()))));
 
-      XLS_ASSIGN_OR_RETURN(ArrayIndex * new_array_index,
-                           array_index->ReplaceUsesWithNew<ArrayIndex>(
-                               indexed_operand, new_indices));
+      XLS_ASSIGN_OR_RETURN(
+          ArrayIndex * new_array_index,
+          array_index->ReplaceUsesWithNew<ArrayIndex>(
+              indexed_operand, new_indices, array_index->known_in_bounds()));
+      if (IndicesAreDefinitelyInBounds(new_array_index, query_engine)) {
+        new_array_index->SetKnownInBounds();
+      }
       return SimplifyResult::Changed({new_array_index});
     }
   }
@@ -398,9 +426,15 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
                             array_index->indices().end());
     VLOG(2) << absl::StrFormat("Consecutive array-index operations: %s",
                                array_index->ToString());
-    XLS_ASSIGN_OR_RETURN(ArrayIndex * new_array_index,
-                         array_index->ReplaceUsesWithNew<ArrayIndex>(
-                             operand->array(), combined_indices));
+    XLS_ASSIGN_OR_RETURN(
+        ArrayIndex * new_array_index,
+        array_index->ReplaceUsesWithNew<ArrayIndex>(
+            operand->array(), combined_indices,
+            IndicesAreDefinitelyInBounds(operand, query_engine) &&
+                IndicesAreDefinitelyInBounds(array_index, query_engine)));
+    if (IndicesAreDefinitelyInBounds(new_array_index, query_engine)) {
+      new_array_index->SetKnownInBounds();
+    }
     return SimplifyResult::Changed({new_array_index});
   }
 
@@ -445,16 +479,18 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
       XLS_ASSIGN_OR_RETURN(
           ArrayIndex * case_array_index,
           array_index->function_base()->MakeNode<ArrayIndex>(
-              array_index->loc(), case_value, array_index->indices()));
+              array_index->loc(), case_value, array_index->indices(),
+              array_index->known_in_bounds()));
       cases.push_back(case_array_index);
     }
 
     std::optional<Node*> default_value;
     if (original_default_value.has_value()) {
-      XLS_ASSIGN_OR_RETURN(default_value,
-                           array_index->function_base()->MakeNode<ArrayIndex>(
-                               array_index->loc(), *original_default_value,
-                               array_index->indices()));
+      XLS_ASSIGN_OR_RETURN(
+          default_value,
+          array_index->function_base()->MakeNode<ArrayIndex>(
+              array_index->loc(), *original_default_value,
+              array_index->indices(), array_index->known_in_bounds()));
     }
 
     Node* new_select;
@@ -526,9 +562,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   // index directly into the update value.
   if (IndicesAreDefinitelyPrefixOf(array_update->indices(),
                                    array_index->indices(), query_engine) &&
-      IndicesAreDefinitelyInBounds(array_update->indices(),
-                                   array_update->array_to_update()->GetType(),
-                                   query_engine)) {
+      IndicesAreDefinitelyInBounds(array_update, query_engine)) {
     // Remove the matching prefix from the
     // front of the array-index indices because the new array-index indexes into
     // the lower dimensional update value. so
@@ -538,7 +572,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
         ArrayIndex * new_array_index,
         array_index->ReplaceUsesWithNew<ArrayIndex>(
             array_update->update_value(),
-            array_index->indices().subspan(array_update->indices().size())));
+            array_index->indices().subspan(array_update->indices().size()),
+            IndicesAreDefinitelyInBounds(array_update, query_engine)));
     return SimplifyResult::Changed({new_array_index});
   }
 
@@ -549,9 +584,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
   // to a location that's affected by the array_update.)
   if (IndicesDefinitelyNotEqual(array_update->indices(), array_index->indices(),
                                 query_engine) &&
-      IndicesAreDefinitelyInBounds(array_index->indices(),
-                                   array_index->array()->GetType(),
-                                   query_engine)) {
+      IndicesAreDefinitelyInBounds(array_index, query_engine)) {
     VLOG(2) << absl::StrFormat("Array-index of array-update (case 2): %s",
                                array_index->ToString());
     XLS_RETURN_IF_ERROR(
@@ -603,7 +636,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
         Node * old_value_get,
         fb->MakeNodeWithName<ArrayIndex>(
             array_index->loc(), array_update->array_to_update(),
-            array_index->indices(), name_fmt(array_index, "_former_value")));
+            array_index->indices(), array_index->known_in_bounds(),
+            name_fmt(array_index, "_former_value")));
     XLS_RETURN_IF_ERROR(
         array_index
             ->ReplaceUsesWithNew<PrioritySelect>(
@@ -770,7 +804,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
       !array_update->indices().empty() &&
       query_engine.IsFullyKnown(array_update->indices().front())) {
     Node* idx = array_update->indices().front();
-    if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
+    if (array_update->known_in_bounds() ||
+        IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
       VLOG(2) << absl::StrFormat("Hoist array update above array: %s",
                                  array_update->ToString());
@@ -791,7 +826,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
             func->MakeNode<ArrayUpdate>(array_update->loc(),
                                         array->operand(operand_no),
                                         array_update->update_value(),
-                                        array_update->indices().subspan(1)));
+                                        array_update->indices().subspan(1),
+                                        array_update->known_in_bounds()));
       }
       XLS_RETURN_IF_ERROR(
           array->ReplaceOperandNumber(operand_no, replacement_array_operand));
@@ -812,9 +848,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
     if (subupdate->array_to_update()->Is<ArrayIndex>()) {
       ArrayIndex* subindex = subupdate->array_to_update()->As<ArrayIndex>();
       if (subindex->array() == array_update->array_to_update() &&
-          IndicesAreDefinitelyInBounds(subindex->indices(),
-                                       subindex->array()->GetType(),
-                                       query_engine) &&
+          IndicesAreDefinitelyInBounds(subindex, query_engine) &&
           IndicesAreDefinitelyEqual(subindex->indices(),
                                     array_update->indices(), query_engine)) {
         std::vector<Node*> new_update_indices(subindex->indices().begin(),
@@ -828,7 +862,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
             ArrayUpdate * new_array_update,
             array_update->ReplaceUsesWithNew<ArrayUpdate>(
                 array_update->array_to_update(), subupdate->update_value(),
-                new_update_indices));
+                new_update_indices,
+                IndicesAreDefinitelyInBounds(array_update, query_engine)));
         return SimplifyResult::Changed({new_array_update});
       }
     }
@@ -891,7 +926,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
       !array_update->indices().empty() &&
       query_engine.IsFullyKnown(array_update->indices().front())) {
     Node* idx = array_update->indices().front();
-    if (IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
+    if (array_update->known_in_bounds() ||
+        IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
                                   query_engine)) {
       VLOG(2) << absl::StrFormat(
           "Array-update of constant with constant index: %s",
@@ -916,7 +952,8 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
               new_array_update,
               func->MakeNode<ArrayUpdate>(array_update->loc(), array_element,
                                           array_update->update_value(),
-                                          array_update->indices().subspan(1)));
+                                          array_update->indices().subspan(1),
+                                          array_update->known_in_bounds()));
           array_operands.push_back(new_array_update);
         } else {
           array_operands.push_back(array_element);
@@ -964,6 +1001,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   ArrayUpdate* current = array_update;
   Node* source_array = nullptr;
   std::optional<absl::Span<Node* const>> common_index_prefix;
+  bool common_index_prefix_known_in_bounds = true;
   int64_t max_index_width = 0;
   std::vector<ArrayUpdate*> update_chain;
   bool has_unknown_indices = false;
@@ -979,6 +1017,8 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
     } else {
       common_index_prefix = index_prefix;
     }
+    common_index_prefix_known_in_bounds =
+        common_index_prefix_known_in_bounds && current->known_in_bounds();
 
     std::optional<std::variant<Node*, int64_t>> updated_index = index;
     int64_t updated_index_width = index->BitCountOrDie();
@@ -1121,7 +1161,8 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
       indices.push_back(get_literal_index());
       XLS_ASSIGN_OR_RETURN(default_value,
                            array_update->function_base()->MakeNode<ArrayIndex>(
-                               array_update->loc(), source_array, indices));
+                               array_update->loc(), source_array, indices,
+                               common_index_prefix_known_in_bounds));
     }
     // Swap the index check order to match the MSB-first semantics of Concat.
     absl::c_reverse(index_checks);
@@ -1147,11 +1188,12 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   if (common_index_prefix->empty()) {
     XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array));
   } else {
-    XLS_RETURN_IF_ERROR(
-        array_update
-            ->ReplaceUsesWithNew<ArrayUpdate>(source_array, array,
-                                              common_index_prefix.value())
-            .status());
+    XLS_RETURN_IF_ERROR(array_update
+                            ->ReplaceUsesWithNew<ArrayUpdate>(
+                                source_array, array,
+                                common_index_prefix.value(),
+                                common_index_prefix_known_in_bounds)
+                            .status());
   }
   VLOG(4) << "New IR:\n" << array_update->function_base()->DumpIr();
 
@@ -1205,11 +1247,15 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
   //
   Node* origin_array = nullptr;
   std::optional<std::vector<Node*>> common_index_prefix;
+  // Since the prefix is the same if any array-index is known-in-bounds the
+  // prefix must be.
+  bool in_bounds = false;
   for (int64_t i = 0; i < array->operand_count(); ++i) {
     if (!array->operand(i)->Is<ArrayIndex>()) {
       return SimplifyResult::Unchanged();
     }
     ArrayIndex* array_index = array->operand(i)->As<ArrayIndex>();
+    in_bounds = array_index->known_in_bounds() || in_bounds;
     if (array_index->indices().empty()) {
       return SimplifyResult::Unchanged();
     }
@@ -1268,9 +1314,13 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
     }
     VLOG(3) << absl::StrFormat("  Replacing with index on origin array %s",
                                origin_array->ToString());
-    XLS_ASSIGN_OR_RETURN(ArrayIndex * array_index,
-                         array->ReplaceUsesWithNew<ArrayIndex>(
-                             origin_array, common_index_prefix.value()));
+    XLS_ASSIGN_OR_RETURN(
+        ArrayIndex * array_index,
+        array->ReplaceUsesWithNew<ArrayIndex>(
+            origin_array, common_index_prefix.value(), in_bounds));
+    if (IndicesAreDefinitelyInBounds(array_index, query_engine)) {
+      array_index->SetKnownInBounds();
+    }
     return SimplifyResult::Changed({array_index});
   }
   return SimplifyResult::Unchanged();
@@ -1286,7 +1336,8 @@ absl::StatusOr<SimplifyResult> SimplifyArray(Array* array,
 //
 // The advantage is the select (mux) is only selecting an array element rather
 // than the entire array.
-absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
+absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
+    Node* select, const QueryEngine& query_engine) {
   absl::Span<Node* const> original_cases;
   std::optional<Node*> original_default_value;
   if (select->Is<Select>()) {
@@ -1301,11 +1352,12 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
   struct IdentityValue : std::monostate {};
   Node* array_to_update = nullptr;
   std::optional<absl::Span<Node* const>> idx = std::nullopt;
-  std::vector<std::variant<Node*, IdentityValue>> cases;
+  std::vector<std::variant<ArrayUpdate*, IdentityValue>> cases;
   cases.reserve(original_cases.size());
-  std::optional<std::variant<Node*, IdentityValue>> default_case = std::nullopt;
-  auto extract_case =
-      [&](Node* sel_case) -> std::optional<std::variant<Node*, IdentityValue>> {
+  std::optional<std::variant<ArrayUpdate*, IdentityValue>> default_case =
+      std::nullopt;
+  auto extract_case = [&](Node* sel_case)
+      -> std::optional<std::variant<ArrayUpdate*, IdentityValue>> {
     if (!sel_case->Is<ArrayUpdate>()) {
       if (array_to_update == nullptr) {
         array_to_update = sel_case;
@@ -1333,10 +1385,10 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
       // Not just a select of array updates to the same index.
       return std::nullopt;
     }
-    return update->update_value();
+    return update;
   };
   for (Node* sel_case : original_cases) {
-    std::optional<std::variant<Node*, IdentityValue>> case_value =
+    std::optional<std::variant<ArrayUpdate*, IdentityValue>> case_value =
         extract_case(sel_case);
     if (!case_value.has_value()) {
       // Doesn't match the pattern; this simplification doesn't apply.
@@ -1345,8 +1397,8 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
     cases.push_back(*case_value);
   }
   if (original_default_value.has_value()) {
-    std::optional<std::variant<Node*, IdentityValue>> default_case_value =
-        extract_case(*original_default_value);
+    std::optional<std::variant<ArrayUpdate*, IdentityValue>>
+        default_case_value = extract_case(*original_default_value);
     if (!default_case_value.has_value()) {
       // Doesn't match the pattern; this simplification doesn't apply.
       return SimplifyResult::Unchanged();
@@ -1357,6 +1409,13 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
     // Doesn't match the pattern; this simplification doesn't apply.
     return SimplifyResult::Unchanged();
   }
+  auto is_in_bounds = [&](const std::variant<ArrayUpdate*, IdentityValue>& v) {
+    return std::holds_alternative<IdentityValue>(v) ||
+           IndicesAreDefinitelyInBounds(std::get<ArrayUpdate*>(v),
+                                        query_engine);
+  };
+  bool known_in_bounds = absl::c_all_of(cases, is_in_bounds) &&
+                         is_in_bounds(default_case.value_or(IdentityValue()));
 
   VLOG(2) << absl::StrFormat("Hoist select above array-update(s): %s",
                              select->ToString());
@@ -1366,15 +1425,26 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
   std::optional<Node*> shared_original_value;
   auto get_original_value = [&]() -> absl::StatusOr<Node*> {
     if (!shared_original_value.has_value()) {
-      XLS_ASSIGN_OR_RETURN(shared_original_value,
-                           select->function_base()->MakeNode<ArrayIndex>(
-                               select->loc(), array_to_update, *idx));
+      XLS_ASSIGN_OR_RETURN(
+          shared_original_value,
+          // TODO(allight): This is a strange case since the update means that
+          // the value is only used if the index was in bounds.  The ArrayIndex
+          // operation only gets used if the index is in bounds So we could
+          // assume the index is known-in-bounds in this context. That leads to
+          // some potentially strange implications where we might want to change
+          // known_in_boudns to assumed_in_bounds or something. For now we just
+          // avoid this entirely by setting it to and-reduce of all the cases
+          // known-in-bounds. If/when we do this we should change the
+          // 'known_in_bounds' to 'assumed_in_bounds' or something.
+          // TODO(allight): We could do the or-reduce instead.
+          select->function_base()->MakeNode<ArrayIndex>(
+              select->loc(), array_to_update, *idx, known_in_bounds));
     }
     return *shared_original_value;
   };
-  for (std::variant<Node*, IdentityValue> c : cases) {
-    if (std::holds_alternative<Node*>(c)) {
-      case_values.push_back(std::get<Node*>(c));
+  for (std::variant<ArrayUpdate*, IdentityValue> c : cases) {
+    if (std::holds_alternative<ArrayUpdate*>(c)) {
+      case_values.push_back(std::get<ArrayUpdate*>(c)->update_value());
       continue;
     }
     XLS_RET_CHECK(std::holds_alternative<IdentityValue>(c));
@@ -1382,8 +1452,8 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
     case_values.push_back(original_value);
   }
   if (default_case.has_value()) {
-    if (std::holds_alternative<Node*>(*default_case)) {
-      default_value = std::get<Node*>(*default_case);
+    if (std::holds_alternative<ArrayUpdate*>(*default_case)) {
+      default_value = std::get<ArrayUpdate*>(*default_case)->update_value();
     } else {
       XLS_RET_CHECK(std::holds_alternative<IdentityValue>(*default_case));
       XLS_ASSIGN_OR_RETURN(Node * original_value, get_original_value());
@@ -1411,9 +1481,10 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(Node* select) {
             /*default_value=*/*default_value));
   }
 
-  XLS_ASSIGN_OR_RETURN(ArrayUpdate * overall_update,
-                       select->ReplaceUsesWithNew<ArrayUpdate>(
-                           array_to_update, selected_value, *idx));
+  XLS_ASSIGN_OR_RETURN(
+      ArrayUpdate * overall_update,
+      select->ReplaceUsesWithNew<ArrayUpdate>(array_to_update, selected_value,
+                                              *idx, known_in_bounds));
   if (shared_original_value.has_value()) {
     return SimplifyResult::Changed(
         {*shared_original_value, selected_value, overall_update});
@@ -1504,7 +1575,7 @@ absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
   XLS_RET_CHECK(select->Is<Select>() || select->Is<PrioritySelect>());
 
   XLS_ASSIGN_OR_RETURN(SimplifyResult conditional_assign_result,
-                       SimplifyConditionalAssign(select));
+                       SimplifyConditionalAssign(select, query_engine));
   if (conditional_assign_result.changed) {
     return conditional_assign_result;
   }

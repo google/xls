@@ -731,7 +731,8 @@ TEST_F(ArraySimplificationPassTest, SimplifyDecomposedNestedArray) {
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ArrayIndex(m::Param("a"),
-                            /*indices=*/{m::Literal(40), m::Literal(50)}));
+                            /*indices=*/{m::Literal(40), m::Literal(50)},
+                            m::KnownInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest, SimplifyDecomposedArraySwizzledElements) {
@@ -1080,7 +1081,8 @@ TEST_F(ArraySimplificationPassTest,
           m::Param("a"),
           m::Select(m::Param("p"),
                     /*cases=*/{m::ArrayIndex(m::Param("a"),
-                                             /*indices=*/{m::Literal(1)}),
+                                             /*indices=*/{m::Literal(1)},
+                                             m::KnownInBounds()),
                                m::Param("v")}),
           /*indices=*/{m::Literal(1)}));
 }
@@ -1119,8 +1121,41 @@ TEST_F(ArraySimplificationPassTest,
           m::Select(m::Param("p"),
                     /*cases=*/{m::Param("v"),
                                m::ArrayIndex(m::Param("a"),
-                                             /*indices=*/{m::Param("i")})}),
-          /*indices=*/{m::Param("i")}));
+                                             /*indices=*/{m::Param("i")},
+                                             // NB The value is only actually
+                                             // used by the update if the 'i' is
+                                             // actually in bounds so we can
+                                             // avoid bounds checks here.
+                                             m::NotKnownInBounds())}),
+          /*indices=*/{m::Param("i")}, m::NotKnownInBounds()));
+}
+
+TEST_F(ArraySimplificationPassTest,
+       ConditionalAssignmentOfArrayElementUpdatedOnFalseKnownInBounds) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[1], a: bits[32][4], v: bits[32], i: bits[16]) -> bits[32][4] {
+  updated_a: bits[32][4] = array_update(a, v, indices=[i], known_in_bounds=true)
+  ret result: bits[32][4] = sel(p, cases=[updated_a, a])
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayUpdate(
+          m::Param("a"),
+          m::Select(m::Param("p"),
+                    /*cases=*/{m::Param("v"),
+                               m::ArrayIndex(m::Param("a"),
+                                             /*indices=*/{m::Param("i")},
+                                             // NB The value is only actually
+                                             // used by the update if the 'i' is
+                                             // actually in bounds so we can
+                                             // avoid bounds checks here.
+                                             m::KnownInBounds())}),
+          /*indices=*/{m::Param("i")}, m::KnownInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -1263,6 +1298,37 @@ TEST_F(ArraySimplificationPassTest,
 }
 
 TEST_F(ArraySimplificationPassTest,
+       PriorityConditionalAssignmentOfArrayElementWithMultipleCasesInBounds) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+ fn func(p: bits[4], a: bits[32][4], v1: bits[32], v3: bits[32], i: bits[16]) -> bits[32][4] {
+  a_update1: bits[32][4] = array_update(a, v1, indices=[i], known_in_bounds=true)
+  a_update3: bits[32][4] = array_update(a, v3, indices=[i], known_in_bounds=true)
+  ret result: bits[32][4] = priority_sel(p, cases=[a, a_update1, a, a_update3], default=a)
+ }
+  )",
+                                                       p.get()));
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::ArrayUpdate(
+          m::Param("a"),
+          m::PrioritySelect(
+              m::Param("p"),
+              /*cases=*/
+              {m::ArrayIndex(m::Param("a"),
+                             /*indices=*/{m::Param("i")}, m::KnownInBounds()),
+               m::Param("v1"),
+               m::ArrayIndex(m::Param("a"),
+                             /*indices=*/{m::Param("i")}, m::KnownInBounds()),
+               m::Param("v3")},
+              /*default_value=*/
+              m::ArrayIndex(m::Param("a"),
+                            /*indices=*/{m::Param("i")}, m::KnownInBounds())),
+          /*indices=*/{m::Param("i")}, m::KnownInBounds()));
+}
+
+TEST_F(ArraySimplificationPassTest,
        PriorityConditionalAssignmentOfArrayElementWithMultipleCasesAllChanged) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1337,6 +1403,27 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayConcat) {
   ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::ArrayIndex(m::Param("B"), {m::Literal(5), m::Param("x")}));
+}
+
+TEST_F(ArraySimplificationPassTest, IndexingArrayConcatInBounds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* subarray_type = p->GetArrayType(42, p->GetBitsType(10));
+  BValue a = fb.Param("A", p->GetArrayType(10, subarray_type));
+  BValue b = fb.Param("B", p->GetArrayType(20, subarray_type));
+  BValue c = fb.Param("C", p->GetArrayType(30, subarray_type));
+  BValue concat = fb.ArrayConcat({a, b, c});
+  fb.ArrayIndex(
+      concat,
+      /*indices=*/
+      {fb.Literal(Value(UBits(15, 32))), fb.Param("x", p->GetBitsType(32))},
+      /*known_in_bounds=*/true);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ArrayIndex(m::Param("B"), {m::Literal(5), m::Param("x")},
+                            m::KnownInBounds()));
 }
 
 TEST_F(ArraySimplificationPassTest, IndexingArrayConcatNonConstant) {
