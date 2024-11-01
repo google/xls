@@ -17,8 +17,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-      with:
-        token: ${{github.event.inputs.xls-github-bot-pat}}
     - uses: actions/setup-python@v2
     - name: Install Python dependencies
       run: |
