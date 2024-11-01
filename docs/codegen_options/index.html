@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.42">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.43">
     
     
       
@@ -2425,9 +2425,9 @@ otherwise there will be deadlock.</p>
 <p>The codegen option <code>--ram_configurations</code> takes a comma-separated list of
 configurations in the format <code>ram_name:ram_kind[:kind-specific-configuration]</code>.
 For a <code>1RW</code> RAM, the format is
-<code>ram_name:1RW:req_channel_name:resp_channel_name[:latency]</code>, where latency is 1
-if unspecified. For a <code>1RW</code> RAM, there are several requirements these channels
-must satisfy:</p>
+<code>ram_name:1RW:req_channel_name:resp_channel_name:write_comp_name[:latency]</code>,
+where latency is 1 if unspecified. For a <code>1RW</code> RAM, there are several
+requirements these channels must satisfy:</p>
 <ul>
 <li>The request channel must be a tuple type with 4 entries corresponding to
     <code>(addr, wr_data, we, re)</code>. All entries must have type <code>bits</code>, and <code>we</code> and
