@@ -774,9 +774,9 @@ LogicalResult convertVectorizedCall(mlir::Operation* op,
   Operation* newOp = rewriter.create<CallOpTy>(op->getLoc(), thisResultTypes,
                                                operands, op->getAttrs());
   SmallVector<Value> results;
-  for (auto [i, _] : llvm::enumerate(resultTypes)) {
-    results.push_back(rewriter.create<ArrayUpdateOp>(
-        op->getLoc(), resultArgs[i], newOp->getResult(i), indvar));
+  for (auto [resArg, newRes] : llvm::zip(resultArgs, newOp->getResults())) {
+    results.push_back(
+        rewriter.create<ArrayUpdateOp>(op->getLoc(), resArg, newRes, indvar));
   }
   rewriter.create<YieldOp>(op->getLoc(), results);
   return success();
