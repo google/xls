@@ -7,11 +7,8 @@ on:
   # This lets us trigger manually from the UI.
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  docs:
+  build:
     runs-on:
       labels: ubuntu-22.04-4core
     steps:
@@ -25,8 +22,21 @@ jobs:
     - name: Build MkDocs And Commit HTML
       run: |
         mkdocs build
-        git config --global user.name 'xls-github-bot'
-        git config --global user.email 'xls-github-bot'
-        git add .
-        LATEST_HASH=$(git rev-parse HEAD)
-        git commit -a -m "mkdocs generated documentation from ${LATEST_HASH}" && git push
+    - name: Upload static files as artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: docs/
+  deploy:
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on:
+      labels: ubuntu-22.04-4core
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
