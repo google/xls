@@ -1,12 +1,14 @@
-name: Build MkDocs And Commit HTML
+name: Nighly Build MkDocs And Commit HTML
 
 on:
+  schedule:
+    # Nightly at midnight PDT -- uses UTC, so 7am.
+    - cron:  '0 7 * * *'
+  # This lets us trigger manually from the UI.
   workflow_dispatch:
-    inputs:
-      xls-github-bot-pat:
-        description: 'The Personal Access Token (PAT) for the xls-github-bot user.'
-        required: true
 
+permissions:
+  contents: write
 
 jobs:
   docs:

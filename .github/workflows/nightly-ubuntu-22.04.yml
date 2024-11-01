@@ -4,7 +4,7 @@
 name: Nightly Ubuntu 22.04
 on:
   schedule:
-    # Nightly at midnight -- uses UTC, so 7am.
+    # Nightly at midnight PDT -- uses UTC, so 7am.
     - cron:  '0 7 * * *'
   # This lets us trigger manually from the UI.
   workflow_dispatch:
