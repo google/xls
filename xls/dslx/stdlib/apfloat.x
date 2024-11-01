@@ -21,6 +21,12 @@ pub struct APFloat<EXP_SZ: u32, FRACTION_SZ: u32> {
     fraction: bits[FRACTION_SZ],  // Fractional part (no hidden bit).
 }
 
+impl APFloat<EXP_SZ, FRACTION_SZ> {
+    const EXP_SIZE = EXP_SZ;
+    const FRACTION_SIZE = FRACTION_SZ;
+    const TOTAL_SIZE = u32:1 + EXP_SZ + FRACTION_SZ;
+}
+
 pub enum APFloatTag : u3 {
     NAN = 0,
     INFINITY = 1,

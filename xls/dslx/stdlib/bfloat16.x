@@ -16,89 +16,85 @@
 import apfloat;
 import std;
 
-pub const BF16_EXP_SZ = u32:8;  // Exponent bits
-pub const BF16_FRACTION_SZ = u32:7;  // Fraction bits
-pub const BF16_TOTAL_SZ = u32:1 + BF16_EXP_SZ + BF16_FRACTION_SZ;
-
-pub type BF16 = apfloat::APFloat<BF16_EXP_SZ, BF16_FRACTION_SZ>;
+pub type BF16 = apfloat::APFloat<u32:8, u32:7>;
 pub type FloatTag = apfloat::APFloatTag;
 pub type TaggedBF16 = (FloatTag, BF16);
 
-pub fn qnan() -> BF16 { apfloat::qnan<BF16_EXP_SZ, BF16_FRACTION_SZ>() }
+pub fn qnan() -> BF16 { apfloat::qnan<BF16::EXP_SIZE, BF16::FRACTION_SIZE>() }
 
-pub fn is_nan(f: BF16) -> bool { apfloat::is_nan<BF16_EXP_SZ, BF16_FRACTION_SZ>(f) }
+pub fn is_nan(f: BF16) -> bool { apfloat::is_nan<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
 
-pub fn inf(sign: u1) -> BF16 { apfloat::inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(sign) }
+pub fn inf(sign: u1) -> BF16 { apfloat::inf<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(sign) }
 
-pub fn is_inf(f: BF16) -> bool { apfloat::is_inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(f) }
+pub fn is_inf(f: BF16) -> bool { apfloat::is_inf<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
 
-pub fn is_pos_inf(f: BF16) -> bool { apfloat::is_pos_inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(f) }
+pub fn is_pos_inf(f: BF16) -> bool { apfloat::is_pos_inf<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
 
-pub fn is_neg_inf(f: BF16) -> bool { apfloat::is_neg_inf<BF16_EXP_SZ, BF16_FRACTION_SZ>(f) }
+pub fn is_neg_inf(f: BF16) -> bool { apfloat::is_neg_inf<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
 
-pub fn zero(sign: u1) -> BF16 { apfloat::zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(sign) }
+pub fn zero(sign: u1) -> BF16 { apfloat::zero<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(sign) }
 
-pub fn one(sign: u1) -> BF16 { apfloat::one<BF16_EXP_SZ, BF16_FRACTION_SZ>(sign) }
+pub fn one(sign: u1) -> BF16 { apfloat::one<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(sign) }
 
 pub fn negate(x: BF16) -> BF16 { apfloat::negate(x) }
 
-pub fn max_normal_exp() -> s8 { apfloat::max_normal_exp<BF16_EXP_SZ>() }
+pub fn max_normal_exp() -> s8 { apfloat::max_normal_exp<BF16::EXP_SIZE>() }
 
-pub fn min_normal_exp() -> s8 { apfloat::min_normal_exp<BF16_EXP_SZ>() }
+pub fn min_normal_exp() -> s8 { apfloat::min_normal_exp<BF16::EXP_SIZE>() }
 
 pub fn unbiased_exponent(f: BF16) -> s8 {
-    apfloat::unbiased_exponent<BF16_EXP_SZ, BF16_FRACTION_SZ>(f)
+    apfloat::unbiased_exponent<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f)
 }
 
 pub fn bias(unbiased_exponent_in: s8) -> u8 {
-    apfloat::bias<BF16_EXP_SZ, BF16_FRACTION_SZ>(unbiased_exponent_in)
+    apfloat::bias<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(unbiased_exponent_in)
 }
 
-pub fn flatten(f: BF16) -> u16 { apfloat::flatten<BF16_EXP_SZ, BF16_FRACTION_SZ>(f) }
+pub fn flatten(f: BF16) -> u16 { apfloat::flatten<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
 
-pub fn unflatten(f: u16) -> BF16 { apfloat::unflatten<BF16_EXP_SZ, BF16_FRACTION_SZ>(f) }
+pub fn unflatten(f: u16) -> BF16 { apfloat::unflatten<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f) }
 
 pub fn ldexp(f: BF16, e: s32) -> BF16 { apfloat::ldexp(f, e) }
 
 pub fn cast_from_fixed_using_rne<NUM_SRC_BITS: u32>(s: sN[NUM_SRC_BITS]) -> BF16 {
-    apfloat::cast_from_fixed_using_rne<BF16_EXP_SZ, BF16_FRACTION_SZ>(s)
+    apfloat::cast_from_fixed_using_rne<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(s)
 }
 
 pub fn cast_from_fixed_using_rz<NUM_SRC_BITS: u32>(s: sN[NUM_SRC_BITS]) -> BF16 {
-    apfloat::cast_from_fixed_using_rz<BF16_EXP_SZ, BF16_FRACTION_SZ>(s)
+    apfloat::cast_from_fixed_using_rz<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(s)
 }
 
 pub fn cast_to_fixed<NUM_DST_BITS: u32>(to_cast: BF16) -> sN[NUM_DST_BITS] {
-    apfloat::cast_to_fixed<NUM_DST_BITS, BF16_EXP_SZ, BF16_FRACTION_SZ>(to_cast)
+    apfloat::cast_to_fixed<NUM_DST_BITS, BF16::EXP_SIZE, BF16::FRACTION_SIZE>(to_cast)
 }
 
 pub fn subnormals_to_zero(f: BF16) -> BF16 {
-    apfloat::subnormals_to_zero<BF16_EXP_SZ, BF16_FRACTION_SZ>(f)
+    apfloat::subnormals_to_zero<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f)
 }
 
 pub fn is_zero_or_subnormal(f: BF16) -> bool {
-    apfloat::is_zero_or_subnormal<BF16_EXP_SZ, BF16_FRACTION_SZ>(f)
+    apfloat::is_zero_or_subnormal<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(f)
 }
 
-pub fn eq_2(x: BF16, y: BF16) -> bool { apfloat::eq_2<BF16_EXP_SZ, BF16_FRACTION_SZ>(x, y) }
+pub fn eq_2(x: BF16, y: BF16) -> bool { apfloat::eq_2<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(x, y) }
 
-pub fn gt_2(x: BF16, y: BF16) -> bool { apfloat::gt_2<BF16_EXP_SZ, BF16_FRACTION_SZ>(x, y) }
+pub fn gt_2(x: BF16, y: BF16) -> bool { apfloat::gt_2<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(x, y) }
 
-pub fn gte_2(x: BF16, y: BF16) -> bool { apfloat::gte_2<BF16_EXP_SZ, BF16_FRACTION_SZ>(x, y) }
+pub fn gte_2(x: BF16, y: BF16) -> bool { apfloat::gte_2<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(x, y) }
 
-pub fn lt_2(x: BF16, y: BF16) -> bool { apfloat::lt_2<BF16_EXP_SZ, BF16_FRACTION_SZ>(x, y) }
+pub fn lt_2(x: BF16, y: BF16) -> bool { apfloat::lt_2<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(x, y) }
 
-pub fn lte_2(x: BF16, y: BF16) -> bool { apfloat::lte_2<BF16_EXP_SZ, BF16_FRACTION_SZ>(x, y) }
+pub fn lte_2(x: BF16, y: BF16) -> bool { apfloat::lte_2<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(x, y) }
 
 pub fn normalize(sign: u1, exp: u8, fraction_with_hidden: u8) -> BF16 {
-    apfloat::normalize<BF16_EXP_SZ, BF16_FRACTION_SZ>(sign, exp, fraction_with_hidden)
+    apfloat::normalize<BF16::EXP_SIZE, BF16::FRACTION_SIZE>(sign, exp, fraction_with_hidden)
 }
 
 pub fn to_int<RESULT_SZ: u32>(x: BF16) -> sN[RESULT_SZ] {
-    apfloat::to_int<BF16_EXP_SZ, BF16_FRACTION_SZ, RESULT_SZ>(x)
+    apfloat::to_int<BF16::EXP_SIZE, BF16::FRACTION_SIZE, RESULT_SZ>(x)
 }
 
-pub fn to_int16(x: BF16) -> s16 { apfloat::to_int<BF16_EXP_SZ, BF16_FRACTION_SZ, u32:16>(x) }
+pub fn to_int16(x: BF16) -> s16 { apfloat::to_int<BF16::EXP_SIZE, BF16::FRACTION_SIZE, u32:16>(x) }
 
 pub fn to_uint<RESULT_SZ: u32>(x: BF16) -> uN[RESULT_SZ] { apfloat::to_uint<RESULT_SZ>(x) }
 
@@ -175,7 +171,7 @@ pub fn floor(f: BF16) -> BF16 { apfloat::floor(f) }
 pub fn trunc(f: BF16) -> BF16 { apfloat::trunc(f) }
 
 pub fn from_float32(f32: apfloat::APFloat<u32:8, u32:23>) -> BF16 {
-    apfloat::downcast_fractional_rne<BF16_FRACTION_SZ>(f32)
+    apfloat::downcast_fractional_rne<BF16::FRACTION_SIZE>(f32)
 }
 
 // Converts the given signed integer to bfloat16. For s8, all values can be

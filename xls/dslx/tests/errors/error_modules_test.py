@@ -885,8 +885,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/apfloat_struct_constant.x'
     )
     self.assertIn(
-        "Struct 'APFloat' has no impl defining"
-        " 'SOME_CONSTANT_THAT_DOES_NOT_EXIST'",
+        "Name 'SOME_CONSTANT_THAT_DOES_NOT_EXIST' is not defined by the impl"
+        ' for struct',
         stderr,
     )
 
