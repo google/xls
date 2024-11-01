@@ -19,6 +19,10 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load(
+    "//xls/contrib/xlscc/build_rules:xlscc_rules.bzl",
+    "xls_cc_ir",
+)
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -210,4 +214,34 @@ exports_files(
             "BUILD",
         ],
     ),
+)
+
+xls_cc_ir(
+    name = "eval_proc_main_test_test_memory_cc_ir",
+    src = "eval_proc_main_test.test_memory.cc",
+    block_from_class = "Test",
+    block_pb_out = "eval_proc_main_test.test_memory.block.pb",
+    ir_file = "eval_proc_main_test.test_memory.ir",
+    xlscc_args = {"top": ""},
+)
+
+xls_ir_opt_ir(
+    name = "eval_proc_main_test_test_memory_opt_ir",
+    src = ":eval_proc_main_test_test_memory_cc_ir",
+    opt_ir_file = "eval_proc_main_test.test_memory.opt.ir",
+    ram_rewrites = [
+        "//xls/tools/testdata:eval_proc_main_test.ram_rewrites.textproto",
+    ],
+)
+
+xls_ir_verilog(
+    name = "eval_proc_main_test_test_memory_block_ir",
+    src = ":eval_proc_main_test_test_memory_opt_ir",
+    block_ir_file = "eval_proc_main_test.test_memory.block.ir",
+    codegen_args = {
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "ram_configurations": "mem:1RW:mem_req:mem_resp:mem_write_completion",
+    },
+    verilog_file = "eval_proc_main_test.test_memory.sv",
 )

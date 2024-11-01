@@ -376,9 +376,9 @@ otherwise there will be deadlock.
 The codegen option `--ram_configurations` takes a comma-separated list of
 configurations in the format `ram_name:ram_kind[:kind-specific-configuration]`.
 For a `1RW` RAM, the format is
-`ram_name:1RW:req_channel_name:resp_channel_name[:latency]`, where latency is 1
-if unspecified. For a `1RW` RAM, there are several requirements these channels
-must satisfy:
+`ram_name:1RW:req_channel_name:resp_channel_name:write_comp_name[:latency]`,
+where latency is 1 if unspecified. For a `1RW` RAM, there are several
+requirements these channels must satisfy:
 
 -   The request channel must be a tuple type with 4 entries corresponding to
     `(addr, wr_data, we, re)`. All entries must have type `bits`, and `we` and

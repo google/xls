@@ -174,7 +174,7 @@ absl::Status Translator::GenerateExternalChannels(
       XLS_ASSIGN_OR_RETURN(
           new_channel.read_request,
           package_->CreateStreamingChannel(
-              memory_name + "__read_request", xls::ChannelOps::kSendOnly,
+              memory_name + "_read_request", xls::ChannelOps::kSendOnly,
               read_request_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
@@ -188,7 +188,7 @@ absl::Status Translator::GenerateExternalChannels(
       XLS_ASSIGN_OR_RETURN(
           new_channel.read_response,
           package_->CreateStreamingChannel(
-              memory_name + "__read_response", xls::ChannelOps::kReceiveOnly,
+              memory_name + "_read_response", xls::ChannelOps::kReceiveOnly,
               read_response_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
@@ -202,7 +202,7 @@ absl::Status Translator::GenerateExternalChannels(
       XLS_ASSIGN_OR_RETURN(
           new_channel.write_request,
           package_->CreateStreamingChannel(
-              memory_name + "__write_request", xls::ChannelOps::kSendOnly,
+              memory_name + "_write_request", xls::ChannelOps::kSendOnly,
               write_request_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,
@@ -216,7 +216,7 @@ absl::Status Translator::GenerateExternalChannels(
       XLS_ASSIGN_OR_RETURN(
           new_channel.write_response,
           package_->CreateStreamingChannel(
-              memory_name + "__write_response", xls::ChannelOps::kReceiveOnly,
+              memory_name + "_write_response", xls::ChannelOps::kReceiveOnly,
               write_response_type,
               /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
               xls::FlowControl::kReadyValid,

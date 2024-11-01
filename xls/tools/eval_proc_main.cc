@@ -73,6 +73,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/register.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -80,6 +81,7 @@
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/tools/eval_utils.h"
+#include "xls/tools/memory_models.h"
 #include "xls/tools/node_coverage_utils.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -182,10 +184,6 @@ ABSL_FLAG(int64_t, max_trace_verbosity, 0,
           "stripped from codegen output. 0 by default.");
 ABSL_FLAG(int64_t, trace_per_ticks, 100, "Print a trace every N ticks.");
 ABSL_FLAG(std::string, output_stats_path, "", "File to output statistics to.");
-ABSL_FLAG(std::vector<std::string>, model_memories, {},
-          "Comma separated list of memory=depth/element_type:initial_value "
-          "pairs, for example: "
-          "mem=32/bits[32]:0");
 ABSL_FLAG(bool, fail_on_assert, false,
           "When set to true, the simulation fails on the activation or cycle "
           "in which an assertion fires.");
@@ -197,6 +195,13 @@ ABSL_FLAG(std::optional<std::string>, output_node_coverage_stats_textproto,
           std::nullopt,
           "File to write a (text) NodeCoverageStatsProto showing which bits "
           "in the run were actually set for each node.");
+ABSL_FLAG(bool, abstract_ram_model, false,
+          "Whether or not to use an abstract RAM model, as opposed to a "
+          "rewritten RAM model, for proc memory.\n");
+ABSL_FLAG(std::string, ram_rewrites_textproto, "",
+          "Path to ram rewrites textproto, which is used to create memory "
+          "models. Blank is default, in which case no memory models are added "
+          "to the simulation.");
 
 namespace xls {
 
@@ -234,6 +239,7 @@ static absl::Status EvaluateProcs(
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels,
+    const RamRewritesProto& ram_rewrites,
     const EvaluateProcsOptions& options = {}) {
   std::unique_ptr<SerialProcRuntime> runtime;
   std::optional<JitRuntime*> jit;
@@ -268,6 +274,37 @@ static absl::Status EvaluateProcs(
   }
 
   ChannelQueueManager& queue_manager = runtime->queue_manager();
+
+  std::vector<std::unique_ptr<memory_model::ProcMemoryModel>> memory_models;
+
+  const bool abstract_ram_model = absl::GetFlag(FLAGS_abstract_ram_model);
+
+  for (const RamRewriteProto& ram_rewrite : ram_rewrites.rewrites()) {
+    XLS_RET_CHECK(ram_rewrite.has_to_config());
+
+    XLS_RET_CHECK_EQ(ram_rewrite.from_config().depth(),
+                     ram_rewrite.to_config().depth());
+
+    std::unique_ptr<memory_model::ProcMemoryModel> memory_model;
+
+    if (abstract_ram_model) {
+      XLS_ASSIGN_OR_RETURN(memory_model,
+                           memory_model::CreateAbstractProcMemoryModel(
+                               ram_rewrite, queue_manager));
+    } else if (ram_rewrite.to_config().kind() == RamKindProto::RAM_1RW) {
+      XLS_ASSIGN_OR_RETURN(memory_model,
+                           memory_model::CreateRewrittenProcMemoryModel(
+                               ram_rewrite, queue_manager));
+    } else {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Don't know what memory model to use with RamKind %s from rewrites "
+          "proto",
+          xls::RamKindProto_Name(ram_rewrite.to_config().kind())));
+    }
+
+    memory_models.push_back(std::move(memory_model));
+  }
+
   for (const auto& [channel_name, values] : inputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
                          queue_manager.GetQueueByName(channel_name));
@@ -336,6 +373,11 @@ static absl::Status EvaluateProcs(
               in_queue->GetSize(), values.size());
         }
         return tick_ret;
+      }
+
+      for (std::unique_ptr<memory_model::ProcMemoryModel>& memory :
+           memory_models) {
+        XLS_RETURN_IF_ERROR(memory->Tick());
       }
 
       // Sort the keys for stable print order.
@@ -489,7 +531,8 @@ InterpretBlockSignature(
     const verilog::ModuleSignatureProto& signature,
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     const absl::btree_map<std::string, std::vector<Value>>&
-        expected_outputs_for_channels) {
+        expected_outputs_for_channels,
+    const RamRewritesProto& ram_rewrites) {
   absl::flat_hash_map<std::string, ChannelInfo> channel_info;
   // Pull the information out of the channel_protos
   for (const verilog::ChannelProto& channel : signature.data_channels()) {
@@ -599,95 +642,6 @@ InterpretBlockSignature(
   return channel_info;
 }
 
-class MemoryModel {
- public:
-  MemoryModel(const std::string& name, size_t size, const Value& initial_value,
-              const Value& read_disabled_value, bool show_trace)
-      : name_(name),
-        read_disabled_value_(read_disabled_value),
-        show_trace_(show_trace) {
-    cells_.resize(size, initial_value);
-  }
-  absl::Status Read(int64_t addr) {
-    if (addr < 0 || addr >= cells_.size()) {
-      return absl::OutOfRangeError(
-          absl::StrFormat("Memory %s read out of range at %i", name_, addr));
-    }
-    if (read_this_tick_.has_value()) {
-      return absl::FailedPreconditionError(
-          absl::StrFormat("Memory %s double read in tick at %i", name_, addr));
-    }
-    read_this_tick_ = cells_[addr];
-    if (show_trace_) {
-      LOG(INFO) << "Memory Model: Initiated read " << name_ << "[" << addr
-                << "] = " << read_this_tick_.value();
-    }
-    return absl::OkStatus();
-  }
-  Value GetValueReadLastTick() const {
-    if (show_trace_) {
-      if (read_last_tick_.has_value()) {
-        LOG(INFO) << "Memory Model: Got read last value " << name_ << " = "
-                  << read_last_tick_.value();
-      } else {
-        LOG(INFO) << "Memory Model: Got read last default " << name_ << " = "
-                  << read_disabled_value_;
-      }
-    }
-    return read_last_tick_.has_value() ? read_last_tick_.value()
-                                       : read_disabled_value_;
-  }
-  bool DidReadLastTick() const { return read_last_tick_.has_value(); }
-  absl::Status Write(int64_t addr, const Value& value) {
-    if (addr < 0 || addr >= cells_.size()) {
-      return absl::OutOfRangeError(
-          absl::StrFormat("Memory %s write out of range at %i", name_, addr));
-    }
-    if (write_this_tick_.has_value()) {
-      return absl::FailedPreconditionError(
-          absl::StrFormat("Memory %s double write in tick at %i", name_, addr));
-    }
-    if (value.GetFlatBitCount() != cells_[0].GetFlatBitCount()) {
-      return absl::FailedPreconditionError(absl::StrFormat(
-          "Memory %s write value at %i with wrong bit count %i, expected %i",
-          name_, addr, value.GetFlatBitCount(), cells_[0].GetFlatBitCount()));
-    }
-    if (show_trace_) {
-      LOG(INFO) << "Memory Model: Initiated write " << name_ << "[" << addr
-                << "] = " << value;
-    }
-    write_this_tick_ = std::make_pair(addr, value);
-    return absl::OkStatus();
-  }
-  absl::Status Tick() {
-    if (write_this_tick_.has_value()) {
-      if (show_trace_) {
-        LOG(INFO) << "Memory Model: Committed write " << name_ << "["
-                  << write_this_tick_->first
-                  << "] = " << write_this_tick_->second;
-      }
-      cells_[write_this_tick_->first] = write_this_tick_->second;
-      write_this_tick_.reset();
-    }
-    read_last_tick_ = read_this_tick_;
-    read_this_tick_.reset();
-    return absl::OkStatus();
-  }
-
- private:
-  const std::string name_;
-  const Value read_disabled_value_;
-  std::vector<Value> cells_;
-  std::optional<std::pair<int64_t, Value>> write_this_tick_;
-  std::optional<Value> read_this_tick_;
-  std::optional<Value> read_last_tick_;
-  const bool show_trace_;
-};
-
-// XLS doesn't have X. Fill with all 1s, as this is generally more likely
-// to expose logical problems.
-static Value XsOfType(Type* type) { return AllOnesOfType(type); }
-
 static xls::Type* GetPortTypeOrNull(Block* block, std::string_view port_name) {
   for (const InputPort* port : block->GetInputPorts()) {
     if (port->name() == port_name) {
@@ -759,9 +713,8 @@ static absl::Status RunBlock(
     const absl::btree_map<std::string, std::vector<Value>>& inputs_for_channels,
     absl::btree_map<std::string, std::vector<Value>>&
         expected_outputs_for_channels,
-    const absl::flat_hash_map<std::string, std::pair<int64_t, Value>>&
-        model_memories_param,
-    std::string_view output_stats_path, const RunBlockOptions& options = {}) {
+    const RamRewritesProto& ram_rewrites, std::string_view output_stats_path,
+    const RunBlockOptions& options = {}) {
   Block* block;
   if (options.top) {
     XLS_ASSIGN_OR_RETURN(block, package->GetBlock(*options.top));
@@ -793,7 +746,7 @@ static absl::Status RunBlock(
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<std::string, ChannelInfo> channel_info),
       InterpretBlockSignature(signature, inputs_for_channels,
-                              expected_outputs_for_channels),
+                              expected_outputs_for_channels, ram_rewrites),
       _ << "signature was: " << signature.DebugString());
   XLS_ASSIGN_OR_RETURN(
       (absl::flat_hash_map<std::string, StandardRamInfo> ram_info),
@@ -802,23 +755,30 @@ static absl::Status RunBlock(
   // Prepare values in queue format
   absl::flat_hash_map<std::string, std::deque<Value>> channel_value_queues;
   for (const auto& [name, values] : inputs_for_channels) {
-    CHECK(!channel_value_queues.contains(name));
+    XLS_RET_CHECK(!channel_value_queues.contains(name));
     absl::c_copy(values, std::back_inserter(channel_value_queues[name]));
   }
   for (const auto& [name, values] : expected_outputs_for_channels) {
-    CHECK(!channel_value_queues.contains(name));
+    XLS_RET_CHECK(!channel_value_queues.contains(name));
     absl::c_copy(values, std::back_inserter(channel_value_queues[name]));
   }
 
-  absl::flat_hash_map<std::string, std::unique_ptr<MemoryModel>> model_memories;
+  absl::flat_hash_map<std::string,
+                      std::unique_ptr<memory_model::BlockMemoryModel>>
+      model_memories;
 
-  for (const auto& [name, model_pair] : model_memories_param) {
-    XLS_RET_CHECK(ram_info.contains(name));
-    std::string_view rd_data = ram_info.at(name).rd_data;
-    XLS_ASSIGN_OR_RETURN(const InputPort* port, block->GetInputPort(rd_data));
-    model_memories[name] = std::make_unique<MemoryModel>(
-        name, model_pair.first, model_pair.second,
-        /*read_disabled_value=*/XsOfType(port->GetType()), options.show_trace);
+  for (const RamRewriteProto& rewrite : ram_rewrites.rewrites()) {
+    const std::string& name = rewrite.to_name_prefix();
+    const std::string_view& wr_data = ram_info.at(name).wr_data;
+    XLS_ASSIGN_OR_RETURN(const OutputPort* port, block->GetOutputPort(wr_data));
+
+    Type* element_type = port->operand(0)->GetType();
+
+    model_memories[name] = std::make_unique<memory_model::BlockMemoryModel>(
+        name, /*size=*/rewrite.from_config().depth(),
+        /*initial_value=*/memory_model::XsOfType(element_type),
+        /*read_disabled_value=*/memory_model::XsOfType(element_type),
+        options.show_trace);
   }
 
   absl::flat_hash_map<std::string, Value> reg_state;
@@ -835,7 +795,7 @@ static absl::Status RunBlock(
         // Ideally this would be randomized, but at least 1s are more likely to
         //  expose bad behavior than 0s.
         reg_state[absl::StrCat(inst->RegisterPrefix(), reg->name())] =
-            XsOfType(reg->type());
+            memory_model::XsOfType(reg->type());
       }
     }
   }
@@ -912,11 +872,11 @@ static absl::Status RunBlock(
 
         if (port_type != nullptr) {
           input_set[info.channel_data] =
-              queue.empty() ? XsOfType(port_type) : queue.front();
+              queue.empty() ? memory_model::XsOfType(port_type) : queue.front();
         }
       } else {
         // Just take the first value for the single value channels
-        CHECK(!queue.empty());
+        XLS_RET_CHECK(!queue.empty());
         input_set[name] = queue.front();
       }
     }
@@ -928,7 +888,7 @@ static absl::Status RunBlock(
     for (const auto& [name, _] : expected_outputs_for_channels) {
       const ChannelInfo& info = channel_info.at(name);
       // TODO(allight): Support simulating fns which aren't ready-valid.
-      CHECK(info.ready_valid);
+      XLS_RET_CHECK(info.ready_valid);
       input_set[info.channel_ready] = Value(xls::UBits(1, 1));
     }
     XLS_RETURN_IF_ERROR(continuation->RunOneCycle(input_set));
@@ -1029,12 +989,12 @@ static absl::Status RunBlock(
       // Write handling
       {
         const Value wr_en_val = outputs.at(info.wr_en);
-        CHECK(wr_en_val.IsBits());
+        XLS_RET_CHECK(wr_en_val.IsBits());
         if (wr_en_val.IsAllOnes()) {
           const Value wr_addr_val = outputs.at(info.wr_addr);
           const Value wr_data_val = outputs.at(info.wr_data);
-          CHECK(wr_addr_val.IsBits());
-          CHECK(wr_data_val.IsBits());
+          XLS_RET_CHECK(wr_addr_val.IsBits());
+          XLS_RET_CHECK(wr_data_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, wr_addr_val.bits().ToUint64());
           XLS_RETURN_IF_ERROR(model->Write(addr, wr_data_val));
         }
@@ -1042,10 +1002,10 @@ static absl::Status RunBlock(
       // Read handling
       {
         const Value rd_en_val = outputs.at(info.rd_en);
-        CHECK(rd_en_val.IsBits());
+        XLS_RET_CHECK(rd_en_val.IsBits());
         if (rd_en_val.IsAllOnes()) {
           const Value rd_addr_val = outputs.at(info.rd_addr);
-          CHECK(rd_addr_val.IsBits());
+          XLS_RET_CHECK(rd_addr_val.IsBits());
           XLS_ASSIGN_OR_RETURN(uint64_t addr, rd_addr_val.bits().ToUint64());
           XLS_RETURN_IF_ERROR(model->Read(addr));
         }
@@ -1171,14 +1131,13 @@ GetValuesForEachChannels(
   return values_for_channels;
 }
 
-// These are too many parameters...
 static absl::Status RealMain(
     std::string_view ir_file, std::string_view backend,
     std::string_view block_signature_proto, std::vector<int64_t> ticks,
     const int64_t max_cycles_no_output,
     const std::vector<std::string>& inputs_for_channels_text,
     const std::vector<std::string>& expected_outputs_for_channels_text,
-    const std::vector<std::string>& model_memories_text,
+    const std::string& ram_rewrites_textproto_path,
     const std::string& inputs_for_all_channels_text,
     const std::string& expected_outputs_for_all_channels_text,
     const std::string& proto_inputs_for_all_channels,
@@ -1229,20 +1188,15 @@ static absl::Status RealMain(
                                         total_ticks));
   }
 
-  absl::flat_hash_map<std::string, std::pair<int64_t, Value>> model_memories;
-  if (!model_memories_text.empty()) {
-    XLS_ASSIGN_OR_RETURN(model_memories,
-                         ParseMemoryModels(model_memories_text));
+  RamRewritesProto ram_rewrites;
+
+  if (!ram_rewrites_textproto_path.empty()) {
+    XLS_RETURN_IF_ERROR(
+        xls::ParseTextProtoFile(ram_rewrites_textproto_path, &ram_rewrites));
   }
 
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
-
-  if (backend != "block_jit" && backend != "block_interpreter" &&
-      !model_memories.empty()) {
-    LOG(QFATAL) << "Only block interpreter supports memory models "
-                   "specified to eval_proc_main";
-  }
 
   if (backend.starts_with("block")) {
     RunBlockOptions block_options = {
@@ -1263,7 +1217,7 @@ static absl::Status RealMain(
     verilog::ModuleSignatureProto proto;
     CHECK_OK(ParseTextProtoFile(block_signature_proto, &proto));
     return RunBlock(package.get(), proto, inputs_for_channels,
-                    expected_outputs_for_channels, model_memories,
+                    expected_outputs_for_channels, ram_rewrites,
                     output_stats_path, block_options);
   }
 
@@ -1282,7 +1236,8 @@ static absl::Status RealMain(
     LOG(QFATAL) << "Unknown backend type";
   }
   return EvaluateProcs(package.get(), inputs_for_channels,
-                       expected_outputs_for_channels, evaluate_procs_options);
+                       expected_outputs_for_channels, ram_rewrites,
+                       evaluate_procs_options);
 }
 
 }  // namespace
@@ -1346,7 +1301,7 @@ int main(int argc, char* argv[]) {
       ticks, absl::GetFlag(FLAGS_max_cycles_no_output),
       absl::GetFlag(FLAGS_inputs_for_channels),
       absl::GetFlag(FLAGS_expected_outputs_for_channels),
-      absl::GetFlag(FLAGS_model_memories),
+      absl::GetFlag(FLAGS_ram_rewrites_textproto),
       absl::GetFlag(FLAGS_inputs_for_all_channels),
       absl::GetFlag(FLAGS_expected_outputs_for_all_channels),
       absl::GetFlag(FLAGS_proto_inputs_for_all_channels),

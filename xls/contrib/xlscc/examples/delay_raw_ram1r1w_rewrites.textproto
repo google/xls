@@ -12,19 +12,19 @@ rewrites {
   }
   from_channels_logical_to_physical: {
     key: "abstract_read_req"
-    value: "memory__read_request"
+    value: "memory_read_request"
   }
   from_channels_logical_to_physical: {
     key: "abstract_read_resp"
-    value: "memory__read_response"
+    value: "memory_read_response"
   }
   from_channels_logical_to_physical: {
     key: "abstract_write_req"
-    value: "memory__write_request"
+    value: "memory_write_request"
   }
   from_channels_logical_to_physical: {
     key: "write_completion"
-    value: "memory__write_response"
+    value: "memory_write_response"
   }
-  to_name_prefix: "memory_"
+  to_name_prefix: "memory"
 }

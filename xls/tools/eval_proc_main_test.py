@@ -42,12 +42,6 @@ BLOCK_SIG_PATH = runfiles.get_path(
 BLOCK_BROKEN_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_test_broken.block.ir"
 )
-BLOCK_MEMORY_IR_PATH = runfiles.get_path(
-    "xls/tools/testdata/eval_proc_main_test_block_memory.ir"
-)
-BLOCK_MEMORY_SIGNATURE_PATH = runfiles.get_path(
-    "xls/tools/testdata/eval_proc_main_test_block_memory.sig.textproto"
-)
 PROC_ZERO_SIZE_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_zero_size_test.opt.ir"
 )
@@ -56,6 +50,21 @@ BLOCK_ZERO_SIZE_PATH = runfiles.get_path(
 )
 BLOCK_SIG_ZERO_SIZE_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_zero_size_test.sig.textproto"
+)
+BLOCK_MEMORY_IR_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test.test_memory.block.ir"
+)
+BLOCK_MEMORY_SIGNATURE_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test.test_memory.sig.textproto"
+)
+BLOCK_MEMORY_REWRITES_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test.ram_rewrites.textproto"
+)
+PROC_ABSTRACT_MEMORY_IR_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test.test_memory.ir"
+)
+PROC_REWRITTEN_MEMORY_IR_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test.test_memory.opt.ir"
 )
 
 # Block generated from the proc with:
@@ -370,6 +379,7 @@ def run_command(args):
   # Don't use check=True because we want to print stderr/stdout on failure for a
   # better error message.
   # pylint: disable=subprocess-run-check
+
   comp = subprocess.run(
       args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8"
   )
@@ -853,52 +863,45 @@ class EvalProcTest(parameterized.TestCase):
   @parameterized_block_backends
   def test_block_memory(self, backend):
     ir_file = BLOCK_MEMORY_IR_PATH
+    ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
     signature_file = BLOCK_MEMORY_SIGNATURE_PATH
-    channels_in_ir_file = self.create_tempfile(content=textwrap.dedent("""
+    input_file = self.create_tempfile(content=textwrap.dedent("""
           in : {
-            bits[32]:0x3,
-            bits[32]:0x4,
-            bits[32]:0x5,
-            bits[32]:0x6,
-            bits[32]:0xFF,
-            bits[32]:0xFF,
-            bits[32]:0xFF,
-            bits[32]:0xFF
+            bits[32]:42
+            bits[32]:101
+            bits[32]:50
+            bits[32]:11
           }
         """))
-    channels_out_ir_file = self.create_tempfile(content=textwrap.dedent("""
+    output_file = self.create_tempfile(content=textwrap.dedent("""
           out : {
-            bits[32]:7,
-            bits[32]:9,
-            bits[32]:11,
-            bits[32]:13
+            bits[32]:126
+            bits[32]:303
+            bits[32]:150
+            bits[32]:33
           }
         """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH,
         ir_file,
+        "--ticks",
+        "17",  # Need double the ticks for the memory model to run
+        "-v=1",
+        "--show_trace",
+        "--logtostderr",
         "--inputs_for_all_channels",
-        channels_in_ir_file,
+        input_file.full_path,
         "--expected_outputs_for_all_channels",
-        channels_out_ir_file,
+        output_file.full_path,
         "--block_signature_proto",
         signature_file,
-        "--model_memories",
-        "mem=4/bits[32]:0xAA",
-        "--alsologtostderr",
-        "--show_trace",
-        "--ticks",
-        "12",
+        "--ram_rewrites_textproto",
+        ram_rewrites_file,
     ] + backend
 
     output = run_command(shared_args)
-    self.assertIn(
-        "Channel Model: Consuming output for out: bits[32]:13", output.stderr
-    )
-    self.assertIn(
-        "Memory Model: Initiated read mem[3] = bits[32]:6", output.stderr
-    )
+    self.assertIn("Memory Model", output.stderr)
 
   @parameterized_block_backends
   def test_multi_block_memory(self, backend):
@@ -932,6 +935,23 @@ class EvalProcTest(parameterized.TestCase):
         content=output_data.SerializeToString()
     )
 
+    # Needed for memory model size
+    rewrites_stub = """
+rewrites {
+  from_config {
+    kind: RAM_ABSTRACT
+    depth: 1024
+  }
+  to_config {
+    kind: RAM_1RW
+    depth: 1024
+  }
+  to_name_prefix: "ram"
+}
+"""
+
+    rewrites_file = self.create_tempfile(content=rewrites_stub)
+
     shared_args = [
         EVAL_PROC_MAIN_PATH,
         ir_file,
@@ -942,8 +962,8 @@ class EvalProcTest(parameterized.TestCase):
         channels_out_ir_file,
         "--block_signature_proto",
         signature_file,
-        "--model_memories",
-        "ram=1024/(bits[64]:0)",
+        "--ram_rewrites_textproto",
+        rewrites_file,
         "--alsologtostderr",
         "--show_trace",
         "--ticks",
@@ -952,6 +972,87 @@ class EvalProcTest(parameterized.TestCase):
     ] + backend
 
     run_command(shared_args)
+
+  @parameterized_proc_backends
+  def test_proc_abstract_memory(self, backend):
+    ir_file = PROC_ABSTRACT_MEMORY_IR_PATH
+    ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
+    input_file = self.create_tempfile(content=textwrap.dedent("""
+          in : {
+            bits[32]:42
+            bits[32]:101
+            bits[32]:50
+            bits[32]:11
+          }
+        """))
+    output_file = self.create_tempfile(content=textwrap.dedent("""
+          out : {
+            bits[32]:126
+            bits[32]:303
+            bits[32]:150
+            bits[32]:33
+          }
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_file,
+        "--ticks",
+        "17",  # Need double the ticks for the memory model to run
+        "-v=1",
+        "--show_trace",
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
+        "--expected_outputs_for_all_channels",
+        output_file.full_path,
+        "--ram_rewrites_textproto",
+        ram_rewrites_file,
+        "--abstract_ram_model",
+    ] + backend
+
+    output = run_command(shared_args)
+    self.assertIn("Proc Test_proc", output.stderr)
+
+  @parameterized_proc_backends
+  def test_proc_rewritten_memory(self, backend):
+    ir_file = PROC_REWRITTEN_MEMORY_IR_PATH
+    ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
+    input_file = self.create_tempfile(content=textwrap.dedent("""
+          in : {
+            bits[32]:42
+            bits[32]:101
+            bits[32]:50
+            bits[32]:11
+          }
+        """))
+    output_file = self.create_tempfile(content=textwrap.dedent("""
+          out : {
+            bits[32]:126
+            bits[32]:303
+            bits[32]:150
+            bits[32]:33
+          }
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_file,
+        "--ticks",
+        "17",  # Need double the ticks for the memory model to run
+        "-v=1",
+        "--show_trace",
+        "--logtostderr",
+        "--inputs_for_all_channels",
+        input_file.full_path,
+        "--expected_outputs_for_all_channels",
+        output_file.full_path,
+        "--ram_rewrites_textproto",
+        ram_rewrites_file,
+    ] + backend
+
+    output = run_command(shared_args)
+    self.assertIn("Proc Test_proc", output.stderr)
 
   @parameterized_block_backends
   def test_observe_block(self, backend):
