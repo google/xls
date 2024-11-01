@@ -227,6 +227,28 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
     return SimplifyResult::Changed({array_index->array()});
   }
 
+  // An array-index of an array-update of the same index can be better
+  // thought of as a mux between the last element of the array (in the case the
+  // update & index are both out of bounds) and the updated value. In the case
+  // where the update/index location is in bounds we can just replace with the
+  // update value.
+  //
+  // Only checking single-dimensional array-indexes because its significantly
+  // simpler and is the common case.
+  //
+  if (array_index->array()->Is<ArrayUpdate>()) {
+    ArrayUpdate* update = array_index->array()->As<ArrayUpdate>();
+    if (IndicesAreDefinitelyEqual(array_index->indices(), update->indices(),
+                                  query_engine) &&
+        // Check both since if either has the known-in-bounds mark we can go
+        // ahead.
+        (IndicesAreDefinitelyInBounds(array_index, query_engine) ||
+         IndicesAreDefinitelyInBounds(update, query_engine))) {
+      XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(update->update_value()));
+      return SimplifyResult::Changed({});
+    }
+  }
+
   // An array index which indexes into a 1-element array can have its index
   // replaced with a literal 0, since the clamping behavior makes all indexing
   // equivalent:

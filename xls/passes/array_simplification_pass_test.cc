@@ -1602,5 +1602,24 @@ TEST_F(ArraySimplificationPassTest, MultidimensionalUnitArrayUpdate) {
           /*default_value=*/m::Param("array")));
 }
 
+TEST_F(ArraySimplificationPassTest, ArrayUpdateIndexInBounds) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue arr = fb.Param("array", p->GetArrayType(10, p->GetBitsType(32)));
+  BValue idx = fb.Param("upd_idx", p->GetBitsType(32));
+  // NB This sort of selector requires context-sensitive range analysis to see.
+  BValue idx_bound = fb.Select(fb.ULt(idx, fb.Literal(UBits(10, 32))), {idx},
+                               fb.Literal(UBits(0, 32)));
+  BValue val = fb.Param("val", p->GetBitsType(32));
+  BValue update_arr =
+      fb.ArrayUpdate(arr, val, {idx_bound}, /*known_in_bounds=*/true);
+  fb.ArrayIndex(update_arr, {idx_bound}, /*known_in_bounds=*/true);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Param("val"));
+}
+
 }  // namespace
 }  // namespace xls
