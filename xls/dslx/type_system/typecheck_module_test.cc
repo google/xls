@@ -2019,6 +2019,16 @@ TEST(TypecheckErrorTest, ArrayEllipsisNoTrailingElement) {
                          "repeat; please add at least one element")));
 }
 
+TEST(TypecheckErrorTest, ArrayEllipsisNoLeadingTypeAnnotation) {
+  EXPECT_THAT(
+      Typecheck(R"(fn main() -> u8[2] {
+    let x: u8[2] = [u8:0, ...];
+    x
+})"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("does not have a type annotation; please add a type annotation to indicate how many elements")));
+}
+
 TEST(TypecheckTest, BadArrayAddition) {
   EXPECT_THAT(Typecheck(R"(
 fn f(a: bits[32][4], b: bits[32][4]) -> bits[32][4] {

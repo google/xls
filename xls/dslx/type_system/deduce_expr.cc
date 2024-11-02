@@ -139,6 +139,15 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
       member_types[0]->CloneToUnique(), member_types_dim);
 
   if (node->type_annotation() == nullptr) {
+    if (node->has_ellipsis()) {
+      const Span array_obrack_span(node->span().start(), node->span().start());
+      return TypeInferenceErrorStatus(
+        array_obrack_span, inferred.get(),
+        "Array has ellipsis (`...`) but does not have a type annotation; "
+        "please add a type annotation to indicate how many elements to expand to.",
+        ctx->file_table());
+    }
+
     return inferred;
   }
 
