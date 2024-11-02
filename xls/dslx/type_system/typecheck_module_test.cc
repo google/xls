@@ -2026,7 +2026,9 @@ TEST(TypecheckErrorTest, ArrayEllipsisNoLeadingTypeAnnotation) {
     x
 })"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("does not have a type annotation; please add a type annotation to indicate how many elements")));
+               HasSubstr("does not have a type annotation; please add a type "
+                         "annotation to indicate how many elements to expand "
+                         "to; for example: `uN[8][N]:[u8:0, ...]`")));
 }
 
 TEST(TypecheckTest, BadArrayAddition) {
