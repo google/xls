@@ -176,28 +176,23 @@ TEST(AstTest, GetBuiltinTypeSignedness) {
 }
 
 TEST(AstTest, GetBuiltinTypeBitCount) {
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count,
-                           GetBuiltinTypeBitCount(BuiltinType::kBool));
+  int64_t bit_count = GetBuiltinTypeBitCount(BuiltinType::kBool);
   EXPECT_EQ(bit_count, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kS1));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kS1);
   EXPECT_EQ(bit_count, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
-                           GetBuiltinTypeBitCount(BuiltinType::kS64));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kS64);
   EXPECT_EQ(bit_count, 64);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kU1));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kU1);
   EXPECT_EQ(bit_count, 1);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
-                           GetBuiltinTypeBitCount(BuiltinType::kU64));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kU64);
   EXPECT_EQ(bit_count, 64);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kSN));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kSN);
   EXPECT_EQ(bit_count, 0);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count, GetBuiltinTypeBitCount(BuiltinType::kUN));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kUN);
   EXPECT_EQ(bit_count, 0);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
-                           GetBuiltinTypeBitCount(BuiltinType::kBits));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kBits);
   EXPECT_EQ(bit_count, 0);
-  XLS_ASSERT_OK_AND_ASSIGN(bit_count,
-                           GetBuiltinTypeBitCount(BuiltinType::kToken));
+  bit_count = GetBuiltinTypeBitCount(BuiltinType::kToken);
   EXPECT_EQ(bit_count, 0);
 }
 

@@ -324,9 +324,13 @@ std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
       default:
         break;
     }
-    return BitVectorMetadata{.bit_count = builtin->GetBitCount(),
-                             .is_signed = builtin->GetSignedness(),
-                             .kind = kind};
+
+    absl::StatusOr<bool> is_signed = builtin->GetSignedness();
+    CHECK_OK(is_signed.status());
+
+    int64_t bit_count = builtin->GetBitCount();
+    return BitVectorMetadata{
+        .bit_count = bit_count, .is_signed = is_signed.value(), .kind = kind};
   }
   if (const ArrayTypeAnnotation* array_type =
           dynamic_cast<const ArrayTypeAnnotation*>(type);

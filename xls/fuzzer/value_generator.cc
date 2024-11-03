@@ -194,9 +194,10 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
   dslx::Span fake_span = dslx::FakeSpan();
   if (auto* builtin_type = dynamic_cast<dslx::BuiltinTypeAnnotation*>(type);
       builtin_type != nullptr) {
-    XLS_ASSIGN_OR_RETURN(dslx::InterpValue num_value,
-                         GenerateBitValue(bit_gen, builtin_type->GetBitCount(),
-                                          builtin_type->GetSignedness()));
+    XLS_ASSIGN_OR_RETURN(
+        dslx::InterpValue num_value,
+        GenerateBitValue(bit_gen, builtin_type->GetBitCount(),
+                         builtin_type->GetSignedness().value()));
     return module->Make<Number>(fake_span, num_value.ToHumanString(),
                                 dslx::NumberKind::kOther, type);
   }

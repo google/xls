@@ -312,7 +312,7 @@ absl::StatusOr<BuiltinType> BuiltinTypeFromString(std::string_view s);
 
 absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width);
 absl::StatusOr<bool> GetBuiltinTypeSignedness(BuiltinType type);
-absl::StatusOr<int64_t> GetBuiltinTypeBitCount(BuiltinType type);
+int64_t GetBuiltinTypeBitCount(BuiltinType type);
 
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {
@@ -335,10 +335,13 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
     return BuiltinTypeToString(builtin_type_);
   }
 
+  // Note that types like `xN`/`uN`/`sN`/`bits` have a bit count of zero.
   int64_t GetBitCount() const;
 
   // Returns true if signed, false if unsigned.
-  bool GetSignedness() const;
+  //
+  // Note that a type like `xN` on its own does not have a signedness.
+  absl::StatusOr<bool> GetSignedness() const;
 
   BuiltinType builtin_type() const { return builtin_type_; }
 

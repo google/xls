@@ -205,7 +205,8 @@ class AstGenerator {
   static bool IsNil(const TypeAnnotation* t);
   static bool IsBuiltinBool(const TypeAnnotation* type) {
     if (auto* builtin_type = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
-      return !builtin_type->GetSignedness() && builtin_type->GetBitCount() == 1;
+      return !builtin_type->GetSignedness().value() &&
+             builtin_type->GetBitCount() == 1;
     }
     return false;
   }
