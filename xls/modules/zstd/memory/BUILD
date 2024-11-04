@@ -59,8 +59,6 @@ CLOCK_PERIOD_PS = "750"
 # Clock periods for modules that exceed the 750ps critical path in IR benchmark
 AXI_READER_CLOCK_PERIOD_PS = "1800"
 
-AXI_STREAM_REMOVE_EMPTY_CLOCK_PERIOD_PS = "1300"
-
 MEM_READER_CLOCK_PERIOD_PS = "2600"
 
 common_codegen_args = {
@@ -167,9 +165,68 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+axi_stream_remove_empty_internal_codegen_args = common_codegen_args | {
+    "module_name": "axi_stream_remove_empty_internal",
+    "pipeline_stages": "1",
+}
+
+xls_dslx_verilog(
+    name = "axi_stream_remove_empty_internal_verilog",
+    codegen_args = axi_stream_remove_empty_internal_codegen_args,
+    dslx_top = "AxiStreamRemoveEmptyInternalInst",
+    library = ":axi_stream_remove_empty_dslx",
+    tags = ["manual"],
+    verilog_file = "axi_stream_remove_empty_internal.v",
+)
+
+xls_benchmark_ir(
+    name = "axi_stream_remove_empty_internal_opt_ir_benchmark",
+    src = ":axi_stream_remove_empty_internal_verilog.opt.ir",
+    benchmark_ir_args = axi_stream_remove_empty_internal_codegen_args | {
+        "pipeline_stages": "10",
+        "top": "__axi_stream_remove_empty__AxiStreamRemoveEmptyInternalInst__AxiStreamRemoveEmptyInternal_0__32_4_6_32_32_next",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "axi_stream_remove_empty_internal_verilog_lib",
+    srcs = [
+        ":axi_stream_remove_empty_internal.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "axi_stream_remove_empty_internal_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "axi_stream_remove_empty_internal",
+    deps = [
+        ":axi_stream_remove_empty_internal_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "axi_stream_remove_empty_internal_benchmark_synth",
+    synth_target = ":axi_stream_remove_empty_internal_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "axi_stream_remove_empty_internal_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":axi_stream_remove_empty_internal_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
 axi_stream_remove_empty_codegen_args = common_codegen_args | {
     "module_name": "axi_stream_remove_empty",
-    "clock_period_ps": AXI_STREAM_REMOVE_EMPTY_CLOCK_PERIOD_PS,
     "pipeline_stages": "2",
 }
 
@@ -180,16 +237,6 @@ xls_dslx_verilog(
     library = ":axi_stream_remove_empty_dslx",
     tags = ["manual"],
     verilog_file = "axi_stream_remove_empty.v",
-)
-
-xls_benchmark_ir(
-    name = "axi_stream_remove_empty_opt_ir_benchmark",
-    src = ":axi_stream_remove_empty_verilog.opt.ir",
-    benchmark_ir_args = axi_stream_remove_empty_codegen_args | {
-        "pipeline_stages": "10",
-        "top": "__axi_stream_remove_empty__AxiStreamRemoveEmptyInst__AxiStreamRemoveEmpty_0__32_4_6_32_32_next",
-    },
-    tags = ["manual"],
 )
 
 verilog_library(
@@ -224,6 +271,66 @@ place_and_route(
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":axi_stream_remove_empty_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+remove_empty_bytes_codegen_args = common_codegen_args | {
+    "module_name": "remove_empty_bytes",
+    "pipeline_stages": "2",
+}
+
+xls_dslx_verilog(
+    name = "remove_empty_bytes_verilog",
+    codegen_args = remove_empty_bytes_codegen_args,
+    dslx_top = "RemoveEmptyBytesInst",
+    library = ":axi_stream_remove_empty_dslx",
+    tags = ["manual"],
+    verilog_file = "remove_empty_bytes.v",
+)
+
+xls_benchmark_ir(
+    name = "remove_empty_bytes_opt_ir_benchmark",
+    src = ":remove_empty_bytes_verilog.opt.ir",
+    benchmark_ir_args = remove_empty_bytes_codegen_args | {
+        "top": "__axi_stream_remove_empty__RemoveEmptyBytesInst__RemoveEmptyBytes_0__32_4_6_32_9_32_next",
+        "pipeline_stages": "10",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "remove_empty_bytes_verilog_lib",
+    srcs = [
+        ":remove_empty_bytes.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "remove_empty_bytes_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "remove_empty_bytes",
+    deps = [
+        ":remove_empty_bytes_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "remove_empty_bytes_benchmark_synth",
+    synth_target = ":remove_empty_bytes_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "remove_empty_bytes_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":remove_empty_bytes_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
 )
@@ -469,12 +576,12 @@ place_and_route(
 )
 
 mem_reader_codegen_args = common_codegen_args | {
+    "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
     "module_name": "mem_reader",
     "pipeline_stages": "4",
     "streaming_channel_data_suffix": "_data",
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
-    "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
     "materialize_internal_fifos": "true",
 }
 
@@ -525,12 +632,12 @@ place_and_route(
 )
 
 mem_reader_adv_codegen_args = common_codegen_args | {
+    "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
     "module_name": "mem_reader_adv",
     "pipeline_stages": "4",
     "streaming_channel_data_suffix": "_data",
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
-    "clock_period_ps": MEM_READER_CLOCK_PERIOD_PS,
     "materialize_internal_fifos": "true",
 }
 
