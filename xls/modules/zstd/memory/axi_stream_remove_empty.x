@@ -29,34 +29,185 @@ struct AxiStreamRemoveEmptyState<
     dest: uN[DEST_W],
 }
 
+pub struct ContinuousStream<
+    DATA_W: u32,
+    DEST_W: u32,
+    ID_W: u32,
+    DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
+> {
+    data: uN[DATA_W],
+    len: uN[DATA_W_LOG2],
+    id: uN[ID_W],
+    dest: uN[DEST_W],
+    last: u1
+}
+
+const INST_DATA_W = u32:32;
+const INST_DATA_W_DIV8 = INST_DATA_W / u32:8;
+const INST_DATA_W_LOG2 = std::clog2(INST_DATA_W + u32:1);
+const INST_DEST_W = u32:32;
+const INST_ID_W = u32:32;
+const TEST_DATA_W = u32:32;
+const TEST_DATA_W_DIV8 = TEST_DATA_W / u32:8;
+const TEST_DATA_W_LOG2 = std::clog2(TEST_DATA_W + u32:1);
+const TEST_DEST_W = u32:32;
+const TEST_ID_W = u32:32;
 
 // Returns a tuple containing data and length, afer removing non-data
 // bytes from the in_data varaiable, using information from keep and str fields
-fn remove_empty_bytes<DATA_W: u32, DATA_W_DIV8: u32, DATA_W_LOG2: u32> (
-    in_data: uN[DATA_W], keep: uN[DATA_W_DIV8], str: uN[DATA_W_DIV8]
-) -> (uN[DATA_W], uN[DATA_W_LOG2]) {
-
-    const EXT_OFFSET_W = DATA_W_LOG2 + u32:3;
-
+pub proc RemoveEmptyBytes<
+    DATA_W: u32, DEST_W: u32, ID_W: u32,
+    DATA_W_DIV8: u32 = {DATA_W / u32:8},
+    DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
+    EXT_OFFSET_W: u32 = {(std::clog2(DATA_W + u32:1)) + u32:3},
+> {
     type Data = uN[DATA_W];
     type Str = uN[DATA_W_DIV8];
-    type Keep = uN[DATA_W_DIV8];
     type Offset = uN[DATA_W_LOG2];
     type OffsetExt = uN[EXT_OFFSET_W];
     type Length = uN[DATA_W_LOG2];
 
-    let (data, len, _) = for (i, (data, len, offset)): (u32, (Data, Length, Offset)) in range(u32:0, DATA_W_DIV8) {
-        if str[i +: u1] & keep[i +: u1] {
-            (
-                data | (in_data & (Data:0xFF << (u32:8 * i))) >> (OffsetExt:8 * offset as OffsetExt),
-                len + Length:8,
-                offset,
-            )
-        } else {
-            (data, len, offset + Offset:1)
-        }
-    }((Data:0, Length:0, Offset:0));
-    (data, len)
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type StrobedStream = ContinuousStream<DATA_W, DEST_W, ID_W>;
+
+    stream_r: chan<AxiStream> in;
+    continuous_stream_s: chan<StrobedStream> out;
+
+    config (
+        stream_r: chan<AxiStream> in,
+        continuous_stream_s: chan<StrobedStream> out,
+    ) {
+        (stream_r, continuous_stream_s)
+    }
+
+    init { () }
+
+    next (state: ()) {
+        let (tok, frame) = recv(join(), stream_r);
+        let (in_data, str) = (frame.data, frame.str);
+
+        let (data, len, _) = unroll_for! (i, (data, len, offset)): (u32, (Data, Length, Offset)) in range(u32:0, DATA_W_DIV8) {
+            if str[i +: u1] {
+                (
+                    data | (in_data & (Data:0xFF << (u32:8 * i))) >> (OffsetExt:8 * offset as OffsetExt),
+                    len + Length:8,
+                    offset,
+                )
+            } else {
+                (data, len, offset + Offset:1)
+            }
+        }((Data:0, Length:0, Offset:0));
+
+        let continuous_stream = StrobedStream {
+            data: data,
+            len: len,
+            id: frame.id,
+            dest: frame.dest,
+            last: frame.last,
+        };
+        send(tok, continuous_stream_s, continuous_stream);
+    }
+}
+
+pub proc RemoveEmptyBytesInst {
+    type AxiStream = axi_st::AxiStream<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8>;
+    type StrobedStream = ContinuousStream<INST_DATA_W, INST_DEST_W, INST_ID_W>;
+
+    config (
+        stream_r: chan<AxiStream> in,
+        continuous_stream_s: chan<StrobedStream> out,
+    ) {
+        spawn RemoveEmptyBytes<INST_DATA_W, INST_DEST_W, INST_ID_W>(
+            stream_r, continuous_stream_s
+        );
+    }
+
+    init { () }
+
+    next (state: ()) {}
+}
+
+#[test_proc]
+proc RemoveEmptyBytesTest {
+    type TestAxiStream = axi_st::AxiStream<TEST_DATA_W, TEST_DEST_W, TEST_ID_W, TEST_DATA_W_DIV8>;
+    type TestStrobedStream = ContinuousStream<TEST_DATA_W, TEST_DEST_W, TEST_ID_W>;
+    terminator: chan<bool> out;
+    stream_s: chan<TestAxiStream> out;
+    continuous_stream_r: chan<TestStrobedStream> in;
+
+    config (
+        terminator: chan<bool> out,
+    ) {
+        let (stream_s, stream_r) = chan<TestAxiStream>("frame_data");
+        let (continuous_stream_s, continuous_stream_r) = chan<TestStrobedStream>("bare_data");
+
+        spawn RemoveEmptyBytes<TEST_DATA_W, TEST_DEST_W, TEST_ID_W>(
+            stream_r, continuous_stream_s
+        );
+
+        (terminator, stream_s, continuous_stream_r)
+    }
+
+    init { }
+
+    next (state: ()) {
+        type Data = uN[TEST_DATA_W];
+        type Str = uN[TEST_DATA_W_DIV8];
+        type Id = uN[TEST_ID_W];
+        type Dest = uN[TEST_DEST_W];
+        type Length = uN[TEST_DATA_W_LOG2];
+
+        let tok = join();
+
+        let data = Data:0xDEADBEEF;
+        let input_data: TestAxiStream[16] = [
+            TestAxiStream{data: data, str: Str:0b0000, keep: Str:0b0000, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b0001, keep: Str:0b0001, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b0010, keep: Str:0b0010, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b0011, keep: Str:0b0011, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b0100, keep: Str:0b0100, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b0101, keep: Str:0b0101, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b0110, keep: Str:0b0110, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b0111, keep: Str:0b0111, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1000, keep: Str:0b1000, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1001, keep: Str:0b1001, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1010, keep: Str:0b1010, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1011, keep: Str:0b1011, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1100, keep: Str:0b1100, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1101, keep: Str:0b1101, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1110, keep: Str:0b1110, id: Id:0, dest: Dest:0, last: false},
+            TestAxiStream{data: data, str: Str:0b1111, keep: Str:0b1111, id: Id:0, dest: Dest:0, last: true}
+        ];
+        let expected_output: TestStrobedStream[16] = [
+            TestStrobedStream{data: Data:0x00, len: Length:0, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xEF, len: Length:8, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xBE, len: Length:8, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xBEEF, len: Length:16, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xAD, len: Length:8, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xADEF, len: Length:16, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xADBE, len: Length:16, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xADBEEF, len: Length:24, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDE, len: Length:8, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDEEF, len: Length:16, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDEBE, len: Length:16, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDEBEEF, len: Length:24, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDEAD, len: Length:16, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDEADEF, len: Length:24, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDEADBE, len: Length:24, id: Id:0, dest: Dest:0, last: false},
+            TestStrobedStream{data: Data:0xDEADBEEF, len: Length:32, id: Id:0, dest: Dest:0, last: true}
+        ];
+
+        let tok = for (i, tok): (u32, token) in range(u32:0, u32:16) {
+            let tok = send(tok, stream_s, input_data[i]);
+            trace_fmt!("TestRemoveEmptyBytes: Sent #{} strobed packet: {:#x}", i + u32:1, input_data[i]);
+            let (tok, continuous_stream) = recv(tok, continuous_stream_r);
+            trace_fmt!("TestRemoveEmptyBytes: Received #{} continuous packet: {:#x}", i + u32:1, continuous_stream);
+            assert_eq(continuous_stream, expected_output[i]);
+            (tok)
+        } (tok);
+
+        send(tok, terminator, true);
+    }
 }
 
 // Returns the number of bytes that should be soted in the state in case we
@@ -71,22 +222,23 @@ fn get_overflow_len<DATA_W: u32, LENGTH_W: u32>(len1: uN[LENGTH_W], len2: uN[LEN
 
 // Return the new mask for keep and str fields, calculated using new data length
 fn get_mask<DATA_W: u32, DATA_W_DIV8: u32, DATA_W_LOG2: u32>(len: uN[DATA_W_LOG2]) -> uN[DATA_W_DIV8] {
-    const MAX_LEN = DATA_W as uN[DATA_W_LOG2];
-    const MASK = !uN[DATA_W_DIV8]:0;
+    let len_bytes = std::div_pow2(len, uN[DATA_W_LOG2]:8);
+    let mask = (uN[DATA_W_DIV8]:1 << len_bytes as uN[DATA_W_DIV8]) - uN[DATA_W_DIV8]:1;
 
-    let shift = std::div_pow2((MAX_LEN - len), uN[DATA_W_LOG2]:8);
-    MASK >> shift
+    mask
 }
 
 // A proc that removes empty bytes from the Axi Stream and provides aligned data
 // to other procs, allowing for a simpler implementation of the receiving side
 // of the design.
-pub proc AxiStreamRemoveEmpty<
+pub proc AxiStreamRemoveEmptyInternal<
     DATA_W: u32, DEST_W: u32, ID_W: u32,
     DATA_W_DIV8: u32 = {DATA_W / u32:8},
     DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
 > {
     type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type StrobedStream = ContinuousStream<DATA_W, DEST_W, ID_W>;
+
     type State = AxiStreamRemoveEmptyState<DATA_W, DEST_W, ID_W, DATA_W_LOG2>;
 
     type Offset = uN[DATA_W_LOG2];
@@ -95,11 +247,11 @@ pub proc AxiStreamRemoveEmpty<
     type Str = uN[DATA_W_DIV8];
     type Data = uN[DATA_W];
 
-    stream_in_r: chan<AxiStream> in;
+    stream_in_r: chan<StrobedStream> in;
     stream_out_s: chan<AxiStream> out;
 
     config (
-        stream_in_r: chan<AxiStream> in,
+        stream_in_r: chan<StrobedStream> in,
         stream_out_s: chan<AxiStream> out,
     ) {
         (stream_in_r, stream_out_s)
@@ -112,16 +264,12 @@ pub proc AxiStreamRemoveEmpty<
         const MAX_MASK = !uN[DATA_W_DIV8]:0;
 
         let do_recv = !state.last;
-        let (tok, stream_in) = recv_if(join(), stream_in_r, !state.last, zero!<AxiStream>());
-        let (id, dest) = if !state.last {
-            (stream_in.id, stream_in.dest)
+        let (tok, stream_in) = recv_if(join(), stream_in_r, do_recv, zero!<StrobedStream>());
+        let (id, dest, data, len) = if do_recv {
+            (stream_in.id, stream_in.dest, stream_in.data, stream_in.len)
         } else {
-            (state.id, state.dest)
+            (state.id, state.dest, Data:0, Length:0)
         };
-
-        let (data, len) = remove_empty_bytes<DATA_W, DATA_W_DIV8, DATA_W_LOG2>(
-            stream_in.data, stream_in.keep, stream_in.str
-        );
 
         let empty_input_bytes = MAX_LEN - len;
         let empty_state_bytes = MAX_LEN - state.len;
@@ -131,12 +279,11 @@ pub proc AxiStreamRemoveEmpty<
 
         let combined_state_data = state.data | data << state.len;
 
-        let overflow_len = get_overflow_len<DATA_W>(state.len, len);
         let sum_len = state.len + len;
-        let sum_mask = get_mask<DATA_W, DATA_W_DIV8, DATA_W_LOG2>(sum_len);
 
         let (next_state, do_send, data) = if !state.last & exceeds_transfer {
             // flush and store
+            let overflow_len = get_overflow_len<DATA_W>(state.len, len);
             (
                 State {
                     data: data >> empty_state_bytes,
@@ -156,6 +303,7 @@ pub proc AxiStreamRemoveEmpty<
             )
         } else if state.last | stream_in.last | exact_transfer {
             // flush only
+            let sum_mask = get_mask<DATA_W, DATA_W_DIV8, DATA_W_LOG2>(sum_len);
             (
                 zero!<State>(),
                 true,
@@ -185,15 +333,55 @@ pub proc AxiStreamRemoveEmpty<
     }
 }
 
-
-const INST_DATA_W = u32:32;
-const INST_DEST_W = u32:32;
-const INST_ID_W = u32:32;
-
-const INST_DATA_W_DIV8 = INST_DATA_W / u32:8;
-const INST_DATA_W_LOG2 = std::clog2(INST_DATA_W + u32:1);
-
 type InstAxiStream = axi_st::AxiStream<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8>;
+type InstStrobedStream = ContinuousStream<INST_DATA_W, INST_DEST_W, INST_ID_W>;
+
+proc AxiStreamRemoveEmptyInternalInst {
+    config (
+        stream_in_r: chan<InstStrobedStream> in,
+        stream_out_s: chan<InstAxiStream> out,
+    ) {
+        spawn AxiStreamRemoveEmptyInternal<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8, INST_DATA_W_LOG2> (
+            stream_in_r,
+            stream_out_s
+        );
+    }
+
+    init { }
+
+    next (state:()) { }
+}
+
+pub proc AxiStreamRemoveEmpty<
+    DATA_W: u32, DEST_W: u32, ID_W: u32,
+    DATA_W_DIV8: u32 = {DATA_W / u32:8},
+    DATA_W_LOG2: u32 = {std::clog2(DATA_W + u32:1)},
+> {
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type StrobedStream = ContinuousStream<DATA_W, DEST_W, ID_W>;
+
+    config (
+        stream_in_r: chan<AxiStream> in,
+        stream_out_s: chan<AxiStream> out,
+    ) {
+        let (continuous_stream_s, continuous_stream_r) = chan<StrobedStream, u32:0>("continuous_stream");
+
+        spawn RemoveEmptyBytes<DATA_W, DEST_W, ID_W>(
+            stream_in_r,
+            continuous_stream_s
+        );
+        spawn AxiStreamRemoveEmptyInternal<DATA_W, DEST_W, ID_W, DATA_W_DIV8, DATA_W_LOG2> (
+            continuous_stream_r,
+            stream_out_s
+        );
+
+        ()
+    }
+
+    init { () }
+
+    next (state: ()) {}
+}
 
 proc AxiStreamRemoveEmptyInst {
     config (
@@ -210,12 +398,6 @@ proc AxiStreamRemoveEmptyInst {
 
     next (state:()) { }
 }
-
-
-const TEST_DATA_W = u32:32;
-const TEST_DEST_W = u32:32;
-const TEST_ID_W = u32:32;
-const TEST_DATA_W_DIV8 = TEST_DATA_W / u32:8;
 
 type TestAxiStream = axi_st::AxiStream<TEST_DATA_W, TEST_DEST_W, TEST_ID_W, TEST_DATA_W_DIV8>;
 
@@ -465,6 +647,283 @@ proc AxiStreamRemoveEmptyTest {
             id: Id:0,
             dest: Dest:0,
         });
+
+        // Test 7: Some bits set, last set in the last transfer.
+
+
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0xf7697fb9,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0xc735df5e,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x70d3da1f,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x0000001d,
+            str: Str:0b0001,
+            keep: Keep:0b0001,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x01eaf614,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x00001734,
+            str: Str:0b0011,
+            keep: Keep:0b0011,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0xe935b870,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x00f149f5,
+            str: Str:0b0111,
+            keep: Keep:0b0111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0xf073eed1,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0xce97b5bd,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x950cddd9,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x08f0ebd4,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0xABEB9592,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0xB16E2D5C,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x157CF9C6,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let tok = send(tok, stream_in_s, TestAxiStream {
+            data: Data:0x00000019,
+            str: Str:0b0001,
+            keep: Keep:0b0001,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xf7697fb9,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xc735df5e,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x70d3da1f,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x0000001d,
+            str: Str:0b0001,
+            keep: Keep:0b0001,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x01eaf614,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x00001734,
+            str: Str:0b0011,
+            keep: Keep:0b0011,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xe935b870,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x00f149f5,
+            str: Str:0b0111,
+            keep: Keep:0b0111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xf073eed1,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xce97b5bd,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x950cddd9,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x08f0ebd4,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xABEB9592,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0xB16E2D5C,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x157CF9C6,
+            str: Str:0b1111,
+            keep: Keep:0b1111,
+            last: u1:0,
+            id: Id:0,
+            dest: Dest:0,
+        });
+        let (tok, stream_out) = recv(tok, stream_out_r);
+        assert_eq(stream_out, TestAxiStream {
+            data: Data:0x00000019,
+            str: Str:0b0001,
+            keep: Keep:0b0001,
+            last: u1:1,
+            id: Id:0,
+            dest: Dest:0,
+        });
+
         send(tok, terminator, true);
     }
 }
