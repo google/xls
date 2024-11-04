@@ -916,11 +916,70 @@ xls_dslx_test(
     library = ":mem_writer_dslx",
 )
 
+mem_writer_internal_codegen_args = common_codegen_args | {
+    "module_name": "mem_writer_internal",
+    "pipeline_stages": "2",
+}
+
+xls_dslx_verilog(
+    name = "mem_writer_internal_verilog",
+    codegen_args = mem_writer_internal_codegen_args,
+    dslx_top = "MemWriterInternalInst",
+    library = ":mem_writer_dslx",
+    tags = ["manual"],
+    verilog_file = "mem_writer_internal.v",
+)
+
+xls_benchmark_ir(
+    name = "mem_writer_internal_opt_ir_benchmark",
+    src = ":mem_writer_internal_verilog.opt.ir",
+    benchmark_ir_args = common_codegen_args | {
+        "pipeline_stages": "10",
+        "top": "__mem_writer__MemWriterInternalInst__MemWriterInternal_0__16_32_4_4_4_2_next",
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "mem_writer_internal_verilog_lib",
+    srcs = [
+        ":mem_writer_internal.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "mem_writer_internal_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "mem_writer_internal",
+    deps = [
+        ":mem_writer_internal_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "mem_writer_internal_benchmark_synth",
+    synth_target = ":mem_writer_internal_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "mem_writer_internal_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":mem_writer_internal_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
 mem_writer_codegen_args = common_codegen_args | {
     "module_name": "mem_writer",
-    "pipeline_stages": "3",
+    "pipeline_stages": "10",
     "streaming_channel_data_suffix": "_data",
-    "multi_proc": "true",
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
     "materialize_internal_fifos": "true",
