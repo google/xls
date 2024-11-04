@@ -2590,28 +2590,67 @@ let y = u16:64;   (x,   y)
 )");
 }
 
-// TODO: https://github.com/google/xls/issues/1320 - The formatter is
-// indenting the first *unformatted* statement, which we have yet to implement.
-TEST_F(DisableFmtTest, DISABLED_StatementsWithFmtDisabled) {
+TEST_F(DisableFmtTest, FnStatementsWithFmtDisabled) {
   ExpectFormatted(R"(import thing1;
 import thing2;
 
 fn f() -> (u32, u16) {
-    let x = u32:42;
+    let y = u16:64;
 
-    // The next line *should* be indented because it's before the "disable
-    // formatting" range.
     // dslx-fmt::off
 let y = u16:64;
 let x = 
   u32:41;
-         (x,   y)
+         (x ,   y)
 
-// dslx-fmt::on
-    // The previous line should *not* be indented because it's
-    // *within* the "disable formatting" range.
+          // dslx-fmt::on
+
 }
 )");
 }
+
+TEST_F(DisableFmtTest, StatementsWithFmtDisabledThenComment) {
+  ExpectFormatted(R"(const result = {
+    let y = u16:63;
+
+    // dslx-fmt::off
+let y = u16:64;
+let x = 
+  u32:41;
+         (x ,   y)
+
+          // dslx-fmt::on
+
+    // The previous line should *not* be indented because it's
+    // *within* the "disable formatting" range.
+};
+)");
+}
+
+TEST_F(DisableFmtTest, StatementsWithFmtDisabled) {
+  ExpectFormatted(R"(const result = {
+    let y = u16:63;
+
+    // dslx-fmt::off
+let y = u16:64;
+let x = 
+  u32:41;
+         (x ,   y)
+
+// dslx-fmt::on
+};
+)");
+}
+
+TEST_F(DisableFmtTest, TooLongLines) {
+  ExpectFormatted(R"(const result = {
+    // dslx-fmt::off
+                   let         y =         u16:64;         let x =         u32:41        ;     let y = u16:63;    (x ,   y) 
+
+// dslx-fmt::on
+};
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

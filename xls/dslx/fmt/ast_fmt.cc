@@ -701,9 +701,12 @@ static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
   Pos last_entity_pos = start_entity_pos;
 
   std::vector<DocRef> statements;
+  bool last_stmt_was_verbatim = false;
   for (size_t i = 0; i < n.statements().size(); ++i) {
     std::vector<DocRef> stmt_pieces;
     const Statement* stmt = n.statements()[i];
+    last_stmt_was_verbatim =
+        std::holds_alternative<VerbatimNode*>(stmt->wrapped());
 
     // Get the start position for the statement.
     std::optional<Span> stmt_span = stmt->GetSpan();
@@ -770,6 +773,10 @@ static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
     }
   }
 
+  // If the last statement was a verbatim, it already included a hard line,
+  // so we don't need one right now.
+  bool needs_hardline = !last_stmt_was_verbatim;
+
   // See if there are any comments to emit after the last statement to the end
   // of the block.
   std::optional<Span> last_comment_span;
@@ -785,13 +792,23 @@ static DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
       statements.push_back(arena.hard_line());
     }
 
-    statements.push_back(arena.hard_line());
+    if (!last_stmt_was_verbatim) {
+      // Skip the hard line before the last comment if the last one was a
+      // verbatim, because it already included one.
+      statements.push_back(arena.hard_line());
+    }
+
     statements.push_back(comments_doc.value());
+
+    // We always need a hard line after the last comment.
+    needs_hardline = true;
   }
 
   top.push_back(arena.MakeNest(ConcatN(arena, statements)));
   if (add_curls) {
-    top.push_back(arena.hard_line());
+    if (needs_hardline) {
+      top.push_back(arena.hard_line());
+    }
     top.push_back(arena.ccurl());
   } else {
     // If we're not putting hard lines in we want to at least check that we'll
@@ -1823,9 +1840,10 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
 }
 
 DocRef Fmt(const VerbatimNode* n, DocArena& arena) {
-  // TODO: https://github.com/google/xls/issues/1320 - Should maybe force a
-  // newline, and definitely set indentation to zero
-  return arena.MakeText(std::string(n->text()));
+  if (n->text().empty()) {
+    return arena.empty();
+  }
+  return arena.MakeZeroIndent(arena.MakeText(std::string(n->text())));
 }
 
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,

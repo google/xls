@@ -149,6 +149,12 @@ struct PrefixedReflow {
   std::string text;
 };
 
+// Similar to Align, but always emits the document left-aligned (indentation
+// level zero.)
+struct ZeroIndent {
+  DocRef arg;
+};
+
 // The basic entity used for pretty printing -- a "doc" has a requirement for
 // how many chars it needs to be emitted in flat mode (determined at
 // construction time) and a payload (e.g. for things like sub-documents, see
@@ -161,7 +167,8 @@ struct Doc {
   // The value can carry more information on what to do in flat/break
   // situations, or nested documents within commands.
   std::variant<std::string, HardLine, FlatChoice, Group, Concat, Nest, Align,
-               PrefixedReflow, NestIfFlatFits, ReduceTextWidth, ModeSelect>
+               PrefixedReflow, NestIfFlatFits, ReduceTextWidth, ModeSelect,
+               ZeroIndent>
       value;
 
   std::string ToDebugString(const DocArena& arena) const;
@@ -221,6 +228,10 @@ class DocArena {
   // Creates an "align" doc that aligns at the current indentation level for
   // "arg_ref" doc emission.
   DocRef MakeAlign(DocRef arg_ref);
+
+  // Creates a "zero indent" doc that sets the indentation to zero for the
+  // "arg_ref" doc emission.
+  DocRef MakeZeroIndent(DocRef arg_ref);
 
   // Creates a "reduce text width" doc that reduces the available text width by
   // "cols" in "arg_ref" doc emission.

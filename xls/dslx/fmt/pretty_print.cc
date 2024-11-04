@@ -55,6 +55,7 @@ using ::xls::dslx::pprint_internal::NestIfFlatFits;
 using ::xls::dslx::pprint_internal::PrefixedReflow;
 using ::xls::dslx::pprint_internal::ReduceTextWidth;
 using ::xls::dslx::pprint_internal::Requirement;
+using ::xls::dslx::pprint_internal::ZeroIndent;
 
 Requirement operator+(Requirement lhs, Requirement rhs) {
   if (std::holds_alternative<int64_t>(lhs) &&
@@ -364,6 +365,13 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
               stack.push_back(
                   StackEntry{&doc, mode, entry.indent(), entry.text_width()});
             },
+            [&](const ZeroIndent& zero_indent) {
+              VLOG(3) << "ZeroIndent: ";
+              virtual_outcol = 0;
+              stack.push_back(
+                  StackEntry{&arena.Deref(zero_indent.arg), entry.mode(),
+                             /*indent=*/virtual_outcol, entry.text_width()});
+            },
         },
         entry.doc()->value);
   }
@@ -419,6 +427,10 @@ std::string Doc::ToDebugString(const DocArena& arena) const {
             return absl::StrFormat("PrefixedReflow{\"%s\", \"%s\"}",
                                    absl::CEscape(p.prefix),
                                    absl::CEscape(p.text));
+          },
+          [&](const ZeroIndent& p) {
+            return absl::StrFormat("ZeroIndent{%s}",
+                                   arena.Deref(p.arg).ToDebugString(arena));
           },
       },
       value);
@@ -582,6 +594,14 @@ std::string PrettyPrint(const DocArena& arena, DocRef ref, int64_t text_width) {
   std::vector<std::string> pieces;
   PrettyPrintInternal(arena, arena.Deref(ref), text_width, pieces);
   return absl::StrJoin(pieces, "");
+}
+
+DocRef DocArena::MakeZeroIndent(DocRef arg_ref) {
+  const Doc& arg = Deref(arg_ref);
+  int64_t size = items_.size();
+  items_.push_back(Doc{.flat_requirement = arg.flat_requirement,
+                       .value = ZeroIndent{arg_ref}});
+  return DocRef{size};
 }
 
 DocRef ConcatN(DocArena& arena, absl::Span<DocRef const> docs) {
