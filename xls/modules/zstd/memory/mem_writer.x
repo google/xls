@@ -43,6 +43,9 @@ pub struct MemWriterReq<ADDR_W: u32> {
     length: uN[ADDR_W],
 }
 
+pub type MemWriterResp = axi_writer::AxiWriterResp;
+pub type MemWriterRespStatus = axi_writer::AxiWriterRespStatus;
+
 pub struct MemWriterDataPacket<DATA_W: u32, ADDR_W: u32> {
     data: uN[DATA_W],
     length: uN[ADDR_W], // Expressed in bytes
@@ -68,20 +71,15 @@ struct MemWriterState<
     axi_writer_req: axi_writer::AxiWriterRequest<ADDR_W>,
 }
 
-proc MemWriter<
+proc MemWriterInternal<
     ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32, WRITER_ID: u32,
-    DATA_W_DIV8: u32 = {DATA_W / u32:8},
-    DATA_W_LOG2: u32 = {std::clog2(DATA_W / u32:8)}
+    DATA_W_DIV8: u32 = {DATA_W / u32:8}
 > {
     type Req = MemWriterReq<ADDR_W>;
     type Data = MemWriterDataPacket<DATA_W, ADDR_W>;
     type AxiWriterReq = axi_writer::AxiWriterRequest<ADDR_W>;
-    type AxiWriterResp = axi_writer::AxiWriterResp;
     type PaddingReq = axi_writer::AxiWriterRequest<ADDR_W>;
     type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
-    type AxiAW = axi::AxiAw<ADDR_W, ID_W>;
-    type AxiW = axi::AxiW<DATA_W, DATA_W_DIV8>;
-    type AxiB = axi::AxiB<ID_W>;
     type State = MemWriterState<ADDR_W, DATA_W, DATA_W_DIV8, DEST_W, ID_W>;
     type Fsm = MemWriterFsm;
 
@@ -96,33 +94,16 @@ proc MemWriter<
     axi_writer_req_s: chan<AxiWriterReq> out;
     padding_req_s: chan<PaddingReq> out;
     axi_st_raw_s: chan<AxiStream> out;
-    resp_s: chan<AxiWriterResp> out;
 
     config(
         req_in_r: chan<Req> in,
         data_in_r: chan<Data> in,
-        axi_aw_s: chan<AxiAW> out,
-        axi_w_s: chan<AxiW> out,
-        axi_b_r: chan<AxiB> in,
-        resp_s: chan<AxiWriterResp> out,
+        axi_writer_req_s: chan<AxiWriterReq> out,
+        padding_req_s: chan<PaddingReq> out,
+        axi_st_raw_s: chan<AxiStream> out,
     ) {
-        let (axi_writer_req_s, axi_writer_req_r) = chan<AxiWriterReq, u32:0>("axi_writer_req");
-        let (padding_req_s, padding_req_r) = chan<PaddingReq, u32:0>("padding_req");
-        let (axi_st_raw_s, axi_st_raw_r) = chan<AxiStream, u32:0>("axi_st_raw");
-        let (axi_st_clean_s, axi_st_clean_r) = chan<AxiStream, u32:0>("axi_st_clean");
-        let (axi_st_padded_s, axi_st_padded_r) = chan<AxiStream, u32:0>("axi_st_padded");
 
-        spawn axi_stream_remove_empty::AxiStreamRemoveEmpty<
-            DATA_W, DEST_W, ID_W
-        >(axi_st_raw_r, axi_st_clean_s);
-        spawn axi_stream_add_empty::AxiStreamAddEmpty<
-            DATA_W, DEST_W, ID_W, ADDR_W
-        >(padding_req_r, axi_st_clean_r, axi_st_padded_s);
-        spawn axi_writer::AxiWriter<
-            ADDR_W, DATA_W, DEST_W, ID_W
-        >(axi_writer_req_r, resp_s, axi_aw_s, axi_w_s, axi_b_r, axi_st_padded_r);
-
-        (req_in_r, data_in_r, axi_writer_req_s, padding_req_s, axi_st_raw_s, resp_s)
+        (req_in_r, data_in_r, axi_writer_req_s, padding_req_s, axi_st_raw_s)
     }
 
     init { zero!<State>() }
@@ -194,8 +175,89 @@ const INST_DATA_W = u32:32;
 const INST_DATA_W_DIV8 = INST_DATA_W / u32:8;
 const INST_DEST_W = INST_DATA_W / u32:8;
 const INST_ID_W = INST_DATA_W / u32:8;
-const INST_DATA_W_LOG2 = u32:6;
 const INST_WRITER_ID = u32:2;
+
+proc MemWriterInternalInst {
+    type Req = MemWriterReq<INST_ADDR_W>;
+    type Data = MemWriterDataPacket<INST_DATA_W, INST_ADDR_W>;
+    type AxiWriterReq = axi_writer::AxiWriterRequest<INST_ADDR_W>;
+    type PaddingReq = axi_writer::AxiWriterRequest<INST_ADDR_W>;
+    type AxiStream = axi_st::AxiStream<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8>;
+
+    config(
+        req_in_r: chan<Req> in,
+        data_in_r: chan<Data> in,
+        axi_writer_req_s: chan<AxiWriterReq> out,
+        padding_req_s: chan<PaddingReq> out,
+        axi_st_raw_s: chan<AxiStream> out,
+    ) {
+
+        spawn MemWriterInternal<
+            INST_ADDR_W, INST_DATA_W, INST_DEST_W, INST_ID_W, INST_WRITER_ID
+        >(req_in_r, data_in_r, axi_writer_req_s, padding_req_s, axi_st_raw_s);
+        ()
+    }
+
+    init {}
+
+    next(state: ()) {}
+}
+
+pub proc MemWriter<
+    ADDR_W: u32, DATA_W: u32, DEST_W: u32, ID_W: u32, WRITER_ID: u32,
+    DATA_W_DIV8: u32 = {DATA_W / u32:8}
+> {
+    type Req = MemWriterReq<ADDR_W>;
+    type Data = MemWriterDataPacket<DATA_W, ADDR_W>;
+    type AxiWriterReq = axi_writer::AxiWriterRequest<ADDR_W>;
+    type PaddingReq = axi_writer::AxiWriterRequest<ADDR_W>;
+    type AxiStream = axi_st::AxiStream<DATA_W, DEST_W, ID_W, DATA_W_DIV8>;
+    type AxiAW = axi::AxiAw<ADDR_W, ID_W>;
+    type AxiW = axi::AxiW<DATA_W, DATA_W_DIV8>;
+    type AxiB = axi::AxiB<ID_W>;
+    type State = MemWriterState<ADDR_W, DATA_W, DATA_W_DIV8, DEST_W, ID_W>;
+    type Fsm = MemWriterFsm;
+
+    type Length = uN[ADDR_W];
+    type sLength = sN[ADDR_W];
+    type Strobe = uN[DATA_W_DIV8];
+    type Id = uN[ID_W];
+    type Dest = uN[DEST_W];
+
+    config(
+        req_in_r: chan<Req> in,
+        data_in_r: chan<Data> in,
+        axi_aw_s: chan<AxiAW> out,
+        axi_w_s: chan<AxiW> out,
+        axi_b_r: chan<AxiB> in,
+        resp_s: chan<MemWriterResp> out,
+    ) {
+        let (axi_writer_req_s, axi_writer_req_r) = chan<AxiWriterReq, u32:0>("axi_writer_req");
+        let (padding_req_s, padding_req_r) = chan<PaddingReq, u32:0>("padding_req");
+        let (axi_st_raw_s, axi_st_raw_r) = chan<AxiStream, u32:0>("axi_st_raw");
+        let (axi_st_clean_s, axi_st_clean_r) = chan<AxiStream, u32:0>("axi_st_clean");
+        let (axi_st_padded_s, axi_st_padded_r) = chan<AxiStream, u32:0>("axi_st_padded");
+
+        spawn MemWriterInternal<
+            ADDR_W, DATA_W, DEST_W, ID_W, WRITER_ID
+        >(req_in_r, data_in_r, axi_writer_req_s, padding_req_s, axi_st_raw_s);
+        spawn axi_stream_remove_empty::AxiStreamRemoveEmpty<
+            DATA_W, DEST_W, ID_W
+        >(axi_st_raw_r, axi_st_clean_s);
+        spawn axi_stream_add_empty::AxiStreamAddEmpty<
+            DATA_W, DEST_W, ID_W, ADDR_W
+        >(padding_req_r, axi_st_clean_r, axi_st_padded_s);
+        spawn axi_writer::AxiWriter<
+            ADDR_W, DATA_W, DEST_W, ID_W
+        >(axi_writer_req_r, resp_s, axi_aw_s, axi_w_s, axi_b_r, axi_st_padded_r);
+
+        ()
+    }
+
+    init {}
+
+    next(state: ()) {}
+}
 
 proc MemWriterInst {
     type InstReq = MemWriterReq<INST_ADDR_W>;
@@ -204,7 +266,7 @@ proc MemWriterInst {
     type InstAxiAW = axi::AxiAw<INST_ADDR_W, INST_ID_W>;
     type InstAxiW = axi::AxiW<INST_DATA_W, INST_DATA_W_DIV8>;
     type InstAxiB = axi::AxiB<INST_ID_W>;
-    type InstAxiWriterResp = axi_writer::AxiWriterResp;
+    type InstMemWriterResp = MemWriterResp;
 
     config(
         req_in_r: chan<InstReq> in,
@@ -212,7 +274,7 @@ proc MemWriterInst {
         axi_aw_s: chan<InstAxiAW> out,
         axi_w_s: chan<InstAxiW> out,
         axi_b_r: chan<InstAxiB> in,
-        resp_s: chan<InstAxiWriterResp> out
+        resp_s: chan<InstMemWriterResp> out
     ) {
         spawn MemWriter<
             INST_ADDR_W, INST_DATA_W, INST_DEST_W, INST_ID_W, INST_WRITER_ID
@@ -230,13 +292,12 @@ const TEST_DATA_W = u32:32;
 const TEST_DATA_W_DIV8 = TEST_DATA_W / u32:8;
 const TEST_DEST_W = TEST_DATA_W / u32:8;
 const TEST_ID_W = TEST_DATA_W / u32:8;
-const TEST_DATA_W_LOG2 = u32:6;
 const TEST_WRITER_ID = u32:2;
 
 type TestReq = MemWriterReq<INST_ADDR_W>;
 type TestData = MemWriterDataPacket<INST_DATA_W, INST_ADDR_W>;
-type TestAxiWriterResp = axi_writer::AxiWriterResp;
-type TestAxiWriterRespStatus = axi_writer::AxiWriterRespStatus;
+type TestMemWriterResp = MemWriterResp;
+type TestMemWriterRespStatus = MemWriterRespStatus;
 type TestAxiStream = axi_st::AxiStream<INST_DATA_W, INST_DEST_W, INST_ID_W, INST_DATA_W_DIV8>;
 type TestAxiAW = axi::AxiAw<INST_ADDR_W, INST_ID_W>;
 type TestAxiW = axi::AxiW<INST_DATA_W, INST_DATA_W_DIV8>;
@@ -260,7 +321,7 @@ proc MemWriterTest {
     axi_aw_r: chan<TestAxiAW> in;
     axi_w_r: chan<TestAxiW> in;
     axi_b_s: chan<TestAxiB> out;
-    resp_r: chan<TestAxiWriterResp> in;
+    resp_r: chan<TestMemWriterResp> in;
 
     config(
         terminator: chan<bool> out,
@@ -270,7 +331,7 @@ proc MemWriterTest {
         let (axi_aw_s, axi_aw_r) = chan<TestAxiAW>("axi_aw");
         let (axi_w_s, axi_w_r) = chan<TestAxiW>("axi_w");
         let (axi_b_s, axi_b_r) = chan<TestAxiB>("axi_b");
-        let (resp_s, resp_r) = chan<TestAxiWriterResp>("resp");
+        let (resp_s, resp_r) = chan<TestMemWriterResp>("resp");
         spawn MemWriter<
             TEST_ADDR_W, TEST_DATA_W, TEST_DEST_W, TEST_ID_W, TEST_WRITER_ID
         >(req_in_r, data_in_r, axi_aw_s, axi_w_s, axi_b_r, resp_s);
@@ -311,7 +372,7 @@ proc MemWriterTest {
             id: TestId:1,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Unaligned single transfer
         let tok = send(tok, req_in_s, TestReq {
@@ -342,7 +403,7 @@ proc MemWriterTest {
             id: TestId:2,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Unaligned single transfer
         let tok = send(tok, req_in_s, TestReq {
@@ -373,7 +434,7 @@ proc MemWriterTest {
             id: TestId:3,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Unaligned single transfer
         let tok = send(tok, req_in_s, TestReq {
@@ -404,7 +465,7 @@ proc MemWriterTest {
             id: TestId:4,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Unaligned single transfer
         let tok = send(tok, req_in_s, TestReq {
@@ -435,7 +496,7 @@ proc MemWriterTest {
             id: TestId:5,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Unaligned 2 transfers
         let tok = send(tok, req_in_s, TestReq {
@@ -472,7 +533,7 @@ proc MemWriterTest {
             id: TestId:6,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Unligned 3 transfers
         let tok = send(tok, req_in_s, TestReq {
@@ -520,7 +581,7 @@ proc MemWriterTest {
             id: TestId:7,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Crossing AXI 4kB boundary, aligned 2 burst transfers
         let tok = send(tok, req_in_s, TestReq {
@@ -574,7 +635,7 @@ proc MemWriterTest {
             id: TestId:9,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Crossing AXI 4kB boundary, unaligned 2 burst transfers
         let tok = send(tok, req_in_s, TestReq {
@@ -634,7 +695,7 @@ proc MemWriterTest {
             id: TestId:11,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         // Unligned 3 transfers
         let tok = send(tok, req_in_s, TestReq {
@@ -709,7 +770,7 @@ proc MemWriterTest {
             id: TestId:12,
         });
         let (tok, resp) = recv(tok, resp_r);
-        assert_eq(resp, TestAxiWriterResp{status: TestAxiWriterRespStatus::OKAY});
+        assert_eq(resp, TestMemWriterResp{status: TestMemWriterRespStatus::OKAY});
 
         send(tok, terminator, true);
     }
