@@ -1449,18 +1449,12 @@ absl::StatusOr<SimplifyResult> SimplifyConditionalAssign(
     if (!shared_original_value.has_value()) {
       XLS_ASSIGN_OR_RETURN(
           shared_original_value,
-          // TODO(allight): This is a strange case since the update means that
-          // the value is only used if the index was in bounds.  The ArrayIndex
-          // operation only gets used if the index is in bounds So we could
-          // assume the index is known-in-bounds in this context. That leads to
-          // some potentially strange implications where we might want to change
-          // known_in_boudns to assumed_in_bounds or something. For now we just
-          // avoid this entirely by setting it to and-reduce of all the cases
-          // known-in-bounds. If/when we do this we should change the
-          // 'assumed_in_bounds' to 'assumed_in_bounds' or something.
-          // TODO(allight): We could do the or-reduce instead.
+          // This is a strange case since the update means that the value is
+          // only used if the index was in bounds. So we can assume the index is
+          // in-bounds in this context.
           select->function_base()->MakeNode<ArrayIndex>(
-              select->loc(), array_to_update, *idx, assumed_in_bounds));
+              select->loc(), array_to_update, *idx,
+              /*assumed_in_bounds=*/true));
     }
     return *shared_original_value;
   };

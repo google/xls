@@ -1126,7 +1126,7 @@ TEST_F(ArraySimplificationPassTest,
                                              // used by the update if the 'i' is
                                              // actually in bounds so we can
                                              // avoid bounds checks here.
-                                             m::NotAssumedInBounds())}),
+                                             m::AssumedInBounds())}),
           /*indices=*/{m::Param("i")}, m::NotAssumedInBounds()));
 }
 
