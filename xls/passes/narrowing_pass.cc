@@ -1075,7 +1075,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
         ArrayIndicesAssumedInBounds(
             array_index, array_index->indices(),
             array_index->array()->GetType()->AsArrayOrDie())) {
-      VLOG(3) << "analysis proves that " << index
+      VLOG(3) << "analysis proves that " << array_index
               << " does not require bounds checks";
       assumed_in_bounds = true;
     }
