@@ -1284,10 +1284,7 @@ dslx_lang_test(name = "parametric_builtin_in_module_level_const")
 
 dslx_lang_test(name = "map_module_level_const")
 
-exports_files([
-    "mod_const_enum_importer.x",
-    "mod_simple_const_enum.x",
-])
+exports_files(glob(include = ["*.x"]))
 
 build_test(
     name = "dslx_have_targets",
