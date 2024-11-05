@@ -50,48 +50,48 @@ using ::testing::HasSubstr;
 
 class ParserTest : public ::testing::Test {
  public:
-  std::unique_ptr<Module> RoundTrip(
-      std::string program,
-      std::optional<std::string_view> target = std::nullopt) {
-    scanner_.emplace(file_table_, Fileno(0), program);
+  absl::StatusOr<std::unique_ptr<Module>> Parse(std::string_view program) {
+    scanner_.emplace(file_table_, Fileno(0), std::string(program));
     parser_.emplace("test", &*scanner_);
-    auto module_or = parser_->ParseModule();
-    if (!module_or.ok()) {
-      TryPrintError(
-          module_or.status(),
-          [&](std::string_view path) -> absl::StatusOr<std::string> {
-            return program;
-          },
-          file_table_);
-      XLS_EXPECT_OK(module_or) << module_or.status();
-      return nullptr;
-    }
-    std::unique_ptr<Module> module = std::move(module_or).value();
-    if (target.has_value()) {
-      EXPECT_EQ(module->ToString(), *target);
-    } else {
-      EXPECT_EQ(module->ToString(), program);
-    }
-
-    return module;
+    return parser_->ParseModule();
   }
 
-  std::unique_ptr<Module> ParseProgram(std::string program) {
-    scanner_.emplace(file_table_, Fileno(0), program);
-    parser_.emplace("test", &*scanner_);
-    auto module_or = parser_->ParseModule();
-    if (!module_or.ok()) {
+  std::unique_ptr<Module> RoundTrip(
+      std::string_view program,
+      std::optional<std::string_view> target = std::nullopt) {
+    absl::StatusOr<std::unique_ptr<Module>> module = Parse(program);
+    if (!module.ok()) {
       TryPrintError(
-          module_or.status(),
+          module.status(),
           [&](std::string_view path) -> absl::StatusOr<std::string> {
-            return program;
+            return std::string(program);
           },
           file_table_);
-      XLS_EXPECT_OK(module_or) << module_or.status();
+      XLS_EXPECT_OK(module) << module.status();
       return nullptr;
     }
-    std::unique_ptr<Module> module = std::move(module_or).value();
-    return module;
+    std::unique_ptr<Module> module_ptr = std::move(*module);
+    if (target.has_value()) {
+      EXPECT_EQ(module_ptr->ToString(), *target);
+    } else {
+      EXPECT_EQ(module_ptr->ToString(), program);
+    }
+    return module_ptr;
+  }
+
+  std::unique_ptr<Module> ExpectParsesSuccessfully(std::string_view program) {
+    absl::StatusOr<std::unique_ptr<Module>> module = Parse(program);
+    if (!module.ok()) {
+      TryPrintError(
+          module.status(),
+          [&](std::string_view path) -> absl::StatusOr<std::string> {
+            return std::string(program);
+          },
+          file_table_);
+      XLS_EXPECT_OK(module) << module.status();
+      return nullptr;
+    }
+    return std::move(*module);
   }
 
   // Note: given expression text should have no free variables other than those
@@ -1601,14 +1601,14 @@ TEST_F(ParserTest, AllOnesMacroSimpleBitsArray) {
 }
 
 TEST_F(ParserTest, LocalParametricStruct) {
-  ParseProgram(R"(struct my_struct<N: u32> {
+  ExpectParsesSuccessfully(R"(struct my_struct<N: u32> {
     my_field: uN[N],
 }
 const local_struct = my_struct<5> { my_field: u5:10 };)");
 }
 
 TEST_F(ParserTest, LocalParametricStructArray) {
-  ParseProgram(R"(struct my_struct<N: u32> {
+  ExpectParsesSuccessfully(R"(struct my_struct<N: u32> {
     my_field: uN[N],
 }
 const local_struct = my_struct<5>[1]:[
@@ -1618,13 +1618,13 @@ const local_struct = my_struct<5>[1]:[
 }
 
 TEST_F(ParserTest, ImportedStruct) {
-  ParseProgram(R"(import lib;
+  ExpectParsesSuccessfully(R"(import lib;
 const lib_struct = lib::my_lib_struct { my_field: u5:10 };)");
 }
 
 // Exercises https://github.com/google/xls/issues/1030
 TEST_F(ParserTest, ImportedParametricStruct) {
-  ParseProgram(R"(import lib;
+  ExpectParsesSuccessfully(R"(import lib;
 const lib_struct = lib::my_lib_struct<5> { my_field: u5:10 };)");
 }
 
@@ -1653,20 +1653,20 @@ const lib_struct = lib::my_lib_struct<,>{ my_field: u5:10 };)";
 }
 
 TEST_F(ParserTest, ImportedEnum) {
-  ParseProgram(R"(import lib;
+  ExpectParsesSuccessfully(R"(import lib;
 const lib_enum_value = lib::my_lib_enum.value;
 )");
 }
 
 TEST_F(ParserTest, ImportedParametricFn) {
-  ParseProgram(R"(import lib;
+  ExpectParsesSuccessfully(R"(import lib;
 fn main() -> () {
     lib::my_proc<5>();
 })");
 }
 
 TEST_F(ParserTest, ImportedParametricStructArray) {
-  ParseProgram(R"(import lib;
+  ExpectParsesSuccessfully(R"(import lib;
 const imported_structs = lib::my_struct<5>[2]:[
   lib::my_struct { my_field: u5:10 },
   lib::my_struct { my_field: u5:11 }
@@ -1674,14 +1674,14 @@ const imported_structs = lib::my_struct<5>[2]:[
 }
 
 TEST_F(ParserTest, ImportedParametricStructArrayField) {
-  ParseProgram(R"(import lib;
+  ExpectParsesSuccessfully(R"(import lib;
 const imported_structs = lib::my_struct<5>[1]:[lib::my_struct { my_field: u5:10 }];
 const imported_field = imported_structs[0].my_field;
 )");
 }
 
 TEST_F(ParserTest, ImportedParametricLt) {
-  ParseProgram(R"(import lib;
+  ExpectParsesSuccessfully(R"(import lib;
 
 fn main() -> bool {
   lib::OFFSET < u32:32
@@ -2647,6 +2647,49 @@ TEST_F(ParserTest, ParseAllowNonstandardConstantNamingAnnotation) {
   EXPECT_THAT(
       module_or.value()->annotations(),
       testing::ElementsAre(ModuleAnnotation::kAllowNonstandardConstantNaming));
+}
+
+TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue1) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![type_inference_version = 1]
+)"));
+  EXPECT_THAT(module->annotations(), testing::IsEmpty());
+}
+
+TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue2) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
+#![type_inference_version = 2]
+)"));
+  EXPECT_THAT(module->annotations(),
+              testing::ElementsAre(ModuleAnnotation::kTypeInferenceVersion2));
+}
+
+TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue3Fails) {
+  absl::StatusOr<std::unique_ptr<Module>> module = Parse(R"(
+#![type_inference_version = 3]
+)");
+  EXPECT_THAT(module,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Type inference version must be 1 or 2.")));
+}
+
+TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithNonIntegerFails) {
+  absl::StatusOr<std::unique_ptr<Module>> module = Parse(R"(
+#![type_inference_version = "2"]
+)");
+  EXPECT_THAT(
+      module,
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Type inference version must be an unquoted integer.")));
+}
+
+TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithParenFormatFails) {
+  absl::StatusOr<std::unique_ptr<Module>> module = Parse(R"(
+#![type_inference_version(2)]
+)");
+  EXPECT_THAT(module, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Expected '=', got '('")));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the

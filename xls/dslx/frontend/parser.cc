@@ -204,6 +204,21 @@ std::string ExprRestrictionsToString(ExprRestrictions restrictions) {
   return "{no-struct-literal}";
 }
 
+absl::StatusOr<std::optional<ModuleAnnotation>>
+GetModuleAnnotationForTypeInferenceVersion(const Span& span,
+                                           const FileTable& file_table,
+                                           int64_t version) {
+  switch (version) {
+    case 1:
+      return std::nullopt;
+    case 2:
+      return ModuleAnnotation::kTypeInferenceVersion2;
+    default:
+      return ParseErrorStatus(span, "Type inference version must be 1 or 2.",
+                              file_table);
+  }
+}
+
 }  // namespace
 
 absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
@@ -241,10 +256,16 @@ absl::Status Parser::ParseModuleAttribute() {
   Span identifier_span;
   XLS_ASSIGN_OR_RETURN(std::string identifier,
                        PopIdentifierOrError(&identifier_span));
+  if (identifier == "type_inference_version") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
+    XLS_RETURN_IF_ERROR(ParseTypeInferenceVersionAttribute());
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    return absl::OkStatus();
+  }
   if (identifier != "allow") {
-    return ParseErrorStatus(
-        identifier_span,
-        "Only 'allow' is supported as a module-level attribute");
+    return ParseErrorStatus(identifier_span,
+                            "Only 'allow' and 'type_inference_version' are "
+                            "supported as module-level attributes");
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   XLS_ASSIGN_OR_RETURN(std::string to_allow, PopIdentifierOrError());
@@ -256,6 +277,26 @@ absl::Status Parser::ParseModuleAttribute() {
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+  return absl::OkStatus();
+}
+
+absl::Status Parser::ParseTypeInferenceVersionAttribute() {
+  XLS_ASSIGN_OR_RETURN(const Token* inference_version, PeekToken());
+  if (inference_version->kind() != TokenKind::kNumber) {
+    return ParseErrorStatus(
+        inference_version->span(),
+        "Type inference version must be an unquoted integer.");
+  }
+  XLS_RETURN_IF_ERROR(DropToken());
+  XLS_ASSIGN_OR_RETURN(int64_t inference_version_value,
+                       inference_version->GetValueAsInt64());
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<ModuleAnnotation> annotation,
+      GetModuleAnnotationForTypeInferenceVersion(
+          inference_version->span(), file_table(), inference_version_value));
+  if (annotation.has_value()) {
+    module_->AddAnnotation(*annotation);
+  }
   return absl::OkStatus();
 }
 

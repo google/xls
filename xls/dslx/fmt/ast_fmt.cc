@@ -2640,6 +2640,10 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
               arena.MakeText("#![allow(nonstandard_member_naming)]"));
           pieces.push_back(arena.hard_line());
           break;
+        case ModuleAnnotation::kTypeInferenceVersion2:
+          pieces.push_back(arena.MakeText("#![type_inference_version = 2]"));
+          pieces.push_back(arena.hard_line());
+          break;
       }
     }
     pieces.push_back(arena.hard_line());

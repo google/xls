@@ -62,6 +62,8 @@ enum class ModuleAnnotation : uint8_t {
   kAllowNonstandardConstantNaming,
 
   kAllowNonstandardMemberNaming,
+
+  kTypeInferenceVersion2,
 };
 
 // Represents a syntactic module in the AST.
