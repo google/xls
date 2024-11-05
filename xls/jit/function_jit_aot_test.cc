@@ -74,8 +74,6 @@ static constexpr std::string_view kExpectedSymbolNamePacked =
     "__multi_func_with_trace__multi_function_one_packed";
 static constexpr std::string_view kGoldIr =
     "xls/jit/multi_function_with_trace.ir";
-static constexpr std::string_view kGoldTopName =
-    "__multi_func_with_trace__multi_function_one";
 static constexpr std::string_view kTestAotEntrypointsProto =
     "xls/jit/multi_function_with_trace_aot.pb";
 
