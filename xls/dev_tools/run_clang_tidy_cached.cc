@@ -88,8 +88,7 @@ static constexpr std::string_view kExtraArgs[] = {"-Wno-unknown-pragmas",
 // It is good to set if the project is 'clean' and there are only a
 // few problematic sources to begin with, otherwise every update of the
 // compilation DB will re-trigger revisiting all of them.
-// Our baseline is not clean yet, so 'false' for now.
-static constexpr bool kRevisitBrokenFilesIfCompilationDBNewer = false;
+static constexpr bool kRevisitBrokenFilesIfCompilationDBNewer = true;
 
 namespace {
 
