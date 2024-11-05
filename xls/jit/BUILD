@@ -267,8 +267,6 @@ cc_library(
         ":jit_channel_queue",
         ":jit_proc_runtime",
         ":jit_runtime",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/interpreter:evaluator_options",

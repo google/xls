@@ -259,7 +259,6 @@ cc_library(
         ":proc_config_ir_converter",
         "//xls/common:casts",
         "//xls/common:visitor",
-        "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",

@@ -122,7 +122,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -179,7 +178,6 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
-        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",

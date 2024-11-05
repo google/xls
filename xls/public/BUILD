@@ -291,8 +291,11 @@ cc_binary(
         "@$(location :generate_linker_params)",
     ],
     linkshared = True,
+    # We're not using any headers provided by c_api, and is not alwayslink,
+    # so make sure a build_cleaner does not accidentally remove the library
+    # we want to wrap.
     deps = [
-        ":c_api",
+        ":c_api",  # build_cleaner: keep
     ],
 )
 
