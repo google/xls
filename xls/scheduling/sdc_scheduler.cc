@@ -192,7 +192,7 @@ SDCSchedulingModel::SDCSchedulingModel(FunctionBase* func,
       topo_sort_(TopoSort(func_)),
       model_(model_name),
       delay_map_(delay_map),
-      last_stage_(model_.AddContinuousVariable(0.0, kInfinity, "last_stage")),
+      last_stage_(model_.AddContinuousVariable(0.0, kMaxStages, "last_stage")),
       cycle_at_sinknode_(model_.AddContinuousVariable(-kInfinity, kInfinity,
                                                       "cycle_at_sinknode")) {
   // when subclassed for Iterative SDC, delay_map_ and distances_to_node_
@@ -203,7 +203,7 @@ SDCSchedulingModel::SDCSchedulingModel(FunctionBase* func,
 
   for (Node* node : topo_sort_) {
     cycle_var_.emplace(
-        node, model_.AddContinuousVariable(0.0, kInfinity, node->GetName()));
+        node, model_.AddContinuousVariable(0.0, kMaxStages, node->GetName()));
     model_.AddLinearConstraint(
         cycle_var_.at(node) <= last_stage_,
         absl::StrFormat("pipeline_length:%s", node->GetName()));

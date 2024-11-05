@@ -43,6 +43,7 @@ class SDCSchedulingModel {
   using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 
   static constexpr double kInfinity = std::numeric_limits<double>::infinity();
+  static constexpr double kMaxStages = (1 << 20);
 
  public:
   SDCSchedulingModel(FunctionBase* func, const DelayMap& delay_map,

@@ -413,9 +413,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
   } else {
     // We don't know the exact target clock period - either none was provided,
     // or we want to fall back to the minimum feasible clock period if the
-    // target is infeasible. Determine the minimum clock period (no smaller than
-    // the target, if provided) for which the function can be scheduled in the
-    // given pipeline length.
+    // target is infeasible. Determine the minimum clock period for which the
+    // function can be scheduled in the given pipeline length (adjusted for the
+    // user-specified relaxation percent if needed), and use that if it's
+    // smaller than the target clock period.
     //
     // NOTE: We currently use the SDC scheduler to determine the minimum clock
     //       period (if not specified), even if we're not using it for the final
@@ -427,20 +428,25 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
             f, options.pipeline_stages(),
             /*worst_case_throughput=*/f->IsProc() ? f->GetInitiationInterval()
                                                   : std::nullopt,
-            io_delay_added, *sdc_scheduler, options.failure_behavior(),
-            /*target_clock_period_ps=*/options.clock_period_ps()));
+            io_delay_added, *sdc_scheduler, options.failure_behavior()));
     min_clock_period_ps_for_tracing = clock_period_ps;
 
-    if (clock_period_ps != options.clock_period_ps() &&
-        options.period_relaxation_percent().has_value()) {
-      // We found the minimum feasible clock period; apply the user-specified
-      // relaxation to allow less evenly distributed slack.
+    if (options.period_relaxation_percent().has_value()) {
+      // Apply the user-specified relaxation to allow less evenly distributed
+      // slack.
       int64_t relaxation_percent = options.period_relaxation_percent().value();
       clock_period_ps += (clock_period_ps * relaxation_percent + 50) / 100;
     }
 
+    if (options.clock_period_ps().has_value()) {
+      // If the user specified a clock period, and it's at least as long as our
+      // feasible clock period, use that instead; no need to squeeze the stages
+      // for a tighter clock than the user's target.
+      clock_period_ps = std::max(clock_period_ps, *options.clock_period_ps());
+    }
+
     if (options.clock_period_ps().has_value() &&
-        clock_period_ps != *options.clock_period_ps()) {
+        clock_period_ps > *options.clock_period_ps()) {
       CHECK(options.minimize_clock_on_failure().value_or(false));
       CHECK(options.recover_after_minimizing_clock().value_or(false));
       LOG(WARNING) << "Target clock period was " << *options.clock_period_ps()
