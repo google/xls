@@ -21,7 +21,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -36,6 +35,7 @@
 #include "xls/ir/elaboration.h"
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
 #include "xls/jit/aot_entrypoint.pb.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_FRONTEND_POS_H_
 #define XLS_DSLX_FRONTEND_POS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <ostream>

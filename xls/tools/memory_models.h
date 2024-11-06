@@ -15,12 +15,19 @@
 #ifndef XLS_TOOLS_MEMORY_MODELS_H_
 #define XLS_TOOLS_MEMORY_MODELS_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/ir/ram_rewrite.pb.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
 namespace xls {

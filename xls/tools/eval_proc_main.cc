@@ -15,7 +15,6 @@
 // Tool to evaluate the behavior of a Proc network.
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <iostream>

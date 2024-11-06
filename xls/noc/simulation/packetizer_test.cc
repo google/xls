@@ -83,7 +83,7 @@ TEST(PacketizerTest, SendSingleFlit) {
   absl::Span<const DataPacket> received_packets = packetizer.GetPackets();
   ASSERT_EQ(received_packets.size(), 1);
 
-  DataPacket recv_packet = received_packets.at(0);
+  const DataPacket& recv_packet = received_packets.at(0);
 
   EXPECT_TRUE(recv_packet.valid);
   EXPECT_EQ(recv_packet.destination_index, packet.destination_index);
@@ -149,7 +149,7 @@ TEST(PacketizerTest, SendMultiplePhit) {
   EXPECT_EQ(packetizer.PartialPacketCount(), 0);
 
   absl::Span<const DataPacket> received_packets = packetizer.GetPackets();
-  DataPacket recv_packet = received_packets.at(0);
+  const DataPacket& recv_packet = received_packets.at(0);
 
   EXPECT_TRUE(recv_packet.valid);
   EXPECT_EQ(recv_packet.destination_index, packet.destination_index);

@@ -50,7 +50,7 @@
 #include "xls/contrib/mlir/IR/assembly_format.h"  // IWYU pragma: keep
 
 // Generate enum printer/parsers.
-#include "xls/contrib/mlir/IR/xls_ops_enums.cc.inc"
+#include "xls/contrib/mlir/IR/xls_ops_enums.cc.inc"  // IWYU pragma: keep
 
 using namespace mlir;  // NOLINT
 

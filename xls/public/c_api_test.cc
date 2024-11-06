@@ -21,6 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
@@ -656,7 +657,7 @@ TEST(XlsCApiTest, DslxInspectTypeRefTypeAnnotation) {
   const char kImported[] = "pub type SomeType = u32;";
   XLS_ASSERT_OK_AND_ASSIGN(xls::TempDirectory tempdir,
                            xls::TempDirectory::Create());
-  const std::filesystem::path tempdir_path = tempdir.path();
+  const std::filesystem::path& tempdir_path = tempdir.path();
   const std::filesystem::path module_path =
       tempdir_path / "my_imported_module.x";
   XLS_ASSERT_OK(xls::SetFileContents(module_path, kImported));

@@ -524,6 +524,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:foreign_function",
+        "//xls/ir:foreign_function_data_cc_proto",
         "//xls/ir:source_location",
         "//xls/public:function_builder",
         "//xls/public:ir",

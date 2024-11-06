@@ -487,7 +487,7 @@ AbstractCellLibraryEntry<EvalT>::FromProto(const CellLibraryEntryProto& proto,
                                            EvalT zero, EvalT one) {
   XLS_ASSIGN_OR_RETURN(CellKind cell_kind, CellKindFromProto(proto.kind()));
 
-  OutputPinListProto output_pin_list = proto.output_pin_list();
+  const OutputPinListProto& output_pin_list = proto.output_pin_list();
   OutputPinToFunction pins;
   pins.reserve(output_pin_list.pins_size());
   for (const auto& proto : output_pin_list.pins()) {

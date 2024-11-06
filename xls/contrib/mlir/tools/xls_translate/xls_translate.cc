@@ -64,6 +64,7 @@
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
 #include "xls/public/function_builder.h"

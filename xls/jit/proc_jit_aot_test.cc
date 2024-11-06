@@ -38,6 +38,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
 #include "xls/ir/value_utils.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_callbacks.h"

@@ -478,7 +478,7 @@ class ProxyContextQueryEngine final : public QueryEngine {
     return MostSpecific(node).MaxUnsignedValue(node);
   }
 
-  virtual Bits MinUnsignedValue(Node* node) const override {
+  Bits MinUnsignedValue(Node* node) const override {
     return MostSpecific(node).MinUnsignedValue(node);
   }
 

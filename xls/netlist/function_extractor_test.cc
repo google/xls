@@ -51,7 +51,7 @@ library (blah) {
   XLS_ASSERT_OK_AND_ASSIGN(auto stream, cell_lib::CharStream::FromText(lib));
   XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, ExtractFunctions(&stream));
 
-  const CellLibraryEntryProto entry = proto.entries(0);
+  const CellLibraryEntryProto& entry = proto.entries(0);
   EXPECT_EQ(entry.name(), "cell_1");
   absl::flat_hash_set<std::string> input_names({"i0", "i1"});
   for (const auto& input_name : entry.input_names()) {
@@ -90,7 +90,7 @@ library (blah) {
   XLS_ASSERT_OK_AND_ASSIGN(auto stream, cell_lib::CharStream::FromText(lib));
   XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, ExtractFunctions(&stream));
 
-  const CellLibraryEntryProto entry = proto.entries(0);
+  const CellLibraryEntryProto& entry = proto.entries(0);
   EXPECT_EQ(entry.name(), "cell_1");
   absl::flat_hash_set<std::string> input_names({"i0", "i1"});
   for (const auto& input_name : entry.input_names()) {
@@ -137,10 +137,10 @@ library (blah) {
   XLS_ASSERT_OK_AND_ASSIGN(auto stream, cell_lib::CharStream::FromText(lib));
   XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, ExtractFunctions(&stream));
 
-  const CellLibraryEntryProto entry = proto.entries(0);
+  const CellLibraryEntryProto& entry = proto.entries(0);
   EXPECT_EQ(entry.name(), "cell_1");
   ASSERT_TRUE(entry.has_state_table());
-  StateTableProto table = entry.state_table();
+  const StateTableProto& table = entry.state_table();
   absl::flat_hash_set<std::string> input_names({"i0", "i1", "phi"});
   for (const auto& input_name : table.input_names()) {
     ASSERT_TRUE(input_names.contains(input_name));
@@ -149,7 +149,7 @@ library (blah) {
   ASSERT_EQ(table.internal_names(0), "ham_sandwich");
 
   // Just validate a single row instead of going through all of them.
-  StateTableRow row = table.rows(2);
+  const StateTableRow& row = table.rows(2);
   ASSERT_EQ(row.input_signals_size(), 3);
   EXPECT_EQ(row.input_signals().at("i0"), STATE_TABLE_SIGNAL_HIGH);
   EXPECT_EQ(row.input_signals().at("i1"), STATE_TABLE_SIGNAL_LOW);
@@ -193,10 +193,10 @@ library (simple_statetable_cells) {
   XLS_ASSERT_OK_AND_ASSIGN(auto stream, cell_lib::CharStream::FromText(lib));
   XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, ExtractFunctions(&stream));
 
-  const CellLibraryEntryProto entry = proto.entries(0);
+  const CellLibraryEntryProto& entry = proto.entries(0);
   EXPECT_EQ(entry.name(), "and");
   ASSERT_TRUE(entry.has_state_table());
-  StateTableProto table = entry.state_table();
+  const StateTableProto& table = entry.state_table();
   absl::flat_hash_set<std::string> input_names({"A", "B", "X"});
   for (const auto& input_name : table.input_names()) {
     ASSERT_TRUE(input_names.contains(input_name));
@@ -205,7 +205,7 @@ library (simple_statetable_cells) {
   ASSERT_EQ(table.internal_names(0), "X");
 
   // Just validate a single row instead of going through all of them.
-  StateTableRow row = table.rows(2);
+  const StateTableRow& row = table.rows(2);
   ASSERT_EQ(row.input_signals_size(), 2);
   EXPECT_EQ(row.input_signals().at("A"), STATE_TABLE_SIGNAL_HIGH);
   EXPECT_EQ(row.input_signals().at("B"), STATE_TABLE_SIGNAL_HIGH);

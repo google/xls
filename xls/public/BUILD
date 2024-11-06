@@ -252,6 +252,7 @@ cc_test(
         "//xls/common/file:temp_directory",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_googletest//:gtest",
     ],

@@ -16,6 +16,7 @@
 #define XLS_PUBLIC_C_API_H_
 
 #include <stddef.h>  // NOLINT(modernize-deprecated-headers)
+#include <stdint.h>  // NOLINT(modernize-deprecated-headers)
 
 #include "xls/public/c_api_dslx.h"
 #include "xls/public/c_api_format_preference.h"

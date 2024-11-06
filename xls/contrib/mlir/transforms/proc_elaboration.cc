@@ -22,10 +22,9 @@
 #include "llvm/include/llvm/ADT/ArrayRef.h"
 #include "llvm/include/llvm/ADT/DenseMap.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
-#include "llvm/include/llvm/ADT/SmallString.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/SmallVectorExtras.h"
-#include "llvm/include/llvm/ADT/StringRef.h"
+#include "llvm/include/llvm/ADT/StringRef.h"  // IWYU pragma: keep
 #include "llvm/include/llvm/ADT/StringSet.h"
 #include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/Builders.h"
@@ -50,8 +49,6 @@ namespace mlir::xls {
 namespace {
 
 using ::llvm::ArrayRef;
-using ::llvm::SmallString;
-using ::llvm::StringRef;
 using ::llvm::StringSet;
 
 // Replaces all structured channel ops in a region with the corresponding

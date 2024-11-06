@@ -14,7 +14,7 @@
 
 #include "xls/ir/keyword_args.h"
 
-#include <concepts>
+#include <concepts>  // NOLINT(misc-include-cleaner)  clang-tidy is confused.
 #include <cstdint>
 #include <string>
 #include <string_view>

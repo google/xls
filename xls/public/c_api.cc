@@ -17,6 +17,7 @@
 #include <string.h>  // NOLINT(modernize-deprecated-headers)
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <memory>

@@ -30,7 +30,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
-#include "xls/ir/function.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
 #include "xls/jit/aot_entrypoint.pb.h"
