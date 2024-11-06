@@ -178,6 +178,7 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:comment_data",
+        "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
