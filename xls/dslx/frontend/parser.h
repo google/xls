@@ -168,6 +168,7 @@ class Parser : public TokenParser {
     }
 
     Bindings* bindings() { return &child_bindings_; }
+    bool completed() const { return completed_; }
 
    private:
     Parser* parser_;

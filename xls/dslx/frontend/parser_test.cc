@@ -3015,4 +3015,14 @@ fn main(x: u32[64]) -> u16[64] {
   XLS_EXPECT_OK(parser.ParseModule());
 }
 
+TEST_F(ParserTest, ParseWithUncompletedStateTransaction) {
+  constexpr std::string_view kProgram =
+      "import st0;fn n(x:u6){let()=st0::w<\xb0";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unrecognized character: '\xb0' (0xb0)")));
+}
+
 }  // namespace xls::dslx

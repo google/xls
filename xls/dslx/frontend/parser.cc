@@ -1768,7 +1768,17 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
       ColonRef* colon_ref = std::get<ColonRef*>(name_or_colon_ref);
       TypeAnnotation* type = nullptr;
       TypeRef* type_ref = nullptr;
+
       Transaction parse_oangle_txn(this, &outer_bindings);
+
+      // If we do an assign-or-return (status error propagation) we need to
+      // nullify the transaction.
+      absl::Cleanup rollback_by_default([&parse_oangle_txn] {
+        if (!parse_oangle_txn.completed()) {
+          parse_oangle_txn.Rollback();
+        }
+      });
+
       XLS_ASSIGN_OR_RETURN(bool found_oangle, PeekTokenIs(TokenKind::kOAngle));
       if (found_oangle) {
         VLOG(5) << "ParseTerm, kind is ColonRef then oAngle; trying parametric";
