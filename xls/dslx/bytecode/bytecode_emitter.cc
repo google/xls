@@ -138,8 +138,9 @@ std::optional<ValueFormatDescriptor> GetFormatDescriptorFromNumber(
     return std::nullopt;
   }
   return ValueFormatDescriptor::MakeLeafValue(
-      builtin_type->GetSignedness() ? FormatPreference::kSignedDecimal
-                                    : FormatPreference::kUnsignedDecimal);
+      builtin_type->GetSignedness().value()
+          ? FormatPreference::kSignedDecimal
+          : FormatPreference::kUnsignedDecimal);
 }
 
 }  // namespace

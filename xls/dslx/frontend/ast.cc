@@ -492,7 +492,7 @@ absl::StatusOr<bool> GetBuiltinTypeSignedness(BuiltinType type) {
       absl::StrCat("Unknown builtin type: ", static_cast<int64_t>(type)));
 }
 
-absl::StatusOr<int64_t> GetBuiltinTypeBitCount(BuiltinType type) {
+int64_t GetBuiltinTypeBitCount(BuiltinType type) {
   switch (type) {
 #define CASE(__enum, _unused1, _unused2, _unused3, __width) \
   case BuiltinType::__enum:                                 \
@@ -500,8 +500,7 @@ absl::StatusOr<int64_t> GetBuiltinTypeBitCount(BuiltinType type) {
     XLS_DSLX_BUILTIN_TYPE_EACH(CASE)
 #undef CASE
   }
-  return absl::InvalidArgumentError(
-      absl::StrCat("Unknown builtin type: ", static_cast<int64_t>(type)));
+  LOG(FATAL) << "Impossible builtin type: " << static_cast<int64_t>(type);
 }
 
 absl::StatusOr<BuiltinType> BuiltinTypeFromString(std::string_view s) {
@@ -1871,11 +1870,11 @@ std::vector<AstNode*> BuiltinTypeAnnotation::GetChildren(
 }
 
 int64_t BuiltinTypeAnnotation::GetBitCount() const {
-  return GetBuiltinTypeBitCount(builtin_type_).value();
+  return GetBuiltinTypeBitCount(builtin_type_);
 }
 
-bool BuiltinTypeAnnotation::GetSignedness() const {
-  return GetBuiltinTypeSignedness(builtin_type_).value();
+absl::StatusOr<bool> BuiltinTypeAnnotation::GetSignedness() const {
+  return GetBuiltinTypeSignedness(builtin_type_);
 }
 
 // -- class ChannelTypeAnnotation

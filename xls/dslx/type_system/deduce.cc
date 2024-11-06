@@ -1453,7 +1453,17 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBuiltinTypeAnnotation(
   if (node->builtin_type() == BuiltinType::kToken) {
     t = std::make_unique<TokenType>();
   } else {
-    t = std::make_unique<BitsType>(node->GetSignedness(), node->GetBitCount());
+    absl::StatusOr<bool> signedness = node->GetSignedness();
+    if (!signedness.ok()) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::StrFormat("Could not determine signedness to turn "
+                          "`%s` into a concrete bits type.",
+                          node->ToString()),
+          ctx->file_table());
+    }
+    int64_t bit_count = node->GetBitCount();
+    t = std::make_unique<BitsType>(signedness.value(), bit_count);
   }
   VLOG(5) << "DeduceBuiltinTypeAnnotation result: " << t->ToString();
   return std::make_unique<MetaType>(std::move(t));
@@ -1600,8 +1610,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
       t = std::make_unique<BitsConstructorType>(std::move(dim).value());
     } else {
       XLS_ASSIGN_OR_RETURN(dim, DimToConcreteUsize(node->dim(), ctx));
-      t = std::make_unique<BitsType>(element_type->GetSignedness(),
-                                     std::move(dim).value());
+      // We know we can determine signedness as the `xN` case is handled above.
+      bool is_signed = element_type->GetSignedness().value();
+      t = std::make_unique<BitsType>(is_signed, std::move(dim).value());
     }
   } else {
     VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
