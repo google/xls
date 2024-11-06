@@ -130,8 +130,9 @@ should be set to enable them.
     **clock period relaxation percent** instead of **clock period** directly is
     that the percent relaxation can be a fixed range (e.g., 0 to 50%) for all
     designs and each value will produce a feasible schedule. If **clock period**
-    is swept some combinations of **pipeline stages* and **clock period** values
-    will result in an error returned because the design point is infeasible.
+    is swept some combinations of **pipeline stages** and **clock period**
+    values will result in an error returned because the design point is
+    infeasible.
 
 ## Minimizing pipeline registers via SDC scheduling {#sdc}
 
