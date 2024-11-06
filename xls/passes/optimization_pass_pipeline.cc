@@ -70,6 +70,7 @@
 #include "xls/passes/ram_rewrite_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/receive_default_value_simplification_pass.h"
+#include "xls/passes/select_lifting_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/sparsify_select_pass.h"
 #include "xls/passes/strength_reduction_pass.h"
@@ -253,6 +254,7 @@ PostInliningPassGroup::PostInliningPassGroup(int64_t opt_level)
     Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
     Add<DeadCodeEliminationPass>();
     Add<BddCsePass>();
+    Add<SelectLiftingPass>(opt_level);
     Add<DeadCodeEliminationPass>();
 
     Add<ConditionalSpecializationPass>(/*use_bdd=*/true);

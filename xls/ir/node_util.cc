@@ -766,4 +766,9 @@ absl::StatusOr<Node*> UnsignedBoundByLiterals(Node* v, int64_t low_bound,
       extend_name("_bounded").value_or(""));
 }
 
+bool AreAllLiteral(absl::Span<Node* const> nodes) {
+  // Check if all indices are literals
+  return absl::c_all_of(nodes, [](Node* i) -> bool { return IsLiteral(i); });
+}
+
 }  // namespace xls

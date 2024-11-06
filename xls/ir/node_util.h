@@ -408,6 +408,10 @@ inline absl::StatusOr<Node*> UnsignedUpperBoundLiteral(Node* v,
                                                        int64_t high_bound) {
   return UnsignedBoundByLiterals(v, 0, high_bound);
 }
+
+// Check if all nodes are literals
+bool AreAllLiteral(absl::Span<Node* const> nodes);
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_
