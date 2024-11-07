@@ -398,6 +398,7 @@ class Type {
   bool IsArray() const;
   bool IsMeta() const;
   bool IsTuple() const;
+  bool IsFunction() const;
 
   const StructType& AsStruct() const;
   const ProcType& AsProc() const;

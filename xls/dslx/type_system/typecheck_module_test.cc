@@ -3857,6 +3857,14 @@ proc t {
 )"));
 }
 
+TEST(TypecheckErrorTest, InvokingALiteralNumber) {
+  constexpr std::string_view kProgram = "fn f(x:u2) { 0<> }";
+  EXPECT_THAT(Typecheck(kProgram).status(),
+              IsPosError("TypeInferenceError",
+                         HasSubstr("Could not infer a type for this number, "
+                                   "please annotate a type.")));
+}
+
 TEST(TypecheckErrorTest, SignedValueToBuiltinExpectingUNViaParametric) {
   EXPECT_THAT(Typecheck(R"(
 fn p<S: bool, N: u32>() -> u32 {

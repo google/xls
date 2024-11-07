@@ -431,6 +431,10 @@ bool Type::IsTuple() const {
   return dynamic_cast<const TupleType*>(this) != nullptr;
 }
 
+bool Type::IsFunction() const {
+  return dynamic_cast<const FunctionType*>(this) != nullptr;
+}
+
 const EnumType& Type::AsEnum() const {
   auto* s = dynamic_cast<const EnumType*>(this);
   CHECK(s != nullptr) << "Type is not an enum: " << *this;
