@@ -337,8 +337,8 @@ absl::StatusOr<TransformationResult> ApplyTransformation(
   return result;
 }
 
-absl::StatusOr<TransformationResult> ReduceSelect(FunctionBase *func,
-                                                  Node *select_to_optimize) {
+absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
+                                                Node *select_to_optimize) {
   TransformationResult result;
 
   // Check if it is safe to apply the transformation
@@ -372,7 +372,7 @@ absl::StatusOr<TransformationResult> ReduceSelect(FunctionBase *func,
   return result;
 }
 
-absl::StatusOr<TransformationResult> ReduceSelects(
+absl::StatusOr<TransformationResult> LiftSelects(
     FunctionBase *func,
     const absl::btree_set<Node *, Node::NodeIdLessThan> &selects_to_consider) {
   TransformationResult result;
@@ -388,7 +388,7 @@ absl::StatusOr<TransformationResult> ReduceSelects(
 
     // Try to optimize the current "select" node
     XLS_ASSIGN_OR_RETURN(TransformationResult current_transformation_result,
-                         ReduceSelect(func, select_node));
+                         LiftSelect(func, select_node));
 
     // Accumulate the result of the transformation
     result.was_code_modified |= current_transformation_result.was_code_modified;
@@ -440,7 +440,7 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
 
     // Optimize all "select" nodes.
     XLS_ASSIGN_OR_RETURN(TransformationResult current_result,
-                         ReduceSelects(func, selects_to_consider));
+                         LiftSelects(func, selects_to_consider));
 
     // Check if we have modified the code.
     was_code_modified |= current_result.was_code_modified;
