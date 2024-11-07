@@ -291,6 +291,8 @@ async def test_decoder(dut, seed, block_type, scoreboard, axi_buses, xls_channel
 
     expected_decoded_frame = DecompressFrame(encoded.read())
     encoded.close()
+    reference_memory = SparseMemory(mem_size)
+    reference_memory.write(obuf_addr, expected_decoded_frame)
     expected_output_packets = generate_expected_output(expected_decoded_frame)
 
     assert_expected_output = Event()
@@ -303,12 +305,16 @@ async def test_decoder(dut, seed, block_type, scoreboard, axi_buses, xls_channel
 
     await configure_decoder(cpu, ibuf_addr, obuf_addr)
     await start_decoder(cpu)
-    await assert_expected_output.wait()
+    await assert_notify.wait()
     await wait_for_idle(cpu)
-    # TODO: Check decoded frame in memory under `obuf_addr` when ZstdDecoder
-    #       will fully support memory output interface
+    # Read decoded frame in chunks of AXI_DATA_W length
+    # Compare against frame decompressed with the reference library
+    for read_op in range(0, ((len(expected_decoded_frame) + (AXI_DATA_W_BYTES - 1)) // AXI_DATA_W_BYTES)):
+      addr = obuf_addr + (read_op * AXI_DATA_W_BYTES)
+      mem_contents = memory.read(addr, AXI_DATA_W_BYTES)
+      exp_mem_contents = reference_memory.read(addr, AXI_DATA_W_BYTES)
+      assert mem_contents == exp_mem_contents, "{} bytes of memory contents at address {} don't match the expected contents:\n{}\nvs\n{}".format(AXI_DATA_W_BYTES, hex(addr), hex(int.from_bytes(mem_contents, byteorder='little')), hex(int.from_bytes(exp_mem_contents, byteorder='little')))
 
-  await assert_notify.wait()
   await ClockCycles(dut.clk, 20)
 
 @cocotb.test(timeout_time=50, timeout_unit="ms")
@@ -320,73 +326,73 @@ async def zstd_reset_test(dut):
   await test_reset(dut)
 
 #FIXME: Rework testbench to decode multiple ZSTD frames in one test
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_1(dut):
   block_type = BlockType.RAW
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 1, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_2(dut):
   block_type = BlockType.RAW
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 2, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_3(dut):
   block_type = BlockType.RAW
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 3, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_4(dut):
   block_type = BlockType.RAW
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 4, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_raw_frames_test_5(dut):
   block_type = BlockType.RAW
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 5, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_1(dut):
   block_type = BlockType.RLE
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 1, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_2(dut):
   block_type = BlockType.RLE
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 2, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_3(dut):
   block_type = BlockType.RLE
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 3, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_4(dut):
   block_type = BlockType.RLE
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 4, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-@cocotb.test(timeout_time=20000, timeout_unit="ms")
+@cocotb.test(timeout_time=1000, timeout_unit="ms")
 async def zstd_rle_frames_test_5(dut):
   block_type = BlockType.RLE
   (scoreboard, axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
   await test_decoder(dut, 5, block_type, scoreboard, axi_buses, xls_channels, cpu)
 
-#@cocotb.test(timeout_time=20000, timeout_unit="ms")
+#@cocotb.test(timeout_time=1000, timeout_unit="ms")
 #async def zstd_compressed_frames_test(dut):
 #  test_cases = 1
 #  block_type = BlockType.COMPRESSED
 #  await test_decoder(dut, test_cases, block_type)
 #
-#@cocotb.test(timeout_time=20000, timeout_unit="ms")
+#@cocotb.test(timeout_time=1000, timeout_unit="ms")
 #async def zstd_random_frames_test(dut):
 #  test_cases = 1
 #  block_type = BlockType.RANDOM
@@ -398,10 +404,15 @@ if __name__ == "__main__":
     "xls/modules/zstd/zstd_dec.v",
     "xls/modules/zstd/xls_fifo_wrapper.v",
     "xls/modules/zstd/zstd_dec_wrapper.v",
-    "xls/modules/zstd/axi_interconnect_wrapper.v",
-    "xls/modules/zstd/axi_interconnect.v",
-    "xls/modules/zstd/arbiter.v",
-    "xls/modules/zstd/priority_encoder.v",
+    "xls/modules/zstd/external/axi_crossbar_wrapper.v",
+    "xls/modules/zstd/external/axi_crossbar.v",
+    "xls/modules/zstd/external/axi_crossbar_rd.v",
+    "xls/modules/zstd/external/axi_crossbar_wr.v",
+    "xls/modules/zstd/external/axi_crossbar_addr.v",
+    "xls/modules/zstd/external/axi_register_rd.v",
+    "xls/modules/zstd/external/axi_register_wr.v",
+    "xls/modules/zstd/external/arbiter.v",
+    "xls/modules/zstd/external/priority_encoder.v",
   ]
   test_module=[Path(__file__).stem]
   run_test(toplevel, test_module, verilog_sources)
