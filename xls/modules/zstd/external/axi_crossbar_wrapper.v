@@ -29,31 +29,150 @@ THE SOFTWARE.
 `default_nettype none
 
 /*
- * AXI4 4x1 interconnect (wrapper)
+ * AXI4 4x1 crossbar (wrapper)
  */
-module axi_interconnect_wrapper #
+module axi_crossbar_wrapper #
 (
+    // Width of data bus in bits
     parameter DATA_WIDTH = 32,
+    // Width of address bus in bits
     parameter ADDR_WIDTH = 32,
+    // Width of wstrb (width of data bus in words)
     parameter STRB_WIDTH = (DATA_WIDTH/8),
-    parameter ID_WIDTH = 8,
+    // Input ID field width (from AXI masters)
+    parameter S_ID_WIDTH = 8,
+    // Output ID field width (towards AXI slaves)
+    // Additional bits required for response routing
+    parameter M_ID_WIDTH = S_ID_WIDTH+$clog2(S_COUNT),
+    // Propagate awuser signal
     parameter AWUSER_ENABLE = 0,
+    // Width of awuser signal
     parameter AWUSER_WIDTH = 1,
+    // Propagate wuser signal
     parameter WUSER_ENABLE = 0,
+    // Width of wuser signal
     parameter WUSER_WIDTH = 1,
+    // Propagate buser signal
     parameter BUSER_ENABLE = 0,
+    // Width of buser signal
     parameter BUSER_WIDTH = 1,
+    // Propagate aruser signal
     parameter ARUSER_ENABLE = 0,
+    // Width of aruser signal
     parameter ARUSER_WIDTH = 1,
+    // Propagate ruser signal
     parameter RUSER_ENABLE = 0,
+    // Width of ruser signal
     parameter RUSER_WIDTH = 1,
-    parameter FORWARD_ID = 0,
+    // Number of concurrent unique IDs
+    parameter S00_THREADS = 2,
+    // Number of concurrent operations
+    parameter S00_ACCEPT = 16,
+    // Number of concurrent unique IDs
+    parameter S01_THREADS = 2,
+    // Number of concurrent operations
+    parameter S01_ACCEPT = 16,
+    // Number of concurrent unique IDs
+    parameter S02_THREADS = 2,
+    // Number of concurrent operations
+    parameter S02_ACCEPT = 16,
+    // Number of concurrent unique IDs
+    parameter S03_THREADS = 2,
+    // Number of concurrent operations
+    parameter S03_ACCEPT = 16,
+    // Number of regions per master interface
     parameter M_REGIONS = 1,
+    // Master interface base addresses
+    // M_REGIONS concatenated fields of ADDR_WIDTH bits
     parameter M00_BASE_ADDR = 0,
+    // Master interface address widths
+    // M_REGIONS concatenated fields of 32 bits
     parameter M00_ADDR_WIDTH = {M_REGIONS{32'd24}},
+    // Read connections between interfaces
+    // S_COUNT bits
     parameter M00_CONNECT_READ = 4'b1111,
+    // Write connections between interfaces
+    // S_COUNT bits
     parameter M00_CONNECT_WRITE = 4'b1111,
-    parameter M00_SECURE = 1'b0
+    // Number of concurrent operations for each master interface
+    parameter M00_ISSUE = 4,
+    // Secure master (fail operations based on awprot/arprot)
+    parameter M00_SECURE = 0,
+    // Slave interface AW channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S00_AW_REG_TYPE = 0,
+    // Slave interface W channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S00_W_REG_TYPE = 0,
+    // Slave interface B channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S00_B_REG_TYPE = 1,
+    // Slave interface AR channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S00_AR_REG_TYPE = 0,
+    // Slave interface R channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S00_R_REG_TYPE = 2,
+    // Slave interface AW channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S01_AW_REG_TYPE = 0,
+    // Slave interface W channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S01_W_REG_TYPE = 0,
+    // Slave interface B channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S01_B_REG_TYPE = 1,
+    // Slave interface AR channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S01_AR_REG_TYPE = 0,
+    // Slave interface R channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S01_R_REG_TYPE = 2,
+    // Slave interface AW channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S02_AW_REG_TYPE = 0,
+    // Slave interface W channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S02_W_REG_TYPE = 0,
+    // Slave interface B channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S02_B_REG_TYPE = 1,
+    // Slave interface AR channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S02_AR_REG_TYPE = 0,
+    // Slave interface R channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S02_R_REG_TYPE = 2,
+    // Slave interface AW channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S03_AW_REG_TYPE = 0,
+    // Slave interface W channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S03_W_REG_TYPE = 0,
+    // Slave interface B channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S03_B_REG_TYPE = 1,
+    // Slave interface AR channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S03_AR_REG_TYPE = 0,
+    // Slave interface R channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter S03_R_REG_TYPE = 2,
+    // Master interface AW channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter M00_AW_REG_TYPE = 1,
+    // Master interface W channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter M00_W_REG_TYPE = 2,
+    // Master interface B channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter M00_B_REG_TYPE = 0,
+    // Master interface AR channel register type (output)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter M00_AR_REG_TYPE = 1,
+    // Master interface R channel register type (input)
+    // 0 to bypass, 1 for simple buffer, 2 for skid buffer
+    parameter M00_R_REG_TYPE = 0
 )
 (
     input  wire                     clk,
@@ -62,7 +181,7 @@ module axi_interconnect_wrapper #
     /*
      * AXI slave interface
      */
-    input  wire [ID_WIDTH-1:0]      s00_axi_awid,
+    input  wire [S_ID_WIDTH-1:0]    s00_axi_awid,
     input  wire [ADDR_WIDTH-1:0]    s00_axi_awaddr,
     input  wire [7:0]               s00_axi_awlen,
     input  wire [2:0]               s00_axi_awsize,
@@ -80,12 +199,12 @@ module axi_interconnect_wrapper #
     input  wire [WUSER_WIDTH-1:0]   s00_axi_wuser,
     input  wire                     s00_axi_wvalid,
     output wire                     s00_axi_wready,
-    output wire [ID_WIDTH-1:0]      s00_axi_bid,
+    output wire [S_ID_WIDTH-1:0]    s00_axi_bid,
     output wire [1:0]               s00_axi_bresp,
     output wire [BUSER_WIDTH-1:0]   s00_axi_buser,
     output wire                     s00_axi_bvalid,
     input  wire                     s00_axi_bready,
-    input  wire [ID_WIDTH-1:0]      s00_axi_arid,
+    input  wire [S_ID_WIDTH-1:0]    s00_axi_arid,
     input  wire [ADDR_WIDTH-1:0]    s00_axi_araddr,
     input  wire [7:0]               s00_axi_arlen,
     input  wire [2:0]               s00_axi_arsize,
@@ -97,7 +216,7 @@ module axi_interconnect_wrapper #
     input  wire [ARUSER_WIDTH-1:0]  s00_axi_aruser,
     input  wire                     s00_axi_arvalid,
     output wire                     s00_axi_arready,
-    output wire [ID_WIDTH-1:0]      s00_axi_rid,
+    output wire [S_ID_WIDTH-1:0]    s00_axi_rid,
     output wire [DATA_WIDTH-1:0]    s00_axi_rdata,
     output wire [1:0]               s00_axi_rresp,
     output wire                     s00_axi_rlast,
@@ -105,7 +224,7 @@ module axi_interconnect_wrapper #
     output wire                     s00_axi_rvalid,
     input  wire                     s00_axi_rready,
 
-    input  wire [ID_WIDTH-1:0]      s01_axi_awid,
+    input  wire [S_ID_WIDTH-1:0]    s01_axi_awid,
     input  wire [ADDR_WIDTH-1:0]    s01_axi_awaddr,
     input  wire [7:0]               s01_axi_awlen,
     input  wire [2:0]               s01_axi_awsize,
@@ -123,12 +242,12 @@ module axi_interconnect_wrapper #
     input  wire [WUSER_WIDTH-1:0]   s01_axi_wuser,
     input  wire                     s01_axi_wvalid,
     output wire                     s01_axi_wready,
-    output wire [ID_WIDTH-1:0]      s01_axi_bid,
+    output wire [S_ID_WIDTH-1:0]    s01_axi_bid,
     output wire [1:0]               s01_axi_bresp,
     output wire [BUSER_WIDTH-1:0]   s01_axi_buser,
     output wire                     s01_axi_bvalid,
     input  wire                     s01_axi_bready,
-    input  wire [ID_WIDTH-1:0]      s01_axi_arid,
+    input  wire [S_ID_WIDTH-1:0]    s01_axi_arid,
     input  wire [ADDR_WIDTH-1:0]    s01_axi_araddr,
     input  wire [7:0]               s01_axi_arlen,
     input  wire [2:0]               s01_axi_arsize,
@@ -140,7 +259,7 @@ module axi_interconnect_wrapper #
     input  wire [ARUSER_WIDTH-1:0]  s01_axi_aruser,
     input  wire                     s01_axi_arvalid,
     output wire                     s01_axi_arready,
-    output wire [ID_WIDTH-1:0]      s01_axi_rid,
+    output wire [S_ID_WIDTH-1:0]    s01_axi_rid,
     output wire [DATA_WIDTH-1:0]    s01_axi_rdata,
     output wire [1:0]               s01_axi_rresp,
     output wire                     s01_axi_rlast,
@@ -148,7 +267,7 @@ module axi_interconnect_wrapper #
     output wire                     s01_axi_rvalid,
     input  wire                     s01_axi_rready,
 
-    input  wire [ID_WIDTH-1:0]      s02_axi_awid,
+    input  wire [S_ID_WIDTH-1:0]    s02_axi_awid,
     input  wire [ADDR_WIDTH-1:0]    s02_axi_awaddr,
     input  wire [7:0]               s02_axi_awlen,
     input  wire [2:0]               s02_axi_awsize,
@@ -166,12 +285,12 @@ module axi_interconnect_wrapper #
     input  wire [WUSER_WIDTH-1:0]   s02_axi_wuser,
     input  wire                     s02_axi_wvalid,
     output wire                     s02_axi_wready,
-    output wire [ID_WIDTH-1:0]      s02_axi_bid,
+    output wire [S_ID_WIDTH-1:0]    s02_axi_bid,
     output wire [1:0]               s02_axi_bresp,
     output wire [BUSER_WIDTH-1:0]   s02_axi_buser,
     output wire                     s02_axi_bvalid,
     input  wire                     s02_axi_bready,
-    input  wire [ID_WIDTH-1:0]      s02_axi_arid,
+    input  wire [S_ID_WIDTH-1:0]    s02_axi_arid,
     input  wire [ADDR_WIDTH-1:0]    s02_axi_araddr,
     input  wire [7:0]               s02_axi_arlen,
     input  wire [2:0]               s02_axi_arsize,
@@ -183,7 +302,7 @@ module axi_interconnect_wrapper #
     input  wire [ARUSER_WIDTH-1:0]  s02_axi_aruser,
     input  wire                     s02_axi_arvalid,
     output wire                     s02_axi_arready,
-    output wire [ID_WIDTH-1:0]      s02_axi_rid,
+    output wire [S_ID_WIDTH-1:0]    s02_axi_rid,
     output wire [DATA_WIDTH-1:0]    s02_axi_rdata,
     output wire [1:0]               s02_axi_rresp,
     output wire                     s02_axi_rlast,
@@ -191,7 +310,7 @@ module axi_interconnect_wrapper #
     output wire                     s02_axi_rvalid,
     input  wire                     s02_axi_rready,
 
-    input  wire [ID_WIDTH-1:0]      s03_axi_awid,
+    input  wire [S_ID_WIDTH-1:0]    s03_axi_awid,
     input  wire [ADDR_WIDTH-1:0]    s03_axi_awaddr,
     input  wire [7:0]               s03_axi_awlen,
     input  wire [2:0]               s03_axi_awsize,
@@ -209,12 +328,12 @@ module axi_interconnect_wrapper #
     input  wire [WUSER_WIDTH-1:0]   s03_axi_wuser,
     input  wire                     s03_axi_wvalid,
     output wire                     s03_axi_wready,
-    output wire [ID_WIDTH-1:0]      s03_axi_bid,
+    output wire [S_ID_WIDTH-1:0]    s03_axi_bid,
     output wire [1:0]               s03_axi_bresp,
     output wire [BUSER_WIDTH-1:0]   s03_axi_buser,
     output wire                     s03_axi_bvalid,
     input  wire                     s03_axi_bready,
-    input  wire [ID_WIDTH-1:0]      s03_axi_arid,
+    input  wire [S_ID_WIDTH-1:0]    s03_axi_arid,
     input  wire [ADDR_WIDTH-1:0]    s03_axi_araddr,
     input  wire [7:0]               s03_axi_arlen,
     input  wire [2:0]               s03_axi_arsize,
@@ -226,7 +345,7 @@ module axi_interconnect_wrapper #
     input  wire [ARUSER_WIDTH-1:0]  s03_axi_aruser,
     input  wire                     s03_axi_arvalid,
     output wire                     s03_axi_arready,
-    output wire [ID_WIDTH-1:0]      s03_axi_rid,
+    output wire [S_ID_WIDTH-1:0]    s03_axi_rid,
     output wire [DATA_WIDTH-1:0]    s03_axi_rdata,
     output wire [1:0]               s03_axi_rresp,
     output wire                     s03_axi_rlast,
@@ -237,7 +356,7 @@ module axi_interconnect_wrapper #
     /*
      * AXI master interface
      */
-    output wire [ID_WIDTH-1:0]      m00_axi_awid,
+    output wire [M_ID_WIDTH-1:0]    m00_axi_awid,
     output wire [ADDR_WIDTH-1:0]    m00_axi_awaddr,
     output wire [7:0]               m00_axi_awlen,
     output wire [2:0]               m00_axi_awsize,
@@ -256,12 +375,12 @@ module axi_interconnect_wrapper #
     output wire [WUSER_WIDTH-1:0]   m00_axi_wuser,
     output wire                     m00_axi_wvalid,
     input  wire                     m00_axi_wready,
-    input  wire [ID_WIDTH-1:0]      m00_axi_bid,
+    input  wire [M_ID_WIDTH-1:0]    m00_axi_bid,
     input  wire [1:0]               m00_axi_bresp,
     input  wire [BUSER_WIDTH-1:0]   m00_axi_buser,
     input  wire                     m00_axi_bvalid,
     output wire                     m00_axi_bready,
-    output wire [ID_WIDTH-1:0]      m00_axi_arid,
+    output wire [M_ID_WIDTH-1:0]    m00_axi_arid,
     output wire [ADDR_WIDTH-1:0]    m00_axi_araddr,
     output wire [7:0]               m00_axi_arlen,
     output wire [2:0]               m00_axi_arsize,
@@ -274,7 +393,7 @@ module axi_interconnect_wrapper #
     output wire [ARUSER_WIDTH-1:0]  m00_axi_aruser,
     output wire                     m00_axi_arvalid,
     input  wire                     m00_axi_arready,
-    input  wire [ID_WIDTH-1:0]      m00_axi_rid,
+    input  wire [M_ID_WIDTH-1:0]    m00_axi_rid,
     input  wire [DATA_WIDTH-1:0]    m00_axi_rdata,
     input  wire [1:0]               m00_axi_rresp,
     input  wire                     m00_axi_rlast,
@@ -299,17 +418,26 @@ function [S_COUNT-1:0] w_s(input [S_COUNT-1:0] val);
     w_s = val;
 endfunction
 
+function [31:0] w_32(input [31:0] val);
+    w_32 = val;
+endfunction
+
+function [1:0] w_2(input [1:0] val);
+    w_2 = val;
+endfunction
+
 function w_1(input val);
     w_1 = val;
 endfunction
 
-axi_interconnect #(
+axi_crossbar #(
     .S_COUNT(S_COUNT),
     .M_COUNT(M_COUNT),
     .DATA_WIDTH(DATA_WIDTH),
     .ADDR_WIDTH(ADDR_WIDTH),
     .STRB_WIDTH(STRB_WIDTH),
-    .ID_WIDTH(ID_WIDTH),
+    .S_ID_WIDTH(S_ID_WIDTH),
+    .M_ID_WIDTH(M_ID_WIDTH),
     .AWUSER_ENABLE(AWUSER_ENABLE),
     .AWUSER_WIDTH(AWUSER_WIDTH),
     .WUSER_ENABLE(WUSER_ENABLE),
@@ -320,15 +448,27 @@ axi_interconnect #(
     .ARUSER_WIDTH(ARUSER_WIDTH),
     .RUSER_ENABLE(RUSER_ENABLE),
     .RUSER_WIDTH(RUSER_WIDTH),
-    .FORWARD_ID(FORWARD_ID),
+    .S_THREADS({ w_32(S03_THREADS), w_32(S02_THREADS), w_32(S01_THREADS), w_32(S00_THREADS) }),
+    .S_ACCEPT({ w_32(S03_ACCEPT), w_32(S02_ACCEPT), w_32(S01_ACCEPT), w_32(S00_ACCEPT) }),
     .M_REGIONS(M_REGIONS),
     .M_BASE_ADDR({ w_a_r(M00_BASE_ADDR) }),
     .M_ADDR_WIDTH({ w_32_r(M00_ADDR_WIDTH) }),
     .M_CONNECT_READ({ w_s(M00_CONNECT_READ) }),
     .M_CONNECT_WRITE({ w_s(M00_CONNECT_WRITE) }),
-    .M_SECURE({ w_1(M00_SECURE) })
+    .M_ISSUE({ w_32(M00_ISSUE) }),
+    .M_SECURE({ w_1(M00_SECURE) }),
+    .S_AR_REG_TYPE({ w_2(S03_AR_REG_TYPE), w_2(S02_AR_REG_TYPE), w_2(S01_AR_REG_TYPE), w_2(S00_AR_REG_TYPE) }),
+    .S_R_REG_TYPE({ w_2(S03_R_REG_TYPE), w_2(S02_R_REG_TYPE), w_2(S01_R_REG_TYPE), w_2(S00_R_REG_TYPE) }),
+    .S_AW_REG_TYPE({ w_2(S03_AW_REG_TYPE), w_2(S02_AW_REG_TYPE), w_2(S01_AW_REG_TYPE), w_2(S00_AW_REG_TYPE) }),
+    .S_W_REG_TYPE({ w_2(S03_W_REG_TYPE), w_2(S02_W_REG_TYPE), w_2(S01_W_REG_TYPE), w_2(S00_W_REG_TYPE) }),
+    .S_B_REG_TYPE({ w_2(S03_B_REG_TYPE), w_2(S02_B_REG_TYPE), w_2(S01_B_REG_TYPE), w_2(S00_B_REG_TYPE) }),
+    .M_AR_REG_TYPE({ w_2(M00_AR_REG_TYPE) }),
+    .M_R_REG_TYPE({ w_2(M00_R_REG_TYPE) }),
+    .M_AW_REG_TYPE({ w_2(M00_AW_REG_TYPE) }),
+    .M_W_REG_TYPE({ w_2(M00_W_REG_TYPE) }),
+    .M_B_REG_TYPE({ w_2(M00_B_REG_TYPE) })
 )
-axi_interconnect_inst (
+axi_crossbar_inst (
     .clk(clk),
     .rst(rst),
     .s_axi_awid({ s03_axi_awid, s02_axi_awid, s01_axi_awid, s00_axi_awid }),
