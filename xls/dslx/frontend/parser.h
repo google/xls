@@ -87,10 +87,11 @@ class Parser : public TokenParser {
   FileTable& file_table() { return scanner().file_table(); }
 
   absl::StatusOr<Function*> ParseFunction(
-      bool is_public, Bindings& bindings,
+      const Pos& start_pos, bool is_public, Bindings& bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
-  absl::StatusOr<ModuleMember> ParseProc(bool is_public, Bindings& bindings);
+  absl::StatusOr<ModuleMember> ParseProc(const Pos& start_pos, bool is_public,
+                                         Bindings& bindings);
 
   absl::StatusOr<std::unique_ptr<Module>> ParseModule(
       Bindings* bindings = nullptr);
@@ -109,7 +110,8 @@ class Parser : public TokenParser {
   // Takes an optional `prologue` of statements to prepend to the block.
   absl::StatusOr<StatementBlock*> ParseBlockExpression(Bindings& bindings);
 
-  absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings& bindings);
+  absl::StatusOr<TypeAlias*> ParseTypeAlias(const Pos& start_pos,
+                                            bool is_public, Bindings& bindings);
 
   // Args:
   //  bindings: bindings to be used in parsing the assert expression.
@@ -504,11 +506,14 @@ class Parser : public TokenParser {
   //    A = 0,
   //    B = 1,
   //  }
-  absl::StatusOr<EnumDef*> ParseEnumDef(bool is_public, Bindings& bindings);
+  absl::StatusOr<EnumDef*> ParseEnumDef(const Pos& start_pos, bool is_public,
+                                        Bindings& bindings);
 
-  absl::StatusOr<StructDef*> ParseStruct(bool is_public, Bindings& bindings);
+  absl::StatusOr<StructDef*> ParseStruct(const Pos& start_pos, bool is_public,
+                                         Bindings& bindings);
 
-  absl::StatusOr<Impl*> ParseImpl(bool is_public, Bindings& bindings);
+  absl::StatusOr<Impl*> ParseImpl(const Pos& start_pos, bool is_public,
+                                  Bindings& bindings);
 
   // Parses parametric bindings that lead a function.
   //
@@ -539,7 +544,8 @@ class Parser : public TokenParser {
   absl::StatusOr<ExprOrType> ParseParametricArg(Bindings& bindings);
 
   // Parses a function out of the token stream.
-  absl::StatusOr<Function*> ParseFunctionInternal(bool is_public,
+  absl::StatusOr<Function*> ParseFunctionInternal(const Pos& start_pos,
+                                                  bool is_public,
                                                   Bindings& outer_bindings);
 
   // Parses an import statement into an Import AST node.
@@ -553,7 +559,8 @@ class Parser : public TokenParser {
 
   // Parses a constant definition (e.g. at the top level of a module). Token
   // cursor should be over the `const` keyword.
-  absl::StatusOr<ConstantDef*> ParseConstantDef(bool is_public,
+  absl::StatusOr<ConstantDef*> ParseConstantDef(const Pos& start_pos,
+                                                bool is_public,
                                                 Bindings& bindings);
 
   absl::StatusOr<QuickCheck*> ParseQuickCheck(
@@ -616,7 +623,8 @@ class Parser : public TokenParser {
   // a node of type `T` unless the entity parsed is actually an impl-style
   // `ProcDef`.
   template <typename T>
-  absl::StatusOr<ModuleMember> ParseProcLike(bool is_public,
+  absl::StatusOr<ModuleMember> ParseProcLike(const Pos& start_pos,
+                                             bool is_public,
                                              Bindings& outer_bindings,
                                              Keyword keyword);
 

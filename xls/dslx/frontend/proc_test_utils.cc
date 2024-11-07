@@ -41,7 +41,7 @@ std::pair<Module, Proc*> CreateEmptyProc(FileTable& file_table,
   Parser parser{"test", &s};
   Bindings bindings;
   absl::StatusOr<ModuleMember> proc =
-      parser.ParseProc(/*is_public=*/false, bindings);
+      parser.ParseProc(Pos(), /*is_public=*/false, bindings);
   CHECK(proc.ok());
   CHECK(std::holds_alternative<Proc*>(*proc));
   return {std::move(parser.module()), std::get<Proc*>(*proc)};
