@@ -17,7 +17,8 @@
 module zstd_dec_wrapper #(
     parameter AXI_DATA_W  = 64,
     parameter AXI_ADDR_W  = 16,
-    parameter AXI_ID_W    = 4,
+    parameter S_AXI_ID_W  = 4,
+    parameter M_AXI_ID_W  = 6,
     parameter AXI_STRB_W  = 8,
     parameter AWUSER_WIDTH = 1,
     parameter WUSER_WIDTH = 1,
@@ -30,7 +31,7 @@ module zstd_dec_wrapper #(
     input wire rst,
 
     // AXI Master interface for the memory connection
-    output wire [AXI_ID_W-1:0]      memory_axi_aw_awid,
+    output wire [M_AXI_ID_W-1:0]    memory_axi_aw_awid,
     output wire [AXI_ADDR_W-1:0]    memory_axi_aw_awaddr,
     output wire [7:0]               memory_axi_aw_awlen,
     output wire [2:0]               memory_axi_aw_awsize,
@@ -49,12 +50,12 @@ module zstd_dec_wrapper #(
     output wire [WUSER_WIDTH-1:0]   memory_axi_w_wuser,
     output wire                     memory_axi_w_wvalid,
     input  wire                     memory_axi_w_wready,
-    input  wire [AXI_ID_W-1:0]      memory_axi_b_bid,
+    input  wire [M_AXI_ID_W-1:0]    memory_axi_b_bid,
     input  wire [2:0]               memory_axi_b_bresp,
     input  wire [BUSER_WIDTH-1:0]   memory_axi_b_buser,
     input  wire                     memory_axi_b_bvalid,
     output wire                     memory_axi_b_bready,
-    output wire [AXI_ID_W-1:0]      memory_axi_ar_arid,
+    output wire [M_AXI_ID_W-1:0]    memory_axi_ar_arid,
     output wire [AXI_ADDR_W-1:0]    memory_axi_ar_araddr,
     output wire [7:0]               memory_axi_ar_arlen,
     output wire [2:0]               memory_axi_ar_arsize,
@@ -67,7 +68,7 @@ module zstd_dec_wrapper #(
     output wire [ARUSER_WIDTH-1:0]  memory_axi_ar_aruser,
     output wire                     memory_axi_ar_arvalid,
     input  wire                     memory_axi_ar_arready,
-    input  wire [AXI_ID_W-1:0]      memory_axi_r_rid,
+    input  wire [M_AXI_ID_W-1:0]    memory_axi_r_rid,
     input  wire [AXI_DATA_W-1:0]    memory_axi_r_rdata,
     input  wire [2:0]               memory_axi_r_rresp,
     input  wire                     memory_axi_r_rlast,
@@ -76,7 +77,7 @@ module zstd_dec_wrapper #(
     output wire                     memory_axi_r_rready,
 
     // AXI Slave interface for the CSR access
-    input wire [AXI_ID_W-1:0]       csr_axi_aw_awid,
+    input wire [S_AXI_ID_W-1:0]     csr_axi_aw_awid,
     input wire [AXI_ADDR_W-1:0]     csr_axi_aw_awaddr,
     input wire [7:0]                csr_axi_aw_awlen,
     input wire [2:0]                csr_axi_aw_awsize,
@@ -95,12 +96,12 @@ module zstd_dec_wrapper #(
     input wire [WUSER_WIDTH-1:0]    csr_axi_w_wuser,
     input wire                      csr_axi_w_wvalid,
     output wire                     csr_axi_w_wready,
-    output wire [AXI_ID_W-1:0]      csr_axi_b_bid,
+    output wire [S_AXI_ID_W-1:0]    csr_axi_b_bid,
     output wire [2:0]               csr_axi_b_bresp,
     output wire [BUSER_WIDTH-1:0]   csr_axi_b_buser,
     output wire                     csr_axi_b_bvalid,
     input wire                      csr_axi_b_bready,
-    input wire [AXI_ID_W-1:0]       csr_axi_ar_arid,
+    input wire [S_AXI_ID_W-1:0]     csr_axi_ar_arid,
     input wire [AXI_ADDR_W-1:0]     csr_axi_ar_araddr,
     input wire [7:0]                csr_axi_ar_arlen,
     input wire [2:0]                csr_axi_ar_arsize,
@@ -113,7 +114,7 @@ module zstd_dec_wrapper #(
     input wire [ARUSER_WIDTH-1:0]   csr_axi_ar_aruser,
     input wire                      csr_axi_ar_arvalid,
     output wire                     csr_axi_ar_arready,
-    output wire [AXI_ID_W-1:0]      csr_axi_r_rid,
+    output wire [S_AXI_ID_W-1:0]    csr_axi_r_rid,
     output wire [AXI_DATA_W-1:0]    csr_axi_r_rdata,
     output wire [2:0]               csr_axi_r_rresp,
     output wire                     csr_axi_r_rlast,
@@ -146,7 +147,7 @@ module zstd_dec_wrapper #(
   // RawBlockDecoder
   wire                  raw_block_decoder_axi_ar_arvalid;
   wire                  raw_block_decoder_axi_ar_arready;
-  wire [  AXI_ID_W-1:0] raw_block_decoder_axi_ar_arid;
+  wire [S_AXI_ID_W-1:0] raw_block_decoder_axi_ar_arid;
   wire [AXI_ADDR_W-1:0] raw_block_decoder_axi_ar_araddr;
   wire [           3:0] raw_block_decoder_axi_ar_arregion;
   wire [           7:0] raw_block_decoder_axi_ar_arlen;
@@ -158,7 +159,7 @@ module zstd_dec_wrapper #(
 
   wire                  raw_block_decoder_axi_r_rvalid;
   wire                  raw_block_decoder_axi_r_rready;
-  wire [  AXI_ID_W-1:0] raw_block_decoder_axi_r_rid;
+  wire [S_AXI_ID_W-1:0] raw_block_decoder_axi_r_rid;
   wire [AXI_DATA_W-1:0] raw_block_decoder_axi_r_rdata;
   wire [           2:0] raw_block_decoder_axi_r_rresp;
   wire                  raw_block_decoder_axi_r_rlast;
@@ -167,7 +168,7 @@ module zstd_dec_wrapper #(
   // BlockHeaderDecoder
   wire                  block_header_decoder_axi_ar_arvalid;
   wire                  block_header_decoder_axi_ar_arready;
-  wire [  AXI_ID_W-1:0] block_header_decoder_axi_ar_arid;
+  wire [S_AXI_ID_W-1:0] block_header_decoder_axi_ar_arid;
   wire [AXI_ADDR_W-1:0] block_header_decoder_axi_ar_araddr;
   wire [           3:0] block_header_decoder_axi_ar_arregion;
   wire [           7:0] block_header_decoder_axi_ar_arlen;
@@ -179,7 +180,7 @@ module zstd_dec_wrapper #(
 
   wire                  block_header_decoder_axi_r_rvalid;
   wire                  block_header_decoder_axi_r_rready;
-  wire [  AXI_ID_W-1:0] block_header_decoder_axi_r_rid;
+  wire [S_AXI_ID_W-1:0] block_header_decoder_axi_r_rid;
   wire [AXI_DATA_W-1:0] block_header_decoder_axi_r_rdata;
   wire [           2:0] block_header_decoder_axi_r_rresp;
   wire                  block_header_decoder_axi_r_rlast;
@@ -188,7 +189,7 @@ module zstd_dec_wrapper #(
   // FrameHeaderDecoder
   wire                  frame_header_decoder_axi_ar_arvalid;
   wire                  frame_header_decoder_axi_ar_arready;
-  wire [  AXI_ID_W-1:0] frame_header_decoder_axi_ar_arid;
+  wire [S_AXI_ID_W-1:0] frame_header_decoder_axi_ar_arid;
   wire [AXI_ADDR_W-1:0] frame_header_decoder_axi_ar_araddr;
   wire [           3:0] frame_header_decoder_axi_ar_arregion;
   wire [           7:0] frame_header_decoder_axi_ar_arlen;
@@ -200,7 +201,7 @@ module zstd_dec_wrapper #(
 
   wire                  frame_header_decoder_axi_r_rvalid;
   wire                  frame_header_decoder_axi_r_rready;
-  wire [  AXI_ID_W-1:0] frame_header_decoder_axi_r_rid;
+  wire [S_AXI_ID_W-1:0] frame_header_decoder_axi_r_rid;
   wire [AXI_DATA_W-1:0] frame_header_decoder_axi_r_rdata;
   wire [           2:0] frame_header_decoder_axi_r_rresp;
   wire                  frame_header_decoder_axi_r_rlast;
@@ -210,35 +211,35 @@ module zstd_dec_wrapper #(
    * MemWriter AXI interfaces
    */
 
-  // SequenceExecutor
-  wire [  AXI_ID_W-1:0] sequence_executor_axi_aw_awid;
-  wire [AXI_ADDR_W-1:0] sequence_executor_axi_aw_awaddr;
-  wire [           2:0] sequence_executor_axi_aw_awsize;
-  wire [           7:0] sequence_executor_axi_aw_awlen;
-  wire [           1:0] sequence_executor_axi_aw_awburst;
-  wire                  sequence_executor_axi_aw_awvalid;
-  wire                  sequence_executor_axi_aw_awready;
+  // Output Writer
+  wire [S_AXI_ID_W-1:0] output_axi_aw_awid;
+  wire [AXI_ADDR_W-1:0] output_axi_aw_awaddr;
+  wire [           2:0] output_axi_aw_awsize;
+  wire [           7:0] output_axi_aw_awlen;
+  wire [           1:0] output_axi_aw_awburst;
+  wire                  output_axi_aw_awvalid;
+  wire                  output_axi_aw_awready;
 
-  wire [AXI_DATA_W-1:0] sequence_executor_axi_w_wdata;
-  wire [AXI_STRB_W-1:0] sequence_executor_axi_w_wstrb;
-  wire                  sequence_executor_axi_w_wlast;
-  wire                  sequence_executor_axi_w_wvalid;
-  wire                  sequence_executor_axi_w_wready;
+  wire [AXI_DATA_W-1:0] output_axi_w_wdata;
+  wire [AXI_STRB_W-1:0] output_axi_w_wstrb;
+  wire                  output_axi_w_wlast;
+  wire                  output_axi_w_wvalid;
+  wire                  output_axi_w_wready;
 
-  wire [  AXI_ID_W-1:0] sequence_executor_axi_b_bid;
-  wire [           2:0] sequence_executor_axi_b_bresp;
-  wire                  sequence_executor_axi_b_bvalid;
-  wire                  sequence_executor_axi_b_bready;
+  wire [S_AXI_ID_W-1:0] output_axi_b_bid;
+  wire [           2:0] output_axi_b_bresp;
+  wire                  output_axi_b_bvalid;
+  wire                  output_axi_b_bready;
 
   /*
    * XLS Channels representing AXI interfaces
    */
 
-  localparam XLS_AXI_AW_W = AXI_ADDR_W + AXI_ID_W + 3 + 2 + 8;
+  localparam XLS_AXI_AW_W = AXI_ADDR_W + S_AXI_ID_W + 3 + 2 + 8;
   localparam XLS_AXI_W_W = AXI_DATA_W + AXI_STRB_W + 1;
-  localparam XLS_AXI_B_W = 3 + AXI_ID_W;
-  localparam XLS_AXI_AR_W = AXI_ID_W + AXI_ADDR_W + 4 + 8 + 3 + 2 + 4 + 3 + 4;
-  localparam XLS_AXI_R_W = AXI_ID_W + AXI_DATA_W + 3 + 1;
+  localparam XLS_AXI_B_W = 3 + S_AXI_ID_W;
+  localparam XLS_AXI_AR_W = S_AXI_ID_W + AXI_ADDR_W + 4 + 8 + 3 + 2 + 4 + 3 + 4;
+  localparam XLS_AXI_R_W = S_AXI_ID_W + AXI_DATA_W + 3 + 1;
   // CSR
   wire [XLS_AXI_AW_W-1:0] zstd_dec__csr_axi_aw;
   wire                    zstd_dec__csr_axi_aw_rdy;
@@ -279,6 +280,17 @@ module zstd_dec_wrapper #(
   wire [ XLS_AXI_R_W-1:0] zstd_dec__raw_axi_r;
   wire                    zstd_dec__raw_axi_r_rdy;
   wire                    zstd_dec__raw_axi_r_vld;
+
+  // Output Memory Interface
+  wire [XLS_AXI_AW_W-1:0] zstd_dec__output_axi_aw;
+  wire                    zstd_dec__output_axi_aw_rdy;
+  wire                    zstd_dec__output_axi_aw_vld;
+  wire [XLS_AXI_W_W-1:0]  zstd_dec__output_axi_w;
+  wire                    zstd_dec__output_axi_w_rdy;
+  wire                    zstd_dec__output_axi_w_vld;
+  wire [XLS_AXI_B_W-1:0]  zstd_dec__output_axi_b;
+  wire                    zstd_dec__output_axi_b_rdy;
+  wire                    zstd_dec__output_axi_b_vld;
 
   // Output packet
   wire [63:0]  output_data_data_field;
@@ -400,6 +412,30 @@ module zstd_dec_wrapper #(
   assign zstd_dec__raw_axi_r_vld = raw_block_decoder_axi_r_rvalid;
   assign raw_block_decoder_axi_r_rready = zstd_dec__raw_axi_r_rdy;
 
+  // Output Writer
+  assign {
+      output_axi_aw_awid,
+      output_axi_aw_awaddr,
+      output_axi_aw_awsize,
+      output_axi_aw_awlen,
+      output_axi_aw_awburst
+      } = zstd_dec__output_axi_aw;
+  assign output_axi_aw_awvalid = zstd_dec__output_axi_aw_vld;
+  assign zstd_dec__output_axi_aw_rdy = output_axi_aw_awready;
+  assign {
+      output_axi_w_wdata,
+      output_axi_w_wstrb,
+      output_axi_w_wlast
+      } = zstd_dec__output_axi_w;
+  assign output_axi_w_wvalid = zstd_dec__output_axi_w_vld;
+  assign zstd_dec__output_axi_w_rdy = output_axi_w_wready;
+  assign zstd_dec__output_axi_b = {
+      output_axi_b_bresp,
+      output_axi_b_bid
+      };
+  assign zstd_dec__output_axi_b_vld = output_axi_b_bvalid;
+  assign output_axi_b_bready = zstd_dec__output_axi_b_rdy;
+
   assign csr_axi_b_buser = 1'b0;
   assign csr_axi_r_ruser = 1'b0;
   assign notify_data = notify_vld;
@@ -459,6 +495,17 @@ module zstd_dec_wrapper #(
       .zstd_dec__raw_axi_r_r(zstd_dec__raw_axi_r),
       .zstd_dec__raw_axi_r_r_vld(zstd_dec__raw_axi_r_vld),
       .zstd_dec__raw_axi_r_r_rdy(zstd_dec__raw_axi_r_rdy),
+
+      // Output Writer
+      .zstd_dec__output_axi_aw_s(zstd_dec__output_axi_aw),
+      .zstd_dec__output_axi_aw_s_vld(zstd_dec__output_axi_aw_vld),
+      .zstd_dec__output_axi_aw_s_rdy(zstd_dec__output_axi_aw_rdy),
+      .zstd_dec__output_axi_w_s(zstd_dec__output_axi_w),
+      .zstd_dec__output_axi_w_s_vld(zstd_dec__output_axi_w_vld),
+      .zstd_dec__output_axi_w_s_rdy(zstd_dec__output_axi_w_rdy),
+      .zstd_dec__output_axi_b_r(zstd_dec__output_axi_b),
+      .zstd_dec__output_axi_b_r_vld(zstd_dec__output_axi_b_vld),
+      .zstd_dec__output_axi_b_r_rdy(zstd_dec__output_axi_b_rdy),
 
       // Other ports
       .zstd_dec__notify_s_vld(notify_vld),
@@ -567,19 +614,20 @@ module zstd_dec_wrapper #(
   assign frame_header_decoder_axi_r_rresp[2] = '0;
   assign block_header_decoder_axi_r_rresp[2] = '0;
   assign raw_block_decoder_axi_r_rresp[2] = '0;
-  assign sequence_executor_axi_b_bresp[2] = '0;
+  assign output_axi_b_bresp[2] = '0;
   assign memory_axi_b_bresp[2] = '0;
   assign memory_axi_r_rresp[2] = '0;
   /*
    * AXI Interconnect
    */
-  axi_interconnect_wrapper #(
+  axi_crossbar_wrapper #(
       .DATA_WIDTH(AXI_DATA_W),
       .ADDR_WIDTH(AXI_ADDR_W),
       .M00_ADDR_WIDTH(AXI_ADDR_W),
       .M00_BASE_ADDR(32'd0),
       .STRB_WIDTH(AXI_STRB_W),
-      .ID_WIDTH(AXI_ID_W)
+      .S_ID_WIDTH(S_AXI_ID_W),
+      .M_ID_WIDTH(M_AXI_ID_W)
   ) axi_memory_interconnect (
       .clk(clk),
       .rst(rst),
@@ -720,29 +768,29 @@ module zstd_dec_wrapper #(
       .s02_axi_rready(raw_block_decoder_axi_r_rready),
 
       // SequenceExecutor
-      .s03_axi_awid('0),
-      .s03_axi_awaddr('0),
-      .s03_axi_awlen('0),
-      .s03_axi_awsize('0),
-      .s03_axi_awburst('0),
+      .s03_axi_awid(output_axi_aw_awid),
+      .s03_axi_awaddr(output_axi_aw_awaddr),
+      .s03_axi_awlen(output_axi_aw_awlen),
+      .s03_axi_awsize(output_axi_aw_awsize),
+      .s03_axi_awburst(output_axi_aw_awburst),
       .s03_axi_awlock('0),
       .s03_axi_awcache('0),
       .s03_axi_awprot('0),
       .s03_axi_awqos('0),
       .s03_axi_awuser('0),
-      .s03_axi_awvalid('0),
-      .s03_axi_awready(),
-      .s03_axi_wdata('0),
-      .s03_axi_wstrb('0),
-      .s03_axi_wlast('0),
+      .s03_axi_awvalid(output_axi_aw_awvalid),
+      .s03_axi_awready(output_axi_aw_awready),
+      .s03_axi_wdata(output_axi_w_wdata),
+      .s03_axi_wstrb(output_axi_w_wstrb),
+      .s03_axi_wlast(output_axi_w_wlast),
       .s03_axi_wuser('0),
-      .s03_axi_wvalid('0),
-      .s03_axi_wready(),
-      .s03_axi_bid(),
-      .s03_axi_bresp(),
+      .s03_axi_wvalid(output_axi_w_wvalid),
+      .s03_axi_wready(output_axi_w_wready),
+      .s03_axi_bid(output_axi_b_bid),
+      .s03_axi_bresp(output_axi_b_bresp),
       .s03_axi_buser(),
-      .s03_axi_bvalid(),
-      .s03_axi_bready('0),
+      .s03_axi_bvalid(output_axi_b_bvalid),
+      .s03_axi_bready(output_axi_b_bready),
       .s03_axi_arid('0),
       .s03_axi_araddr('0),
       .s03_axi_arlen('0),

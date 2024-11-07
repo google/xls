@@ -23,6 +23,7 @@ import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.csr_config;
 import xls.modules.zstd.memory.mem_reader;
+import xls.modules.zstd.memory.mem_writer;
 import xls.modules.zstd.frame_header_dec;
 import xls.modules.zstd.block_header;
 import xls.modules.zstd.block_header_dec;
@@ -45,7 +46,8 @@ enum ZstdDecoderInternalFsm: u4 {
     DECODE_RLE_BLOCK = 5,
     DECODE_COMPRESSED_BLOCK = 6,
     DECODE_CHECKSUM = 7,
-    FINISH = 8,
+    WRITE_OUTPUT = 8,
+    FINISH = 9,
     ERROR = 13,
     INVALID = 15,
 }
@@ -128,6 +130,9 @@ proc ZstdDecoderInternal<
     type MemReaderReq  = mem_reader::MemReaderReq<AXI_ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<AXI_DATA_W, AXI_ADDR_W>;
 
+    type MemWriterReq  = mem_writer::MemWriterReq<AXI_ADDR_W>;
+    type MemWriterResp = mem_writer::MemWriterResp;
+
     type FrameHeaderDecoderStatus = frame_header_dec::FrameHeaderDecoderStatus;
     type FrameHeaderDecoderReq = frame_header_dec::FrameHeaderDecoderReq<AXI_ADDR_W>;
     type FrameHeaderDecoderResp = frame_header_dec::FrameHeaderDecoderResp;
@@ -167,6 +172,10 @@ proc ZstdDecoderInternal<
     rle_req_s: chan<RleBlockDecoderReq> out;
     rle_resp_r: chan<RleBlockDecoderResp> in;
 
+    // Output MemWriter
+    output_mem_wr_req_s: chan<MemWriterReq> out;
+    output_mem_wr_resp_r: chan<MemWriterResp> in;
+
     notify_s: chan<()> out;
     reset_s: chan<()> out;
 
@@ -197,6 +206,10 @@ proc ZstdDecoderInternal<
         rle_req_s: chan<RleBlockDecoderReq> out,
         rle_resp_r: chan<RleBlockDecoderResp> in,
 
+        // Output MemWriter
+        output_mem_wr_req_s: chan<MemWriterReq> out,
+        output_mem_wr_resp_r: chan<MemWriterResp> in,
+
         notify_s: chan<()> out,
         reset_s: chan<()> out,
     ) {
@@ -206,6 +219,7 @@ proc ZstdDecoderInternal<
             bh_req_s, bh_resp_r,
             raw_req_s, raw_resp_r,
             rle_req_s, rle_resp_r,
+            output_mem_wr_req_s, output_mem_wr_resp_r,
             notify_s, reset_s,
         )
     }
@@ -257,6 +271,15 @@ proc ZstdDecoderInternal<
         let (tok1_4, fh_resp, fh_resp_valid) = recv_if_non_blocking(tok0, fh_resp_r, do_recv_fh_resp, zero!<FrameHeaderDecoderResp>());
         if fh_resp_valid {
             trace_fmt!("[DECODE_FRAME_HEADER]: Received FH {:#x}", fh_resp);
+        } else {};
+
+        let output_mem_wr_req = MemWriterReq {addr: state.output_buffer, length: fh_resp.header.frame_content_size as uN[AXI_ADDR_W]};
+        let tok = send_if(tok0, output_mem_wr_req_s, fh_resp_valid, output_mem_wr_req);
+
+        let do_recv_output_mem_wr_resp = (state.fsm == Fsm::WRITE_OUTPUT);
+        let (tok_x, output_write_resp, output_write_done) = recv_if_non_blocking(tok0, output_mem_wr_resp_r, do_recv_output_mem_wr_resp, zero!<MemWriterResp>());
+        if output_write_done {
+            trace_fmt!("[WRITE_OUTPUT]: Received response {:#x}", output_write_resp);
         } else {};
 
         let do_send_notify = (state.fsm == Fsm::ERROR || state.fsm == Fsm::FINISH);
@@ -518,8 +541,20 @@ proc ZstdDecoderInternal<
 
             Fsm::DECODE_CHECKSUM => {
                 trace_fmt!("[DECODE_CHECKSUM]");
-                State {fsm: Fsm::FINISH, ..zero!<State>() }
+                State {fsm: Fsm::WRITE_OUTPUT, ..zero!<State>() }
 
+            },
+
+            Fsm::WRITE_OUTPUT => {
+                trace_fmt!("[WRITE_OUTPUT]");
+                let error = (output_write_resp.status != mem_writer::MemWriterRespStatus::OKAY);
+                let fsm = match (output_write_done, error) {
+                    (true,  false) => Fsm::FINISH,
+                    (true,   true) => Fsm::ERROR,
+                    (   _,      _) => Fsm::WRITE_OUTPUT,
+                };
+
+                State {fsm: fsm, ..zero!<State>() }
             },
 
             Fsm::ERROR => {
@@ -586,6 +621,9 @@ proc ZstdDecoderInternalTest {
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
     type RleBlockDecoderStatus = rle_block_dec::RleBlockDecoderStatus;
 
+    type MemWriterReq  = mem_writer::MemWriterReq<TEST_AXI_ADDR_W>;
+    type MemWriterResp  = mem_writer::MemWriterResp;
+
     terminator: chan<bool> out;
 
     csr_rd_req_r: chan<CsrRdReq> in;
@@ -605,6 +643,9 @@ proc ZstdDecoderInternalTest {
 
     rle_req_r: chan<RleBlockDecoderReq> in;
     rle_resp_s: chan<RleBlockDecoderResp> out;
+
+    output_mem_wr_req_r: chan<MemWriterReq> in;
+    output_mem_wr_resp_s: chan<MemWriterResp> out;
 
     notify_r: chan<()> in;
     reset_r: chan<()> in;
@@ -630,6 +671,9 @@ proc ZstdDecoderInternalTest {
         let (rle_req_s, rle_req_r) = chan<RleBlockDecoderReq>("rle_req");
         let (rle_resp_s, rle_resp_r) = chan<RleBlockDecoderResp>("rle_resp");
 
+        let (output_mem_wr_req_s,  output_mem_wr_req_r) = chan<MemWriterReq>("output_mem_wr_req");
+        let (output_mem_wr_resp_s, output_mem_wr_resp_r) = chan<MemWriterResp>("output_mem_wr_resp");
+
         let (notify_s, notify_r) = chan<()>("notify");
         let (reset_s, reset_r) = chan<()>("reset");
 
@@ -639,6 +683,7 @@ proc ZstdDecoderInternalTest {
             bh_req_s, bh_resp_r,
             raw_req_s, raw_resp_r,
             rle_req_s, rle_resp_r,
+            output_mem_wr_req_s, output_mem_wr_resp_r,
             notify_s, reset_s,
         );
 
@@ -649,6 +694,7 @@ proc ZstdDecoderInternalTest {
             bh_req_r, bh_resp_s,
             raw_req_r, raw_resp_s,
             rle_req_r, rle_resp_s,
+            output_mem_wr_req_r, output_mem_wr_resp_s,
             notify_r, reset_r,
         )
     }
@@ -802,6 +848,9 @@ proc ZstdDecoderInternalTest {
 
         let (tok, ()) = recv(tok, notify_r);
 
+        let (tok, _) = recv(tok, output_mem_wr_req_r);
+        let tok = send(tok, output_mem_wr_resp_s, MemWriterResp {status: mem_writer::MemWriterRespStatus::OKAY});
+
         send(tok, terminator, true);
     }
 }
@@ -817,6 +866,7 @@ pub proc ZstdDecoder<
     AXI_DATA_W_DIV8: u32 = {AXI_DATA_W / u32:8},
     LOG2_REGS_N: u32 = {std::clog2(REGS_N)},
     HB_RAM_N: u32 = {u32:8},
+    MEM_WRITER_ID: u32 = {u32:0},
 > {
     type CsrAxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
     type CsrAxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
@@ -838,6 +888,9 @@ pub proc ZstdDecoder<
 
     type MemReaderReq  = mem_reader::MemReaderReq<AXI_ADDR_W>;
     type MemReaderResp = mem_reader::MemReaderResp<AXI_DATA_W, AXI_ADDR_W>;
+    type MemWriterReq  = mem_writer::MemWriterReq<AXI_ADDR_W>;
+    type MemWriterResp  = mem_writer::MemWriterResp;
+    type MemWriterDataPacket  = mem_writer::MemWriterDataPacket<AXI_DATA_W, AXI_ADDR_W>;
 
     type FrameHeaderDecoderReq = frame_header_dec::FrameHeaderDecoderReq<AXI_ADDR_W>;
     type FrameHeaderDecoderResp = frame_header_dec::FrameHeaderDecoderResp;
@@ -884,6 +937,11 @@ pub proc ZstdDecoder<
         //// AXI RAW Block Decoder (manager)
         raw_axi_ar_s: chan<MemAxiAr> out,
         raw_axi_r_r: chan<MemAxiR> in,
+
+        //// AXI Output Writer (manager)
+        output_axi_aw_s: chan<MemAxiAw> out,
+        output_axi_w_s: chan<MemAxiW> out,
+        output_axi_b_r: chan<MemAxiB> in,
 
         // History Buffer
         ram_rd_req_0_s: chan<RamRdReq> out,
@@ -1031,12 +1089,13 @@ pub proc ZstdDecoder<
         );
 
         // Sequence Execution
-
         let (seq_exec_looped_s, seq_exec_looped_r) = chan<SequenceExecutorPacket, CHANNEL_DEPTH>("seq_exec_looped");
         let (seq_exec_output_s, seq_exec_output_r) = chan<ZstdDecodedPacket, CHANNEL_DEPTH>("seq_exec_output");
+        let (output_mem_wr_data_in_s,  output_mem_wr_data_in_r) = chan<MemWriterDataPacket, CHANNEL_DEPTH>("output_mem_wr_data_in");
 
-        spawn sequence_executor::SequenceExecutor<HB_SIZE_KB>(
+        spawn sequence_executor::SequenceExecutor<HB_SIZE_KB, AXI_DATA_W, AXI_ADDR_W>(
             seq_exec_input_r, seq_exec_output_s,
+            output_mem_wr_data_in_s,
             seq_exec_looped_r, seq_exec_looped_s,
             ram_rd_req_0_s, ram_rd_req_1_s, ram_rd_req_2_s, ram_rd_req_3_s,
             ram_rd_req_4_s, ram_rd_req_5_s, ram_rd_req_6_s, ram_rd_req_7_s,
@@ -1053,6 +1112,13 @@ pub proc ZstdDecoder<
         spawn repacketizer::Repacketizer(seq_exec_output_r, output_s);
 
         // Zstd Decoder Control
+        let (output_mem_wr_req_s,  output_mem_wr_req_r) = chan<MemWriterReq, CHANNEL_DEPTH>("output_mem_wr_req");
+        let (output_mem_wr_resp_s, output_mem_wr_resp_r) = chan<MemWriterResp, CHANNEL_DEPTH>("output_mem_wr_resp");
+
+        spawn mem_writer::MemWriter<AXI_ADDR_W, AXI_DATA_W, AXI_DEST_W, AXI_ID_W, MEM_WRITER_ID>(
+           output_mem_wr_req_r, output_mem_wr_data_in_r,
+           output_axi_aw_s, output_axi_w_s, output_axi_b_r, output_mem_wr_resp_s
+        );
 
         spawn ZstdDecoderInternal<AXI_DATA_W, AXI_ADDR_W, REGS_N> (
             csr_rd_req_s, csr_rd_resp_r, csr_wr_req_s, csr_wr_resp_r, csr_change_r,
@@ -1060,6 +1126,7 @@ pub proc ZstdDecoder<
             bh_req_s, bh_resp_r,
             raw_req_s, raw_resp_r,
             rle_req_s, rle_resp_r,
+            output_mem_wr_req_s, output_mem_wr_resp_r,
             notify_s, reset_s,
         );
 
@@ -1108,6 +1175,9 @@ proc ZstdDecoderInternalInst {
     type RleBlockDecoderReq = rle_block_dec::RleBlockDecoderReq<INST_AXI_ADDR_W>;
     type RleBlockDecoderResp = rle_block_dec::RleBlockDecoderResp;
 
+    type MemWriterReq  = mem_writer::MemWriterReq<INST_AXI_ADDR_W>;
+    type MemWriterResp  = mem_writer::MemWriterResp;
+
     init { }
 
     config(
@@ -1133,6 +1203,10 @@ proc ZstdDecoderInternalInst {
         rle_req_s: chan<RleBlockDecoderReq> out,
         rle_resp_r: chan<RleBlockDecoderResp> in,
 
+        // Output MemWriter
+        output_mem_wr_req_s: chan<MemWriterReq> out,
+        output_mem_wr_resp_r: chan<MemWriterResp> in,
+
         // IRQ
         notify_s: chan<()> out,
         reset_s: chan<()> out,
@@ -1145,6 +1219,7 @@ proc ZstdDecoderInternalInst {
             bh_req_s, bh_resp_r,
             raw_req_s, raw_resp_r,
             rle_req_s, rle_resp_r,
+            output_mem_wr_req_s, output_mem_wr_resp_r,
             notify_s, reset_s,
         );
 
@@ -1195,6 +1270,11 @@ proc ZstdDecoderInst {
         raw_axi_ar_s: chan<MemAxiAr> out,
         raw_axi_r_r: chan<MemAxiR> in,
 
+        //// AXI Output Writer (manager)
+        output_axi_aw_s: chan<MemAxiAw> out,
+        output_axi_w_s: chan<MemAxiW> out,
+        output_axi_b_r: chan<MemAxiB> in,
+
         // History Buffer
         ram_rd_req_0_s: chan<RamRdReq> out,
         ram_rd_req_1_s: chan<RamRdReq> out,
@@ -1243,6 +1323,7 @@ proc ZstdDecoderInst {
             fh_axi_ar_s, fh_axi_r_r,
             bh_axi_ar_s, bh_axi_r_r,
             raw_axi_ar_s, raw_axi_r_r,
+            output_axi_aw_s, output_axi_w_s, output_axi_b_r,
             ram_rd_req_0_s, ram_rd_req_1_s, ram_rd_req_2_s, ram_rd_req_3_s,
             ram_rd_req_4_s, ram_rd_req_5_s, ram_rd_req_6_s, ram_rd_req_7_s,
             ram_rd_resp_0_r, ram_rd_resp_1_r, ram_rd_resp_2_r, ram_rd_resp_3_r,
