@@ -350,7 +350,8 @@ class AstCloner : public AstNodeVisitor {
 
     std::vector<ParametricBinding*> new_parametric_bindings;
     new_parametric_bindings.reserve(n->parametric_bindings().size());
-    for (const auto* pb : n->parametric_bindings()) {
+    for (const ParametricBinding* pb : n->parametric_bindings()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(pb));
       new_parametric_bindings.push_back(
           down_cast<ParametricBinding*>(old_to_new_.at(pb)));
     }

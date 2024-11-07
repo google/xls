@@ -258,6 +258,66 @@ impl MyProc {}
   EXPECT_EQ(kExpectedProcDef, clone->ToString());
 }
 
+TEST(AstClonerTest, ParametricStructDefAndImpl) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct<N: u32> {
+    a: u32[N],
+    b: s64
+}
+
+impl MyStruct {}
+)";
+
+  constexpr std::string_view kExpectedProcDef = R"(struct MyStruct<N: u32> {
+    a: u32[N],
+    b: s64,
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  StructDef* struct_def = module->GetStructDefs().at(0);
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(struct_def));
+  EXPECT_EQ(kExpectedProcDef, clone->ToString());
+}
+
+TEST(AstClonerTest, SimpleParametricProc) {
+  constexpr std::string_view kProgram = R"(
+proc p<N: u32> {
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+)";
+  constexpr std::string_view kExpected = R"(fn p.config<N: u32>() -> () {
+    ()
+}
+fn p.init<N: u32>() -> () {
+    ()
+}
+fn p.next<N: u32>(state: ()) -> () {
+    ()
+}
+proc p<N: u32> {
+    config() {
+        ()
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        ()
+    }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kExpected, clone->ToString());
+}
+
 TEST(AstClonerTest, StructDefAndImpl) {
   constexpr std::string_view kProgram = R"(
 struct MyStruct {
