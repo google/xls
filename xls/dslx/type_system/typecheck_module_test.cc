@@ -3857,7 +3857,7 @@ proc t {
 )"));
 }
 
-TEST(TypecheckErrorTest, InvokingALiteralNumber) {
+TEST(TypecheckErrorTest, InstantiateALiteralNumber) {
   constexpr std::string_view kProgram = "fn f(x:u2) { 0<> }";
   EXPECT_THAT(Typecheck(kProgram).status(),
               IsPosError("TypeInferenceError",
