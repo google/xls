@@ -20,7 +20,7 @@ import float32;
 
 type F32 = float32::F32;
 
-// Caluclates the dot product of fixed-point vectors a and b.
+// Calculates the dot product of fixed-point vectors a and b.
 pub fn dot_product_fixed<BITCOUNT: u32, VECTOR_LENGTH: u32>
   (a: sN[BITCOUNT][VECTOR_LENGTH], b: sN[BITCOUNT][VECTOR_LENGTH])
   -> sN[BITCOUNT]{
