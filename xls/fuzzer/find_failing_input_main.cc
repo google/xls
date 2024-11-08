@@ -37,6 +37,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/jit/function_jit.h"
+#include "xls/tests/testvector.pb.h"
 
 static constexpr std::string_view kUsage = R"(
 Runs an IR function with a set of inputs through both the JIT and the
@@ -46,36 +47,29 @@ and the interpreter. Returns a non-zer error code otherwise. Usage:
     find_failing_input_main --input-file=INPUT_FILE IR_FILE
 )";
 
-ABSL_FLAG(std::string, input_file, "",
+ABSL_FLAG(std::string, input_file, "",  // deprecated
           "Inputs to JIT and interpreter, one set per line. Each line should "
           "contain a semicolon-separated set of typed values. Cannot be "
           "specified with --input.");
+ABSL_FLAG(std::string, testvector_textproto, "",
+          "A textproto file containing the function argument or proc "
+          "channel test vectors.");
 ABSL_FLAG(
     std::string, test_only_inject_jit_result, "",
     "Test-only flag for injecting the result produced by the JIT. Used to "
     "force mismatches between JIT and interpreter for testing purposed.");
 
+using ArgSet = std::vector<xls::Value>;
+
 namespace xls {
 namespace {
 
-absl::Status RealMain(std::string_view ir_path, std::string_view inputs_path) {
+absl::Status RealMain(std::string_view ir_path,
+                      const std::vector<ArgSet>& inputs) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
-  XLS_ASSIGN_OR_RETURN(std::string inputs_text, GetFileContents(inputs_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text, ir_path));
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
-
-  std::vector<std::vector<Value>> inputs;
-  for (const auto& args_line :
-       absl::StrSplit(inputs_text, '\n', absl::SkipWhitespace())) {
-    std::vector<Value> args;
-    for (const std::string_view& value_string :
-         absl::StrSplit(args_line, ';')) {
-      XLS_ASSIGN_OR_RETURN(Value arg, Parser::ParseTypedValue(value_string));
-      args.push_back(arg);
-    }
-    inputs.push_back(args);
-  }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
                        FunctionJit::Create(f));
@@ -103,6 +97,41 @@ absl::Status RealMain(std::string_view ir_path, std::string_view inputs_path) {
       "interpreter.");
 }
 
+absl::StatusOr<ArgSet> ArgSetFromString(std::string_view args_string) {
+  ArgSet arg_set;
+  for (const std::string_view& value_string :
+       absl::StrSplit(args_string, ';')) {
+    XLS_ASSIGN_OR_RETURN(Value arg, Parser::ParseTypedValue(value_string));
+    arg_set.push_back(arg);
+  }
+  return arg_set;
+}
+
+absl::StatusOr<std::vector<ArgSet>> InputArgsFromTestvector(
+    const testvector::SampleInputsProto& testvector) {
+  if (!testvector.has_function_args()) {
+    return absl::InvalidArgumentError("Expected function_args in testvector");
+  }
+  std::vector<ArgSet> result;
+  for (std::string_view arg_line : testvector.function_args().args()) {
+    XLS_ASSIGN_OR_RETURN(ArgSet arg_set, ArgSetFromString(arg_line));
+    result.push_back(arg_set);
+  }
+  return result;
+}
+
+absl::StatusOr<std::vector<ArgSet>> InputArgsFromInputFile(
+    std::string_view input_file) {
+  std::vector<ArgSet> result;
+  XLS_ASSIGN_OR_RETURN(std::string inputs_text, GetFileContents(input_file));
+  for (const auto& args_line :
+       absl::StrSplit(inputs_text, '\n', absl::SkipWhitespace())) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> args, ArgSetFromString(args_line));
+    result.push_back(args);
+  }
+  return result;
+}
+
 }  // namespace
 }  // namespace xls
 
@@ -113,7 +142,27 @@ int main(int argc, char** argv) {
     LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",
                                       argv[0]);
   }
-  QCHECK(!absl::GetFlag(FLAGS_input_file).empty());
-  return xls::ExitStatus(
-      xls::RealMain(positional_arguments[0], absl::GetFlag(FLAGS_input_file)));
+
+  QCHECK(absl::GetFlag(FLAGS_testvector_textproto).empty() ^
+         absl::GetFlag(FLAGS_input_file).empty())
+      << "Need to provide either --input_file or --testvector_textproto";
+
+  std::vector<ArgSet> inputs;
+  if (!absl::GetFlag(FLAGS_testvector_textproto).empty()) {
+    xls::testvector::SampleInputsProto data;
+    QCHECK_OK(xls::ParseTextProtoFile(absl::GetFlag(FLAGS_testvector_textproto),
+                                      &data));
+    auto args_status = xls::InputArgsFromTestvector(data);
+    QCHECK_OK(args_status.status())
+        << "Failed to parse testvector "
+        << absl::GetFlag(FLAGS_testvector_textproto);
+    inputs = args_status.value();
+  } else if (!absl::GetFlag(FLAGS_input_file).empty()) {
+    auto args_status =
+        xls::InputArgsFromInputFile(absl::GetFlag(FLAGS_input_file));
+    QCHECK_OK(args_status.status()) << "Failed to parse input";
+    inputs = args_status.value();
+  }
+
+  return xls::ExitStatus(xls::RealMain(positional_arguments[0], inputs));
 }

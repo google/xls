@@ -611,6 +611,7 @@ cc_binary(
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "//xls/jit:function_jit",
+        "//xls/tests:testvector_cc_proto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
