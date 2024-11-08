@@ -1033,6 +1033,23 @@ fn test() -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, UnrollForWithoutIndexAccTypeAnnotation) {
+  const char* kProgram = R"(
+proc SomeProc {
+  init { () }
+  config() { }
+  next(state: ()) {
+    unroll_for! (i, a) in u32:0..u32:4 {
+      a + i
+    }(u32:0);
+  }
+})";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, UnrollForNested) {
   const char* kProgram = R"(
 fn test() -> u32 {

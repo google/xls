@@ -1,0 +1,19 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+proc __test_module__SomeProc_0_next(__state: (), init={()}) {
+  a: bits[32] = literal(value=0, id=4)
+  literal.5: bits[32] = literal(value=0, id=5)
+  a__1: bits[32] = add(a, literal.5, id=6)
+  literal.7: bits[32] = literal(value=1, id=7)
+  a__2: bits[32] = add(a__1, literal.7, id=8)
+  literal.9: bits[32] = literal(value=2, id=9)
+  a__3: bits[32] = add(a__2, literal.9, id=10)
+  literal.11: bits[32] = literal(value=3, id=11)
+  __token: token = literal(value=token, id=1)
+  literal.3: bits[1] = literal(value=1, id=3)
+  add.12: bits[32] = add(a__3, literal.11, id=12)
+  tuple.13: () = tuple(id=13)
+  next (tuple.13)
+}

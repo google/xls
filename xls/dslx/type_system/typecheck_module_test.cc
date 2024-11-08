@@ -1144,6 +1144,19 @@ fn f(x: u32) -> (u32, u8) {
                          "for the accumulator.")));
 }
 
+TEST(TypecheckTest, UnrollForWithoutIndexAccTypeAnnotation) {
+  XLS_EXPECT_OK(Typecheck(R"(
+proc SomeProc {
+  init { () }
+  config() { }
+  next(state: ()) {
+    unroll_for! (i, a) in u32:0..u32:4 {
+      a
+    }(u32:0);
+  }
+})"));
+}
+
 TEST(TypecheckTest, UnrollForWithWrongResultType) {
   EXPECT_THAT(Typecheck(R"(
 fn f(x: u32) -> (u32, u8) {
