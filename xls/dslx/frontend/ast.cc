@@ -1355,11 +1355,11 @@ std::string ProcDef::ToString() const {
 // -- class Impl
 
 Impl::Impl(Module* owner, Span span, TypeAnnotation* struct_ref,
-           const std::vector<ConstantDef*> constants, bool is_public)
+           const std::vector<ImplMember> members, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       struct_ref_(struct_ref),
-      constants_(std::move(constants)),
+      members_(members),
       public_(is_public) {}
 
 Impl::~Impl() = default;
@@ -1368,9 +1368,10 @@ std::string Impl::ToString() const {
   std::string type_name = ToAstNode(struct_ref_)->ToString();
   std::string result =
       absl::StrFormat("%simpl %s {\n", public_ ? "pub " : "", type_name);
-  for (const auto& constant : constants_) {
-    absl::StrAppendFormat(&result, "%s%s\n", kRustOneIndent,
-                          constant->ToString());
+  for (const auto& member : members_) {
+    absl::StrAppendFormat(
+        &result, "%s\n",
+        Indent(ToAstNode(member)->ToString(), kRustSpacesPerIndent));
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -1378,15 +1379,25 @@ std::string Impl::ToString() const {
 
 std::vector<AstNode*> Impl::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
-  results.reserve(constants_.size());
-  for (auto& constant : constants_) {
-    results.push_back(constant);
+  results.reserve(members_.size());
+  for (auto& member : members_) {
+    results.push_back(ToAstNode(member));
+  }
+  return results;
+}
+
+std::vector<ConstantDef*> Impl::GetConstants() const {
+  std::vector<ConstantDef*> results;
+  for (const auto& member : members_) {
+    if (std::holds_alternative<ConstantDef*>(member)) {
+      results.push_back(std::get<ConstantDef*>(member));
+    }
   }
   return results;
 }
 
 std::optional<ConstantDef*> Impl::GetConstant(std::string_view name) const {
-  for (ConstantDef* constant : constants_) {
+  for (ConstantDef* constant : GetConstants()) {
     if (constant->name_def()->identifier() == name) {
       return constant;
     }

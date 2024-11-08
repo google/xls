@@ -77,7 +77,7 @@ TEST(AstTest, ModuleWithStructAndImpl) {
   TypeRef* type_ref = m.Make<TypeRef>(fake_span, TypeDefinition(struct_def));
   TypeAnnotation* type_annot = m.Make<TypeRefTypeAnnotation>(
       fake_span, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
-  Impl* impl = m.Make<Impl>(fake_span, type_annot, std::vector<ConstantDef*>{},
+  Impl* impl = m.Make<Impl>(fake_span, type_annot, std::vector<ImplMember>{},
                             /*is_public=*/false);
   XLS_ASSERT_OK(m.AddTop(impl, /*make_collision_error=*/nullptr));
 

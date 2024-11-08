@@ -397,34 +397,15 @@ pub impl foo {
 })");
 }
 
-// TODO: https://github.com/google/xls/issues/1277 - Parse parametrics.
-TEST_F(ParserTest, DISABLED_ImplWithParametricsRoundTrip) {
+TEST_F(ParserTest, ImplWithParametricsRoundTrip) {
   RoundTrip(R"(pub struct foo<N: u32> {
     a: bits[9],
     b: bits[16],
 }
-impl<N: u32> foo<N> {
+impl foo<N> {
     const FOO_VAL = N;
     const FOO_STRING = "foo";
 })");
-}
-
-// TODO: https://github.com/google/xls/issues/1277 - Parse parametrics.
-TEST(ParserErrorTest, DISABLED_ImplWithMissingParametricsRoundTrip) {
-  constexpr std::string_view kProgram = R"(pub struct foo<N: u32> {
-    a: bits[9],
-    b: bits[16],
-}
-impl foo {
-    const FOO_VAL = u32:5;
-    const FOO_STRING = "foo";
-})";
-  FileTable file_table;
-  Scanner s{file_table, Fileno(0), std::string(kProgram)};
-  Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or.status(),
-              IsPosError("ParseError", HasSubstr("missing parametric")));
 }
 
 TEST_F(ParserTest, ImplUseConstantDefRoundTrip) {
@@ -438,6 +419,39 @@ impl foo {
 }
 fn f(my_foo: foo) -> u32 {
     my_foo::FOO_VAL
+})");
+}
+
+TEST_F(ParserTest, ImplWithFnDefinitionRoundTrip) {
+  RoundTrip(R"(pub struct Foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl Foo {
+    fn get_foo() -> u32 {
+        u32:5
+    }
+}
+fn f(my_foo: Foo) -> u32 {
+    my_foo.get_foo()
+})");
+}
+
+TEST_F(ParserTest, ImplWithFnAndConstsDefinitionRoundTrip) {
+  RoundTrip(R"(pub struct Foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl Foo {
+    const FOO_VAL = u32:5;
+    fn get_foo() -> u32 {
+        FOO_VAL
+    }
+    const SECOND_CONST = u32:1;
+    fn nada() {}
+}
+fn f(my_foo: Foo) -> u32 {
+    my_foo.get_foo()
 })");
 }
 
@@ -458,26 +472,6 @@ impl foo {
   auto module_or = parser.ParseModule();
   EXPECT_THAT(module_or.status(),
               IsPosError("ParseError", HasSubstr("can only be defined once")));
-}
-
-TEST(ParserErrorTest, ParseErrorForImplWithFunc) {
-  constexpr std::string_view kProgram = R"(pub struct foo {
-    a: bits[9],
-    b: bits[16],
-}
-
-impl foo {
-    fn f() -> u32 {
-        u32:5
-    }
-})";
-  FileTable file_table;
-  Scanner s{file_table, Fileno(0), std::string(kProgram)};
-  Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(
-      module_or.status(),
-      IsPosError("ParseError", HasSubstr("Only constants are supported")));
 }
 
 TEST(ParserErrorTest, ParseErrorForUseOutsideStruct) {

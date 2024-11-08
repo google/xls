@@ -729,15 +729,19 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleImpl(const Impl* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    std::vector<ConstantDef*> new_constants;
-    new_constants.reserve(n->constants().size());
-    for (const auto* constant : n->constants()) {
-      new_constants.push_back(
-          down_cast<ConstantDef*>(old_to_new_.at(constant)));
+    std::vector<ImplMember> new_members;
+    new_members.reserve(n->members().size());
+    for (const auto& member : n->members()) {
+      AstNode* new_node = old_to_new_.at(ToAstNode(member));
+      if (std::holds_alternative<ConstantDef*>(member)) {
+        new_members.push_back(down_cast<ConstantDef*>(new_node));
+      } else {
+        new_members.push_back(down_cast<Function*>(new_node));
+      }
     }
 
     Impl* new_impl =
-        module_->Make<Impl>(n->span(), nullptr, new_constants, n->is_public());
+        module_->Make<Impl>(n->span(), nullptr, new_members, n->is_public());
     old_to_new_[n] = new_impl;
     if (!old_to_new_.contains(n->struct_ref())) {
       XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));

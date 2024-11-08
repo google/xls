@@ -2428,11 +2428,13 @@ inline std::optional<StructDefBase*> TypeDefinitionToStructDefBase(
   return result == nullptr ? std::nullopt : std::make_optional(result);
 }
 
+using ImplMember = std::variant<ConstantDef*, Function*>;
+
 // Represents an impl for a struct.
 class Impl : public AstNode {
  public:
   Impl(Module* owner, Span span, TypeAnnotation* struct_ref,
-       std::vector<ConstantDef*> constants, bool is_public);
+       std::vector<ImplMember> members, bool is_public);
 
   ~Impl() override;
 
@@ -2457,7 +2459,9 @@ class Impl : public AstNode {
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
-  const std::vector<ConstantDef*>& constants() const { return constants_; }
+  const std::vector<ImplMember>& members() const { return members_; }
+
+  std::vector<ConstantDef*> GetConstants() const;
 
   // Returns the constant with the given name if present.
   std::optional<ConstantDef*> GetConstant(std::string_view name) const;
@@ -2465,7 +2469,7 @@ class Impl : public AstNode {
  private:
   Span span_;
   TypeAnnotation* struct_ref_;
-  std::vector<ConstantDef*> constants_;
+  std::vector<ImplMember> members_;
   bool public_;
 };
 

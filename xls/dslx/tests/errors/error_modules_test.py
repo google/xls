@@ -1099,16 +1099,6 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
-  def test_impl_not_yet_implemented(self):
-    stderr = self._run(
-        'xls/dslx/tests/errors/impl_not_yet_implemented.x',
-    )
-    self.assertIn('ParseError:', stderr)
-    self.assertIn(
-        'Only constants are supported',
-        stderr,
-    )
-
   def test_struct_update_non_struct(self):
     stderr = self._run(
         'xls/dslx/tests/errors/struct_update_non_struct.x',

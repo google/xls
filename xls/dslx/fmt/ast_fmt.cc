@@ -2373,12 +2373,13 @@ static DocRef Fmt(const Impl& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(Fmt(*n.struct_ref(), comments, arena));
   pieces.push_back(arena.space());
   pieces.push_back(arena.ocurl());
-  if (!n.constants().empty()) {
+  // TODO(google/xls#617): Support impl functions in formatter.
+  if (!n.GetConstants().empty()) {
     pieces.push_back(arena.break1());
   }
   std::vector<DocRef> body_pieces;
   Pos last_constant_pos = n.span().start();
-  for (const auto& constant : n.constants()) {
+  for (const auto& constant : n.GetConstants()) {
     // See if there are comments between the last constant and the start of this
     // constant.
     std::optional<Span> last_comment_span;

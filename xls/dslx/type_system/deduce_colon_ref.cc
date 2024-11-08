@@ -197,7 +197,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToImpl(
   }
 
   // If not, deduce constants in impl and try again.
-  for (const auto& con : impl->constants()) {
+  for (const auto& con : impl->GetConstants()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> _,
                          impl_ctx->Deduce(ToAstNode(con)));
   }

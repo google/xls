@@ -3235,26 +3235,32 @@ absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
                                        "Opening brace for impl."));
 
-  std::vector<ConstantDef*> constants;
+  std::vector<ImplMember> members;
   while (true) {
     XLS_ASSIGN_OR_RETURN(bool found_cbrace, TryDropToken(TokenKind::kCBrace));
     if (found_cbrace) {
       break;
     }
-    Pos constant_start_pos = GetPos();
+    Pos member_start_pos = GetPos();
     XLS_ASSIGN_OR_RETURN(bool next_is_public, TryDropKeyword(Keyword::kPub));
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-    if (!peek->IsKeyword(Keyword::kConst)) {
-      return ParseErrorStatus(peek->span(),
-                              "Only constants are supported in impl");
+    if (peek->IsKeyword(Keyword::kConst)) {
+      XLS_ASSIGN_OR_RETURN(
+          ConstantDef * constant,
+          ParseConstantDef(member_start_pos, next_is_public, impl_bindings));
+      members.push_back(constant);
+    } else if (peek->IsKeyword(Keyword::kFn)) {
+      XLS_ASSIGN_OR_RETURN(
+          Function * function,
+          ParseFunction(member_start_pos, next_is_public, impl_bindings));
+      members.push_back(function);
+    } else {
+      return ParseErrorStatus(
+          peek->span(), "Only constants or functions are supported in impl");
     }
-    XLS_ASSIGN_OR_RETURN(
-        ConstantDef * constant,
-        ParseConstantDef(constant_start_pos, next_is_public, impl_bindings));
-    constants.push_back(constant);
   }
   Span span(start_pos, GetPos());
-  auto* impl = module_->Make<Impl>(span, type, std::move(constants), is_public);
+  auto* impl = module_->Make<Impl>(span, type, std::move(members), is_public);
   (*struct_def)->set_impl(impl);
   return impl;
 }
