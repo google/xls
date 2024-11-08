@@ -175,6 +175,11 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
 absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
     const NameDefTree* name_def_tree, const TupleType* tuple_type);
 
+// Converts a `BuiltinTypeAnnotation` to an appropriate `Type` that is not
+// wrapped in a `MetaType`.
+absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
+    const BuiltinTypeAnnotation& annotation, const FileTable& file_table);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

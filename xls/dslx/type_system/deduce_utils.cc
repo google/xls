@@ -661,4 +661,23 @@ absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
   }
   return std::make_pair(number_of_tuple_elements, number_of_names);
 }
+
+absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
+    const BuiltinTypeAnnotation& annotation, const FileTable& file_table) {
+  if (annotation.builtin_type() == BuiltinType::kToken) {
+    return std::make_unique<TokenType>();
+  }
+  absl::StatusOr<bool> signedness = annotation.GetSignedness();
+  if (!signedness.ok()) {
+    return TypeInferenceErrorStatus(
+        annotation.span(), nullptr,
+        absl::StrFormat("Could not determine signedness to turn "
+                        "`%s` into a concrete bits type.",
+                        annotation.ToString()),
+        file_table);
+  }
+  int64_t bit_count = annotation.GetBitCount();
+  return std::make_unique<BitsType>(signedness.value(), bit_count);
+}
+
 }  // namespace xls::dslx

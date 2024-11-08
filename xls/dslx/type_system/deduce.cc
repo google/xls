@@ -1470,22 +1470,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBuiltinTypeAnnotation(
     const BuiltinTypeAnnotation* node, DeduceCtx* ctx) {
   VLOG(5) << "DeduceBuiltinTypeAnnotation: " << node->ToString();
 
-  std::unique_ptr<Type> t;
-  if (node->builtin_type() == BuiltinType::kToken) {
-    t = std::make_unique<TokenType>();
-  } else {
-    absl::StatusOr<bool> signedness = node->GetSignedness();
-    if (!signedness.ok()) {
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::StrFormat("Could not determine signedness to turn "
-                          "`%s` into a concrete bits type.",
-                          node->ToString()),
-          ctx->file_table());
-    }
-    int64_t bit_count = node->GetBitCount();
-    t = std::make_unique<BitsType>(signedness.value(), bit_count);
-  }
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> t, ConcretizeBuiltinTypeAnnotation(
+                                                    *node, ctx->file_table()));
   VLOG(5) << "DeduceBuiltinTypeAnnotation result: " << t->ToString();
   return std::make_unique<MetaType>(std::move(t));
 }
