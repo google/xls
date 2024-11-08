@@ -571,6 +571,22 @@ TEST(AstClonerTest, TypeAlias) {
   XLS_ASSERT_OK(VerifyClone(type_alias, clone, file_table));
 }
 
+// This is an interesting case because the start and limit of the slice are
+// nullptr.
+TEST(AstClonerTest, SliceWithNullptrs) {
+  constexpr std::string_view kProgram =
+      R"(const MOL = u32:42; const MOL2 = MOL[:];)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * top_member,
+                           module->GetMemberOrError<ConstantDef>("MOL2"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(top_member));
+  EXPECT_EQ("const MOL2 = MOL[:];", clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(top_member, clone, file_table));
+}
+
 TEST(AstClonerTest, PreserveTypeDefinitionsReplacer) {
   constexpr std::string_view kProgram =
       R"(

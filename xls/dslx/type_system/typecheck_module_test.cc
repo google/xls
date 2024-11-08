@@ -468,6 +468,20 @@ proc Bar {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+// Note: this previously caused a fatal error as the slice in this position is
+// handled in the AstCloner.
+TEST(TypecheckErrorTest, ProcWithSliceOfNumber) {
+  constexpr std::string_view kProgram = R"(
+proc o {
+  h: chan<u2[0[:]]> in;
+  config(h: chan<u3> out) {}
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Procs must define `init`")));
+}
+
 TEST(TypecheckTest, ProcWithImplAsProcMemberInTuple) {
   constexpr std::string_view kProgram = R"(
 proc Foo {

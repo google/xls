@@ -634,9 +634,16 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleSlice(const Slice* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<Slice>(
-        n->GetSpan().value(), down_cast<Expr*>(old_to_new_.at(n->start())),
-        down_cast<Expr*>(old_to_new_.at(n->limit())));
+
+    Expr* new_start = n->start() == nullptr
+                          ? nullptr
+                          : down_cast<Expr*>(old_to_new_.at(n->start()));
+    Expr* new_limit = n->limit() == nullptr
+                          ? nullptr
+                          : down_cast<Expr*>(old_to_new_.at(n->limit()));
+
+    old_to_new_[n] =
+        module_->Make<Slice>(n->GetSpan().value(), new_start, new_limit);
     return absl::OkStatus();
   }
 
