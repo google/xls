@@ -35,6 +35,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -1972,11 +1973,36 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
     args.push_back(argval);
   }
 
+  int64_t verbosity = 0;
+  if (node->verbosity().has_value()) {
+    absl::StatusOr<InterpValue> verbosity_interp_value =
+        ConstexprEvaluator::EvaluateToValue(
+            import_data_, current_type_info_, kNoWarningCollector,
+            ParametricEnv(parametric_env_map_), *node->verbosity(), nullptr);
+    if (!verbosity_interp_value.ok()) {
+      return IrConversionErrorStatus(
+          (*node->verbosity())->span(),
+          absl::Substitute("$0 verbosity values must be compile-time "
+                           "constants; got `$1`.",
+                           node->macro(), (*node->verbosity())->ToString()),
+          file_table());
+    }
+    absl::StatusOr<int64_t> verbosity_value =
+        verbosity_interp_value->GetBitValueSigned();
+    if (!verbosity_value.ok()) {
+      return IrConversionErrorStatus(
+          (*node->verbosity())->span(),
+          absl::Substitute("$0 verbosity values must be integers; got `$1`.",
+                           node->macro(), (*node->verbosity())->ToString()),
+          file_table());
+    }
+    verbosity = *verbosity_value;
+  }
   XLS_ASSIGN_OR_RETURN(
       BValue trace_result_token,
       ConvertFormatMacro(*node, implicit_token_data_->entry_token,
-                         control_predicate, args, *current_type_info_,
-                         *function_builder_));
+                         control_predicate, args, verbosity,
+                         *current_type_info_, *function_builder_));
 
   implicit_token_data_->control_tokens.push_back(trace_result_token);
 

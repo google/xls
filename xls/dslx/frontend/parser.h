@@ -601,6 +601,21 @@ class Parser : public TokenParser {
       std::vector<Expr*> args,
       std::vector<ExprOrType> parametrics = std::vector<ExprOrType>{});
 
+  // Helper function that builds a `FormatMacro` corresponding to a DSLX
+  // invocation with verbosity, like vtrace_fmt!(...). The verbosity should be
+  // the first element of `args`.
+  absl::StatusOr<Expr*> BuildFormatMacroWithVerbosityArgument(
+      const Span& span, std::string_view name, std::vector<Expr*> args,
+      const std::vector<ExprOrType>& parametrics);
+
+  // Helper function that builds a `FormatMacro` corresponding to a DSLX
+  // invocation like trace_fmt!(...) or vtrace_fmt!(...), after the caller has
+  // extracted and removed any verbosity argument from `args`.
+  absl::StatusOr<Expr*> BuildFormatMacro(
+      const Span& span, std::string_view name, std::vector<Expr*> args,
+      const std::vector<ExprOrType>& parametrics,
+      std::optional<Expr*> verbosity = std::nullopt);
+
   // Parses a proc config function.
   //
   // Args:

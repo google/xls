@@ -1224,11 +1224,13 @@ std::string AllOnesMacro::ToStringInternal() const {
 
 FormatMacro::FormatMacro(Module* owner, Span span, std::string macro,
                          std::vector<FormatStep> format,
-                         std::vector<Expr*> args)
+                         std::vector<Expr*> args,
+                         std::optional<Expr*> verbosity)
     : Expr(owner, std::move(span)),
       macro_(std::move(macro)),
       format_(std::move(format)),
-      args_(std::move(args)) {}
+      args_(std::move(args)),
+      verbosity_(std::move(verbosity)) {}
 
 FormatMacro::~FormatMacro() = default;
 
@@ -1242,18 +1244,26 @@ std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
 }
 
 std::string FormatMacro::ToStringInternal() const {
-  std::string format_string = "\"";
+  std::string result = absl::StrCat(macro_, "(");
+  if (verbosity_.has_value()) {
+    absl::StrAppendFormat(&result, "%s, ", (*verbosity_)->ToString());
+  }
+  absl::StrAppend(&result, "\"");
   for (const auto& step : format_) {
     if (std::holds_alternative<std::string>(step)) {
-      absl::StrAppend(&format_string, std::get<std::string>(step));
+      absl::StrAppend(&result, std::get<std::string>(step));
     } else {
-      absl::StrAppend(&format_string,
-                      std::string(FormatPreferenceToXlsSpecifier(
-                          std::get<FormatPreference>(step))));
+      absl::StrAppend(&result, std::string(FormatPreferenceToXlsSpecifier(
+                                   std::get<FormatPreference>(step))));
     }
   }
-  absl::StrAppend(&format_string, "\"");
-  return absl::StrFormat("%s(%s, %s)", macro_, format_string, FormatArgs());
+  absl::StrAppend(&result, "\"");
+  const std::string args = FormatArgs();
+  if (!args.empty()) {
+    absl::StrAppendFormat(&result, ", %s", args);
+  }
+  absl::StrAppend(&result, ")");
+  return result;
 }
 
 std::string FormatMacro::FormatArgs() const {

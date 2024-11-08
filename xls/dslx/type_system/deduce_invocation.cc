@@ -355,6 +355,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
                                                         DeduceCtx* ctx) {
+  if (node->verbosity().has_value()) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(*node->verbosity()).status());
+  }
   int64_t arg_count = OperandsExpectedByFormat(node->format());
 
   if (arg_count != node->args().size()) {

@@ -158,6 +158,7 @@ absl::StatusOr<BValue> ConvertFormatMacro(const FormatMacro& node,
                                           const BValue& entry_token,
                                           const BValue& control_predicate,
                                           absl::Span<const BValue> arg_vals,
+                                          int64_t verbosity,
                                           const TypeInfo& current_type_info,
                                           BuilderBase& function_builder) {
   // This is the data we build up for the final "trace" operation we place in
@@ -192,7 +193,7 @@ absl::StatusOr<BValue> ConvertFormatMacro(const FormatMacro& node,
   }
 
   return function_builder.Trace(entry_token, control_predicate, ir_args,
-                                fmt_steps);
+                                fmt_steps, verbosity);
 }
 
 }  // namespace xls::dslx

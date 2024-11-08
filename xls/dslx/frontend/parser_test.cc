@@ -745,6 +745,33 @@ TEST_F(ParserTest, ParseSimpleProc) {
   EXPECT_EQ(p->ToString(), text);
 }
 
+TEST_F(ParserTest, TraceFmtNoArgs) {
+  RoundTrip(R"(fn main() {
+    trace_fmt!("Hello world!");
+})");
+}
+
+TEST_F(ParserTest, TraceFmtWithArgs) {
+  RoundTrip(R"(fn main() {
+    let foo = u32:2;
+    trace_fmt!("Hello {} {:x}!", "world", foo + u32:1);
+})");
+}
+
+TEST_F(ParserTest, VTraceFmtNoArgs) {
+  RoundTrip(R"(fn main() {
+    vtrace_fmt!(3, "Hello world!");
+})");
+}
+
+TEST_F(ParserTest, VTraceFmtWithArgs) {
+  RoundTrip(R"(fn main() {
+    const VERBOSITY = u32:4;
+    let foo = u32:3;
+    vtrace_fmt!(VERBOSITY + u32:1, "Hello {} {:x}!", "world", foo + u32:1);
+})");
+}
+
 TEST_F(ParserTest, ParseProcWithConst) {
   RoundTrip(R"(proc simple {
     const MAX_X = u32:10;

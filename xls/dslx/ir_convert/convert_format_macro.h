@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_IR_CONVERT_CONVERT_FORMAT_MACRO_H_
 #define XLS_DSLX_IR_CONVERT_CONVERT_FORMAT_MACRO_H_
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
@@ -35,6 +37,7 @@ namespace xls::dslx {
 //  control_predicate: The predicate that says whether the trace operation
 //    should execute.
 //  arg_vals: Evaluated IR values for the argument expressions (to the node).
+//  verbosity: The arbitrary integer verbosity level for the message.
 //  current_type_info: Type information that contains the node.
 //  function_builder: Function builder that we should place the IR trace
 //    operation on.
@@ -44,6 +47,7 @@ absl::StatusOr<BValue> ConvertFormatMacro(const FormatMacro& node,
                                           const BValue& entry_token,
                                           const BValue& control_predicate,
                                           absl::Span<const BValue> arg_vals,
+                                          int64_t verbosity,
                                           const TypeInfo& current_type_info,
                                           BuilderBase& function_builder);
 

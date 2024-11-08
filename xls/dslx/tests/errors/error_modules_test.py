@@ -488,7 +488,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_trace_fmt_empty_err(self):
     stderr = self._run('xls/dslx/tests/errors/trace_fmt_empty.x')
     self.assertIn('trace_fmt_empty.x:16:13-16:15', stderr)
-    self.assertIn('trace_fmt! macro must have at least one argument', stderr)
+    self.assertIn('trace_fmt! macro must have at least 1 argument.', stderr)
 
   def test_trace_fmt_not_string(self):
     stderr = self._run(
@@ -496,7 +496,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('trace_fmt_not_string.x:16:13-16:16', stderr)
     self.assertIn(
-        'The first argument of the trace_fmt! macro must be a literal string',
+        'Expected a literal format string; got `5`',
         stderr,
     )
 
@@ -512,13 +512,68 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/trace_fmt_no_parametrics.x'
     )
     self.assertIn('trace_fmt_no_parametrics.x:16:13-16:44', stderr)
-    self.assertIn('does not take parametric arguments', stderr)
+    self.assertIn('does not expect parametric arguments', stderr)
 
   def test_trace_fmt_arg_mismatch(self):
     stderr = self._run(
         'xls/dslx/tests/errors/trace_fmt_arg_mismatch.x'
     )
     self.assertIn('trace_fmt_arg_mismatch.x:16:13-16:32', stderr)
+    self.assertIn('ArgCountMismatchError', stderr)
+    self.assertIn(
+        'expects 1 argument(s) from format but has 0 argument(s)', stderr
+    )
+
+  def test_vtrace_fmt_empty_err(self):
+    stderr = self._run('xls/dslx/tests/errors/vtrace_fmt_empty.x')
+    self.assertIn('vtrace_fmt_empty.x:16:14-16:16', stderr)
+    self.assertIn('vtrace_fmt! macro must have at least 2 arguments.', stderr)
+
+  def test_vtrace_fmt_one_arg_err(self):
+    stderr = self._run('xls/dslx/tests/errors/vtrace_fmt_one_arg.x')
+    self.assertIn('vtrace_fmt_one_arg.x:16:14-16:21', stderr)
+    self.assertIn('vtrace_fmt! macro must have at least 2 arguments.', stderr)
+
+  def test_vtrace_fmt_non_constexpr_verbosity(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/vtrace_fmt_non_constexpr_verbosity.x'
+    )
+    self.assertIn('vtrace_fmt_non_constexpr_verbosity.x:16:15-16:24', stderr)
+    self.assertIn(
+        'vtrace_fmt! verbosity values must be compile-time constants; got'
+        ' `verbosity`',
+        stderr,
+    )
+
+  def test_vtrace_fmt_non_integer_verbosity(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/vtrace_fmt_non_integer_verbosity.x'
+    )
+    self.assertIn('vtrace_fmt_non_integer_verbosity.x:16:15-16:22', stderr)
+    self.assertIn(
+        'vtrace_fmt! verbosity values must be integers; got `"Hello"`',
+        stderr,
+    )
+
+  def test_vtrace_fmt_bad_string(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/vtrace_fmt_bad_string.x'
+    )
+    self.assertIn('vtrace_fmt_bad_string.x:16:22-16:30', stderr)
+    self.assertIn('{ without matching }', stderr)
+
+  def test_vtrace_fmt_no_parametrics(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/vtrace_fmt_no_parametrics.x'
+    )
+    self.assertIn('vtrace_fmt_no_parametrics.x:16:14-16:52', stderr)
+    self.assertIn('does not expect parametric arguments', stderr)
+
+  def test_vtrace_fmt_arg_mismatch(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/vtrace_fmt_arg_mismatch.x'
+    )
+    self.assertIn('vtrace_fmt_arg_mismatch.x:16:14-16:40', stderr)
     self.assertIn('ArgCountMismatchError', stderr)
     self.assertIn(
         'expects 1 argument(s) from format but has 0 argument(s)', stderr

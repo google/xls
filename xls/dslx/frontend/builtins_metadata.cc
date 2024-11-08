@@ -88,6 +88,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"all_ones!", {.signature = "() -> T", .is_ast_node = true}},
           {"zero!", {.signature = "() -> T", .is_ast_node = true}},
           {"trace_fmt!", {.signature = "(T) -> T", .is_ast_node = true}},
+          {"vtrace_fmt!", {.signature = "(u32, T) -> T", .is_ast_node = true}},
 
           {"update",
            {.signature = "(T[...], uN[M]|(uN[M], ...), T) -> T[...]",

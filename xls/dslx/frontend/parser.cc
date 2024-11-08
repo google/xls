@@ -40,6 +40,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -2085,6 +2086,58 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
   }
 }
 
+absl::StatusOr<Expr*> Parser::BuildFormatMacroWithVerbosityArgument(
+    const Span& span, std::string_view name, std::vector<Expr*> args,
+    const std::vector<ExprOrType>& parametrics) {
+  if (args.size() < 2) {
+    return ParseErrorStatus(
+        span,
+        absl::Substitute("$0 macro must have at least 2 arguments.", name));
+  }
+  // Extract the verbosity argument and pass on the remainder of the arguments.
+  Expr* verbosity = args[0];
+  args.erase(args.begin());
+  return BuildFormatMacro(span, name, std::move(args), parametrics, verbosity);
+}
+
+absl::StatusOr<Expr*> Parser::BuildFormatMacro(
+    const Span& span, std::string_view name, std::vector<Expr*> args,
+    const std::vector<ExprOrType>& parametrics,
+    std::optional<Expr*> verbosity) {
+  if (!parametrics.empty()) {
+    return ParseErrorStatus(
+        span, absl::Substitute("$0 macro does not expect parametric arguments.",
+                               name));
+  }
+
+  if (args.empty()) {
+    return ParseErrorStatus(
+        span,
+        absl::Substitute("$0 macro must have at least 1 argument.", name));
+  }
+
+  Expr* format_arg = args[0];
+  String* format_string = dynamic_cast<String*>(format_arg);
+  if (!format_string) {
+    return ParseErrorStatus(
+        span, absl::Substitute("Expected a literal format string; got `$0`",
+                               format_arg->ToString()));
+  }
+
+  const std::string& format_text = format_string->text();
+  absl::StatusOr<std::vector<FormatStep>> format_result =
+      ParseFormatString(format_text);
+  if (!format_result.ok()) {
+    return ParseErrorStatus(format_string->span(),
+                            format_result.status().message());
+  }
+
+  // Remove the format string argument before building the macro call.
+  args.erase(args.begin());
+  return module_->Make<FormatMacro>(span, std::string(name), *format_result,
+                                    args, verbosity);
+}
+
 absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
     const Span& span, Bindings& bindings, Expr* callee, std::vector<Expr*> args,
     std::vector<ExprOrType> parametrics) {
@@ -2092,36 +2145,12 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
     if (auto* builtin = TryGet<BuiltinNameDef*>(name_ref->name_def())) {
       std::string name = builtin->identifier();
       if (name == "trace_fmt!") {
-        if (!parametrics.empty()) {
-          return ParseErrorStatus(
-              span, absl::StrFormat(
-                        "%s macro does not take parametric arguments", name));
-        }
-        if (args.empty()) {
-          return ParseErrorStatus(
-              span, absl::StrFormat("%s macro must have at least one argument",
-                                    name));
-        }
+        return BuildFormatMacro(span, name, args, parametrics);
+      }
 
-        Expr* format_arg = args[0];
-        if (String* format_string = dynamic_cast<String*>(format_arg)) {
-          const std::string& format_text = format_string->text();
-          absl::StatusOr<std::vector<FormatStep>> format_result =
-              ParseFormatString(format_text);
-          if (!format_result.ok()) {
-            return ParseErrorStatus(format_string->span(),
-                                    format_result.status().message());
-          }
-          // Remove the format string argument before building the macro call.
-          args.erase(args.begin());
-          return module_->Make<FormatMacro>(span, name, format_result.value(),
-                                            args);
-        }
-
-        return ParseErrorStatus(
-            span, absl::StrFormat("The first argument of the %s macro must "
-                                  "be a literal string.",
-                                  name));
+      if (name == "vtrace_fmt!") {
+        return BuildFormatMacroWithVerbosityArgument(span, name, args,
+                                                     parametrics);
       }
 
       if (name == "zero!") {

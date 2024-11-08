@@ -2867,6 +2867,53 @@ TEST(IrConverterTest, TraceFmt) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, TraceFmtSimpleNoArgs) {
+  constexpr std::string_view kProgram = R"(fn main() {
+    trace_fmt!("Hello world!");
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, TraceFmtSimpleWithArgs) {
+  constexpr std::string_view kProgram = R"(fn main() {
+    let foo = u32:2;
+    trace_fmt!("Hello {} {:x}!", "world", foo + u32:1);
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, VTraceFmtSimpleNoArgs) {
+  constexpr std::string_view kProgram = R"(fn main() {
+    vtrace_fmt!(u32:3, "Hello world!");
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, VTraceFmtSimpleWithArgs) {
+  constexpr std::string_view kProgram = R"(fn main() {
+    const VERBOSITY = u32:4;
+    let foo = u32:3;
+    vtrace_fmt!(VERBOSITY + u32:1, "Hello {} {:x}!", "world", foo + u32:1);
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, WideningCastsUnErrors) {
   constexpr std::string_view kProgram =
       R"(
