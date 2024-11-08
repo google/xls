@@ -74,6 +74,9 @@ TEST(SampleCcTest, DeserializationCanHandleNewlinesInStringLiterals) {
 // BEGIN_CONFIG
 // # proto-message: xls.fuzzer.CrasherConfigurationProto
 // issue: "Foo"
+// sample_options {
+//   sample_type: SAMPLE_TYPE_FUNCTION
+// }
 // inputs {
 //   function_args {
 //     args: "(bits[32]:0x01,

@@ -24,11 +24,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
+#include "xls/tests/testvector.pb.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -213,6 +215,14 @@ class Sample {
   //  // END_CONFIG
   //  <code sample>
   static absl::StatusOr<Sample> Deserialize(std::string_view s);
+
+  // Utility function to convert testvector::SampleInputsProto to
+  // args batch and channel names used in this object.
+  static absl::Status ExtractArgsBatch(
+      bool is_proc_samples, const testvector::SampleInputsProto& testvector,
+      std::vector<std::vector<dslx::InterpValue>>& args_batch,
+      std::vector<std::string>* ir_channel_names = nullptr);
+
   std::string Serialize(
       std::optional<std::string_view> error_message = std::nullopt) const;
 
@@ -246,6 +256,9 @@ class Sample {
            ir_channel_names_ == other.ir_channel_names_;
   }
   bool operator!=(const Sample& other) const { return !((*this) == other); }
+
+  // Convert internal argument representation to a sample inputs proto.
+  absl::Status FillSampleInputs(testvector::SampleInputsProto* proto) const;
 
  private:
   // Returns whether the argument batch is the same as in "other".

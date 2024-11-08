@@ -18,6 +18,8 @@ package xls.testvector;
 
 // TODO(google/xls#1645) As a first step, this is lifted out of
 //      fuzzer/sample.proto without change; more refactoring steps follow here.
+//      The channel data should possibly even be a xls::ProcChannelValuesProto
+//      but requires to re-write existing crasher*.x
 
 // Inputs fed to a single input channel of the sample proc.
 message ChannelInputProto {
@@ -37,7 +39,7 @@ message FunctionArgsProto {
   // Each entry is a semicolon-separated list of xls::Values with one Value per
   // function parameter. Example entry: "bits[1]:0; bits[32]:0x42"
   // TODO(google/xls#1645) instead of the semicolon-separation, this should be
-  //      repeated field of values.
+  //      repeated field of ValueProtos
   repeated string args = 1;
 }
 

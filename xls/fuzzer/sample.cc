@@ -202,6 +202,47 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
   return true;
 }
 
+// Extract args batch from SampleInputsProto. If to be interpreted as
+// proc_samples, also extract "ir_channel_names" (which must not be a nullptr
+// then).
+/* static */ absl::Status Sample::ExtractArgsBatch(
+    bool is_proc_samples, const testvector::SampleInputsProto& testvector,
+    std::vector<std::vector<InterpValue>>& args_batch,
+    std::vector<std::string>* ir_channel_names) {
+  // In the serialization channel inputs are grouped by channel, but the
+  // fuzzer expects inputs to be grouped by input number.
+  // TODO(meheff): Change the fuzzer to accept inputs grouped by channel. This
+  // would enable a different number of inputs per channel.
+  if (is_proc_samples) {
+    XLS_RET_CHECK(!testvector.has_function_args());  // proc samples expected
+    XLS_RET_CHECK(ir_channel_names != nullptr);
+    for (const testvector::ChannelInputProto& channel_input :
+         testvector.channel_inputs().inputs()) {
+      ir_channel_names->push_back(channel_input.channel_name());
+      for (int i = 0; i < channel_input.values().size(); ++i) {
+        const std::string& value_str = channel_input.values(i);
+        XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(value_str));
+        XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
+                             dslx::ValueToInterpValue(value));
+        if (args_batch.size() <= i) {
+          args_batch.resize(i + 1);
+        }
+        args_batch[i].push_back(interp_value);
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  // Otherwise just extract function information.
+  XLS_RET_CHECK(!testvector.has_channel_inputs());  // function samples expected
+  for (const std::string& arg : testvector.function_args().args()) {
+    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args, dslx::ParseArgs(arg));
+    args_batch.push_back(args);
+  }
+
+  return absl::OkStatus();
+}
+
 /* static */ absl::StatusOr<Sample> Sample::Deserialize(std::string_view s) {
   bool in_config = false;
   std::vector<std::string_view> config_lines;
@@ -238,37 +279,39 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
   XLS_ASSIGN_OR_RETURN(SampleOptions options,
                        SampleOptions::FromProto(proto.sample_options()));
 
-  std::string dslx_code = absl::StrJoin(dslx_lines, "\n");
+  // Make sure we see the kind of inputs we expect.
+  XLS_RET_CHECK_EQ(proto.inputs().has_function_args(),
+                   options.IsFunctionSample());
 
-  // In the serialization channel inputs are grouped by channel, but the
-  // fuzzer expects inputs to be grouped by input number.
-  // TODO(meheff): Change the fuzzer to accept inputs grouped by channel. This
-  // would enable a different number of inputs per channel.
-  std::vector<std::string> ir_channel_names;
   std::vector<std::vector<InterpValue>> args_batch;
-  if (proto.sample_options().sample_type() == fuzzer::SAMPLE_TYPE_PROC) {
-    for (const testvector::ChannelInputProto& channel_input :
-         proto.inputs().channel_inputs().inputs()) {
-      ir_channel_names.push_back(channel_input.channel_name());
-      for (int i = 0; i < channel_input.values().size(); ++i) {
-        const std::string& value_str = channel_input.values(i);
-        XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(value_str));
-        XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
-                             dslx::ValueToInterpValue(value));
-        if (args_batch.size() <= i) {
-          args_batch.resize(i + 1);
-        }
-        args_batch[i].push_back(interp_value);
-      }
+  std::vector<std::string> ir_channel_names;
+  XLS_RETURN_IF_ERROR(ExtractArgsBatch(options.IsProcSample(), proto.inputs(),
+                                       args_batch, &ir_channel_names));
+
+  std::string dslx_code = absl::StrJoin(dslx_lines, "\n");
+  return Sample(dslx_code, options, args_batch, ir_channel_names);
+}
+
+absl::Status Sample::FillSampleInputs(
+    testvector::SampleInputsProto* proto) const {
+  if (options().IsFunctionSample()) {
+    testvector::FunctionArgsProto* args_proto = proto->mutable_function_args();
+    for (const std::vector<InterpValue>& args : args_batch_) {
+      args_proto->add_args(InterpValueListToString(args));
     }
   } else {
-    XLS_RET_CHECK(proto.inputs().has_function_args());
-    for (const std::string& arg : proto.inputs().function_args().args()) {
-      XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args, dslx::ParseArgs(arg));
-      args_batch.push_back(args);
+    XLS_RET_CHECK(options().IsProcSample());
+    testvector::ChannelInputsProto* inputs_proto =
+        proto->mutable_channel_inputs();
+    for (int64_t i = 0; i < ir_channel_names_.size(); ++i) {
+      testvector::ChannelInputProto* input_proto = inputs_proto->add_inputs();
+      input_proto->set_channel_name(ir_channel_names_[i]);
+      for (const std::vector<InterpValue>& args : args_batch_) {
+        input_proto->add_values(ToArgString(args[i]));
+      }
     }
   }
-  return Sample(dslx_code, options, args_batch, ir_channel_names);
+  return absl::OkStatus();
 }
 
 std::string Sample::Serialize(
@@ -285,24 +328,8 @@ std::string Sample::Serialize(
   config.set_issue(std::string("DO NOT ") +
                    "SUBMIT Insert link to GitHub issue here.");
   *config.mutable_sample_options() = options().proto();
-  if (options().IsFunctionSample()) {
-    testvector::FunctionArgsProto* args_proto =
-        config.mutable_inputs()->mutable_function_args();
-    for (const std::vector<InterpValue>& args : args_batch_) {
-      args_proto->add_args(InterpValueListToString(args));
-    }
-  } else {
-    CHECK(options().IsProcSample());
-    testvector::ChannelInputsProto* inputs_proto =
-        config.mutable_inputs()->mutable_channel_inputs();
-    for (int64_t i = 0; i < ir_channel_names_.size(); ++i) {
-      testvector::ChannelInputProto* input_proto = inputs_proto->add_inputs();
-      input_proto->set_channel_name(ir_channel_names_[i]);
-      for (const std::vector<InterpValue>& args : args_batch_) {
-        input_proto->add_values(ToArgString(args[i]));
-      }
-    }
-  }
+  CHECK_OK(FillSampleInputs(config.mutable_inputs()));
+
   std::string config_text;
   CHECK(google::protobuf::TextFormat::PrintToString(config, &config_text));
   for (std::string_view line : absl::StrSplit(config_text, '\n')) {

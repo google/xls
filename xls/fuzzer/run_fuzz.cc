@@ -51,6 +51,7 @@
 #include "xls/fuzzer/sample_generator.h"
 #include "xls/fuzzer/sample_runner.h"
 #include "xls/fuzzer/sample_summary.pb.h"
+#include "xls/tests/testvector.pb.h"
 
 ABSL_DECLARE_FLAG(int32_t, v);
 ABSL_DECLARE_FLAG(std::string, vmodule);
@@ -204,6 +205,14 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   XLS_RETURN_IF_ERROR(
       SetTextProtoFile(options_file_name, smp.options().proto()));
   argv.push_back("--options_file=options.pbtxt");
+
+  std::filesystem::path testvector_path = run_dir / "testvector.pbtxt";
+  testvector::SampleInputsProto testvector;
+  XLS_RETURN_IF_ERROR(smp.FillSampleInputs(&testvector));
+  XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, testvector));
+  // TODO(hzeller): This is a preparation, but testvector.pbtxt is not yet
+  // passed to tools. This is the egg, chicken follows in next change.
+  // argv.push_back("--testvector_textproto=testvector.pbtxt");
 
   std::filesystem::path args_file_name = run_dir / "args.txt";
   XLS_RETURN_IF_ERROR(

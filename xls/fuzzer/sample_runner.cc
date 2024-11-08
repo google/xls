@@ -76,6 +76,7 @@
 #include "xls/ir/value.h"
 #include "xls/public/runtime_build_actions.h"
 #include "xls/simulation/check_simulator.h"
+#include "xls/tests/testvector.pb.h"
 #include "xls/tools/eval_utils.h"
 #include "re2/re2.h"
 
@@ -828,12 +829,17 @@ absl::Status SampleRunner::Run(const Sample& sample) {
   } else {
     input_path /= "sample.ir";
   }
-
   XLS_RETURN_IF_ERROR(SetFileContents(input_path, sample.input_text()));
 
   std::filesystem::path options_path = run_dir_ / "options.pbtxt";
   XLS_RETURN_IF_ERROR(SetTextProtoFile(options_path, sample.options().proto()));
 
+  std::filesystem::path testvector_path = run_dir_ / "testvector.pbtxt";
+  testvector::SampleInputsProto testvector;
+  XLS_RETURN_IF_ERROR(sample.FillSampleInputs(&testvector));
+  XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, testvector));
+
+  // TODO(hzeller): retire the following files and use testvector
   std::filesystem::path args_path = run_dir_ / "args.txt";
   XLS_RETURN_IF_ERROR(
       SetFileContents(args_path, ArgsBatchToText(sample.args_batch())));
