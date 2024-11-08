@@ -373,6 +373,9 @@ cc_test(
     ],
 )
 
+# Create tests of all the known non-failing crashers.
+# Calling the generated manual target :regression_tests includes the failures
+# and :failing_regression_tests only runs the failures.
 generate_crasher_regression_tests(
     name = "regression_tests",
     srcs = glob(["crashers/*"]),
