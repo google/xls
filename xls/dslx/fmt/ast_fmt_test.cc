@@ -1553,6 +1553,77 @@ impl MyStruct {
 )");
 }
 
+TEST_F(ModuleFmtTest, ImplWithConstantsAndFunctions) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    const SOME_CONST = u32:3;
+    // Always include this value.
+    const ANOTHER = "another";
+
+    // Some function.
+    fn my_function() -> u32 {
+        // Do something important.
+        SOME_CONST
+    }
+
+    fn second_func() -> u32 { u32:13; }
+
+    const RESULT = my_function();
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplFunctionsAndComments) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    // First function.
+    fn my_function() -> u32 {
+        // Do something important.
+        u32:5
+    }
+
+    // Another function.
+    fn second_func() -> u32 { u32:13; }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplWithOneFunction) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    fn my_function() -> u32 {
+        // Do something important.
+        u32:5
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplEndsWithFunction) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    const SOME_CONST = u32:3;
+    // Always include this value.
+    const ANOTHER = "another";
+
+    fn my_function() -> u32 {
+        // Do something important.
+        SOME_CONST
+    }
+
+    fn second_func() -> u32 { u32:13; }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, ImplWithInlineComment) {
   DoFmt(
       R"(struct MyStruct {}

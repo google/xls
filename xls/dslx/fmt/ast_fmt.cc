@@ -145,6 +145,9 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
 DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
 DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
                bool suppress_parens);
+DocRef FmtImplMember(const ImplMember& n, const Comments& comments,
+                     DocArena& arena);
+DocRef Fmt(const ConstantDef& n, const Comments& comments, DocArena& arena);
 
 // A parametric argument, as in parametric instantiation:
 //
@@ -1005,6 +1008,15 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
       Visitor{
           [&](const Expr* n) { return Fmt(*n, comments, arena); },
           [&](const TypeAnnotation* n) { return Fmt(*n, comments, arena); },
+      },
+      n);
+}
+
+DocRef FmtImplMember(const ImplMember& n, const Comments& comments,
+                     DocArena& arena) {
+  return absl::visit(
+      Visitor{
+          [&](const auto* n) { return Fmt(*n, comments, arena); },
       },
       n);
 }
@@ -2373,28 +2385,35 @@ static DocRef Fmt(const Impl& n, const Comments& comments, DocArena& arena) {
   pieces.push_back(Fmt(*n.struct_ref(), comments, arena));
   pieces.push_back(arena.space());
   pieces.push_back(arena.ocurl());
-  // TODO(google/xls#617): Support impl functions in formatter.
-  if (!n.GetConstants().empty()) {
+  if (!n.members().empty()) {
     pieces.push_back(arena.break1());
   }
   std::vector<DocRef> body_pieces;
-  Pos last_constant_pos = n.span().start();
-  for (const auto& constant : n.GetConstants()) {
-    // See if there are comments between the last constant and the start of this
-    // constant.
+  Pos last_member_pos = n.span().start();
+  bool last_was_func = false;
+  for (int i = 0; i < n.members().size(); i++) {
+    const ImplMember member = n.members().at(i);
+    if (i > 0 && (last_was_func || std::holds_alternative<Function*>(member))) {
+      body_pieces.push_back(arena.hard_line());
+    }
+    last_was_func = std::holds_alternative<Function*>(member);
+
+    // See if there are comments between the last member and the start of this
+    // member.
+    Span member_span = ToAstNode(member)->GetSpan().value();
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
-            EmitCommentsBetween(last_constant_pos, constant->span().start(),
-                                comments, arena, &last_comment_span)) {
+            EmitCommentsBetween(last_member_pos, member_span.start(), comments,
+                                arena, &last_comment_span)) {
       body_pieces.push_back(comments_doc.value());
       body_pieces.push_back(arena.hard_line());
     }
-    body_pieces.push_back(Fmt(*constant, comments, arena));
-    last_constant_pos = constant->span().limit();
+    body_pieces.push_back(FmtImplMember(member, comments, arena));
+    last_member_pos = member_span.limit();
 
-    last_constant_pos =
-        CollectInlineComments(constant->span().limit(), last_constant_pos,
-                              comments, arena, body_pieces, last_comment_span);
+    last_member_pos =
+        CollectInlineComments(member_span.limit(), last_member_pos, comments,
+                              arena, body_pieces, last_comment_span);
 
     body_pieces.push_back(arena.hard_line());
   }
