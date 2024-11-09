@@ -156,6 +156,45 @@ TEST(ChannelTest, StreamingChannelWithFifoDepth) {
   EXPECT_EQ(ch.GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
 }
 
+TEST(ChannelTest, StreamingChannelWithFifoConfigSerializesFifoConfigCorrectly) {
+  Package p("my_package");
+
+  auto ch_with_fifo_config = [&](FifoConfig fifo_config) {
+    return StreamingChannel(
+        "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
+        /*fifo_config=*/fifo_config, FlowControl::kNone,
+        ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
+  };
+  EXPECT_THAT(ch_with_fifo_config(FifoConfig(/*depth=*/123, /*bypass=*/false,
+                                             /*register_push_outputs=*/false,
+                                             /*register_pop_outputs=*/false))
+                  .ToString(),
+              AllOf(HasSubstr("fifo_depth=123"), HasSubstr("bypass=false"),
+                    HasSubstr("register_push_outputs=false"),
+                    HasSubstr("register_pop_outputs=false")));
+  EXPECT_THAT(ch_with_fifo_config(FifoConfig(/*depth=*/123, /*bypass=*/true,
+                                             /*register_push_outputs=*/false,
+                                             /*register_pop_outputs=*/false))
+                  .ToString(),
+              AllOf(HasSubstr("fifo_depth=123"), HasSubstr("bypass=true"),
+                    HasSubstr("register_push_outputs=false"),
+                    HasSubstr("register_pop_outputs=false")));
+  EXPECT_THAT(ch_with_fifo_config(FifoConfig(/*depth=*/123, /*bypass=*/false,
+                                             /*register_push_outputs=*/true,
+                                             /*register_pop_outputs=*/false))
+                  .ToString(),
+              AllOf(HasSubstr("fifo_depth=123"), HasSubstr("bypass=false"),
+                    HasSubstr("register_push_outputs=true"),
+                    HasSubstr("register_pop_outputs=false")));
+  EXPECT_THAT(ch_with_fifo_config(FifoConfig(/*depth=*/123, /*bypass=*/false,
+                                             /*register_push_outputs=*/false,
+                                             /*register_pop_outputs=*/true))
+                  .ToString(),
+              AllOf(HasSubstr("fifo_depth=123"), HasSubstr("bypass=false"),
+                    HasSubstr("register_push_outputs=false"),
+                    HasSubstr("register_pop_outputs=true")));
+}
+
 TEST(ChannelTest, StreamingToStringParses) {
   Package p("my_package");
   std::vector<Value> initial_values = {

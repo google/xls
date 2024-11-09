@@ -116,8 +116,8 @@ std::string Channel::ToString() const {
           "fifo_depth=%d, bypass=%s, "
           "register_push_outputs=%s, register_pop_outputs=%s, ",
           fifo_config->depth(), fifo_config->bypass() ? "true" : "false",
-          fifo_config->register_pop_outputs() ? "true" : "false",
-          fifo_config->register_push_outputs() ? "true" : "false");
+          fifo_config->register_push_outputs() ? "true" : "false",
+          fifo_config->register_pop_outputs() ? "true" : "false");
     }
   }
 
