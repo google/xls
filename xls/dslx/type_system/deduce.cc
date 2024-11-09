@@ -2079,14 +2079,24 @@ class DeduceVisitor : public AstNodeVisitor {
     return Fatal(n);
   }
   absl::Status HandleFunctionRef(const FunctionRef* n) override {
-    return Fatal(n);
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> callee_type,
+                         ctx_->Deduce(n->callee()));
+    if (!callee_type->IsFunction()) {
+      return TypeInferenceErrorStatus(
+          n->span(), callee_type.get(),
+          "Callee for function reference must be function-typed",
+          ctx_->file_table());
+    }
+    result_ = std::move(callee_type);
+    return absl::OkStatus();
   }
 
   absl::StatusOr<std::unique_ptr<Type>>& result() { return result_; }
 
  private:
   absl::Status Fatal(const AstNode* n) {
-    LOG(FATAL) << "Got unhandled AST node for deduction: " << n->ToString();
+    LOG(FATAL) << "DeduceVisitor got unhandled AST node for deduction: "
+               << n->ToString() << " node type name: " << n->GetNodeTypeName();
   }
 
   DeduceCtx* ctx_;
