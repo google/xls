@@ -321,7 +321,7 @@ absl::StatusOr<std::vector<dslx::InterpValue>> ParseValues(std::string_view s) {
 // Evaluate the IR file with a function as its top and return the result Values.
 absl::StatusOr<std::vector<dslx::InterpValue>> EvaluateIrFunction(
     const std::filesystem::path& ir_path,
-    const std::filesystem::path& args_path, bool use_jit,
+    const std::filesystem::path& testvector_path, bool use_jit,
     const SampleOptions& options, const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
   std::optional<SampleRunner::Commands::Callable> command =
@@ -332,15 +332,16 @@ absl::StatusOr<std::vector<dslx::InterpValue>> EvaluateIrFunction(
 
   XLS_ASSIGN_OR_RETURN(
       std::string results_text,
-      RunCommand(absl::StrFormat("Evaluating IR file (%s): %s",
-                                 (use_jit ? "JIT" : "interpreter"), ir_path),
-                 *command,
-                 {
-                     absl::StrCat("--input_file=", args_path.string()),
-                     absl::StrFormat("--%suse_llvm_jit", use_jit ? "" : "no"),
-                     ir_path,
-                 },
-                 run_dir, options));
+      RunCommand(
+          absl::StrFormat("Evaluating IR file (%s): %s",
+                          (use_jit ? "JIT" : "interpreter"), ir_path),
+          *command,
+          {
+              absl::StrCat("--testvector_textproto=", testvector_path.string()),
+              absl::StrFormat("--%suse_llvm_jit", use_jit ? "" : "no"),
+              ir_path,
+          },
+          run_dir, options));
   XLS_RETURN_IF_ERROR(SetFileContents(
       absl::StrCat(ir_path.string(), ".results"), results_text));
   return ParseValues(results_text);
@@ -397,7 +398,7 @@ absl::StatusOr<std::filesystem::path> OptimizeIr(
 absl::StatusOr<std::vector<dslx::InterpValue>> SimulateFunction(
     const std::filesystem::path& verilog_path,
     const std::filesystem::path& module_sig_path,
-    const std::filesystem::path& args_path, const SampleOptions& options,
+    const std::filesystem::path& testvector_path, const SampleOptions& options,
     const std::filesystem::path& run_dir,
     const SampleRunner::Commands& commands) {
   std::optional<SampleRunner::Commands::Callable> command =
@@ -408,7 +409,7 @@ absl::StatusOr<std::vector<dslx::InterpValue>> SimulateFunction(
 
   std::vector<std::string> simulator_args = {
       absl::StrCat("--signature_file=", module_sig_path.string()),
-      absl::StrCat("--args_file=", args_path.string()),
+      absl::StrCat("--testvector_textproto=", testvector_path.string()),
   };
   XLS_RETURN_IF_ERROR(CheckSimulator(options.simulator()));
   if (!options.simulator().empty()) {
@@ -706,8 +707,8 @@ absl::StatusOr<std::filesystem::path> DslxToIrProc(
 
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
 EvaluateIrProc(const std::filesystem::path& ir_path, int64_t tick_count,
-               const std::filesystem::path& ir_channel_values_path,
-               bool use_jit, const SampleOptions& options,
+               const std::filesystem::path& testvector_proto_path, bool use_jit,
+               const SampleOptions& options,
                const std::filesystem::path& run_dir,
                const SampleRunner::Commands& commands) {
   std::optional<SampleRunner::Commands::Callable> command =
@@ -721,8 +722,7 @@ EvaluateIrProc(const std::filesystem::path& ir_path, int64_t tick_count,
       absl::StrFormat("Evaluating IR file (%s): %s", evaluation_type, ir_path);
   std::string_view backend_type = use_jit ? "serial_jit" : "ir_interpreter";
   std::vector<std::string> args = {
-      absl::StrCat("--inputs_for_all_channels=",
-                   ir_channel_values_path.string()),
+      absl::StrCat("--testvector_textproto=", testvector_proto_path.string()),
       absl::StrCat("--ticks=", tick_count),
       absl::StrCat("--backend=", backend_type),
       ir_path,
@@ -780,7 +780,7 @@ std::string GetOutputChannelToString(
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
 SimulateProc(const std::filesystem::path& verilog_path,
              const std::filesystem::path& module_sig_path,
-             const std::filesystem::path& ir_channel_values_path,
+             const std::filesystem::path& testvector_path,
              std::string_view output_channel_counts,
              const SampleOptions& options, const std::filesystem::path& run_dir,
              const SampleRunner::Commands& commands) {
@@ -792,7 +792,7 @@ SimulateProc(const std::filesystem::path& verilog_path,
 
   std::vector<std::string> simulator_args = {
       absl::StrCat("--signature_file=", module_sig_path.string()),
-      absl::StrCat("--channel_values_file=", ir_channel_values_path.string()),
+      absl::StrCat("--testvector_textproto=", testvector_path.string()),
       absl::StrCat("--output_channel_counts=", output_channel_counts),
   };
   if (!options.simulator().empty()) {
@@ -853,14 +853,15 @@ absl::Status SampleRunner::Run(const Sample& sample) {
   }
 
   return RunFromFiles(input_path, options_path, args_path,
-                      ir_channel_names_path);
+                      ir_channel_names_path, testvector_path);
 }
 
 absl::Status SampleRunner::RunFromFiles(
     const std::filesystem::path& input_path,
     const std::filesystem::path& options_path,
-    const std::optional<std::filesystem::path>& args_path,
-    const std::optional<std::filesystem::path>& ir_channel_names_path) {
+    const std::optional<std::filesystem::path>& args_path,  // deprecated
+    const std::optional<std::filesystem::path>& ir_channel_names_path,  // ditto
+    const std::optional<std::filesystem::path>& testvector_path) {
   VLOG(1) << "Running sample in directory " << run_dir_;
   VLOG(1) << "Reading sample files.";
 
@@ -874,10 +875,11 @@ absl::Status SampleRunner::RunFromFiles(
   absl::Status status;
   switch (options.sample_type()) {
     case fuzzer::SampleType::SAMPLE_TYPE_FUNCTION:
-      status = RunFunction(input_path, options, args_path);
+      status = RunFunction(input_path, options, std::nullopt, testvector_path);
       break;
     case fuzzer::SampleType::SAMPLE_TYPE_PROC:
-      status = RunProc(input_path, options, args_path, ir_channel_names_path);
+      status = RunProc(input_path, options, std::nullopt, std::nullopt,
+                       testvector_path);
       break;
     default:
       status = absl::InvalidArgumentError(
@@ -901,13 +903,21 @@ absl::Status SampleRunner::RunFromFiles(
 
 absl::Status SampleRunner::RunFunction(
     const std::filesystem::path& input_path, const SampleOptions& options,
-    const std::optional<std::filesystem::path>& args_path) {
+    const std::optional<std::filesystem::path>& args_path,
+    const std::optional<std::filesystem::path>& testvector_path) {
   XLS_ASSIGN_OR_RETURN(std::string input_text, GetFileContents(input_path));
 
   std::optional<ArgsBatch> args_batch = std::nullopt;
   if (args_path.has_value()) {
     XLS_ASSIGN_OR_RETURN(std::string args_text, GetFileContents(*args_path));
     XLS_ASSIGN_OR_RETURN(args_batch, dslx::ParseArgsBatch(args_text));
+  } else if (testvector_path.has_value()) {
+    testvector::SampleInputsProto sample_inputs;
+    XLS_RETURN_IF_ERROR(ParseTextProtoFile(*testvector_path, &sample_inputs));
+    ArgsBatch extracted;
+    XLS_RETURN_IF_ERROR(Sample::ExtractArgsBatch(/* is_proc_samples= */ false,
+                                                 sample_inputs, extracted));
+    args_batch = std::move(extracted);
   }
 
   absl::flat_hash_map<std::string, std::vector<dslx::InterpValue>> results;
@@ -938,20 +948,20 @@ absl::Status SampleRunner::RunFunction(
     XLS_RETURN_IF_ERROR(SetFileContents(ir_path, input_text));
   }
 
-  if (args_path.has_value()) {
+  if (args_batch.has_value()) {
     Stopwatch t;
 
     // Unconditionally evaluate with the interpreter even if using the JIT. This
     // exercises the interpreter and serves as a reference.
     XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (interpreter)"],
-                         EvaluateIrFunction(ir_path, *args_path, false, options,
-                                            run_dir_, commands_));
+                         EvaluateIrFunction(ir_path, *testvector_path, false,
+                                            options, run_dir_, commands_));
     timing_.set_unoptimized_interpret_ir_ns(
         absl::ToInt64Nanoseconds(t.GetElapsedTime()));
 
     if (options.use_jit()) {
       XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (JIT)"],
-                           EvaluateIrFunction(ir_path, *args_path, true,
+                           EvaluateIrFunction(ir_path, *testvector_path, true,
                                               options, run_dir_, commands_));
       timing_.set_unoptimized_jit_ns(
           absl::ToInt64Nanoseconds(t.GetElapsedTime()));
@@ -964,19 +974,21 @@ absl::Status SampleRunner::RunFunction(
                          OptimizeIr(ir_path, options, run_dir_, commands_));
     timing_.set_optimize_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
 
-    if (args_path.has_value()) {
+    if (args_batch.has_value()) {
       if (options.use_jit()) {
         t.Reset();
-        XLS_ASSIGN_OR_RETURN(results["evaluated opt IR (JIT)"],
-                             EvaluateIrFunction(opt_ir_path, *args_path, true,
-                                                options, run_dir_, commands_));
+        XLS_ASSIGN_OR_RETURN(
+            results["evaluated opt IR (JIT)"],
+            EvaluateIrFunction(opt_ir_path, *testvector_path, true, options,
+                               run_dir_, commands_));
         timing_.set_optimized_jit_ns(
             absl::ToInt64Nanoseconds(t.GetElapsedTime()));
       }
       t.Reset();
-      XLS_ASSIGN_OR_RETURN(results["evaluated opt IR (interpreter)"],
-                           EvaluateIrFunction(opt_ir_path, *args_path, false,
-                                              options, run_dir_, commands_));
+      XLS_ASSIGN_OR_RETURN(
+          results["evaluated opt IR (interpreter)"],
+          EvaluateIrFunction(opt_ir_path, *testvector_path, false, options,
+                             run_dir_, commands_));
       timing_.set_optimized_interpret_ir_ns(
           absl::ToInt64Nanoseconds(t.GetElapsedTime()));
     }
@@ -989,12 +1001,11 @@ absl::Status SampleRunner::RunFunction(
       timing_.set_codegen_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
 
       if (options.simulate()) {
-        XLS_RET_CHECK(args_path.has_value());
         t.Reset();
         XLS_ASSIGN_OR_RETURN(
             results["simulated"],
-            SimulateFunction(verilog_path, "module_sig.textproto", *args_path,
-                             options, run_dir_, commands_));
+            SimulateFunction(verilog_path, "module_sig.textproto",
+                             *testvector_path, options, run_dir_, commands_));
         timing_.set_simulate_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
       }
     }
@@ -1009,20 +1020,31 @@ absl::Status SampleRunner::RunFunction(
 absl::Status SampleRunner::RunProc(
     const std::filesystem::path& input_path, const SampleOptions& options,
     const std::optional<std::filesystem::path>& args_path,
-    const std::optional<std::filesystem::path>& ir_channel_names_path) {
+    const std::optional<std::filesystem::path>& ir_channel_names_path,
+    const std::optional<std::filesystem::path>& testvector_path) {
   XLS_ASSIGN_OR_RETURN(std::string input_text, GetFileContents(input_path));
 
   std::optional<ArgsBatch> args_batch = std::nullopt;
+  std::optional<std::vector<std::string>> ir_channel_names = std::nullopt;
+
   if (args_path.has_value()) {
     XLS_ASSIGN_OR_RETURN(std::string args_text, GetFileContents(*args_path));
     XLS_ASSIGN_OR_RETURN(args_batch, dslx::ParseArgsBatch(args_text));
-  }
-
-  std::optional<std::vector<std::string>> ir_channel_names = std::nullopt;
-  if (ir_channel_names_path.has_value()) {
-    XLS_ASSIGN_OR_RETURN(std::string ir_channel_names_text,
-                         GetFileContents(*ir_channel_names_path));
-    ir_channel_names = ParseIrChannelNames(ir_channel_names_text);
+    if (ir_channel_names_path.has_value()) {
+      XLS_ASSIGN_OR_RETURN(std::string ir_channel_names_text,
+                           GetFileContents(*ir_channel_names_path));
+      ir_channel_names = ParseIrChannelNames(ir_channel_names_text);
+    }
+  } else if (testvector_path.has_value()) {
+    testvector::SampleInputsProto sample_inputs;
+    XLS_RETURN_IF_ERROR(ParseTextProtoFile(*testvector_path, &sample_inputs));
+    ArgsBatch extracted_args;
+    std::vector<std::string> extracted_channel_names;
+    XLS_RETURN_IF_ERROR(Sample::ExtractArgsBatch(/* is_proc_samples= */ true,
+                                                 sample_inputs, extracted_args,
+                                                 &extracted_channel_names));
+    args_batch = std::move(extracted_args);
+    ir_channel_names = std::move(extracted_channel_names);
   }
 
   std::string ir_channel_values_file_content;
@@ -1102,10 +1124,9 @@ absl::Status SampleRunner::RunProc(
     // Unconditionally evaluate with the interpreter even if using the JIT. This
     // exercises the interpreter and serves as a reference.
     Stopwatch t;
-    XLS_ASSIGN_OR_RETURN(
-        results["evaluated unopt IR (interpreter)"],
-        EvaluateIrProc(ir_path, tick_count, ir_channel_values_path, false,
-                       options, run_dir_, commands_));
+    XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (interpreter)"],
+                         EvaluateIrProc(ir_path, tick_count, *testvector_path,
+                                        false, options, run_dir_, commands_));
     if (!reference.has_value()) {
       reference = results["evaluated unopt IR (interpreter)"];
     }
@@ -1114,10 +1135,9 @@ absl::Status SampleRunner::RunProc(
 
     if (options.use_jit()) {
       t.Reset();
-      XLS_ASSIGN_OR_RETURN(
-          results["evaluated unopt IR (JIT)"],
-          EvaluateIrProc(ir_path, tick_count, ir_channel_values_path, true,
-                         options, run_dir_, commands_));
+      XLS_ASSIGN_OR_RETURN(results["evaluated unopt IR (JIT)"],
+                           EvaluateIrProc(ir_path, tick_count, *testvector_path,
+                                          true, options, run_dir_, commands_));
       timing_.set_unoptimized_jit_ns(
           absl::ToInt64Nanoseconds(t.GetElapsedTime()));
     }
@@ -1135,8 +1155,8 @@ absl::Status SampleRunner::RunProc(
         t.Reset();
         XLS_ASSIGN_OR_RETURN(
             results["evaluated opt IR (JIT)"],
-            EvaluateIrProc(*opt_ir_path, tick_count, ir_channel_values_path,
-                           true, options, run_dir_, commands_));
+            EvaluateIrProc(*opt_ir_path, tick_count, *testvector_path, true,
+                           options, run_dir_, commands_));
         timing_.set_optimized_jit_ns(
             absl::ToInt64Nanoseconds(t.GetElapsedTime()));
       }
@@ -1144,8 +1164,8 @@ absl::Status SampleRunner::RunProc(
       t.Reset();
       XLS_ASSIGN_OR_RETURN(
           results["evaluated opt IR (interpreter)"],
-          EvaluateIrProc(*opt_ir_path, tick_count, ir_channel_values_path,
-                         false, options, run_dir_, commands_));
+          EvaluateIrProc(*opt_ir_path, tick_count, *testvector_path, false,
+                         options, run_dir_, commands_));
       timing_.set_optimized_interpret_ir_ns(
           absl::ToInt64Nanoseconds(t.GetElapsedTime()));
 
@@ -1166,8 +1186,8 @@ absl::Status SampleRunner::RunProc(
           XLS_ASSIGN_OR_RETURN(
               results["simulated"],
               SimulateProc(verilog_path, "module_sig.textproto",
-                           ir_channel_values_path, output_channel_counts_str,
-                           options, run_dir_, commands_));
+                           *testvector_path, output_channel_counts_str, options,
+                           run_dir_, commands_));
           timing_.set_simulate_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
         }
       }

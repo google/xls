@@ -210,14 +210,11 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   testvector::SampleInputsProto testvector;
   XLS_RETURN_IF_ERROR(smp.FillSampleInputs(&testvector));
   XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, testvector));
-  // TODO(hzeller): This is a preparation, but testvector.pbtxt is not yet
-  // passed to tools. This is the egg, chicken follows in next change.
-  // argv.push_back("--testvector_textproto=testvector.pbtxt");
+  argv.push_back("--testvector_textproto=testvector.pbtxt");
 
   std::filesystem::path args_file_name = run_dir / "args.txt";
   XLS_RETURN_IF_ERROR(
       SetFileContents(args_file_name, ArgsBatchToText(smp.args_batch())));
-  argv.push_back("--args_file=args.txt");
 
   std::optional<std::filesystem::path> ir_channel_names_file_name =
       std::nullopt;
@@ -226,7 +223,6 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
     XLS_RETURN_IF_ERROR(
         SetFileContents(*ir_channel_names_file_name,
                         IrChannelNamesToText(smp.ir_channel_names())));
-    argv.push_back("--ir_channel_names_file=ir_channel_names.txt");
   }
 
   argv.push_back("\"$RUNDIR\"");
@@ -246,9 +242,9 @@ cd "$RUNDIR"
   VLOG(1) << "Starting to run sample";
   VLOG(2) << smp.input_text();
   SampleRunner runner(run_dir);
-  XLS_RETURN_IF_ERROR(runner.RunFromFiles(sample_file_name, options_file_name,
-                                          args_file_name,
-                                          ir_channel_names_file_name));
+  XLS_RETURN_IF_ERROR(
+      runner.RunFromFiles(sample_file_name, options_file_name, args_file_name,
+                          ir_channel_names_file_name, testvector_path));
 
   fuzzer::SampleTimingProto timing = runner.timing();
 

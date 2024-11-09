@@ -74,8 +74,10 @@ class SampleRunner {
   absl::Status RunFromFiles(
       const std::filesystem::path& input_path,
       const std::filesystem::path& options_path,
-      const std::optional<std::filesystem::path>& args_path,
-      const std::optional<std::filesystem::path>& ir_channel_names_path);
+      const std::optional<std::filesystem::path>& args_path,  // deprecated
+      const std::optional<std::filesystem::path>&
+          ir_channel_names_path,  // same
+      const std::optional<std::filesystem::path>& testvector_path);
 
   const fuzzer::SampleTimingProto& timing() const { return timing_; }
 
@@ -83,12 +85,14 @@ class SampleRunner {
   // Runs a sample with a function as the top which is read from files.
   absl::Status RunFunction(
       const std::filesystem::path& input_path, const SampleOptions& options,
-      const std::optional<std::filesystem::path>& args_path);
+      const std::optional<std::filesystem::path>& args_path,
+      const std::optional<std::filesystem::path>& testvector_path);
 
   absl::Status RunProc(
       const std::filesystem::path& input_path, const SampleOptions& options,
       const std::optional<std::filesystem::path>& args_path,
-      const std::optional<std::filesystem::path>& ir_channel_names_path);
+      const std::optional<std::filesystem::path>& ir_channel_names_path,
+      const std::optional<std::filesystem::path>& testvector_path);
 
   const std::filesystem::path run_dir_;
   const Commands commands_;

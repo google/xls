@@ -75,8 +75,8 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
   {
     std::vector<std::string> args = {
         std::string{sample_runner_main_path}, "--logtostderr",
-        "--options_file=ir_minimizer.options.pbtxt", "--args_file=args.txt",
-        "--input_file=$1"};
+        "--options_file=ir_minimizer.options.pbtxt",
+        "--testvector_textproto=testvector.pbtxt", "--input_file=$1"};
     const std::filesystem::path test_script = run_dir / "ir_minimizer_test.sh";
     XLS_RETURN_IF_ERROR(SetFileContents(
         test_script, absl::StrCat("#!/bin/sh\n! ", absl::StrJoin(args, " "))));
@@ -131,7 +131,8 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
         run_dir / absl::StrCat(basename, ".stderr");
 
     std::vector<std::string> args = {find_failing_input_main_path,
-                                     "--input_file=args.txt", "sample.ir"};
+                                     "--testvector_textproto=testvector.pbtxt",
+                                     "sample.ir"};
     args.insert(args.end(), extra_args.begin(), extra_args.end());
     XLS_ASSIGN_OR_RETURN(
         find_failing_input_result,

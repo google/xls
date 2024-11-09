@@ -51,6 +51,9 @@ ABSL_FLAG(std::optional<std::string>, args_file, std::nullopt,
           "simulation.");
 ABSL_FLAG(std::optional<std::string>, ir_channel_names_file, std::nullopt,
           "Optional file containing IR names of input channels for a proc.");
+ABSL_FLAG(std::optional<std::string>, testvector_textproto, std::nullopt,
+          "A textproto file containing the function argument or proc "
+          "channel test vectors.");
 
 namespace xls {
 
@@ -77,7 +80,8 @@ std::filesystem::path MaybeCopyFile(const std::filesystem::path& file_path,
 static absl::Status RealMain(
     const std::filesystem::path& run_dir, const std::string& options_file,
     const std::string& input_file, const std::optional<std::string>& args_file,
-    const std::optional<std::string>& ir_channel_names_file) {
+    const std::optional<std::string>& ir_channel_names_file,
+    const std::optional<std::string>& testvector_file) {
   SampleRunner runner(run_dir);
   std::filesystem::path input_filename = MaybeCopyFile(input_file, run_dir);
   std::filesystem::path options_filename = MaybeCopyFile(options_file, run_dir);
@@ -89,8 +93,12 @@ static absl::Status RealMain(
       ir_channel_names_file.has_value()
           ? std::make_optional(MaybeCopyFile(*ir_channel_names_file, run_dir))
           : std::nullopt;
+  std::optional<std::filesystem::path> testvector_filename =
+      testvector_file.has_value()
+          ? std::make_optional(MaybeCopyFile(*testvector_file, run_dir))
+          : std::nullopt;
   return runner.RunFromFiles(input_filename, options_filename, args_filename,
-                             ir_channel_names_filename);
+                             ir_channel_names_filename, testvector_filename);
 }
 
 }  // namespace xls
@@ -132,6 +140,7 @@ int main(int argc, char** argv) {
       xls::RealMain(run_dir, absl::GetFlag(FLAGS_options_file),
                     absl::GetFlag(FLAGS_input_file),
                     absl::GetFlag(FLAGS_args_file),
-                    absl::GetFlag(FLAGS_ir_channel_names_file)),
+                    absl::GetFlag(FLAGS_ir_channel_names_file),
+                    absl::GetFlag(FLAGS_testvector_textproto)),
       /*log_on_error=*/false);
 }
