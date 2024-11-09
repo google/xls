@@ -233,6 +233,8 @@ class Sample {
   // file. Crashers may be checked in as tests in `xls/fuzzer/crashers/`.
   std::string ToCrasher(std::string_view error_message) const;
 
+  // TODO(google/xls#1645) args batch and channel names should be sample inputs
+  // proto instead.
   Sample(std::string input_text, SampleOptions options,
          std::vector<std::vector<dslx::InterpValue>> args_batch,
          std::vector<std::string> ir_channel_names = {})

@@ -212,19 +212,6 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, testvector));
   argv.push_back("--testvector_textproto=testvector.pbtxt");
 
-  std::filesystem::path args_file_name = run_dir / "args.txt";
-  XLS_RETURN_IF_ERROR(
-      SetFileContents(args_file_name, ArgsBatchToText(smp.args_batch())));
-
-  std::optional<std::filesystem::path> ir_channel_names_file_name =
-      std::nullopt;
-  if (!smp.ir_channel_names().empty()) {
-    ir_channel_names_file_name = run_dir / "ir_channel_names.txt";
-    XLS_RETURN_IF_ERROR(
-        SetFileContents(*ir_channel_names_file_name,
-                        IrChannelNamesToText(smp.ir_channel_names())));
-  }
-
   argv.push_back("\"$RUNDIR\"");
 
   std::filesystem::path run_script_path = run_dir / "run.sh";
@@ -242,9 +229,8 @@ cd "$RUNDIR"
   VLOG(1) << "Starting to run sample";
   VLOG(2) << smp.input_text();
   SampleRunner runner(run_dir);
-  XLS_RETURN_IF_ERROR(
-      runner.RunFromFiles(sample_file_name, options_file_name, args_file_name,
-                          ir_channel_names_file_name, testvector_path));
+  XLS_RETURN_IF_ERROR(runner.RunFromFiles(sample_file_name, options_file_name,
+                                          testvector_path));
 
   fuzzer::SampleTimingProto timing = runner.timing();
 

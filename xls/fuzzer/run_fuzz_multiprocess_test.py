@@ -52,7 +52,7 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
     self.assertIn('sample.x', sample1_contents)
     self.assertIn('sample.x.results', sample1_contents)
-    self.assertIn('args.txt', sample1_contents)
+    self.assertIn('testvector.pbtxt', sample1_contents)
     self.assertIn('sample.ir', sample1_contents)
     self.assertIn('sample.ir.results', sample1_contents)
     self.assertIn('sample.opt.ir', sample1_contents)
@@ -61,10 +61,6 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     # Codegen was not enabled so there should be no Verilog file.
     self.assertNotIn('sample.v', sample1_contents)
     self.assertNotIn('sample.sv', sample1_contents)
-
-    # Args file should have three lines in it.
-    with open(os.path.join(samples_path, 'worker0-sample0', 'args.txt')) as f:
-      self.assertEqual(len(f.read().strip().splitlines()), 3)
 
   def test_multiple_workers(self):
     crasher_path = self.create_tempdir().full_path
@@ -147,7 +143,7 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
     self.assertIn('sample.x', sample1_contents)
     self.assertIn('sample.x.results', sample1_contents)
-    self.assertIn('args.txt', sample1_contents)
+    self.assertIn('testvector.pbtxt', sample1_contents)
     self.assertIn('sample.ir', sample1_contents)
     self.assertIn('sample.ir.results', sample1_contents)
     self.assertIn('sample.opt.ir', sample1_contents)
@@ -196,7 +192,7 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
     self.assertIn('sample.x', sample1_contents)
     self.assertIn('sample.x.results', sample1_contents)
-    self.assertIn('args.txt', sample1_contents)
+    self.assertIn('testvector.pbtxt', sample1_contents)
     self.assertIn('sample.ir', sample1_contents)
     self.assertIn('sample.ir.results', sample1_contents)
     self.assertIn('sample.opt.ir', sample1_contents)
