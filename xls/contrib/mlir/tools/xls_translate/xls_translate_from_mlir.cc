@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/contrib/mlir/tools/xls_translate/xls_translate.h"
+#include "xls/contrib/mlir/tools/xls_translate/xls_translate_from_mlir.h"
 
 #include <cassert>
 #include <cstdint>

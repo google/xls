@@ -524,11 +524,11 @@ cc_library(
     name = "xls_translate_lib",
     srcs = [
         "tools/xls_translate/xls_stitch.cc",
-        "tools/xls_translate/xls_translate.cc",
+        "tools/xls_translate/xls_translate_from_mlir.cc",
     ],
     hdrs = [
         "tools/xls_translate/xls_stitch.h",
-        "tools/xls_translate/xls_translate.h",
+        "tools/xls_translate/xls_translate_from_mlir.h",
     ],
     data = [
         "stdlib/fp_ext_trunc.x",
