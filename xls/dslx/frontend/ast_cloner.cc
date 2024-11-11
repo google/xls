@@ -1018,12 +1018,12 @@ absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
   return cloner.old_to_new().at(root);
 }
 
-absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module* module,
+absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
                                                     CloneReplacer replacer) {
-  auto new_module = std::make_unique<Module>(module->name(), module->fs_path(),
-                                             *module->file_table());
+  auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
+                                             *module.file_table());
   AstCloner cloner(new_module.get(), std::move(replacer));
-  XLS_RETURN_IF_ERROR(module->Accept(&cloner));
+  XLS_RETURN_IF_ERROR(module.Accept(&cloner));
   return new_module;
 }
 

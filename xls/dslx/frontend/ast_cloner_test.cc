@@ -131,7 +131,7 @@ fn main() {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
@@ -330,7 +330,7 @@ proc p<N: u32> {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kExpected, clone->ToString());
 }
 
@@ -371,7 +371,7 @@ proc p {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kExpected, clone->ToString());
 }
 
@@ -752,7 +752,7 @@ proc my_proc {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
@@ -770,7 +770,7 @@ TEST(AstClonerTest, IndexVariants) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
@@ -791,7 +791,7 @@ fn main() {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
@@ -806,7 +806,7 @@ TEST(AstClonerTest, Ternary) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
@@ -821,7 +821,7 @@ TEST(AstClonerTest, FormatMacro) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
@@ -842,7 +842,7 @@ fn main(x: u32, y: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
@@ -855,7 +855,7 @@ TEST(AstClonerTest, String) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
@@ -868,7 +868,7 @@ TEST(AstClonerTest, ConstAssert) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
@@ -883,7 +883,7 @@ TEST(AstClonerTest, NormalFor) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
@@ -896,7 +896,7 @@ TEST(AstClonerTest, TupleIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
                                                     "the_module", file_table));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
@@ -976,7 +976,7 @@ proc MyProc {
   }
   XLS_ASSERT_OK(module_or.status());
   Module* module = module_or.value().get();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone, CloneModule(module));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone, CloneModule(*module));
   EXPECT_EQ(kExpected, clone->ToString());
 }
 
@@ -1089,7 +1089,7 @@ TEST(AstClonerTest, CloneModuleClonesVerbatimNode) {
       module.get()->AddTop(&original, /*make_collision_error=*/nullptr));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> cloned_module,
-                           CloneModule(module.get()));
+                           CloneModule(*module.get()));
   EXPECT_EQ(cloned_module->top().size(), 2);
 
   VerbatimNode* cloned_verbatim_node =

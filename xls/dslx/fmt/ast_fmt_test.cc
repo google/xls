@@ -2545,7 +2545,7 @@ class DisableFmtTest : public testing::Test {
     FormatDisabler disabler(comments, input);
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Module> clone,
-        CloneModule(m.get(),
+        CloneModule(*m.get(),
                     [&](const AstNode* node)
                         -> absl::StatusOr<std::optional<AstNode*>> {
                       return disabler(node);
