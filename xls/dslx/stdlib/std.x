@@ -477,15 +477,6 @@ fn test_round_up_to_pow2_signed() {
     assert_eq(round_up_to_nearest_pow2_signed(s16:-9, u16:16), s16:0);
 }
 
-// Rotate `x` right by `y` bits.
-pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { (x >> y) | (x << ((N as bits[N]) - y)) }
-
-#[test]
-fn rrot_test() {
-    assert_eq(bits[3]:0b101, rrot(bits[3]:0b011, bits[3]:1));
-    assert_eq(bits[3]:0b011, rrot(bits[3]:0b110, bits[3]:1));
-}
-
 // Returns `floor(log2(x))`, with one exception:
 //
 // When x=0, this function differs from the true mathematical function:
@@ -687,6 +678,56 @@ fn test_popcount() {
     assert_eq(popcount(u1:0x1), u1:1);
     assert_eq(popcount(u32:0xffffffff), u32:32);
 }
+
+// Rotate `x` right by `y` bits.
+pub fn rotr<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
+    let y_mod = y % (N as bits[N]);
+    (x >> y_mod) | (x << ((N as bits[N]) - y_mod))
+}
+
+#[test]
+fn test_rotr() {
+    assert_eq(bits[3]:0b101, rotr(bits[3]:0b011, bits[3]:1));
+    assert_eq(bits[3]:0b011, rotr(bits[3]:0b110, bits[3]:1));
+}
+
+#[test]
+fn test_rotr_zero_shift() {
+    let x = u8:0xaa;
+    let result = rotr(x, u8:0);
+    assert_eq(result, x);  // Should be unchanged
+}
+
+#[quickcheck]
+fn rotr_preserves_popcount(x: u8, y: u8) -> bool { popcount(x) == popcount(rotr(x, y)) }
+
+// Rotate `x` left by `y` bits.
+pub fn rotl<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
+    let y_mod = y % (N as bits[N]);
+    (x << y_mod) | (x >> ((N as bits[N]) - y_mod))
+}
+
+#[quickcheck]
+fn rotr_then_rotl_is_original(x: u8, y: u8) -> bool { x == rotl(rotr(x, y), y) }
+
+#[quickcheck]
+fn rotl_then_rotr_is_original(x: u8, y: u8) -> bool { x == rotr(rotl(x, y), y) }
+
+#[test]
+fn test_rotl() {
+    assert_eq(bits[3]:0b110, rotl(bits[3]:0b011, bits[3]:1));
+    assert_eq(bits[3]:0b101, rotl(bits[3]:0b110, bits[3]:1));
+}
+
+#[test]
+fn test_rotl_zero_shift() {
+    let x = u8:0xaa;
+    let result = rotl(x, u8:0);
+    assert_eq(result, x);  // Should be unchanged
+}
+
+#[quickcheck]
+fn rotl_preserves_popcount(x: u8, y: u8) -> bool { popcount(x) == popcount(rotl(x, y)) }
 
 // Converts an unsigned number to a signed number of the same width.
 //
