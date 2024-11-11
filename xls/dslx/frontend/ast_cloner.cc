@@ -408,7 +408,8 @@ class AstCloner : public AstNodeVisitor {
     }
 
     old_to_new_[n] = module_->Make<Invocation>(
-        n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())), new_args);
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())), new_args,
+        CloneParametrics(n->explicit_parametrics()));
     return absl::OkStatus();
   }
 

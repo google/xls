@@ -48,6 +48,15 @@ absl::StatusOr<ProcStmt> ToProcStmt(AstNode* n) {
   if (auto* s = dynamic_cast<ProcMember*>(n)) {
     return s;
   }
+  if (auto* s = dynamic_cast<ConstAssert*>(n)) {
+    return s;
+  }
+  if (auto* s = dynamic_cast<ConstantDef*>(n)) {
+    return s;
+  }
+  if (auto* s = dynamic_cast<TypeAlias*>(n)) {
+    return s;
+  }
   return absl::InvalidArgumentError(absl::StrCat(
       "Node is not a valid ProcStmt; type: ", n->GetNodeTypeName()));
 }

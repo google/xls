@@ -119,6 +119,22 @@ fn main() -> u32[3] {
   XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, ParametricInvocation) {
+  constexpr std::string_view kProgram = R"(fn f<X: u32>() -> u32 {
+    X
+}
+fn main() {
+    f<u32:1>();
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, ReplaceOneOfTwoNameRefs) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
@@ -299,6 +315,47 @@ fn p.next<N: u32>(state: ()) -> () {
     ()
 }
 proc p<N: u32> {
+    config() {
+        ()
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        ()
+    }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kExpected, clone->ToString());
+}
+
+TEST(AstClonerTest, ProcWithConstant) {
+  constexpr std::string_view kProgram = R"(
+proc p {
+    const C = u32:0;
+    type T = u32;
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+)";
+  constexpr std::string_view kExpected = R"(fn p.config() -> () {
+    ()
+}
+fn p.init() -> () {
+    ()
+}
+fn p.next(state: ()) -> () {
+    ()
+}
+proc p {
+    const C = u32:0;
+    type T = u32;
     config() {
         ()
     }
