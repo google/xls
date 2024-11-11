@@ -643,6 +643,48 @@ TEST(ValueTest, FromProtoArray) {
   }
 }
 
+TEST(ValueTest, FromProtoMaxBitSize) {
+  // Bits type.
+  {
+    std::string_view source_txt = R"pb(
+      bits { bit_count: 42, data: "A" }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    EXPECT_THAT(Value::FromProto(source, /*max_bit_size=*/32),
+                absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("Bit value is too large")));
+  }
+  // Tuple type.
+  {
+    std::string_view source_txt = R"pb(
+      tuple {
+        elements { tuple { elements { bits { bit_count: 200, data: "A" } } } }
+        elements { bits { bit_count: 100, data: "B" } }
+      }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    EXPECT_THAT(Value::FromProto(source, /*max_bit_size=*/105),
+                absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("Bit value is too large")));
+  }
+  // Array type.
+  {
+    std::string_view source_txt = R"pb(
+      array {
+        elements { tuple { elements { bits { bit_count: 7, data: "A" } } } }
+        elements { tuple { elements { bits { bit_count: 7, data: "B" } } } }
+      }
+    )pb";
+    ValueProto source;
+    ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(source_txt, &source));
+    EXPECT_THAT(Value::FromProto(source, /*max_bit_size=*/5),
+                absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("Bit value is too large")));
+  }
+}
+
 void ProtoValueRoundTripWorks(const ValueProto& v) {
   auto value = Value::FromProto(v, /*max_bit_size=*/1 << 16);
   if (!value.ok()) {

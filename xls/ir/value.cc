@@ -393,7 +393,7 @@ absl::StatusOr<Value> Value::FromProto(const ValueProto& proto,
       std::vector<Value> values;
       values.reserve(proto.tuple().elements_size());
       for (const ValueProto& e : proto.tuple().elements()) {
-        XLS_ASSIGN_OR_RETURN(Value element, Value::FromProto(e));
+        XLS_ASSIGN_OR_RETURN(Value element, Value::FromProto(e, max_bit_size));
         values.push_back(element);
       }
       return Value::TupleOwned(std::move(values));
@@ -408,7 +408,7 @@ absl::StatusOr<Value> Value::FromProto(const ValueProto& proto,
       std::vector<Value> values;
       values.reserve(proto.array().elements_size());
       for (const ValueProto& e : proto.array().elements()) {
-        XLS_ASSIGN_OR_RETURN(Value element, Value::FromProto(e));
+        XLS_ASSIGN_OR_RETURN(Value element, Value::FromProto(e, max_bit_size));
         values.push_back(element);
         if (values.size() != 1 && !values.front().SameTypeAs(values.back())) {
           return absl::InvalidArgumentError(absl::StrFormat(
