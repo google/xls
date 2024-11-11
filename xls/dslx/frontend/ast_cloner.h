@@ -60,11 +60,11 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement);
 // cloning proceeds as normal. If it returns an `AstNode*`, then that pointer is
 // used as a wholesale replacement subtree, and cloning does not delve into the
 // children of the original node.
-absl::StatusOr<AstNode*> CloneAst(AstNode* root,
+absl::StatusOr<AstNode*> CloneAst(const AstNode* root,
                                   CloneReplacer replacer = &NoopCloneReplacer);
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
-    Module* module, CloneReplacer replacer = &NoopCloneReplacer);
+    const Module* module, CloneReplacer replacer = &NoopCloneReplacer);
 
 // Verifies that the AST node tree rooted at `new_root` does not contain any of
 // the AST nodes in the tree rooted at `old_root`. In practice, this will verify

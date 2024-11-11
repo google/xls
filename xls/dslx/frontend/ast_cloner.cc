@@ -1009,8 +1009,8 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
   };
 }
 
-absl::StatusOr<AstNode*> CloneAst(AstNode* root, CloneReplacer replacer) {
-  if (dynamic_cast<Module*>(root) != nullptr) {
+absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
+  if (dynamic_cast<const Module*>(root) != nullptr) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
   }
   AstCloner cloner(root->owner(), std::move(replacer));
@@ -1018,7 +1018,7 @@ absl::StatusOr<AstNode*> CloneAst(AstNode* root, CloneReplacer replacer) {
   return cloner.old_to_new().at(root);
 }
 
-absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module,
+absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module* module,
                                                     CloneReplacer replacer) {
   auto new_module = std::make_unique<Module>(module->name(), module->fs_path(),
                                              *module->file_table());
