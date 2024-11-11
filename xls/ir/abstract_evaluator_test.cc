@@ -29,6 +29,10 @@
 namespace xls {
 namespace {
 
+// How many bytes we will let fuzz inputs to mul/div operations be. This is
+// chosen to avoid timeout with inordinately long fuzz test cases.
+static constexpr int64_t kMaxMulBytes = 100;
+
 // Simple wrapper to avoid std::vector<bool> specialization.
 struct BoxedBool {
   bool value;
@@ -140,13 +144,15 @@ void EvaluatorMatchesReferenceUMul(const Bits& lhs, const Bits& rhs) {
   TestAbstractEvaluator eval;
   Bits got = FromBoxedVector(eval.UMul(ToBoxedVector(lhs), ToBoxedVector(rhs)));
   Bits want = bits_ops::UMul(lhs, rhs);
+
   EXPECT_EQ(got, want) << "unsigned: " << BigInt::MakeUnsigned(lhs) << " * "
                        << BigInt::MakeUnsigned(rhs) << " = "
                        << BigInt::MakeUnsigned(got)
                        << ", should be: " << BigInt::MakeUnsigned(want);
 }
 FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMul)
-    .WithDomains(NonemptyBits(), NonemptyBits());
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
 void EvaluatorMatchesReferenceSMul(const Bits& lhs, const Bits& rhs) {
   TestAbstractEvaluator eval;
@@ -158,7 +164,8 @@ void EvaluatorMatchesReferenceSMul(const Bits& lhs, const Bits& rhs) {
                        << ", should be: " << BigInt::MakeSigned(want);
 }
 FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMul)
-    .WithDomains(NonemptyBits(), NonemptyBits());
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
 TEST(AbstractEvaluatorTest, UDiv) {
   TestAbstractEvaluator eval;
@@ -236,7 +243,8 @@ void EvaluatorMatchesReferenceUDiv(const Bits& lhs, const Bits& rhs) {
                        << ", should be: " << BigInt::MakeUnsigned(want);
 }
 FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUDiv)
-    .WithDomains(NonemptyBits(), NonemptyBits());
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
 void EvaluatorMatchesReferenceSDiv(const Bits& lhs, const Bits& rhs) {
   if (rhs.IsZero()) {
@@ -251,7 +259,8 @@ void EvaluatorMatchesReferenceSDiv(const Bits& lhs, const Bits& rhs) {
                        << ", should be: " << BigInt::MakeSigned(want);
 }
 FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSDiv)
-    .WithDomains(NonemptyBits(), NonemptyBits());
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
 void EvaluatorMatchesReferenceUMod(const Bits& lhs, const Bits& rhs) {
   if (rhs.IsZero()) {
@@ -266,7 +275,8 @@ void EvaluatorMatchesReferenceUMod(const Bits& lhs, const Bits& rhs) {
                        << ", should be: " << BigInt::MakeUnsigned(want);
 }
 FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceUMod)
-    .WithDomains(NonemptyBits(), NonemptyBits());
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
 void EvaluatorMatchesReferenceSMod(const Bits& lhs, const Bits& rhs) {
   if (rhs.IsZero()) {
@@ -281,7 +291,8 @@ void EvaluatorMatchesReferenceSMod(const Bits& lhs, const Bits& rhs) {
                        << ", should be: " << BigInt::MakeSigned(want);
 }
 FUZZ_TEST(AbstractEvaluatorFuzzTest, EvaluatorMatchesReferenceSMod)
-    .WithDomains(NonemptyBits(), NonemptyBits());
+    .WithDomains(NonemptyBits(/*max_byte_count=*/kMaxMulBytes),
+                 NonemptyBits(/*max_byte_count=*/kMaxMulBytes));
 
 TEST(AbstractEvaluatorTest, SMul) {
   TestAbstractEvaluator eval;

@@ -15,9 +15,11 @@
 #ifndef XLS_IR_BITS_TEST_UTILS_H_
 #define XLS_IR_BITS_TEST_UTILS_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "xls/common/fuzzing/fuzztest.h"
@@ -86,7 +88,14 @@ inline auto ArbitraryBits() {
 }
 
 // GoogleFuzzTest domain for nonempty Bits.
-inline auto NonemptyBits() {
+//
+// If given max_byte_count is the maximum number of bytes (sets of 8 bits) the
+// bits object may take up.
+inline auto NonemptyBits(std::optional<size_t> max_byte_count = std::nullopt) {
+  auto data = fuzztest::Arbitrary<std::vector<uint8_t>>().WithMinSize(1);
+  if (max_byte_count) {
+    data = data.WithMaxSize(*max_byte_count);
+  }
   return fuzztest::ReversibleMap(
       [](const std::vector<uint8_t>& bytes, uint8_t excess_bits) -> Bits {
         CHECK(!bytes.empty());
@@ -101,8 +110,7 @@ inline auto NonemptyBits() {
         return std::make_optional(std::make_tuple(
             bits.ToBytes(), overflow_bits == 0 ? 0 : (8 - overflow_bits)));
       },
-      fuzztest::NonEmpty(fuzztest::Arbitrary<std::vector<uint8_t>>()),
-      fuzztest::InRange<uint8_t>(0, 7));
+      std::move(data), fuzztest::InRange<uint8_t>(0, 7));
 }
 
 }  // namespace xls
