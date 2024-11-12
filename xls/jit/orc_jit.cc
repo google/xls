@@ -30,6 +30,7 @@
 #include "absl/strings/str_format.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/Analysis/CGSCCPassManager.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/AbsoluteSymbols.h"  // IWYU pragma: keep
 #include "llvm/include/llvm/ExecutionEngine/Orc/CompileUtils.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
