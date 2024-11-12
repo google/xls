@@ -1197,6 +1197,17 @@ pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool
 Returns whether all the `items` are distinct (i.e. there are no duplicate
 items) after the `valid` mask is applied.
 
+```dslx
+import std;
+
+#[test]
+fn test_distinct_with_invalid() {
+    let items = u8[4]:[1, 2, 3, 1];
+    let valid = bool[4]:[true, true, true, false];
+    assert_eq(std::distinct(items, valid), true);
+}
+```
+
 ## `import acm_random`
 
 Port of
