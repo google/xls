@@ -1194,8 +1194,8 @@ ultimately discarded from the unselected match arm.
 pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool
 ```
 
-Returns true iff there are multiple equivalent elements in `items` that are
-also `valid`. That is, `valid` acts as an item mask.
+Returns whether all the `items` are distinct (i.e. there are no duplicate
+items) after the `valid` mask is applied.
 
 ## `import acm_random`
 
