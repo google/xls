@@ -1268,3 +1268,63 @@ fn clzt_test() {
 
 #[quickcheck]
 fn prop_clzt_same_as_clz(x: u64) -> bool { clz(x) == clzt(x) as u64 }
+
+/// Returns whether all the `items` are distinct (i.e. there are no duplicate
+/// items) after the `valid` mask is applied.
+pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool {
+    const INIT_ALL_DISTINCT = true;
+    for (i, all_distinct) in range(u32:0, COUNT) {
+        for (j, all_distinct) in range(u32:0, COUNT) {
+            if i != j && valid[i] && valid[j] && items[i] == items[j] {
+                false
+            } else {
+                all_distinct
+            }
+        }(all_distinct)
+    }(INIT_ALL_DISTINCT)
+}
+
+#[test]
+fn test_simple_nondistinct() { assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false) }
+
+#[test]
+fn test_distinct_unsigned() {
+    let items = u8[4]:[1, 2, 3, 2];
+    let valid = bool[4]:[true, true, true, true];
+    assert_eq(distinct(items, valid), false);
+}
+
+#[test]
+fn test_distinct_signed() {
+    let items = s8[3]:[-1, 0, 1];
+    let valid = bool[3]:[true, true, true];
+    assert_eq(distinct(items, valid), true);
+}
+
+#[test]
+fn test_distinct_with_invalid() {
+    let items = u8[4]:[1, 2, 3, 1];
+    let valid = bool[4]:[true, true, true, false];
+    assert_eq(distinct(items, valid), true);
+}
+
+#[quickcheck]
+fn quickcheck_forced_duplicate(xs: u4[4], to_dupe: u2) -> bool {
+    const ALL_VALID = bool[4]:[true, ...];
+    let forced_dupe = update(xs, (to_dupe as u32 + u32:1) % u32:4, xs[to_dupe]);
+    distinct(forced_dupe, ALL_VALID) == false
+}
+
+#[quickcheck]
+fn quickcheck_distinct_all_valid_items_same(value: u4, valid: bool[4]) -> bool {
+    let items = u4[4]:[value, ...];  // All items are the same.
+    let num_valid = popcount(valid as u4) as u32;
+
+    if num_valid <= u32:1 {
+        // With 0 or 1 valid items, they are trivially distinct.
+        distinct(items, valid) == true
+    } else {
+        // Since all valid items are the same, 'distinct' should return false.
+        distinct(items, valid) == false
+    }
+}

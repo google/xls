@@ -46,7 +46,7 @@ fn test_array_size() {
 }
 ```
 
-### `widening_cast` and `checked_cast`
+### `widening_cast`, `checked_cast`
 
 `widening_cast` and `checked_cast` cast bits-type values to bits-type values
 with additional checks compared to casting with `as`.
@@ -1187,6 +1187,15 @@ of a value like `-1` to prevent out-of-bounds accesses from occurring if the
 index is used in a match expression (which will eagerly evaluate all of its
 arms), to prevent it from creating an error at simulation time if the value is
 ultimately discarded from the unselected match arm.
+
+#### `std::distinct`
+
+```dslx-snippet
+pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool
+```
+
+Returns true iff there are multiple equivalent elements in `items` that are
+also `valid`. That is, `valid` acts as an item mask.
 
 ## `import acm_random`
 
