@@ -34,9 +34,9 @@ fn sha256_chunk_w_table(chunk: bits[512]) -> u32[64] {
     // ranges can start at values other than 0.
     let w: u32[64] = for (i, w): (u32, u32[64]) in range(u32:0, u32:48) {
         let w_im15: u32 = w[i + u32:16 - u32:15];
-        let s_0: u32 = std::rrot(w_im15, u32:7) ^ std::rrot(w_im15, u32:18) ^ (w_im15 >> u32:3);
+        let s_0: u32 = std::rotr(w_im15, u32:7) ^ std::rotr(w_im15, u32:18) ^ (w_im15 >> u32:3);
         let w_im2: u32 = w[i + u32:16 - u32:2];
-        let s_1: u32 = std::rrot(w_im2, u32:17) ^ std::rrot(w_im2, u32:19) ^ (w_im2 >> u32:10);
+        let s_1: u32 = std::rotr(w_im2, u32:17) ^ std::rotr(w_im2, u32:19) ^ (w_im2 >> u32:10);
         let value: u32 = w[i + u32:16 - u32:16] + s_0 + w[i + u32:16 - u32:7] + s_1;
         update(w, i + u32:16, value)
     }(w_init);
@@ -68,10 +68,10 @@ fn sha256_chunk(chunk: bits[512], digest_init: Digest) -> Digest {
     // Compute the digest using the "w" table over 64 "rounds".
     let (a, b, c, d, e, f, g, h): Digest = for (i, (a, b, c, d, e, f, g, h)): (u32, Digest) in
         range(u32:0, u32:64) {
-        let S1 = std::rrot(e, u32:6) ^ std::rrot(e, u32:11) ^ std::rrot(e, u32:25);
+        let S1 = std::rotr(e, u32:6) ^ std::rotr(e, u32:11) ^ std::rotr(e, u32:25);
         let ch = (e & f) ^ ((!e) & g);
         let temp1 = h + S1 + ch + K[i] + w[i];
-        let S0 = std::rrot(a, u32:2) ^ std::rrot(a, u32:13) ^ std::rrot(a, u32:22);
+        let S0 = std::rotr(a, u32:2) ^ std::rotr(a, u32:13) ^ std::rotr(a, u32:22);
         let maj = (a & b) ^ (a & c) ^ (b & c);
         let temp2 = S0 + maj;
         let (h, g, f) = (g, f, e);

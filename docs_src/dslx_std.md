@@ -932,13 +932,19 @@ pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z>(x: bits[X], y: bits[Y
 
 Concatenates 3 values of arbitrary bitwidths to a single value.
 
-#### `std::rrot`
+#### `std::rotr`, `std::rotl`
 
 ```dslx-snippet
-pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N]
+pub fn rotr<N: u32>(x: bits[N], y: bits[N]) -> bits[N]
 ```
 
 Rotate `x` right by `y` bits.
+
+```dslx-snippet
+pub fn rotl<N: u32>(x: bits[N], y: bits[N]) -> bits[N]
+```
+
+Rotate `x` left by `y` bits.
 
 #### `std::popcount`
 
