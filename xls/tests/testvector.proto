@@ -21,12 +21,20 @@ package xls.testvector;
 //      The channel data should possibly even be a xls::ProcChannelValuesProto
 //      but requires to re-write existing crasher*.x
 
+message ValidHoldoff {
+  optional int64 cycles = 1;
+  repeated string driven_values = 2;
+}
+
 // Inputs fed to a single input channel of the sample proc.
 message ChannelInputProto {
   optional string channel_name = 1;
 
   // Values to feed into the channel. Each entry is a single xls::Value.
   repeated string values = 2;
+
+  // If set, needs to have the same amount of values as "values" vector.
+  repeated ValidHoldoff valid_holdoffs = 3;
 }
 
 // Inputs fed to all channels of the sample proc.

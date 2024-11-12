@@ -95,8 +95,8 @@ absl::Status VerifyReadyValidHoldoffs(
                      valid_holdoffs.size())
         << absl::StreamFormat(
                "Number of valid holdoffs does not match number of inputs for "
-               "channel `%s` which has no inputs",
-               channel_name);
+               "channel `%s` which has %d inputs",
+               channel_name, channel_inputs.at(channel_name).size());
     for (const ValidHoldoff& valid_holdoff : valid_holdoffs) {
       XLS_RET_CHECK_GE(valid_holdoff.cycles, 0);
       if (!valid_holdoff.driven_values.empty()) {
@@ -104,8 +104,8 @@ absl::Status VerifyReadyValidHoldoffs(
                          valid_holdoff.driven_values.size())
             << absl::StreamFormat(
                    "Mismatch between holdoff length and number of driven "
-                   "values for  channel `%s` which has no inputs",
-                   channel_name);
+                   "values for  channel `%s` which has %d inputs",
+                   channel_name, channel_inputs.at(channel_name).size());
       }
     }
   }

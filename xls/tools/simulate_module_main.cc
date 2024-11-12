@@ -17,6 +17,7 @@
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -120,6 +121,7 @@ struct FunctionInput {
 struct ProcInput {
   absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs;
   absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  std::optional<verilog::ReadyValidHoldoffs> holdoffs;
 };
 
 using InputType = std::variant<FunctionInput, ProcInput>;
@@ -137,6 +139,21 @@ absl::StatusOr<InputType> ConvertTestVector(
       for (std::string_view value_str : channel_input.values()) {
         XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(value_str));
         channel_values.push_back(value);
+      }
+      if (channel_input.valid_holdoffs().empty()) {
+        continue;
+      }
+      if (!result.holdoffs.has_value()) {
+        result.holdoffs = verilog::ReadyValidHoldoffs();
+      }
+      auto holdoff_inserted = result.holdoffs->valid_holdoffs.insert(
+          {channel_input.channel_name(), {}});
+      QCHECK(holdoff_inserted.second);
+      std::vector<verilog::ValidHoldoff>& sink = holdoff_inserted.first->second;
+      for (const auto& holdoff : channel_input.valid_holdoffs()) {
+        // For now, only interested in hold-off cycles, no placeholder values.
+        CHECK(holdoff.driven_values().empty()) << "Needs impl: conversion";
+        sink.push_back({.cycles = holdoff.cycles(), .driven_values = {}});
       }
     }
     return result;
@@ -156,7 +173,8 @@ absl::Status RunProc(const verilog::ModuleSimulator& simulator,
   XLS_ASSIGN_OR_RETURN(
       MapT channel_outputs,
       simulator.RunInputSeriesProc(proc_input.channel_inputs,
-                                   proc_input.output_channel_counts));
+                                   proc_input.output_channel_counts,
+                                   proc_input.holdoffs));
   std::cout << ChannelValuesToString(channel_outputs) << '\n';
   return absl::OkStatus();
 }
