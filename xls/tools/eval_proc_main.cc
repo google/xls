@@ -1274,10 +1274,10 @@ int main(int argc, char* argv[]) {
 
   if (absl::c_count(
           absl::Span<const bool>{
-              absl::GetFlag(FLAGS_inputs_for_channels).empty() &&
-              absl::GetFlag(FLAGS_inputs_for_all_channels).empty() &&
-              absl::GetFlag(FLAGS_proto_inputs_for_all_channels).empty()},
-          false) > 1) {
+              !absl::GetFlag(FLAGS_inputs_for_channels).empty(),
+              !absl::GetFlag(FLAGS_inputs_for_all_channels).empty(),
+              !absl::GetFlag(FLAGS_proto_inputs_for_all_channels).empty()},
+          true) > 1) {
     LOG(QFATAL) << "Only one of --inputs_for_channels, "
                    "--inputs_for_all_channels, and "
                    "--proto_inputs_for_all_channels must be set.";
@@ -1285,11 +1285,11 @@ int main(int argc, char* argv[]) {
 
   if (absl::c_count(
           absl::Span<const bool>{
-              absl::GetFlag(FLAGS_expected_outputs_for_channels).empty() &&
-              absl::GetFlag(FLAGS_expected_outputs_for_all_channels).empty() &&
-              absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels)
-                  .empty()},
-          false) > 1) {
+              !absl::GetFlag(FLAGS_expected_outputs_for_channels).empty(),
+              !absl::GetFlag(FLAGS_expected_outputs_for_all_channels).empty(),
+              !absl::GetFlag(FLAGS_expected_proto_outputs_for_all_channels)
+                   .empty()},
+          true) > 1) {
     LOG(QFATAL) << "Only one of --expected_outputs_for_channels, "
                    "--expected_outputs_for_all_channels, and "
                    "--expected_proto_outputs_for_all_channels must be set.";
