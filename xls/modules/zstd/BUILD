@@ -506,7 +506,7 @@ xls_dslx_verilog(
     codegen_args = {
         "module_name": "DecoderMux",
         "delay_model": "asap7",
-        "pipeline_stages": "2",
+        "pipeline_stages": "3",
         "reset": "rst",
         "use_system_verilog": "false",
     },
@@ -520,7 +520,7 @@ xls_benchmark_ir(
     name = "dec_mux_opt_ir_benchmark",
     src = ":dec_mux_verilog.opt.ir",
     benchmark_ir_args = {
-        "pipeline_stages": "2",
+        "pipeline_stages": "10",
         "delay_model": "asap7",
     },
     tags = ["manual"],
