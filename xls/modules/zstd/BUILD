@@ -49,6 +49,19 @@ common_codegen_args = {
 }
 
 xls_dslx_library(
+    name = "math_dslx",
+    srcs = [
+        "math.x",
+    ],
+)
+
+xls_dslx_test(
+    name = "math_dslx_test",
+    library = ":math_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
     name = "buffer_dslx",
     srcs = [
         "buffer.x",
@@ -166,7 +179,10 @@ xls_dslx_library(
     srcs = [
         "common.x",
     ],
-    deps = [],
+    deps = [
+        "//xls/modules/shift_buffer:shift_buffer_dslx",
+        "//xls/examples:ram_dslx",
+    ],
 )
 
 xls_dslx_library(
@@ -931,7 +947,8 @@ xls_dslx_library(
     deps = [
         ":common_dslx",
         ":ram_wr_handler_dslx",
-        ":shift_buffer_dslx",
+        ":refilling_shift_buffer_dslx",
+        "//xls/modules/shift_buffer:shift_buffer_dslx",
         "//xls/examples:ram_dslx",
     ],
 )
@@ -1404,4 +1421,263 @@ py_test(
         "@com_google_absl_py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
     ],
+)
+
+xls_dslx_library(
+    name = "fse_lookup_dec_dslx",
+    srcs = [
+        "fse_lookup_dec.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd:common_dslx",
+        "//xls/modules/zstd:fse_table_creator_dslx",
+        "//xls/modules/zstd:refilling_shift_buffer_dslx",
+        "//xls/modules/zstd:fse_proba_freq_dec_dslx",
+        "//xls/modules/shift_buffer:shift_buffer_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "fse_lookup_dec_dslx_test",
+    library = ":fse_lookup_dec_dslx",
+)
+
+xls_dslx_library(
+    name = "fse_table_iterator_dslx",
+    srcs = ["fse_table_iterator.x"],
+    deps = [
+        ":common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "fse_table_iterator_dslx_test",
+    library = ":fse_table_iterator_dslx",
+)
+
+xls_dslx_verilog(
+    name = "fse_table_iterator_verilog",
+    codegen_args = {
+        "module_name": "FseTableIterator",
+        "delay_model": "asap7",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "FseTableIterator",
+    library = ":fse_table_iterator_dslx",
+    verilog_file = "fse_table_iterator.v",
+)
+
+xls_benchmark_ir(
+    name = "fse_table_iterator_opt_ir_benchmark",
+    src = ":fse_table_iterator_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+    },
+)
+
+verilog_library(
+    name = "fse_table_iterator_verilog_lib",
+    srcs = [
+        ":fse_table_iterator.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "fse_table_iterator_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "FseTableIterator",
+    deps = [
+        ":fse_table_iterator_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "fse_table_iterator_benchmark_synth",
+    synth_target = ":fse_table_iterator_synth_asap7",
+)
+
+place_and_route(
+    name = "fse_table_iterator_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":fse_table_iterator_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "fse_table_creator_dslx",
+    srcs = ["fse_table_creator.x"],
+    deps = [
+        ":common_dslx",
+        ":fse_table_iterator_dslx",
+        ":ram_wr_handler_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "fse_table_creator_dslx_test",
+    library = ":fse_table_creator_dslx",
+)
+
+xls_dslx_verilog(
+    name = "fse_table_creator_verilog",
+    codegen_args = {
+        "module_name": "FseTableCreator",
+        "delay_model": "asap7",
+        "pipeline_stages": "4",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "FseTableCreatorInst",
+    library = ":fse_table_creator_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__fse_table_creator__FseTableCreatorInst__FseTableCreator_0__8_16_1_8_32_4_8_16_1_next",
+    },
+    verilog_file = "fse_table_creator.v",
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "fse_table_creator_opt_ir_benchmark",
+    src = ":fse_table_creator_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "10",
+        "delay_model": "asap7",
+    },
+)
+
+xls_benchmark_verilog(
+    name = "fse_table_creator_verilog_benchmark",
+    verilog_target = "fse_table_creator_verilog",
+)
+
+verilog_library(
+    name = "fse_table_creator_lib",
+    srcs = [
+        ":fse_table_creator.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "fse_table_creator_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "FseTableCreator",
+    deps = [
+        ":fse_table_creator_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "fse_table_creator_benchmark_synth",
+    synth_target = ":fse_table_creator_asap7",
+)
+
+place_and_route(
+    name = "fse_table_creator_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":fse_table_creator_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "fse_dec_dslx",
+    srcs = [
+        "fse_dec.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+        ":common_dslx",
+        ":math_dslx",
+        ":fse_table_creator_dslx",
+        "//xls/modules/zstd:refilling_shift_buffer_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "fse_dec_dslx_test",
+    library = ":fse_dec_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_verilog(
+    name = "fse_dec_verilog",
+    codegen_args = {
+        "module_name": "FseDecoder",
+        "delay_model": "asap7",
+        "pipeline_stages": "8",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+    dslx_top = "FseDecoderInst",
+    opt_ir_args = {
+        "top": "__fse_dec__FseDecoderInst__FseDecoder_0__64_8_32_4_64_7_next"
+    },
+    library = ":fse_dec_dslx",
+    tags = ["manual"],
+    verilog_file = "fse_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "fse_dec_opt_ir_benchmark",
+    src = ":fse_dec_verilog.opt.ir",
+    benchmark_ir_args = {
+        "delay_model": "asap7",
+        "pipeline_stages": "3",
+        "inline_procs": "false"
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "fse_dec_verilog_lib",
+    srcs = [
+        ":fse_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "fse_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "FseDecoder",
+    deps = [
+        ":fse_dec_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "fse_dec_benchmark_synth",
+    synth_target = ":fse_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "fse_dec_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    die_height_microns = 100,
+    die_width_microns = 100,
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":fse_dec_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
