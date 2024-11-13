@@ -3356,8 +3356,10 @@ class VerbatimNode : public AstNode {
   std::string text_;
 };
 
-// Helper for determining whether an AST node is constant (e.g. can be
-// considered a constant value in a ConstantArray).
+// Helper for determining whether an AST node is constant (e.g., can be
+// considered a constant value in a ConstantArray). In general a node
+// with no children is considered constant, but there are some exceptions
+// (e.g., NameRef).
 bool IsConstant(AstNode* n);
 
 }  // namespace xls::dslx

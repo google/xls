@@ -902,6 +902,9 @@ bool IsConstant(AstNode* node) {
   if (IsOneOf<ConstantArray, Number, ConstRef, ColonRef>(node)) {
     return true;
   }
+  if (IsOneOf<NameRef>(node)) {
+    return false;
+  }
   if (Cast* n = dynamic_cast<Cast*>(node)) {
     return IsConstant(n->expr());
   }

@@ -2341,6 +2341,29 @@ TEST_F(ParserTest, ConstantArray) {
   ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
 }
 
+TEST_F(ParserTest, MixedArrayIsNotConstantArray) {
+  std::unique_ptr<Module> module = RoundTrip(R"(const a = u32:0;
+const b = u32[2]:[a, 1];)");
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant_def,
+                           module->GetConstantDef("b"));
+  auto array = constant_def->value();
+  ASSERT_TRUE(dynamic_cast<Array*>(array) != nullptr);
+}
+
+TEST_F(ParserTest, NonConstantArrayIsNotConstantArray) {
+  std::unique_ptr<Module> module = RoundTrip(R"(const a = u32:0;
+const b = u32[2]:[a, a];)");
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * constant_def,
+                           module->GetConstantDef("b"));
+  auto array = constant_def->value();
+  ASSERT_TRUE(dynamic_cast<Array*>(array) != nullptr);
+}
+
+TEST_F(ParserTest, EmptyArrayIsConstant) {
+  Expr* e = RoundTripExpr("u32[2]:[]", {}, false, std::nullopt);
+  ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
+}
+
 TEST_F(ParserTest, DoubleNegation) { RoundTripExpr("!!x", {"x"}, false); }
 
 TEST_F(ParserTest, ArithmeticOperatorPrecedence) {

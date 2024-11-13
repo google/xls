@@ -241,5 +241,115 @@ TEST(AstTest, GetFuncParam) {
                        HasSubstr("Param 'not_a_param' not a parameter")));
 }
 
+TEST(AstTest, IsConstantNameRef) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  NameDef* name_def =
+      m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
+  NameRef* name_ref = m.Make<NameRef>(fake_span, "name", name_def);
+
+  EXPECT_FALSE(IsConstant(name_ref));
+}
+
+TEST(AstTest, IsConstantBinopOfNameRefs) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  NameDef* name_def =
+      m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
+  NameRef* left = m.Make<NameRef>(fake_span, "name", name_def);
+  NameRef* right = m.Make<NameRef>(fake_span, "name", name_def);
+  Binop* binop = m.Make<Binop>(fake_span, BinopKind::kAdd, left, right);
+
+  EXPECT_FALSE(IsConstant(binop));
+}
+
+TEST(AstTest, IsConstantBinopOfNumbers) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  Number* left = m.Make<Number>(fake_span, std::string("41"),
+                                NumberKind::kOther, /*type=*/nullptr);
+  Number* right = m.Make<Number>(fake_span, std::string("42"),
+                                 NumberKind::kOther, /*type=*/nullptr);
+  Binop* binop = m.Make<Binop>(fake_span, BinopKind::kAdd, left, right);
+
+  EXPECT_TRUE(IsConstant(binop));
+}
+
+TEST(AstTest, IsConstantUnopOfNameRefs) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  NameDef* name_def =
+      m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
+  NameRef* operand = m.Make<NameRef>(fake_span, "name", name_def);
+  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, operand);
+
+  EXPECT_FALSE(IsConstant(unop));
+}
+
+TEST(AstTest, IsConstantUnopOfNumbers) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  Number* operand = m.Make<Number>(fake_span, std::string("41"),
+                                   NumberKind::kOther, /*type=*/nullptr);
+  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, operand);
+
+  EXPECT_TRUE(IsConstant(unop));
+}
+
+TEST(AstTest, IsConstantNumber) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  Number* number = m.Make<Number>(fake_span, std::string("42"),
+                                  NumberKind::kOther, /*type=*/nullptr);
+
+  EXPECT_TRUE(IsConstant(number));
+}
+
+TEST(AstTest, IsConstantArrayOfNameRefs) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  NameDef* name_def =
+      m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
+  NameRef* operand = m.Make<NameRef>(fake_span, "name", name_def);
+  Array* array = m.Make<Array>(fake_span, std::vector<Expr*>{operand}, false);
+
+  EXPECT_FALSE(IsConstant(array));
+}
+
+TEST(AstTest, IsConstantArrayOfNumbers) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  Number* operand = m.Make<Number>(fake_span, std::string("41"),
+                                   NumberKind::kOther, /*type=*/nullptr);
+  Array* array = m.Make<Array>(fake_span, std::vector<Expr*>{operand}, false);
+
+  EXPECT_TRUE(IsConstant(array));
+}
+
+TEST(AstTest, IsConstantEmptyArray) {
+  FileTable file_table;
+  const Span fake_span;
+  Module m("test", /*fs_path=*/std::nullopt, file_table);
+
+  Array* array = m.Make<Array>(fake_span, std::vector<Expr*>{}, false);
+
+  EXPECT_TRUE(IsConstant(array));
+}
 }  // namespace
 }  // namespace xls::dslx
