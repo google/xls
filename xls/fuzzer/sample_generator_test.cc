@@ -37,11 +37,12 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::testing::HasSubstr;
 
-TEST(SampleGeneratorTest, GenerateBasicSample) {
+TEST(SampleGeneratorTest, GenerateBasicFunctionSample) {
   dslx::FileTable file_table;
   std::mt19937_64 rng;
   SampleOptions sample_options;
-  sample_options.set_calls_per_sample(3);
+  constexpr int kCallsPerSample = 3;
+  sample_options.set_calls_per_sample(kCallsPerSample);
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample, GenerateSample(dslx::AstGeneratorOptions{}, sample_options,
                                     rng, file_table));
@@ -50,7 +51,7 @@ TEST(SampleGeneratorTest, GenerateBasicSample) {
   EXPECT_TRUE(sample.options().optimize_ir());
   EXPECT_FALSE(sample.options().codegen());
   EXPECT_FALSE(sample.options().simulate());
-  EXPECT_EQ(sample.args_batch().size(), 3);
+  EXPECT_EQ(sample.args_batch().size(), kCallsPerSample);
   EXPECT_THAT(sample.input_text(), testing::HasSubstr("fn main"));
 }
 
@@ -71,29 +72,31 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
   EXPECT_TRUE(sample.options().codegen());
   EXPECT_TRUE(sample.options().simulate());
   EXPECT_FALSE(sample.options().codegen_args().empty());
-  EXPECT_TRUE(sample.args_batch().empty());
+  EXPECT_EQ(sample.args_batch().size(), kCallsPerSample);
 }
 
 TEST(SampleGeneratorTest, GenerateChannelArgument) {
   std::mt19937_64 rng;
   std::vector<std::unique_ptr<dslx::Type>> param_types;
+  constexpr int64_t kBitCount = 4;
   param_types.push_back(
       std::make_unique<dslx::ChannelType>(std::make_unique<dslx::BitsType>(
                                               /*signed=*/true,
-                                              /*size=*/4),
+                                              /*size=*/kBitCount),
                                           dslx::ChannelDirection::kOut));
 
   std::vector<const dslx::Type*> param_type_ptrs;
   param_type_ptrs.reserve(param_types.size());
-  for (auto& t : param_types) {
+  for (const auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
   }
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<dslx::InterpValue> arguments,
                            GenerateInterpValues(rng, param_type_ptrs));
   ASSERT_EQ(arguments.size(), 1);
-  dslx::InterpValue value = arguments[0];
+  ASSERT_EQ(arguments.size(), param_types.size());
+  const dslx::InterpValue& value = arguments[0];
   ASSERT_TRUE(value.IsSBits());
-  EXPECT_THAT(value.GetBitCount(), IsOkAndHolds(4));
+  EXPECT_THAT(value.GetBitCount(), IsOkAndHolds(kBitCount));
 }
 
 TEST(SampleGeneratorTest, GenerateBasicProcSample) {
@@ -113,6 +116,11 @@ TEST(SampleGeneratorTest, GenerateBasicProcSample) {
   EXPECT_FALSE(sample.options().codegen());
   EXPECT_FALSE(sample.options().simulate());
   EXPECT_EQ(sample.args_batch().size(), kProcTicks);
+
+  // Just kProcTicks ticks, no channels with content
+  EXPECT_TRUE(sample.args_batch()[0].empty());
+  EXPECT_TRUE(sample.ir_channel_names().empty());
+
   EXPECT_THAT(sample.input_text(), HasSubstr("proc main"));
 }
 
