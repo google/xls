@@ -191,7 +191,7 @@ fn main(x0: u1, x1: s23, x2: uN[97], x3: s29) -> (sN[97], s23, u21, u5) {
   let x22: s29 = (x3) | (((x7) as s29));
   let x23: u21 = gate!((((x17) as u5)) != (x21), x8);
   let x24: uN[97] = bit_slice_update(x7, x7, x17);
-  let x25: x14[1] = slice(x15, x7, x14[1]:[(x15)[u32:0], ...]);
+  let x25: x14[1] = array_slice(x15, x7, x14[1]:[(x15)[u32:0], ...]);
   let x26: uN[97] = !(x6);
   let x32: x31[1] = map(x15, x27);
   let x33: s45 = s45:0xfff_ffff_ffff;

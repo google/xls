@@ -1495,8 +1495,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinArraySize(bytecode, stack_);
     case Builtin::kSignex:
       return RunBuiltinSignex(bytecode, stack_);
-    case Builtin::kSlice:
-      return RunBuiltinSlice(bytecode, stack_);
+    case Builtin::kArraySlice:
+      return RunBuiltinArraySlice(bytecode, stack_);
     case Builtin::kSMulp:
       return RunBuiltinSMulp(bytecode, stack_);
     case Builtin::kTrace:

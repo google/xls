@@ -190,10 +190,10 @@ fn main(x2: s52, x3: x1[W32_V11], x4: u51) -> (x1[W32_V11], bool, u25, bool, u51
         let x15: (s52, u51, u25, u51, u51) = (x2, x4, x11, x4, x5);
         let x16: u51 = ctz(x12);
         let x17: x1[55] = x7 ++ x8;
-        let x18: x1[9] = slice(x8, x16, x1[9]:[x8[u32:0x0], ...]);
+        let x18: x1[9] = array_slice(x8, x16, x1[9]:[x8[u32:0x0], ...]);
         let x19: u51 = rev(x4);
         let x20: bool = -x10;
-        let x21: x1[1] = slice(x17, x9, x1[1]:[x17[u32:0x0], ...]);
+        let x21: x1[1] = array_slice(x17, x9, x1[1]:[x17[u32:0x0], ...]);
         let x22: bool = gate!(x6 as uN[153] != x9, x10);
         let x24: x23[1] = x4 as x23[1];
         let x25: bool = x22 - x13 as bool;

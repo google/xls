@@ -87,7 +87,7 @@ proc main {
             let x28: s15 = s15:0x2aaa;
             let x29: x1[13] = x19.4;
             let x30: bool = and_reduce(x22);
-            let x31: x1[10] = slice(x29, x22, x1[10]:[x29[u32:0x0], ...]);
+            let x31: x1[10] = array_slice(x29, x22, x1[10]:[x29[u32:0x0], ...]);
             let x32: (bool, bool, x1[13], x6[1]) = (x30, x23, x2, x7);
             x2
         }

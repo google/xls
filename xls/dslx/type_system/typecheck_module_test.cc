@@ -1747,7 +1747,7 @@ TEST(TypecheckTest, SliceBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[3] {
   let x: u32[2] = u32[2]:[0, 1];
-  slice(x, u32:0, u32[3]:[0, 0, 0])
+  array_slice(x, u32:0, u32[3]:[0, 0, 0])
 }
 )"));
 }

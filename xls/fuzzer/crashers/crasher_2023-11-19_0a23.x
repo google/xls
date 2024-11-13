@@ -197,8 +197,8 @@ fn main(x0: s33, x1: u8) -> (uN[528], x9[7], uN[256]) {
         let x14: uN[528] = !x7;
         let x15: uN[528] = x14[x6+:uN[528]];
         let x16: uN[528] = bit_slice_update(x15, x5, x1);
-        let x17: x9[6] = slice(x10, x14, x9[6]:[x10[u32:0x0], ...]);
-        let x18: x9[1] = slice(x10, x12, x9[1]:[x10[u32:0x0], ...]);
+        let x17: x9[6] = array_slice(x10, x14, x9[6]:[x10[u32:0x0], ...]);
+        let x18: x9[1] = array_slice(x10, x12, x9[1]:[x10[u32:0x0], ...]);
         let x19: x9[16] = x17 ++ x10;
         let x20: x9[7] = x17 ++ x18;
         let x21: bool = x12[:];

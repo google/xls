@@ -81,11 +81,12 @@ absl::Status RunTernaryBuiltin(
 
 }  // namespace
 
-absl::Status RunBuiltinSlice(const Bytecode& bytecode,
-                             InterpreterStack& stack) {
+absl::Status RunBuiltinArraySlice(const Bytecode& bytecode,
+                                  InterpreterStack& stack) {
   return RunTernaryBuiltin(
       [](const InterpValue& basis, const InterpValue& start,
-         const InterpValue& type_value) {
+         const InterpValue& type_value) -> absl::StatusOr<InterpValue> {
+        XLS_RET_CHECK(basis.IsArray());
         return basis.Slice(start, type_value);
       },
       stack);

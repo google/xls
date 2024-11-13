@@ -2152,7 +2152,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
           {"priority_sel", &FunctionConverter::HandleBuiltinPrioritySel},
-          {"slice", &FunctionConverter::HandleBuiltinArraySlice},
+          {"array_slice", &FunctionConverter::HandleBuiltinArraySlice},
           {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
           {"rev", &FunctionConverter::HandleBuiltinRev},
           {"zip", &FunctionConverter::HandleBuiltinZip},

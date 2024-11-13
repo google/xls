@@ -26,7 +26,8 @@
 
 namespace xls::dslx {
 
-absl::Status RunBuiltinSlice(const Bytecode& bytecode, InterpreterStack& stack);
+absl::Status RunBuiltinArraySlice(const Bytecode& bytecode,
+                                  InterpreterStack& stack);
 
 absl::Status RunBuiltinUpdate(const Bytecode& bytecode,
                               InterpreterStack& stack);

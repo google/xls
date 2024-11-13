@@ -199,7 +199,7 @@ proc main {
       let x13: u19 = x11.1;
       let x14: bool = x11.2;
       let x16: token = send(x0, x15, x2);
-      let x17: x4[1] = slice(x5, x7, x4[1]:[x5[u32:0x0], ...]);
+      let x17: x4[1] = array_slice(x5, x7, x4[1]:[x5[u32:0x0], ...]);
       let x18: u30 = for (i, x): (u4, u30) in u4:0x0..u4:0x8 {
         x
       }(x1);

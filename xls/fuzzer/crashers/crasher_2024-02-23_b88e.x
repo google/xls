@@ -186,14 +186,14 @@ fn main(x1: s15, x2: u15, x3: u33, x4: u63, x5: x0[W32_V9], x6: s30, x7: s1, x8:
         let x13: x12[63] = x4 as x12[63];
         let x14: u63 = -x4;
         let x16: x15[3] = [x1, x1, x1];
-        let x17: x0[1] = slice(x5, x14, x0[1]:[x5[u32:0x0], ...]);
+        let x17: x0[1] = array_slice(x5, x14, x0[1]:[x5[u32:0x0], ...]);
         let x18: u63 = x4 >> x2;
         let x19: bool = x7 < x10 as s1;
         let x20: s23 = s23:0x7f_ffff;
         let x21: (x0[1], s15, u21, x12[63]) = (x17, x1, x10, x13);
         let x22: s15 = x1 * x10 as s15;
         let x23: bool = x21 != x21;
-        let x24: x0[1] = slice(x5, x23, x0[1]:[x5[u32:0x0], ...]);
+        let x24: x0[1] = array_slice(x5, x23, x0[1]:[x5[u32:0x0], ...]);
         let x25: bool = x18 as bool | x19;
         let x26: s41 = s41:0x1ff_ffff_ffff;
         let x27: bool = x21 != x21;

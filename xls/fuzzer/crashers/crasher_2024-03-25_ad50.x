@@ -190,7 +190,7 @@ fn main(x0: u51, x1: s46, x2: (uN[1535], (u60, u55, u30), u52), x3: u52) -> (boo
         let x8: u10 = -x5;
         let x9: u52 = x8 as u52 & x4;
         let x11: x10[W32_V13] = x9 as x10[W32_V13];
-        let x12: x10[1] = slice(x11, x0, x10[1]:[x11[u32:0b0], ...]);
+        let x12: x10[1] = array_slice(x11, x0, x10[1]:[x11[u32:0b0], ...]);
         let x13: u52 = x4 - x4;
         let x19: x18[1] = map(x12, x14);
         let x20: x18[2] = x19 ++ x19;

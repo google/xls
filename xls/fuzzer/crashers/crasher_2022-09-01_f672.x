@@ -177,7 +177,7 @@ fn main(x0: s7, x1: s37, x2: s57, x3: uN[745]) -> (s30, uN[796], uN[1490], x4[6]
   let x7: bool = (x5) == (x5);
   let x8: uN[1490] = ctz(x6);
   let x9: uN[796] = (x8)[:-694];
-  let x10: x4[6] = slice(x5, x6, x4[6]:[(x5)[u32:0], ...]);
+  let x10: x4[6] = array_slice(x5, x6, x4[6]:[(x5)[u32:0], ...]);
   let x11: uN[1490] = (((x2) as uN[1490])) + (x8);
   let x12: uN[1490] = -(x6);
   let x13: uN[1148] = (x11)[x9+:uN[1148]];

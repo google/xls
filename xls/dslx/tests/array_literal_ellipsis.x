@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(x: u8[4], start: u32) -> u8[3] { slice(x, start, u8[3]:[0, ...]) }
+fn main(x: u8[4], start: u32) -> u8[3] { array_slice(x, start, u8[3]:[0, ...]) }
 
 #[test]
 fn slice_test() {

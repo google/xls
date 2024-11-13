@@ -220,7 +220,7 @@ proc main {
             let x31: x30[1] = [x29];
             let x32: bool = x29 * x10 as bool;
             let x33: x30 = x31[if x27 >= u19:0x0 { u19:0x0 } else { x27 }];
-            let x34: x6[9] = slice(x22, x16, x6[9]:[x22[u32:0x0], ...]);
+            let x34: x6[9] = array_slice(x22, x16, x6[9]:[x22[u32:0x0], ...]);
             let x35: token = for (i, x) in u4:0x0..u4:0x6 {
                 x
             }(x9);

@@ -190,7 +190,7 @@ fn main(x0: u46, x1: x2[W32_V9], x3: x4[W32_V8], x5: s37, x6: s62, x7: s8, x8: u
   let x24: u46 = (x0) & (((x17) as u46));
   let x25: u21 = (x0)[25+:u21];
   let x26: u8 = (x7 as u8)[0+:u8];
-  let x27: x4[3] = slice(x23, x0, x4[3]:[(x23)[u64:0], ...]);
+  let x27: x4[3] = array_slice(x23, x0, x4[3]:[(x23)[u64:0], ...]);
   let x28: s8 = !(x7);
   let x29: u59 = bit_slice_update(x19, x11, x0);
   let x30: (s37, s8, u42) = (x5, x7, x11);

@@ -187,7 +187,7 @@ fn main(x0: s33, x1: u41, x2: u37, x3: s42, x4: s31, x5: u28) -> (u41, u20, (x6[
   let x14: u41 = !(x1);
   let x15: u2 = (x14)[x2+:u2];
   let x16: u56 = (x5) ++ (x5);
-  let x17: x8[1] = slice(x9, x14, x8[1]:[(x9)[u32:0b0], ...]);
+  let x17: x8[1] = array_slice(x9, x14, x8[1]:[(x9)[u32:0b0], ...]);
   let x18: u41 = !(x1);
   let x19: u20 = (((x11) as u31))[4:24];
   let x20: bool = (x0) <= (((x1) as s33));
