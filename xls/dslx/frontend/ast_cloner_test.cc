@@ -334,6 +334,77 @@ proc p<N: u32> {
   EXPECT_EQ(kExpected, clone->ToString());
 }
 
+TEST(AstClonerTest, ParametricProcSpawn) {
+  constexpr std::string_view kProgram = R"(
+proc p<N: u32> {
+    config() { () }
+    init { () }
+    next(state: ()) { () }
+}
+
+proc parent {
+    config() {
+        spawn p<u32:8>();
+        ()
+    }
+    init { () }
+    next(state: ()) { () }
+}
+
+)";
+
+  constexpr std::string_view kExpected = R"(fn p.config<N: u32>() -> () {
+    ()
+}
+fn p.init<N: u32>() -> () {
+    ()
+}
+fn p.next<N: u32>(state: ()) -> () {
+    ()
+}
+proc p<N: u32> {
+    config() {
+        ()
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        ()
+    }
+}
+fn parent.config() -> () {
+    spawn p<u32:8>();
+    ()
+}
+fn parent.init() -> () {
+    ()
+}
+fn parent.next(state: ()) -> () {
+    ()
+}
+proc parent {
+    config() {
+        spawn p<u32:8>();
+        ()
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        ()
+    }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kExpected, clone->ToString());
+}
+
 TEST(AstClonerTest, ProcWithConstant) {
   constexpr std::string_view kProgram = R"(
 proc p {
@@ -524,6 +595,20 @@ TEST(AstClonerTest, Casts) {
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
+}
+
+TEST(AstClonerTest, CastWithParens) {
+  constexpr std::string_view kProgram = R"(fn main(x: u5) -> u13 {
+    (x as u13) * u13:5
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
 }
 
 TEST(AstClonerTest, Procs) {
@@ -887,6 +972,22 @@ TEST(AstClonerTest, NormalFor) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, ForWithoutTypeAnnotations) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
+    for (i, a) in range(0, u32:100) {
+        i + a
+    }(u32:0)
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, TupleIndex) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     (u8:8, u16:16, u32:32, u64:64).2
@@ -1098,6 +1199,67 @@ TEST(AstClonerTest, CloneModuleClonesVerbatimNode) {
 
   EXPECT_EQ(original.text(), cloned_verbatim_node->text());
   EXPECT_EQ(original.span(), cloned_verbatim_node->span());
+}
+
+TEST(AstClonerTest, ModuleLevelAnnotations) {
+  constexpr std::string_view kProgram =
+      R"(#![allow(nonstandard_constant_naming)]
+#![type_inference_version = 2]
+
+const name = u32:42;)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, TypeAnnotations) {
+  constexpr std::string_view kProgram =
+      R"(#[sv_type("foo")]
+type MyU32 = u32;)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, EnumAnnotation) {
+  constexpr std::string_view kProgram =
+      R"(#[sv_type("foo")]
+enum MyEnum : u32 {
+    A = 1,
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, StructAnnotation) {
+  constexpr std::string_view kProgram =
+      R"(#[sv_type("foo")]
+struct Point {
+    x: u32,
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
 }
 
 }  // namespace

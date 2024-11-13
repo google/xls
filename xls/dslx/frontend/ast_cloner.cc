@@ -159,9 +159,11 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleCast(const Cast* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<Cast>(
+    auto new_cast = module_->Make<Cast>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->expr())),
         down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
+    new_cast->set_in_parens(n->in_parens());
+    old_to_new_[n] = new_cast;
     return absl::OkStatus();
   }
 
@@ -275,7 +277,6 @@ class AstCloner : public AstNodeVisitor {
       new_type_annotation =
           down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
     }
-
     std::vector<EnumMember> new_values;
     for (const auto& member : n->values()) {
       new_values.push_back(EnumMember{
@@ -287,6 +288,10 @@ class AstCloner : public AstNodeVisitor {
         module_->Make<EnumDef>(n->span(), new_name_def, new_type_annotation,
                                new_values, n->is_public());
     new_name_def->set_definer(new_enum_def);
+    if (n->extern_type_name().has_value()) {
+      new_enum_def->set_extern_type_name(*n->extern_type_name());
+    }
+
     old_to_new_[n] = new_enum_def;
 
     return absl::OkStatus();
@@ -295,10 +300,20 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleFor(const For* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->names()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->type_annotation()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->iterable()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->body()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->init()));
+
+    auto new_type_annotation =
+        n->type_annotation() == nullptr
+            ? nullptr
+            : down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
+
     old_to_new_[n] = module_->Make<For>(
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
-        down_cast<Expr*>(old_to_new_.at(n->iterable())),
+        new_type_annotation, down_cast<Expr*>(old_to_new_.at(n->iterable())),
         down_cast<StatementBlock*>(old_to_new_.at(n->body())),
         down_cast<Expr*>(old_to_new_.at(n->init())));
     return absl::OkStatus();
@@ -727,7 +742,15 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleStructDef(const StructDef* n) override {
-    return HandleStructDefBaseInternal(n);
+    absl::Status status = HandleStructDefBaseInternal(n);
+    if (status.ok()) {
+      if (n->extern_type_name().has_value()) {
+        if (auto new_struct_def = down_cast<StructDef*>(old_to_new_.at(n))) {
+          new_struct_def->set_extern_type_name(*n->extern_type_name());
+        }
+      }
+    }
+    return status;
   }
 
   absl::Status HandleProcDef(const ProcDef* n) override {
@@ -844,12 +867,15 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(&n->name_def()));
-    TypeAlias* new_td = module_->Make<TypeAlias>(
+    TypeAlias* new_ta = module_->Make<TypeAlias>(
         n->span(), *new_name_def,
         *down_cast<TypeAnnotation*>(old_to_new_.at(&n->type_annotation())),
         n->is_public());
-    new_name_def->set_definer(new_td);
-    old_to_new_[n] = new_td;
+    if (n->extern_type_name().has_value()) {
+      new_ta->set_extern_type_name(*n->extern_type_name());
+    }
+    new_name_def->set_definer(new_ta);
+    old_to_new_[n] = new_ta;
     return absl::OkStatus();
   }
 
@@ -959,6 +985,9 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status ReplaceOrVisit(const AstNode* node) {
+    if (node == nullptr) {
+      return absl::OkStatus();
+    }
     XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> replacement, replacer_(node));
     if (replacement.has_value()) {
       old_to_new_[node] = *replacement;
@@ -972,11 +1001,14 @@ class AstCloner : public AstNodeVisitor {
     std::vector<ExprOrType> new_parametrics;
     new_parametrics.reserve(parametrics.size());
     for (const ExprOrType& parametric : parametrics) {
-      AstNode* new_node = old_to_new_.at(ToAstNode(parametric));
-      if (std::holds_alternative<Expr*>(parametric)) {
-        new_parametrics.push_back(down_cast<Expr*>(new_node));
-      } else {
-        new_parametrics.push_back(down_cast<TypeAnnotation*>(new_node));
+      AstNode* old_node = ToAstNode(parametric);
+      if (ReplaceOrVisit(old_node).ok()) {
+        AstNode* new_node = old_to_new_.at(old_node);
+        if (std::holds_alternative<Expr*>(parametric)) {
+          new_parametrics.push_back(down_cast<Expr*>(new_node));
+        } else {
+          new_parametrics.push_back(down_cast<TypeAnnotation*>(new_node));
+        }
       }
     }
     return new_parametrics;
@@ -1022,6 +1054,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
                                                     CloneReplacer replacer) {
   auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
                                              *module.file_table());
+  for (const ModuleAnnotation& ann : module.annotations()) {
+    new_module->AddAnnotation(ann);
+  }
   AstCloner cloner(new_module.get(), std::move(replacer));
   XLS_RETURN_IF_ERROR(module.Accept(&cloner));
   return new_module;
