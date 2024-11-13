@@ -744,8 +744,8 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleStructDef(const StructDef* n) override {
     absl::Status status = HandleStructDefBaseInternal(n);
     if (status.ok()) {
-      if (n->extern_type_name().has_value()) {
-        if (auto new_struct_def = down_cast<StructDef*>(old_to_new_.at(n))) {
+      if (auto new_struct_def = dynamic_cast<StructDef*>(old_to_new_.at(n))) {
+        if (n->extern_type_name().has_value()) {
           new_struct_def->set_extern_type_name(*n->extern_type_name());
         }
       }
@@ -810,9 +810,9 @@ class AstCloner : public AstNodeVisitor {
 
     std::variant<StatementBlock*, Conditional*> new_alternate;
     AstNode* new_alternate_node = old_to_new_.at(ToAstNode(n->alternate()));
-    if (auto* block = down_cast<StatementBlock*>(new_alternate_node)) {
+    if (auto* block = dynamic_cast<StatementBlock*>(new_alternate_node)) {
       new_alternate = block;
-    } else if (auto* cond = down_cast<Conditional*>(new_alternate_node)) {
+    } else if (auto* cond = dynamic_cast<Conditional*>(new_alternate_node)) {
       new_alternate = cond;
     } else {
       return absl::InternalError("Unexpected Conditional alternate node type.");

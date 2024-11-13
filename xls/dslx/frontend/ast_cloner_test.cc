@@ -896,6 +896,20 @@ TEST(AstClonerTest, Ternary) {
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
 }
 
+TEST(AstClonerTest, IfElseIf) {
+  constexpr std::string_view kProgram =
+      R"(fn ifelseif(s: bool, x: u32, y: u32) -> u32 {
+    if s == true { x } else if x == u32:7 { y } else { u32:42 }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, FormatMacro) {
   constexpr std::string_view kProgram = R"(fn main(x: u32) -> u32 {
     let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
