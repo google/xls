@@ -54,7 +54,7 @@ namespace xls::dslx {
   X("widening_cast", kWideningCast)       \
   X("signex", kSignex)                    \
   X("smulp", kSMulp)                      \
-  X("slice", kSlice)                      \
+  X("array_slice", kArraySlice)           \
   X("trace!", kTrace)                     \
   X("umulp", kUMulp)                      \
   X("update", kUpdate)                    \

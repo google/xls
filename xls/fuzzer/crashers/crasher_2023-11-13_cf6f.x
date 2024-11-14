@@ -63,7 +63,7 @@ fn main(x1: x0[7], x2: u29, x3: u43, x4: u5) -> (u11, bool, u6, u43, u43, u4) {
         let x13: bool = xor_reduce(x6);
         let x14: u43 = x12 >> if x9 >= u4:0xe { u4:0xe } else { x9 };
         let x15: u16 = x8[27+:u16];
-        let x16: x0[9] = slice(x1, x12, x0[9]:[x1[u32:0x0], ...]);
+        let x16: x0[9] = array_slice(x1, x12, x0[9]:[x1[u32:0x0], ...]);
         let x17: u7 = u7:0x8;
         let x18: u11 = match x12 {
             u43:0x3ff_ffff_ffff => u11:0x5b8,

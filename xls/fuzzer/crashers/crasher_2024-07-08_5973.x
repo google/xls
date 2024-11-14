@@ -196,7 +196,7 @@ fn x22(x23: bool, x24: s10, x25: u10) -> (bool, bool, bool, bool) {
 }
 fn x31(x32: bool, x33: x1[1], x34: (bool, bool, bool, bool)) -> (x37[W32_V10], x1[1], x1[1], x1[1]) {
     {
-        let x35: x1[1] = slice(x33, x32, x1[1]:[x33[u32:0x0], ...]);
+        let x35: x1[1] = array_slice(x33, x32, x1[1]:[x33[u32:0x0], ...]);
         let x38: x37[W32_V10] = match x34 {
             (bool:true, bool:0b1, bool:false, bool:false) | (bool:false, _, bool:0x1, bool:true) => [[s40:0x55_5555_5555, s40:0x7f_ffff_ffff, s40:0x0, s40:0x3a_9e43_35de, s40:0xaa_aaaa_aaaa, s40:0x0, s40:0x7f_ffff_ffff], [s40:0xaa_aaaa_aaaa, s40:0xae_353d_212c, s40:0x55_5555_5555, s40:0x8, s40:0x0, s40:0xff_ffff_ffff, s40:0x0], [s40:0xff_ffff_ffff, s40:0x7f_ffff_ffff, s40:0xaa_aaaa_aaaa, s40:0x4000_0000, s40:0x7f_ffff_ffff, s40:0xff_ffff_ffff, s40:68719476736], [s40:0xaa_aaaa_aaaa, s40:0x2_0000, s40:0xff_ffff_ffff, s40:0x7f_ffff_ffff, s40:0x7f_ffff_ffff, s40:0x800, s40:0xaa_aaaa_aaaa], [s40:0xaa_aaaa_aaaa, s40:0x8, s40:0x0, s40:0x8_0000, s40:0x0, s40:0x55_5555_5555, s40:0xff_ffff_ffff], [s40:0x4000, s40:0x800, s40:0xff_ffff_ffff, s40:0x0, s40:0xff_ffff_ffff, s40:0xff_ffff_ffff, s40:0x73_bfe3_6b51], [s40:0x0, s40:0x4, s40:0x0, s40:0x7f_ffff_ffff, s40:0x7f_ffff_ffff, s40:0xff_ffff_ffff, s40:0x0], [s40:0x55_5555_5555, s40:0x55_5555_5555, s40:0x200, s40:0b1_0100_1110_0001_0001_1110_1000_1001_0011_1011, s40:0x7f_ffff_ffff, s40:0x0, s40:0x0], [s40:0x55_5555_5555, s40:0x55_5555_5555, s40:0x7f_ffff_ffff, s40:0x8000_0000, s40:0xaa_aaaa_aaaa, s40:0x7f_ffff_ffff, s40:0x55_5555_5555], [s40:0xbc_283a_7f3a, s40:0xaa_aaaa_aaaa, s40:0xbd_fb0f_830d, s40:0xaa_aaaa_aaaa, s40:0x10_0000_0000, s40:0x55_5555_5555, s40:0x76_5a51_e40f]],
             _ => [[s40:0xff_ffff_ffff, s40:0x55_5555_5555, s40:0xff_ffff_ffff, s40:0x77_60c8_4f0d, s40:0xff_ffff_ffff, s40:0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111, s40:0b101_0101_0101_0101_0101_0101_0101_0101_0101_0101], [s40:0xaa_aaaa_aaaa, s40:-238053065452, s40:0x40_0000_0000, s40:0x2_0000, s40:0x55_5555_5555, s40:0xaa_aaaa_aaaa, s40:0x8_0000_0000], [s40:0xaa_aaaa_aaaa, s40:0x5_f218_541d, s40:0xaa_aaaa_aaaa, s40:0x1_0000, s40:0xff_ffff_ffff, s40:0x7f_ffff_ffff, s40:0x40], [s40:0x7f_ffff_ffff, s40:0, s40:0x13_5007_6e33, s40:0xaa_aaaa_aaaa, s40:0x0, s40:0x1000, s40:0xaa_aaaa_aaaa], [s40:0x55_5555_5555, s40:0x10, s40:0x55_5555_5555, s40:0xaa_aaaa_aaaa, s40:0x55_5555_5555, s40:0x7f_ffff_ffff, s40:0x10], [s40:0xff_ffff_ffff, s40:8589934592, s40:0x8_0000, s40:0x5dd5_0eea, s40:0xff_ffff_ffff, s40:0x3b_d3b0_4cda, s40:0b101_0101_0101_0101_0101_0101_0101_0101_0101_0101], [s40:0x55_5555_5555, s40:0x55_5555_5555, s40:0xff_ffff_ffff, s40:0x91_b13d_15d5, s40:0x0, s40:-1, s40:0x7f_ffff_ffff], [s40:0x55_5555_5555, s40:0x23_ab81_e3af, s40:0, s40:0xff_ffff_ffff, s40:0x7f_ffff_ffff, s40:0xff_ffff_ffff, s40:0xff_ffff_ffff], [s40:0x0, s40:0x9_edd3_1f4d, s40:0xaa_aaaa_aaaa, s40:0x80, s40:-1, s40:0x55_5555_5555, s40:0xff_ffff_ffff], [s40:0xff_ffff_ffff, s40:0x10_0000_0000, s40:0x800, s40:0x55_5555_5555, s40:0xff_ffff_ffff, s40:0xff_ffff_ffff, s40:0x55_5555_5555]],
@@ -215,7 +215,7 @@ proc main {
     next(x0: u58) {
         {
             let x2: x1[1] = [x0];
-            let x3: x1[1] = slice(x2, x0, x1[1]:[x2[u32:0x0], ...]);
+            let x3: x1[1] = array_slice(x2, x0, x1[1]:[x2[u32:0x0], ...]);
             let x4: s10 = s10:0x2aa;
             let x5: u58 = !x0;
             let x7: (token, u14) = recv(join(), x6);

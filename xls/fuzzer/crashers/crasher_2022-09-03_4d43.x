@@ -174,7 +174,7 @@ fn main(x0: s58, x1: s61, x2: (u1,), x3: u10) -> (x6[1], bool, x14) {
     x
   }(x4);
   let x7: x6[1] = [x2];
-  let x8: x6[1] = slice(x7, x5, x6[1]:[(x7)[u32:0], ...]);
+  let x8: x6[1] = array_slice(x7, x5, x6[1]:[(x7)[u32:0], ...]);
   let x9: x6 = (x7)[if (x5) >= (u10:0) { u10:0 } else { x5 }];
   let x10: s10 = s10:0x2aa;
   let x11: s61 = (x1) * (((x0) as s61));

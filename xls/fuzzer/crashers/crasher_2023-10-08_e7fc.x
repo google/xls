@@ -183,7 +183,7 @@ fn main(x1: x0[15], x2: u7) -> (x0[15], u11, u4, x23[W32_V1], bool) {
             _ => u11:0x100,
         };
         let x5: x4[1] = [x1];
-        let x6: x0[1] = slice(x1, x3, x0[1]:[x1[u32:0x0], ...]);
+        let x6: x0[1] = array_slice(x1, x3, x0[1]:[x1[u32:0x0], ...]);
         let x7: u11 = x3 >> if x2 >= u7:0x4 { u7:0x4 } else { x2 };
         let x8: (x0[15], x0[15], u11, u7) = (x1, x1, x7, x2);
         let x9: u11 = !x3;

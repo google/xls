@@ -77,7 +77,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           // Use a dummy value to determine size.
           {"signex",
            {.signature = "(xN[M], xN[N]) -> xN[N]", .is_ast_node = false}},
-          {"slice",
+          {"array_slice",
            {.signature = "(T[M], uN[N], T[P]) -> T[P]", .is_ast_node = false}},
           {"trace!", {.signature = "(T) -> T", .is_ast_node = false}},
 

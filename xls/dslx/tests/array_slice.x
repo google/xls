@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> s32[3] { slice(s32[8]:[1, 2, 3, 4, 5, 6, 7, 8], u32:2, s32[3]:[0, 0, 0]) }
+fn main() -> s32[3] { array_slice(s32[8]:[1, 2, 3, 4, 5, 6, 7, 8], u32:2, s32[3]:[0, 0, 0]) }
 
 #[test]
 fn test_concat() { assert_eq(s32[3]:[3, 4, 5], main()) }

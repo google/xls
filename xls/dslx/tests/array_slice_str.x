@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main() -> u8[3] { slice("HelloWorld!", u32:2, u8[3]:[0, 0, 0]) }
+fn main() -> u8[3] { array_slice("HelloWorld!", u32:2, u8[3]:[0, 0, 0]) }
 
 #[test]
 fn test_slice() { assert_eq("llo", main()) }

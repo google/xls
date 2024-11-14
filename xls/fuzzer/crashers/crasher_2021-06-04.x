@@ -33,6 +33,6 @@
 type x3 = ();
 fn main(x0: u64) -> x3[11] {
   let x4: x3[1] = [()];
-  let x7: x3[11] = slice(x4, x0, x3[11]:[(x4)[u64:0], ...]);
+  let x7: x3[11] = array_slice(x4, x0, x3[11]:[(x4)[u64:0], ...]);
   x7
 }

@@ -2300,7 +2300,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
 
   TypedExpr width{width_expr, width_type};
   auto* invocation = module_->Make<Invocation>(
-      fake_span_, MakeBuiltinNameRef("slice"),
+      fake_span_, MakeBuiltinNameRef("array_slice"),
       std::vector<Expr*>{arg.expr, start.expr, width.expr});
   return TypedExpr{
       .expr = invocation,

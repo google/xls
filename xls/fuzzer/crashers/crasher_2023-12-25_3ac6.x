@@ -184,7 +184,7 @@ fn main(x0: s31, x1: s8, x2: s58, x3: u36) -> (u36, (s58, s8, u24, u2, u36), u2,
         let x13: (s58, s8, u24, u2, u36) = (x2, x1, x8, x4, x3);
         let x14: s31 = !x0;
         let x15: u49 = u49:0x1_5555_5555_5555;
-        let x16: x10[16] = slice(x11, x8, x10[16]:[x11[u32:0x0], ...]);
+        let x16: x10[16] = array_slice(x11, x8, x10[16]:[x11[u32:0x0], ...]);
         let x17: s31 = x14 / s31:0x80;
         let x18: u24 = -x8;
         let x19: u36 = signex(x5, x3);

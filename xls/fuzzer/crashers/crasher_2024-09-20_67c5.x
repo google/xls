@@ -210,7 +210,7 @@ fn main(x1: u11, x2: x0[7], x3: (u35, u56, u35), x4: u51) -> (bool, u4, bool, x1
         let x10: x9[3] = x4 as x9[3];
         let x11: bool = x7 >> if x7 >= bool:false { bool:false } else { x7 };
         let x12: x0 = x2[x7];
-        let x13: x9[18] = slice(x10, x4, x9[18]:[x10[u32:0x0], ...]);
+        let x13: x9[18] = array_slice(x10, x4, x9[18]:[x10[u32:0x0], ...]);
         let x14: bool = x11 - x4 as bool;
         let x15: bool = x6.0;
         let x17: x16[3] = [x4, x5, x4];

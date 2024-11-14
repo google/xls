@@ -959,14 +959,14 @@ Counts the number of bits in `x` that are '1'.
 #### `std::extract_bits`
 
 ```dslx-snippet
-pub fn extract_bits<from_inclusive: u32, to_exclusive: u32, fixed_shift: u32,
-                    N: u32>(x : bits[N]) -> bits[std::max(0, to_exclusive - from_inclusive)] {
-    let x_extended = x as uN[max(unsigned_sizeof(x) + fixed_shift, to_exclusive)];
-    (x_extended << fixed_shift)[from_inclusive:to_exclusive]
+pub fn extract_bits<FROM_INCLUSIVE: u32, TO_EXCLUSIVE: u32, FIXED_SHIFT: u32,
+                    N: u32>(x: bits[N]) -> bits[std::max(u32:0, TO_EXCLUSIVE - FROM_INCLUSIVE)] {
+    let x_extended = x as uN[std::max(std::sizeof(x) + FIXED_SHIFT, TO_EXCLUSIVE)];
+    (x_extended << fixed_shift)[FROM_INCLUSIVE:TO_EXCLUSIVE]
 }
 ```
 
-Extracts a bit-slice from x shifted left by fixed_shift.  This function behaves as-if x as
+Extracts a bit-slice from x shifted left by `fixed_shift`.  This function behaves as-if x as
 resonably infinite precision so that the shift does not drop any bits and that the bit slice
 will be in-range.
 
