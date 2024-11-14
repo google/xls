@@ -33,10 +33,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/fmt/comments.h"
-#include "xls/dslx/fmt/format_disabler.h"
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_test_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/comment_data.h"
@@ -2537,20 +2535,15 @@ class DisableFmtTest : public testing::Test {
   void ExpectFormatted(std::string input) {
     std::vector<CommentData> comments_vec;
     FileTable file_table;
-    // TODO: https://github.com/google/xls/issues/1320 - fold this into AutoFmt
+
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Module> m,
         ParseModule(input, "fake.x", "fake", file_table, &comments_vec));
     Comments comments = Comments::Create(comments_vec);
-    FormatDisabler disabler(comments, input);
+
     XLS_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Module> clone,
-        CloneModule(*m.get(),
-                    [&](const AstNode* node)
-                        -> absl::StatusOr<std::optional<AstNode*>> {
-                      return disabler(node);
-                    }));
-    std::string got = AutoFmt(*clone, comments, kDslxDefaultTextWidth);
+        std::string got,
+        AutoFmtWithDisabling(*m.get(), comments, input, kDslxDefaultTextWidth));
 
     EXPECT_EQ(got, input);
   }

@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -37,11 +38,15 @@
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/fmt/comments.h"
+#include "xls/dslx/fmt/format_disabler.h"
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -2771,6 +2776,28 @@ std::string AutoFmt(const Module& m, const Comments& comments,
   DocArena arena(*m.file_table());
   DocRef ref = Fmt(m, comments, arena);
   return PrettyPrint(arena, ref, text_width);
+}
+
+absl::StatusOr<std::string> AutoFmtWithDisabling(const Module& m,
+                                                 Comments& comments,
+                                                 int64_t text_width) {
+  XLS_RET_CHECK(m.fs_path().has_value());
+  FormatDisabler disabler(comments, *m.fs_path());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> clone,
+      CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));
+  return AutoFmt(*clone, comments, text_width);
+}
+
+absl::StatusOr<std::string> AutoFmtWithDisabling(const Module& m,
+                                                 Comments& comments,
+                                                 std::string contents,
+                                                 int64_t text_width) {
+  FormatDisabler disabler(comments, contents);
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> clone,
+      CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));
+  return AutoFmt(*clone, comments, text_width);
 }
 
 // AutoFmt output should be the same as input after whitespace is eliminated
