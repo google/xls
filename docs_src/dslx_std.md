@@ -382,7 +382,9 @@ fn test_reverse() {
 least-significant bit) are replaced with `value`. The bit-width of the returned
 value is the same as the bit-width of `subject`. Any updated bit indices which
 are out of bounds (if `start + bit-width(value) >= bit-width(subject)`) are
-ignored. Example usage:
+ignored.
+
+Example usage:
 [`dslx/tests/bit_slice_update.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/bit_slice_update.x).
 
 ### bit-wise reductions: `and_reduce`, `or_reduce`, `xor_reduce`
