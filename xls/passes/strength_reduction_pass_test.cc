@@ -510,5 +510,17 @@ TEST_F(StrengthReductionPassTest, DoNotReplaceUnusedWidth0Param) {
   EXPECT_THAT(f->nodes(), UnorderedElementsAre(m::Param("x"), m::Param("y")));
 }
 
+TEST_F(StrengthReductionPassTest, HandlesOneBitMuxWithDefault) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn func() -> bits[1] {
+       literal.3: bits[1] = literal(value=0, id=3)
+       ret x6__1: bits[1] = sel(literal.3, cases=[literal.3], default=literal.3, id=6, pos=[(0,12,27)])
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+}
+
 }  // namespace
 }  // namespace xls

@@ -231,10 +231,11 @@ absl::StatusOr<bool> StrengthReduceNode(
         node->operand(0) == node->operand(2)))) {
     FunctionBase* f = node->function_base();
     Select* select = node->As<Select>();
-    XLS_RET_CHECK(!select->default_value().has_value()) << select->ToString();
     Node* s = select->operand(0);
     Node* on_false = select->get_case(0);
-    Node* on_true = select->get_case(1);
+    Node* on_true = select->default_value().has_value()
+                        ? *select->default_value()
+                        : select->get_case(1);
     XLS_ASSIGN_OR_RETURN(
         Node * lhs,
         f->MakeNode<NaryOp>(select->loc(), std::vector<Node*>{s, on_true},
