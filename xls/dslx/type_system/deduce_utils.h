@@ -38,6 +38,9 @@
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
+using ColonRefSubjectT =
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
+                 StructDef*, TypeRefTypeAnnotation*, ColonRef*>;
 
 // If the width is known for "type", checks that "number" fits in that type.
 absl::Status TryEnsureFitsInType(const Number& number,
@@ -66,13 +69,10 @@ absl::Status ValidateNumber(const Number& number, const Type& type);
 // * a module
 // * an enum definition
 // * a builtin type (with a constant item on it, a la `u7::MAX`)
-// * a constant defined via `impl` on a `StructDef`.
-absl::StatusOr<
-    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
-                 StructDef*, TypeRefTypeAnnotation*, ColonRef*>>
-ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
-                                      const TypeInfo* type_info,
-                                      const ColonRef* colon_ref);
+// * a `StructDef` with an `impl`.
+absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
+    ImportData* import_data, const TypeInfo* type_info,
+    const ColonRef* colon_ref);
 
 // Implementation of the above that can be called after type checking has been
 // performed, in which case we can eliminate some of the (invalid) possibilities

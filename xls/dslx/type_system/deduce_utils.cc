@@ -50,13 +50,6 @@
 #include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
-namespace {
-
-using ColonRefSubjectT =
-    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
-                 StructDef*, TypeRefTypeAnnotation*, ColonRef*>;
-
-}  // namespace
 
 // Resolves a `TypeAlias` AST node to a `ColonRef` subject -- this requires us
 // to traverse through aliases transitively to find a subject.
@@ -427,8 +420,9 @@ absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
 ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
                                         const TypeInfo* type_info,
                                         const ColonRef* colon_ref) {
-  XLS_ASSIGN_OR_RETURN(auto result, ResolveColonRefSubjectForTypeChecking(
-                                        import_data, type_info, colon_ref));
+  XLS_ASSIGN_OR_RETURN(
+      ColonRefSubjectT result,
+      ResolveColonRefSubjectForTypeChecking(import_data, type_info, colon_ref));
   using ReturnT =
       absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
                                   ArrayTypeAnnotation*, Impl*>>;

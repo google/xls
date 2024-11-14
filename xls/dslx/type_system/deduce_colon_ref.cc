@@ -288,8 +288,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
   XLS_VLOG_LINES(5, ctx->GetFnStackDebugString());
 
   ImportData* import_data = ctx->import_data();
-  XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
-                                         import_data, ctx->type_info(), node));
+  XLS_ASSIGN_OR_RETURN(ColonRefSubjectT subject,
+                       ResolveColonRefSubjectForTypeChecking(
+                           import_data, ctx->type_info(), node));
 
   // We get the root type information for the referred-to entity's module (the
   // subject of the colon-ref) and create a fresh deduce context for its top
