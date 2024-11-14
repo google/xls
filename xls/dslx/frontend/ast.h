@@ -2117,7 +2117,7 @@ class ZeroMacro : public Expr {
 };
 
 // Represents a call to a parametric "make an all-ones value" macro;
-// e.g. `allones!<T>()`
+// e.g. `all_ones!<T>()`
 //
 // Note that the parametric arg is a type annotation or a type expression, which
 // we currently represent as ExprOrType.

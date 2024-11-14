@@ -96,6 +96,22 @@ fn main() -> u32 {
   XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, NameRefParens) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
+    let a = u32:0;
+    let b = (a);
+    b
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, FunctionRef) {
   constexpr std::string_view kProgram = R"(
 fn f<X:u32>() -> u32 { X }
@@ -125,6 +141,29 @@ TEST(AstClonerTest, ParametricInvocation) {
 }
 fn main() {
     f<u32:1>();
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, InvocationWithParens) {
+  constexpr std::string_view kProgram =
+      R"(struct MyStruct<WIDTH: u32> {
+    myfield: bits[WIDTH],
+}
+fn myfunc<FIELD_WIDTH: u32>(arg: MyStruct<FIELD_WIDTH>) -> u32 {
+    (arg.myfield as u32)
+}
+fn myfunc_spec1(arg: MyStruct<15>) -> u32 {
+    (myfunc<u32:15>(arg))
+}
+fn myfunc_spec2(arg: MyStruct<15>) -> u32 {
+    (myfunc(arg))
 })";
 
   FileTable file_table;
@@ -173,19 +212,49 @@ fn main() -> u32 {
   XLS_ASSERT_OK(VerifyClone(body_expr, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, Number) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
+    (u32:3)
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, Range) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
+    let x = u32:4..u32:7;
+    let y = (u32:0..u32:3);
+    y[0]
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, XlsTuple) {
   constexpr std::string_view kProgram = R"(
 fn main() -> (u32, u32) {
     let a = u32:0;
     let b = u32:1;
-    (a, b)
+    ((a, b))
 }
 )";
 
   constexpr std::string_view kExpected = R"({
     let a = u32:0;
     let b = u32:1;
-    (a, b)
+    ((a, b))
 })";
 
   FileTable file_table;
@@ -552,6 +621,62 @@ fn main() -> u32[ARRAY_SIZE] {
   XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, Attr) {
+  constexpr std::string_view kProgram = R"(import my.module as foo;
+fn main() -> s64 {
+    let bar = foo::ImportedStruct { a: u32:0, b: s64:0xbeef };
+    (bar.b)
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, ColonRef) {
+  constexpr std::string_view kProgram = R"(import foo;
+fn main() -> foo::BAR {
+    (foo::BAR)
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, ConstantArray) {
+  constexpr std::string_view kProgram = R"(const ARRAY_SIZE = uN[32]:5;
+fn main() -> u32[ARRAY_SIZE] {
+    ([u32:0, u32:1, u32:2, u32:3, u32:4])
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, NonConstantArray) {
+  constexpr std::string_view kProgram = R"(fn main(a: u32) -> u32[2] {
+    ([a, a + u32:0])
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, Binops) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
     u13:5 + u13:500
@@ -569,7 +694,9 @@ TEST(AstClonerTest, Binops) {
 
 TEST(AstClonerTest, Unops) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
-    -u13:500
+    let a = -u13:500;
+    let b = (-u13:500);
+    (-b)
 })";
 
   FileTable file_table;
@@ -680,6 +807,29 @@ proc my_test_proc {
   XLS_ASSERT_OK(VerifyClone(tp, clone, file_table));
 }
 
+TEST(AstClonerTest, Chan) {
+  // This test just checks that the channel declaration in parentheses is cloned
+  // properly.
+  constexpr std::string_view kProgram = R"(proc MyProc {
+    input_p: chan<u32> out;
+    config() {
+        let (input_p, _) = (chan<u32>("input"));
+        (input_p,)
+    }
+    init {}
+    next(state: ()) {
+        ()
+    }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * tp, module->GetMemberOrError<Proc>("MyProc"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(tp));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, EnumDef) {
   constexpr std::string_view kProgram = R"(enum MyEnum : u32 {
     PET = 0,
@@ -753,6 +903,30 @@ fn foo() -> u32 {
             (*type_ref)->type_definition());
 }
 
+TEST(AstClonerTest, ZeroMacro) {
+  constexpr std::string_view kProgram = R"(const ZEROS = zero!<u32>();
+const MORE_ZEROS = (zero!<u64>());)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, AllOnesMacro) {
+  constexpr std::string_view kProgram = R"(const ZEROS = all_ones!<u32>();
+const MORE_ZEROS = (all_ones!<u64>());)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, QuickCheck) {
   constexpr std::string_view kProgram = R"(#[quickcheck(test_count=1000)]
 fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
@@ -797,8 +971,8 @@ proc my_proc {
     }
 })";
 
-  // Note that we're dealing with a post-parsing AST, which means that the proc
-  // config and next functions will be present as top-level functions.
+  // Note that we're dealing with a post-parsing AST, which means that the
+  // proc config and next functions will be present as top-level functions.
   constexpr std::string_view kExpected = R"(import my_import;
 enum MyEnum : u8 {
     DOGS = 0,
@@ -847,6 +1021,7 @@ TEST(AstClonerTest, IndexVariants) {
     let array = u32[5]:[u32:0, u32:1, u32:2, u32:3, u32:4];
     let index = array[2];
     let slice = array[3][0:2];
+    let parens_slice = (array[3])[0:2];
     let width_slice = array[3][array[0]+:u4];
     ()
 })";
@@ -858,6 +1033,21 @@ TEST(AstClonerTest, IndexVariants) {
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+}
+
+TEST(AstClonerTest, StructInstance) {
+  constexpr std::string_view kProgram = R"(import my.module as foo;
+fn main() -> foo::ImportedStruct {
+    let bar = (foo::ImportedStruct { a: u32:0, b: s64:0xbeef });
+    bar
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
 }
 
 TEST(AstClonerTest, SplatStructInstance) {
@@ -885,6 +1075,22 @@ TEST(AstClonerTest, Ternary) {
   constexpr std::string_view kProgram =
       R"(fn main(a: u32, b: u32, c: u32) -> u32 {
     if a > u32:5 { b } else { c }
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get(), file_table));
+}
+
+TEST(AstClonerTest, Conditional) {
+  constexpr std::string_view kProgram =
+      R"(fn main(a: u32, b: u32, c: u32) -> u32 {
+    let result = (if a > u32:5 { b } else { c });
+    result
 })";
 
   FileTable file_table;
@@ -945,9 +1151,28 @@ fn main(x: u32, y: u32) -> u32 {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, LetMatch) {
+  constexpr std::string_view kProgram = R"(import foo;
+fn main(x: u32, y: u32) -> u32 {
+    let (x, y) = (match (x, y) {
+        (u32:2, _) => foo::IMPORTED_CONSTANT,
+        (_, u32:100) => u32:200,
+    });
+    x
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, String) {
   constexpr std::string_view kProgram = R"(fn main() -> u8[13] {
-    "dogs are good"
+    const str = "dogs are good";
+    ("other animals are ok")
 })";
 
   FileTable file_table;
@@ -971,7 +1196,7 @@ TEST(AstClonerTest, ConstAssert) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
-TEST(AstClonerTest, NormalFor) {
+TEST(AstClonerTest, For) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     for (i, a): (u32, u32) in range(0, u32:100) {
         i + a
@@ -1002,9 +1227,27 @@ TEST(AstClonerTest, ForWithoutTypeAnnotations) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, UnrollFor) {
+  constexpr std::string_view kProgram = R"(fn f(x: u32) -> u32 {
+    let _ = (unroll_for! (i, accum) in u32:0..u32:4 {
+        accum + i
+    }(x));
+    unroll_for! (i, accum) in u32:0..u32:4 {
+        accum + i
+    }(x)
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, TupleIndex) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
-    (u8:8, u16:16, u32:32, u64:64).2
+    ((u8:8, u16:16, u32:32, u64:64).2)
 })";
 
   FileTable file_table;
@@ -1156,8 +1399,8 @@ TEST(AstClonerTest, CloneStatementBlockSkipsEmptyVerbatimNode) {
                  return std::nullopt;
                }));
 
-  // The clone should have zero children now that we replaced the original node
-  // with an empty VerbatimNode.
+  // The clone should have zero children now that we replaced the original
+  // node with an empty VerbatimNode.
   StatementBlock* clone_node = down_cast<StatementBlock*>(clone);
   EXPECT_THAT(clone_node->statements(), IsEmpty());
 }
