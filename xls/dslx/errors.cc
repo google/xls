@@ -21,6 +21,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -88,6 +89,15 @@ absl::Status TypeInferenceErrorStatusForAnnotation(
     std::string_view message, const FileTable& file_table) {
   return TypeInferenceErrorStatusInternal(span, type_annotation, message,
                                           file_table);
+}
+
+absl::Status SignednessMismatchErrorStatus(const TypeAnnotation* annotation1,
+                                           const TypeAnnotation* annotation2,
+                                           const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::Substitute(
+      "TypeInferenceError: signed vs. unsigned mismatch: $0 at $1 vs. $2 at $3",
+      annotation1->ToString(), annotation1->span().ToString(file_table),
+      annotation2->ToString(), annotation2->span().ToString(file_table)));
 }
 
 absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,
