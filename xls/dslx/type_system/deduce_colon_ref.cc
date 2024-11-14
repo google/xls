@@ -162,18 +162,18 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToArrayType(
       ctx->file_table());
 }
 
-static std::optional<Type*> TryNoteColonRefForConstant(
-    const ConstantDef* constant, const ColonRef* colonref,
-    const TypeInfo* impl_ti, TypeInfo* colonref_ti) {
-  std::optional<Type*> type = impl_ti->GetItem(constant);
+static std::optional<Type*> TryNoteColonRefForImplMember(
+    const ImplMember& member, const ColonRef* colonref, const TypeInfo* impl_ti,
+    TypeInfo* colonref_ti) {
+  std::optional<Type*> type = impl_ti->GetItem(ToAstNode(member));
   if (!type.has_value()) {
     return std::nullopt;
   }
-  absl::StatusOr<InterpValue> value = impl_ti->GetConstExpr(constant);
-  if (!value.ok()) {
-    return std::nullopt;
+  if (std::holds_alternative<ConstantDef*>(member)) {
+    absl::StatusOr<InterpValue> value =
+        impl_ti->GetConstExpr(ToAstNode(member));
+    colonref_ti->NoteConstExpr(colonref, *value);
   }
-  colonref_ti->NoteConstExpr(colonref, value.value());
   return type;
 }
 
@@ -181,19 +181,20 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToImpl(
     Impl* impl, const ColonRef* node, DeduceCtx* impl_ctx,
     TypeInfo* colonref_ti) {
   VLOG(5) << "DeduceColonRefToImpl: " << node->ToString();
-  std::optional<ConstantDef*> constant = impl->GetConstant(node->attr());
-  if (!constant.has_value()) {
+  std::optional<ImplMember> member = impl->GetMember(node->attr());
+  if (!member.has_value()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Name '%s' is not defined by the impl for struct '%s'.",
                         node->attr(), impl->struct_ref()->ToString()),
         impl_ctx->file_table());
   }
-  // It's possible the constant has already been deduced.
-  std::optional<Type*> type = TryNoteColonRefForConstant(
-      constant.value(), node, impl_ctx->type_info(), colonref_ti);
+
+  // It's possible the impl member has already been deduced.
+  std::optional<Type*> type = TryNoteColonRefForImplMember(
+      *member, node, impl_ctx->type_info(), colonref_ti);
   if (type.has_value()) {
-    return type.value()->CloneToUnique();
+    return (*type)->CloneToUnique();
   }
 
   // If not, deduce constants in impl and try again.
@@ -202,10 +203,10 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToImpl(
                          impl_ctx->Deduce(ToAstNode(con)));
   }
 
-  type = TryNoteColonRefForConstant(constant.value(), node,
-                                    impl_ctx->type_info(), colonref_ti);
+  type = TryNoteColonRefForImplMember(*member, node, impl_ctx->type_info(),
+                                      colonref_ti);
   XLS_RET_CHECK(type.has_value());
-  return type.value()->CloneToUnique();
+  return (*type)->CloneToUnique();
 }
 
 static absl::StatusOr<std::unique_ptr<Type>> DeduceColonRefToStructType(

@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -153,15 +154,61 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceMapInvocation(
                                      arg0_array_type->size());
 }
 
+static absl::StatusOr<std::optional<Function*>> ResolveStructColonRefToFn(
+    ColonRef* ref, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(ColonRefSubjectT subject,
+                       ResolveColonRefSubjectForTypeChecking(
+                           ctx->import_data(), ctx->type_info(), ref));
+  std::optional<StructDef*> struct_def;
+  if (std::holds_alternative<StructDef*>(subject)) {
+    struct_def = std::get<StructDef*>(subject);
+  } else if (std::holds_alternative<TypeRefTypeAnnotation*>(subject)) {
+    TypeRefTypeAnnotation* type_ref = std::get<TypeRefTypeAnnotation*>(subject);
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                         ctx->import_data()->GetRootTypeInfoForNode(type_ref));
+    XLS_ASSIGN_OR_RETURN(
+        struct_def,
+        DerefToStruct(ref->span(), type_ref->ToString(), *type_ref, ti));
+  }
+
+  if (struct_def.has_value()) {
+    if (!(*struct_def)->impl().has_value()) {
+      return TypeInferenceErrorStatus(
+          ref->span(), nullptr,
+          absl::StrFormat("Struct '%s' has no impl defining '%s'",
+                          (*struct_def)->identifier(), ref->attr()),
+          ctx->file_table());
+    }
+    Impl* impl = *(*struct_def)->impl();
+    std::optional<Function*> resolved = impl->GetFunction(ref->attr());
+    if (!resolved.has_value()) {
+      return TypeInferenceErrorStatus(
+          ref->span(), nullptr,
+          absl::StrFormat("Function with name '%s' is not defined by the impl "
+                          "for struct '%s'.",
+                          ref->attr(), (*struct_def)->identifier()),
+          ctx->file_table());
+    }
+    return *resolved;
+  }
+  return std::nullopt;
+}
+
 // Resolves "ref" to an AST function.
 static absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(
     ColonRef* ref, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::optional<Function*> struct_fn,
+                       ResolveStructColonRefToFn(ref, ctx));
+  if (struct_fn.has_value()) {
+    return *struct_fn;
+  }
+
   std::optional<Import*> import = ref->ResolveImportSubject();
   if (!import.has_value()) {
     return TypeInferenceErrorStatus(
         ref->span(), nullptr,
         absl::StrFormat("Colon-reference subject `%s` did not refer to a "
-                        "module, so `%s` cannot be invoked.",
+                        "module or struct, so `%s` cannot be invoked.",
                         ToAstNode(ref->subject())->ToString(), ref->ToString()),
         ctx->file_table());
   }

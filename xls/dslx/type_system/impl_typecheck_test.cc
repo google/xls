@@ -44,6 +44,132 @@ fn point_dims() -> u32 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+TEST(TypecheckErrorTest, MissingFunctionOnStruct) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    const NUM_DIMS = u32:2;
+}
+
+fn point_dims() -> u32 {
+    Point::num_dims()
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Function with name 'num_dims' is not defined "
+                                 "by the impl for struct 'Point'")));
+}
+
+TEST(TypecheckErrorTest, MissingImplOnStruct) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+fn point_dims() -> u32 {
+    Point::num_dims()
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Struct 'Point' has no impl defining 'num_dims'")));
+}
+
+TEST(TypecheckErrorTest, ImplWithConstCalledAsFunc) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    const num_dims = u32:4;
+}
+
+fn point_dims() -> u32 {
+    Point::num_dims()
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Function with name 'num_dims' is not defined "
+                                 "by the impl for struct 'Point'")));
+}
+
+TEST(TypecheckTest, StaticFunctionOnStruct) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn num_dims() -> u32 {
+        u32:2
+    }
+}
+
+fn point_dims() -> u32 {
+    Point::num_dims()
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+// TODO: https://github.com/google/xls/issues/617) - Support using struct
+// members.
+TEST(TypecheckTest, DISABLED_ImplFunctionUsingStructMembers) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+fn point_dims() -> u32 {
+    let p = Point{x: u32:4, y:u32:2};
+    let y = p.area();
+    uN[y]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, StaticFunctionUsingConst) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    const DIMS = u32:2;
+
+    fn num_dims() -> u32 {
+        DIMS
+    }
+}
+
+fn point_dims() -> u2 {
+    uN[Point::num_dims()]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, StaticConstUsingFunction) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn num_dims() -> u32 {
+        u32:2
+    }
+
+    const DIMS = num_dims();
+}
+
+fn point_dims() -> u2 {
+    uN[Point::DIMS]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckErrorTest, ImplConstantOutsideScope) {
   constexpr std::string_view kProgram = R"(
 struct Point { x: u32, y: u32 }
@@ -292,6 +418,31 @@ fn main() -> uN[6] {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
+TEST(TypecheckTest, ImportedImplWithFunction) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty { }
+
+impl Empty {
+   fn imported_func() -> u32 {
+       u32:6
+   }
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[6] {
+    uN[imported::Empty::imported_func()]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
 TEST(TypecheckTest, ImportedImplParametric) {
   constexpr std::string_view kImported = R"(
 pub struct Empty<X: u32> { }
@@ -352,6 +503,33 @@ type MyEmpty = imported::Empty<u32:5>;
 
 fn main() -> uN[10] {
     uN[MyEmpty::IMPORTED]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, ImportedImplTypeAliasWithFunction) {
+  constexpr std::string_view kImported = R"(
+pub struct Empty { }
+
+impl Empty {
+   fn some_val() -> u32 {
+       u32:4
+   }
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+type MyEmpty = imported::Empty;
+
+fn main() -> uN[4] {
+    uN[MyEmpty::some_val()]:0
 })";
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(

@@ -352,8 +352,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/colon_ref_of_type_alias.x'
     )
     self.assertIn(
-        'Colon-reference subject `F32` did not refer to a module, so `F32::one`'
-        ' cannot be invoked.',
+        "Function with name 'one' is not defined by the impl for struct"
+        " 'APFloat'.",
         stderr,
     )
 
@@ -950,8 +950,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/apfloat_inf_accidental_struct.x'
     )
     self.assertIn(
-        'Colon-reference subject `apfloat::APFloat` did not refer to a module,'
-        ' so `apfloat::APFloat::inf` cannot be invoked.',
+        "Function with name 'inf' is not defined by the impl for struct"
+        " 'APFloat'.",
         stderr,
     )
 

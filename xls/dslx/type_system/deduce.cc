@@ -1976,9 +1976,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceImpl(const Impl* node,
       dynamic_cast<TypeRefTypeAnnotation*>(node->struct_ref());
   XLS_RET_CHECK(type_ref != nullptr);
   if (type_ref->parametrics().empty()) {
-    for (const auto& constant : node->GetConstants()) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> constType,
-                           ctx->Deduce(ToAstNode(constant)));
+    for (const auto& member : node->members()) {
+      if (std::holds_alternative<ConstantDef*>(member)) {
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> _,
+                             ctx->Deduce(ToAstNode(member)));
+      } else {
+        XLS_RETURN_IF_ERROR(
+            ctx->typecheck_function()(*(std::get<Function*>(member)), ctx));
+      }
     }
   }
   return type;

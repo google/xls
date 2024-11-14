@@ -1399,13 +1399,35 @@ std::vector<ConstantDef*> Impl::GetConstants() const {
   return results;
 }
 
-std::optional<ConstantDef*> Impl::GetConstant(std::string_view name) const {
-  for (ConstantDef* constant : GetConstants()) {
-    if (constant->name_def()->identifier() == name) {
-      return constant;
+static std::string ImplMemberIdentifier(const ImplMember member) {
+  return absl::visit(
+      Visitor{[](auto* n) { return n->name_def()->identifier(); }}, member);
+}
+
+std::optional<ImplMember> Impl::GetMember(std::string_view name) const {
+  for (const auto& member : members_) {
+    if (ImplMemberIdentifier(member) == name) {
+      return member;
     }
   }
   return std::nullopt;
+}
+
+template <typename T>
+std::optional<T> Impl::GetMemberOfType(std::string_view name) const {
+  std::optional<ImplMember> result = GetMember(name);
+  if (result.has_value() && std::holds_alternative<T>(*result)) {
+    return std::get<T>(*result);
+  }
+  return std::nullopt;
+}
+
+std::optional<ConstantDef*> Impl::GetConstant(std::string_view name) const {
+  return GetMemberOfType<ConstantDef*>(name);
+}
+
+std::optional<Function*> Impl::GetFunction(std::string_view name) const {
+  return GetMemberOfType<Function*>(name);
 }
 
 // -- class StructInstance
@@ -2311,11 +2333,11 @@ std::vector<AstNode*> Statement::GetChildren(bool want_types) const {
 }
 
 Span ExprOrTypeSpan(const ExprOrType& expr_or_type) {
-  return absl::visit(Visitor{
-                         [](Expr* expr) { return expr->span(); },
-                         [](TypeAnnotation* type) { return type->span(); },
-                     },
-                     expr_or_type);
+  return absl::visit(
+      Visitor{
+          [](auto* n) { return n->span(); },
+      },
+      expr_or_type);
 }
 
 }  // namespace xls::dslx

@@ -863,6 +863,13 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
             return HandleColonRefToValue(module, node);
           },
           [&](Impl* impl) -> absl::StatusOr<InterpValue> {
+            std::optional<ImplMember> member = impl->GetMember(node->attr());
+            XLS_RET_CHECK(member.has_value());
+            if (std::holds_alternative<Function*>(*member)) {
+              Function* f = std::get<Function*>(*member);
+              return InterpValue::MakeFunction(
+                  InterpValue::UserFnData{f->owner(), f});
+            }
             return type_info_->GetConstExpr(node);
           }},
       resolved_subject);

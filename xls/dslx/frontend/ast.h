@@ -2463,14 +2463,23 @@ class Impl : public AstNode {
 
   std::vector<ConstantDef*> GetConstants() const;
 
+  // Returns the member with the given name, if present.
+  std::optional<ImplMember> GetMember(std::string_view name) const;
+
   // Returns the constant with the given name if present.
   std::optional<ConstantDef*> GetConstant(std::string_view name) const;
+
+  // Returns the function with the given name if present.
+  std::optional<Function*> GetFunction(std::string_view name) const;
 
  private:
   Span span_;
   TypeAnnotation* struct_ref_;
   std::vector<ImplMember> members_;
   bool public_;
+
+  template <typename T>
+  std::optional<T> GetMemberOfType(std::string_view name) const;
 };
 
 // Represents instantiation of a struct via member expressions.
