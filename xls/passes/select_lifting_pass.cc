@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -43,8 +42,6 @@ namespace xls {
 
 namespace {
 
-using CheckResult = std::optional<std::tuple<Node *, int64_t>>;
-
 struct TransformationResult {
   bool was_code_modified;
   absl::btree_set<Node *, Node::NodeIdLessThan> new_selects_to_consider;
@@ -52,41 +49,6 @@ struct TransformationResult {
 
   TransformationResult() : was_code_modified{false} {}
 };
-
-CheckResult CheckSelectCase(Node *select_case, Node *array_ref,
-                            std::optional<int64_t> index_bitwidth) {
-  // Make sure the select case is an array index
-  if (!select_case->Is<ArrayIndex>()) {
-    VLOG(3) << "    This case is not an ArrayIndex";
-    return std::nullopt;
-  }
-  ArrayIndex *array_index_case = select_case->As<ArrayIndex>();
-
-  // Check the array base
-  Node *current_array_ref = array_index_case->operand(0);
-  if (array_ref != nullptr) {
-    if (array_ref != current_array_ref) {
-      VLOG(3) << "    This case accesses an array that is different than the "
-                 "other cases";
-      return std::nullopt;
-    }
-  }
-  VLOG(3) << "    Array = " << current_array_ref->ToString();
-
-  // Check the indices
-  absl::Span<Node *const> current_case_indices = array_index_case->indices();
-  if (current_case_indices.length() != 1) {
-    return std::nullopt;
-  }
-  Node *index = current_case_indices.at(0);
-  Type *index_type = index->GetType();
-  int64_t current_index_bitwidth = index_type->GetFlatBitCount();
-  if (index_bitwidth && (current_index_bitwidth != index_bitwidth.value())) {
-    return std::nullopt;
-  }
-
-  return std::make_tuple(current_array_ref, current_index_bitwidth);
-}
 
 std::optional<Node *> GetDefaultValue(Node *select) {
   if (select->Is<PrioritySelect>()) {
@@ -104,8 +66,30 @@ absl::Span<Node *const> GetCases(Node *select) {
   return select->As<Select>()->cases();
 }
 
-std::optional<Node *> ApplicabilityGuard(FunctionBase *func,
-                                         Node *select_to_optimize) {
+bool MatchesIndexBitwidth(ArrayIndex *ai, int64_t shared_index_bitwidth) {
+  absl::Span<Node *const> current_case_indices = ai->indices();
+  if (current_case_indices.length() != 1) {
+    // Property 1 does not hold
+    VLOG(3) << "        The input \"" << ai->ToString()
+            << "\" uses more than one index";
+    return false;
+  }
+  Node *current_case_index = current_case_indices.at(0);
+  Type *current_case_index_type = current_case_index->GetType();
+  int64_t current_index_bitwidth = current_case_index_type->GetFlatBitCount();
+  if (current_index_bitwidth != shared_index_bitwidth) {
+    // Property 1 does not hold
+    VLOG(3) << "        The input \"" << ai->ToString()
+            << "\" uses an index with a different bitwidth than the one used "
+               "by the other cases of the \"select\" node";
+    return false;
+  }
+
+  return true;
+}
+
+std::optional<Node *> ApplicabilityGuardForArrayIndex(
+    absl::Span<Node *const> cases, std::optional<Node *> default_case) {
   // Only "select" nodes with the following properties can be optimized by this
   // transformations.
   //
@@ -118,38 +102,145 @@ std::optional<Node *> ApplicabilityGuard(FunctionBase *func,
   //             the case where these bitwidths differ. Doing so will remove the
   //             need for this property.
   //
+  // The code below checks these properties for the target "select" node.
+  //
+  // Fetch the aspects of the first case of the "select" node that will have to
+  // be shared between all the rest of the "select" inputs.
+  ArrayIndex *first_case = cases[0]->As<ArrayIndex>();
+  Node *shared_array_ref = first_case->operand(0);
+  absl::Span<Node *const> first_case_indices = first_case->indices();
+  Node *first_case_first_index = first_case_indices.at(0);
+  Type *first_case_first_index_type = first_case_first_index->GetType();
+  int64_t shared_index_bitwidth =
+      first_case_first_index_type->GetFlatBitCount();
+
+  // Check Property 0
+  VLOG(3) << "      Array = " << shared_array_ref->ToString();
+  for (uint32_t index = 1; index < cases.length(); index++) {
+    // Notice that this case is guaranteed to succeed as all inputs of the
+    // "select" are guaranteed to have the same operation and type at this
+    // point.
+    ArrayIndex *current_case = cases[index]->As<ArrayIndex>();
+
+    // Check Property 0
+    if (current_case->operand(0) != shared_array_ref) {
+      // Property 0 does not hold
+      VLOG(3) << "        The case " << index
+              << " accesses an array that is different than the other inputs "
+                 "of the \"select\" node";
+      return std::nullopt;
+    }
+
+    // Check Property 1
+    if (!MatchesIndexBitwidth(current_case, shared_index_bitwidth)) {
+      // Property 1 does not hold
+      VLOG(3) << "        The case " << index << " uses more than one index";
+      return std::nullopt;
+    }
+  }
+  if (default_case) {
+    ArrayIndex *default_case_as_array_index = (*default_case)->As<ArrayIndex>();
+
+    // Check Property 0
+    if (default_case_as_array_index->operand(0) != shared_array_ref) {
+      // Property 0 does not hold
+      VLOG(3) << "        The default case accesses an array that is different "
+                 "than the other inputs of the \"select\" node";
+      return std::nullopt;
+    }
+
+    // Check Property 1
+    if (!MatchesIndexBitwidth(default_case_as_array_index,
+                              shared_index_bitwidth)) {
+      // Property 1 does not hold
+      VLOG(3) << "        Property 1 (see comments in the code) does not hold "
+                 "for the default case of the \"select\" node";
+      return std::nullopt;
+    }
+  }
+  VLOG(3) << "        Passed the check";
+
+  return shared_array_ref;
+}
+
+std::optional<Op> SharedOperation(absl::Span<Node *const> cases,
+                                  std::optional<Node *> default_case) {
+  // All inputs of a "select" node must have the same operation (e.g.,
+  // ArrayIndex) and the same type. Notice that a future improvement could relax
+  // the same-type constraint.
+  //
+  // Fetch the operation and the type of the first element
+  Type *shared_type = cases[0]->GetType();
+  Op shared_op = cases[0]->op();
+
+  // Check that all inputs within the cases of the "select" have the same type
+  // and op.
+  for (Node *current_input : cases) {
+    if (current_input->GetType() != shared_type) {
+      return std::nullopt;
+    }
+    if (current_input->op() != shared_op) {
+      return std::nullopt;
+    }
+  }
+
+  // Check that the default value has the same type and op of the input cases of
+  // the "select".
+  if (default_case) {
+    Node *default_case_value = default_case.value();
+    if (default_case_value->GetType() != shared_type) {
+      return std::nullopt;
+    }
+    if (default_case_value->op() != shared_op) {
+      return std::nullopt;
+    }
+  }
+
+  return shared_op;
+}
+
+absl::StatusOr<std::optional<Node *>> CanLiftSelect(FunctionBase *func,
+                                                    Node *select_to_optimize) {
+  VLOG(3) << "  Checking the applicability guard";
+
+  // Only "select" nodes with specific properties can be optimized by this
+  // transformation.
+  //
+  // Shared property that must hold for all cases:
+  // Only "select" nodes with the same node type for all its inputs can
+  // be optimized.
+  //
+  // There are more properties that must hold for the transformation to be
+  // applicable. Such properties are specific to the node type of the inputs of
+  // the select.
+  //
   // The code below checks these properties for the "select" node given as input
   //
-  // Check Property 0 for the default case
-  Node *array_ref = nullptr;
-  std::optional<Node *> default_value = GetDefaultValue(select_to_optimize);
-  std::optional<int64_t> index_bitwidth = std::nullopt;
-  if (default_value.has_value()) {
-    CheckResult check_result =
-        CheckSelectCase(default_value.value(), nullptr, {});
-    if (!check_result) {
-      return std::nullopt;
-    }
-    auto [default_array_ref, default_index_bitwidth] = check_result.value();
-    array_ref = default_array_ref;
-    index_bitwidth = default_index_bitwidth;
-  }
-
-  // Check Property 0 for all cases excluding the default one
+  // We first collect all input nodes of the select we must check.
+  // Then, we check them all by first checking the shared property above, and
+  // then by applying pattern matching that is specific to the type of the
+  // inputs of the target "select".
   absl::Span<Node *const> select_cases = GetCases(select_to_optimize);
-  for (Node *select_case : select_cases) {
-    CheckResult check_result =
-        CheckSelectCase(select_case, array_ref, index_bitwidth);
-    if (!check_result) {
-      return std::nullopt;
-    }
-    auto [current_array_ref, current_index_bitwidth] = check_result.value();
-    array_ref = current_array_ref;
-    index_bitwidth = current_index_bitwidth;
+  std::optional<Node *> default_value = GetDefaultValue(select_to_optimize);
+
+  // Check the shared property
+  std::optional<Op> shared_input_op =
+      SharedOperation(select_cases, default_value);
+  if (!shared_input_op) {
+    VLOG(3) << "    The transformation is not applicable: not all inputs have "
+               "the same type and operation";
+    return std::nullopt;
   }
 
-  // It is safe to apply the transformation
-  return array_ref;
+  // Check the type-specific constraints
+  switch (*shared_input_op) {
+    case Op::kArrayIndex:
+      return ApplicabilityGuardForArrayIndex(select_cases, default_value);
+
+    default:
+      VLOG(3) << "    The current input of the select is not handled";
+      return std::nullopt;
+  }
 }
 
 bool ProfitabilityGuard(FunctionBase *func, Node *select_to_optimize,
@@ -342,8 +433,8 @@ absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
   TransformationResult result;
 
   // Check if it is safe to apply the transformation
-  std::optional<Node *> applicability_guard_result =
-      ApplicabilityGuard(func, select_to_optimize);
+  XLS_ASSIGN_OR_RETURN(std::optional<Node *> applicability_guard_result,
+                       CanLiftSelect(func, select_to_optimize));
   if (!applicability_guard_result) {
     VLOG(3) << "  It is not safe to apply the transformation for this select";
 

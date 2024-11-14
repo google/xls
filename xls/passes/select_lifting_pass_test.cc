@@ -90,6 +90,130 @@ TEST_F(SelectLiftingPassTest, LiftSingleSelect) {
   VLOG(3) << f->DumpIr();
 }
 
+TEST_F(SelectLiftingPassTest, LiftSingleSelectNotModifiedDueToDifferentInputs) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue a = fb.Param("array", p->GetArrayType(16, u32_type));
+  BValue c = fb.Param("condition", u32_type);
+  BValue i = fb.Param("first_index", u32_type);
+  BValue j = fb.Param("second_index", u32_type);
+
+  // Create the body of the IR function
+  BValue condition_constant = fb.Literal(UBits(10, 32));
+  BValue selector = fb.AddCompareOp(Op::kUGt, c, condition_constant);
+  BValue array_index_i = fb.ArrayIndex(a, {i});
+  BValue select_node = fb.Select(selector, array_index_i, j);
+
+  // Build the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  // Set the expected outputs
+  VLOG(3) << "Before the transformations: " << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 8);
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After the transformations: " << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 8);
+}
+
+TEST_F(SelectLiftingPassTest,
+       LiftSingleSelectNotModifiedDueToDifferentInputTypes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+  Type* u16_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue a = fb.Param("array", p->GetArrayType(16, u32_type));
+  BValue b = fb.Param("array2", p->GetArrayType(16, u16_type));
+  BValue c = fb.Param("condition", u32_type);
+  BValue i = fb.Param("first_index", u32_type);
+  BValue j = fb.Param("second_index", u32_type);
+
+  // Create the body of the IR function
+  BValue condition_constant = fb.Literal(UBits(10, 32));
+  BValue selector = fb.AddCompareOp(Op::kUGt, c, condition_constant);
+  BValue array_index_i = fb.ArrayIndex(a, {i});
+  BValue array_index_j = fb.ArrayIndex(b, {j});
+  BValue select_node = fb.Select(selector, array_index_i, array_index_j);
+
+  // Build the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  // Set the expected outputs
+  VLOG(3) << "Before the transformations: " << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 10);
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  VLOG(3) << "After the transformations: " << f->DumpIr();
+  EXPECT_EQ(f->node_count(), 10);
+}
+
+TEST_F(SelectLiftingPassTest, LiftSingleSelectWithMultiIndicesArray) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue a =
+      fb.Param("array", p->GetArrayType(16, p->GetArrayType(8, u32_type)));
+  BValue c = fb.Param("condition", u32_type);
+  BValue i = fb.Param("first_index", u32_type);
+  BValue j = fb.Param("second_index", u32_type);
+
+  // Create the body of the IR function
+  BValue condition_constant = fb.Literal(UBits(10, 32));
+  BValue selector = fb.AddCompareOp(Op::kUGt, c, condition_constant);
+  BValue array_index_i = fb.ArrayIndex(a, {i, j});
+  BValue array_index_j = fb.ArrayIndex(a, {i, j});
+  BValue select_node = fb.Select(selector, array_index_i, array_index_j);
+
+  // Build the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  // Set the expected outputs
+  EXPECT_EQ(f->node_count(), 9);
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  EXPECT_EQ(f->node_count(), 9);
+}
+
+TEST_F(SelectLiftingPassTest, LiftSingleSelectWithIndicesOfDifferentBitwidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+  Type* u16_type = p->GetBitsType(16);
+
+  // Create the parameters of the IR function
+  BValue a = fb.Param("array", p->GetArrayType(16, u32_type));
+  BValue c = fb.Param("condition", u32_type);
+  BValue i = fb.Param("first_index", u32_type);
+  BValue j = fb.Param("second_index", u16_type);
+
+  // Create the body of the IR function
+  BValue condition_constant = fb.Literal(UBits(10, 32));
+  BValue selector = fb.AddCompareOp(Op::kUGt, c, condition_constant);
+  BValue array_index_i = fb.ArrayIndex(a, {i});
+  BValue array_index_j = fb.ArrayIndex(a, {j});
+  BValue select_node = fb.Select(selector, array_index_i, array_index_j);
+
+  // Build the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  // Set the expected outputs
+  EXPECT_EQ(f->node_count(), 9);
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
+  EXPECT_EQ(f->node_count(), 9);
+}
+
 }  // namespace
 
 }  // namespace xls
