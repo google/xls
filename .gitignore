@@ -7,3 +7,4 @@ xls_clang-tidy.out
 user.bazelrc
 .vscode
 .cache
+docs/
