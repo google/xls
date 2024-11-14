@@ -1,0 +1,30 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./literal.x"
+
+// CHECK: func @test_literal() -> i32 {
+fn test_literal() -> bits[32] {
+
+  // CHECK: %{{.*}} = "xls.constant_scalar"() <{value = 0 : i0}> : () -> i0
+  zero: bits[0] = literal(value=0, id=1, pos=[(0,1,6)])
+
+  // CHECK:      %{{.*}} = xls.literal : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>> {
+  // CHECK-NEXT:   %[[TMP0:.*]] = "xls.constant_scalar"() <{value = true}> : () -> i1
+  // CHECK-NEXT:   %[[TMP1:.*]] = "xls.constant_scalar"() <{value = -2 : i2}> : () -> i2
+  // CHECK-NEXT:   %[[TMP2:.*]] = "xls.constant_scalar"() <{value = 10 : i32}> : () -> i32
+  // CHECK-NEXT:   %[[TMP3:.*]] = "xls.constant_scalar"() <{value = 0 : i32}> : () -> i32
+  // CHECK-NEXT:   %[[TMP4:.*]] = "xls.tuple"(%[[TMP2]], %[[TMP3]]) : (i32, i32) -> tuple<i32, i32>
+  // CHECK-NEXT:   %[[TMP5:.*]] = "xls.tuple"(%[[TMP0]], %[[TMP1]], %[[TMP4]]) : (i1, i2, tuple<i32, i32>) -> tuple<i1, i2, tuple<i32, i32>>
+  // CHECK-NEXT:   %[[TMP6:.*]] = "xls.constant_scalar"() <{value = -4 : i3}> : () -> i3
+  // CHECK-NEXT:   %[[TMP7:.*]] = "xls.constant_scalar"() <{value = -3 : i3}> : () -> i3
+  // CHECK-NEXT:   %[[TMP8:.*]] = xls.array %[[TMP6]], %[[TMP7]] : (i3, i3) -> !xls.array<2 x i3>
+  // CHECK-NEXT:   %[[FINL:.*]] = "xls.tuple"(%[[TMP5]], %[[TMP8]]) : (tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>) -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+  // CHECK-NEXT:   xls.yield %[[FINL]] : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+  // CHECK-NEXT: }
+  my_tuple : ((bits[1], bits[2], (bits[32], bits[32])), bits[3][2]) = literal(value=((1, 2, (10, 0)), [4, 5]), id=2)
+
+  // CHECK: %{{.*}} = "xls.constant_scalar"() <{value = 42 : i32}> : () -> i32
+  ret literal.3: bits[32] = literal(value=42, id=3, pos=[(0,1,6)])
+}

@@ -1,0 +1,20 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./unop.x"
+
+// CHECK: func @test_unop([[ARG1:%.*]]: i32) -> i32 {
+fn test_unop(a: bits[32] id=1) -> bits[32] {
+  // CHECK: %{{.*}} = xls.identity [[ARG1]] : i32
+  identity.2: bits[32] = identity(a, id=2)
+
+  // CHECK: %{{.*}} = xls.neg [[ARG1]] : i32
+  neg.3: bits[32] = neg(a, id=3)
+
+  // CHECK: %{{.*}} = xls.not [[ARG1]] : i32
+  not.4: bits[32] = not(a, id=4)
+
+  // CHECK: %{{.*}} = xls.reverse [[ARG1]] : i32
+  ret reverse.5: bits[32] = reverse(a, id=5)
+}

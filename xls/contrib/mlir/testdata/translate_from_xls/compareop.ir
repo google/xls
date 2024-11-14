@@ -1,0 +1,39 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./compareop.x"
+
+// CHECK: func @test_compareop([[ARG1:%.*]]: i32, [[ARG2:%.*]]: i32) -> i1 {
+fn test_compareop(a: bits[32] id=1, b: bits[32] id=2) -> bits[1] {
+
+  // CHECK: %{{.*}} = xls.eq [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  eq.3: bits[1] = eq(a, b, id=3)
+
+  // CHECK: %{{.*}} = xls.ne [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  ne.4: bits[1] = ne(a, b, id=4)
+
+  // CHECK: %{{.*}} = xls.sle [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  sle.5: bits[1] = sle(a, b, id=5)
+
+  // CHECK: %{{.*}} = xls.sge [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  sge.6: bits[1] = sge(a, b, id=6)
+
+  // CHECK: %{{.*}} = xls.slt [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  slt.7: bits[1] = slt(a, b, id=7)
+
+  // CHECK: %{{.*}} = xls.sgt [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  sgt.8: bits[1] = sgt(a, b, id=8)
+
+  // CHECK: %{{.*}} = xls.ule [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  ule.9: bits[1] = ule(a, b, id=9)
+
+  // CHECK: %{{.*}} = xls.uge [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  uge.10: bits[1] = uge(a, b, id=10)
+
+  // CHECK: %{{.*}} = xls.ult [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  ult.11: bits[1] = ult(a, b, id=11)
+
+  // CHECK: %{{.*}} = xls.ugt [[ARG1]], [[ARG2]] : (i32, i32) -> i1
+  ret ugt.12: bits[1] = ugt(a, b, id=12)
+}

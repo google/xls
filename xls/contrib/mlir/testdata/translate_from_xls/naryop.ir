@@ -1,0 +1,18 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./naryop.x"
+
+// CHECK: func @test_naryop([[ARG1:%.*]]: i32, [[ARG2:%.*]]: i32, [[ARG3:%.*]]: i32) -> i32 {
+fn test_naryop(a: bits[32] id=1, b: bits[32] id=2, c: bits[32] id=3) -> bits[32] {
+
+  // CHECK: %{{.*}} = xls.and [[ARG1]], [[ARG2]], [[ARG3]] : i32
+  and.4: bits[32] = and(a, b, c, id=4)
+
+  // CHECK: %{{.*}} = xls.or [[ARG1]], [[ARG2]], [[ARG3]] : i32
+  or.5: bits[32] = or(a, b, c, id=5)
+
+  // CHECK: %{{.*}} = xls.xor [[ARG1]], [[ARG2]], [[ARG3]] : i32
+  ret xor.6: bits[32] = xor(a, b, c, id=6)
+}

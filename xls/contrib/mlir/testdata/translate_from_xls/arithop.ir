@@ -1,0 +1,13 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./arithop.ir.x"
+
+// CHECK: func @test_arithop([[ARG1:%.*]]: i32, [[ARG2:%.*]]: i32) -> i32 {
+fn test_arithop(a: bits[32] id=1, b: bits[32] id=2) -> bits[32] {
+  // CHECK: %{{.*}} = xls.umul [[ARG1]], [[ARG2]] : i32
+  umul.3: bits[32] = umul(a, b, id=3)
+  // CHECK: %{{.*}} = xls.smul [[ARG1]], [[ARG2]] : i32
+  ret smul.4: bits[32] = smul(a, b, id=4)
+}

@@ -524,10 +524,12 @@ cc_library(
     name = "xls_translate_lib",
     srcs = [
         "tools/xls_translate/xls_stitch.cc",
+        "tools/xls_translate/xls_translate_to_mlir.cc",
         "tools/xls_translate/xls_translate_from_mlir.cc",
     ],
     hdrs = [
         "tools/xls_translate/xls_stitch.h",
+        "tools/xls_translate/xls_translate_to_mlir.h",
         "tools/xls_translate/xls_translate_from_mlir.h",
     ],
     data = [
