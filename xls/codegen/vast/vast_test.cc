@@ -62,6 +62,24 @@ TEST_P(VastTest, SanitizeIdentifier) {
   EXPECT_EQ("add_1234", SanitizeIdentifier("add.1234"));
 }
 
+TEST_P(VastTest, EmitScalarLogicDef) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  DataType* data_type = f.ScalarType(si);
+  LogicDef* logic_def = f.Make<LogicDef>(si, "foo", data_type);
+  LineInfo line_info;
+  EXPECT_EQ(logic_def->Emit(&line_info), "logic foo;");
+}
+
+TEST_P(VastTest, EmitBitVectorLogicDef) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  DataType* data_type = f.BitVectorType(42, si);
+  LogicDef* logic_def = f.Make<LogicDef>(si, "foo", data_type);
+  LineInfo line_info;
+  EXPECT_EQ(logic_def->Emit(&line_info), "logic [41:0] foo;");
+}
+
 TEST_P(VastTest, DataTypes) {
   VerilogFile f(GetFileType());
 
@@ -72,7 +90,7 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_THAT(scalar->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_EQ(scalar->width(), std::nullopt);
   EXPECT_FALSE(scalar->is_signed());
-  EXPECT_EQ(scalar->EmitWithIdentifier(&line_info, "foo"), " foo");
+  EXPECT_EQ(scalar->EmitWithIdentifier(&line_info, "foo"), "foo");
   EXPECT_EQ(line_info.LookupNode(scalar),
             std::make_optional(std::vector<LineSpan>{LineSpan(0, 0)}));
   EXPECT_EQ(scalar->Emit(&line_info), "");
@@ -84,33 +102,33 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_THAT(u1->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_EQ(u1->width(), std::nullopt);
   EXPECT_FALSE(u1->is_signed());
-  EXPECT_EQ(u1->EmitWithIdentifier(nullptr, "foo"), " foo");
+  EXPECT_EQ(u1->EmitWithIdentifier(nullptr, "foo"), "foo");
   EXPECT_EQ(u1->Emit(nullptr), "");
 
   DataType* s1 = f.BitVectorType(1, SourceInfo(), /*is_signed=*/true);
   EXPECT_FALSE(s1->IsUserDefined());
-  EXPECT_EQ(s1->EmitWithIdentifier(nullptr, "foo"), " signed foo");
+  EXPECT_EQ(s1->EmitWithIdentifier(nullptr, "foo"), "signed foo");
   EXPECT_THAT(s1->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(s1->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_TRUE(s1->is_signed());
 
   DataType* u2 = f.BitVectorType(2, SourceInfo());
   EXPECT_FALSE(u2->IsUserDefined());
-  EXPECT_EQ(u2->EmitWithIdentifier(nullptr, "foo"), " [1:0] foo");
+  EXPECT_EQ(u2->EmitWithIdentifier(nullptr, "foo"), "[1:0] foo");
   EXPECT_THAT(u2->WidthAsInt64(), IsOkAndHolds(2));
   EXPECT_THAT(u2->FlatBitCountAsInt64(), IsOkAndHolds(2));
   EXPECT_FALSE(u2->is_signed());
 
   DataType* u32 = f.BitVectorType(32, SourceInfo());
   EXPECT_FALSE(u32->IsUserDefined());
-  EXPECT_EQ(u32->EmitWithIdentifier(nullptr, "foo"), " [31:0] foo");
+  EXPECT_EQ(u32->EmitWithIdentifier(nullptr, "foo"), "[31:0] foo");
   EXPECT_THAT(u32->WidthAsInt64(), IsOkAndHolds(32));
   EXPECT_THAT(u32->FlatBitCountAsInt64(), IsOkAndHolds(32));
   EXPECT_FALSE(u32->is_signed());
 
   DataType* s32 = f.BitVectorType(32, SourceInfo(), /*is_signed=*/true);
   EXPECT_FALSE(s32->IsUserDefined());
-  EXPECT_EQ(s32->EmitWithIdentifier(nullptr, "foo"), " signed [31:0] foo");
+  EXPECT_EQ(s32->EmitWithIdentifier(nullptr, "foo"), "signed [31:0] foo");
   EXPECT_THAT(s32->WidthAsInt64(), IsOkAndHolds(32));
   EXPECT_THAT(s32->FlatBitCountAsInt64(), IsOkAndHolds(32));
   EXPECT_TRUE(s32->is_signed());
@@ -125,11 +143,11 @@ TEST_P(VastTest, DataTypes) {
   EXPECT_TRUE(packed_array->dims()[1]->IsLiteralWithValue(2));
   EXPECT_FALSE(packed_array->IsUserDefined());
   EXPECT_EQ(packed_array->EmitWithIdentifier(nullptr, "foo"),
-            " [9:0][2:0][1:0] foo");
+            "[9:0][2:0][1:0] foo");
   EXPECT_THAT(packed_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(packed_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_FALSE(packed_array->is_signed());
-  EXPECT_EQ(packed_array->Emit(nullptr), " [9:0][2:0][1:0]");
+  EXPECT_EQ(packed_array->Emit(nullptr), "[9:0][2:0][1:0]");
 
   Enum* enum_def = f.Make<Enum>(SourceInfo(), DataKind::kLogic,
                                 f.BitVectorType(32, SourceInfo()));
@@ -218,20 +236,20 @@ TEST_P(VastTest, DataTypes) {
 } [5:0][2:0] foo)");
 
   EXPECT_EQ(packed_array->EmitWithIdentifier(nullptr, "foo"),
-            " [9:0][2:0][1:0] foo");
+            "[9:0][2:0][1:0] foo");
   EXPECT_THAT(packed_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(packed_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_FALSE(packed_array->is_signed());
-  EXPECT_EQ(packed_array->Emit(nullptr), " [9:0][2:0][1:0]");
+  EXPECT_EQ(packed_array->Emit(nullptr), "[9:0][2:0][1:0]");
 
   DataType* spacked_array =
       f.PackedArrayType(10, {3, 2}, SourceInfo(), /*is_signed=*/true);
   EXPECT_EQ(spacked_array->EmitWithIdentifier(nullptr, "foo"),
-            " signed [9:0][2:0][1:0] foo");
+            "signed [9:0][2:0][1:0] foo");
   EXPECT_THAT(spacked_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(spacked_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
   EXPECT_TRUE(spacked_array->is_signed());
-  EXPECT_EQ(spacked_array->Emit(nullptr), " signed [9:0][2:0][1:0]");
+  EXPECT_EQ(spacked_array->Emit(nullptr), "signed [9:0][2:0][1:0]");
   UnpackedArrayType* unpacked_array =
       f.UnpackedArrayType(10, {3, 2}, SourceInfo());
   EXPECT_FALSE(unpacked_array->dims_are_max());
@@ -241,10 +259,10 @@ TEST_P(VastTest, DataTypes) {
       "3");
   if (f.use_system_verilog()) {
     EXPECT_EQ(unpacked_array->EmitWithIdentifier(nullptr, "foo"),
-              " [9:0] foo[3][2]");
+              "[9:0] foo[3][2]");
   } else {
     EXPECT_EQ(unpacked_array->EmitWithIdentifier(nullptr, "foo"),
-              " [9:0] foo[0:2][0:1]");
+              "[9:0] foo[0:2][0:1]");
   }
   EXPECT_THAT(unpacked_array->WidthAsInt64(), IsOkAndHolds(10));
   EXPECT_THAT(unpacked_array->FlatBitCountAsInt64(), IsOkAndHolds(60));
@@ -257,7 +275,7 @@ TEST_P(VastTest, DataTypes) {
       f.Mul(f.PlainLiteral(10, SourceInfo()), f.PlainLiteral(5, SourceInfo()),
             SourceInfo()),
       /*is_signed=*/false);
-  EXPECT_EQ(bv->EmitWithIdentifier(nullptr, "foo"), " [10 * 5 - 1:0] foo");
+  EXPECT_EQ(bv->EmitWithIdentifier(nullptr, "foo"), "[10 * 5 - 1:0] foo");
   ASSERT_TRUE(bv->width().has_value());
   EXPECT_EQ((*bv->width())->Emit(nullptr), "10 * 5");
   EXPECT_FALSE(bv->max().has_value());
@@ -276,7 +294,7 @@ TEST_P(VastTest, DataTypes) {
       f.Mul(f.PlainLiteral(10, SourceInfo()), f.PlainLiteral(5, SourceInfo()),
             SourceInfo()),
       /*is_signed=*/false, /*size_expr_is_max=*/true);
-  EXPECT_EQ(bv_max->EmitWithIdentifier(nullptr, "foo"), " [10 * 5:0] foo");
+  EXPECT_EQ(bv_max->EmitWithIdentifier(nullptr, "foo"), "[10 * 5:0] foo");
   EXPECT_FALSE(bv_max->width().has_value());
   ASSERT_TRUE(bv_max->max().has_value());
   EXPECT_EQ((*bv_max->max())->Emit(nullptr), "10 * 5");
@@ -482,14 +500,14 @@ TEST_P(VastTest, ModuleWithUserDataTypes) {
   if (UseSystemVerilog()) {
     EXPECT_EQ(module->Emit(nullptr),
               R"(module my_module(
-  output  foobar out
+  output foobar out
 );
   assign out = 64'h0000_0000_0000_0020;
 endmodule)");
   } else {
     EXPECT_EQ(module->Emit(nullptr),
               R"(module my_module(
-  output  foobar out
+  output foobar out
 );
   assign out = 64'h0000_0000_0000_0020;
 endmodule)");
@@ -2102,6 +2120,153 @@ endpackage)");
             std::vector<LineSpan>{LineSpan(2, 2)});
   EXPECT_EQ(line_info.LookupNode(param_top->parameter()).value(),
             std::vector<LineSpan>{LineSpan(3, 3)});
+}
+
+// Tests that we can make an assignment of an enum variant to a wire or port.
+TEST_P(VastTest, EnumAssignment) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  // Make a 2-bit enum with R (G & B elided) values.
+  Enum* enum_type = f.Make<Enum>(si, DataKind::kLogic, f.BitVectorType(2, si));
+  EnumMemberRef* red_ref =
+      enum_type->AddMember("RED", f.PlainLiteral(0, si), si);
+
+  // Note that this is an externally defined type.
+  DataType* extern_enum_type = f.ExternType(enum_type, "color_e", si);
+
+  LogicRef* signal = m->AddWire("signal", extern_enum_type, SourceInfo());
+  m->Add<ContinuousAssignment>(si, signal, red_ref);
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top;
+  wire color_e signal;
+  assign signal = RED;
+endmodule)");
+}
+
+// Tests that we can declare ports that are extern (typedef) datatypes.
+TEST_P(VastTest, ExternTypePort) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  // Make a 2-bit enum definition with RED (GREEN & BLUE elided) values.
+  Enum* enum_type = f.Make<Enum>(si, DataKind::kLogic, f.BitVectorType(2, si));
+  EnumMemberRef* red_ref =
+      enum_type->AddMember("RED", f.PlainLiteral(0, si), si);
+
+  // Note that this is an externally defined type.
+  DataType* extern_enum_type = f.ExternType(enum_type, "color_e", si);
+
+  // Declare a port of the extern type.
+  m->AddInput("input", extern_enum_type, si);
+  LogicRef* output = m->AddOutput("output", extern_enum_type, si);
+
+  m->Add<ContinuousAssignment>(si, output, red_ref);
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top(
+  input color_e input,
+  output color_e output
+);
+  assign output = RED;
+endmodule)");
+}
+
+// Tests that we can declare ports that are external-package references; e.g.
+// we want to show we can make a port like:
+// `input mypack::mystruct_t a`
+TEST_P(VastTest, ExternalPackageTypePort) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  // Make an extern package type to use in the `input` construction.
+  auto* data_type = f.Make<ExternPackageType>(si, "mypack", "mystruct_t");
+
+  m->AddInput("my_input", data_type, si);
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top(
+  input mypack::mystruct_t my_input
+);
+
+endmodule)");
+}
+
+// Tests that we can declare ports that are packed arrays of external-package
+// references; e.g. we want to show we can make a port like:
+// `input mypack::mystruct_t [1:0][2:0][3:0] a`
+TEST_P(VastTest, ExternalPackageTypePackedArrayPort) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  // Make an extern package type to use in the `input` construction.
+  auto* data_type = f.Make<ExternPackageType>(si, "mypack", "mystruct_t");
+  const std::vector<int64_t> packed_dims = {2, 3, 4};
+  const bool dims_are_max = false;
+  auto* packed_array =
+      f.Make<PackedArrayType>(si, data_type, packed_dims, dims_are_max);
+
+  m->AddInput("my_input", packed_array, si);
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top(
+  input mypack::mystruct_t [1:0][2:0][3:0] my_input
+);
+
+endmodule)");
+}
+
+// Tests that we can reference a slice of a multidimensional packed array on
+// the LHS or RHS of an assign statement; e.g.
+// ```
+// assign a[1][2][3:4] = b[1:0];
+// assign a[3:4] = c[2:1];
+// ```
+TEST_P(VastTest, SliceOfMultidimensionalPackedArrayOnLhsAndRhs) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  const std::vector<int64_t> dims = {3, 5};
+  DataType* a_type = f.Make<PackedArrayType>(si, 2, absl::MakeConstSpan(dims),
+                                             /*is_signed=*/false);
+  DataType* b_type = f.BitVectorType(2, si);
+  DataType* c_type = f.BitVectorType(3, si);
+
+  LogicRef* a = m->AddWire("a", a_type, si);
+  LogicRef* b = m->AddWire("b", b_type, si);
+  LogicRef* c = m->AddWire("c", c_type, si);
+
+  m->AddModuleMember(f.Make<ContinuousAssignment>(
+      si,
+      f.Make<Slice>(
+          si,
+          f.Make<Index>(si, f.Make<Index>(si, a, f.PlainLiteral(1, si)),
+                        f.PlainLiteral(2, si)),
+          f.PlainLiteral(3, si), f.PlainLiteral(4, si)),
+      f.Make<Slice>(si, b, f.PlainLiteral(1, si), f.PlainLiteral(0, si))));
+  m->AddModuleMember(f.Make<ContinuousAssignment>(
+      si, f.Make<Slice>(si, a, f.PlainLiteral(3, si), f.PlainLiteral(4, si)),
+      f.Make<Slice>(si, c, f.PlainLiteral(2, si), f.PlainLiteral(1, si))));
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top;
+  wire [1:0][2:0][4:0] a;
+  wire [1:0] b;
+  wire [2:0] c;
+  assign a[1][2][3:4] = b[1:0];
+  assign a[3:4] = c[2:1];
+endmodule)");
 }
 
 INSTANTIATE_TEST_SUITE_P(VastTestInstantiation, VastTest,
