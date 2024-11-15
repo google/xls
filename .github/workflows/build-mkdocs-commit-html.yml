@@ -1,9 +1,14 @@
 name: Nighly Build MkDocs And Commit HTML
 
 on:
-  schedule:
-    # Nightly at midnight PDT -- uses UTC, so 7am.
-    - cron:  '0 7 * * *'
+  # Run on every commit pushed to main.
+  push:
+    branches:
+      - main
+  # This will skip deploy per step 5 of https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#creating-a-custom-github-actions-workflow-to-publish-your-site).
+  pull_request:
+    branches:
+      - main
   # This lets us trigger manually from the UI.
   workflow_dispatch:
 
