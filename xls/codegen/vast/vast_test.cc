@@ -80,6 +80,40 @@ TEST_P(VastTest, EmitBitVectorLogicDef) {
   EXPECT_EQ(logic_def->Emit(&line_info), "logic [41:0] foo;");
 }
 
+// Tests we can build and emit a construct of the following form:
+// ```
+// typedef enum integer {
+//   kElem0 = 0,
+//   kElem1 = 1,
+//   kElem2 = 2,
+//   kElem3 = 3,
+// } enum_t;
+// ```
+TEST_P(VastTest, EmitTypedefOfEnumWithUnderlyingInteger) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  DataType* data_type = f.IntegerType(si);
+  Enum* enum_def = f.Make<Enum>(si, DataKind::kInteger, data_type);
+  EnumMemberRef* elem0 =
+      enum_def->AddMember("kElem0", f.PlainLiteral(0, si), si);
+  EnumMemberRef* elem1 =
+      enum_def->AddMember("kElem1", f.PlainLiteral(1, si), si);
+  EnumMemberRef* elem2 =
+      enum_def->AddMember("kElem2", f.PlainLiteral(2, si), si);
+  EnumMemberRef* elem3 =
+      enum_def->AddMember("kElem3", f.PlainLiteral(3, si), si);
+  Typedef* enum_typedef =
+      f.Make<Typedef>(si, f.Make<Def>(si, "enum_t", DataKind::kUser, enum_def));
+  LineInfo line_info;
+  EXPECT_EQ(enum_typedef->Emit(&line_info),
+            R"(typedef enum integer {
+  kElem0 = 0,
+  kElem1 = 1,
+  kElem2 = 2,
+  kElem3 = 3
+} enum_t;)");
+}
+
 TEST_P(VastTest, DataTypes) {
   VerilogFile f(GetFileType());
 

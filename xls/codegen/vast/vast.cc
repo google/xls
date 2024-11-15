@@ -117,6 +117,25 @@ bool CannotStripWhitespace(std::string_view s) {
   return stripped.size() == s.size();
 }
 
+// Helper that combines DataKind and DataType strings -- since either of these
+// can be empty under certain circumstances we consolidate the handling of
+// inserting spaces appropriately in this routine.
+std::string CombineKindAndDataType(std::string_view kind_str,
+                                   std::string_view data_type_str) {
+  CHECK(CannotStripWhitespace(kind_str));
+  CHECK(CannotStripWhitespace(data_type_str));
+
+  std::string result;
+  if (kind_str.empty()) {
+    result = data_type_str;
+  } else if (data_type_str.empty()) {
+    result = kind_str;
+  } else {
+    result = absl::StrCat(kind_str, " ", data_type_str);
+  }
+  return result;
+}
+
 }  // namespace
 
 int Precedence(OperatorKind kind) {
@@ -923,18 +942,8 @@ std::string Def::EmitNoSemi(LineInfo* line_info) const {
   std::string kind_str = DataKindToString(data_kind());
   std::string data_type_str =
       data_type()->EmitWithIdentifier(line_info, GetName());
+  std::string result = CombineKindAndDataType(kind_str, data_type_str);
 
-  CHECK(CannotStripWhitespace(kind_str));
-  CHECK(CannotStripWhitespace(data_type_str));
-
-  std::string result;
-  if (kind_str.empty()) {
-    result = data_type_str;
-  } else if (data_type_str.empty()) {
-    result = kind_str;
-  } else {
-    result = absl::StrCat(kind_str, " ", data_type_str);
-  }
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -1362,13 +1371,11 @@ std::string Enum::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = "enum {\n";
   if (kind_ != DataKind::kUntypedEnum) {
-    std::string underlying_type_string = DataKindToString(kind_);
-    if (!underlying_type_string.empty()) {
-      absl::StrAppend(&underlying_type_string, " ");
-    }
-    absl::StrAppend(&underlying_type_string, BaseType()->Emit(line_info));
-
-    result = absl::StrFormat("enum %s {\n", underlying_type_string);
+    std::string kind_str = DataKindToString(kind_);
+    std::string data_type_str = BaseType()->Emit(line_info);
+    std::string underlying_type_str =
+        CombineKindAndDataType(kind_str, data_type_str);
+    result = absl::StrFormat("enum %s {\n", underlying_type_str);
   }
   LineInfoIncrease(line_info, 1);
   for (int i = 0; i < members_.size(); i++) {
