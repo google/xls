@@ -315,9 +315,16 @@ absl::StatusOr<std::vector<verible::lsp::TextEdit>>
 LanguageServerAdapter::FormatDocument(std::string_view uri) const {
   using ResultT = std::vector<verible::lsp::TextEdit>;
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+    if (!vfs_contents_.contains(uri)) {
+      // TODO: davidplass - We should probably format the contents of the file
+      // anyway, even if we haven't received the full text from the LSP
+      // server. The user won't be able to use dslx-fmt::off, but that's OK.
+      return ResultT{};
+    }
     const Module& module = parsed->module();
+    const std::string& dslx_code = vfs_contents_.at(uri);
     XLS_ASSIGN_OR_RETURN(std::string new_contents,
-                         AutoFmt(module, parsed->comments()));
+                         AutoFmt(module, parsed->comments(), dslx_code));
     return ResultT{
         verible::lsp::TextEdit{.range = ConvertSpanToLspRange(module.span()),
                                .newText = new_contents}};

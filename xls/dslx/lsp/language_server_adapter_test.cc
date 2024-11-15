@@ -208,6 +208,34 @@ fn messy() {
 )");
 }
 
+TEST(LanguageServerAdapterTest, DisableFormatting) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  constexpr std::string_view kInput = R"(// Top of module comment.
+
+// dslx-fmt::off
+fn messy(){()// retval comment
+}
+// dslx-fmt::on)";
+  const auto kInputRange =
+      verible::lsp::Range{.start = verible::lsp::Position{0, 0},
+                          .end = verible::lsp::Position{5, 15}};
+
+  // Notify the adapter of the file contents.
+  XLS_ASSERT_OK(adapter.Update(kUri, kInput));
+
+  // Act
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::TextEdit> edits,
+                           adapter.FormatDocument(kUri));
+
+  // Assert
+  ASSERT_EQ(edits.size(), 1);
+  const verible::lsp::TextEdit& edit = edits.at(0);
+  EXPECT_TRUE(edit.range == kInputRange) << DebugString(edit.range);
+  // Text should be unchanged, because we disabled formatting.
+  EXPECT_EQ(edit.newText, kInput);
+}
+
 TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
   constexpr std::string_view kUri = "memfile://test.x";

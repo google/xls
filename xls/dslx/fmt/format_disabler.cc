@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
@@ -186,12 +187,13 @@ absl::StatusOr<std::string> FormatDisabler::GetTextInSpan(const Span &span) {
   int64_t start_line = span.start().lineno();
   int64_t end_line = span.limit().lineno();
   if (start_line < 0 || start_line > lines_.size()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Start line out of bounds: ", start_line));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Start line %d out of bounds: max %d", start_line, lines_.size()));
   }
   if (end_line < 0 || end_line > lines_.size() || end_line < start_line) {
     return absl::InvalidArgumentError(
-        absl::StrCat("End line out of bounds: ", end_line));
+        absl::StrFormat("End line %d out of bounds: start %d, max %d", end_line,
+                        start_line, lines_.size()));
   }
 
   int64_t end_column = span.limit().colno();
