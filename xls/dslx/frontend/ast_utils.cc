@@ -463,7 +463,9 @@ bool ContainedWithinFunction(const Invocation& invocation,
 
   while (parent->kind() != AstNodeKind::kFunction) {
     const AstNode* new_parent = parent->parent();
-    CHECK(new_parent != nullptr);
+    CHECK(new_parent != nullptr) << absl::StreamFormat(
+        "node `%s` had no function parent (`%s` was the last node)",
+        invocation.parent()->ToString(), parent->ToString());
     VLOG(10) << absl::StreamFormat("transitive; node `%s` has parent: `%s`",
                                    parent->ToString(), new_parent->ToString());
     parent = new_parent;
