@@ -322,26 +322,22 @@ string. These format strings use placeholders to fill in relevant information.
     `--flop_inputs_kind=...` and `--flop_outputs_kind=...` flags control what
     the logic around the outputs and inputs look like respectively. The list
     below enumerates the possible kinds of output flopping and shows what logic
-    is generated in each case.
+    is generated in each case:
 
     -   `flop`: Adds a pipeline stage at the beginning or end of the block to
         hold inputs or outputs. This is essentially a single-element FIFO.
 
-![Flop Outputs](./flop_outputs.svg)
+    ![Flop Outputs](./flop_outputs.svg)
 
-```
--   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
-    skid buffer can hold 2 entries.
-```
+    -   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
+        skid buffer can hold 2 entries.
 
-![Skid Buffer](./skid_buffer.svg)
+    ![Skid Buffer](./skid_buffer.svg)
 
-```
--   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
-    block. This is essentially a single-element FIFO with bypass.
-```
+    -   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
+        block. This is essentially a single-element FIFO with bypass.
 
-![Zero Latency Buffer](./zero_latency_buffer.svg)
+    ![Zero Latency Buffer](./zero_latency_buffer.svg)
 
 -   `--flop_single_value_channels` controls if single-value channels should be
     flopped.
