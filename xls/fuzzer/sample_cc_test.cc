@@ -27,6 +27,8 @@
 namespace xls {
 namespace {
 
+using testing::ElementsAre;
+
 const char kDslxFunction[] = R"(fn foo(x: u32) -> u32 {
   x
 })";
@@ -59,12 +61,13 @@ TEST(SampleCcTest, SerializeDeserializeFunction) {
   EXPECT_EQ(sample.options().convert_to_ir(), copy.options().convert_to_ir());
   EXPECT_EQ(sample.options().optimize_ir(), copy.options().optimize_ir());
 
-  EXPECT_EQ(sample.args_batch(), copy.args_batch());
-  EXPECT_EQ(sample.args_batch().size(), 2);
-  EXPECT_EQ(sample.args_batch()[0].size(), 1);
-  EXPECT_EQ(sample.args_batch()[0][0].ToString(), "u32:42");
-  EXPECT_EQ(sample.args_batch()[1].size(), 1);
-  EXPECT_EQ(sample.args_batch()[1][0].ToString(), "u32:123");
+  std::vector<std::vector<dslx::InterpValue>> args_batch;
+  XLS_EXPECT_OK(sample.GetArgsAndChannels(args_batch, nullptr));
+  EXPECT_EQ(args_batch.size(), 2);
+  EXPECT_EQ(args_batch[0].size(), 1);
+  EXPECT_EQ(args_batch[0][0].ToString(), "u32:42");
+  EXPECT_EQ(args_batch[1].size(), 1);
+  EXPECT_EQ(args_batch[1][0].ToString(), "u32:123");
 }
 
 TEST(SampleCcTest, DeserializationCanHandleNewlinesInStringLiterals) {
@@ -88,14 +91,17 @@ TEST(SampleCcTest, DeserializationCanHandleNewlinesInStringLiterals) {
 )""";
   XLS_ASSERT_OK_AND_ASSIGN(Sample parsed, Sample::Deserialize(kNewlinedConfig));
 
-  EXPECT_EQ(parsed.args_batch().size(), 1);
-  EXPECT_EQ(parsed.args_batch()[0].size(), 1);
-  EXPECT_EQ(parsed.args_batch()[0][0].ToString(), "(u32:1, u32:2, u32:3)");
+  std::vector<std::vector<dslx::InterpValue>> args_batch;
+  XLS_EXPECT_OK(parsed.GetArgsAndChannels(args_batch, nullptr));
+  EXPECT_EQ(args_batch.size(), 1);
+  EXPECT_EQ(args_batch[0].size(), 1);
+  EXPECT_EQ(args_batch[0][0].ToString(), "(u32:1, u32:2, u32:3)");
 }
 
 TEST(SampleCcTest, SerializeDeserializeProc) {
   SampleOptions options;
   options.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
+  options.set_proc_ticks(1);
   options.set_ir_converter_args({"--foo", "--bar"});
   options.set_codegen(true);
   options.set_codegen_args({"--quux"});
@@ -115,14 +121,15 @@ TEST(SampleCcTest, SerializeDeserializeProc) {
   EXPECT_EQ(sample.options().codegen(), copy.options().codegen());
   EXPECT_EQ(sample.options().codegen_args(), copy.options().codegen_args());
 
-  EXPECT_EQ(sample.args_batch(), copy.args_batch());
-  EXPECT_EQ(sample.args_batch().size(), 1);
-  EXPECT_EQ(sample.args_batch()[0].size(), 2);
-  EXPECT_EQ(sample.args_batch()[0][0].ToString(), "u32:42");
-  EXPECT_EQ(sample.args_batch()[0][1].ToString(), "u32:123");
+  std::vector<std::vector<dslx::InterpValue>> args_batch;
+  std::vector<std::string> ir_channel_names;
+  XLS_EXPECT_OK(sample.GetArgsAndChannels(args_batch, &ir_channel_names));
+  EXPECT_EQ(args_batch.size(), 1);
+  EXPECT_EQ(args_batch[0].size(), 2);
+  EXPECT_EQ(args_batch[0][0].ToString(), "u32:42");
+  EXPECT_EQ(args_batch[0][1].ToString(), "u32:123");
 
-  EXPECT_THAT(sample.ir_channel_names(),
-              testing::ElementsAre("channel0", "channel1"));
+  EXPECT_THAT(ir_channel_names, ElementsAre("channel0", "channel1"));
 }
 
 }  // namespace

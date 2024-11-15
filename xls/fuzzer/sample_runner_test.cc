@@ -271,7 +271,8 @@ TEST_F(SampleRunnerTest, DSLXToIR) {
   options.set_input_is_dslx(true);
   options.set_ir_converter_args({"--top=main"});
   options.set_optimize_ir(false);
-  XLS_ASSERT_OK(runner.Run(Sample(std::string(dslx_text), options, {})));
+  ArgsBatch no_args;
+  XLS_ASSERT_OK(runner.Run(Sample(std::string(dslx_text), options, no_args)));
   EXPECT_THAT(GetFileContents(GetTempPath() / "sample.ir"),
               IsOkAndHolds(HasSubstr("package sample")));
 }

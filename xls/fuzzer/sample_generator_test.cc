@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <random>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -51,7 +52,10 @@ TEST(SampleGeneratorTest, GenerateBasicFunctionSample) {
   EXPECT_TRUE(sample.options().optimize_ir());
   EXPECT_FALSE(sample.options().codegen());
   EXPECT_FALSE(sample.options().simulate());
-  EXPECT_EQ(sample.args_batch().size(), kCallsPerSample);
+
+  std::vector<std::vector<dslx::InterpValue>> args_batch;
+  XLS_EXPECT_OK(sample.GetArgsAndChannels(args_batch));
+  EXPECT_EQ(args_batch.size(), kCallsPerSample);
   EXPECT_THAT(sample.input_text(), testing::HasSubstr("fn main"));
 }
 
@@ -72,7 +76,9 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
   EXPECT_TRUE(sample.options().codegen());
   EXPECT_TRUE(sample.options().simulate());
   EXPECT_FALSE(sample.options().codegen_args().empty());
-  EXPECT_EQ(sample.args_batch().size(), kCallsPerSample);
+  std::vector<std::vector<dslx::InterpValue>> args_batch;
+  XLS_EXPECT_OK(sample.GetArgsAndChannels(args_batch));
+  EXPECT_EQ(args_batch.size(), kCallsPerSample);
 }
 
 TEST(SampleGeneratorTest, GenerateChannelArgument) {
@@ -115,11 +121,15 @@ TEST(SampleGeneratorTest, GenerateBasicProcSample) {
   EXPECT_TRUE(sample.options().optimize_ir());
   EXPECT_FALSE(sample.options().codegen());
   EXPECT_FALSE(sample.options().simulate());
-  EXPECT_EQ(sample.args_batch().size(), kProcTicks);
+
+  std::vector<std::vector<dslx::InterpValue>> args_batch;
+  std::vector<std::string> ir_channel_names;
+  XLS_EXPECT_OK(sample.GetArgsAndChannels(args_batch, &ir_channel_names));
+  EXPECT_EQ(args_batch.size(), kProcTicks);
 
   // Just kProcTicks ticks, no channels with content
-  EXPECT_TRUE(sample.args_batch()[0].empty());
-  EXPECT_TRUE(sample.ir_channel_names().empty());
+  EXPECT_TRUE(args_batch[0].empty());
+  EXPECT_TRUE(ir_channel_names.empty());
 
   EXPECT_THAT(sample.input_text(), HasSubstr("proc main"));
 }

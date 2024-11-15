@@ -218,8 +218,10 @@ class Sample {
 
   // Utility function to convert testvector::SampleInputsProto to
   // args batch and channel names used in this object.
+  // TODO(google/xls#1645) remove.
   static absl::Status ExtractArgsBatch(
-      bool is_proc_samples, const testvector::SampleInputsProto& testvector,
+      const SampleOptions& options,
+      const testvector::SampleInputsProto& testvector,
       std::vector<std::vector<dslx::InterpValue>>& args_batch,
       std::vector<std::string>* ir_channel_names = nullptr);
 
@@ -233,46 +235,42 @@ class Sample {
   // file. Crashers may be checked in as tests in `xls/fuzzer/crashers/`.
   std::string ToCrasher(std::string_view error_message) const;
 
-  // TODO(google/xls#1645) args batch and channel names should be sample inputs
-  // proto instead.
   Sample(std::string input_text, SampleOptions options,
-         std::vector<std::vector<dslx::InterpValue>> args_batch,
-         std::vector<std::string> ir_channel_names = {})
+         testvector::SampleInputsProto testvector)
       : input_text_(std::move(input_text)),
         options_(std::move(options)),
-        args_batch_(std::move(args_batch)),
-        ir_channel_names_(std::move(ir_channel_names)) {}
+        testvector_(std::move(testvector)) {}
+
+  // Legacy constructor for compatibility, but to be removed. Use above instead.
+  [[deprecated("Use constructor taking testvector instead")]] Sample(
+      std::string input_text, SampleOptions options,
+      const std::vector<std::vector<dslx::InterpValue>>& args_batch,
+      const std::vector<std::string>& ir_channel_names = {});
 
   const SampleOptions& options() const { return options_; }
+  const testvector::SampleInputsProto& testvector() const {
+    return testvector_;
+  }
+
   const std::string& input_text() const { return input_text_; }
-  const std::vector<std::vector<dslx::InterpValue>>& args_batch() const {
-    return args_batch_;
-  }
-  const std::vector<std::string>& ir_channel_names() const {
-    return ir_channel_names_;
-  }
 
   bool operator==(const Sample& other) const {
     return input_text_ == other.input_text_ && options_ == other.options_ &&
-           ArgsBatchEqual(other) &&
-           ir_channel_names_ == other.ir_channel_names_;
+           TestVectorEqual(other.testvector_);
   }
-  bool operator!=(const Sample& other) const { return !((*this) == other); }
+  bool operator!=(const Sample& other) const = default;
 
-  // Convert internal argument representation to a sample inputs proto.
-  absl::Status FillSampleInputs(testvector::SampleInputsProto* proto) const;
+  // Get legacy representations.
+  absl::Status GetArgsAndChannels(
+      std::vector<std::vector<dslx::InterpValue>>& args_batch,
+      std::vector<std::string>* ir_channel_names = nullptr) const;
 
  private:
-  // Returns whether the argument batch is the same as in "other".
-  bool ArgsBatchEqual(const Sample& other) const;
+  bool TestVectorEqual(const testvector::SampleInputsProto& tv) const;
 
   std::string input_text_;  // Code sample as text.
   SampleOptions options_;   // How to run the sample.
-
-  // Argument values to use for interpretation and simulation.
-  std::vector<std::vector<dslx::InterpValue>> args_batch_;
-  // Channel names as they appear in the IR.
-  std::vector<std::string> ir_channel_names_;
+  testvector::SampleInputsProto testvector_;  // Input data.
 };
 
 std::ostream& operator<<(std::ostream& os, const Sample& sample);

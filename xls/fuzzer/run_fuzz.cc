@@ -51,7 +51,6 @@
 #include "xls/fuzzer/sample_generator.h"
 #include "xls/fuzzer/sample_runner.h"
 #include "xls/fuzzer/sample_summary.pb.h"
-#include "xls/tests/testvector.pb.h"
 
 ABSL_DECLARE_FLAG(int32_t, v);
 ABSL_DECLARE_FLAG(std::string, vmodule);
@@ -207,9 +206,7 @@ absl::Status RunSample(const Sample& smp, const std::filesystem::path& run_dir,
   argv.push_back("--options_file=options.pbtxt");
 
   std::filesystem::path testvector_path = run_dir / "testvector.pbtxt";
-  testvector::SampleInputsProto testvector;
-  XLS_RETURN_IF_ERROR(smp.FillSampleInputs(&testvector));
-  XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, testvector));
+  XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, smp.testvector()));
   argv.push_back("--testvector_textproto=testvector.pbtxt");
 
   argv.push_back("\"$RUNDIR\"");

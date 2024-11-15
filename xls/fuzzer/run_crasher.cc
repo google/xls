@@ -53,8 +53,7 @@ absl::Status RealMain(const std::filesystem::path& crasher_path,
   if (simulator.has_value()) {
     SampleOptions options = crasher.options();
     options.set_simulator(*simulator);
-    crasher = Sample(crasher.input_text(), options, crasher.args_batch(),
-                     crasher.ir_channel_names());
+    crasher = Sample(crasher.input_text(), options, crasher.testvector());
   }
 
   LOG(INFO) << "Running crasher in directory " << run_dir;

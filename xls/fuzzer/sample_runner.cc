@@ -835,9 +835,7 @@ absl::Status SampleRunner::Run(const Sample& sample) {
   XLS_RETURN_IF_ERROR(SetTextProtoFile(options_path, sample.options().proto()));
 
   std::filesystem::path testvector_path = run_dir_ / "testvector.pbtxt";
-  testvector::SampleInputsProto testvector;
-  XLS_RETURN_IF_ERROR(sample.FillSampleInputs(&testvector));
-  XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, testvector));
+  XLS_RETURN_IF_ERROR(SetTextProtoFile(testvector_path, sample.testvector()));
 
   return RunFromFiles(input_path, options_path, testvector_path);
 }
@@ -895,8 +893,8 @@ absl::Status SampleRunner::RunFunction(
     testvector::SampleInputsProto sample_inputs;
     XLS_RETURN_IF_ERROR(ParseTextProtoFile(testvector_path, &sample_inputs));
     ArgsBatch extracted;
-    XLS_RETURN_IF_ERROR(Sample::ExtractArgsBatch(/* is_proc_samples= */ false,
-                                                 sample_inputs, extracted));
+    XLS_RETURN_IF_ERROR(
+        Sample::ExtractArgsBatch(options, sample_inputs, extracted));
     args_batch = std::move(extracted);
   }
 
@@ -1012,9 +1010,8 @@ absl::Status SampleRunner::RunProc(
     XLS_RETURN_IF_ERROR(ParseTextProtoFile(testvector_path, &sample_inputs));
     ArgsBatch extracted_args;
     std::vector<std::string> extracted_channel_names;
-    XLS_RETURN_IF_ERROR(Sample::ExtractArgsBatch(/* is_proc_samples= */ true,
-                                                 sample_inputs, extracted_args,
-                                                 &extracted_channel_names));
+    XLS_RETURN_IF_ERROR(Sample::ExtractArgsBatch(
+        options, sample_inputs, extracted_args, &extracted_channel_names));
     args_batch = std::move(extracted_args);
     ir_channel_names = std::move(extracted_channel_names);
   }

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <iostream>
@@ -128,41 +129,49 @@ using InputType = std::variant<FunctionInput, ProcInput>;
 
 absl::StatusOr<InputType> ConvertTestVector(
     const testvector::SampleInputsProto& testvector) {
-  if (testvector.has_channel_inputs()) {
-    ProcInput result;
-    for (const testvector::ChannelInputProto& channel_input :
-         testvector.channel_inputs().inputs()) {
-      auto inserted =
-          result.channel_inputs.insert({channel_input.channel_name(), {}});
-      QCHECK(inserted.second) << "Multiple channel inputs with same name?";
-      std::vector<Value>& channel_values = inserted.first->second;
-      for (std::string_view value_str : channel_input.values()) {
-        XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(value_str));
-        channel_values.push_back(value);
-      }
-      if (channel_input.valid_holdoffs().empty()) {
-        continue;
-      }
-      if (!result.holdoffs.has_value()) {
-        result.holdoffs = verilog::ReadyValidHoldoffs();
-      }
-      auto holdoff_inserted = result.holdoffs->valid_holdoffs.insert(
-          {channel_input.channel_name(), {}});
-      QCHECK(holdoff_inserted.second);
-      std::vector<verilog::ValidHoldoff>& sink = holdoff_inserted.first->second;
-      for (const auto& holdoff : channel_input.valid_holdoffs()) {
-        // For now, only interested in hold-off cycles, no placeholder values.
-        CHECK(holdoff.driven_values().empty()) << "Needs impl: conversion";
-        sink.push_back({.cycles = holdoff.cycles(), .driven_values = {}});
-      }
-    }
+  if (testvector.has_function_args()) {
+    FunctionInput result;
+    std::copy(testvector.function_args().args().begin(),
+              testvector.function_args().args().end(),
+              std::back_inserter(result.args_strings));
     return result;
   }
-  // If not proc, then interpret as function result.
-  FunctionInput result;
-  std::copy(testvector.function_args().args().begin(),
-            testvector.function_args().args().end(),
-            std::back_inserter(result.args_strings));
+
+  // If not function, this is a proc.
+  ProcInput result;
+  size_t max_channel_inputs = 0;
+  int64_t total_holdoff_cycles = 0;
+  for (const testvector::ChannelInputProto& channel_input :
+       testvector.channel_inputs().inputs()) {
+    auto inserted =
+        result.channel_inputs.insert({channel_input.channel_name(), {}});
+    QCHECK(inserted.second) << "Multiple channel inputs with same name?";
+    std::vector<Value>& channel_values = inserted.first->second;
+    for (std::string_view value_str : channel_input.values()) {
+      XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(value_str));
+      channel_values.push_back(value);
+    }
+    max_channel_inputs = std::max(max_channel_inputs, channel_values.size());
+    if (channel_input.valid_holdoffs().empty()) {
+      continue;
+    }
+    if (!result.holdoffs.has_value()) {
+      result.holdoffs = verilog::ReadyValidHoldoffs();
+    }
+    auto holdoff_inserted = result.holdoffs->valid_holdoffs.insert(
+        {channel_input.channel_name(), {}});
+    QCHECK(holdoff_inserted.second);
+    std::vector<verilog::ValidHoldoff>& sink = holdoff_inserted.first->second;
+    for (const auto& holdoff : channel_input.valid_holdoffs()) {
+      // For now, only interested in hold-off cycles, no placeholder values.
+      CHECK(holdoff.driven_values().empty()) << "Needs impl: conversion";
+      sink.push_back({.cycles = holdoff.cycles(), .driven_values = {}});
+      total_holdoff_cycles += holdoff.cycles();
+    }
+  }
+  LOG(INFO) << "(" << max_channel_inputs << " channel inputs) + ("
+            << total_holdoff_cycles << " interleaved holdoff cylces) = "
+            << max_channel_inputs + total_holdoff_cycles << " needed ticks";
   return result;
 }
 
