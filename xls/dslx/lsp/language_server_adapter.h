@@ -152,7 +152,7 @@ class LanguageServerAdapter {
       CHECK_OK(tmc_.status());
       return *tmc_->tm.type_info;
     }
-    const Comments& comments() const {
+    Comments& comments() {
       CHECK_OK(tmc_.status());
       return tmc_->comments;
     }

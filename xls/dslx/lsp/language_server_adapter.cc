@@ -314,9 +314,10 @@ LanguageServerAdapter::FindDefinitions(
 absl::StatusOr<std::vector<verible::lsp::TextEdit>>
 LanguageServerAdapter::FormatDocument(std::string_view uri) const {
   using ResultT = std::vector<verible::lsp::TextEdit>;
-  if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
+  if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     const Module& module = parsed->module();
-    std::string new_contents = AutoFmt(module, parsed->comments());
+    XLS_ASSIGN_OR_RETURN(std::string new_contents,
+                         AutoFmt(module, parsed->comments()));
     return ResultT{
         verible::lsp::TextEdit{.range = ConvertSpanToLspRange(module.span()),
                                .newText = new_contents}};

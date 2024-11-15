@@ -2764,33 +2764,30 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
   return ConcatN(arena, pieces);
 }
 
-std::string AutoFmt(const Module& m, const Comments& comments,
-                    int64_t text_width) {
+std::string LegacyAutoFmt(const Module& m, const Comments& comments,
+                          int64_t text_width) {
   DocArena arena(*m.file_table());
   DocRef ref = Fmt(m, comments, arena);
   return PrettyPrint(arena, ref, text_width);
 }
 
-absl::StatusOr<std::string> AutoFmtWithDisabling(const Module& m,
-                                                 Comments& comments,
-                                                 int64_t text_width) {
+absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+                                    int64_t text_width) {
   XLS_RET_CHECK(m.fs_path().has_value());
   FormatDisabler disabler(comments, *m.fs_path());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
       CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));
-  return AutoFmt(*clone, comments, text_width);
+  return LegacyAutoFmt(*clone, comments, text_width);
 }
 
-absl::StatusOr<std::string> AutoFmtWithDisabling(const Module& m,
-                                                 Comments& comments,
-                                                 std::string contents,
-                                                 int64_t text_width) {
+absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+                                    std::string contents, int64_t text_width) {
   FormatDisabler disabler(comments, contents);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
       CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));
-  return AutoFmt(*clone, comments, text_width);
+  return LegacyAutoFmt(*clone, comments, text_width);
 }
 
 // AutoFmt output should be the same as input after whitespace is eliminated

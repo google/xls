@@ -788,8 +788,8 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
               << " because it was not found after round-tripping the DSLX.";
     }
   }
-  return AutoFmt(*parsed_module.module, dslx::Comments::Create(comment_data),
-                 /*text_width=*/100);
+  dslx::Comments comments = dslx::Comments::Create(comment_data);
+  return AutoFmt(*parsed_module.module, comments, /*text_width=*/100);
 }
 
 }  // namespace xls

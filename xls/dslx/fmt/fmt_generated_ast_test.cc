@@ -58,7 +58,8 @@ TEST_P(FmtGeneratedAstTest, RunShard) {
                              parser.ParseModule());
 
     Comments comments;
-    std::string autoformatted = AutoFmt(*parsed, comments);
+    XLS_ASSERT_OK_AND_ASSIGN(std::string autoformatted,
+                             AutoFmt(*parsed, comments));
 
     // Note that the AST generator currently does not generate any constructs
     // that the "opportunistic postcondition" has difficulty with (such as

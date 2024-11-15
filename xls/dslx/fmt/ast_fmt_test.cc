@@ -1202,11 +1202,13 @@ class ModuleFmtTest : public testing::Test {
              std::optional<std::string_view> want = std::nullopt,
              int64_t text_width = kDslxDefaultTextWidth,
              bool opportunistic_postcondition = true) {
-    std::vector<CommentData> comments;
+    std::vector<CommentData> comments_vec;
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Module> m,
-        ParseModule(input, "fake.x", "fake", file_table_, &comments));
-    std::string got = AutoFmt(*m, Comments::Create(comments), text_width);
+        ParseModule(input, "fake.x", "fake", file_table_, &comments_vec));
+    Comments comments = Comments::Create(comments_vec);
+    XLS_ASSERT_OK_AND_ASSIGN(std::string got,
+                             AutoFmt(*m, comments, text_width));
 
     if (opportunistic_postcondition) {
       std::optional<AutoFmtPostconditionViolation> maybe_violation =
@@ -2530,6 +2532,28 @@ fn f() -> X {
 )");
 }
 
+TEST_F(ModuleFmtTest, TraceTest) {
+  DoFmt(R"(fn trace_test() {
+    let x0 = clz(u3:0b011);
+    let x1 = (x0 as u8) * u8:3;
+    trace!(x1);
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, IfElseIf) {
+  DoFmt(R"(fn elseif_sample(s: bool, x: u32, y: u32) -> u32 {
+    if s == true {
+        x
+    } else if x == u32:7 {
+        y
+    } else {
+        u32:42
+    }
+}
+)");
+}
+
 class DisableFmtTest : public testing::Test {
  public:
   void ExpectFormatted(std::string input) {
@@ -2541,9 +2565,8 @@ class DisableFmtTest : public testing::Test {
         ParseModule(input, "fake.x", "fake", file_table, &comments_vec));
     Comments comments = Comments::Create(comments_vec);
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::string got,
-        AutoFmtWithDisabling(*m.get(), comments, input, kDslxDefaultTextWidth));
+    XLS_ASSERT_OK_AND_ASSIGN(std::string got, AutoFmt(*m.get(), comments, input,
+                                                      kDslxDefaultTextWidth));
 
     EXPECT_EQ(got, input);
   }

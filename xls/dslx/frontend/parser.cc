@@ -3210,6 +3210,7 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(const Pos& start_pos,
 absl::StatusOr<Impl*> Parser::ParseImpl(const Pos& start_pos, bool is_public,
                                         Bindings& bindings) {
   VLOG(5) << "ParseImpl @ " << GetPos();
+
   Bindings impl_bindings(&bindings);
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kImpl));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,

@@ -162,6 +162,7 @@ cc_library(
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

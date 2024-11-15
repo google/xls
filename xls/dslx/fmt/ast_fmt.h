@@ -52,22 +52,19 @@ inline constexpr int64_t kDslxDefaultTextWidth = 100;
 // Auto-formatting entry points.
 //
 // Performs a reflow-capable formatting of module `m` with standard line width.
-std::string AutoFmt(const Module& m, const Comments& comments,
-                    int64_t text_width = kDslxDefaultTextWidth);
+std::string LegacyAutoFmt(const Module& m, const Comments& comments,
+                          int64_t text_width = kDslxDefaultTextWidth);
 
 // Performs a reflow-capable formatting of module `m` with standard line width,
 // but with the ability to disable formatting for specific ranges of text.
-absl::StatusOr<std::string> AutoFmtWithDisabling(const Module& m,
-                                                 Comments& comments,
-                                                 int64_t text_width);
+absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+                                    int64_t text_width = kDslxDefaultTextWidth);
 
 // Performs a reflow-capable formatting of module `m` with standard line width,
 // for the actual `content` but with the ability to disable formatting for
 // specific ranges of text. This is only intended to be used for testing.
-absl::StatusOr<std::string> AutoFmtWithDisabling(const Module& m,
-                                                 Comments& comments,
-                                                 std::string contents,
-                                                 int64_t text_width);
+absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+                                    std::string contents, int64_t text_width);
 
 // If we fail the postcondition we return back the data we used to detect that
 // the postcondition was violated.

@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -130,6 +131,15 @@ std::optional<const CommentData *> FormatDisabler::FindDisableBefore(
   if (previous_node_ != nullptr && previous_node_->GetSpan().has_value()) {
     // Span from end of previous node to start of this node.
     start = previous_node_->GetSpan()->start();
+  }
+
+  if (node->GetSpan()->start() < start) {
+    // This node is before the previous node, so it's not disableable.
+    VLOG(5) << "Node " << node->ToString() << " @ "
+            << node->GetSpan()->start().ToStringNoFile()
+            << " is before previous span: " << start.ToStringNoFile()
+            << ", skipping";
+    return std::nullopt;
   }
 
   Span span(start, node->GetSpan()->start());
