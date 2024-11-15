@@ -1107,6 +1107,18 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
   return new_module;
 }
 
+CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second) {
+  return [first = std::move(first),
+          second = std::move(second)](const AstNode* node) mutable
+             -> absl::StatusOr<std::optional<AstNode*>> {
+    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> first_result, first(node));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<AstNode*> second_result,
+        second(first_result.has_value() ? *first_result : node));
+    return second_result.has_value() ? second_result : first_result;
+  };
+}
+
 // Verifies that `node` consists solely of "new" AST nodes and none that are
 // in the "old" set.
 absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root,

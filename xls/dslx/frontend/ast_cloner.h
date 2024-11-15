@@ -66,6 +66,10 @@ absl::StatusOr<AstNode*> CloneAst(const AstNode* root,
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
     const Module& module, CloneReplacer replacer = &NoopCloneReplacer);
 
+// Returns a CloneReplacer that runs `first` and then runs `second` on the
+// preliminary result, short-circuiting if `first` returns an error.
+CloneReplacer ChainCloneReplacers(CloneReplacer first, CloneReplacer second);
+
 // Verifies that the AST node tree rooted at `new_root` does not contain any of
 // the AST nodes in the tree rooted at `old_root`. In practice, this will verify
 // that a clone doesn't contain any 'old' AST nodes.

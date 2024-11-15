@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/frontend/ast_cloner.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,9 +22,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -33,6 +36,7 @@
 namespace xls::dslx {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::IsEmpty;
 
 std::optional<TypeRef*> FindFirstTypeRef(AstNode* node) {
@@ -901,6 +905,119 @@ fn foo() -> u32 {
   ASSERT_TRUE(cloned_type_ref.has_value());
   EXPECT_EQ((*cloned_type_ref)->type_definition(),
             (*type_ref)->type_definition());
+}
+
+TEST(AstClonerTest, ChainCloneReplacersSuccess) {
+  constexpr std::string_view kProgram =
+      R"(
+fn foo(a: u32, b: u32, c: u32, d: u32) -> u32 {
+  a + b + c + d
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      AstNode * clone,
+      CloneAst(
+          foo,
+          ChainCloneReplacers(
+              // The first replacer does a => "3" and b => "4".
+              [&](const AstNode* node)
+                  -> absl::StatusOr<std::optional<AstNode*>> {
+                if (const auto* name_ref = dynamic_cast<const NameRef*>(node)) {
+                  if (name_ref->identifier() == "a") {
+                    return module->Make<Number>(Span::Fake(), "3",
+                                                NumberKind::kOther,
+                                                /*type_annotation=*/nullptr);
+                  }
+                  if (name_ref->identifier() == "b") {
+                    return module->Make<Number>(Span::Fake(), "4",
+                                                NumberKind::kOther,
+                                                /*type_annotation=*/nullptr);
+                  }
+                }
+                return std::nullopt;
+              },
+              // The second replacer does "3" -> 5" and c => "6".
+              [&](const AstNode* node)
+                  -> absl::StatusOr<std::optional<AstNode*>> {
+                if (const auto* number = dynamic_cast<const Number*>(node);
+                    number) {
+                  XLS_ASSIGN_OR_RETURN(uint64_t value,
+                                       number->GetAsUint64(file_table));
+                  if (value == 3) {
+                    return module->Make<Number>(Span::Fake(), "5",
+                                                NumberKind::kOther,
+                                                /*type_annotation=*/nullptr);
+                  }
+                }
+                if (const auto* name_ref = dynamic_cast<const NameRef*>(node);
+                    name_ref != nullptr && name_ref->identifier() == "c") {
+                  return module->Make<Number>(Span::Fake(), "6",
+                                              NumberKind::kOther,
+                                              /*type_annotation=*/nullptr);
+                }
+                return std::nullopt;
+              })));
+  EXPECT_EQ(clone->ToString(),
+            R"(fn foo(a: u32, b: u32, c: u32, d: u32) -> u32 {
+    5 + 4 + 6 + d
+})");
+}
+
+TEST(AstClonerTest, ChainCloneReplacersFailureInFirst) {
+  constexpr std::string_view kProgram =
+      R"(
+fn foo(a: u32) -> u32 {
+  a
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  EXPECT_THAT(CloneAst(foo, ChainCloneReplacers(
+                                [&](const AstNode* node)
+                                    -> absl::StatusOr<std::optional<AstNode*>> {
+                                  return absl::InvalidArgumentError("Invalid");
+                                },
+                                [&](const AstNode* node)
+                                    -> absl::StatusOr<std::optional<AstNode*>> {
+                                  return absl::FailedPreconditionError(
+                                      "Should not run");
+                                })),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST(AstClonerTest, ChainCloneReplacersFailureInSecond) {
+  constexpr std::string_view kProgram =
+      R"(
+fn foo(a: u32) -> u32 {
+  a
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  EXPECT_THAT(CloneAst(foo, ChainCloneReplacers(
+                                [&](const AstNode* node)
+                                    -> absl::StatusOr<std::optional<AstNode*>> {
+                                  return std::nullopt;
+                                },
+                                [&](const AstNode* node)
+                                    -> absl::StatusOr<std::optional<AstNode*>> {
+                                  return absl::InvalidArgumentError("Invalid");
+                                })),
+              StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(AstClonerTest, ZeroMacro) {

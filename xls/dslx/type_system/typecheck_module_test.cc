@@ -1200,7 +1200,7 @@ fn test() -> u32 {
                     "iterable and a type for the accumulator; got 3 types."))));
 }
 
-TEST(IrConverterTest, UnrollForWithIndexTypeTooSmallForRange) {
+TEST(TypecheckTest, UnrollForWithIndexTypeTooSmallForRange) {
   EXPECT_THAT(Typecheck(R"(
 fn test() -> u4 {
   unroll_for!(i, acc): (u4, u4) in u32:0..u32:120 {
@@ -1211,6 +1211,20 @@ fn test() -> u4 {
                        AllOf(HasSubstr("uN[4]\nvs uN[32]"),
                              HasSubstr("For-loop annotated index type did not "
                                        "match inferred type."))));
+}
+
+// https://github.com/google/xls/issues/1717
+TEST(TypecheckTest, UnrollForWithInvocationInTypeAlias) {
+  XLS_EXPECT_OK(Typecheck(R"(
+import std;
+type A = bits[std::clog2(u32:256)];
+
+fn muladd(a: u8, b: u8, c: u8) -> u8 {
+  let d = unroll_for! (_, j): (u32, u8) in u32:0..u32:8 {
+    A:0 + j
+  }(A:0);
+    a * b + c + d
+})"));
 }
 
 TEST(TypecheckTest, DerivedParametricStruct) {

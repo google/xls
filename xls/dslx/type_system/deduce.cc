@@ -639,8 +639,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
       ctx->type_info()->NoteConstExpr(index, element);
       index_replacer = NameRefReplacer(*index_def, index);
     }
-    XLS_ASSIGN_OR_RETURN(AstNode * clone,
-                         CloneAst(node->body(), std::move(index_replacer)));
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * clone,
+        CloneAst(node->body(),
+                 ChainCloneReplacers(std::move(index_replacer),
+                                     &PreserveTypeDefinitionsReplacer)));
     AstNode* iteration = clone;
     if (acc_def.has_value() && i < values->size() - 1) {
       iteration =
