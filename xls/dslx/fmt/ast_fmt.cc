@@ -28,7 +28,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -2047,12 +2046,6 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
   }
   signature_pieces.push_back(arena.break1());
   signature_pieces.push_back(arena.ocurl());
-
-  // Mapping from function to comment data -- we emit these last so if we're
-  // reordering them we want to make sure they stay associated with the
-  // appropriate comments.
-  absl::flat_hash_map<const Function*, std::vector<const CommentData*>>
-      fn_to_comments;
 
   Pos last_stmt_limit = n.body_span().start();
 
