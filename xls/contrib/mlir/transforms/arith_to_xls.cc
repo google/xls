@@ -103,6 +103,17 @@ StringAttr getFloatLib(Type type) {
   return {};
 }
 
+// clang-tidy fails to see that these are needed by the *.inc file below
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
+static Type boolLike(Operation* op) {
+  Type type = op->getResultTypes().front();
+  mlir::Builder builder(op->getContext());
+  if (auto shapedType = dyn_cast<ShapedType>(type)) {
+    return shapedType.clone(builder.getI1Type());
+  }
+  return builder.getI1Type();
+}
+
 #include "xls/contrib/mlir/transforms/arith_to_xls_patterns.inc"
 
 class ArithToXlsPass : public impl::ArithToXlsPassBase<ArithToXlsPass> {

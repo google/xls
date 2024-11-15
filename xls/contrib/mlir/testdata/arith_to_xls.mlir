@@ -85,7 +85,9 @@ func.func @divf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf3
 // CHECK-LABEL: maxf
 // CHECK: call_dslx
 // CHECK-SAME: "gt_2"
+// CHECK-SAME: -> tensor<3x3xi1>
 // CHECK: xls.sel
+// CHECK-SAME: -> tensor<3x3xf32>
 func.func @maxf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
   %0 = arith.maximumf %arg0, %arg1 : tensor<3x3xf32>
   return %0 : tensor<3x3xf32>

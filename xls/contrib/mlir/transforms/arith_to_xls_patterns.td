@@ -172,7 +172,8 @@ class MinMaxPatBase<dag Matcher, dag Predicate> : Pat<
 
 class FPMinMaxPat<Op Op, string Name> : MinMaxPatBase<
   (Op:$op $a, $b, /*FastMathFlags=*/$_),
-  (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr, (returnType $op))>;
+  (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr,
+     (returnType "boolLike(op)"))>;
 
 def : FPMinMaxPat<Arith_MaximumFOp, "gt_2">;
 def : FPMinMaxPat<Arith_MinimumFOp, "lt_2">;
