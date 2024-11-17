@@ -1745,7 +1745,8 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       tag_(tag),
       is_public_(is_public) {
   for (const ParametricBinding* pb : parametric_bindings_) {
-    CHECK(parametric_keys_.insert(pb->identifier()).second);
+    CHECK(parametric_keys_.insert(pb->identifier()).second)
+        << "Duplicate parametric binding: " << pb->identifier();
   }
 }
 

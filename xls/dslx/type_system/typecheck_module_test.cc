@@ -3935,6 +3935,12 @@ fn main() {
                                    "sN[32] (type is signed)")));
 }
 
+TEST(TypecheckErrorTest, DuplicateParametricBinding) {
+  EXPECT_THAT(
+      Typecheck("fn p<N: u1, N: u2>() -> u32 { u32:42 }").status(),
+      IsPosError("ParseError", HasSubstr("Duplicate parametric binding: `N`")));
+}
+
 // Table-oriented test that lets us validate that *types on parameters* are
 // compatible with *particular values* that should be type-compatible.
 TEST(PassValueToIdentityFnTest, ParameterVsValue) {
