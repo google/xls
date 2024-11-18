@@ -232,20 +232,15 @@ def prepare_test_environment(dut):
       "csr": csr_bus
   }
 
-  notify = connect_xls_channel(dut, NOTIFY_CHANNEL, NotifyStruct)
-  xls_channels = {
-      "notify": notify,
-  }
-
   cpu = AxiMaster(csr_bus, dut.clk, dut.rst)
 
-  return (axi_buses, xls_channels, cpu)
+  return (axi_buses, cpu)
 
-async def test_decoder(dut, seed, block_type, axi_buses, xls_channels, cpu):
+async def test_decoder(dut, seed, block_type, axi_buses, cpu):
   memory_bus = axi_buses["memory"]
   csr_bus = axi_buses["csr"]
-  (notify_channel, notify_monitor) = xls_channels[NOTIFY_CHANNEL]
 
+  (notify_channel, notify_monitor) = connect_xls_channel(dut, NOTIFY_CHANNEL, NotifyStruct)
   assert_notify = Event()
   set_termination_event(notify_monitor, assert_notify, 1)
 
@@ -282,6 +277,12 @@ async def test_decoder(dut, seed, block_type, axi_buses, xls_channels, cpu):
 
   await ClockCycles(dut.clk, 20)
 
+async def testing_routine(dut, test_cases=1, block_type=BlockType.RANDOM):
+  (axi_buses, cpu) = prepare_test_environment(dut)
+  for test_case in range(test_cases):
+    await test_decoder(dut, test_case, block_type, axi_buses, cpu)
+  print("Decoding {} ZSTD frames done".format(block_type.name))
+
 @cocotb.test(timeout_time=50, timeout_unit="ms")
 async def zstd_csr_test(dut):
   await test_csr(dut)
@@ -290,78 +291,29 @@ async def zstd_csr_test(dut):
 async def zstd_reset_test(dut):
   await test_reset(dut)
 
-#FIXME: Rework testbench to decode multiple ZSTD frames in one test
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_raw_frames_test_1(dut):
+@cocotb.test(timeout_time=500, timeout_unit="ms")
+async def zstd_raw_frames_test(dut):
+  test_cases = 5
   block_type = BlockType.RAW
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 1, block_type, axi_buses, xls_channels, cpu)
+  await testing_routine(dut, test_cases, block_type)
 
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_raw_frames_test_2(dut):
-  block_type = BlockType.RAW
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 2, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_raw_frames_test_3(dut):
-  block_type = BlockType.RAW
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 3, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_raw_frames_test_4(dut):
-  block_type = BlockType.RAW
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 4, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_raw_frames_test_5(dut):
-  block_type = BlockType.RAW
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 5, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_rle_frames_test_1(dut):
+@cocotb.test(timeout_time=500, timeout_unit="ms")
+async def zstd_rle_frames_test(dut):
+  test_cases = 5
   block_type = BlockType.RLE
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 1, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_rle_frames_test_2(dut):
-  block_type = BlockType.RLE
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 2, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_rle_frames_test_3(dut):
-  block_type = BlockType.RLE
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 3, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_rle_frames_test_4(dut):
-  block_type = BlockType.RLE
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 4, block_type, axi_buses, xls_channels, cpu)
-
-@cocotb.test(timeout_time=1000, timeout_unit="ms")
-async def zstd_rle_frames_test_5(dut):
-  block_type = BlockType.RLE
-  (axi_buses, xls_channels, cpu) = prepare_test_environment(dut)
-  await test_decoder(dut, 5, block_type, axi_buses, xls_channels, cpu)
+  await testing_routine(dut, test_cases, block_type)
 
 #@cocotb.test(timeout_time=1000, timeout_unit="ms")
 #async def zstd_compressed_frames_test(dut):
 #  test_cases = 1
 #  block_type = BlockType.COMPRESSED
-#  await test_decoder(dut, test_cases, block_type)
-#
+#  await testing_routine(dut, test_cases, block_type)
+
 #@cocotb.test(timeout_time=1000, timeout_unit="ms")
 #async def zstd_random_frames_test(dut):
 #  test_cases = 1
 #  block_type = BlockType.RANDOM
-#  await test_decoder(dut, test_cases, block_type)
+#  await testing_routine(dut, test_cases, block_type)
 
 if __name__ == "__main__":
   toplevel = "zstd_dec_wrapper"
