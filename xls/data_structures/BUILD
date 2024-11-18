@@ -97,8 +97,10 @@ cc_library(
     name = "transitive_closure",
     hdrs = ["transitive_closure.h"],
     deps = [
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
