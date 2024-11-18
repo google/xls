@@ -31,7 +31,6 @@ import xls.modules.zstd.raw_block_dec;
 import xls.modules.zstd.rle_block_dec;
 import xls.modules.zstd.dec_mux;
 import xls.modules.zstd.sequence_executor;
-import xls.modules.zstd.repacketizer;
 
 type BlockSize = common::BlockSize;
 type BlockType = common::BlockType;
@@ -846,10 +845,14 @@ proc ZstdDecoderInternalTest {
             status: RawBlockDecoderStatus::OKAY,
         });
 
-        let (tok, ()) = recv(tok, notify_r);
-
-        let (tok, _) = recv(tok, output_mem_wr_req_r);
+        let (tok, mem_wr_req) = recv(tok, output_mem_wr_req_r);
+        assert_eq(mem_wr_req, MemWriterReq {
+            addr: uN[TEST_AXI_ADDR_W]:0x2000,
+            length: uN[TEST_AXI_ADDR_W]:200
+        });
         let tok = send(tok, output_mem_wr_resp_s, MemWriterResp {status: mem_writer::MemWriterRespStatus::OKAY});
+
+        let (tok, ()) = recv(tok, notify_r);
 
         send(tok, terminator, true);
     }
@@ -977,8 +980,6 @@ pub proc ZstdDecoder<
         ram_wr_resp_6_r: chan<RamWrResp> in,
         ram_wr_resp_7_r: chan<RamWrResp> in,
 
-        // Decoder output
-        output_s: chan<ZstdDecodedPacket> out,
         notify_s: chan<()> out,
         reset_s: chan<()> out,
     ) {
@@ -1090,12 +1091,10 @@ pub proc ZstdDecoder<
 
         // Sequence Execution
         let (seq_exec_looped_s, seq_exec_looped_r) = chan<SequenceExecutorPacket, CHANNEL_DEPTH>("seq_exec_looped");
-        let (seq_exec_output_s, seq_exec_output_r) = chan<ZstdDecodedPacket, CHANNEL_DEPTH>("seq_exec_output");
         let (output_mem_wr_data_in_s,  output_mem_wr_data_in_r) = chan<MemWriterDataPacket, CHANNEL_DEPTH>("output_mem_wr_data_in");
 
         spawn sequence_executor::SequenceExecutor<HB_SIZE_KB, AXI_DATA_W, AXI_ADDR_W>(
-            seq_exec_input_r, seq_exec_output_s,
-            output_mem_wr_data_in_s,
+            seq_exec_input_r, output_mem_wr_data_in_s,
             seq_exec_looped_r, seq_exec_looped_s,
             ram_rd_req_0_s, ram_rd_req_1_s, ram_rd_req_2_s, ram_rd_req_3_s,
             ram_rd_req_4_s, ram_rd_req_5_s, ram_rd_req_6_s, ram_rd_req_7_s,
@@ -1106,10 +1105,6 @@ pub proc ZstdDecoder<
             ram_wr_resp_0_r, ram_wr_resp_1_r, ram_wr_resp_2_r, ram_wr_resp_3_r,
             ram_wr_resp_4_r, ram_wr_resp_5_r, ram_wr_resp_6_r, ram_wr_resp_7_r
         );
-
-        // Repacketizer
-
-        spawn repacketizer::Repacketizer(seq_exec_output_r, output_s);
 
         // Zstd Decoder Control
         let (output_mem_wr_req_s,  output_mem_wr_req_r) = chan<MemWriterReq, CHANNEL_DEPTH>("output_mem_wr_req");
@@ -1309,8 +1304,6 @@ proc ZstdDecoderInst {
         ram_wr_resp_6_r: chan<RamWrResp> in,
         ram_wr_resp_7_r: chan<RamWrResp> in,
 
-        // Decoder output
-        output_s: chan<ZstdDecodedPacket> out,
         notify_s: chan<()> out,
         reset_s: chan<()> out,
     ) {
@@ -1332,7 +1325,7 @@ proc ZstdDecoderInst {
             ram_wr_req_4_s, ram_wr_req_5_s, ram_wr_req_6_s, ram_wr_req_7_s,
             ram_wr_resp_0_r, ram_wr_resp_1_r, ram_wr_resp_2_r, ram_wr_resp_3_r,
             ram_wr_resp_4_r, ram_wr_resp_5_r, ram_wr_resp_6_r, ram_wr_resp_7_r,
-            output_s, notify_s, reset_s,
+            notify_s, reset_s,
         );
     }
 
