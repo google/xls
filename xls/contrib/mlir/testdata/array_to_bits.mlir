@@ -263,3 +263,14 @@ func.func @call_dslx(%arg0: !xls.array<4 x i32>) -> !xls.array<4 x f32> attribut
   %8 = xls.array %1, %3, %5, %7 : (f32, f32, f32, f32) -> !xls.array<4 x f32>
   return %8 : !xls.array<4 x f32>
 }
+
+// CHECK-LABEL:   func.func @array_concat(
+// CHECK-SAME:                     %[[VAL_0:.*]]: i64,
+// CHECK-SAME:                     %[[VAL_1:.*]]: i64) -> i128 attributes {xls = true} {
+// CHECK:           %[[VAL_2:.*]] = xls.concat %[[VAL_0]], %[[VAL_1]] : (i64, i64) -> i128
+// CHECK:           return %[[VAL_2]] : i128
+// CHECK:         }
+func.func @array_concat(%arg0: !xls.array<2 x i32>, %arg1: !xls.array<2 x i32>) -> !xls.array<4 x i32> attributes {xls = true} {
+  %0 = "xls.array_concat"(%arg0, %arg1) : (!xls.array<2 x i32>, !xls.array<2 x i32>) -> !xls.array<4 x i32>
+  return %0 : !xls.array<4 x i32>
+}

@@ -418,7 +418,8 @@ def Xls_SignExtOp : Xls_UnaryOp<"sign_ext", [Pure, SameOperandsAndResultShape]> 
 def Xls_BlockingReceiveOp : Xls_Op<"blocking_receive", [
   TensorArrayTypeFungible,
   PredicatableOpInterface,
-  CallOpInterface]> {
+  CallOpInterface,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "Receives a data value from a specified channel.";
   let description = [{
     Receives a data value from a specified channel. The type of the data value
@@ -440,7 +441,6 @@ def Xls_BlockingReceiveOp : Xls_Op<"blocking_receive", [
   let assemblyFormat = [{
     $tkn `,` ($predicate^ `,`)? $channel attr-dict `:` type($result)
   }];
-  let hasVerifier = 1;
   let extraClassDeclaration = [{
     ::mlir::Value getCondition() {
       return getPredicate();
@@ -464,7 +464,8 @@ def Xls_BlockingReceiveOp : Xls_Op<"blocking_receive", [
 def Xls_NonblockingReceiveOp : Xls_Op<"nonblocking_receive", [
   TensorArrayTypeFungible,
   PredicatableOpInterface,
-  CallOpInterface]> {
+  CallOpInterface,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "Receives a data value from a specified channel.";
   let description = [{
     Receives a data value from a specified channel. The type of the data value
@@ -488,7 +489,6 @@ def Xls_NonblockingReceiveOp : Xls_Op<"nonblocking_receive", [
   let assemblyFormat = [{
     $tkn `,` ($predicate^ `,`)? $channel attr-dict `:` type($result)
   }];
-  let hasVerifier = 1;
   let extraClassDeclaration = [{
     ::mlir::Value getCondition() {
       return getPredicate();
@@ -514,7 +514,8 @@ def Xls_NonblockingReceiveOp : Xls_Op<"nonblocking_receive", [
 def Xls_SendOp : Xls_Op<"send", [
   TensorArrayTypeFungible,
   PredicatableOpInterface,
-  CallOpInterface]> {
+  CallOpInterface,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
   let summary = "Sends data to a specified channel.";
   let description = [{
     Sends data to a specified channel. The type of the data values is determined
@@ -535,7 +536,6 @@ def Xls_SendOp : Xls_Op<"send", [
   let assemblyFormat = [{
     $tkn `,` $data `,` ($predicate^ `,`)? $channel attr-dict `:` type($data)
   }];
-  let hasVerifier = 1;
   let extraClassDeclaration = [{
     ::mlir::Value getCondition() {
       return getPredicate();

@@ -28,6 +28,7 @@
 #include "mlir/include/mlir/IR/OpDefinition.h"
 #include "mlir/include/mlir/IR/OperationSupport.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
+#include "mlir/include/mlir/IR/Threading.h"
 #include "mlir/include/mlir/IR/TypeUtilities.h"
 #include "mlir/include/mlir/IR/ValueRange.h"
 #include "mlir/include/mlir/IR/Visitors.h"
@@ -296,6 +297,24 @@ class LegalizeArrayZeroPattern : public OpConversionPattern<ArrayZeroOp> {
   }
 };
 
+class LegalizeArrayConcatPattern : public OpConversionPattern<ArrayConcatOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(
+      ArrayConcatOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    (void)adaptor;
+    SmallVector<Value> operands =
+        CoerceFloats(adaptor.getOperands(), rewriter, op);
+    if (operands.empty() && !adaptor.getOperands().empty()) {
+      return failure();
+    }
+    rewriter.replaceOpWithNewOp<ConcatOp>(
+        op, typeConverter->convertType(op.getType()), operands);
+    return success();
+  }
+};
+
 class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
  public:
   void runOnOperation() override {
@@ -308,7 +327,9 @@ class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
       return all_of(op->getOperandTypes(), is_legal) &&
              all_of(op->getResultTypes(), is_legal);
     });
-    target.addIllegalOp<VectorizedCallOp>();
+    target.addIllegalOp<VectorizedCallOp, ArrayOp, ArrayUpdateOp, ArraySliceOp,
+                        ArrayIndexOp, ArrayIndexStaticOp, ArrayZeroOp,
+                        ArrayConcatOp>();
     RewritePatternSet chanPatterns(&getContext());
     chanPatterns.add<LegalizeChanOpPattern>(typeConverter, &getContext());
     FrozenRewritePatternSet frozenChanPatterns(std::move(chanPatterns));
@@ -323,6 +344,7 @@ class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
         LegalizeArrayIndexPattern,
         LegalizeArrayIndexStaticPattern,
         LegalizeArrayZeroPattern,
+        LegalizeArrayConcatPattern,
         LegalizeGenericOpPattern
         // clang-format on
         >(typeConverter, &getContext());
@@ -338,10 +360,11 @@ class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
     });
     FrozenRewritePatternSet frozenRegionPatterns(std::move(regionPatterns));
 
+    SmallVector<XlsRegionOpInterface> regions;
     getOperation()->walk([&](Operation* op) {
       if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
         if (interface.isSupportedRegion()) {
-          runOnOperation(interface, target, frozenRegionPatterns);
+          regions.push_back(interface);
           return WalkResult::skip();
         }
       } else if (auto chanOp = dyn_cast<ChanOp>(op)) {
@@ -350,6 +373,11 @@ class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
       }
       return WalkResult::advance();
     });
+
+    mlir::parallelForEach(
+        &getContext(), regions, [&](XlsRegionOpInterface interface) {
+          runOnOperation(interface, target, frozenRegionPatterns);
+        });
   }
 
   void runOnOperation(ChanOp operation, ConversionTarget& target,

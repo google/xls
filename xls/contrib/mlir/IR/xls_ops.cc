@@ -583,8 +583,9 @@ LogicalResult SpawnOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
 
 namespace {
 LogicalResult verifyChannelUsingOp(Operation* op, SymbolRefAttr channelAttr,
-                                   Type elementType) {
-  auto chanOp = SymbolTable::lookupNearestSymbolFrom<ChanOp>(op, channelAttr);
+                                   Type elementType,
+                                   SymbolTableCollection& symbolTable) {
+  auto chanOp = symbolTable.lookupNearestSymbolFrom<ChanOp>(op, channelAttr);
   if (!chanOp) {
     return op->emitOpError("channel symbol not found: ") << channelAttr;
   }
@@ -607,19 +608,21 @@ LogicalResult verifyStructuredChannelUsingOp(Operation* op, Value channel,
 
 }  // namespace
 
-LogicalResult BlockingReceiveOp::verify() {
+LogicalResult BlockingReceiveOp::verifySymbolUses(
+    SymbolTableCollection& symbolTable) {
   return verifyChannelUsingOp(getOperation(), getChannelAttr(),
-                              getResult().getType());
+                              getResult().getType(), symbolTable);
 }
 
-LogicalResult NonblockingReceiveOp::verify() {
+LogicalResult NonblockingReceiveOp::verifySymbolUses(
+    SymbolTableCollection& symbolTable) {
   return verifyChannelUsingOp(getOperation(), getChannelAttr(),
-                              getResult().getType());
+                              getResult().getType(), symbolTable);
 }
 
-LogicalResult SendOp::verify() {
+LogicalResult SendOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
   return verifyChannelUsingOp(getOperation(), getChannelAttr(),
-                              getData().getType());
+                              getData().getType(), symbolTable);
 }
 
 LogicalResult SBlockingReceiveOp::verify() {
