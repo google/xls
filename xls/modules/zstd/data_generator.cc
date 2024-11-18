@@ -60,9 +60,8 @@ static absl::StatusOr<SubprocessResult> CallDecodecorpus(
     absl::Span<const std::string> args,
     const std::optional<std::filesystem::path>& cwd = std::nullopt,
     std::optional<absl::Duration> timeout = std::nullopt) {
-  XLS_ASSIGN_OR_RETURN(
-      std::filesystem::path path,
-      xls::GetXlsRunfilePath("external/zstd/decodecorpus"));
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
+                       xls::GetXlsRunfilePath("external/zstd/decodecorpus"));
 
   std::vector<std::string> cmd = {path};
   cmd.insert(cmd.end(), args.begin(), args.end());
