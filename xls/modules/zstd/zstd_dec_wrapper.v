@@ -24,8 +24,7 @@ module zstd_dec_wrapper #(
     parameter WUSER_WIDTH = 1,
     parameter BUSER_WIDTH = 1,
     parameter ARUSER_WIDTH = 1,
-    parameter RUSER_WIDTH = 1,
-    parameter OUTPUT_WIDTH = 97
+    parameter RUSER_WIDTH = 1
 ) (
     input wire clk,
     input wire rst,
@@ -124,11 +123,7 @@ module zstd_dec_wrapper #(
 
     output wire                     notify_data,
     output wire                     notify_vld,
-    input  wire                     notify_rdy,
-
-    output wire [OUTPUT_WIDTH-1:0]  output_data,
-    output wire                     output_vld,
-    input  wire                     output_rdy
+    input  wire                     notify_rdy
 );
 
   /*
@@ -292,11 +287,6 @@ module zstd_dec_wrapper #(
   wire                    zstd_dec__output_axi_b_rdy;
   wire                    zstd_dec__output_axi_b_vld;
 
-  // Output packet
-  wire [63:0]  output_data_data_field;
-  wire [31:0]  output_data_length_field;
-  wire [0:0]   output_data_last_field;
-
   /*
    * Mapping XLS Channels to AXI channels fields
    */
@@ -442,12 +432,6 @@ module zstd_dec_wrapper #(
   assign reset_data = reset_vld;
   assign reset = reset_vld | rst;
 
-  assign {
-    output_data_data_field,
-    output_data_length_field,
-    output_data_last_field
-    } = output_data;
-
   /*
    * ZSTD Decoder instance
    */
@@ -510,9 +494,6 @@ module zstd_dec_wrapper #(
       // Other ports
       .zstd_dec__notify_s_vld(notify_vld),
       .zstd_dec__notify_s_rdy(notify_rdy),
-      .zstd_dec__output_s(output_data),
-      .zstd_dec__output_s_vld(output_vld),
-      .zstd_dec__output_s_rdy(output_rdy),
       // Reset loopback - response for write to RESET CSR
       // Should be looped back to generic reset input
       .zstd_dec__reset_s_vld(reset_vld),
