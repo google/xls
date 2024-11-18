@@ -1198,7 +1198,7 @@ TEST_F(FunctionFmtTest, SingletonTupleWithLeadingComment) {
 
 class ModuleFmtTest : public testing::Test {
  public:
-  void DoFmt(std::string_view input,
+  void DoFmt(std::string input,
              std::optional<std::string_view> want = std::nullopt,
              int64_t text_width = kDslxDefaultTextWidth,
              bool opportunistic_postcondition = true) {
@@ -1208,7 +1208,7 @@ class ModuleFmtTest : public testing::Test {
         ParseModule(input, "fake.x", "fake", file_table_, &comments_vec));
     Comments comments = Comments::Create(comments_vec);
     XLS_ASSERT_OK_AND_ASSIGN(std::string got,
-                             AutoFmt(*m, comments, text_width));
+                             AutoFmt(*m, comments, input, text_width));
 
     if (opportunistic_postcondition) {
       std::optional<AutoFmtPostconditionViolation> maybe_violation =
@@ -1225,7 +1225,7 @@ class ModuleFmtTest : public testing::Test {
     EXPECT_EQ(got, want.value_or(input));
   }
 
-  void DoFmtNoPostcondition(std::string_view input,
+  void DoFmtNoPostcondition(std::string input,
                             std::optional<std::string_view> want) {
     DoFmt(input, want, kDslxDefaultTextWidth,
           /*opportunistic_postcondition=*/false);
@@ -1419,13 +1419,11 @@ SECOND = 1,
 }
 
 TEST_F(ModuleFmtTest, FunctionRefWithExplicitParametrics) {
-  const std::string_view kInput =
+  DoFmt(
       R"(fn f<X: u32>() -> u32 { X }
 
 fn g() -> u32[3] { map([u32:1, u32:2, u32:3], f<u32:4>) }
-)";
-
-  DoFmt(kInput);
+)");
 }
 
 TEST_F(ModuleFmtTest, StructDefTwoFields) {
@@ -1521,7 +1519,7 @@ TEST_F(ModuleFmtTest, UnaryWithCommentGithub1372) {
 }
 
 TEST_F(ModuleFmtTest, StructDefTwoParametrics) {
-  const std::string_view kProgram =
+  const std::string kProgram =
       "pub struct Point<M: u32, N: u32> { x: bits[M], y: bits[N] }\n";
   DoFmt(kProgram);
 
@@ -2554,35 +2552,8 @@ TEST_F(ModuleFmtTest, IfElseIf) {
 )");
 }
 
-class DisableFmtTest : public testing::Test {
- public:
-  void ExpectFormatted(std::string input) {
-    std::vector<CommentData> comments_vec;
-    FileTable file_table;
-
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<Module> m,
-        ParseModule(input, "fake.x", "fake", file_table, &comments_vec));
-    Comments comments = Comments::Create(comments_vec);
-
-    XLS_ASSERT_OK_AND_ASSIGN(std::string got, AutoFmt(*m.get(), comments, input,
-                                                      kDslxDefaultTextWidth));
-
-    EXPECT_EQ(got, input);
-  }
-};
-
-TEST_F(DisableFmtTest, ImportGroups) {
-  ExpectFormatted(R"(import thing1;
-import thing2;
-
-import other;
-import stuff;
-)");
-}
-
-TEST_F(DisableFmtTest, ImportGroupsWithComments) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, ImportGroupsWithComments) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 // Starting comment
@@ -2592,8 +2563,8 @@ import stuff;
 )");
 }
 
-TEST_F(DisableFmtTest, ImportGroupsWithDisableComment) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, ImportGroupsWithDisableComment) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 // dslx-fmt::off
@@ -2605,8 +2576,8 @@ const foo = u32:26;
 )");
 }
 
-TEST_F(DisableFmtTest, MultipleImportGroupsWithDisableComment) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, MultipleImportGroupsWithDisableComment) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 // dslx-fmt::off
@@ -2623,8 +2594,8 @@ import other2;
 )");
 }
 
-TEST_F(DisableFmtTest, ImportWithFmtDisabled) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, ImportWithFmtDisabled) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 // dslx-fmt::off
@@ -2636,8 +2607,8 @@ const foo = u32:26;
 )");
 }
 
-TEST_F(DisableFmtTest, ConstWithFmtDisabled) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, ConstWithFmtDisabled) {
+  DoFmt(R"(import thing1;
 
 // Note intentional trailing space
 // dslx-fmt::off
@@ -2647,8 +2618,8 @@ TEST_F(DisableFmtTest, ConstWithFmtDisabled) {
 )");
 }
 
-TEST_F(DisableFmtTest, ImportGroupsWithFmtDisabled) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, ImportGroupsWithFmtDisabled) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 // dslx-fmt::off
@@ -2659,8 +2630,8 @@ import thing2;
 )");
 }
 
-TEST_F(DisableFmtTest, ImportGroupsWithFmtDisabledNeverEnabled) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, ImportGroupsWithFmtDisabledNeverEnabled) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 // dslx-fmt::off
@@ -2671,8 +2642,8 @@ import thing2;
 )");
 }
 
-TEST_F(DisableFmtTest, FnWithFmtDisabled) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, FnWithFmtDisabled) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 // dslx-fmt::off
@@ -2684,8 +2655,8 @@ let y = u16:64;   (x,   y)
 )");
 }
 
-TEST_F(DisableFmtTest, FnStatementsWithFmtDisabled) {
-  ExpectFormatted(R"(import thing1;
+TEST_F(ModuleFmtTest, FnStatementsWithFmtDisabled) {
+  DoFmt(R"(import thing1;
 import thing2;
 
 fn f() -> (u32, u16) {
@@ -2703,8 +2674,8 @@ let x =
 )");
 }
 
-TEST_F(DisableFmtTest, StatementsWithFmtDisabledThenComment) {
-  ExpectFormatted(R"(const result = {
+TEST_F(ModuleFmtTest, StatementsWithFmtDisabledThenComment) {
+  DoFmt(R"(const result = {
     let y = u16:63;
 
     // dslx-fmt::off
@@ -2721,8 +2692,8 @@ let x =
 )");
 }
 
-TEST_F(DisableFmtTest, StatementsWithFmtDisabled) {
-  ExpectFormatted(R"(const result = {
+TEST_F(ModuleFmtTest, StatementsWithFmtDisabled) {
+  DoFmt(R"(const result = {
     let y = u16:63;
 
     // dslx-fmt::off
@@ -2736,8 +2707,8 @@ let x =
 )");
 }
 
-TEST_F(DisableFmtTest, TooLongLines) {
-  ExpectFormatted(R"(const result = {
+TEST_F(ModuleFmtTest, TooLongLines) {
+  DoFmt(R"(const result = {
     // dslx-fmt::off
                    let         y =         u16:64;         let x =         u32:41        ;     let y = u16:63;    (x ,   y) 
 
