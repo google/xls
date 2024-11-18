@@ -199,8 +199,8 @@ class DataType : public VastNode {
   // Returns whether this is a scalar signal type (for example, "wire foo").
   virtual bool IsScalar() const { return false; }
 
-  // Returns whether this type represents to a typedef, struct, enum, or an
-  // array of a user-defined type.
+  // Returns whether this type represents a typedef, struct, enum, or an array
+  // of a user-defined type.
   virtual bool IsUserDefined() const { return false; }
 
   // Returns the width of the def (not counting packed or unpacked dimensions)
@@ -233,9 +233,7 @@ class DataType : public VastNode {
   // This method is required rather than simply Emit because an identifier
   // string is nested within the string describing the type.
   virtual std::string EmitWithIdentifier(LineInfo* line_info,
-                                         std::string_view identifier) const {
-    return absl::StrFormat("%s %s", Emit(line_info), identifier);
-  }
+                                         std::string_view identifier) const;
 };
 
 // Represents a scalar type. Example:
@@ -507,7 +505,7 @@ class UserDefinedDef final : public Def {
       : Def(name, DataKind::kUser, data_type, init, file, loc) {}
 };
 
-// Register variable definition.Example:
+// Register variable definition. Example:
 //   reg [41:0] foo;
 class RegDef final : public Def {
  public:
@@ -519,7 +517,7 @@ class RegDef final : public Def {
       : Def(name, DataKind::kReg, data_type, init, file, loc) {}
 };
 
-// Logic variable definition.Example:
+// Logic variable definition. Example:
 //   logic [41:0] foo;
 class LogicDef final : public Def {
  public:
@@ -543,7 +541,7 @@ class UserDef final : public Def {
       : Def(name, DataKind::kUser, data_type, init, file, loc) {}
 };
 
-// Integer variable definition.Example:
+// Integer variable definition. Example:
 //   integer foo;
 class IntegerDef final : public Def {
  public:
@@ -1161,6 +1159,37 @@ class Typedef final : public VastNode {
 
  private:
   Def* def_;
+};
+
+// A type that is defined in an external package, where we may not know the
+// underlying bit vector count as we request in `ExternType`.
+class ExternPackageType : public DataType {
+ public:
+  explicit ExternPackageType(std::string_view package_name,
+                             std::string_view type_name, VerilogFile* file,
+                             const SourceInfo& loc)
+      : DataType(file, loc),
+        package_name_(package_name),
+        type_name_(type_name) {}
+
+  std::string Emit(LineInfo* line_info) const final;
+
+  bool IsScalar() const final { return false; }
+  bool IsUserDefined() const final { return true; }
+  absl::StatusOr<int64_t> WidthAsInt64() const final {
+    return absl::UnimplementedError(
+        "WidthAsInt64 is not implemented for ExternPackageType.");
+  }
+  absl::StatusOr<int64_t> FlatBitCountAsInt64() const final {
+    return absl::UnimplementedError(
+        "FlatBitCountAsInt64 is not implemented for ExternPackageType.");
+  }
+  std::optional<Expression*> width() const final { return std::nullopt; }
+  bool is_signed() const final { return false; }
+
+ private:
+  std::string package_name_;
+  std::string type_name_;
 };
 
 // The type of an entity when its type is a typedef. This emits just the name of
@@ -2299,7 +2328,12 @@ class VerilogPackageSection final : public VastNode {
   std::vector<VerilogPackageMember> members_;
 };
 
-// Represents a package definition.
+// Represents a package definition. Emits as:
+// ```
+// package ${name};
+//   .. content ..
+// endpackage
+// ```
 class VerilogPackage final : public VastNode {
  public:
   VerilogPackage(std::string_view name, VerilogFile* file,

@@ -102,6 +102,40 @@ std::string EmitNothing(const VastNode* node, LineInfo* line_info) {
   return "";
 }
 
+// Helper for validating that there is not leading/trailing whitespace that can
+// be stripped from string view `s` -- this helps us maintain our invariants
+// that our Emit() calls generally do not return things with leading or
+// trailing whitespace, so callers uniformly know what to expect in terms of
+// spacing.
+//
+// This routine is made without performing string copies or performing a strcmp
+// so should be usable in CHECKs instead of resorting to DCHECKs everywhere.
+//
+// i.e. callers are expected to call `CHECK(CannotStripWhitespace(s));`
+bool CannotStripWhitespace(std::string_view s) {
+  std::string_view stripped = absl::StripAsciiWhitespace(s);
+  return stripped.size() == s.size();
+}
+
+// Helper that combines DataKind and DataType strings -- since either of these
+// can be empty under certain circumstances we consolidate the handling of
+// inserting spaces appropriately in this routine.
+std::string CombineKindAndDataType(std::string_view kind_str,
+                                   std::string_view data_type_str) {
+  CHECK(CannotStripWhitespace(kind_str));
+  CHECK(CannotStripWhitespace(data_type_str));
+
+  std::string result;
+  if (kind_str.empty()) {
+    result = data_type_str;
+  } else if (data_type_str.empty()) {
+    result = kind_str;
+  } else {
+    result = absl::StrCat(kind_str, " ", data_type_str);
+  }
+  return result;
+}
+
 }  // namespace
 
 int Precedence(OperatorKind kind) {
@@ -301,6 +335,16 @@ std::string ToString(Direction direction) {
   }
 }
 
+std::string DataType::EmitWithIdentifier(LineInfo* line_info,
+                                         std::string_view identifier) const {
+  std::string base = Emit(line_info);
+  if (base.empty()) {
+    return std::string{identifier};
+  }
+  CHECK(CannotStripWhitespace(base));
+  return absl::StrCat(base, " ", identifier);
+}
+
 std::string ScalarType::Emit(LineInfo* line_info) const {
   // The `DataKind` preceding the type is enough.
   if (!is_signed_) {
@@ -308,7 +352,7 @@ std::string ScalarType::Emit(LineInfo* line_info) const {
   }
   LineInfoStart(line_info, this);
   LineInfoEnd(line_info, this);
-  return " signed";
+  return "signed";
 }
 
 std::string IntegerType::Emit(LineInfo* line_info) const {
@@ -319,7 +363,7 @@ std::string IntegerType::Emit(LineInfo* line_info) const {
   }
   LineInfoStart(line_info, this);
   LineInfoEnd(line_info, this);
-  return " unsigned";
+  return "unsigned";
 }
 
 std::string MacroRef::Emit(LineInfo* line_info) const {
@@ -500,17 +544,21 @@ LogicRef* VerilogFunction::return_value_ref() {
 
 std::string VerilogFunction::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
+
+  // Construct the return type for the function, sometimes we want to put
+  // "logic" in front when in SV mode.
   std::string return_type =
       return_value_def_->data_type()->EmitWithIdentifier(line_info, name());
-  if (!absl::StartsWith(return_type, " ")) {
-    return_type = absl::StrCat(" ", return_type);
-  }
   if (return_value_def_->data_type()->IsScalar() &&
       file()->use_system_verilog()) {
     // Preface the return type with "logic", so there's always a type provided.
     return_type =
-        absl::StrCat(" ", DataKindToString(DataKind::kLogic), return_type);
+        absl::StrCat(DataKindToString(DataKind::kLogic), " ", return_type);
   }
+  if (!return_type.empty()) {
+    return_type = absl::StrCat(" ", return_type);
+  }
+
   std::string parameters =
       absl::StrJoin(argument_defs_, ", ", [=](std::string* out, Def* d) {
         absl::StrAppend(out, "input ", d->EmitNoSemi(line_info));
@@ -757,10 +805,11 @@ absl::StatusOr<int64_t> BitVectorType::FlatBitCountAsInt64() const {
 
 std::string BitVectorType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result =
-      absl::StrFormat("%s [%s:0]", is_signed_ ? " signed" : "",
-                      size_expr_is_max_ ? size_expr_->Emit(line_info)
-                                        : WidthToLimit(line_info, size_expr_));
+  std::string result = is_signed_ ? "signed " : "";
+  absl::StrAppendFormat(&result, "[%s:0]",
+                        size_expr_is_max_
+                            ? size_expr_->Emit(line_info)
+                            : WidthToLimit(line_info, size_expr_));
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -891,8 +940,10 @@ std::string Def::Emit(LineInfo* line_info) const {
 std::string Def::EmitNoSemi(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string kind_str = DataKindToString(data_kind());
-  std::string result = absl::StrCat(
-      kind_str, data_type()->EmitWithIdentifier(line_info, GetName()));
+  std::string data_type_str =
+      data_type()->EmitWithIdentifier(line_info, GetName());
+  std::string result = CombineKindAndDataType(kind_str, data_type_str);
+
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -1106,8 +1157,10 @@ std::string Module::Emit(LineInfo* line_info) const {
     absl::StrAppend(
         &result,
         absl::StrJoin(ports_, ",\n  ", [=](std::string* out, const Port& port) {
+          std::string wire_str = port.wire->EmitNoSemi(line_info);
+          CHECK(CannotStripWhitespace(wire_str));
           absl::StrAppendFormat(out, "%s %s", ToString(port.direction),
-                                port.wire->EmitNoSemi(line_info));
+                                wire_str);
           LineInfoIncrease(line_info, 1);
         }));
     absl::StrAppend(&result, "\n);\n");
@@ -1302,7 +1355,14 @@ std::string TypedefType::Emit(LineInfo* line_info) const {
 
 std::string ExternType::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result = absl::StrCat(" ", name_);
+  std::string result = name_;
+  LineInfoEnd(line_info, this);
+  return result;
+}
+
+std::string ExternPackageType::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::string result = absl::StrCat(package_name_, "::", type_name_);
   LineInfoEnd(line_info, this);
   return result;
 }
@@ -1311,8 +1371,11 @@ std::string Enum::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result = "enum {\n";
   if (kind_ != DataKind::kUntypedEnum) {
-    result = absl::StrFormat("enum %s%s {\n", DataKindToString(kind_),
-                             BaseType()->Emit(line_info));
+    std::string kind_str = DataKindToString(kind_);
+    std::string data_type_str = BaseType()->Emit(line_info);
+    std::string underlying_type_str =
+        CombineKindAndDataType(kind_str, data_type_str);
+    result = absl::StrFormat("enum %s {\n", underlying_type_str);
   }
   LineInfoIncrease(line_info, 1);
   for (int i = 0; i < members_.size(); i++) {

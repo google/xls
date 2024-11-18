@@ -58,9 +58,9 @@ endmodule
 
 
 module my_block(
-  input  pkg::small_arr_t x,
-  input  pkg::small_arr_t y,
-  output  pkg::big_arr_t out
+  input pkg::small_arr_t x,
+  input pkg::small_arr_t y,
+  output pkg::big_arr_t out
 );
   wire [159:0] x_flattened;
   assign x_flattened = x;
