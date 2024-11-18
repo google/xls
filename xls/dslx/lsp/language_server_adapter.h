@@ -128,6 +128,7 @@ class LanguageServerAdapter {
   struct TypecheckedModuleWithComments {
     TypecheckedModule tm;
     Comments comments;
+    std::string contents;
   };
 
   // Everything relevant for a parsed editor buffer.
@@ -155,6 +156,10 @@ class LanguageServerAdapter {
     Comments& comments() {
       CHECK_OK(tmc_.status());
       return tmc_->comments;
+    }
+    const std::string& contents() const {
+      CHECK_OK(tmc_.status());
+      return tmc_->contents;
     }
     const TypecheckedModule& typechecked_module() const {
       CHECK_OK(tmc_.status());

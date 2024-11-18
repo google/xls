@@ -248,6 +248,7 @@ absl::Status LanguageServerAdapter::Update(
         std::move(import_data), TypecheckedModuleWithComments{
                                     .tm = std::move(typechecked_module).value(),
                                     .comments = Comments::Create(comments),
+                                    .contents = std::string(*dslx_code),
                                 });
   } else {
     insert_value = std::make_unique<ParseData>(std::move(import_data),
@@ -315,14 +316,8 @@ absl::StatusOr<std::vector<verible::lsp::TextEdit>>
 LanguageServerAdapter::FormatDocument(std::string_view uri) const {
   using ResultT = std::vector<verible::lsp::TextEdit>;
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
-    if (!vfs_contents_.contains(uri)) {
-      // TODO: davidplass - We should probably format the contents of the file
-      // anyway, even if we haven't received the full text from the LSP
-      // server. The user won't be able to use dslx-fmt::off, but that's OK.
-      return ResultT{};
-    }
     const Module& module = parsed->module();
-    const std::string& dslx_code = vfs_contents_.at(uri);
+    const std::string& dslx_code = parsed->contents();
     XLS_ASSIGN_OR_RETURN(std::string new_contents,
                          AutoFmt(module, parsed->comments(), dslx_code));
     return ResultT{
