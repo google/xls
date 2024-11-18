@@ -145,7 +145,11 @@ absl::Status Bindings::AddFailLabel(const std::string& label, const Span& span,
   // unique at the function scope.
   Bindings* top = this;
   while (!top->function_scoped_) {
-    CHECK(top->parent_ != nullptr);
+    if (top->parent_ == nullptr) {
+      return ParseErrorStatus(
+          span, "Cannot use the `fail!` builtin at module top-level.",
+          file_table);
+    }
     top = top->parent_;
   }
 
