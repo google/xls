@@ -3370,8 +3370,20 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
     }
     return module_->Make<ParametricBinding>(name_def, type, expr);
   };
-  return ParseCommaSeq<ParametricBinding*>(parse_parametric_binding,
-                                           TokenKind::kCAngle);
+  XLS_ASSIGN_OR_RETURN(std::vector<ParametricBinding*> parametric_bindings,
+                       ParseCommaSeq<ParametricBinding*>(
+                           parse_parametric_binding, TokenKind::kCAngle));
+  absl::flat_hash_map<std::string, ParametricBinding*> seen;
+  for (ParametricBinding* binding : parametric_bindings) {
+    if (seen.contains(binding->name_def()->identifier())) {
+      return ParseErrorStatus(
+          binding->name_def()->span(),
+          absl::StrFormat("Duplicate parametric binding: `%s`",
+                          binding->name_def()->identifier()));
+    }
+    seen[binding->name_def()->identifier()] = binding;
+  }
+  return parametric_bindings;
 }
 
 absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
