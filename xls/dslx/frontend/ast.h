@@ -633,7 +633,8 @@ inline bool WeakerThan(Precedence x, Precedence y) {
 // (i.e. can produce runtime values).
 class Expr : public AstNode {
  public:
-  Expr(Module* owner, Span span) : AstNode(owner), span_(span) {}
+  Expr(Module* owner, Span span, bool in_parens = false)
+      : AstNode(owner), span_(span), in_parens_(in_parens) {}
 
   ~Expr() override;
 
@@ -853,8 +854,9 @@ class StatementBlock : public Expr {
 // symbol that's implicitly available, e.g. built-in functions (BuiltinNameDef).
 class NameRef : public Expr {
  public:
-  NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def)
-      : Expr(owner, std::move(span)),
+  NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def,
+          bool in_parens = false)
+      : Expr(owner, std::move(span), in_parens),
         name_def_(name_def),
         identifier_(std::move(identifier)) {
     CHECK_NE(identifier_, "_");
@@ -938,7 +940,7 @@ enum class NumberKind : uint8_t {
 class Number : public Expr {
  public:
   Number(Module* owner, Span span, std::string text, NumberKind kind,
-         TypeAnnotation* type);
+         TypeAnnotation* type, bool in_parens = false);
 
   ~Number() override;
 
@@ -1006,8 +1008,9 @@ class Number : public Expr {
 // quotation marks.
 class String : public Expr {
  public:
-  String(Module* owner, Span span, std::string_view text)
-      : Expr(owner, span), text_(text) {}
+  String(Module* owner, Span span, std::string_view text,
+         bool in_parens = false)
+      : Expr(owner, span, in_parens), text_(text) {}
 
   ~String() override;
 
@@ -1086,8 +1089,8 @@ class TypeAlias : public AstNode {
 // Represents an array expression; e.g. `[a, b, c]`.
 class Array : public Expr {
  public:
-  Array(Module* owner, Span span, std::vector<Expr*> members,
-        bool has_ellipsis);
+  Array(Module* owner, Span span, std::vector<Expr*> members, bool has_ellipsis,
+        bool in_parens = false);
 
   ~Array() override;
 
@@ -1143,7 +1146,7 @@ class ConstantArray : public Array {
   // Adds checking for constant-expression-ness of the members beyond
   // Array::Array.
   ConstantArray(Module* owner, Span span, std::vector<Expr*> members,
-                bool has_ellipsis);
+                bool has_ellipsis, bool in_parens = false);
 
   ~ConstantArray() override;
 
@@ -1263,7 +1266,8 @@ class ColonRef : public Expr {
  public:
   using Subject = std::variant<NameRef*, ColonRef*>;
 
-  ColonRef(Module* owner, Span span, Subject subject, std::string attr);
+  ColonRef(Module* owner, Span span, Subject subject, std::string attr,
+           bool in_parens = false);
 
   ~ColonRef() override;
 
@@ -1350,8 +1354,9 @@ std::string UnopKindToString(UnopKind k);
 // Represents a unary operation expression; e.g. `!x`.
 class Unop : public Expr {
  public:
-  Unop(Module* owner, Span span, UnopKind unop_kind, Expr* operand)
-      : Expr(owner, std::move(span)),
+  Unop(Module* owner, Span span, UnopKind unop_kind, Expr* operand,
+       bool in_parens = false)
+      : Expr(owner, std::move(span), in_parens),
         unop_kind_(unop_kind),
         operand_(operand) {}
 
@@ -1445,7 +1450,8 @@ const absl::btree_set<BinopKind>& GetBinopShifts();
 // Represents a binary operation expression; e.g. `x + y`.
 class Binop : public Expr {
  public:
-  Binop(Module* owner, Span span, BinopKind kind, Expr* lhs, Expr* rhs);
+  Binop(Module* owner, Span span, BinopKind kind, Expr* lhs, Expr* rhs,
+        bool in_parens = false);
 
   ~Binop() override;
 
@@ -1494,7 +1500,8 @@ class Binop : public Expr {
 class Conditional : public Expr {
  public:
   Conditional(Module* owner, Span span, Expr* test, StatementBlock* consequent,
-              std::variant<StatementBlock*, Conditional*> alternate);
+              std::variant<StatementBlock*, Conditional*> alternate,
+              bool in_parens = false);
 
   ~Conditional() override;
 
@@ -1771,7 +1778,8 @@ class MatchArm : public AstNode {
 // (prioritized in sequential order from first arm to last arm).
 class Match : public Expr {
  public:
-  Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms);
+  Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms,
+        bool in_parens = false);
 
   ~Match() override;
 
@@ -1810,8 +1818,9 @@ class Match : public Expr {
 //                       (this dot makes an attr) ---+
 class Attr : public Expr {
  public:
-  Attr(Module* owner, Span span, Expr* lhs, std::string attr)
-      : Expr(owner, span), lhs_(lhs), attr_(std::move(attr)) {}
+  Attr(Module* owner, Span span, Expr* lhs, std::string attr,
+       bool in_parens = false)
+      : Expr(owner, span, in_parens), lhs_(lhs), attr_(std::move(attr)) {}
 
   ~Attr() override;
 
@@ -1850,7 +1859,8 @@ class Attr : public Expr {
 class Instantiation : public Expr {
  public:
   Instantiation(Module* owner, Span span, Expr* callee,
-                std::vector<ExprOrType> explicit_parametrics);
+                std::vector<ExprOrType> explicit_parametrics,
+                bool in_parens = false);
 
   ~Instantiation() override;
 
@@ -1919,7 +1929,8 @@ class FunctionRef : public Instantiation {
 class Invocation : public Instantiation {
  public:
   Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
-             std::vector<ExprOrType> explicit_parametrics = {});
+             std::vector<ExprOrType> explicit_parametrics = {},
+             bool in_parens = false);
 
   ~Invocation() override;
 
@@ -2069,7 +2080,7 @@ class FormatMacro : public Expr {
 // we currently represent as ExprOrType.
 class ZeroMacro : public Expr {
  public:
-  ZeroMacro(Module* owner, Span span, ExprOrType type);
+  ZeroMacro(Module* owner, Span span, ExprOrType type, bool in_parens = false);
 
   ~ZeroMacro() override;
 
@@ -2104,7 +2115,8 @@ class ZeroMacro : public Expr {
 // we currently represent as ExprOrType.
 class AllOnesMacro : public Expr {
  public:
-  AllOnesMacro(Module* owner, Span span, ExprOrType type);
+  AllOnesMacro(Module* owner, Span span, ExprOrType type,
+               bool in_parens = false);
 
   ~AllOnesMacro() override;
 
@@ -2470,7 +2482,8 @@ class Impl : public AstNode {
 class StructInstance : public Expr {
  public:
   StructInstance(Module* owner, Span span, TypeAnnotation* struct_ref,
-                 std::vector<std::pair<std::string, Expr*>> members);
+                 std::vector<std::pair<std::string, Expr*>> members,
+                 bool in_parens = false);
 
   ~StructInstance() override;
 
@@ -2525,7 +2538,7 @@ class SplatStructInstance : public Expr {
  public:
   SplatStructInstance(Module* owner, Span span, TypeAnnotation* struct_ref,
                       std::vector<std::pair<std::string, Expr*>> members,
-                      Expr* splatted);
+                      Expr* splatted, bool in_parens = false);
 
   ~SplatStructInstance() override;
 
@@ -2647,8 +2660,9 @@ using IndexRhs = std::variant<Expr*, Slice*, WidthSlice*>;
 //   * width slice (from start index a compile-time-constant number of bits)
 class Index : public Expr {
  public:
-  Index(Module* owner, Span span, Expr* lhs, IndexRhs rhs)
-      : Expr(owner, std::move(span)), lhs_(lhs), rhs_(rhs) {}
+  Index(Module* owner, Span span, Expr* lhs, IndexRhs rhs,
+        bool in_parens = false)
+      : Expr(owner, std::move(span), in_parens), lhs_(lhs), rhs_(rhs) {}
 
   ~Index() override;
 
@@ -2689,7 +2703,8 @@ class Index : public Expr {
 // RangeFrom and other variants are not implemented.
 class Range : public Expr {
  public:
-  Range(Module* owner, Span span, Expr* start, Expr* end);
+  Range(Module* owner, Span span, Expr* start, Expr* end,
+        bool in_parens = false);
   ~Range() override;
   AstNodeKind kind() const override { return AstNodeKind::kRange; }
   std::string_view GetNodeTypeName() const override { return "Range"; }
@@ -2806,7 +2821,8 @@ class QuickCheck : public AstNode {
 // Represents an index into a tuple, e.g., "(u32:7, u32:8).1".
 class TupleIndex : public Expr {
  public:
-  TupleIndex(Module* owner, Span span, Expr* lhs, Number* index);
+  TupleIndex(Module* owner, Span span, Expr* lhs, Number* index,
+             bool in_parens = false);
   ~TupleIndex() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTupleIndex; }
@@ -2833,8 +2849,8 @@ class TupleIndex : public Expr {
 class XlsTuple : public Expr {
  public:
   XlsTuple(Module* owner, Span span, std::vector<Expr*> members,
-           bool has_trailing_comma)
-      : Expr(owner, std::move(span)),
+           bool has_trailing_comma, bool in_parens = false)
+      : Expr(owner, std::move(span), in_parens),
         members_(std::move(members)),
         has_trailing_comma_(has_trailing_comma) {}
 
@@ -2878,7 +2894,7 @@ class ForLoopBase : public Expr {
  public:
   ForLoopBase(Module* owner, Span span, NameDefTree* names,
               TypeAnnotation* type, Expr* iterable, StatementBlock* body,
-              Expr* init);
+              Expr* init, bool in_parens = false);
 
   // Leader chars are the for loop bindings and iterable.
   bool IsBlockedExprWithLeader() const override { return true; }
@@ -2971,8 +2987,9 @@ class UnrollFor : public ForLoopBase {
 // Casts the result of the foo() invocation to a u32 value.
 class Cast : public Expr {
  public:
-  Cast(Module* owner, Span span, Expr* expr, TypeAnnotation* type_annotation)
-      : Expr(owner, std::move(span)),
+  Cast(Module* owner, Span span, Expr* expr, TypeAnnotation* type_annotation,
+       bool in_parens = false)
+      : Expr(owner, std::move(span), in_parens),
         expr_(expr),
         type_annotation_(type_annotation) {}
 
@@ -3265,8 +3282,9 @@ class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
               std::optional<std::vector<Expr*>> dims,
-              std::optional<Expr*> fifo_depth, Expr& channel_name_expr)
-      : Expr(owner, std::move(span)),
+              std::optional<Expr*> fifo_depth, Expr& channel_name_expr,
+              bool in_parens = false)
+      : Expr(owner, std::move(span), in_parens),
         type_(type),
         dims_(std::move(dims)),
         fifo_depth_(fifo_depth),

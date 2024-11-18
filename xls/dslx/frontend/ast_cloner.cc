@@ -56,13 +56,12 @@ class AstCloner : public AstNodeVisitor {
       new_members.push_back(down_cast<Expr*>(old_to_new_.at(old_member)));
     }
 
-    Array* new_array =
-        module_->Make<Array>(n->span(), new_members, n->has_ellipsis());
+    Array* new_array = module_->Make<Array>(n->span(), new_members,
+                                            n->has_ellipsis(), n->in_parens());
     if (n->type_annotation() != nullptr) {
       new_array->set_type_annotation(
           down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
     }
-    new_array->set_in_parens(n->in_parens());
     old_to_new_[n] = new_array;
     return absl::OkStatus();
   }
@@ -82,24 +81,17 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     // We must've seen the NameDef here, so we don't need to visit it.
-    auto new_attr = module_->Make<Attr>(
+    old_to_new_[n] = module_->Make<Attr>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
-        std::string{n->attr()});
-    new_attr->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_attr;
+        std::string{n->attr()}, n->in_parens());
     return absl::OkStatus();
   }
 
   absl::Status HandleBinop(const Binop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    auto* new_binop = module_->Make<Binop>(
+    old_to_new_[n] = module_->Make<Binop>(
         n->span(), n->binop_kind(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
-        down_cast<Expr*>(old_to_new_.at(n->rhs())));
-    // TODO(cdleary): 2023-05-30 The in_parens arguments should be given to the
-    // Expr base class so we don't need to remember to clone it explicitly here
-    // (i.e. it's given at construction naturally).
-    new_binop->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_binop;
+        down_cast<Expr*>(old_to_new_.at(n->rhs())), n->in_parens());
     return absl::OkStatus();
   }
 
@@ -162,11 +154,10 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleCast(const Cast* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    auto new_cast = module_->Make<Cast>(
+    old_to_new_[n] = module_->Make<Cast>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->expr())),
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
-    new_cast->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_cast;
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
+        n->in_parens());
     return absl::OkStatus();
   }
 
@@ -195,12 +186,11 @@ class AstCloner : public AstNodeVisitor {
 
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->type()));
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(&n->channel_name_expr()));
-    auto new_channel_decl = module_->Make<ChannelDecl>(
+    old_to_new_[n] = module_->Make<ChannelDecl>(
         n->span(), down_cast<TypeAnnotation*>(old_to_new_.at(n->type())),
         new_dims, new_fifo_depth,
-        *down_cast<Expr*>(old_to_new_.at(&n->channel_name_expr())));
-    new_channel_decl->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_channel_decl;
+        *down_cast<Expr*>(old_to_new_.at(&n->channel_name_expr())),
+        n->in_parens());
     return absl::OkStatus();
   }
 
@@ -237,10 +227,8 @@ class AstCloner : public AstNodeVisitor {
           old_to_new_.at(std::get<ColonRef*>(n->subject())));
     }
 
-    auto new_colon_ref =
-        module_->Make<ColonRef>(n->span(), new_subject, n->attr());
-    new_colon_ref->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_colon_ref;
+    old_to_new_[n] = module_->Make<ColonRef>(n->span(), new_subject, n->attr(),
+                                             n->in_parens());
     return absl::OkStatus();
   }
 
@@ -251,13 +239,12 @@ class AstCloner : public AstNodeVisitor {
     for (const Expr* old_member : n->members()) {
       new_members.push_back(down_cast<Expr*>(old_to_new_.at(old_member)));
     }
-    ConstantArray* new_array =
-        module_->Make<ConstantArray>(n->span(), new_members, n->has_ellipsis());
+    ConstantArray* new_array = module_->Make<ConstantArray>(
+        n->span(), new_members, n->has_ellipsis(), n->in_parens());
     if (n->type_annotation() != nullptr) {
       new_array->set_type_annotation(
           down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
     }
-    new_array->set_in_parens(n->in_parens());
     old_to_new_[n] = new_array;
     return absl::OkStatus();
   }
@@ -361,9 +348,8 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     ExprOrType new_eot = ToExprOrType(old_to_new_.at(ToAstNode(n->type())));
-    auto new_zero_macro = module_->Make<ZeroMacro>(n->span(), new_eot);
-    new_zero_macro->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_zero_macro;
+    old_to_new_[n] =
+        module_->Make<ZeroMacro>(n->span(), new_eot, n->in_parens());
     return absl::OkStatus();
   }
 
@@ -371,9 +357,8 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     ExprOrType new_eot = ToExprOrType(old_to_new_.at(ToAstNode(n->type())));
-    auto new_all_ones_macro = module_->Make<AllOnesMacro>(n->span(), new_eot);
-    new_all_ones_macro->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_all_ones_macro;
+    old_to_new_[n] =
+        module_->Make<AllOnesMacro>(n->span(), new_eot, n->in_parens());
     return absl::OkStatus();
   }
 
@@ -426,10 +411,9 @@ class AstCloner : public AstNodeVisitor {
                     }},
                     n->rhs());
 
-    auto new_index = module_->Make<Index>(
-        n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())), new_rhs);
-    new_index->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_index;
+    old_to_new_[n] = module_->Make<Index>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())), new_rhs,
+        n->in_parens());
     return absl::OkStatus();
   }
 
@@ -442,11 +426,9 @@ class AstCloner : public AstNodeVisitor {
       new_args.push_back(down_cast<Expr*>(old_to_new_.at(arg)));
     }
 
-    auto new_invocation = module_->Make<Invocation>(
+    old_to_new_[n] = module_->Make<Invocation>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())), new_args,
-        CloneParametrics(n->explicit_parametrics()));
-    new_invocation->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_invocation;
+        CloneParametrics(n->explicit_parametrics()), n->in_parens());
     return absl::OkStatus();
   }
 
@@ -474,10 +456,9 @@ class AstCloner : public AstNodeVisitor {
       new_arms.push_back(down_cast<MatchArm*>(old_to_new_.at(arm)));
     }
 
-    auto new_match = module_->Make<Match>(
-        n->span(), down_cast<Expr*>(old_to_new_.at(n->matched())), new_arms);
-    new_match->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_match;
+    old_to_new_[n] = module_->Make<Match>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->matched())), new_arms,
+        n->in_parens());
     return absl::OkStatus();
   }
 
@@ -566,12 +547,11 @@ class AstCloner : public AstNodeVisitor {
     if (std::holds_alternative<const NameDef*>(n->name_def())) {
       it = old_to_new_.find(std::get<const NameDef*>(n->name_def()));
     }
-    auto new_name_ref = module_->Make<NameRef>(
+    old_to_new_[n] = module_->Make<NameRef>(
         n->span(), n->identifier(),
         it == old_to_new_.end() ? n->name_def()
-                                : down_cast<NameDef*>(it->second));
-    new_name_ref->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_name_ref;
+                                : down_cast<NameDef*>(it->second),
+        n->in_parens());
     return absl::OkStatus();
   }
 
@@ -583,10 +563,8 @@ class AstCloner : public AstNodeVisitor {
       new_type =
           down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
     }
-    auto new_number =
-        module_->Make<Number>(n->span(), n->text(), n->number_kind(), new_type);
-    new_number->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_number;
+    old_to_new_[n] = module_->Make<Number>(
+        n->span(), n->text(), n->number_kind(), new_type, n->in_parens());
     return absl::OkStatus();
   }
 
@@ -670,11 +648,9 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleRange(const Range* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    auto new_range = module_->Make<Range>(
+    old_to_new_[n] = module_->Make<Range>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->start())),
-        down_cast<Expr*>(old_to_new_.at(n->end())));
-    new_range->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_range;
+        down_cast<Expr*>(old_to_new_.at(n->end())), n->in_parens());
     return absl::OkStatus();
   }
 
@@ -729,9 +705,8 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleString(const String* n) override {
-    auto new_string = module_->Make<String>(n->span(), n->text());
-    new_string->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_string;
+    old_to_new_[n] =
+        module_->Make<String>(n->span(), n->text(), n->in_parens());
     return absl::OkStatus();
   }
 
@@ -832,10 +807,8 @@ class AstCloner : public AstNodeVisitor {
           member.first, down_cast<Expr*>(old_to_new_.at(member.second))));
     }
 
-    auto new_struct_instance =
-        module_->Make<StructInstance>(n->span(), new_struct_ref, new_members);
-    new_struct_instance->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_struct_instance;
+    old_to_new_[n] = module_->Make<StructInstance>(n->span(), new_struct_ref,
+                                                   new_members, n->in_parens());
     return absl::OkStatus();
   }
 
@@ -852,12 +825,10 @@ class AstCloner : public AstNodeVisitor {
       return absl::InternalError("Unexpected Conditional alternate node type.");
     }
 
-    auto new_conditional = module_->Make<Conditional>(
+    old_to_new_[n] = module_->Make<Conditional>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->test())),
         down_cast<StatementBlock*>(old_to_new_.at(n->consequent())),
-        new_alternate);
-    new_conditional->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_conditional;
+        new_alternate, n->in_parens());
     return absl::OkStatus();
   }
 
@@ -880,11 +851,9 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleTupleIndex(const TupleIndex* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    auto new_tuple_index = module_->Make<TupleIndex>(
+    old_to_new_[n] = module_->Make<TupleIndex>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
-        down_cast<Number*>(old_to_new_.at(n->index())));
-    new_tuple_index->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_tuple_index;
+        down_cast<Number*>(old_to_new_.at(n->index())), n->in_parens());
     return absl::OkStatus();
   }
 
@@ -945,14 +914,9 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleUnop(const Unop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    auto* new_op =
-        module_->Make<Unop>(n->span(), n->unop_kind(),
-                            down_cast<Expr*>(old_to_new_.at(n->operand())));
-    // TODO(cdleary): 2023-05-30 The in_parens arguments should be given to the
-    // Expr base class so we don't need to remember to clone it explicitly here
-    // (i.e. it's given at construction naturally).
-    new_op->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_op;
+    old_to_new_[n] = module_->Make<Unop>(
+        n->span(), n->unop_kind(),
+        down_cast<Expr*>(old_to_new_.at(n->operand())), n->in_parens());
     return absl::OkStatus();
   }
 
@@ -964,13 +928,11 @@ class AstCloner : public AstNodeVisitor {
             ? nullptr
             : down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
 
-    UnrollFor* new_unroll_for = module_->Make<UnrollFor>(
+    old_to_new_[n] = module_->Make<UnrollFor>(
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
         new_type_annotation, down_cast<Expr*>(old_to_new_.at(n->iterable())),
         down_cast<StatementBlock*>(old_to_new_.at(n->body())),
-        down_cast<Expr*>(old_to_new_.at(n->init())));
-    new_unroll_for->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_unroll_for;
+        down_cast<Expr*>(old_to_new_.at(n->init())), n->in_parens());
     return absl::OkStatus();
   }
 
@@ -1001,10 +963,8 @@ class AstCloner : public AstNodeVisitor {
       members.push_back(down_cast<Expr*>(old_to_new_.at(member)));
     }
 
-    auto new_xls_tuple =
-        module_->Make<XlsTuple>(n->span(), members, n->has_trailing_comma());
-    new_xls_tuple->set_in_parens(n->in_parens());
-    old_to_new_[n] = new_xls_tuple;
+    old_to_new_[n] = module_->Make<XlsTuple>(
+        n->span(), members, n->has_trailing_comma(), n->in_parens());
     return absl::OkStatus();
   }
 

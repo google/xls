@@ -611,8 +611,9 @@ NameDef::~NameDef() = default;
 
 Conditional::Conditional(Module* owner, Span span, Expr* test,
                          StatementBlock* consequent,
-                         std::variant<StatementBlock*, Conditional*> alternate)
-    : Expr(owner, std::move(span)),
+                         std::variant<StatementBlock*, Conditional*> alternate,
+                         bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
       test_(test),
       consequent_(consequent),
       alternate_(alternate) {}
@@ -722,14 +723,16 @@ std::string ConstantDef::ToString() const {
 }
 
 Array::Array(Module* owner, Span span, std::vector<Expr*> members,
-             bool has_ellipsis)
-    : Expr(owner, std::move(span)),
+             bool has_ellipsis, bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
       members_(std::move(members)),
       has_ellipsis_(has_ellipsis) {}
 
 ConstantArray::ConstantArray(Module* owner, Span span,
-                             std::vector<Expr*> members, bool has_ellipsis)
-    : Array(owner, std::move(span), std::move(members), has_ellipsis) {
+                             std::vector<Expr*> members, bool has_ellipsis,
+                             bool in_parens)
+    : Array(owner, std::move(span), std::move(members), has_ellipsis,
+            in_parens) {
   for (Expr* expr : this->members()) {
     CHECK(IsConstant(expr))
         << "non-constant in constant array: " << expr->ToString();
@@ -780,8 +783,11 @@ std::string Import::ToString() const {
 
 // -- class ColonRef
 
-ColonRef::ColonRef(Module* owner, Span span, Subject subject, std::string attr)
-    : Expr(owner, std::move(span)), subject_(subject), attr_(std::move(attr)) {}
+ColonRef::ColonRef(Module* owner, Span span, Subject subject, std::string attr,
+                   bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
+      subject_(subject),
+      attr_(std::move(attr)) {}
 
 ColonRef::~ColonRef() = default;
 
@@ -1077,8 +1083,9 @@ std::string EnumDef::ToString() const {
 // -- class Instantiation
 
 Instantiation::Instantiation(Module* owner, Span span, Expr* callee,
-                             std::vector<ExprOrType> explicit_parametrics)
-    : Expr(owner, std::move(span)),
+                             std::vector<ExprOrType> explicit_parametrics,
+                             bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
       callee_(callee),
       explicit_parametrics_(std::move(explicit_parametrics)) {}
 
@@ -1119,9 +1126,10 @@ std::vector<AstNode*> FunctionRef::GetChildren(bool want_types) const {
 
 Invocation::Invocation(Module* owner, Span span, Expr* callee,
                        std::vector<Expr*> args,
-                       std::vector<ExprOrType> explicit_parametrics)
+                       std::vector<ExprOrType> explicit_parametrics,
+                       bool in_parens)
     : Instantiation(owner, std::move(span), callee,
-                    std::move(explicit_parametrics)),
+                    std::move(explicit_parametrics), in_parens),
       args_(std::move(args)) {}
 
 Invocation::~Invocation() = default;
@@ -1189,8 +1197,8 @@ std::string ConstAssert::ToString() const {
 
 // -- class ZeroMacro
 
-ZeroMacro::ZeroMacro(Module* owner, Span span, ExprOrType type)
-    : Expr(owner, std::move(span)), type_(type) {}
+ZeroMacro::ZeroMacro(Module* owner, Span span, ExprOrType type, bool in_parens)
+    : Expr(owner, std::move(span), in_parens), type_(type) {}
 
 ZeroMacro::~ZeroMacro() = default;
 
@@ -1207,8 +1215,9 @@ std::string ZeroMacro::ToStringInternal() const {
 
 // -- class AllOnesMacro
 
-AllOnesMacro::AllOnesMacro(Module* owner, Span span, ExprOrType type)
-    : Expr(owner, std::move(span)), type_(type) {}
+AllOnesMacro::AllOnesMacro(Module* owner, Span span, ExprOrType type,
+                           bool in_parens)
+    : Expr(owner, std::move(span), in_parens), type_(type) {}
 
 AllOnesMacro::~AllOnesMacro() = default;
 
@@ -1434,8 +1443,8 @@ std::optional<Function*> Impl::GetFunction(std::string_view name) const {
 
 StructInstance::StructInstance(
     Module* owner, Span span, TypeAnnotation* struct_ref,
-    std::vector<std::pair<std::string, Expr*>> members)
-    : Expr(owner, std::move(span)),
+    std::vector<std::pair<std::string, Expr*>> members, bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
       struct_ref_(struct_ref),
       members_(std::move(members)) {}
 
@@ -1485,8 +1494,9 @@ std::string StructInstance::ToStringInternal() const {
 
 SplatStructInstance::SplatStructInstance(
     Module* owner, Span span, TypeAnnotation* struct_ref,
-    std::vector<std::pair<std::string, Expr*>> members, Expr* splatted)
-    : Expr(owner, std::move(span)),
+    std::vector<std::pair<std::string, Expr*>> members, Expr* splatted,
+    bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
       struct_ref_(struct_ref),
       members_(std::move(members)),
       splatted_(splatted) {}
@@ -1594,8 +1604,8 @@ absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {
 }
 
 Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
-             Expr* rhs)
-    : Expr(owner, std::move(span)),
+             Expr* rhs, bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
       binop_kind_(binop_kind),
       lhs_(lhs),
       rhs_(rhs) {}
@@ -1700,8 +1710,8 @@ std::string StatementBlock::ToStringInternal() const {
 
 ForLoopBase::ForLoopBase(Module* owner, Span span, NameDefTree* names,
                          TypeAnnotation* type_annotation, Expr* iterable,
-                         StatementBlock* body, Expr* init)
-    : Expr(owner, span),
+                         StatementBlock* body, Expr* init, bool in_parens)
+    : Expr(owner, span, in_parens),
       names_(names),
       type_annotation_(type_annotation),
       iterable_(iterable),
@@ -1863,8 +1873,10 @@ Span MatchArm::GetPatternSpan() const {
 }
 
 Match::Match(Module* owner, Span span, Expr* matched,
-             std::vector<MatchArm*> arms)
-    : Expr(owner, std::move(span)), matched_(matched), arms_(std::move(arms)) {}
+             std::vector<MatchArm*> arms, bool in_parens)
+    : Expr(owner, std::move(span), in_parens),
+      matched_(matched),
+      arms_(std::move(arms)) {}
 
 // -- class NameRef
 
@@ -1876,8 +1888,8 @@ ConstRef::~ConstRef() = default;
 
 // -- class Range
 
-Range::Range(Module* owner, Span span, Expr* start, Expr* end)
-    : Expr(owner, std::move(span)), start_(start), end_(end) {}
+Range::Range(Module* owner, Span span, Expr* start, Expr* end, bool in_parens)
+    : Expr(owner, std::move(span), in_parens), start_(start), end_(end) {}
 
 Range::~Range() = default;
 
@@ -2035,8 +2047,9 @@ std::string QuickCheck::ToString() const {
 
 TupleIndex::~TupleIndex() = default;
 
-TupleIndex::TupleIndex(Module* owner, Span span, Expr* lhs, Number* index)
-    : Expr(owner, std::move(span)), lhs_(lhs), index_(index) {}
+TupleIndex::TupleIndex(Module* owner, Span span, Expr* lhs, Number* index,
+                       bool in_parens)
+    : Expr(owner, std::move(span), in_parens), lhs_(lhs), index_(index) {}
 
 absl::Status TupleIndex::Accept(AstNodeVisitor* v) const {
   return v->HandleTupleIndex(this);
@@ -2197,8 +2210,9 @@ static Span MakeNumberSpan(Span expr_span,
 }
 
 Number::Number(Module* owner, Span span, std::string text,
-               NumberKind number_kind, TypeAnnotation* type_annotation)
-    : Expr(owner, MakeNumberSpan(std::move(span), type_annotation)),
+               NumberKind number_kind, TypeAnnotation* type_annotation,
+               bool in_parens)
+    : Expr(owner, MakeNumberSpan(std::move(span), type_annotation), in_parens),
       text_(std::move(text)),
       number_kind_(number_kind),
       type_annotation_(type_annotation) {}
