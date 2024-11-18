@@ -3053,6 +3053,23 @@ fn will_fail(x:u32) -> u32 {
                                            HasSubstr("<no-file>:3:10-3:30")));
 }
 
+TEST(ParserErrorTest, FailLabelAtTopLevel) {
+  constexpr std::string_view kProgram = R"(
+const ZERO_FAIL = fail!("always_fails", u32:0);
+)";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+
+  // Check expected message
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("Cannot use the `fail!` builtin at module top-level.")));
+}
+
 TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
   const char* text = R"(proc MyProc<N: u32> {
     const_assert!(N == u32:42);
