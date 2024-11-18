@@ -744,6 +744,10 @@ absl::Status IrInterpreter::HandleParam(Param* param) {
   return absl::UnimplementedError("Param not implemented in IrInterpreter");
 }
 
+absl::Status IrInterpreter::HandleStateRead(StateRead* state_read) {
+  return absl::UnimplementedError("StateRead not implemented in IrInterpreter");
+}
+
 absl::Status IrInterpreter::HandleNext(Next* next) {
   return absl::UnimplementedError(
       "Next value not implemented in IrInterpreter");

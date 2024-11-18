@@ -69,6 +69,7 @@ namespace {
   M(RegisterWrite)           \
   M(Select)                  \
   M(Send)                    \
+  M(StateRead)               \
   M(Trace)                   \
   M(Tuple)                   \
   M(TupleIndex)              \

@@ -264,6 +264,12 @@ absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleParam(
   return DefaultHandler(ElaboratedNode{.node = param, .instance = instance});
 }
 
+absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleStateRead(
+    StateRead* state_read, BlockInstance* instance) {
+  return DefaultHandler(
+      ElaboratedNode{.node = state_read, .instance = instance});
+}
+
 absl::Status ElaboratedBlockDfsVisitorWithDefault::HandleNext(
     Next* next, BlockInstance* instance) {
   return DefaultHandler(ElaboratedNode{.node = next, .instance = instance});

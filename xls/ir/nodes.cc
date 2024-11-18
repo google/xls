@@ -41,6 +41,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -898,6 +899,26 @@ Param::Param(const SourceInfo& loc, Type* type, std::string_view name,
       << "Op `" << op_ << "` is not a valid op for Node class `Param`.";
 }
 
+StateRead::StateRead(const SourceInfo& loc, StateElement* state_element,
+                     std::string_view name, FunctionBase* function)
+    : Node(Op::kStateRead, function->package()->GetTupleType({}), loc, name,
+           function),
+      state_element_(state_element) {
+  CHECK(IsOpClass<StateRead>(op_))
+      << "Op `" << op_ << "` is not a valid op for Node class `StateRead`.";
+}
+
+bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
+  if (this == other) {
+    return true;
+  }
+  if (!Node::IsDefinitelyEqualTo(other)) {
+    return false;
+  }
+
+  return state_element_ == other->As<StateRead>()->state_element_;
+}
+
 Next::Next(const SourceInfo& loc, Node* param, Node* value,
            std::optional<Node*> predicate, std::string_view name,
            FunctionBase* function)
@@ -1347,6 +1368,13 @@ absl::StatusOr<Node*> Send::CloneInNewFunction(
       new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
                               : std::nullopt,
       channel_name(), GetNameView());
+}
+
+absl::StatusOr<Node*> StateRead::CloneInNewFunction(
+    absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<StateRead>(loc(), state_element(),
+                                                   GetNameView());
 }
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(

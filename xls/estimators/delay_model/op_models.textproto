@@ -641,6 +641,7 @@ op_models { op: "kArrayConcat" estimator { fixed: 0 } }
 op_models { op: "kConcat" estimator { fixed: 0 } }
 op_models { op: "kLiteral" estimator { fixed: 0 } }
 op_models { op: "kParam" estimator { fixed: 0 } }
+op_models { op: "kStateRead" estimator { fixed: 0 } }
 op_models { op: "kNext" estimator { fixed: 0 } }
 op_models { op: "kReverse" estimator { fixed: 0 } }
 op_models { op: "kTuple" estimator { fixed: 0 } }

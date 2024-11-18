@@ -1112,6 +1112,44 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
                                                std::move(name));
 }
 
+// StateRead matcher. Matches register name only. Supported forms:
+//
+//   EXPECT_THAT(x, m::StateRead());
+//   EXPECT_THAT(x, m::StateRead("x"));
+//   EXPECT_THAT(x, m::StateRead(HasSubstr("substr")));
+//
+class StateReadMatcher : public NodeMatcher {
+ public:
+  explicit StateReadMatcher(
+      std::optional<::testing::Matcher<const std::string>> state_element_name)
+      : NodeMatcher(Op::kStateRead, /*operands=*/{}),
+        state_element_name_(std::move(state_element_name)) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
+
+ private:
+  std::optional<::testing::Matcher<const std::string>> state_element_name_;
+};
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::Node*> StateRead(T register_name)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return ::xls::op_matchers::StateReadMatcher(
+      internal::NameMatcherInternal(std::string_view{register_name}));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> StateRead(
+    ::testing::Matcher<const std::string> name) {
+  return ::xls::op_matchers::StateReadMatcher(std::move(name));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> StateRead() {
+  return ::xls::op_matchers::NodeMatcher(Op::kStateRead, {});
+}
+
 // RegisterRead matcher. Matches register name only. Supported forms:
 //
 //   EXPECT_THAT(x, m::RegisterRead());

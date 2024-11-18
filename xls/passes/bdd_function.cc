@@ -156,6 +156,7 @@ bool ShouldEvaluate(Node* node) {
     case Op::kMap:
     case Op::kOutputPort:
     case Op::kParam:
+    case Op::kStateRead:
     case Op::kNext:
     case Op::kReceive:
     case Op::kRegisterRead:

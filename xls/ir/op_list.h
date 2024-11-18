@@ -101,6 +101,7 @@ inline constexpr uint8_t kSideEffecting = 0b00010000;
   F(kShra, OP_SHRA, "shra", op_types::kStandard)                               \
   F(kShrl, OP_SHRL, "shrl", op_types::kStandard)                               \
   F(kSignExt, OP_SIGN_EXT, "sign_ext", op_types::kStandard)                    \
+  F(kStateRead, OP_STATE_READ, "state_read", op_types::kSideEffecting)         \
   F(kSub, OP_SUB, "sub", op_types::kStandard)                                  \
   F(kTrace, OP_TRACE, "trace", op_types::kSideEffecting)                       \
   F(kTuple, OP_TUPLE, "tuple", op_types::kStandard)                            \

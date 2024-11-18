@@ -185,11 +185,12 @@ absl::StatusOr<Receive*> AddReceivePredicate(Receive* receive,
 
 // An abstraction defining a element of the proc state. These elements are
 // gathered together in a tuple to define the state of the proc.
-class StateElement {
+class AbstractStateElement {
  public:
-  static absl::StatusOr<StateElement> Create(std::string_view name,
-                                             Value initial_value, Proc* proc) {
-    StateElement element;
+  static absl::StatusOr<AbstractStateElement> Create(std::string_view name,
+                                                     Value initial_value,
+                                                     Proc* proc) {
+    AbstractStateElement element;
     element.name_ = name;
     element.initial_value_ = initial_value;
 
@@ -308,13 +309,13 @@ class VirtualChannel {
       if (streaming_channel->GetFifoDepth().value() == 1) {
         // For FIFO depth 1, create a state element which holds the data and one
         // which indicates whether the data is valid.
-        XLS_ASSIGN_OR_RETURN(
-            vc.saved_data_,
-            StateElement::Create(absl::StrFormat("%s_data", channel->name()),
+        XLS_ASSIGN_OR_RETURN(vc.saved_data_,
+                             AbstractStateElement::Create(
+                                 absl::StrFormat("%s_data", channel->name()),
                                  ZeroOfType(channel->type()), proc));
         XLS_ASSIGN_OR_RETURN(
             vc.saved_data_valid_,
-            StateElement::Create(
+            AbstractStateElement::Create(
                 absl::StrFormat("%s_data_valid", channel->name()),
                 Value(UBits(0, 1)), proc));
 
@@ -488,10 +489,10 @@ class VirtualChannel {
   Node* GetDataOut() const { return data_out_; }
   Node* GetValidOut() const { return valid_out_; }
 
-  const std::optional<StateElement>& ChannelDataState() const {
+  const std::optional<AbstractStateElement>& ChannelDataState() const {
     return saved_data_;
   }
-  const std::optional<StateElement>& ChannelValidState() const {
+  const std::optional<AbstractStateElement>& ChannelValidState() const {
     return saved_data_valid_;
   }
 
@@ -515,8 +516,8 @@ class VirtualChannel {
 
   // For FIFO depth 1 channels, these state elements holds the channel data and
   // whether it is valid.
-  std::optional<StateElement> saved_data_;
-  std::optional<StateElement> saved_data_valid_;
+  std::optional<AbstractStateElement> saved_data_;
+  std::optional<AbstractStateElement> saved_data_valid_;
 };
 
 // Abstraction representing a node in the activation network of a proc
@@ -750,7 +751,7 @@ class ProcThread {
     // Create the state element to hold the state of the inlined proc.
     for (int64_t i = 0; i < inlined_proc->GetStateElementCount(); ++i) {
       XLS_ASSIGN_OR_RETURN(
-          StateElement * element,
+          AbstractStateElement * element,
           proc_thread.AllocateState(
               absl::StrFormat("%s_state", inlined_proc->name()),
               inlined_proc->GetInitValueElement(i)));
@@ -773,7 +774,7 @@ class ProcThread {
     XLS_ASSIGN_OR_RETURN(
         Node * not_stalled,
         Not(stall, absl::StrFormat("%s_not_stalled", activation_node->name)));
-    XLS_ASSIGN_OR_RETURN(StateElement * activation_in_state,
+    XLS_ASSIGN_OR_RETURN(AbstractStateElement * activation_in_state,
                          AllocateState(absl::StrFormat("%s_holds_activation",
                                                        activation_node->name),
                                        Value(UBits(0, 1))));
@@ -933,8 +934,8 @@ class ProcThread {
 
   // Allocate and return a state element. The state will later be added to the
   // container proc state.
-  absl::StatusOr<StateElement*> AllocateState(std::string_view name,
-                                              const Value& initial_value);
+  absl::StatusOr<AbstractStateElement*> AllocateState(
+      std::string_view name, const Value& initial_value);
 
   // Allocates an activation node for the proc thread's activation network.
   // `activations_in` are the activation bits of the predecessors of this node
@@ -1126,7 +1127,7 @@ class ProcThread {
 
       // Add state which saves the data value of the receive.
       XLS_ASSIGN_OR_RETURN(
-          StateElement * data_state,
+          AbstractStateElement * data_state,
           AllocateState(absl::StrFormat("%s_data_state", channel->name()),
                         ZeroOfType(channel->type())));
       Node* receive_out = anode.data_out.value();
@@ -1154,7 +1155,7 @@ class ProcThread {
                                                 maybe_saved_data};
       if (!original_receive->is_blocking()) {
         XLS_ASSIGN_OR_RETURN(
-            StateElement * valid_state,
+            AbstractStateElement * valid_state,
             AllocateState(
                 absl::StrFormat("%s_valid_state", channel->name()),
                 ZeroOfType(container_proc_->package()->GetBitsType(1))));
@@ -1331,7 +1332,7 @@ class ProcThread {
   absl::StatusOr<Node*> ConvertToActivatedReceive(
       Receive* receive, ActivationNode* activation_node);
 
-  const std::list<StateElement>& GetStateElements() const {
+  const std::list<AbstractStateElement>& GetStateElements() const {
     return state_elements_;
   }
 
@@ -1358,15 +1359,15 @@ class ProcThread {
 
   // The state elements required to by this proc thread. These elements are
   // later added to the container proc state.
-  std::list<StateElement> state_elements_;
+  std::list<AbstractStateElement> state_elements_;
 
   // The state elements representing the state of the proc. These point to an
   // element in `state_elements_`.
-  std::vector<StateElement*> proc_state_;
+  std::vector<AbstractStateElement*> proc_state_;
 
   // The single bit of state representing the activation bit. This points to an
   // element in `state_elements_`.
-  StateElement* activation_state_ = nullptr;
+  AbstractStateElement* activation_state_ = nullptr;
 
   // The nodes of the activation network for the proc thread.
   std::list<ActivationNode> activation_nodes_;
@@ -1380,14 +1381,14 @@ class ProcThread {
   absl::flat_hash_map<Node*, ActivationNode*> original_node_to_activation_node_;
 };
 
-absl::StatusOr<StateElement*> ProcThread::AllocateState(
+absl::StatusOr<AbstractStateElement*> ProcThread::AllocateState(
     std::string_view name, const Value& initial_value) {
   VLOG(3) << absl::StreamFormat("AllocateState: %s, size: %d, initial value %s",
                                 name, initial_value.GetFlatBitCount(),
                                 initial_value.ToString());
   XLS_ASSIGN_OR_RETURN(
-      StateElement element,
-      StateElement::Create(name, initial_value, container_proc_));
+      AbstractStateElement element,
+      AbstractStateElement::Create(name, initial_value, container_proc_));
   state_elements_.push_back(std::move(element));
   return &state_elements_.back();
 }
@@ -1427,10 +1428,10 @@ absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
                              absl::StrFormat("%s_not_stalled", name)));
     std::vector<Node*> activation_conditions = {not_stalled};
     std::vector<Node*> has_activations;
-    std::vector<StateElement*> activations_in_state;
+    std::vector<AbstractStateElement*> activations_in_state;
     for (int64_t i = 0; i < activations_in.size(); ++i) {
       XLS_ASSIGN_OR_RETURN(
-          StateElement * activation_in_state,
+          AbstractStateElement * activation_in_state,
           AllocateState(absl::StrFormat("%s_holds_activation_%d",
                                         activation_node.name, i),
                         Value(UBits(0, 1))));
@@ -1761,11 +1762,12 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
 }
 
 // Sets the state of `proc` to the given state elements.
-absl::Status SetProcState(Proc* proc, absl::Span<const StateElement> elements) {
+absl::Status SetProcState(Proc* proc,
+                          absl::Span<const AbstractStateElement> elements) {
   std::vector<std::string> names;
   std::vector<Value> initial_values;
   std::vector<Node*> nexts;
-  for (const StateElement& element : elements) {
+  for (const AbstractStateElement& element : elements) {
     XLS_RET_CHECK(element.IsNextSet()) << element.GetName();
     initial_values.push_back(element.GetInitialValue());
     names.push_back(std::string{element.GetName()});
@@ -1837,7 +1839,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
 
   // Gather all inlined proc state and proc thread book-keeping bits and add to
   // the top-level proc state.
-  std::vector<StateElement> state_elements;
+  std::vector<AbstractStateElement> state_elements;
 
   absl::flat_hash_map<Channel*, VirtualChannel> virtual_channels;
   for (Channel* ch : p->channels()) {
@@ -1895,7 +1897,8 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
 
   // Add the inlined (and top) proc state and activation bits.
   for (const ProcThread& proc_thread : proc_threads) {
-    for (const StateElement& state_element : proc_thread.GetStateElements()) {
+    for (const AbstractStateElement& state_element :
+         proc_thread.GetStateElements()) {
       state_elements.push_back(state_element);
     }
   }

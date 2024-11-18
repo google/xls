@@ -251,6 +251,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
   absl::Status HandleOutputPort(OutputPort* output_port) override;
   absl::Status HandleParam(Param* param) override;
+  absl::Status HandleStateRead(StateRead* state_read) override;
   absl::Status HandleNext(Next* next) override;
   absl::Status HandleReceive(Receive* receive) override;
   absl::Status HandleRegisterRead(RegisterRead* reg_read) override;
@@ -1105,6 +1106,12 @@ absl::Status RangeQueryVisitor::HandleOutputPort(OutputPort* output_port) {
 absl::Status RangeQueryVisitor::HandleParam(Param* param) {
   INITIALIZE_OR_SKIP(param);
   // We don't know anything about params.
+  return absl::OkStatus();
+}
+
+absl::Status RangeQueryVisitor::HandleStateRead(StateRead* state_read) {
+  INITIALIZE_OR_SKIP(state_read);
+  // We don't know anything about state element values.
   return absl::OkStatus();
 }
 

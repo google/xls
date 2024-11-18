@@ -612,6 +612,11 @@ class ElaboratedBlockInterpreter final : public ElaboratedBlockDfsVisitor {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleParam(param);
   }
+  absl::Status HandleStateRead(StateRead* state_read,
+                               BlockInstance* instance) override {
+    XLS_RETURN_IF_ERROR(SetInstance(instance));
+    return current_interpreter_->HandleStateRead(state_read);
+  }
   absl::Status HandleNext(Next* next, BlockInstance* instance) override {
     XLS_RETURN_IF_ERROR(SetInstance(instance));
     return current_interpreter_->HandleNext(next);

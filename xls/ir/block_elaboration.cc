@@ -513,6 +513,9 @@ absl::Status ElaboratedNode::VisitSingleNode(
     case Op::kParam:
       return visitor.HandleParam(down_cast<Param*>(node), instance);
 
+    case Op::kStateRead:
+      return visitor.HandleStateRead(down_cast<StateRead*>(node), instance);
+
     case Op::kNext:
       return visitor.HandleNext(down_cast<Next*>(node), instance);
 

@@ -523,6 +523,37 @@ void OutputPortMatcher::DescribeTo(::std::ostream* os) const {
   DescribeToHelper(os, additional_fields);
 }
 
+bool StateReadMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  if (state_element_name_.has_value() &&
+      !state_element_name_->Matches(
+          node->As<xls::StateRead>()->state_element()->name())) {
+    *listener << " has incorrect state element ("
+              << node->As<xls::StateRead>()->state_element()->name()
+              << "), expected: ";
+    if (listener->stream() != nullptr) {
+      state_element_name_->DescribeTo(listener->stream());
+    }
+    return false;
+  }
+  return true;
+}
+
+void StateReadMatcher::DescribeTo(::std::ostream* os) const {
+  std::vector<std::string> additional_fields;
+  if (state_element_name_.has_value()) {
+    std::stringstream ss;
+    ss << "state_element=\"";
+    state_element_name_->DescribeTo(&ss);
+    ss << '"';
+    additional_fields.push_back(ss.str());
+  }
+  DescribeToHelper(os, additional_fields);
+}
+
 bool RegisterReadMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
   if (!NodeMatcher::MatchAndExplain(node, listener)) {

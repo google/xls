@@ -612,6 +612,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return file->OrReduce(inputs[0], node->loc());
     case Op::kParam:
       return unimplemented();
+    case Op::kStateRead:
+      return unimplemented();
     case Op::kNext:
       return unimplemented();
     case Op::kRegisterRead:

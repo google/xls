@@ -83,6 +83,7 @@ op_models { op: "kZeroExt" estimator { fixed: 1 } }
 
 # Always-free ops.
 op_models { op: "kParam" estimator { fixed: 0 } }
+op_models { op: "kStateRead" estimator { fixed: 0 } }
 op_models { op: "kNext" estimator { fixed: 0 } }
 op_models { op: "kAfterAll" estimator { fixed: 0 } }
 op_models { op: "kMinDelay" estimator { fixed: 0 } }

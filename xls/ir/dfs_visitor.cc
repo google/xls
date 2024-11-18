@@ -211,6 +211,10 @@ absl::Status DfsVisitorWithDefault::HandleParam(Param* param) {
   return DefaultHandler(param);
 }
 
+absl::Status DfsVisitorWithDefault::HandleStateRead(StateRead* state_read) {
+  return DefaultHandler(state_read);
+}
+
 absl::Status DfsVisitorWithDefault::HandleNext(Next* next) {
   return DefaultHandler(next);
 }

@@ -500,6 +500,19 @@ py_proto_library(
 )
 
 cc_library(
+    name = "state_element",
+    srcs = [
+        "state_element.cc",
+    ],
+    hdrs = ["state_element.h"],
+    deps = [
+        ":type",
+        ":value",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "register",
     srcs = [
         "register.cc",
@@ -568,6 +581,7 @@ cc_library(
         ":op",
         ":register",
         ":source_location",
+        ":state_element",
         ":type",
         ":type_manager",
         ":unwrapping_iterator",

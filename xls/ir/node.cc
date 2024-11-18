@@ -256,6 +256,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kParam:
       XLS_RETURN_IF_ERROR(visitor->HandleParam(down_cast<Param*>(this)));
       break;
+    case Op::kStateRead:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleStateRead(down_cast<StateRead*>(this)));
+      break;
     case Op::kNext:
       XLS_RETURN_IF_ERROR(visitor->HandleNext(down_cast<Next*>(this)));
       break;

@@ -37,6 +37,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -670,6 +671,24 @@ class NaryOp final : public Node {
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
+};
+
+class StateRead final : public Node {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kStateRead};
+  StateRead(const SourceInfo& loc, StateElement* state_element,
+            std::string_view name, FunctionBase* function);
+
+  StateElement* state_element() const { return state_element_; }
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
+
+  bool IsDefinitelyEqualTo(const Node* other) const final;
+
+ private:
+  StateElement* state_element_;
 };
 
 class Next final : public Node {

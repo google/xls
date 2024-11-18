@@ -1571,6 +1571,12 @@ op_models {
   }
 }
 op_models {
+  op: "kStateRead"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
   op: "kReverse"
   estimator {
     fixed: 0

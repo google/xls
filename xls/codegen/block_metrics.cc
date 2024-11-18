@@ -296,6 +296,7 @@ BomKindProto OpToBomKind(Op op) {
     case Op::kOutputPort:
     case Op::kMap:
     case Op::kParam:
+    case Op::kStateRead:
     case Op::kNext:
     case Op::kRegisterRead:
     case Op::kRegisterWrite:
