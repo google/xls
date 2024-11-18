@@ -431,6 +431,20 @@ cc_library(
 )
 
 cc_library(
+    name = "ast_node_visitor_with_default",
+    hdrs = ["ast_node_visitor_with_default.h"],
+    deps = [
+        ":ast",
+        ":ast_node",
+        ":module",
+        ":proc",
+        "//xls/ir:foreign_function_data_cc_proto",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "proc",
     srcs = ["proc.cc"],
     hdrs = ["proc.h"],

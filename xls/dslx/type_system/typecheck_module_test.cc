@@ -29,6 +29,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"

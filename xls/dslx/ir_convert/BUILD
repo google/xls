@@ -155,6 +155,7 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:proc_id",
         "//xls/dslx/type_system:deduce_utils",

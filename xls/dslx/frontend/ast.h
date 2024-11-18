@@ -138,25 +138,6 @@ class AstNodeVisitor {
 #undef DECLARE_HANDLER
 };
 
-// Subtype of abstract AstNodeVisitor that returns ok status (does nothing) for
-// every node type.
-//
-// Users can override the default behavior by overriding the DefaultHandler()
-// method.
-class AstNodeVisitorWithDefault : public AstNodeVisitor {
- public:
-  ~AstNodeVisitorWithDefault() override = default;
-
-  virtual absl::Status DefaultHandler() { return absl::OkStatus(); }
-
-#define DECLARE_HANDLER(__type)                           \
-  absl::Status Handle##__type(const __type* n) override { \
-    return DefaultHandler();                              \
-  }
-  XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)
-#undef DECLARE_HANDLER
-};
-
 // Helper function for downcast-based membership testing.
 //
 // Not fast, but this is not performance critical code at the moment.

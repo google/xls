@@ -424,6 +424,7 @@ cc_test(
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
