@@ -976,8 +976,8 @@ cc_test(
 )
 
 cc_test(
-    name = "sample_cc_test",
-    srcs = ["sample_cc_test.cc"],
+    name = "sample_test",
+    srcs = ["sample_test.cc"],
     deps = [
         ":sample",
         ":sample_cc_proto",
@@ -1033,11 +1033,6 @@ cc_library(
 
 cc_proto_library(
     name = "sample_cc_proto",
-    deps = [":sample_proto"],
-)
-
-py_proto_library(
-    name = "sample_py_pb2",
     deps = [":sample_proto"],
 )
 
