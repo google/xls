@@ -5,19 +5,17 @@ It implements the [RFC 8878](https://www.rfc-editor.org/rfc/rfc8878.html) decomp
 An overview of the decoder architecture is presented in the diagram below.
 The decoder comprises:
 * Memory Readers
-* Memory Writer[^2],
+* Memory Writer,
 * Control and Status Registers,
 * Frame Header Decoder,
 * Block Header Decoder,
 * 3 types of processing units: RAW-, RLE-, and Compressed Block Decoders[^1],
 * Command Aggregator,
-* Repacketizer.
 
 The Decoder interacts with the environment through a set of ports:
 * Memory Interface (AXI)
 * CSR Interface (AXI)
 * Notify line
-* Stream Output
 
 The software controls the core through registers accessible through the `CSR Interface`.
 The CSRs are used to configure the decoder and to start the decoding process.
@@ -33,8 +31,8 @@ Once the decoding process is started, the decoder:
 4. Decodes the Block Data with the correct processing unit picked based on the Block Type from the Block Header,
 4. Aggregates the processing unit results in the correct order into a stream and routes it to the history buffer,
 5. Assembles the data block outputs based on the history buffer contents and updates the history,
-6. Prepares the final output of the decoder,
-7. (Optional) Calculates checksum and compares it against the checksum read from the frame.[^3]
+6. Prepares the final output of the decoder and writes it to the memory,
+7. (Optional) Calculates checksum and compares it against the checksum read from the frame.[^2]
 
 ![](img/ZSTD_decoder.png)
 
@@ -115,31 +113,41 @@ stateDiagram
     [*] --> IDLE
 
     IDLE --> READ_CONFIG: Start
+    IDLE --> mem_write_done
 
     READ_CONFIG --> DECODE_FRAME_HEADER
+    READ_CONFIG --> mem_write_done
 
     DECODE_FRAME_HEADER --> DECODE_BLOCK_HEADER
     DECODE_FRAME_HEADER --> ERROR
+    DECODE_FRAME_HEADER --> mem_write_done
 
     DECODE_BLOCK_HEADER --> DECODE_RAW_BLOCK
     DECODE_BLOCK_HEADER --> DECODE_RLE_BLOCK
     DECODE_BLOCK_HEADER --> DECODE_COMPRESED_BLOCK
     DECODE_BLOCK_HEADER --> ERROR
+    DECODE_BLOCK_HEADER --> mem_write_done
 
     state if_block_last <<choice>>
     DECODE_RAW_BLOCK --> ERROR
     DECODE_RAW_BLOCK --> if_block_last
+    DECODE_RAW_BLOCK --> mem_write_done
 
     DECODE_RLE_BLOCK --> ERROR
     DECODE_RLE_BLOCK --> if_block_last
+    DECODE_RLE_BLOCK --> mem_write_done
 
     DECODE_COMPRESSED_BLOCK --> ERROR
     DECODE_COMPRESSED_BLOCK --> if_block_last
+    DECODE_COMPRESSED_BLOCK --> mem_write_done
 
     if_block_last --> DECODE_BLOCK_HEADER: Not last block in the frame
     if_block_last --> DECODE_CHECKSUM: Last block in the frame
 
-    DECODE_CHECKSUM --> FINISH
+    DECODE_CHECKSUM --> mem_write_done
+
+    state mem_write_done <<choice>>
+    mem_write_done --> FINISH: Frame written to the memory
 
     FINISH --> IDLE
     ERROR --> IDLE
@@ -154,9 +162,9 @@ Once received, the module fetches the data from the memory starting from the add
 `MemReader` procs are used by those modules to communicate with the external memory through the AXI interface.
 Internal modules decode the acquired parts of the frame and return responses with the results back to the top level proc.
 
-The processing units also output the decoded blocks of data through a stream-based interface to `SequenceExecutor` and further to `Repacketizer` procs.
-Those procs perform the last steps of the decoding before the final output is sent out back to the memory under the address stored in the `Output Buffer` CSR or through the stream-based output channel.
-Once the decoding process is completed, the decoder sends the `Notify` signal and transitions back to the `IDLE` state.
+The processing units also output the decoded blocks of data through a stream-based interface to the `SequenceExecutor` proc.
+This proc performs the last step of the decoding before the final output is sent out back to the memory under the address stored in the `Output Buffer` CSR by the `MemWriter` proc.
+Once the decoding process is completed and the decoded frame is written back to the memory, the decoder sends the `Notify` signal and transitions back to the `IDLE` state.
 
 ### Internal modules
 
@@ -211,19 +219,6 @@ This stage will show the following behavior, depending on the tag:
     * Wait for all previous writes to be completed,
     * Copy `copy_length` literals starting `offset _length` from the newest in history buffer to the decoder's output,
     * Copy `copy_length` literals starting `offset _length` from the newest in history buffer to the history buffer as the newest.
-
-#### Repacketizer
-This proc is used at the end of the processing flow in the ZSTD decoder.
-It gathers the output of `SequenceExecutor` proc and processes it to form the final output packets of the ZSTD decoder.
-Input packets coming from the `SequenceExecutor` consist of:
-
-* data - bit vector of constant length
-* length - field describing how many bits in bit vector are valid
-* last - flag which marks the last packet in currently decoded ZSTD frame.
-
-It is not guaranteed that all bits in data bit vectors in packets received from `SequenceExecutor` are valid as those can include padding bits that were added in previous decoding steps and now have to be removed.
-Repacketizer buffers input packets, removes the padding bits and forms new packets with all bits of the bit vector valid, meaning that all bits are decoded data.
-Newly formed packets are then sent out to the output of the whole ZSTD decoder.
 
 ### Compressed block decoder architecture[^1]
 This part of the design is responsible for processing the compressed blocks up to the `literals`/`copy` command sequence.
@@ -357,8 +352,8 @@ Currently, due to the restrictions from the ZSTD frame generator, it is possible
 ZstdDecoder's main communication interfaces are the AXI buses.
 Due to the way XLS handles the codegen of DSLX channels that model the AXI channels, the particular ports of the AXI channels are not represented correctly.
 This enforces the introduction of a Verilog wrapper that maps the ports generated by XLS into proper AXI ports (see AXI peripherals [README](memory/README.md) for more information).
-Additionally, the wrapper is used to mux multiple AXI interfaces from `Memory Readers` into a single outside-facing AXI interface (`Memory Interface`) that can be connected to the external memory.
-The mux is implemented by a third-party [AXI Interconnect](https://github.com/alexforencich/verilog-axi).
+Additionally, the wrapper is used to mux multiple AXI interfaces from `Memory Readers` and `Memory Writer` into a single outside-facing AXI interface (`Memory Interface`) that can be connected to the external memory.
+The mux is implemented by a third-party [AXI Crossbar](https://github.com/alexforencich/verilog-axi).
 
 ![](img/ZSTD_decoder_wrapper.png)
 
