@@ -1,4 +1,4 @@
-name: Nighly Build MkDocs And Commit HTML
+name: Continuous Docs Deployment
 
 on:
   # Run on every commit pushed to main.
