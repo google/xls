@@ -87,7 +87,7 @@ absl::Status RealMain(std::string_view input_path,
                          ParseModule(contents, path.c_str(), module_name,
                                      import_data.file_table(), &comments_vec));
     Comments comments = Comments::Create(comments_vec);
-    XLS_ASSIGN_OR_RETURN(formatted, AutoFmt(*module, comments));
+    XLS_ASSIGN_OR_RETURN(formatted, AutoFmt(*module, comments, contents));
   } else if (mode == "typecheck") {
     // Note: we don't flag any warnings in this binary as we're just formatting
     // the text.

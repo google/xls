@@ -43,6 +43,14 @@ class DslxFmtTest(absltest.TestCase):
     """)
     self.assertEqual(self._run(contents), want)
 
+  def test_disabled(self):
+    contents = '// dslx-fmt::off\nfn f()->u32{u32:42}'
+    self.assertEqual(self._run(contents), contents)
+
+  def test_disabled_in_place(self):
+    contents = '// dslx-fmt::off\nfn f()->u32{u32:42}'
+    self.assertEqual(self._run(contents, in_place=True), contents)
+
   def test_small_no_spaces_example_in_place(self):
     contents = 'fn f()->u32{u32:42}'
     want = textwrap.dedent("""\
