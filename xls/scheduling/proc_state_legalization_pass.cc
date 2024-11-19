@@ -32,6 +32,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 
@@ -43,28 +44,31 @@ absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
   CHECK(proc->next_values().empty());
 
   for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-    Param* param = proc->GetStateParam(index);
+    StateRead* state_read = proc->GetStateRead(index);
     Node* next_value = proc->GetNextStateElement(index);
     XLS_RETURN_IF_ERROR(
-        proc->MakeNodeWithName<Next>(param->loc(), /*param=*/param,
-                                     /*value=*/next_value,
-                                     /*predicate=*/std::nullopt,
-                                     absl::StrCat(param->name(), "_next"))
+        proc->MakeNodeWithName<Next>(
+                state_read->loc(), /*state_read=*/state_read,
+                /*value=*/next_value,
+                /*predicate=*/std::nullopt,
+                absl::StrCat(state_read->state_element()->name(), "_next"))
             .status());
 
-    if (next_value != static_cast<Node*>(param)) {
+    if (next_value != static_cast<Node*>(state_read)) {
       // Nontrivial next-state element; remove it so we pass verification.
-      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, param));
+      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, state_read));
     }
   }
 
   return proc->GetStateElementCount() > 0;
 }
 
-absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
+absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
+                                         StateElement* state_element,
                                          const SchedulingPassOptions& options) {
   absl::btree_set<Node*, Node::NodeIdLessThan> predicates;
-  for (Next* next : proc->next_values(param)) {
+  StateRead* state_read = proc->GetStateRead(state_element);
+  for (Next* next : proc->next_values(state_read)) {
     if (next->predicate().has_value()) {
       predicates.insert(*next->predicate());
     } else {
@@ -76,18 +80,18 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
   if (predicates.empty()) {
     // No explicit `next_value` node; leave the state parameter unchanged by
     // default.
-    XLS_RETURN_IF_ERROR(
-        proc->MakeNodeWithName<Next>(param->loc(), /*param=*/param,
-                                     /*value=*/param,
-                                     /*predicate=*/std::nullopt,
-                                     absl::StrCat(param->name(), "_default"))
-            .status());
+    XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                                state_read->loc(), /*state_read=*/state_read,
+                                /*value=*/state_read,
+                                /*predicate=*/std::nullopt,
+                                absl::StrCat(state_element->name(), "_default"))
+                            .status());
     return true;
   }
 
   // Check if we already have an explicit "if nothing else fires" `next_value`
   // node, which keeps things cleaner and makes sure this pass is idempotent.
-  for (Next* next : proc->next_values(param)) {
+  for (Next* next : proc->next_values(state_read)) {
     Node* predicate = *next->predicate();
 
     absl::btree_set<Node*, Node::NodeIdLessThan> other_conditions = predicates;
@@ -142,13 +146,13 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc, Param* param,
   XLS_ASSIGN_OR_RETURN(
       Node * all_predicates_false,
       NaryNorIfNeeded(proc, std::vector(predicates.begin(), predicates.end()),
-                      /*name=*/"", param->loc()));
-  XLS_RETURN_IF_ERROR(
-      proc->MakeNodeWithName<Next>(param->loc(), /*param=*/param,
-                                   /*value=*/param,
-                                   /*predicate=*/all_predicates_false,
-                                   absl::StrCat(param->name(), "_default"))
-          .status());
+                      /*name=*/"", state_read->loc()));
+  XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
+                              state_read->loc(), /*state_read=*/state_read,
+                              /*value=*/state_read,
+                              /*predicate=*/all_predicates_false,
+                              absl::StrCat(state_element->name(), "_default"))
+                          .status());
   return true;
 }
 
@@ -156,11 +160,12 @@ absl::StatusOr<bool> AddDefaultNextValues(
     Proc* proc, const SchedulingPassOptions& options) {
   bool changed = false;
 
-  for (Param* param : proc->StateParams()) {
+  for (StateElement* state_element : proc->StateElements()) {
     XLS_ASSIGN_OR_RETURN(bool param_changed,
-                         AddDefaultNextValue(proc, param, options));
+                         AddDefaultNextValue(proc, state_element, options));
     if (param_changed) {
-      VLOG(4) << "Added default next_value for param: " << param->name();
+      VLOG(4) << "Added default next_value for state element: "
+              << state_element->name();
       changed = true;
     }
   }

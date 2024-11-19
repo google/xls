@@ -278,20 +278,20 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
   if (f->IsProc()) {
     using StateIndex = int64_t;
     for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
-      Node* const state = proc->GetStateParam(i);
+      Node* const state_read = proc->GetStateRead(i);
       Node* const next = proc->GetNextStateElement(i);
-      if (next == state) {
+      if (next == state_read) {
         continue;
       }
       const int64_t backedge_length =
-          schedule_cycle_map[next] - schedule_cycle_map[state];
+          schedule_cycle_map[next] - schedule_cycle_map[state_read];
       pessimistic_worst_case_throughput =
           std::max(pessimistic_worst_case_throughput, backedge_length + 1);
     }
     for (Next* next : proc->next_values()) {
-      Node* state = next->param();
+      Node* state_read = next->state_read();
       const int64_t backedge_length =
-          schedule_cycle_map[next] - schedule_cycle_map[state];
+          schedule_cycle_map[next] - schedule_cycle_map[state_read];
       pessimistic_worst_case_throughput =
           std::max(pessimistic_worst_case_throughput, backedge_length + 1);
     }

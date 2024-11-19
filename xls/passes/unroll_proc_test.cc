@@ -46,11 +46,11 @@ TEST_F(UnrollProcTest, UnrollSimple) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   XLS_ASSERT_OK_AND_ASSIGN(ProcUnrollInfo unroll_info, UnrollProc(proc, 3));
   EXPECT_EQ(proc->NextState().size(), 1);
-  EXPECT_THAT(
-      proc->NextState().front(),
-      m::Add(m::Literal(UBits(1, 10)),
-             m::Add(m::Literal(UBits(1, 10)),
-                    m::Add(m::Literal(UBits(1, 10)), m::Param("__state")))));
+  EXPECT_THAT(proc->NextState().front(),
+              m::Add(m::Literal(UBits(1, 10)),
+                     m::Add(m::Literal(UBits(1, 10)),
+                            m::Add(m::Literal(UBits(1, 10)),
+                                   m::StateRead("__state")))));
   auto get_original = [&](const std::string& name) -> std::string {
     return unroll_info.original_node_map.at(*(proc->GetNode(name)))->GetName();
   };
@@ -89,14 +89,15 @@ TEST_F(UnrollProcTest, UnrollWithIO) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   XLS_ASSERT_OK_AND_ASSIGN(ProcUnrollInfo unroll_info, UnrollProc(proc, 3));
   EXPECT_EQ(proc->NextState().size(), 2);
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::Send(m::Send(m::Send(m::Param("__token"), m::Add()), m::Add()),
-                      m::Add()));
   EXPECT_THAT(
-      proc->GetNextStateElement(1),
-      m::Add(m::Literal(UBits(1, 10)),
-             m::Add(m::Literal(UBits(1, 10)),
-                    m::Add(m::Literal(UBits(1, 10)), m::Param("__state")))));
+      proc->GetNextStateElement(0),
+      m::Send(m::Send(m::Send(m::StateRead("__token"), m::Add()), m::Add()),
+              m::Add()));
+  EXPECT_THAT(proc->GetNextStateElement(1),
+              m::Add(m::Literal(UBits(1, 10)),
+                     m::Add(m::Literal(UBits(1, 10)),
+                            m::Add(m::Literal(UBits(1, 10)),
+                                   m::StateRead("__state")))));
   auto get_original = [&](const std::string& name) -> std::string {
     return unroll_info.original_node_map.at(*(proc->GetNode(name)))->GetName();
   };

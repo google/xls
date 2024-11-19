@@ -42,11 +42,11 @@ TEST_F(NextNodeModernizePassTest, BasicModernize) {
   PassResults res;
   NextNodeModernizePass pass;
   ASSERT_THAT(pass.Run(p.get(), {}, &res), IsOkAndHolds(true));
-  EXPECT_THAT(pr->NextState(), UnorderedElementsAre(m::Param("foo")));
-  EXPECT_THAT(
-      pr->next_values(),
-      UnorderedElementsAre(m::Next(
-          m::Param("foo"), m::Add(m::Param("foo"), m::Literal(UBits(1, 32))))));
+  EXPECT_THAT(pr->NextState(), UnorderedElementsAre(m::StateRead("foo")));
+  EXPECT_THAT(pr->next_values(),
+              UnorderedElementsAre(m::Next(
+                  m::StateRead("foo"),
+                  m::Add(m::StateRead("foo"), m::Literal(UBits(1, 32))))));
 }
 TEST_F(NextNodeModernizePassTest, AlreadyModern) {
   auto p = CreatePackage();

@@ -1012,7 +1012,7 @@ TEST_F(ConditionalSpecializationPassTest, SendChange) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
   EXPECT_THAT(f->GetNode("send.1"),
               IsOkAndHolds(m::Send(
-                  /*token=*/A<const Node*>(), /*data=*/m::Param("value2"),
+                  /*token=*/A<const Node*>(), /*data=*/m::StateRead("value2"),
                   /*predicate=*/A<const Node*>())));
 }
 
@@ -1067,9 +1067,9 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
-  EXPECT_THAT(
-      f->next_values(f->GetStateParam(0)),
-      ElementsAre(m::Next(m::Param("value1"), m::Param("value2"), m::Eq())));
+  EXPECT_THAT(f->next_values(f->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("value1"),
+                                  m::StateRead("value2"), m::Eq())));
 }
 
 TEST_F(ConditionalSpecializationPassTest, LogicalAndImpliedValue) {

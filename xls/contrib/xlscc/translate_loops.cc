@@ -49,6 +49,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_translator.h"
@@ -1129,7 +1130,7 @@ Translator::GenerateIR_PipelinedLoopContents(
     const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
     xls::BValue token_in, xls::BValue received_context_tuple,
     xls::BValue in_state_condition, bool in_fsm,
-    absl::flat_hash_map<const clang::NamedDecl*, xls::Param*>*
+    absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>*
         state_element_for_variable,
     int nesting_level) {
   const std::shared_ptr<CStructType>& context_in_cvars_struct_ctype =
@@ -1180,16 +1181,19 @@ Translator::GenerateIR_PipelinedLoopContents(
   xls::BValue last_iter_broke_in =
       pb.StateElement(absl::StrFormat("%s__last_iter_broke", name_prefix),
                       xls::Value(xls::UBits(1, 1)));
+  xls::StateElement* last_iter_broke_state =
+      last_iter_broke_in.node()->As<xls::StateRead>()->state_element();
 
   XLS_ASSIGN_OR_RETURN(
       xls::Value default_lval_conds,
       CreateDefaultRawValue(context_out_lval_conds_ctype, loc));
-  xls::BValue lvalue_cond_state =
+  xls::BValue lvalue_cond_value =
       pb.StateElement(absl::StrFormat("%s__lvalue_conditions", name_prefix),
                       default_lval_conds);
+  xls::StateElement* lvalue_cond_state =
+      lvalue_cond_value.node()->As<xls::StateRead>()->state_element();
 
-  absl::flat_hash_map<const clang::NamedDecl*, xls::BValue>
-      state_elements_by_decl;
+  absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> state_reads_by_decl;
 
   for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
     if (!context_field_indices.contains(decl)) {
@@ -1202,15 +1206,18 @@ Translator::GenerateIR_PipelinedLoopContents(
           xls::Value def,
           CreateDefaultRawValue(prev_value.type(), GetLoc(*decl)));
 
-      xls::BValue state_elem_bval = pb.StateElement(
+      xls::BValue state_read_bval = pb.StateElement(
           absl::StrFormat("%s_%s", name_prefix, decl->getNameAsString()), def);
+      xls::StateElement* state_elem =
+          state_read_bval.node()->As<xls::StateRead>()->state_element();
 
-      state_elements_by_decl[decl] = state_elem_bval;
-      prepared.state_element_for_variable[decl] =
-          state_elem_bval.node()->As<xls::Param>();
+      state_reads_by_decl[decl] = state_read_bval;
+      prepared.state_element_for_variable[decl] = state_elem;
     } else {
-      xls::Param* state_elem = prepared.state_element_for_variable.at(decl);
-      state_elements_by_decl[decl] = xls::BValue(state_elem, &pb);
+      xls::StateElement* state_elem =
+          prepared.state_element_for_variable.at(decl);
+      state_reads_by_decl[decl] =
+          xls::BValue(pb.proc()->GetStateRead(state_elem), &pb);
     }
   }
 
@@ -1233,7 +1240,7 @@ Translator::GenerateIR_PipelinedLoopContents(
   xls::BValue use_context_in = last_iter_broke_in;
 
   xls::BValue lvalue_conditions_tuple = context().fb->Select(
-      use_context_in, received_lvalue_conds, lvalue_cond_state, loc,
+      use_context_in, received_lvalue_conds, lvalue_cond_value, loc,
       /*name=*/absl::StrFormat("%s__lvalue_conditions_tuple", name_prefix));
 
   // Deal with on_reset
@@ -1286,7 +1293,7 @@ Translator::GenerateIR_PipelinedLoopContents(
       const uint64_t field_idx = context_field_indices.at(decl);
       CHECK_LT(field_idx, context_values.size());
       xls::BValue context_val = context_values.at(field_idx);
-      xls::BValue prev_state_val = state_elements_by_decl.at(decl);
+      xls::BValue prev_state_val = state_reads_by_decl.at(decl);
 
       xls::BValue selected_val =
           pb.Select(use_context_in, context_val, prev_state_val, loc);
@@ -1375,17 +1382,18 @@ Translator::GenerateIR_PipelinedLoopContents(
         absl::StrFormat("%s_default_update_state_cond", name_prefix));
   }
 
-  absl::btree_multimap<const xls::Param*, NextStateValue> next_state_values;
+  absl::btree_multimap<const xls::StateElement*, NextStateValue>
+      next_state_values;
 
   next_state_values.insert(
-      {last_iter_broke_in.node()->As<xls::Param>(),
+      {last_iter_broke_state,
        NextStateValue{.value =
                           pb.Select(update_state_condition,
                                     /*on_true=*/do_break,
                                     /*on_false=*/last_iter_broke_in, loc)}});
 
-  next_state_values.insert({lvalue_cond_state.node()->As<xls::Param>(),
-                            NextStateValue{.value = lvalue_conditions_tuple}});
+  next_state_values.insert(
+      {lvalue_cond_state, NextStateValue{.value = lvalue_conditions_tuple}});
 
   xls::BValue update_state_elements = update_state_condition;
 
@@ -1429,14 +1437,13 @@ Translator::GenerateIR_PipelinedLoopContents(
       out_bval =
           pb.Select(update_state_elements,
                     /*on_true=*/val,
-                    /*on_false=*/state_elements_by_decl.at(decl), loc, /*name=*/
+                    /*on_false=*/state_reads_by_decl.at(decl), loc, /*name=*/
                     absl::StrFormat("%s_%s_out_val", name_prefix,
                                     decl->getNameAsString()));
     }
 
     next_state_values.insert(
-        {state_elements_by_decl.at(decl).node()->As<xls::Param>(),
-         next_state_value});
+        {prepared.state_element_for_variable[decl], next_state_value});
 
     if (context_in_field_indices.contains(decl)) {
       out_tuple_values[context_in_field_indices.at(decl)] = out_bval;
@@ -1457,11 +1464,8 @@ Translator::GenerateIR_PipelinedLoopContents(
                       absl::StrFormat("%s_fsm_ret_static_%s", name_prefix,
                                       namedecl->getNameAsString()));
 
-    xls::BValue state_elem_bval(
-        prepared.state_element_for_variable.at(namedecl), &pb);
-
     next_state_values.insert(
-        {state_elem_bval.node()->As<xls::Param>(),
+        {prepared.state_element_for_variable.at(namedecl),
          NextStateValue{.priority = nesting_level,
                         .extra_label = name_prefix,
                         .value = ret_next,

@@ -152,6 +152,12 @@ absl::StatusOr<BValue> ExtractSegmentInto(FunctionBuilder& dest,
     } else if (n->Is<RegisterWrite>()) {
       outputs.push_back(old_to_new.at(n->As<RegisterWrite>()->data()));
       // Do nothing.
+    } else if (n->Is<StateRead>()) {
+      XLS_ASSIGN_OR_RETURN(auto type,
+                           dest_pkg->MapTypeFromOtherPackage(n->GetType()));
+      old_to_new[n] = dest.Param(n->As<StateRead>()->state_element()->name(),
+                                 type, n->loc())
+                          .node();
     } else if (n->Is<Next>() && next_nodes_are_tuples) {
       std::vector<BValue> new_ops;
       for (Node* op : n->operands()) {

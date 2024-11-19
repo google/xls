@@ -694,17 +694,17 @@ class StateRead final : public Node {
 class Next final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kNext};
-  static constexpr int64_t kParamOperand = 0;
+  static constexpr int64_t kStateReadOperand = 0;
   static constexpr int64_t kValueOperand = 1;
 
-  Next(const SourceInfo& loc, Node* param, Node* value,
+  Next(const SourceInfo& loc, Node* state_read, Node* value,
        std::optional<Node*> predicate, std::string_view name,
        FunctionBase* function);
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const final;
-  Node* param() const { return operand(0); }
+  Node* state_read() const { return operand(0); }
 
   Node* value() const { return operand(1); }
 

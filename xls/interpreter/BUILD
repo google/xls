@@ -141,6 +141,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:events",
         "//xls/ir:proc_elaboration",
+        "//xls/ir:state_element",
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "@com_google_absl//absl/container:flat_hash_map",

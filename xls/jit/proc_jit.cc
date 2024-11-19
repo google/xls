@@ -43,6 +43,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/jit/aot_entrypoint.pb.h"
 #include "xls/jit/function_base_jit.h"
@@ -166,14 +167,13 @@ ProcJitContinuation::ProcJitContinuation(ProcInstance* proc_instance,
       observer_shim_(this),
       has_observer_callbacks_(has_observer_callbacks) {
   // Write initial state value to the input_buffer.
-  for (Param* state_param : proc()->StateParams()) {
-    int64_t param_index = proc()->GetParamIndex(state_param).value();
-    int64_t state_index = proc()->GetStateParamIndex(state_param).value();
+  for (StateElement* state_element : proc()->StateElements()) {
+    int64_t state_index = *proc()->GetStateElementIndex(state_element);
     jit_runtime->BlitValueToBuffer(
-        proc()->GetInitValueElement(state_index), state_param->GetType(),
+        state_element->initial_value(), state_element->type(),
         absl::Span<uint8_t>(
-            input_.pointers()[param_index],
-            jit_runtime_->GetTypeByteSize(state_param->GetType())));
+            input_.pointers()[state_index],
+            jit_runtime_->GetTypeByteSize(state_element->type())));
   }
 }
 
@@ -199,10 +199,10 @@ absl::Status ProcJitContinuation::SetObserver(EvaluationObserver* obs) {
 
 std::vector<Value> ProcJitContinuation::GetState() const {
   std::vector<Value> state;
-  for (Param* state_param : proc()->StateParams()) {
-    int64_t param_index = proc()->GetParamIndex(state_param).value();
-    state.push_back(jit_runtime_->UnpackBuffer(input_.pointers()[param_index],
-                                               state_param->GetType()));
+  for (StateElement* state_element : proc()->StateElements()) {
+    int64_t state_index = *proc()->GetStateElementIndex(state_element);
+    state.push_back(jit_runtime_->UnpackBuffer(input_.pointers()[state_index],
+                                               state_element->type()));
   }
   return state;
 }
@@ -210,15 +210,13 @@ std::vector<Value> ProcJitContinuation::GetState() const {
 absl::Status ProcJitContinuation::SetState(std::vector<Value> v) {
   XLS_RET_CHECK_OK(CheckConformsToStateType(v));
 
-  absl::Span<Param* const> state_params = proc()->StateParams();
-
-  for (int64_t i = 0; i < state_params.size(); ++i) {
-    int64_t param_index = proc()->GetParamIndex(state_params[i]).value();
+  for (StateElement* state_element : proc()->StateElements()) {
+    int64_t state_index = *proc()->GetStateElementIndex(state_element);
     jit_runtime_->BlitValueToBuffer(
-        v[i], state_params[i]->GetType(),
+        v[state_index], state_element->type(),
         absl::Span<uint8_t>(
-            input_.pointers()[param_index],
-            jit_runtime_->GetTypeByteSize(state_params[i]->GetType())));
+            input_.pointers()[state_index],
+            jit_runtime_->GetTypeByteSize(state_element->type())));
   }
 
   return absl::OkStatus();
@@ -234,15 +232,19 @@ std::string NameOfNodeOrDefault(Proc* p, int64_t id,
 }
 
 absl::Status ProcJitContinuation::NextTick() {
-  for (auto& [param, active_next_values] :
+  for (auto& [state_index, active_next_values] :
        instance_context_.active_next_values) {
     if (active_next_values.size() > 1) {
       return absl::AlreadyExistsError(absl::StrFormat(
-          "Multiple active next values for param \"%s\" in a "
+          "Multiple active next values for state element %d (\"%s\") in a "
           "single activation: %s",
-          NameOfNodeOrDefault(proc(), param, "<UNKNOWN PARAM>"),
+          state_index,
+          state_index < proc()->GetStateElementCount()
+              ? proc()->GetStateElement(state_index)->name()
+              : "<UNKNOWN STATE>",
           absl::StrJoin(
-              active_next_values, ", ", [&](std::string* out, int64_t next) {
+              active_next_values, ", ",
+              [&](std::string* out, int64_t next) {
                 absl::StrAppend(
                     out, NameOfNodeOrDefault(proc(), next, "<UNKNOWN NEXT>"));
               })));

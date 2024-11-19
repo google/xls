@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/ir_parser.h"
-
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,6 +28,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -660,8 +660,8 @@ proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("next value for param 'my_state' must be of "
-                                 "type bits[32]; is: bits[1]")));
+                       HasSubstr("next value for state element 'my_state' must "
+                                 "be of type bits[32]; is: bits[1]")));
 }
 
 TEST(IrParserErrorTest, NewStyleProcSendOnInput) {
@@ -1240,13 +1240,15 @@ proc foo(my_token: token, my_state: bits[32], init={token, 42}) {
   EXPECT_EQ(package->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 2);
-  EXPECT_EQ(proc->params().size(), 2);
-  EXPECT_EQ(proc->GetInitValueElement(0).ToString(), "token");
-  EXPECT_EQ(proc->GetStateElementType(0)->ToString(), "token");
-  EXPECT_EQ(proc->GetInitValueElement(1).ToString(), "bits[32]:42");
-  EXPECT_EQ(proc->GetStateElementType(1)->ToString(), "bits[32]");
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "my_token");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "my_state");
+  EXPECT_EQ(proc->StateElements().size(), 2);
+  EXPECT_EQ(proc->GetStateElement(int64_t{0})->initial_value().ToString(),
+            "token");
+  EXPECT_EQ(proc->GetStateElement(int64_t{0})->type()->ToString(), "token");
+  EXPECT_EQ(proc->GetStateElement(1)->initial_value().ToString(),
+            "bits[32]:42");
+  EXPECT_EQ(proc->GetStateElement(1)->type()->ToString(), "bits[32]");
+  EXPECT_EQ(proc->GetStateElement(int64_t{0})->name(), "my_token");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "my_state");
 }
 
 TEST(IrParserErrorTest, StatelessProcWithInitAndNext) {
@@ -1260,7 +1262,7 @@ proc foo(init={}) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 0);
-  EXPECT_THAT(proc->StateParams(), IsEmpty());
+  EXPECT_THAT(proc->StateElements(), IsEmpty());
 }
 
 TEST(IrParserErrorTest, StatelessProcWithNextButNotInit) {
@@ -1274,7 +1276,7 @@ proc foo() {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 0);
-  EXPECT_THAT(proc->StateParams(), IsEmpty());
+  EXPECT_THAT(proc->StateElements(), IsEmpty());
 }
 
 TEST(IrParserErrorTest, FunctionAndProc) {

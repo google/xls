@@ -35,6 +35,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bit_provenance_analysis.h"
@@ -117,36 +118,40 @@ class NarrowTransform final : public Proc::StateElementTransformer {
   explicit NarrowTransform(std::vector<BitSegment>&& segments)
       : segments_(std::move(segments)) {}
 
-  absl::StatusOr<Node*> TransformParamRead(Proc* proc, Param* new_param,
-                                           Param* old_param) final {
+  absl::StatusOr<Node*> TransformStateRead(Proc* proc,
+                                           StateRead* new_state_read,
+                                           StateRead* old_state_read) final {
     std::vector<Node*> concat_args;
     concat_args.reserve(segments_.size());
     int64_t bits_used = 0;
     for (const BitSegment& segment : segments_) {
       if (segment.value) {
         XLS_ASSIGN_OR_RETURN(
-            Node * lit, proc->MakeNodeWithName<Literal>(
-                            old_param->loc(), Value(*segment.value),
-                            absl::StrFormat("%s_constant_bits_%d_width_%d",
-                                            old_param->name(), segment.low_bit,
-                                            segment.width)));
+            Node * lit,
+            proc->MakeNodeWithName<Literal>(
+                old_state_read->loc(), Value(*segment.value),
+                absl::StrFormat("%s_constant_bits_%d_width_%d",
+                                old_state_read->state_element()->name(),
+                                segment.low_bit, segment.width)));
         concat_args.push_back(lit);
       } else {
         // NB segments are ordered MSB to LSB so bits_used is how many bits from
         // the end we are.
         int64_t slice_start =
-            new_param->BitCountOrDie() - (bits_used + segment.width);
+            new_state_read->BitCountOrDie() - (bits_used + segment.width);
         Node* slice;
-        if (segment.width == new_param->BitCountOrDie() && slice_start == 0) {
-          slice = new_param;
+        if (segment.width == new_state_read->BitCountOrDie() &&
+            slice_start == 0) {
+          slice = new_state_read;
         } else {
           XLS_ASSIGN_OR_RETURN(
               slice,
               proc->MakeNodeWithName<BitSlice>(
-                  old_param->loc(), new_param, slice_start, segment.width,
+                  old_state_read->loc(), new_state_read, slice_start,
+                  segment.width,
                   absl::StrFormat("%s_variable_bits_%d_width_%d",
-                                  old_param->name(), segment.low_bit,
-                                  segment.width)));
+                                  old_state_read->state_element()->name(),
+                                  segment.low_bit, segment.width)));
         }
         concat_args.push_back(slice);
         bits_used += segment.width;
@@ -156,11 +161,13 @@ class NarrowTransform final : public Proc::StateElementTransformer {
       return concat_args.front();
     }
     return proc->MakeNodeWithName<Concat>(
-        old_param->loc(), concat_args,
-        absl::StrFormat("%s_reconstructed", old_param->name()));
+        old_state_read->loc(), concat_args,
+        absl::StrFormat("%s_reconstructed",
+                        old_state_read->state_element()->name()));
   }
 
-  absl::StatusOr<Node*> TransformNextValue(Proc* proc, Param* new_param,
+  absl::StatusOr<Node*> TransformNextValue(Proc* proc,
+                                           StateRead* new_state_read,
                                            Next* old_next) final {
     std::vector<Node*> concat_args;
     concat_args.reserve(segments_.size());
@@ -186,13 +193,14 @@ class NarrowTransform final : public Proc::StateElementTransformer {
   std::vector<BitSegment> segments_;
 };
 
-absl::StatusOr<Bits> UnchangedBits(Proc* proc, Param* param,
+absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
                                    const Bits& initial_bits,
                                    const TernaryQueryEngine& tqe,
                                    const BitProvenanceAnalysis& provenance) {
   Bits unchanged_bits = Bits::AllOnes(initial_bits.bit_count());
-  for (Next* next : proc->next_values(param)) {
-    if (next->value() == param) {
+  StateRead* state_read = proc->GetStateRead(state_element);
+  for (Next* next : proc->next_values(state_read)) {
+    if (next->value() == state_read) {
       // Pass-through nexts are trivially unaffecting.
       continue;
     }
@@ -217,7 +225,7 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, Param* param,
         provenance.GetBitSources(next->value()).Get({});
     InlineBitmap provenance_unchanged_bm(initial_bits.bit_count());
     for (const auto& segment : sources.ranges()) {
-      if (segment.source_node() == param &&
+      if (segment.source_node() == state_read &&
           segment.source_tree_index().empty() &&
           segment.source_bit_index_low() == segment.dest_bit_index_low() &&
           segment.source_bit_index_high() == segment.dest_bit_index_high()) {
@@ -249,42 +257,43 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
   XLS_RETURN_IF_ERROR(tqe.Populate(proc).status());
   bool made_changes = false;
 
-  std::vector<std::tuple<Param*, NarrowTransform, Bits>> transforms;
+  std::vector<std::tuple<StateElement*, NarrowTransform, Bits>> transforms;
 
-  for (Param* param : proc->params()) {
-    if (!param->GetType()->IsBits()) {
+  for (StateElement* state_element : proc->StateElements()) {
+    if (!state_element->type()->IsBits()) {
       // TODO(allight): Narrowing arrays/exploding arrays and narrowing might be
       // worthwhile.
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(Value init, proc->GetInitValue(param));
+    Value init = state_element->initial_value();
     XLS_RET_CHECK(init.IsBits());
     const Bits& initial_bits = init.bits();
     XLS_ASSIGN_OR_RETURN(
         Bits unchanged_bits,
-        UnchangedBits(proc, param, initial_bits, tqe, provenance));
+        UnchangedBits(proc, state_element, initial_bits, tqe, provenance));
     // Do the actual splitting
     if (unchanged_bits.IsZero()) {
-      VLOG(3) << "Unable to narrow " << param
-              << " no bits survive unconditionally.";
+      VLOG(3) << "Unable to narrow " << state_element->name()
+              << "; no bits survive unconditionally.";
       continue;
     }
     std::vector<BitSegment> segments =
         ExtractBitSegments(unchanged_bits, initial_bits);
-    VLOG(2) << "parameter '" << param->name() << ": " << param->GetType()
+    VLOG(2) << "state element '" << state_element->ToString()
             << "' has bits which never change (unchanged bits: "
             << unchanged_bits.ToDebugString() << "). Can narrow from "
-            << param->GetType()->GetFlatBitCount() << " to "
+            << state_element->type()->GetFlatBitCount() << " to "
             << (unchanged_bits.bit_count() - unchanged_bits.PopCount());
     Bits narrowed_init = NarrowValue(initial_bits, segments);
     transforms.push_back(
-        {param, NarrowTransform(std::move(segments)), narrowed_init});
+        {state_element, NarrowTransform(std::move(segments)), narrowed_init});
   }
 
-  for (auto& [param, transform, narrowed_init] : transforms) {
+  for (auto& [state_element, transform, narrowed_init] : transforms) {
     made_changes = true;
     XLS_RETURN_IF_ERROR(
-        proc->TransformStateElement(param, Value(narrowed_init), transform)
+        proc->TransformStateElement(proc->GetStateRead(state_element),
+                                    Value(narrowed_init), transform)
             .status());
   }
 

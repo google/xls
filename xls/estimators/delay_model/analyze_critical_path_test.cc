@@ -14,6 +14,7 @@
 
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -126,7 +127,7 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
   EXPECT_EQ(cp[0].path_delay_ps, 2);
   EXPECT_EQ(cp[1].node, neg.node());
   EXPECT_EQ(cp[1].path_delay_ps, 1);
-  EXPECT_EQ(cp[2].node, proc->GetStateParam(0));
+  EXPECT_EQ(cp[2].node, proc->GetStateRead(int64_t{0}));
   EXPECT_EQ(cp[2].path_delay_ps, 0);
 }
 

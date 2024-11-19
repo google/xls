@@ -463,13 +463,14 @@ proc foo(my_token: token, my_state: bits[32], init={token, 42}) {
   EXPECT_EQ(package->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 2);
-  EXPECT_EQ(proc->params().size(), 2);
-  EXPECT_EQ(proc->GetInitValueElement(0).ToString(), "token");
-  EXPECT_EQ(proc->GetStateElementType(0)->ToString(), "token");
-  EXPECT_EQ(proc->GetInitValueElement(1).ToString(), "bits[32]:42");
-  EXPECT_EQ(proc->GetStateElementType(1)->ToString(), "bits[32]");
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "my_token");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "my_state");
+  EXPECT_EQ(proc->StateElements().size(), 2);
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value().ToString(), "token");
+  EXPECT_EQ(proc->GetStateElement(0)->type()->ToString(), "token");
+  EXPECT_EQ(proc->GetStateElement(1)->initial_value().ToString(),
+            "bits[32]:42");
+  EXPECT_EQ(proc->GetStateElement(1)->type()->ToString(), "bits[32]");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "my_token");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "my_state");
 }
 
 TEST(IrParserTest, StatelessProcWithInitAndNext) {
@@ -483,7 +484,7 @@ proc foo(init={}) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 0);
-  EXPECT_THAT(proc->StateParams(), IsEmpty());
+  EXPECT_THAT(proc->StateElements(), IsEmpty());
 }
 
 TEST(IrParserTest, StatelessProcWithNextButNotInit) {
@@ -497,7 +498,7 @@ proc foo() {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 0);
-  EXPECT_THAT(proc->StateParams(), IsEmpty());
+  EXPECT_THAT(proc->StateElements(), IsEmpty());
 }
 
 TEST(IrParserTest, FunctionAndProc) {

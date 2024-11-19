@@ -825,7 +825,7 @@ class ProcBuilder : public BuilderBase {
 
   // Adds a (conditional) next value for the named state element. Returns an
   // empty tuple.
-  BValue Next(BValue param, BValue value,
+  BValue Next(BValue state_read, BValue value,
               std::optional<BValue> pred = std::nullopt,
               const SourceInfo& loc = SourceInfo(), std::string_view name = "");
 

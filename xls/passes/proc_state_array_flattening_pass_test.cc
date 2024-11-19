@@ -82,10 +82,11 @@ TEST_F(ProcStateArrayFlatteningPassTest, FlattenSize1ArrayParams) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   EXPECT_THAT(RunArrayFlattening(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->params(),
-              ElementsAre(AllOf(m::Param("state"),
-                                // After flattening, state should be a 1-tuple
-                                m::Type("(bits[8])"))));
+  EXPECT_THAT(
+      proc->StateElements(),
+      ElementsAre(m::StateElement("state",
+                                  // After flattening, state should be a 1-tuple
+                                  "(bits[8])")));
 }
 
 TEST_F(ProcStateArrayFlatteningPassTest, FlattenSize2ArrayParams) {
@@ -106,10 +107,11 @@ TEST_F(ProcStateArrayFlatteningPassTest, FlattenSize2ArrayParams) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   EXPECT_THAT(RunArrayFlattening(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->params(),
-              ElementsAre(AllOf(m::Param("state"),
-                                // After flattening, state should be a 2-tuple
-                                m::Type("(bits[8], bits[8])"))));
+  EXPECT_THAT(
+      proc->StateElements(),
+      ElementsAre(m::StateElement("state",
+                                  // After flattening, state should be a 2-tuple
+                                  "(bits[8], bits[8])")));
 }
 
 }  // namespace

@@ -70,10 +70,10 @@ TEST_F(RemoveIdentifersTest, BasicProc) {
   EXPECT_EQ(stripped->name(), kUninteresting);
   EXPECT_THAT(stripped->procs(), testing::SizeIs(1));
   EXPECT_NE(stripped->procs()[0]->name(), orig_proc->name());
-  EXPECT_THAT(stripped->procs()[0]->StateParams(),
-              testing::AllOf(testing::SizeIs(orig_proc->StateParams().size()),
+  EXPECT_THAT(stripped->procs()[0]->StateElements(),
+              testing::AllOf(testing::SizeIs(orig_proc->StateElements().size()),
                              testing::Each(testing::Not(testing::AnyOfArray(
-                                 orig_proc->StateParams())))));
+                                 orig_proc->StateElements())))));
   ASSERT_THAT(stripped->procs()[0]->channels(), testing::SizeIs(1));
   EXPECT_NE(stripped->procs()[0]->channels()[0]->name(),
             orig_proc->channels()[0]->name());

@@ -39,6 +39,7 @@
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -297,6 +298,109 @@ inline ::testing::Matcher<const ::xls::Node*> Param(
 
 inline ::testing::Matcher<const ::xls::Node*> Param() {
   return ::xls::op_matchers::ParamMatcher(std::nullopt);
+}
+
+// State element matcher. Matches name and (type or initial value). Supported
+// forms:
+//
+//   EXPECT_THAT(x, m::StateElement());
+//   EXPECT_THAT(x, m::StateElement("x"));
+//   EXPECT_THAT(x, m::StateElement(HasSubstr("substr")));
+//   EXPECT_THAT(x, m::StateElement("x", "bits[32]"));
+//   EXPECT_THAT(x, m::StateElement("x", m::Type("bits[32]")));
+//   EXPECT_THAT(x, m::StateElement("x", Value(UBits(0, 32))));
+//   EXPECT_THAT(x, m::StateElement(HasSubstr("substr"), "bits[32]"));
+//   EXPECT_THAT(x, m::StateElement(HasSubstr("substr"), m::Type("bits[32]")));
+//   EXPECT_THAT(x, m::StateElement(HasSubstr("substr"), Value(UBits(0, 32))));
+class StateElementMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  StateElementMatcher(
+      std::optional<::testing::Matcher<const std::string>> name,
+      std::optional<::testing::Matcher<const class Type*>> type,
+      std::optional<::testing::Matcher<const Value>> initial_value)
+      : name_matcher_(std::move(name)),
+        type_matcher_(std::move(type)),
+        initial_value_matcher_(std::move(initial_value)) {}
+
+  bool MatchAndExplain(const StateElement* state_element,
+                       ::testing::MatchResultListener* listener) const;
+  void DescribeTo(::std::ostream* os) const;
+
+  void DescribeNegationTo(::std::ostream* os) const {
+    *os << "did not match: ";
+    DescribeTo(os);
+  }
+
+ protected:
+  std::optional<::testing::Matcher<const std::string>> name_matcher_;
+  std::optional<::testing::Matcher<const class Type*>> type_matcher_;
+  std::optional<::testing::Matcher<const Value>> initial_value_matcher_;
+};
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(
+    T name,
+    std::optional<::testing::Matcher<const Value>> initial_value = std::nullopt)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return ::xls::op_matchers::StateElementMatcher(
+      ::testing::Eq(name), std::nullopt, std::move(initial_value));
+}
+
+template <typename T1, typename T2>
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(T1 name,
+                                                                   T2 type)
+  requires(std::is_convertible_v<T1, std::string_view>,
+           std::is_convertible_v<T2, std::string_view>)
+{
+  return ::xls::op_matchers::StateElementMatcher(
+      ::testing::Eq(name), TypeMatcher(type), std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(
+    ::testing::Matcher<const std::string> name_matcher) {
+  return ::xls::op_matchers::StateElementMatcher(std::move(name_matcher),
+                                                 std::nullopt, std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(
+    ::testing::Matcher<const class Type*> type_matcher) {
+  return ::xls::op_matchers::StateElementMatcher(
+      std::nullopt, std::move(type_matcher), std::nullopt);
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(
+    ::testing::Matcher<const std::string> name_matcher, T type)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return ::xls::op_matchers::StateElementMatcher(
+      std::move(name_matcher), TypeMatcher(type), std::nullopt);
+}
+
+template <typename T>
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(
+    T name, ::testing::Matcher<const class Type*> type_matcher)
+  requires(std::is_convertible_v<T, std::string_view>)
+{
+  return ::xls::op_matchers::StateElementMatcher(
+      ::testing::Eq(name), std::move(type_matcher), std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(
+    ::testing::Matcher<const std::string> name_matcher,
+    ::testing::Matcher<const class Type*> type_matcher) {
+  return ::xls::op_matchers::StateElementMatcher(
+      std::move(name_matcher), std::move(type_matcher), std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::StateElement*> StateElement(
+    std::optional<::testing::Matcher<const Value>> initial_value =
+        std::nullopt) {
+  return ::xls::op_matchers::StateElementMatcher(std::nullopt, std::nullopt,
+                                                 std::move(initial_value));
 }
 
 // BitSlice matcher. Supported forms:

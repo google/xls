@@ -50,6 +50,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_builder.h"
@@ -1204,14 +1205,14 @@ absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
 BValue ProcBuilder::StateElement(std::string_view name,
                                  const Value& initial_value,
                                  const SourceInfo& loc) {
-  absl::StatusOr<xls::Param*> param_or =
+  absl::StatusOr<xls::StateRead*> state_read =
       proc()->AppendStateElement(name, initial_value);
-  if (!param_or.ok()) {
+  if (!state_read.ok()) {
     return SetError(absl::StrFormat("Unable to add state element: %s",
-                                    param_or.status().message()),
+                                    state_read.status().message()),
                     loc);
   }
-  state_params_.push_back(CreateBValue(param_or.value(), loc));
+  state_params_.push_back(CreateBValue(*state_read, loc));
   return state_params_.back();
 }
 
@@ -1227,23 +1228,26 @@ BValue ProcBuilder::StateElement(std::string_view name,
                   loc);
 }
 
-BValue ProcBuilder::Next(BValue param, BValue value, std::optional<BValue> pred,
-                         const SourceInfo& loc, std::string_view name) {
+BValue ProcBuilder::Next(BValue state_read, BValue value,
+                         std::optional<BValue> pred, const SourceInfo& loc,
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
-  if (!param.node()->Is<xls::Param>()) {
-    return SetError(absl::StrFormat("next node only applies to state "
-                                    "parameters; param was given as: %v",
-                                    *param.node()),
+  if (!state_read.node()->Is<xls::StateRead>()) {
+    return SetError(absl::StrFormat("next node only applies to state reads; "
+                                    "state read was given as: %v",
+                                    *state_read.node()),
                     loc);
   }
-  if (!value.GetType()->IsEqualTo(param.GetType())) {
+  class StateElement* state_element =
+      state_read.node()->As<xls::StateRead>()->state_element();
+  if (!value.GetType()->IsEqualTo(state_element->type())) {
     return SetError(
-        absl::StrFormat("next value for param '%s' must be of type %s; is: %s",
-                        param.node()->As<xls::Param>()->name(),
-                        param.GetType()->ToString(),
-                        value.GetType()->ToString()),
+        absl::StrFormat(
+            "next value for state element '%s' must be of type %s; is: %s",
+            state_read.node()->As<xls::StateRead>()->state_element()->name(),
+            state_read.GetType()->ToString(), value.GetType()->ToString()),
         loc);
   }
   if (pred.has_value() && (!pred->GetType()->IsBits() ||
@@ -1253,11 +1257,11 @@ BValue ProcBuilder::Next(BValue param, BValue value, std::optional<BValue> pred,
                                     pred->GetType()->ToString()),
                     loc);
   }
-  return AddNode<xls::Next>(loc, /*param=*/param.node(), /*value=*/value.node(),
-                            /*predicate=*/pred.has_value()
-                                ? std::make_optional(pred->node())
-                                : std::nullopt,
-                            name);
+  return AddNode<xls::Next>(
+      loc, /*state_read=*/state_read.node(), /*value=*/value.node(),
+      /*predicate=*/pred.has_value() ? std::make_optional(pred->node())
+                                     : std::nullopt,
+      name);
 }
 
 BValue ProcBuilder::Param(std::string_view name, Type* type,

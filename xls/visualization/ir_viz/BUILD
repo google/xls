@@ -123,6 +123,7 @@ cc_library(
         "//xls/passes:ternary_query_engine",
         "//xls/passes:union_query_engine",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

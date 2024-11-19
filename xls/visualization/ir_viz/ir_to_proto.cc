@@ -15,6 +15,7 @@
 #include "xls/visualization/ir_viz/ir_to_proto.h"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -91,20 +93,21 @@ std::vector<int64_t> GetAssociatedStateIndices(Node* node) {
   }
   Proc* proc = node->function_base()->AsProcOrDie();
   std::vector<int64_t> state_indices;
-  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    if (node == proc->GetStateParam(i) ||
-        node == proc->GetNextStateElement(i)) {
-      state_indices.push_back(i);
-    }
+  if (node->Is<StateRead>()) {
+    state_indices.push_back(
+        *proc->GetStateElementIndex(node->As<StateRead>()->state_element()));
   }
+  absl::c_copy(proc->GetNextStateIndices(node),
+               std::back_inserter(state_indices));
+  absl::c_sort(state_indices);
   return state_indices;
 }
 
-std::optional<int64_t> MaybeGetStateParamIndex(Node* node) {
-  if (node->Is<Param>() && node->function_base()->IsProc()) {
+std::optional<int64_t> MaybeGetStateReadIndex(Node* node) {
+  if (node->Is<StateRead>() && node->function_base()->IsProc()) {
     return node->function_base()
         ->AsProcOrDie()
-        ->GetStateParamIndex(node->As<Param>())
+        ->GetStateElementIndex(node->As<StateRead>()->state_element())
         .value();
   }
   return std::nullopt;
@@ -128,13 +131,11 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
   if (query_engine.IsTracked(node)) {
     attributes.set_known_bits(query_engine.ToString(node));
   }
-  if (std::optional<int64_t> state_index = MaybeGetStateParamIndex(node);
+  if (std::optional<int64_t> state_index = MaybeGetStateReadIndex(node);
       state_index.has_value()) {
     attributes.set_state_param_index(state_index.value());
-    attributes.set_initial_value(node->function_base()
-                                     ->AsProcOrDie()
-                                     ->GetInitValueElement(state_index.value())
-                                     .ToString());
+    attributes.set_initial_value(
+        node->As<StateRead>()->state_element()->initial_value().ToString());
   }
 
   absl::StatusOr<int64_t> delay_ps_status =

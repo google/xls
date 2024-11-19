@@ -125,6 +125,7 @@ class TestDelayEstimator : public DelayEstimator {
       case Op::kConcat:
       case Op::kLiteral:
       case Op::kParam:
+      case Op::kStateRead:
       case Op::kNext:
       case Op::kReceive:
       case Op::kSend:

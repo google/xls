@@ -1161,7 +1161,7 @@ rewrites {
             ),
             node_stats(
                 node_id=78,
-                node_text="st: bits[32] = param(name=st, id=78)",
+                node_text="st: bits[32] = state_read(state_element=st, id=78)",
                 set_bits=_value_32_bits(0b11),
                 total_bit_count=32,
                 unset_bit_count=30,

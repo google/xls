@@ -51,10 +51,10 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/dce_pass.h"
@@ -446,10 +446,10 @@ class ProcInliningPassTest : public IrTestBase {
     for (const std::unique_ptr<Proc>& proc : p->procs()) {
       VLOG(1) << absl::StreamFormat("  State elements for proc %s:",
                                     proc->name());
-      for (Param* param : proc->StateParams()) {
-        VLOG(1) << absl::StreamFormat("    %s: %d bits", param->GetName(),
-                                      param->GetType()->GetFlatBitCount());
-        bit_count += param->GetType()->GetFlatBitCount();
+      for (StateElement* state_element : proc->StateElements()) {
+        VLOG(1) << absl::StreamFormat("    %s: %d bits", state_element->name(),
+                                      state_element->type()->GetFlatBitCount());
+        bit_count += state_element->type()->GetFlatBitCount();
       }
     }
     return bit_count;

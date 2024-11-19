@@ -32,10 +32,12 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc_instantiation.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -64,25 +66,51 @@ class Proc : public FunctionBase {
 
   ~Proc() override = default;
 
-  // Returns the initial values of the state variables.
-  absl::Span<const Value> InitValues() const { return init_values_; }
-  absl::StatusOr<Value> GetInitValue(Param* p);
-  const Value& GetInitValueElement(int64_t index) const {
-    return init_values_.at(index);
-  }
-
-  int64_t GetStateElementCount() const { return StateParams().size(); }
+  int64_t GetStateElementCount() const { return StateElements().size(); }
 
   // Returns the total number of bits in the proc state.
   int64_t GetStateFlatBitCount() const;
 
-  // Returns the state parameter node(s).
-  absl::Span<Param* const> StateParams() const { return params(); }
-  Param* GetStateParam(int64_t index) const { return StateParams().at(index); }
+  // Returns the state element(s).
+  absl::Span<StateElement* const> StateElements() const { return state_vec_; }
+  StateElement* GetStateElement(int64_t index) const {
+    return StateElements().at(index);
+  }
+  absl::StatusOr<StateElement*> GetStateElement(std::string_view name) const;
+  std::optional<StateElement*> MaybeGetStateElement(
+      std::string_view name) const;
 
-  // Returns the element index (in the vector of state parameters) of the given
-  // state parameter.
-  absl::StatusOr<int64_t> GetStateParamIndex(Param* param) const;
+  bool HasStateElement(std::string_view name) const {
+    return state_elements_.contains(name);
+  }
+
+  StateRead* GetStateRead(int64_t index) const {
+    return state_reads_.at(GetStateElement(index));
+  }
+  StateRead* GetStateRead(StateElement* state_element) const {
+    return state_reads_.at(state_element);
+  }
+
+  // Returns the index of the given state element in the vector of state
+  // elements.
+  absl::StatusOr<int64_t> GetStateElementIndex(
+      StateElement* state_element) const;
+  std::optional<int64_t> MaybeGetStateElementIndex(
+      StateElement* state_element) const;
+
+  // Returns true if the given proc-scoped construct (state element) is owned by
+  // this block.
+  bool IsOwned(StateElement* reg) const {
+    return state_elements_.contains(reg->name()) &&
+           state_elements_.at(reg->name()).get() == reg;
+  }
+
+  // Sanitizes and uniquifies the given name using the proc's name uniquer.
+  // Registers the uniquified name in the state uniquer so it is not handed out
+  // again.
+  std::string UniquifyStateName(std::string_view name) {
+    return state_name_uniquer_.GetSanitizedUniqueName(name);
+  }
 
   // Returns the nodes holding the next recurrent state value.
   //
@@ -100,7 +128,7 @@ class Proc : public FunctionBase {
 
   // Returns the type of the given state element.
   Type* GetStateElementType(int64_t index) const {
-    return StateParams().at(index)->GetType();
+    return StateElements().at(index)->type();
   }
 
   // Sets the next recurrent state value for the state element of the given
@@ -112,7 +140,7 @@ class Proc : public FunctionBase {
   // Replace all state elements with new state parameters and the given initial
   // values. The next state nodes are set to the newly created state parameter
   // nodes.
-  absl::Status ReplaceState(absl::Span<const std::string> state_param_names,
+  absl::Status ReplaceState(absl::Span<const std::string> requested_state_names,
                             absl::Span<const Value> init_values);
 
   // Replace all state elements with new state parameters and the given initial
@@ -122,7 +150,7 @@ class Proc : public FunctionBase {
   // verbose.
   //
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  absl::Status ReplaceState(absl::Span<const std::string> state_param_names,
+  absl::Status ReplaceState(absl::Span<const std::string> requested_state_names,
                             absl::Span<const Value> init_values,
                             absl::Span<Node* const> next_state);
 
@@ -130,37 +158,37 @@ class Proc : public FunctionBase {
   // initial value, and next state value. If `next_state` is not given then the
   // next state node for this state element is set to the newly created state
   // parameter node. Returns the newly created parameter node.
-  absl::StatusOr<Param*> ReplaceStateElement(
-      int64_t index, std::string_view state_param_name, const Value& init_value,
-      std::optional<Node*> next_state = std::nullopt);
+  absl::StatusOr<StateRead*> ReplaceStateElement(
+      int64_t index, std::string_view requested_state_name,
+      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
 
   // A set of callbacks to help one replace a state element with one of a
   // different type.
   class StateElementTransformer {
    public:
     virtual ~StateElementTransformer() = default;
-    // Called with the new_param node and the old param_node. Must return a node
-    // which adapts the new_param's type to the old_params type.
-    virtual absl::StatusOr<Node*> TransformParamRead(Proc* proc,
-                                                     Param* new_param,
-                                                     Param* old_param) {
-      XLS_RET_CHECK(new_param->GetType() == old_param->GetType());
-      return new_param;
+    // Called with the new_state_read node and the old state_read_node. Must
+    // return a node which adapts the new_state_read's type to the
+    // old_state_read's type.
+    virtual absl::StatusOr<Node*> TransformStateRead(
+        Proc* proc, StateRead* new_state_read, StateRead* old_state_read) {
+      XLS_RET_CHECK(new_state_read->GetType() == old_state_read->GetType());
+      return new_state_read;
     }
-    // Called with the new_param node and the next-node (Without any updates
-    // applied to it). Must return a node which adapts the old_next's value()
-    // node to the value of the corresponding next on new_param.
+    // Called with the new_state_read node and the next-node (Without any
+    // updates applied to it). Must return a node which adapts the old_next's
+    // value() node to the value of the corresponding next on new_param.
     virtual absl::StatusOr<Node*> TransformNextValue(Proc* proc,
-                                                     Param* new_param,
+                                                     StateRead* new_state_read,
                                                      Next* old_next) {
-      XLS_RET_CHECK(old_next->value()->GetType() == new_param->GetType());
+      XLS_RET_CHECK(old_next->value()->GetType() == new_state_read->GetType());
       return old_next->value();
     }
-    // Caled with the new_param node and the next-node (Without any updates
+    // Caled with the new_state_read node and the next-node (Without any updates
     // applied to it). Must return a node which will be the new 'predicate' for
     // the corresponding 'next' on the new_param.
     virtual absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
-        Proc* proc, Param* new_param, Next* old_next) {
+        Proc* proc, StateRead* new_state_read, Next* old_next) {
       return old_next->predicate();
     }
   };
@@ -178,8 +206,8 @@ class Proc : public FunctionBase {
   // NextValueOptimizationPass.
   //
   // The proc must only use 'next' nodes to call this function.
-  absl::StatusOr<Param*> TransformStateElement(
-      Param* old_param, const Value& init_value,
+  absl::StatusOr<StateRead*> TransformStateElement(
+      StateRead* old_state_read, const Value& init_value,
       StateElementTransformer& transform);
 
   // Remove the state element at the given index. All state elements higher than
@@ -187,20 +215,20 @@ class Proc : public FunctionBase {
   // index must have no uses.
   absl::Status RemoveStateElement(int64_t index);
 
-  // Appends a state element with the given parameter name, next state value,
-  // and initial value. If `next_state` is not given then the next state node
-  // for this state element is set to the newly created state parameter node.
-  // Returns the newly created parameter node.
-  absl::StatusOr<Param*> AppendStateElement(
-      std::string_view state_param_name, const Value& init_value,
+  // Appends a state element with the given name (if possible), next state
+  // value, and initial value. If `next_state` is not given then the next state
+  // node for this state element is set to the newly created state parameter
+  // node. Returns the newly created state read node.
+  absl::StatusOr<StateRead*> AppendStateElement(
+      std::string_view requested_state_name, const Value& init_value,
       std::optional<Node*> next_state = std::nullopt);
 
   // Adds a state element at the given index. Current state elements at the
   // given index or higher will be shifted up. Returns the newly created
   // parameter node.
-  absl::StatusOr<Param*> InsertStateElement(
-      int64_t index, std::string_view state_param_name, const Value& init_value,
-      std::optional<Node*> next_state = std::nullopt);
+  absl::StatusOr<StateRead*> InsertStateElement(
+      int64_t index, std::string_view requested_state_name,
+      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
 
   bool HasImplicitUse(Node* node) const override;
 
@@ -322,9 +350,24 @@ class Proc : public FunctionBase {
   absl::Status ConvertToNewStyle();
 
  private:
-  std::vector<Value> init_values_;
-
   bool is_new_style_proc_;
+
+  NameUniquer state_name_uniquer_ =
+      NameUniquer(/*separator=*/"__", GetIrReservedWords());
+
+  // State elements within this proc. Indexed by state element name. Stored as
+  // std::unique_ptrs for pointer stability.
+  absl::flat_hash_map<std::string, std::unique_ptr<StateElement>>
+      state_elements_;
+
+  // Map of the unique StateRead node for each state element.
+  absl::flat_hash_map<StateElement*, StateRead*> state_reads_;
+
+  // Vector of state element pointers. Kept in sync with the state_elements_
+  // map. Enables easy, stable iteration over state elements. With this vector,
+  // deletion of a state element is O(n) with the number of state elements. If
+  // this is a problem, a linked list might be used instead.
+  std::vector<StateElement*> state_vec_;
 
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
   std::vector<Node*> next_state_;

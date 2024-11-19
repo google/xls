@@ -68,6 +68,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
@@ -586,11 +587,11 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
             "Proc with name containing %s already found, %s vs %s", name_cont,
             already_found->name(), proc->name()));
       }
-      for (xls::Param* state_param : proc->StateParams()) {
-        if (absl::StartsWith(state_param->name(), "__fsm")) {
+      for (xls::StateElement* state_element : proc->StateElements()) {
+        if (absl::StartsWith(state_element->name(), "__fsm")) {
           continue;
         }
-        ret += state_param->GetType()->GetFlatBitCount();
+        ret += state_element->type()->GetFlatBitCount();
       }
       already_found = proc.get();
     }
@@ -728,26 +729,26 @@ void XlsccTestBase::GetTokenOperandsDeeply(
 absl::StatusOr<absl::flat_hash_map<xls::Node*, int64_t>>
 XlsccTestBase::GetStatesByIONodeForFSMProc(std::string_view func_name) {
   xls::Proc* found_proc_with_fsm = nullptr;
-  xls::Param* fsm_state_param = nullptr;
+  xls::StateRead* fsm_state_read = nullptr;
 
   CHECK_EQ(package_->procs().size(), 1);
   std::unique_ptr<xls::Proc>& proc = package_->procs().at(0);
 
   const std::string st_param_name =
       absl::StrFormat("__fsm_%s_state", func_name);
-  XLS_ASSIGN_OR_RETURN(xls::Param * state_param,
-                       proc->GetParamByName(st_param_name));
+  XLS_ASSIGN_OR_RETURN(xls::StateElement * state_element,
+                       proc->GetStateElement(st_param_name));
 
   CHECK_EQ(found_proc_with_fsm, nullptr);
   found_proc_with_fsm = proc.get();
-  fsm_state_param = state_param;
+  fsm_state_read = proc->GetStateRead(state_element);
 
   CHECK_NE(found_proc_with_fsm, nullptr);
-  CHECK_NE(fsm_state_param, nullptr);
+  CHECK_NE(fsm_state_read, nullptr);
 
   xls::Node* state_index_node = nullptr;
 
-  for (xls::Node* node : fsm_state_param->users()) {
+  for (xls::Node* node : fsm_state_read->users()) {
     if (!node->Is<xls::TupleIndex>()) {
       continue;
     }

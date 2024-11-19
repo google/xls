@@ -186,26 +186,26 @@ TEST_P(ProcStateFlatteningPassTest, EmptyTupleAndBitsState) {
   // were the names of previously deleted nodes). So the new state params get
   // suffixes.
   // TODO(meheff): 2022/4/7 Figure out how to preserve the names.
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "y__1");
-  EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(0, 32)));
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "y__1");
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(0, 32)));
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(0), m::Param("y__1"));
+    EXPECT_THAT(proc->GetNextStateElement(0), m::StateRead("y"));
   } else {
     EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(0)),
-        UnorderedElementsAre(m::Next(m::Param("y__1"), m::Param("y__1"))));
+        proc->next_values(proc->GetStateRead(int64_t{0})),
+        UnorderedElementsAre(m::Next(m::StateRead("y"), m::StateRead("y"))));
   }
 
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "q__1");
-  EXPECT_EQ(proc->GetInitValueElement(1), Value(UBits(0, 64)));
+  EXPECT_EQ(proc->GetStateRead(1)->GetName(), "q__1");
+  EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(0, 64)));
   if (GetParam() == NextValueType::kNextStateElements) {
     EXPECT_THAT(proc->GetNextStateElement(1),
-                m::Add(m::Param("q__1"), m::Param("q__1")));
+                m::Add(m::StateRead("q"), m::StateRead("q")));
   } else {
     EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(1)),
+        proc->next_values(proc->GetStateRead(1)),
         UnorderedElementsAre(m::Next(
-            m::Param("q__1"), m::Add(m::Param("q__1"), m::Param("q__1")))));
+            m::StateRead("q"), m::Add(m::StateRead("q"), m::StateRead("q")))));
   }
 }
 
@@ -221,14 +221,14 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x__1");
-  EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x__1");
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(0), m::Param("x__1"));
+    EXPECT_THAT(proc->GetNextStateElement(0), m::StateRead("x"));
   } else {
     EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(0)),
-        UnorderedElementsAre(m::Next(m::Param("x__1"), m::Param("x__1"))));
+        proc->next_values(proc->GetStateRead(int64_t{0})),
+        UnorderedElementsAre(m::Next(m::StateRead("x"), m::StateRead("x"))));
   }
 }
 
@@ -245,14 +245,14 @@ TEST_P(ProcStateFlatteningPassTest, TrivialTupleStateWithNextExpression) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x__1");
-  EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "x__1");
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value(UBits(42, 32)));
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(0), m::Not(m::Param("x__1")));
+    EXPECT_THAT(proc->GetNextStateElement(0), m::Not(m::StateRead("x")));
   } else {
-    EXPECT_THAT(proc->next_values(proc->GetStateParam(0)),
+    EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
                 UnorderedElementsAre(
-                    m::Next(m::Param("x__1"), m::Not(m::Param("x__1")))));
+                    m::Next(m::StateRead("x"), m::Not(m::StateRead("x")))));
   }
 }
 
@@ -279,58 +279,58 @@ TEST_P(ProcStateFlatteningPassTest, ComplicatedState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 6);
 
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "a_0");
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->GetName(), "a_0");
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(0), m::Param("b__1"));
+    EXPECT_THAT(proc->GetNextStateElement(0), m::StateRead("b"));
   } else {
     EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(0)),
-        UnorderedElementsAre(m::Next(m::Param("a_0"), m::Param("b__1"))));
+        proc->next_values(proc->GetStateRead(int64_t{0})),
+        UnorderedElementsAre(m::Next(m::StateRead("a_0"), m::StateRead("b"))));
   }
 
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "a_1");
+  EXPECT_EQ(proc->GetStateRead(1)->GetName(), "a_1");
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(1), m::Param("c_0"));
+    EXPECT_THAT(proc->GetNextStateElement(1), m::StateRead("c_0"));
   } else {
-    EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(1)),
-        UnorderedElementsAre(m::Next(m::Param("a_1"), m::Param("c_0"))));
+    EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+                UnorderedElementsAre(
+                    m::Next(m::StateRead("a_1"), m::StateRead("c_0"))));
   }
 
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "a_2");
+  EXPECT_EQ(proc->GetStateRead(2)->GetName(), "a_2");
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(2), m::Param("c_1"));
+    EXPECT_THAT(proc->GetNextStateElement(2), m::StateRead("c_1"));
   } else {
-    EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(2)),
-        UnorderedElementsAre(m::Next(m::Param("a_2"), m::Param("c_1"))));
+    EXPECT_THAT(proc->next_values(proc->GetStateRead(2)),
+                UnorderedElementsAre(
+                    m::Next(m::StateRead("a_2"), m::StateRead("c_1"))));
   }
 
-  EXPECT_EQ(proc->GetStateParam(3)->GetName(), "b__1");
+  EXPECT_EQ(proc->GetStateRead(3)->GetName(), "b__1");
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(3), m::Param("a_0"));
+    EXPECT_THAT(proc->GetNextStateElement(3), m::StateRead("a_0"));
   } else {
     EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(3)),
-        UnorderedElementsAre(m::Next(m::Param("b__1"), m::Param("a_0"))));
+        proc->next_values(proc->GetStateRead(3)),
+        UnorderedElementsAre(m::Next(m::StateRead("b"), m::StateRead("a_0"))));
   }
 
-  EXPECT_EQ(proc->GetStateParam(4)->GetName(), "c_0");
+  EXPECT_EQ(proc->GetStateRead(4)->GetName(), "c_0");
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(4), m::Param("a_1"));
+    EXPECT_THAT(proc->GetNextStateElement(4), m::StateRead("a_1"));
   } else {
-    EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(4)),
-        UnorderedElementsAre(m::Next(m::Param("c_0"), m::Param("a_1"))));
+    EXPECT_THAT(proc->next_values(proc->GetStateRead(4)),
+                UnorderedElementsAre(
+                    m::Next(m::StateRead("c_0"), m::StateRead("a_1"))));
   }
 
-  EXPECT_EQ(proc->GetStateParam(5)->GetName(), "c_1");
+  EXPECT_EQ(proc->GetStateRead(5)->GetName(), "c_1");
   if (GetParam() == NextValueType::kNextStateElements) {
-    EXPECT_THAT(proc->GetNextStateElement(5), m::Param("a_2"));
+    EXPECT_THAT(proc->GetNextStateElement(5), m::StateRead("a_2"));
   } else {
-    EXPECT_THAT(
-        proc->next_values(proc->GetStateParam(5)),
-        UnorderedElementsAre(m::Next(m::Param("c_1"), m::Param("a_2"))));
+    EXPECT_THAT(proc->next_values(proc->GetStateRead(5)),
+                UnorderedElementsAre(
+                    m::Next(m::StateRead("c_1"), m::StateRead("a_2"))));
   }
 }
 
@@ -355,22 +355,24 @@ TEST_P(ProcStateFlatteningPassTest, NextPredicateIsState) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true)) << p->DumpIr();
 
   EXPECT_EQ(proc->GetStateElementCount(), 4);
-  EXPECT_THAT(
-      proc->nodes(),
-      AllOf(Contains(m::Next(m::Param("a_0"), _, m::Param(StartsWith("b")))),
-            Contains(
-                m::Next(m::Param("a_0"), _, m::Not(m::Param(StartsWith("b"))))),
-            Contains(m::Next(m::Param("a_1"), _, m::Param(StartsWith("b")))),
-            Contains(
-                m::Next(m::Param("a_1"), _, m::Not(m::Param(StartsWith("b"))))),
-            Contains(m::Next(m::Param("a_2"), _, m::Param(StartsWith("b")))),
-            Contains(
-                m::Next(m::Param("a_2"), _, m::Not(m::Param(StartsWith("b"))))),
-            Contains(m::Next(m::Param(StartsWith("b")),
-                             m::Not(m::Param(StartsWith("b")))))));
+  EXPECT_THAT(proc->nodes(),
+              AllOf(Contains(m::Next(m::StateRead("a_0"), _,
+                                     m::StateRead(StartsWith("b")))),
+                    Contains(m::Next(m::StateRead("a_0"), _,
+                                     m::Not(m::StateRead(StartsWith("b"))))),
+                    Contains(m::Next(m::StateRead("a_1"), _,
+                                     m::StateRead(StartsWith("b")))),
+                    Contains(m::Next(m::StateRead("a_1"), _,
+                                     m::Not(m::StateRead(StartsWith("b"))))),
+                    Contains(m::Next(m::StateRead("a_2"), _,
+                                     m::StateRead(StartsWith("b")))),
+                    Contains(m::Next(m::StateRead("a_2"), _,
+                                     m::Not(m::StateRead(StartsWith("b"))))),
+                    Contains(m::Next(m::StateRead(StartsWith("b")),
+                                     m::Not(m::StateRead(StartsWith("b")))))));
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateFlatteningPassTest,

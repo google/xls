@@ -1487,14 +1487,15 @@ TEST_P(NarrowingPassTest, ProcStateInformationIsUsed) {
       auto chan, p->CreateSingleValueChannel("chan", ChannelOps::kSendOnly,
                                              p->GetBitsType(1)));
   ProcBuilder pb(TestName(), p.get());
-  BValue param = pb.StateElement("foo", UBits(0, 64));
+  BValue state_read = pb.StateElement("foo", UBits(0, 64));
   // The sent value is always true.
   BValue snd = pb.Send(chan, pb.Literal(Value::Token()),
-                       pb.ULt(param, pb.Literal(UBits(12, 64))));
-  BValue incr = pb.Next(param, pb.Add(param, pb.Literal(UBits(1, 64))),
-                        pb.ULt(param, pb.Literal(UBits(10, 64))));
-  BValue rst = pb.Next(param, pb.Literal(UBits(0, 64)),
-                       pb.UGe(param, pb.Literal(UBits(10, 64))));
+                       pb.ULt(state_read, pb.Literal(UBits(12, 64))));
+  BValue incr =
+      pb.Next(state_read, pb.Add(state_read, pb.Literal(UBits(1, 64))),
+              pb.ULt(state_read, pb.Literal(UBits(10, 64))));
+  BValue rst = pb.Next(state_read, pb.Literal(UBits(0, 64)),
+                       pb.UGe(state_read, pb.Literal(UBits(10, 64))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * pr, pb.Build());
   // Narrowing won't actually mess with the state variables themselves so we can
   // ensure they remain consistent.
@@ -1504,10 +1505,10 @@ TEST_P(NarrowingPassTest, ProcStateInformationIsUsed) {
   EXPECT_THAT(snd.node(),
               m::Send(m::Literal(Value::Token()), m::Literal(UBits(1, 1))));
   EXPECT_THAT(incr.node(),
-              m::Next(m::Param(), m::ZeroExt(m::Add()),
+              m::Next(m::StateRead(), m::ZeroExt(m::Add()),
                       m::ULt(m::Type("bits[4]"), m::Type("bits[4]"))));
   EXPECT_THAT(rst.node(),
-              m::Next(m::Param(), m::Literal(),
+              m::Next(m::StateRead(), m::Literal(),
                       m::UGe(m::Type("bits[4]"), m::Type("bits[4]"))));
 }
 

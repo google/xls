@@ -68,6 +68,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -409,42 +410,45 @@ absl::Status VerifyStillFails(
 absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
   if (f->IsProc()) {
     Proc* p = f->AsProcOrDie();
-    absl::flat_hash_set<Param*> dead_state_params;
-    absl::flat_hash_set<Param*> invariant_state_params;
-    for (Param* state_param : p->StateParams()) {
-      if (state_param->IsDead()) {
-        dead_state_params.insert(state_param);
+    absl::flat_hash_set<StateElement*> dead_state_elements;
+    absl::flat_hash_set<StateElement*> invariant_state_elements;
+    for (StateElement* state_element : p->StateElements()) {
+      StateRead* state_read = p->GetStateRead(state_element);
+      if (state_read->IsDead()) {
+        dead_state_elements.insert(state_element);
       }
-      XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(state_param));
-      if (state_param == p->GetNextStateElement(index)) {
-        invariant_state_params.insert(state_param);
+      XLS_ASSIGN_OR_RETURN(int64_t index,
+                           p->GetStateElementIndex(state_element));
+      if (state_read == p->GetNextStateElement(index)) {
+        invariant_state_elements.insert(state_element);
       }
     }
 
     for (Next* next : p->next_values()) {
-      if (next->value() != next->param()) {
+      if (next->value() != next->state_read()) {
         // This state param is not actually invariant.
-        invariant_state_params.erase(next->param()->As<Param>());
+        invariant_state_elements.erase(
+            next->state_read()->As<StateRead>()->state_element());
       }
     }
-    for (Param* invariant : invariant_state_params) {
+    for (StateElement* invariant : invariant_state_elements) {
       // Replace all uses of invariant state elements (i.e.: ones where
       // next[i] == param[i]) with a literal of the initial value.
-      XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(invariant));
-      Value init_value = p->GetInitValueElement(index);
+      Value init_value = invariant->initial_value();
+      Node* state_read = p->GetStateRead(invariant);
       absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-          p->next_values(invariant);
+          p->next_values(p->GetStateRead(invariant));
       for (Next* next : next_values) {
         XLS_RETURN_IF_ERROR(p->RemoveNode(next));
       }
       XLS_RETURN_IF_ERROR(
-          invariant->ReplaceUsesWithNew<Literal>(init_value).status());
-      dead_state_params.insert(invariant);
+          state_read->ReplaceUsesWithNew<Literal>(init_value).status());
+      dead_state_elements.insert(invariant);
     }
 
     bool changed = false;
-    for (Param* dead : dead_state_params) {
-      XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(dead));
+    for (StateElement* dead : dead_state_elements) {
+      XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateElementIndex(dead));
       XLS_RETURN_IF_ERROR(p->RemoveStateElement(index));
       changed = true;
     }
@@ -754,21 +758,21 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 // argument of next nodes (which need to stay as params).
 template <typename NodeT, typename... Args>
 absl::StatusOr<Node*> SafeReplaceUsesWithNew(Node* target, Args... v) {
-  auto is_param_of_next = [&](Node* n) {
-    return n->Is<Next>() && n->As<Next>()->param() == target;
+  auto is_state_read_of_next = [&](Node* n) {
+    return n->Is<Next>() && n->As<Next>()->state_read() == target;
   };
   if (!target->Is<Param>() ||
-      !absl::c_any_of(target->users(), is_param_of_next)) {
+      !absl::c_any_of(target->users(), is_state_read_of_next)) {
     return target->ReplaceUsesWithNew<NodeT>(std::forward<Args>(v)...);
   }
   std::vector<Node*> param_users;
   absl::c_copy_if(target->users(), std::back_inserter(param_users),
-                  is_param_of_next);
+                  is_state_read_of_next);
   XLS_ASSIGN_OR_RETURN(
       auto result, target->ReplaceUsesWithNew<NodeT>(std::forward<Args>(v)...));
   for (Node* n : param_users) {
     XLS_RETURN_IF_ERROR(
-        n->As<Next>()->ReplaceOperandNumber(Next::kParamOperand, target));
+        n->As<Next>()->ReplaceOperandNumber(Next::kStateReadOperand, target));
   }
   return result;
 }

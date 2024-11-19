@@ -43,6 +43,7 @@ inline bool OpHasTokenProvenance(Op op) {
   switch (op) {
     case Op::kLiteral:
     case Op::kParam:
+    case Op::kStateRead:
     case Op::kNext:
     case Op::kAssert:
     case Op::kCover:
@@ -120,8 +121,8 @@ class TokenProvenanceWithTopoSortVisitor : public TokenProvenanceVisitor {
   absl::Status DefaultHandler(Node* node) override {
     const bool result_contains_token = TypeHasToken(node->GetType());
     if (result_contains_token || OpIsSideEffecting(node->op())) {
-      if (node->op() == Op::kParam && !result_contains_token) {
-        // Don't include non-token-containing state params.
+      if (node->OpIn({Op::kParam, Op::kStateRead}) && !result_contains_token) {
+        // Don't include non-token-containing state elements.
         return TokenProvenanceVisitor::DefaultHandler(node);
       }
       topo_sorted_token_nodes_.push_back(node);

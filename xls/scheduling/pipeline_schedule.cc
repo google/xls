@@ -173,11 +173,11 @@ bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
     if (user->Is<Next>()) {
       Next* user_next = user->As<Next>();
       if (user_next->predicate() != node && user_next->value() != node) {
-        CHECK_EQ(user_next->param(), node);
-        // This Next node only uses this Param node to target the state register
-        // it needs to write to; it doesn't actually need the value read out of
-        // the Param node, so we don't need to keep the value in pipeline
-        // registers for its sake.
+        CHECK_EQ(user_next->state_read(), node);
+        // This Next node only uses this StateRead node to target the state
+        // register it needs to write to; it doesn't actually need the value
+        // read out of the Param node, so we don't need to keep the value in
+        // pipeline registers for its sake.
         continue;
       }
     }
@@ -244,20 +244,21 @@ absl::Status PipelineSchedule::Verify() const {
     int64_t worst_case_throughput = proc->GetInitiationInterval().value_or(1);
     if (worst_case_throughput >= 1) {
       for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-        Node* param = proc->GetStateParam(index);
+        Node* state_read = proc->GetStateRead(index);
         Node* next_state = proc->GetNextStateElement(index);
         // Verify that we determine the new state within II cycles of accessing
         // the current param.
         XLS_RET_CHECK_LT(cycle(next_state),
-                         cycle(param) + worst_case_throughput);
+                         cycle(state_read) + worst_case_throughput);
       }
       for (Next* next : proc->next_values()) {
-        Node* param = next->param();
+        Node* state_read = next->state_read();
         // Verify that no write happens before the corresponding read.
-        XLS_RET_CHECK_LE(cycle(param), cycle(next));
+        XLS_RET_CHECK_LE(cycle(state_read), cycle(next));
         // Verify that we determine the new state within II cycles of accessing
         // the current param.
-        XLS_RET_CHECK_LT(cycle(next), cycle(param) + worst_case_throughput);
+        XLS_RET_CHECK_LT(cycle(next),
+                         cycle(state_read) + worst_case_throughput);
       }
     }
   }
@@ -473,33 +474,32 @@ absl::Status PipelineSchedule::VerifyConstraints(
       }
       Proc* proc = function_base_->AsProcOrDie();
       for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-        Param* param = proc->GetStateParam(index);
+        StateRead* state_read = proc->GetStateRead(index);
         Node* next_state = proc->GetNextStateElement(index);
         int64_t backedge_length =
-            cycle_map_.at(next_state) - cycle_map_.at(param);
+            cycle_map_.at(next_state) - cycle_map_.at(state_read);
         if (backedge_length > max_backedge) {
           return absl::ResourceExhaustedError(absl::StrFormat(
-              "Scheduling constraint violated: param %s was scheduled for "
-              "access %d cycle%s before node %s, its next value, which "
-              "violates the constraint that we can achieve a worst-case "
-              "throughput of one iteration per %d cycle%s without external "
-              "stalls.",
-              param->name(), backedge_length, plural_s(backedge_length),
+              "Scheduling constraint violated: state read %s was scheduled %d "
+              "cycle%s before node %s, its next value, which violates the "
+              "constraint that we can achieve a worst-case throughput of one "
+              "iteration per %d cycle%s without external stalls.",
+              state_read->GetName(), backedge_length, plural_s(backedge_length),
               next_state->ToString(), worst_case_throughput.value_or(1),
               plural_s(worst_case_throughput.value_or(1))));
         }
       }
       for (Next* next : proc->next_values()) {
-        Param* param = next->param()->As<Param>();
-        int64_t backedge_length = cycle_map_.at(next) - cycle_map_.at(param);
+        StateRead* state_read = next->state_read()->As<StateRead>();
+        int64_t backedge_length =
+            cycle_map_.at(next) - cycle_map_.at(state_read);
         if (backedge_length > max_backedge) {
           return absl::ResourceExhaustedError(absl::StrFormat(
-              "Scheduling constraint violated: param %s was scheduled for "
-              "access %d cycle%s before node %s, its next value, which "
-              "violates the constraint that we can achieve a worst-case "
-              "throughput of one iteration per %d cycle%s without external "
-              "stalls.",
-              param->name(), backedge_length, plural_s(backedge_length),
+              "Scheduling constraint violated: state read %s was scheduled %d "
+              "cycle%s before node %s, its next value, which violates the "
+              "constraint that we can achieve a worst-case throughput of one "
+              "iteration per %d cycle%s without external stalls.",
+              state_read->GetName(), backedge_length, plural_s(backedge_length),
               next->ToString(), worst_case_throughput.value_or(1),
               plural_s(worst_case_throughput.value_or(1))));
         }

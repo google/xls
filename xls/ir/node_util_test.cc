@@ -269,7 +269,7 @@ TEST_F(NodeUtilTest, ChannelNodes) {
 
   EXPECT_THAT(GetChannelUsedByNode(rcv.node()), IsOkAndHolds(ch0));
   EXPECT_THAT(GetChannelUsedByNode(send.node()), IsOkAndHolds(ch1));
-  EXPECT_THAT(GetChannelUsedByNode(proc->GetStateParam(0)),
+  EXPECT_THAT(GetChannelUsedByNode(proc->GetStateRead(int64_t{0})),
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("No channel associated with node")));
 }
@@ -323,7 +323,7 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithToken) {
   // works, we'd need to make an after_all and add the receive's output token to
   // it after calling ReplaceTupleElementsWith().
   XLS_EXPECT_OK(ReplaceTupleElementsWith(
-      receive_node, {{0, proc->GetStateParam(0)}, {1, lit0}}));
+      receive_node, {{0, proc->GetStateRead(int64_t{0})}, {1, lit0}}));
 
   ExpectIr(proc->DumpIr(), TestName());
 }

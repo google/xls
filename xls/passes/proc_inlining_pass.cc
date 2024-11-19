@@ -683,7 +683,7 @@ class ReceiveDependencyVisitor : public DataflowVisitor<std::vector<Receive*>> {
 //
 // For example, for the following snippet:
 //
-//   a = param()
+//   a = state_read()
 //   rcv0 = Receive(...)
 //   rcv1 = Receive(...)
 //   rcv2 = Receive(...)
@@ -754,7 +754,7 @@ class ProcThread {
           AbstractStateElement * element,
           proc_thread.AllocateState(
               absl::StrFormat("%s_state", inlined_proc->name()),
-              inlined_proc->GetInitValueElement(i)));
+              inlined_proc->GetStateElement(i)->initial_value()));
       proc_thread.proc_state_.push_back(element);
     }
 
@@ -847,7 +847,7 @@ class ProcThread {
     std::vector<Node*> tokenless_nodes_with_sink_activation;
     for (const NodeAndPredecessors& token_node : token_graph) {
       ActivationNode* activation_node;
-      if (token_node.node->Is<Param>()) {
+      if (token_node.node->Is<StateRead>()) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Proc %s has a token-typed state element, which is "
                             "not supported by proc inlining",
@@ -962,7 +962,7 @@ class ProcThread {
               std::vector<Node*>{GetDummyState(i), next_state.at(i)},
               /*default_case=*/std::nullopt,
               absl::StrFormat("%s_%s_next_state", inlined_proc_->name(),
-                              inlined_proc_->GetStateParam(i)->GetName())));
+                              inlined_proc_->GetStateElement(i)->name())));
       XLS_RETURN_IF_ERROR(proc_state_.at(i)->SetNext(state_next));
     }
     return absl::OkStatus();
@@ -1701,12 +1701,12 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   std::vector<Node*> converted_clones;
   for (Node* node : topo_sort) {
     VLOG(3) << absl::StreamFormat("Inlining node %s", node->GetName());
-    if (node->Is<Param>()) {
+    if (node->Is<StateRead>()) {
       // The dummy state value will later be replaced with an element from the
       // container proc state.
-      XLS_ASSIGN_OR_RETURN(
-          int64_t state_index,
-          proc_to_inline->GetStateParamIndex(node->As<Param>()));
+      XLS_ASSIGN_OR_RETURN(int64_t state_index,
+                           proc_to_inline->GetStateElementIndex(
+                               node->As<StateRead>()->state_element()));
       node_map[node] = proc_thread.GetDummyState(state_index);
       continue;
     }
@@ -1777,7 +1777,7 @@ absl::Status SetProcState(Proc* proc,
 
   for (int64_t i = 0; i < elements.size(); ++i) {
     XLS_RETURN_IF_ERROR(
-        elements[i].GetState()->ReplaceUsesWith(proc->GetStateParam(i)));
+        elements[i].GetState()->ReplaceUsesWith(proc->GetStateRead(i)));
   }
   return absl::OkStatus();
 }

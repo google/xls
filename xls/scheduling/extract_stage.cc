@@ -57,7 +57,8 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
       }
       // hack to support viewing procs as functions
       Node* new_node;
-      if (node->Is<Next>() || node->Is<Send>() || node->Is<Receive>()) {
+      if (node->Is<StateRead>() || node->Is<Next>() || node->Is<Send>() ||
+          node->Is<Receive>()) {
         // NB The fact that data-dependencies is dropped is fine since prior to
         // this anything used by the Send or Next node is marked for return
         // below.
@@ -83,11 +84,10 @@ absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
   // which gathers all nodes scheduled in the stage that are live out.
   // The tuple will be the return value of the new function.
   // Otherwise, just use the mapped function output.
-
-  auto src_function = static_cast<Function*>(src);
-  if (node_map.contains(src_function->return_value())) {
-    XLS_RETURN_IF_ERROR(
-        new_f->set_return_value(node_map[src_function->return_value()]));
+  if (src->IsFunction() &&
+      node_map.contains(src->AsFunctionOrDie()->return_value())) {
+    XLS_RETURN_IF_ERROR(new_f->set_return_value(
+        node_map.at(src->AsFunctionOrDie()->return_value())));
   } else {
     if (live_out.size() == 1) {
       XLS_RETURN_IF_ERROR(new_f->set_return_value(live_out.front()));

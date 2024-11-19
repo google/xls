@@ -12,6 +12,7 @@ proc __test_module__SomeProc_0_next(__state: (), init={()}) {
   a__3: bits[32] = add(a__2, literal.9, id=10)
   literal.11: bits[32] = literal(value=3, id=11)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   literal.3: bits[1] = literal(value=1, id=3)
   add.12: bits[32] = add(a__3, literal.11, id=12)
   tuple.13: () = tuple(id=13)

@@ -64,6 +64,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_translator.h"
@@ -1650,7 +1651,7 @@ class Translator {
     absl::flat_hash_map<const IOOp*, int64_t> return_index_for_op;
     absl::flat_hash_map<const clang::NamedDecl*, int64_t>
         return_index_for_static;
-    absl::flat_hash_map<const clang::NamedDecl*, xls::Param*>
+    absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>
         state_element_for_variable;
     xls::BValue orig_token;
     xls::BValue token;
@@ -1749,7 +1750,7 @@ class Translator {
   struct GenerateFSMInvocationReturn {
     xls::BValue return_value;
     xls::BValue returns_this_activation;
-    absl::btree_multimap<const xls::Param*, NextStateValue>
+    absl::btree_multimap<const xls::StateElement*, NextStateValue>
         extra_next_state_values;
   };
 
@@ -1777,7 +1778,7 @@ class Translator {
     xls::BValue first_iter;
     xls::BValue exit_state_condition;
     xls::BValue return_value;
-    absl::btree_multimap<const xls::Param*, NextStateValue>
+    absl::btree_multimap<const xls::StateElement*, NextStateValue>
         extra_next_state_values;
     xls::BValue token_out;
   };
@@ -1928,7 +1929,7 @@ class Translator {
     xls::BValue do_break;
     xls::BValue first_iter;
     xls::BValue out_tuple;
-    absl::btree_multimap<const xls::Param*, NextStateValue>
+    absl::btree_multimap<const xls::StateElement*, NextStateValue>
         extra_next_state_values;
   };
 
@@ -1938,7 +1939,7 @@ class Translator {
       const PipelinedLoopSubProc& pipelined_loop_proc, xls::ProcBuilder& pb,
       xls::BValue token_in, xls::BValue received_context_tuple,
       xls::BValue in_state_condition, bool in_fsm,
-      absl::flat_hash_map<const clang::NamedDecl*, xls::Param*>*
+      absl::flat_hash_map<const clang::NamedDecl*, xls::StateElement*>*
           state_element_for_variable = nullptr,
       int nesting_level = -1);
 
@@ -2177,7 +2178,7 @@ class Translator {
   // ProcBuilder::Build()
   absl::StatusOr<xls::Proc*> BuildWithNextStateValueMap(
       xls::ProcBuilder& pb, xls::BValue token,
-      const absl::btree_multimap<const xls::Param*, NextStateValue>&
+      const absl::btree_multimap<const xls::StateElement*, NextStateValue>&
           next_state_values,
       const xls::SourceInfo& loc);
 

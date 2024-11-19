@@ -105,9 +105,8 @@ TEST_F(ProcStateProvenanceNarrowingPassTest, BasicJoin) {
                                                 /*include_state=*/false);
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Type(p->GetBitsType(64)), m::Param("foo"))));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("foo", p->GetBitsType(64))));
 }
 
 }  // namespace

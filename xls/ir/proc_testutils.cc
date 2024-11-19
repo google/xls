@@ -39,6 +39,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/dce_pass.h"
@@ -89,14 +90,14 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleParam(Param* p) override {
-    if (p->GetType()->IsToken()) {
-      values_[{p, activation_}] = fb_.Literal(token_value_);
+  absl::Status HandleStateRead(StateRead* state_read) override {
+    if (state_read->GetType()->IsToken()) {
+      values_[{state_read, activation_}] = fb_.Literal(token_value_);
       return absl::OkStatus();
     }
-    XLS_RET_CHECK(values_.contains({p, activation_}))
+    XLS_RET_CHECK(values_.contains({state_read, activation_}))
         << "State value not created for activation " << activation_ << ": "
-        << p;
+        << state_read;
     return absl::OkStatus();
   }
 
@@ -200,16 +201,16 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
     Proc* p, int64_t activation, FunctionBuilder& fb,
     absl::flat_hash_map<NodeActivation, BValue>& values) {
   std::vector<BValue> states;
-  for (Param* param : p->StateParams()) {
-    XLS_ASSIGN_OR_RETURN(int64_t param_idx, p->GetStateParamIndex(param));
+  for (StateElement* state_element : p->StateElements()) {
+    StateRead* state_read = p->GetStateRead(state_element);
     if (activation == 0) {
-      values[{param, 0}] =
-          fb.Literal(p->GetInitValueElement(param_idx), SourceInfo(),
+      values[{state_read, 0}] =
+          fb.Literal(state_element->initial_value(), SourceInfo(),
                      absl::StrFormat("%s_initial_value", p->name()));
     } else {
       std::vector<BValue> cases;
       std::vector<BValue> selectors;
-      for (Next* nxt : p->next_values(param)) {
+      for (Next* nxt : p->next_values(state_read)) {
         if (nxt->predicate()) {
           selectors.push_back(
               values[{nxt->predicate().value(), activation - 1}]);
@@ -217,24 +218,24 @@ absl::StatusOr<std::vector<BValue>> GetStateValuesBeforeActivation(
         cases.push_back(values[{nxt->value(), activation - 1}]);
       }
       if (selectors.empty()) {
-        XLS_RET_CHECK_EQ(cases.size(), 1) << "no cases for " << param;
-        values[{param, activation}] = cases.front();
+        XLS_RET_CHECK_EQ(cases.size(), 1) << "no cases for " << state_element;
+        values[{state_read, activation}] = cases.front();
       } else if (cases.front().GetType()->IsBits() &&
                  cases.front().GetType()->GetFlatBitCount() == 0) {
         // Special case to avoid creating non-trivial uses of zero-len bit
         // vectors.
-        values[{param, activation}] = fb.Literal(UBits(0, 0));
+        values[{state_read, activation}] = fb.Literal(UBits(0, 0));
       } else {
         XLS_RET_CHECK_EQ(cases.size(), selectors.size());
         // materialize the next values into a select.
         // Need to reverse to keep the LSB is case 0 etc.
         absl::c_reverse(selectors);
-        values[{param, activation}] = fb.PrioritySelect(
+        values[{state_read, activation}] = fb.PrioritySelect(
             fb.Concat(selectors), cases,
-            /*default_value=*/values[{param, activation - 1}]);
+            /*default_value=*/values[{state_read, activation - 1}]);
       }
     }
-    states.push_back(values[{param, activation}]);
+    states.push_back(values[{state_read, activation}]);
   }
   return states;
 }
@@ -250,7 +251,7 @@ absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
       << "Only procs using 'next-node' style are supported.";
   if (include_state) {
     XLS_RET_CHECK(
-        !p->StateParams().empty() ||
+        !p->StateElements().empty() ||
         absl::c_any_of(p->nodes(), [](Node* n) { return n->Is<Send>(); }))
         << "No state or sends means returned function would return a single "
            "constant value";
@@ -288,10 +289,10 @@ absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
   std::vector<BValue> each_activation;
   XLS_RET_CHECK_EQ(states_after_activation.size(), sends.size());
   for (int64_t i = 0; i < sends.size(); ++i) {
-    if (include_state && sends[i].has_value() && !p->StateParams().empty()) {
+    if (include_state && sends[i].has_value() && !p->StateElements().empty()) {
       each_activation.push_back(
           fb.Tuple({*sends[i], fb.Tuple(states_after_activation[i])}));
-    } else if (!p->StateParams().empty() && include_state) {
+    } else if (!p->StateElements().empty() && include_state) {
       // Nothing is actually sent so avoid the empty tuple that z3 doesn't
       // like
       each_activation.push_back(fb.Tuple(states_after_activation[i]));

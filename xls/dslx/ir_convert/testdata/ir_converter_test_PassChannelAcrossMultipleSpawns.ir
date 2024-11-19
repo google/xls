@@ -17,6 +17,7 @@ top proc __test_module__YetAnotherProc_0_next(__state: (), init={()}) {
   literal.7: bits[32] = literal(value=0, id=7)
   literal.5: bits[1] = literal(value=1, id=5)
   __token: token = literal(value=token, id=3)
+  __state: () = state_read(state_element=__state, id=4)
   send.8: token = send(literal.6, literal.7, predicate=literal.5, channel=test_module__in_out, id=8)
   next (__state)
 }
@@ -27,6 +28,7 @@ proc __test_module__YetAnotherProc__SomeOtherProc_0__SomeProc_0_next(__state: ()
   receive.13: (token, bits[32]) = receive(literal.12, predicate=literal.11, channel=test_module__in_out, id=13)
   __token: token = literal(value=token, id=9)
   v: bits[32] = tuple_index(receive.13, index=1, id=16)
+  __state: () = state_read(state_element=__state, id=10)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: token = tuple_index(receive.13, index=0, id=15)
   trace.17: token = trace(__token, literal.11, format="recv: {}", data_operands=[v], id=17)
@@ -35,6 +37,7 @@ proc __test_module__YetAnotherProc__SomeOtherProc_0__SomeProc_0_next(__state: ()
 
 proc __test_module__YetAnotherProc__SomeOtherProc_0_next(__state: (), init={()}) {
   __token: token = literal(value=token, id=18)
+  __state: () = state_read(state_element=__state, id=19)
   literal.20: bits[1] = literal(value=1, id=20)
   tuple.21: () = tuple(id=21)
   next (tuple.21)

@@ -57,6 +57,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 
@@ -399,7 +400,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   CHECK(context().fb == &pb);
 
-  absl::btree_multimap<const xls::Param*, NextStateValue> next_state_values;
+  absl::btree_multimap<const xls::StateElement*, NextStateValue>
+      next_state_values;
 
   std::vector<const clang::NamedDecl*> next_static_value_decls;
 
@@ -417,8 +419,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     xls::BValue next_val =
         GetFlexTupleField(fsm_ret.return_value, ret_idx,
                           prepared.xls_func->return_value_count, body_loc);
-    xls::Param* state_elem = prepared.state_element_for_variable.at(namedecl);
-    xls::BValue prev_val(state_elem, &pb);
+    xls::StateElement* state_elem =
+        prepared.state_element_for_variable.at(namedecl);
+    xls::StateRead* state_read = pb.proc()->GetStateRead(state_elem);
+    xls::BValue prev_val(state_read, &pb);
 
     XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
 
@@ -435,8 +439,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                         /*name=*/"does_not_return_this_activation"),
                  body_loc, /*name=*/"next_on_reset");
     }
-    next_state_values.insert(
-        {prev_val.node()->As<xls::Param>(), next_state_value});
+    next_state_values.insert({state_elem, next_state_value});
   }
 
   for (const auto& [state_elem, bval] : fsm_ret.extra_next_state_values) {
@@ -840,7 +843,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
   xls::BValue args_from_last_state;
   xls::Value initial_args_val;
 
-  xls::BValue state_param;
+  xls::BValue state_read;
 
   // In merge states mode, FSM state elements are always created for storing
   // IO op inputs
@@ -861,14 +864,14 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
                                                       initial_args_val};
 
     xls::Value initial_state = xls::Value::Tuple(initial_state_elements);
-    state_param = pb.StateElement(absl::StrFormat("%s_state", fsm_prefix),
-                                  initial_state, body_loc);
+    state_read = pb.StateElement(absl::StrFormat("%s_state", fsm_prefix),
+                                 initial_state, body_loc);
     state_index =
-        pb.TupleIndex(state_param, /*idx=*/0, body_loc,
+        pb.TupleIndex(state_read, /*idx=*/0, body_loc,
                       /*name=*/absl::StrFormat("%s_state_index", fsm_prefix));
 
     args_from_last_state =
-        pb.TupleIndex(state_param, /*idx=*/1, body_loc,
+        pb.TupleIndex(state_read, /*idx=*/1, body_loc,
                       /*name=*/absl::StrFormat("%s_state_args", fsm_prefix));
   }
 
@@ -919,7 +922,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     return absl::OkStatus();
   };
 
-  absl::btree_multimap<const xls::Param*, NextStateValue>
+  absl::btree_multimap<const xls::StateElement*, NextStateValue>
       sub_fsm_next_state_values;
 
   absl::flat_hash_set<const xls::Node*> prev_state_io_nodes;
@@ -1037,7 +1040,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
       if (states_can_have_multiple_parts) {
         // Check that changed_state_last_activation is safe to use
         XLSCC_CHECK(changed_state_last_activation.valid(), body_loc);
-        XLSCC_CHECK(changed_state_last_activation.node()->Is<xls::Param>(),
+        XLSCC_CHECK(changed_state_last_activation.node()->Is<xls::StateRead>(),
                     body_loc);
 
         // This and is not strictly, logically necessary, however:
@@ -1108,9 +1111,10 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
         // as it can't depend on side effecting ops earlier in the token chain,
         // and can't create cycles.
         XLSCC_CHECK(sub_fsm_ret.first_iter.valid(), body_loc);
-        XLSCC_CHECK(sub_fsm_ret.first_iter.node()->Is<xls::Param>(), body_loc);
+        XLSCC_CHECK(sub_fsm_ret.first_iter.node()->Is<xls::StateRead>(),
+                    body_loc);
         XLSCC_CHECK(changed_state_last_activation.valid(), body_loc);
-        XLSCC_CHECK(changed_state_last_activation.node()->Is<xls::Param>(),
+        XLSCC_CHECK(changed_state_last_activation.node()->Is<xls::StateRead>(),
                     body_loc);
 
         // With nested loops, the outer loop may stay in its first iteration
@@ -1251,7 +1255,8 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
   xls::BValue returns_this_activation_vars = go_to_next_state_by_state.at(0);
 
-  absl::btree_multimap<const xls::Param*, NextStateValue> fsm_next_state_values;
+  absl::btree_multimap<const xls::StateElement*, NextStateValue>
+      fsm_next_state_values;
 
   xls::BValue go_to_next_state;
 
@@ -1323,8 +1328,9 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
 
     xls::BValue next_tuple = pb.Tuple(next_state_elements, body_loc);
 
-    fsm_next_state_values.insert({state_param.node()->As<xls::Param>(),
-                                  NextStateValue{.value = next_tuple}});
+    fsm_next_state_values.insert(
+        {state_read.node()->As<xls::StateRead>()->state_element(),
+         NextStateValue{.value = next_tuple}});
   } else {
     go_to_next_state = returns_this_activation_vars;
   }
@@ -1333,7 +1339,9 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     XLSCC_CHECK(returns_this_activation_vars.valid(), body_loc);
     // Only change changed last activation when active
     fsm_next_state_values.insert(
-        {changed_state_last_activation.node()->As<xls::Param>(),
+        {changed_state_last_activation.node()
+             ->As<xls::StateRead>()
+             ->state_element(),
          NextStateValue{
              .value =
                  pb.Select(context().full_condition_bval(body_loc),
@@ -1967,11 +1975,12 @@ Translator::GenerateIRBlockPrepare(
                          EvaluateBVal(this_cval.rvalue(), body_loc));
 
     xls::BValue elem_bval = pb.StateElement("this", this_init_val, body_loc);
+    xls::StateElement* state_elem =
+        elem_bval.node()->As<xls::StateRead>()->state_element();
 
     // Don't need to worry about sharing for this, as it's only used at the top
     // level (block as class)
-    prepared.state_element_for_variable[this_decl] =
-        elem_bval.node()->As<xls::Param>();
+    prepared.state_element_for_variable[this_decl] = state_elem;
     prepared.args.push_back(elem_bval);
   }
 
@@ -1981,12 +1990,13 @@ Translator::GenerateIRBlockPrepare(
 
     // Don't need to worry about sharing for this, as it's only used when a
     // static variable is declared in the loop body
-    xls::BValue state_elem = pb.StateElement(
+    xls::BValue elem_bval = pb.StateElement(
         XLSNameMangle(clang::GlobalDecl(namedecl)), initval.rvalue(), body_loc);
+    xls::StateElement* state_elem =
+        elem_bval.node()->As<xls::StateRead>()->state_element();
 
     prepared.return_index_for_static[namedecl] = next_return_index++;
-    prepared.state_element_for_variable[namedecl] =
-        state_elem.node()->As<xls::Param>();
+    prepared.state_element_for_variable[namedecl] = state_elem;
   }
 
   // This return
@@ -2050,7 +2060,9 @@ Translator::GenerateIRBlockPrepare(
       }
       case xlscc::SideEffectingParameterType::kStatic: {
         xls::BValue bval(
-            prepared.state_element_for_variable.at(param.static_value), &pb);
+            pb.proc()->GetStateRead(
+                prepared.state_element_for_variable.at(param.static_value)),
+            &pb);
         prepared.args.push_back(bval);
         break;
       }
@@ -2088,22 +2100,23 @@ std::optional<ChannelBundle> Translator::GetChannelBundleForOp(
 
 absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
     xls::ProcBuilder& pb, xls::BValue token,
-    const absl::btree_multimap<const xls::Param*, NextStateValue>&
+    const absl::btree_multimap<const xls::StateElement*, NextStateValue>&
         next_state_values,
     const xls::SourceInfo& loc) {
-  const int64_t n_state_elems = pb.proc()->StateParams().size();
+  const int64_t n_state_elems = pb.proc()->StateElements().size();
 
   std::vector<xls::BValue> next_state_values_list;
   next_state_values_list.reserve(n_state_elems);
 
-  for (xls::Param* elem : pb.proc()->StateParams()) {
+  for (xls::StateElement* elem : pb.proc()->StateElements()) {
     const int64_t values_for_elem = next_state_values.count(elem);
     XLSCC_CHECK_GE(values_for_elem, 0, loc);
     if (values_for_elem == 0) {
       return absl::InternalError(
           absl::StrFormat("No next values for state element %s", elem->name()));
     }
-    xls::BValue elem_bval(elem, &pb);
+    xls::StateRead* state_read = pb.proc()->GetStateRead(elem);
+    xls::BValue read_bval(state_read, &pb);
     if (values_for_elem == 1) {
       const NextStateValue& next_state_value =
           next_state_values.find(elem)->second;
@@ -2112,7 +2125,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
         next_state_value_bval =
             pb.Select(next_state_value.condition,
                       /*on_true=*/next_state_value.value,
-                      /*on_false=*/elem_bval, loc, /*name=*/
+                      /*on_false=*/read_bval, loc, /*name=*/
                       absl::StrFormat("%s_next_state_value", elem->name()));
       } else {
         next_state_value_bval = next_state_value.value;
@@ -2173,7 +2186,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
 
       // Default to no change of state when all selectors are 0
       next_state_value_bval = pb.PrioritySelect(
-          selector, values, /*default_value=*/elem_bval, loc,
+          selector, values, /*default_value=*/read_bval, loc,
           /*name=*/absl::StrFormat("%s_select_next_value", elem->name()));
     }
 

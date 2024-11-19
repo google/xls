@@ -37,6 +37,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/jit/aot_entrypoint.pb.h"
@@ -114,8 +115,8 @@ class BaseProcJitWrapper {
     absl::flat_hash_map<std::string, Value> res;
     res.reserve(state.size());
     auto it = state.cbegin();
-    for (Param* p : proc_->StateParams()) {
-      res[p->name()] = *it;
+    for (StateElement* st : proc_->StateElements()) {
+      res[st->name()] = *it;
       ++it;
     }
     return res;

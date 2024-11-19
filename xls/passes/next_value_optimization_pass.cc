@@ -79,7 +79,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> RemoveConstantPredicate(
   }
   VLOG(2) << "Identified node as always live; removing predicate: " << *next;
   XLS_ASSIGN_OR_RETURN(Next * new_next, next->ReplaceUsesWithNew<Next>(
-                                            /*param=*/next->param(),
+                                            /*state_read=*/next->state_read(),
                                             /*value=*/next->value(),
                                             /*predicate=*/std::nullopt));
   new_next->SetLoc(next->loc());
@@ -140,7 +140,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
     XLS_ASSIGN_OR_RETURN(
         Next * new_next,
         proc->MakeNodeWithName<Next>(next->loc(),
-                                     /*param=*/next->param(),
+                                     /*state_read=*/next->state_read(),
                                      /*value=*/selected_value->cases()[i],
                                      predicate, name));
     new_next_values.push_back(new_next);
@@ -173,7 +173,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
     XLS_ASSIGN_OR_RETURN(
         Next * new_next,
         proc->MakeNodeWithName<Next>(next->loc(),
-                                     /*param=*/next->param(),
+                                     /*state_read=*/next->state_read(),
                                      /*value=*/*selected_value->default_value(),
                                      predicate, name));
     new_next_values.push_back(new_next);
@@ -223,7 +223,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
     XLS_ASSIGN_OR_RETURN(
         Next * new_next,
         proc->MakeNodeWithName<Next>(next->loc(),
-                                     /*param=*/next->param(),
+                                     /*state_read=*/next->state_read(),
                                      /*value=*/selected_value->get_case(i),
                                      /*predicate=*/case_predicate, name));
     new_next_values.push_back(new_next);
@@ -256,7 +256,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
   XLS_ASSIGN_OR_RETURN(
       Next * new_next,
       proc->MakeNodeWithName<Next>(next->loc(),
-                                   /*param=*/next->param(),
+                                   /*state_read=*/next->state_read(),
                                    /*value=*/default_value,
                                    /*predicate=*/default_predicate, name));
   new_next_values.push_back(new_next);
@@ -306,7 +306,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSafeOneHotSelect(
     XLS_ASSIGN_OR_RETURN(
         Next * new_next,
         proc->MakeNodeWithName<Next>(next->loc(),
-                                     /*param=*/next->param(),
+                                     /*state_read=*/next->state_read(),
                                      /*value=*/selected_value->get_case(i),
                                      /*predicate=*/case_predicate, name));
     new_next_values.push_back(new_next);

@@ -142,15 +142,15 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
   if (node->Is<Param>()) {
     params_.erase(std::remove(params_.begin(), params_.end(), node),
                   params_.end());
-    next_values_by_param_.erase(node->As<Param>());
+  }
+  if (node->Is<StateRead>()) {
+    next_values_by_state_read_.erase(node->As<StateRead>());
   }
   if (node->Is<Next>()) {
     Next* next = node->As<Next>();
-    Param* param = next->param()->As<Param>();
-    next_values_by_param_.at(param).erase(next);
-    next_values_.erase(
-        std::remove(next_values_.begin(), next_values_.end(), node),
-        next_values_.end());
+    StateRead* state_read = next->state_read()->As<StateRead>();
+    next_values_by_state_read_.at(state_read).erase(next);
+    std::erase(next_values_, next);
   }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());
@@ -234,13 +234,15 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
   ++package()->transform_metrics().nodes_added;
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());
-    next_values_by_param_[node->As<Param>()];
+  }
+  if (node->Is<StateRead>()) {
+    next_values_by_state_read_[node->As<StateRead>()];
   }
   if (node->Is<Next>()) {
     Next* next = node->As<Next>();
-    Param* param = next->param()->As<Param>();
+    StateRead* state_read = next->state_read()->As<StateRead>();
     next_values_.push_back(node->As<Next>());
-    next_values_by_param_.at(param).insert(next);
+    next_values_by_state_read_.at(state_read).insert(next);
   }
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));

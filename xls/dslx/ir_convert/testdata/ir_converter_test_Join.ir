@@ -14,12 +14,14 @@ fn __test_module__foo.init() -> bits[32] {
 
 top proc __test_module__main_0_next(__state: (), init={()}) {
   __token: token = literal(value=token, id=2)
+  __state: () = state_read(state_element=__state, id=3)
   literal.4: bits[1] = literal(value=1, id=4)
   tuple.5: () = tuple(id=5)
   next (tuple.5)
 }
 
 proc __test_module__main__foo_0_next(__state: bits[32], init={0}) {
+  __state: bits[32] = state_read(state_element=__state, id=7)
   tok: token = after_all(id=9)
   zero_ext.10: bits[32] = zero_ext(__state, new_bit_count=32, id=10)
   literal.8: bits[1] = literal(value=1, id=8)

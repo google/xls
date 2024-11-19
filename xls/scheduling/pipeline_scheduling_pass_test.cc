@@ -156,7 +156,7 @@ TEST_F(PipelineSchedulingPassTest, MultipleProcs) {
                              Pair(proc1, VerifiedPipelineSchedule()))))));
   EXPECT_THAT(changed_unit.second.DumpIr(),
               AllOf(HasSubstr("// Pipeline Schedule"), HasSubstr("// Cycle 0:"),
-                    HasSubstr("//   st: bits[1] = param(name=st"),
+                    HasSubstr("//   st: bits[1] = state_read(state_element=st"),
                     HasSubstr("proc proc0(st: bits[1]"),
                     HasSubstr("proc proc1(st: bits[1]")));
 }

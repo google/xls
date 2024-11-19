@@ -34,6 +34,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -45,35 +46,39 @@
 namespace xls {
 namespace {
 
-// Struct which transforms a param into a slice of its trailing bits.
+// Struct which transforms a state element into a slice of its trailing bits.
 struct ProcStateNarrowTransform : public Proc::StateElementTransformer {
  public:
   explicit ProcStateNarrowTransform(Bits known_leading)
       : Proc::StateElementTransformer(),
         known_leading_(std::move(known_leading)) {}
 
-  absl::StatusOr<Node*> TransformParamRead(Proc* proc, Param* new_param,
-                                           Param* old_param) final {
-    XLS_RET_CHECK_EQ(
-        new_param->GetType()->GetFlatBitCount() + known_leading_.bit_count(),
-        old_param->GetType()->GetFlatBitCount());
+  absl::StatusOr<Node*> TransformStateRead(Proc* proc,
+                                           StateRead* new_state_read,
+                                           StateRead* old_state_read) final {
+    XLS_RET_CHECK_EQ(new_state_read->GetType()->GetFlatBitCount() +
+                         known_leading_.bit_count(),
+                     old_state_read->GetType()->GetFlatBitCount());
     XLS_ASSIGN_OR_RETURN(
         Node * leading,
         proc->MakeNodeWithName<Literal>(
-            old_param->loc(), Value(known_leading_),
-            absl::StrFormat("leading_bits_%s", old_param->name())));
+            old_state_read->loc(), Value(known_leading_),
+            absl::StrFormat("leading_bits_%s",
+                            old_state_read->state_element()->name())));
     return proc->MakeNodeWithName<Concat>(
-        new_param->loc(), std::array<Node*, 2>{leading, new_param},
-        absl::StrFormat("extended_%s", old_param->name()));
+        new_state_read->loc(), std::array<Node*, 2>{leading, new_state_read},
+        absl::StrFormat("extended_%s",
+                        old_state_read->state_element()->name()));
   }
-  absl::StatusOr<Node*> TransformNextValue(Proc* proc, Param* new_param,
+  absl::StatusOr<Node*> TransformNextValue(Proc* proc,
+                                           StateRead* new_state_read,
                                            Next* old_next) final {
-    XLS_RET_CHECK_EQ(
-        new_param->GetType()->GetFlatBitCount() + known_leading_.bit_count(),
-        old_next->param()->GetType()->GetFlatBitCount());
+    XLS_RET_CHECK_EQ(new_state_read->GetType()->GetFlatBitCount() +
+                         known_leading_.bit_count(),
+                     old_next->state_read()->GetType()->GetFlatBitCount());
     return proc->MakeNodeWithName<BitSlice>(
         old_next->loc(), old_next->value(), /*start=*/0,
-        /*width=*/new_param->GetType()->GetFlatBitCount(),
+        /*width=*/new_state_read->GetType()->GetFlatBitCount(),
         absl::StrFormat("unexpand_for_%s", old_next->GetName()));
   }
 
@@ -81,14 +86,15 @@ struct ProcStateNarrowTransform : public Proc::StateElementTransformer {
   Bits known_leading_;
 };
 
-absl::Status RemoveLeadingBits(Param* param, const Value& orig_init_value,
+absl::Status RemoveLeadingBits(StateRead* state_read,
+                               const Value& orig_init_value,
                                const Bits& known_leading) {
   Value new_init_value(orig_init_value.bits().Slice(
       0, orig_init_value.bits().bit_count() - known_leading.bit_count()));
   ProcStateNarrowTransform transform(known_leading);
-  return param->function_base()
+  return state_read->function_base()
       ->AsProcOrDie()
-      ->TransformStateElement(param, new_init_value, transform)
+      ->TransformStateElement(state_read, new_init_value, transform)
       .status();
 }
 
@@ -97,7 +103,7 @@ absl::Status RemoveLeadingBits(Param* param, const Value& orig_init_value,
 // TODO(allight): Technically we'd probably want to run this whole pass to fixed
 // point (incorporating the results into later runs) to get optimal results.
 // It's not clear how much we'd gain there though. For now we will just run it
-// once assuming that params are relatively independent of one
+// once assuming that state elements are relatively independent of one
 // another/additional information won't reveal more opportunities.
 absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options,
@@ -108,14 +114,18 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
   XLS_RETURN_IF_ERROR(qe.Populate(proc).status());
 
   bool made_changes = false;
-  // NB Since we are adding params we need to copy the state param list.
-  for (Param* param :
-       std::vector(proc->StateParams().begin(), proc->StateParams().end())) {
-    if (!param->GetType()->IsBits()) {
-      VLOG(3) << "Unable to narrow compound value param " << param;
+  // NB Since we are adding state elements we need to copy the list.
+  for (StateElement* state_element : std::vector(proc->StateElements().begin(),
+                                                 proc->StateElements().end())) {
+    if (!state_element->type()->IsBits()) {
+      VLOG(3) << "Unable to narrow compound value state element "
+              << state_element->name() << ": "
+              << state_element->type()->ToString();
       continue;
     }
-    std::optional<LeafTypeTree<TernaryVector>> ternary = qe.GetTernary(param);
+    StateRead* state_read = proc->GetStateRead(state_element);
+    std::optional<LeafTypeTree<TernaryVector>> ternary =
+        qe.GetTernary(state_read);
     if (!ternary) {
       continue;
     }
@@ -123,19 +133,20 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
         ternary_ops::ToKnownBits(ternary->Get({})).CountLeadingOnes();
     if (known_leading == 0) {
       // TODO(allight): We could also narrow internal/trailing bits.
-      VLOG(2) << "Unable to narrow " << param
+      VLOG(2) << "Unable to narrow " << state_element->name()
               << " due to finding that no leading bits are known.";
       continue;
     }
     TernarySpan known_leading_tern =
         absl::MakeConstSpan(ternary->Get({})).last(known_leading);
     XLS_RET_CHECK(ternary_ops::IsFullyKnown(known_leading_tern));
-    XLS_ASSIGN_OR_RETURN(Value orig_init_value, proc->GetInitValue(param));
-    VLOG(2) << "Narrowing param " << param << " from " << param->BitCountOrDie()
-            << " to " << (param->BitCountOrDie() - known_leading)
+    Value orig_init_value = state_element->initial_value();
+    VLOG(2) << "Narrowing state element " << state_element->name() << " from "
+            << state_element->type()->GetFlatBitCount() << " to "
+            << (state_element->type()->GetFlatBitCount() - known_leading)
             << " bits (removing " << known_leading << " bits).";
     XLS_RETURN_IF_ERROR(
-        RemoveLeadingBits(param, orig_init_value,
+        RemoveLeadingBits(state_read, orig_init_value,
                           ternary_ops::ToKnownBitsValues(known_leading_tern)));
     made_changes = true;
   }

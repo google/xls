@@ -149,6 +149,7 @@ class TestDelayEstimator : public DelayEstimator {
       case Op::kAfterAll:
       case Op::kMinDelay:
       case Op::kParam:
+      case Op::kStateRead:
       case Op::kNext:
       case Op::kInputPort:
       case Op::kOutputPort:

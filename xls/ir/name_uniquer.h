@@ -50,6 +50,8 @@ class NameUniquer {
   // Returns true if the given str is a valid Verilog, and thus XLS, identifier.
   static bool IsValidIdentifier(std::string_view str);
 
+  void Reset() { generated_names_.clear(); }
+
  private:
   // Used to track and generate new identifiers for the same instruction name
   // root.

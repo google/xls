@@ -901,8 +901,7 @@ Param::Param(const SourceInfo& loc, Type* type, std::string_view name,
 
 StateRead::StateRead(const SourceInfo& loc, StateElement* state_element,
                      std::string_view name, FunctionBase* function)
-    : Node(Op::kStateRead, function->package()->GetTupleType({}), loc, name,
-           function),
+    : Node(Op::kStateRead, state_element->type(), loc, name, function),
       state_element_(state_element) {
   CHECK(IsOpClass<StateRead>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `StateRead`.";
@@ -919,7 +918,7 @@ bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
   return state_element_ == other->As<StateRead>()->state_element_;
 }
 
-Next::Next(const SourceInfo& loc, Node* param, Node* value,
+Next::Next(const SourceInfo& loc, Node* state_read, Node* value,
            std::optional<Node*> predicate, std::string_view name,
            FunctionBase* function)
     : Node(Op::kNext, function->package()->GetTupleType({}), loc, name,
@@ -927,7 +926,7 @@ Next::Next(const SourceInfo& loc, Node* param, Node* value,
       has_predicate_(predicate.has_value()) {
   CHECK(IsOpClass<Next>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Next`.";
-  AddOperand(param);
+  AddOperand(state_read);
   AddOperand(value);
   AddOptionalOperand(predicate);
 }

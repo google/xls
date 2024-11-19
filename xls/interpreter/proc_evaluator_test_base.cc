@@ -834,10 +834,11 @@ TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
                   .execution_state = TickExecutionState::kSentOnChannel,
                   .channel_instance = channel_instance,
                   .progress_made = true}));
-  EXPECT_THAT(evaluator->Tick(*continuation),
-              StatusIs(absl::StatusCode::kAlreadyExists,
-                       HasSubstr("Multiple active next values for param "
-                                 "\"counter\" in a single activation")));
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      StatusIs(absl::StatusCode::kAlreadyExists,
+               HasSubstr("Multiple active next values for state element 0 "
+                         "(\"counter\") in a single activation")));
 }
 
 TEST_P(ProcEvaluatorTestBase, OneToTwoDemux) {

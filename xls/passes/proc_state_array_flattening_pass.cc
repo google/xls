@@ -27,6 +27,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -35,14 +36,15 @@
 namespace xls {
 namespace {
 
-// Returns true if the param should be flattened into individual elements.
-absl::StatusOr<bool> ShouldFlattenParam(Param* param) {
-  if (!param->GetType()->IsArray()) {
+// Returns true if the state element should be flattened into individual
+// elements.
+absl::StatusOr<bool> ShouldFlattenStateElement(StateElement* state_element) {
+  if (!state_element->type()->IsArray()) {
     // Don't flatten non-array types.
     return false;
   }
   // Unconditionally flatten small arrays.
-  return param->GetType()->AsArrayOrDie()->size() <= 2;
+  return state_element->type()->AsArrayOrDie()->size() <= 2;
 }
 
 // Make an array_index() for each element of an array and stuff them into a
@@ -79,50 +81,55 @@ class ArrayToTupleStateTransformer : public Proc::StateElementTransformer {
   explicit ArrayToTupleStateTransformer() = default;
 
   // Make a tuple_index() for each tuple element and stuff them into an array().
-  absl::StatusOr<Node*> TransformParamRead(Proc* proc, Param* new_param,
-                                           Param* old_param) final {
-    VLOG(3) << "Transforming param read";
-    XLS_RET_CHECK(new_param->GetType()->IsTuple());
-    XLS_RET_CHECK(old_param->GetType()->IsArray());
-    int64_t new_size = new_param->GetType()->AsTupleOrDie()->size();
-    int64_t old_size = old_param->GetType()->AsArrayOrDie()->size();
+  absl::StatusOr<Node*> TransformStateRead(Proc* proc,
+                                           StateRead* new_state_read,
+                                           StateRead* old_state_read) final {
+    VLOG(3) << "Transforming state read";
+    XLS_RET_CHECK(new_state_read->GetType()->IsTuple());
+    XLS_RET_CHECK(old_state_read->GetType()->IsArray());
+    int64_t new_size = new_state_read->GetType()->AsTupleOrDie()->size();
+    int64_t old_size = old_state_read->GetType()->AsArrayOrDie()->size();
     XLS_RET_CHECK_EQ(new_size, old_size);
     std::vector<Node*> tuple_elements;
     tuple_elements.reserve(new_size);
     for (int64_t i = 0; i < new_size; ++i) {
-      XLS_ASSIGN_OR_RETURN(Node * element, proc->MakeNode<TupleIndex>(
-                                               new_param->loc(), new_param, i));
+      XLS_ASSIGN_OR_RETURN(
+          Node * element,
+          proc->MakeNode<TupleIndex>(new_state_read->loc(), new_state_read, i));
       tuple_elements.push_back(element);
     }
     return proc->MakeNodeWithName<Array>(
-        new_param->loc(), tuple_elements,
-        old_param->GetType()->AsArrayOrDie()->element_type(),
-        absl::StrCat(old_param->name(), "_as_array"));
+        new_state_read->loc(), tuple_elements,
+        old_state_read->GetType()->AsArrayOrDie()->element_type(),
+        absl::StrCat(old_state_read->GetName(), "_as_array"));
   }
-  absl::StatusOr<Node*> TransformNextValue(Proc* proc, Param* new_param,
+  absl::StatusOr<Node*> TransformNextValue(Proc* proc,
+                                           StateRead* new_state_read,
                                            Next* old_next) final {
     VLOG(3) << "Transforming next value";
-    XLS_RET_CHECK(new_param->GetType()->IsTuple());
+    XLS_RET_CHECK(new_state_read->GetType()->IsTuple());
     return ConvertArrayToTuple(old_next->value());
   }
 };
 
 // If our heuristic says we should flatten, replace a proc state element of
 // array type with a tuple. Later optimizations will flatten the tuple.
-absl::StatusOr<bool> SimplifyProcState(Param* state) {
-  if (!state->function_base()->IsProc() || !state->GetType()->IsArray()) {
+absl::StatusOr<bool> SimplifyProcState(Proc* proc,
+                                       StateElement* state_element) {
+  if (!proc->IsOwned(state_element) || !state_element->type()->IsArray()) {
     return false;
   }
-  VLOG(3) << "Simplifying proc state" << state->ToString();
-  XLS_ASSIGN_OR_RETURN(bool should_flatten, ShouldFlattenParam(state));
+  VLOG(3) << "Simplifying proc state " << state_element->ToString();
+  XLS_ASSIGN_OR_RETURN(bool should_flatten,
+                       ShouldFlattenStateElement(state_element));
   if (!should_flatten) {
-    VLOG(3) << "Not flattening proc state" << state->ToString();
+    VLOG(3) << "Not flattening proc state" << state_element->ToString();
     return false;
   }
-  Proc* proc = state->function_base()->AsProcOrDie();
   XLS_ASSIGN_OR_RETURN(int64_t old_state_index,
-                       proc->GetStateParamIndex(state));
-  const Value& old_init_value = proc->GetInitValueElement(old_state_index);
+                       proc->GetStateElementIndex(state_element));
+  StateRead* old_state_read = proc->GetStateRead(state_element);
+  const Value& old_init_value = state_element->initial_value();
   Value new_init_value = Value::Tuple(old_init_value.elements());
   Node* old_next_state = proc->GetNextStateElement(old_state_index);
   VLOG(3) << "Old Next state: " << old_next_state->ToString();
@@ -131,19 +138,22 @@ absl::StatusOr<bool> SimplifyProcState(Param* state) {
 
   ArrayToTupleStateTransformer transformer;
   XLS_ASSIGN_OR_RETURN(
-      Param * new_state,
-      proc->TransformStateElement(state, new_init_value, transformer));
+      StateRead * new_state_read,
+      proc->TransformStateElement(proc->GetStateRead(state_element),
+                                  new_init_value, transformer));
   // TODO: google/xls#1520 - remove when next_value is the one true way
-  XLS_RETURN_IF_ERROR(proc->SetNextStateElement(old_state_index, state));
-  XLS_ASSIGN_OR_RETURN(int64_t new_state_index,
-                       proc->GetStateParamIndex(new_state));
-  if (proc->next_values(new_state).empty()) {
+  XLS_RETURN_IF_ERROR(
+      proc->SetNextStateElement(old_state_index, old_state_read));
+  XLS_ASSIGN_OR_RETURN(
+      int64_t new_state_index,
+      proc->GetStateElementIndex(new_state_read->state_element()));
+  if (proc->next_values(new_state_read).empty()) {
     XLS_RETURN_IF_ERROR(
         proc->SetNextStateElement(new_state_index, next_state_as_tuple));
   }
 
-  std::vector<Next*> old_next_values(proc->next_values(state).begin(),
-                                     proc->next_values(state).end());
+  std::vector<Next*> old_next_values(proc->next_values(old_state_read).begin(),
+                                     proc->next_values(old_state_read).end());
   for (Next* old_next_value : old_next_values) {
     XLS_RETURN_IF_ERROR(proc->RemoveNode(old_next_value));
   }
@@ -161,9 +171,10 @@ absl::StatusOr<bool> ProcStateArrayFlatteningPass::RunOnProcInternal(
   // state.
   for (int64_t state_index = 0; state_index < proc->GetStateElementCount();
        ++state_index) {
-    Param* state = proc->GetStateParam(state_index);
-    XLS_ASSIGN_OR_RETURN(bool param_changed, SimplifyProcState(state));
-    changed = changed || param_changed;
+    StateElement* state_element = proc->GetStateElement(state_index);
+    XLS_ASSIGN_OR_RETURN(bool element_changed,
+                         SimplifyProcState(proc, state_element));
+    changed = changed || element_changed;
   }
 
   return changed;

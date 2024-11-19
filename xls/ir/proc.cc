@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -45,6 +46,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc_instantiation.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -62,15 +64,18 @@ std::string Proc::DumpIr() const {
                         absl::StrAppend(s, channel_ref->ToString());
                       }));
   }
-  auto param_formatter = [](std::string* s, Param* param) {
-    absl::StrAppend(s, param->GetName(), ": ", param->GetType()->ToString());
+  auto state_formatter = [](std::string* s, StateElement* state) {
+    absl::StrAppend(s, state->name(), ": ", state->type()->ToString());
   };
   absl::StrAppend(&res, "(",
-                  absl::StrJoin(StateParams(), ", ", param_formatter));
-  if (!InitValues().empty()) {
+                  absl::StrJoin(StateElements(), ", ", state_formatter));
+  auto initial_value_formatter = [](std::string* s, StateElement* state) {
+    UntypedValueFormatter(s, state->initial_value());
+  };
+  if (!StateElements().empty()) {
     absl::StrAppendFormat(
         &res, ", init={%s}",
-        absl::StrJoin(InitValues(), ", ", UntypedValueFormatter));
+        absl::StrJoin(StateElements(), ", ", initial_value_formatter));
   }
   absl::StrAppend(&res, ") {\n");
 
@@ -92,7 +97,7 @@ std::string Proc::DumpIr() const {
 
   // TODO: google/xls#1520 - remove this once fully transitioned over to
   // `next_value` nodes.
-  if (next_values_.empty() && !params_.empty()) {
+  if (next_values_.empty() && !state_elements_.empty()) {
     auto node_formatter = [](std::string* s, Node* node) {
       absl::StrAppend(s, node->GetName());
     };
@@ -105,20 +110,48 @@ std::string Proc::DumpIr() const {
 
 int64_t Proc::GetStateFlatBitCount() const {
   int64_t total = 0;
-  for (Param* param : StateParams()) {
-    total += param->GetType()->GetFlatBitCount();
+  for (StateElement* state_element : StateElements()) {
+    total += state_element->type()->GetFlatBitCount();
   }
   return total;
 }
 
-absl::StatusOr<int64_t> Proc::GetStateParamIndex(Param* param) const {
-  auto it = std::find(StateParams().begin(), StateParams().end(), param);
-  if (it == StateParams().end()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Given param is not a state parameter of this proc: ",
-                     param->ToString()));
+absl::StatusOr<StateElement*> Proc::GetStateElement(
+    std::string_view name) const {
+  if (std::optional<StateElement*> state_element = MaybeGetStateElement(name);
+      state_element.has_value()) {
+    return *state_element;
   }
-  return std::distance(StateParams().begin(), it);
+  return absl::NotFoundError(absl::StrFormat(
+      "Proc %s has no state element named %s", this->name(), name));
+}
+
+std::optional<StateElement*> Proc::MaybeGetStateElement(
+    std::string_view name) const {
+  auto it = state_elements_.find(name);
+  if (it == state_elements_.end()) {
+    return std::nullopt;
+  }
+  return it->second.get();
+}
+
+absl::StatusOr<int64_t> Proc::GetStateElementIndex(
+    StateElement* state_element) const {
+  if (std::optional<int64_t> index = MaybeGetStateElementIndex(state_element);
+      index.has_value()) {
+    return *index;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Given state element is not a state element of this proc: ",
+                   state_element->ToString()));
+}
+std::optional<int64_t> Proc::MaybeGetStateElementIndex(
+    StateElement* state_element) const {
+  if (auto it = absl::c_find(state_vec_, state_element);
+      it != state_vec_.end()) {
+    return std::distance(state_vec_.begin(), it);
+  }
+  return std::nullopt;
 }
 
 absl::btree_set<int64_t> Proc::GetNextStateIndices(Node* node) const {
@@ -127,11 +160,6 @@ absl::btree_set<int64_t> Proc::GetNextStateIndices(Node* node) const {
     return absl::btree_set<int64_t>();
   }
   return it->second;
-}
-
-absl::StatusOr<Value> Proc::GetInitValue(Param* p) {
-  XLS_ASSIGN_OR_RETURN(int64_t off, GetStateParamIndex(p));
-  return GetInitValueElement(off);
 }
 
 absl::Status Proc::SetNextStateElement(int64_t index, Node* next) {
@@ -148,62 +176,72 @@ absl::Status Proc::SetNextStateElement(int64_t index, Node* next) {
   return absl::OkStatus();
 }
 
-absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
-                                absl::Span<const Value> init_values) {
+absl::Status Proc::ReplaceState(
+    absl::Span<const std::string> requested_state_names,
+    absl::Span<const Value> init_values) {
   for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
     XLS_RETURN_IF_ERROR(RemoveStateElement(i));
   }
-  if (state_param_names.size() != init_values.size()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Must specify equal number of state parameter names "
-                        "(%d) and initial values (%d)",
-                        state_param_names.size(), init_values.size()));
-  }
-  for (int64_t i = 0; i < state_param_names.size(); ++i) {
-    XLS_RETURN_IF_ERROR(
-        AppendStateElement(state_param_names[i], init_values[i]).status());
-  }
-  return absl::OkStatus();
-}
-
-absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
-                                absl::Span<const Value> init_values,
-                                absl::Span<Node* const> next_state) {
-  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
-    XLS_RETURN_IF_ERROR(RemoveStateElement(i));
-  }
-  // Verify next values match the type of the initial values.
-  if (state_param_names.size() != next_state.size() ||
-      state_param_names.size() != init_values.size()) {
+  state_name_uniquer_.Reset();
+  if (requested_state_names.size() != init_values.size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Must specify equal number of state parameter names "
-        "(%d), next state values (%d) and initial values (%d)",
-        state_param_names.size(), next_state.size(), init_values.size()));
+        "Must specify equal number of state names (%d) and initial values (%d)",
+        requested_state_names.size(), init_values.size()));
   }
-  for (int64_t i = 0; i < state_param_names.size(); ++i) {
+  for (int64_t i = 0; i < requested_state_names.size(); ++i) {
     XLS_RETURN_IF_ERROR(
-        AppendStateElement(state_param_names[i], init_values[i], next_state[i])
-            .status());
+        AppendStateElement(requested_state_names[i], init_values[i]).status());
   }
   return absl::OkStatus();
 }
 
-absl::StatusOr<Param*> Proc::ReplaceStateElement(
-    int64_t index, std::string_view state_param_name, const Value& init_value,
-    std::optional<Node*> next_state) {
+absl::Status Proc::ReplaceState(
+    absl::Span<const std::string> requested_state_names,
+    absl::Span<const Value> init_values, absl::Span<Node* const> next_state) {
+  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
+    XLS_RETURN_IF_ERROR(RemoveStateElement(i));
+  }
+  state_name_uniquer_.Reset();
+  // Verify next values match the type of the initial values.
+  if (requested_state_names.size() != next_state.size() ||
+      requested_state_names.size() != init_values.size()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Must specify equal number of state names (%d), next state values (%d) "
+        "and initial values (%d)",
+        requested_state_names.size(), next_state.size(), init_values.size()));
+  }
+  for (int64_t i = 0; i < requested_state_names.size(); ++i) {
+    XLS_RETURN_IF_ERROR(AppendStateElement(requested_state_names[i],
+                                           init_values[i], next_state[i])
+                            .status());
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<StateRead*> Proc::ReplaceStateElement(
+    int64_t index, std::string_view requested_state_name,
+    const Value& init_value, std::optional<Node*> next_state) {
   XLS_RET_CHECK_LT(index, GetStateElementCount());
 
-  // Copy name to a local variable to avoid the use-after-free footgun of
-  // `state_param_name` referring to the existing to-be-removed state element.
-  std::string s(state_param_name);
-
-  // Check that it's safe to remove the current state param node.
-  Param* old_param = GetStateParam(index);
-  if (!old_param->users().empty()) {
+  // Check that it's safe to remove the current state read node.
+  StateElement* old_state_element = GetStateElement(index);
+  StateRead* old_state_read = state_reads_.at(old_state_element);
+  if (!old_state_read->users().empty()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot remove state element %d of proc %s, existing "
-                        "state param %s has uses",
-                        index, name(), old_param->GetName()));
+                        "state read %s has uses",
+                        index, name(), old_state_read->GetName()));
+  }
+
+  // Unless we're directly reusing the previous name, it needs to be uniqued.
+  // Also, copy name to a local variable to avoid the use-after-free footgun of
+  // `requested_state_name` referring to the existing to-be-removed state
+  // element.
+  std::string state_name;
+  if (requested_state_name == old_state_element->name()) {
+    state_name = requested_state_name;
+  } else {
+    state_name = UniquifyStateName(requested_state_name);
   }
 
   // TODO: google/xls#1520 - remove this once fully transitioned over to
@@ -211,14 +249,18 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
   next_state_indices_[next_state_[index]].erase(index);
   next_state_[index] = nullptr;
 
-  XLS_RETURN_IF_ERROR(RemoveNode(old_param));
+  XLS_RETURN_IF_ERROR(RemoveNode(old_state_read));
 
-  // Construct the new param node, and update all trackers.
+  state_elements_[state_name] = std::make_unique<StateElement>(
+      state_name, package()->GetTypeForValue(init_value), init_value);
+  StateElement* new_state_element = state_elements_.at(state_name).get();
+  state_vec_[index] = new_state_element;
+
+  // Construct the new state-read node, and update all trackers.
   XLS_ASSIGN_OR_RETURN(
-      Param * param,
-      MakeNodeWithName<Param>(SourceInfo(),
-                              package()->GetTypeForValue(init_value), s));
-  XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index));
+      StateRead * state_read,
+      MakeNodeWithName<StateRead>(SourceInfo(), new_state_element, state_name));
+  state_reads_[new_state_element] = state_read;
   if (next_state.has_value() &&
       !ValueConformsToType(init_value, next_state.value()->GetType())) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -227,18 +269,25 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
         index, next_state.value()->GetName(),
         next_state.value()->GetType()->ToString(), init_value.ToString()));
   }
-  init_values_[index] = init_value;
 
   // TODO: google/xls#1520 - remove this once fully transitioned over to
   // `next_value` nodes.
-  next_state_[index] = next_state.value_or(param);
+  next_state_[index] = next_state.value_or(state_read);
   next_state_indices_[next_state_[index]].insert(index);
 
-  return param;
+  return state_read;
 }
 
 absl::Status Proc::RemoveStateElement(int64_t index) {
   XLS_RET_CHECK_LT(index, GetStateElementCount());
+  for (auto& [_, state_element] : state_elements_) {
+    CHECK(absl::c_contains(state_vec_, state_element.get()));
+  }
+  for (StateElement* state_element : state_vec_) {
+    CHECK(absl::c_any_of(state_elements_, [&](const auto& entry) {
+      return entry.second.get() == state_element;
+    }));
+  }
 
   // TODO: google/xls#1520 - remove this once fully transitioned over to
   // `next_value` nodes.
@@ -256,36 +305,42 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
   next_state_indices_[next_state_[index]].erase(index);
   next_state_.erase(next_state_.begin() + index);
 
-  Param* old_param = GetStateParam(index);
-  if (!old_param->users().empty()) {
+  StateElement* old_state_element = GetStateElement(index);
+  StateRead* old_state_read = state_reads_.at(old_state_element);
+  if (!old_state_read->users().empty()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot remove state element %d of proc %s, existing "
-                        "state param %s has uses",
-                        index, name(), old_param->GetName()));
+                        "state read %s has uses",
+                        index, name(), old_state_read->GetNameView()));
   }
-  XLS_RETURN_IF_ERROR(RemoveNode(old_param));
+  XLS_RETURN_IF_ERROR(RemoveNode(old_state_read));
 
-  init_values_.erase(init_values_.begin() + index);
+  state_elements_.erase(old_state_element->name());
+  state_vec_.erase(state_vec_.begin() + index);
   return absl::OkStatus();
 }
 
-absl::StatusOr<Param*> Proc::AppendStateElement(
-    std::string_view state_param_name, const Value& init_value,
+absl::StatusOr<StateRead*> Proc::AppendStateElement(
+    std::string_view requested_state_name, const Value& init_value,
     std::optional<Node*> next_state) {
-  return InsertStateElement(GetStateElementCount(), state_param_name,
+  return InsertStateElement(GetStateElementCount(), requested_state_name,
                             init_value, next_state);
 }
 
-absl::StatusOr<Param*> Proc::InsertStateElement(
-    int64_t index, std::string_view state_param_name, const Value& init_value,
-    std::optional<Node*> next_state) {
+absl::StatusOr<StateRead*> Proc::InsertStateElement(
+    int64_t index, std::string_view requested_state_name,
+    const Value& init_value, std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
   const bool is_append = (index == GetStateElementCount());
-  XLS_ASSIGN_OR_RETURN(Param * param,
-                       MakeNodeWithName<Param>(
-                           SourceInfo(), package()->GetTypeForValue(init_value),
-                           state_param_name));
-  XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index));
+  std::string state_name = UniquifyStateName(requested_state_name);
+  state_elements_[state_name] = std::make_unique<StateElement>(
+      state_name, package()->GetTypeForValue(init_value), init_value);
+  StateElement* state_element = state_elements_.at(state_name).get();
+  state_vec_.insert(state_vec_.begin() + index, state_element);
+  XLS_ASSIGN_OR_RETURN(
+      StateRead * state_read,
+      MakeNodeWithName<StateRead>(SourceInfo(), state_element, state_name));
+  state_reads_[state_element] = state_read;
 
   // TODO: google/xls#1520 - remove this once fully transitioned over to
   // `next_value` nodes.
@@ -309,11 +364,11 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
       indices = std::move(relabeled_indices);
     }
   }
-  next_state_.insert(next_state_.begin() + index, next_state.value_or(param));
+  next_state_.insert(next_state_.begin() + index,
+                     next_state.value_or(state_read));
   next_state_indices_[next_state_[index]].insert(index);
 
-  init_values_.insert(init_values_.begin() + index, init_value);
-  return param;
+  return state_read;
 }
 
 bool Proc::HasImplicitUse(Node* node) const {
@@ -361,11 +416,11 @@ absl::StatusOr<Proc*> Proc::Clone(
     return state_name_remapping.at(orig);
   };
   for (int64_t i = 0; i < GetStateElementCount(); ++i) {
-    XLS_ASSIGN_OR_RETURN(Param * cloned_param,
+    XLS_ASSIGN_OR_RETURN(StateRead * cloned_state_read,
                          cloned_proc->AppendStateElement(
-                             remap_state_name(GetStateParam(i)->GetName()),
-                             GetInitValueElement(i)));
-    original_to_clone[GetStateParam(i)] = cloned_param;
+                             remap_state_name(GetStateElement(i)->name()),
+                             GetStateElement(i)->initial_value()));
+    original_to_clone[state_reads_.at(GetStateElement(i))] = cloned_state_read;
   }
   if (is_new_style_proc()) {
     for (ChannelReference* channel_ref : interface()) {
@@ -418,7 +473,7 @@ absl::StatusOr<Proc*> Proc::Clone(
     }
 
     switch (node->op()) {
-      case Op::kParam: {
+      case Op::kStateRead: {
         continue;
       }
       case Op::kReceive: {
@@ -793,69 +848,86 @@ absl::Status Proc::ConvertToNewStyle() {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Param*> Proc::TransformStateElement(
-    Param* old_param, const Value& init_value,
+absl::StatusOr<StateRead*> Proc::TransformStateElement(
+    StateRead* old_state_read, const Value& init_value,
     Proc::StateElementTransformer& transform) {
-  std::string orig_name(old_param->name());
+  StateElement* old_state_element = old_state_read->state_element();
+  std::string orig_name(old_state_element->name());
+  std::string orig_read_name(old_state_read->GetNameView());
   XLS_ASSIGN_OR_RETURN(
-      Param * new_param,
+      StateRead * new_state_read,
       AppendStateElement(absl::StrFormat("TEMP_NAME__%s__", orig_name),
                          init_value));
+  new_state_read->SetLoc(old_state_read->loc());
+  StateElement* new_state_element = new_state_read->state_element();
+  std::string temp_name = new_state_element->name();
 
-  XLS_ASSIGN_OR_RETURN(Node * new_param_read, transform.TransformParamRead(
-                                                  this, new_param, old_param));
-  std::vector<std::pair<Node*, Node*>> to_replace{{old_param, new_param_read}};
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_state_value,
+      transform.TransformStateRead(this, new_state_read, old_state_read));
+  std::vector<std::pair<Node*, Node*>> to_replace{
+      {old_state_read, new_state_value}};
   struct NextTransformation {
     Next* old_next;
     Node* new_value;
     std::optional<Node*> new_predicate;
   };
   std::vector<NextTransformation> transforms;
-  for (Next* nxt : next_values(old_param)) {
+  for (Next* nxt : next_values(old_state_read)) {
     NextTransformation& new_next = transforms.emplace_back();
     new_next.old_next = nxt;
-    XLS_ASSIGN_OR_RETURN(new_next.new_value,
-                         transform.TransformNextValue(this, new_param, nxt));
-    XLS_RET_CHECK(new_next.new_value->GetType() == new_param->GetType())
+    XLS_ASSIGN_OR_RETURN(new_next.new_value, transform.TransformNextValue(
+                                                 this, new_state_read, nxt));
+    XLS_RET_CHECK(new_next.new_value->GetType() == new_state_read->GetType())
         << "New value is not compatible type. Expected: "
-        << new_param->GetType() << " got " << new_next.new_value;
+        << new_state_read->GetType() << " got " << new_next.new_value;
     XLS_ASSIGN_OR_RETURN(
         new_next.new_predicate,
-        transform.TransformNextPredicate(this, new_param, nxt));
+        transform.TransformNextPredicate(this, new_state_read, nxt));
   }
 
   // We've transformed all the graph elements. Start replacing them.
 
-  // Take over old_params name.
-  old_param->SetName(absl::StrFormat("TO_REMOVE_TRANSFORMED_PARAM_OF__%s__",
-                                     old_param->name()));
-  new_param->SetNameDirectly(orig_name);
-  new_param->SetLoc(old_param->loc());
+  // Switch old_state_read's name to a temporary to-remove name
+  std::string to_remove_name = UniquifyStateName(
+      absl::StrFormat("TO_REMOVE_TRANSFORMED_STATE__%s__", orig_name));
+  auto orig_storage = state_elements_.extract(orig_name);
+  orig_storage.key() = to_remove_name;
+  old_state_element->SetName(to_remove_name);
+  old_state_read->SetName(to_remove_name);
+  CHECK(state_elements_.insert(std::move(orig_storage)).inserted);
+
+  // Take over the old state element & read names.
+  auto new_storage = state_elements_.extract(temp_name);
+  new_storage.key() = orig_name;
+  new_state_element->SetName(orig_name);
+  new_state_read->SetNameDirectly(orig_read_name);
+  CHECK(state_elements_.insert(std::move(new_storage)).inserted);
 
   // Identity-ify the old next nodes and create new ones.
   for (const NextTransformation& nt : transforms) {
     // Make the next
     XLS_ASSIGN_OR_RETURN(
         Next * nxt,
-        MakeNodeWithName<Next>(nt.old_next->loc(), new_param, nt.new_value,
+        MakeNodeWithName<Next>(nt.old_next->loc(), new_state_read, nt.new_value,
                                nt.new_predicate, nt.old_next->GetName()));
     to_replace.push_back({nt.old_next, nxt});
     // Identity-ify the old next.
     XLS_RETURN_IF_ERROR(nt.old_next->ReplaceOperandNumber(
-        Next::kValueOperand, nt.old_next->param()));
+        Next::kValueOperand, nt.old_next->state_read()));
   }
   for (const auto& [old_n, new_n] : to_replace) {
     XLS_RETURN_IF_ERROR(old_n->ReplaceUsesWith(
         new_n,
         [&](Node* n) {
-          if (n->Is<Next>() && n->As<Next>()->param() == old_n) {
+          if (n->Is<Next>() && n->As<Next>()->state_read() == old_n) {
             return false;
           }
           return true;
         },
         /*replace_implicit_uses=*/false));
   }
-  return new_param;
+  return new_state_read;
 }
 
 }  // namespace xls

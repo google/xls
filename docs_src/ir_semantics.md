@@ -1263,9 +1263,72 @@ Value         | Type
 
 `after_all` can consume an arbitrary number of token operands including zero.
 
+### State-affecting operations
+
+Procs include a concept of local state, represented as a set of elements. Each
+activation can read the state values as they would be left by the previous
+activation, and can set the state values for subsequent activations to see.
+
+#### **`state_read`**
+
+Reads (and consumes) the value in the given state element. Every state element
+must have a corresponding `state_read` operation.
+
+```
+result = state_read(state_element=st)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`result` | `T`
+
+**Keyword arguments**
+
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Keyword         | Type              | Required | Default | Description                       |
+| --------------- | ----------------- | -------- | ------- | --------------------------------- |
+| `state_element` | `string`          | yes      |         | Name of the state element to read |
+
+<!-- mdformat on -->
+
+#### **`next_value`**
+
+If `predicate` is true or absent, sets the value that the next activation will
+see for the given state element. For each state element, at most one
+`next_value` node may fire in a given activation; otherwise, undefined behavior
+can result. For this reason, frontends & optimizations should be exceptionally
+careful when emitting predicated `next_value` nodes; for safety, frontends may
+choose instead to emit a single `next_value` node where `value` uses either a
+`sel` or a `priority_sel`, in which case optimizations may translate the result
+to multiple `next_value` nodes to potentially enable better throughput.
+
+```
+result = next_value(param=read, value=v)
+```
+
+**Types**
+
+Value    | Type
+-------- | ----
+`result` | `()`
+
+**Keyword arguments**
+
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Keyword | Type | Required | Default | Description                                    |
+| ------- | ---- | -------- | ------- | ---------------------------------------------- |
+| `param` | `T`  | yes      |         | The `state_read` for the target state element  |
+| `value` | `T`  | yes      |         | The value to write to the target state element |
+
+<!-- mdformat on -->
+
 ### Other side-effecting operations
 
-Aside from channels operations such as `send` and `receive` several other
+Aside from channel operations such as `send` and `receive`, several other
 operations have side-effects. Care must be taken when adding, removing, or
 transforming these operations, e.g., in the optimizer.
 

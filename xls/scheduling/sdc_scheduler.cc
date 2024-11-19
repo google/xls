@@ -46,6 +46,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
@@ -298,26 +299,28 @@ absl::Status SDCSchedulingModel::AddBackedgeConstraints(
 
   using StateIndex = int64_t;
   for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
-    Node* const state = proc->GetStateParam(i);
+    StateElement* const state = proc->GetStateElement(i);
+    Node* const state_read = proc->GetStateRead(state);
     Node* const next = proc->GetNextStateElement(i);
-    if (next == state) {
+    if (next == state_read) {
       continue;
     }
     VLOG(2) << "Setting backedge constraint (II): "
             << absl::StrFormat("cycle[%s] - cycle[%s] < %d", next->GetName(),
-                               state->GetName(), II);
+                               state->name(), II);
     backedge_constraint_.emplace(
-        std::make_pair(state, next),
-        DiffLessThanConstraint(next, state, II, "backedge"));
+        std::make_pair(state_read, next),
+        DiffLessThanConstraint(next, state_read, II, "backedge"));
   }
   for (Next* next : proc->next_values()) {
-    Node* state = next->param();
+    StateRead* state_read = next->state_read()->As<StateRead>();
+    StateElement* state = state_read->state_element();
     VLOG(2) << "Setting backedge constraint (II): "
             << absl::StrFormat("cycle[%s] - cycle[%s] < %d", next->GetName(),
-                               state->GetName(), II);
+                               state->name(), II);
     backedge_constraint_.emplace(
-        std::make_pair(state, next),
-        DiffLessThanConstraint(next, state, II, "backedge"));
+        std::make_pair(state_read, next),
+        DiffLessThanConstraint(next, state_read, II, "backedge"));
   }
 
   return absl::OkStatus();
@@ -939,14 +942,14 @@ absl::Status SDCScheduler::Initialize() {
   if (f_->IsProc()) {
     Proc* proc = f_->AsProcOrDie();
     for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-      Param* const state_access = proc->GetStateParam(index);
+      StateRead* const state_read = proc->GetStateRead(index);
       Node* const next_state_element = proc->GetNextStateElement(index);
 
       // The next-state element always has lifetime extended to the state param
       // node, since we can't store the new value in the state register until
       // the old value's been used.
       XLS_RETURN_IF_ERROR(
-          model_.AddLifetimeConstraint(next_state_element, state_access));
+          model_.AddLifetimeConstraint(next_state_element, state_read));
     }
   }
   return absl::OkStatus();

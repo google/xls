@@ -508,6 +508,8 @@ cc_library(
     deps = [
         ":type",
         ":value",
+        ":value_utils",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -703,6 +705,7 @@ cc_library(
         ":op",
         ":register",
         ":source_location",
+        ":state_element",
         ":type",
         ":value",
         ":value_builder",
@@ -1491,6 +1494,7 @@ cc_library(
         ":ir",
         ":ir_parser",
         ":op",
+        ":state_element",
         ":type",
         ":value",
         "@com_google_absl//absl/log",
@@ -2105,6 +2109,7 @@ cc_library(
         ":function_builder",
         ":ir",
         ":source_location",
+        ":state_element",
         ":value",
         ":value_utils",
         "//xls/common/status:ret_check",

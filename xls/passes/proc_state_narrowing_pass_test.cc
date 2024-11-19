@@ -74,9 +74,8 @@ TEST_F(ProcStateNarrowingPassTest, ZeroExtend) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      proc->StateParams(),
-      UnorderedElementsAre(AllOf(m::Type(p->GetBitsType(3)), m::Param("foo"))));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("foo", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, ZeroExtendMultiple) {
@@ -106,9 +105,8 @@ TEST_F(ProcStateNarrowingPassTest, ZeroExtendMultiple) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      proc->StateParams(),
-      UnorderedElementsAre(AllOf(m::Type(p->GetBitsType(3)), m::Param("foo"))));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("foo", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, ZeroExtendWithBigInitial) {
@@ -127,9 +125,8 @@ TEST_F(ProcStateNarrowingPassTest, ZeroExtendWithBigInitial) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      proc->StateParams(),
-      UnorderedElementsAre(AllOf(m::Type(p->GetBitsType(8)), m::Param("foo"))));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("foo", p->GetBitsType(8))));
 }
 
 // Basic IR we want proc-state narrowing to improve.
@@ -158,9 +155,8 @@ TEST_F(ProcStateNarrowingPassTest, BasicLoop) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 TEST_F(ProcStateNarrowingPassTest, BasicHalt) {
   auto p = CreatePackage();
@@ -186,9 +182,8 @@ TEST_F(ProcStateNarrowingPassTest, BasicHalt) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, MultiPath) {
@@ -226,9 +221,8 @@ TEST_F(ProcStateNarrowingPassTest, MultiPath) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(4)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(4))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, SignedCompareUnreachableNegatives) {
@@ -257,9 +251,8 @@ TEST_F(ProcStateNarrowingPassTest, SignedCompareUnreachableNegatives) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, StateExplorationIsPerformed) {
@@ -292,9 +285,8 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationIsPerformed) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(8)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(8))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPauses) {
@@ -334,9 +326,8 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPauses) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
@@ -367,9 +358,8 @@ TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
   ScopedRecordIr sri(p.get());
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(32)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(32))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
@@ -414,9 +404,8 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, DecrementToZeroUnsigned) {
@@ -438,9 +427,8 @@ TEST_F(ProcStateNarrowingPassTest, DecrementToZeroUnsigned) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, DecrementToZeroSigned) {
@@ -462,9 +450,8 @@ TEST_F(ProcStateNarrowingPassTest, DecrementToZeroSigned) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPoints) {
@@ -488,9 +475,8 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPoints) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(4)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(4))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
@@ -526,9 +512,8 @@ TEST_F(ProcStateNarrowingPassTest, ExtractConstantSetPointsNoLiteralNexts) {
   EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
   EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(
-                  AllOf(m::Param("the_state"), m::Type(p->GetBitsType(3)))));
+  EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
+                                         "the_state", p->GetBitsType(3))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, AggregateTypeComparisonHandled) {

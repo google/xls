@@ -42,11 +42,10 @@ absl::StatusOr<ProcUnrollInfo> UnrollProc(Proc* proc, int64_t num_iterations) {
   std::vector<Node*> state_nodes(proc->NextState().begin(),
                                  proc->NextState().end());
 
-  auto find_param = [proc](Node* node) -> std::optional<int64_t> {
-    for (int64_t i = 0; i < proc->StateParams().size(); ++i) {
-      if (proc->StateParams().at(i) == node) {
-        return i;
-      }
+  auto find_state = [proc](Node* node) -> std::optional<int64_t> {
+    if (node->Is<StateRead>()) {
+      return proc->MaybeGetStateElementIndex(
+          node->As<StateRead>()->state_element());
     }
     return std::nullopt;
   };
@@ -54,16 +53,17 @@ absl::StatusOr<ProcUnrollInfo> UnrollProc(Proc* proc, int64_t num_iterations) {
   for (int64_t iter = 1; iter < num_iterations; ++iter) {
     absl::flat_hash_map<Node*, Node*> clone_map;
     for (Node* node : original_nodes) {
-      if (node->Is<Param>()) {
+      if (node->Is<StateRead>()) {
         clone_map[node] = node;
         continue;
       }
       std::vector<Node*> operands;
       operands.reserve(node->operands().size());
       for (Node* operand : node->operands()) {
-        if (operand->Is<Param>()) {
-          if (std::optional<int64_t> param_idx = find_param(operand)) {
-            operands.push_back(state_nodes[param_idx.value()]);
+        if (operand->Is<StateRead>()) {
+          if (std::optional<int64_t> state_idx = find_state(operand);
+              state_idx.has_value()) {
+            operands.push_back(state_nodes[*state_idx]);
             continue;
           }
         }
@@ -73,7 +73,7 @@ absl::StatusOr<ProcUnrollInfo> UnrollProc(Proc* proc, int64_t num_iterations) {
       cloned->SetName(absl::StrFormat("%s_iter_%d", node->GetName(), iter));
       clone_map[node] = cloned;
     }
-    for (int64_t i = 0; i < proc->StateParams().size(); ++i) {
+    for (int64_t i = 0; i < proc->StateElements().size(); ++i) {
       state_nodes[i] = clone_map.at(proc->NextState()[i]);
     }
     for (const auto& [original, cloned] : clone_map) {
@@ -83,13 +83,13 @@ absl::StatusOr<ProcUnrollInfo> UnrollProc(Proc* proc, int64_t num_iterations) {
   }
 
   for (Node* node : original_nodes) {
-    if (node->Is<Param>()) {
+    if (node->Is<StateRead>()) {
       continue;
     }
     node->SetName(absl::StrFormat("%s_iter_0", node->GetName()));
   }
 
-  for (int64_t i = 0; i < proc->StateParams().size(); ++i) {
+  for (int64_t i = 0; i < proc->StateElements().size(); ++i) {
     XLS_RETURN_IF_ERROR(proc->SetNextStateElement(i, state_nodes[i]));
   }
 

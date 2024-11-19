@@ -44,6 +44,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
@@ -179,8 +180,8 @@ class SegmentRangeData : public RangeDataProvider {
  public:
   static absl::StatusOr<SegmentRangeData> Create(
       const NodeDependencyAnalysis& nda,
-      const absl::flat_hash_map<Param*, RangeData>& ground_truth,
-      Param* data_source, absl::Span<Node* const> topo_sort) {
+      const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
+      StateRead* data_source, absl::Span<Node* const> topo_sort) {
     XLS_RET_CHECK(!nda.IsForward());
     std::vector<DependencyBitmap> bitmaps;
     auto nexts =
@@ -196,7 +197,7 @@ class SegmentRangeData : public RangeDataProvider {
   void SetParamIntervals(const IntervalSet& is) { current_segments_ = is; }
 
   bool IsInteresting(Node* n) const {
-    return (n->Is<Next>() && n->As<Next>()->param() == data_source_) ||
+    return (n->Is<Next>() && n->As<Next>()->state_read() == data_source_) ||
            absl::c_any_of(dependencies_,
                           [&](const DependencyBitmap& d) -> bool {
                             return d.IsDependent(n).value_or(false);
@@ -211,11 +212,16 @@ class SegmentRangeData : public RangeDataProvider {
                        .interval_set = IntervalSetTree::CreateSingleElementTree(
                            node->GetType(), current_segments_)};
     }
-    if (node->Is<Param>()) {
-      return node->GetType()->IsBits() &&
-                     ground_truth_.contains(node->As<Param>())
-                 ? std::make_optional(ground_truth_.at(node->As<Param>()))
-                 : std::nullopt;
+    if (node->Is<StateRead>()) {
+      StateElement* state_element = node->As<StateRead>()->state_element();
+      if (!node->GetType()->IsBits()) {
+        return std::nullopt;
+      }
+      if (auto it = ground_truth_.find(state_element);
+          it != ground_truth_.end()) {
+        return it->second;
+      }
+      return std::nullopt;
     }
     // TODO(allight) We could be a bit more efficient by pre-calculating the
     // nodes which feed the next node but not the fed from the param by running
@@ -236,17 +242,18 @@ class SegmentRangeData : public RangeDataProvider {
   }
 
  private:
-  SegmentRangeData(std::vector<DependencyBitmap> dependencies,
-                   const absl::flat_hash_map<Param*, RangeData>& ground_truth,
-                   Param* data_source, absl::Span<Node* const> topo_sort)
+  SegmentRangeData(
+      std::vector<DependencyBitmap> dependencies,
+      const absl::flat_hash_map<StateElement*, RangeData>& ground_truth,
+      StateRead* data_source, absl::Span<Node* const> topo_sort)
       : dependencies_(std::move(dependencies)),
         ground_truth_(ground_truth),
         data_source_(data_source),
         current_segments_(data_source->BitCountOrDie()),
         topo_sort_(topo_sort) {}
   std::vector<DependencyBitmap> dependencies_;
-  const absl::flat_hash_map<Param*, RangeData>& ground_truth_;
-  Param* data_source_;
+  const absl::flat_hash_map<StateElement*, RangeData>& ground_truth_;
+  StateRead* data_source_;
   IntervalSet current_segments_;
   absl::Span<Node* const> topo_sort_;
 };
@@ -453,16 +460,16 @@ class ConstantValueIrInterpreter
 // Find all values where the antecedents (excepting selector values) are purely
 // constants which update the given param.
 absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
-    Param* orig_param, absl::Span<Node* const> topo_sort,
-    const NodeDependencyAnalysis& nda) {
+    Proc* proc, StateElement* orig_state_element,
+    absl::Span<Node* const> topo_sort, const NodeDependencyAnalysis& nda) {
   ConstantValueIrInterpreter interp;
   std::vector<DependencyBitmap> next_deps;
   absl::flat_hash_set<Node*> visited_next_values;
-  XLS_RET_CHECK(orig_param->GetType()->IsBits());
-  Proc* proc = orig_param->function_base()->AsProcOrDie();
-  next_deps.reserve(proc->next_values(orig_param).size());
-  visited_next_values.reserve(proc->next_values(orig_param).size());
-  for (Next* n : proc->next_values(orig_param)) {
+  XLS_RET_CHECK(orig_state_element->type()->IsBits());
+  StateRead* orig_state_read = proc->GetStateRead(orig_state_element);
+  next_deps.reserve(proc->next_values(orig_state_read).size());
+  visited_next_values.reserve(proc->next_values(orig_state_read).size());
+  for (Next* n : proc->next_values(orig_state_read)) {
     if (auto [it, inserted] = visited_next_values.insert(n->value());
         !inserted) {
       continue;
@@ -482,9 +489,9 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&interp));
   }
   absl::flat_hash_set<Bits> param_values;
-  param_values.insert(proc->GetInitValue(orig_param)->bits());
+  param_values.insert(orig_state_element->initial_value().bits());
   visited_next_values.clear();
-  for (Next* n : proc->next_values(orig_param)) {
+  for (Next* n : proc->next_values(orig_state_read)) {
     if (auto [it, inserted] = visited_next_values.insert(n->value());
         !inserted) {
       continue;
@@ -514,10 +521,11 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
 // segment live. This enables us to do this state exploration with a relatively
 // small number of runs.
 absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
-    Proc* proc, Param* param, const IntervalSet& intervals,
+    Proc* proc, StateElement* state_element, const IntervalSet& intervals,
     absl::Span<Node* const> topo_sort, const NodeDependencyAnalysis& nda,
-    const absl::flat_hash_map<Param*, RangeData>& ground_truth) {
-  VLOG(3) << "Doing segment walk for " << param << " on " << intervals;
+    const absl::flat_hash_map<StateElement*, RangeData>& ground_truth) {
+  VLOG(3) << "Doing segment walk for " << state_element->ToString() << " on "
+          << intervals;
   absl::flat_hash_set<Interval> remaining_intervals(
       intervals.Intervals().begin(), intervals.Intervals().end());
   // Split each interval which is reachable using only constants into 3 segments
@@ -525,8 +533,9 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   // value in the active segment. After this we assume that any value in a
   // segment makes the entire segment active. This is to handle values which go
   // down to 0.
-  XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Bits> constant_update_values,
-                       FindConstantUpdateValues(param, topo_sort, nda));
+  XLS_ASSIGN_OR_RETURN(
+      absl::flat_hash_set<Bits> constant_update_values,
+      FindConstantUpdateValues(proc, state_element, topo_sort, nda));
   VLOG(3) << "  Constant-derived values for updates are ["
           << absl::StrJoin(constant_update_values, ", ") << "]";
   for (const Bits& v : constant_update_values) {
@@ -555,17 +564,18 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   }
   VLOG(3) << "  state space separated into ["
           << absl::StrJoin(remaining_intervals, ", ") << "]";
-  XLS_ASSIGN_OR_RETURN(Value init_value, proc->GetInitValue(param));
+  Value init_value = state_element->initial_value();
   XLS_RET_CHECK(intervals.Covers(init_value.bits()))
-      << "Invalid interval calculation for " << param << ". Initial value "
-      << init_value << " was marked unreachable.";
+      << "Invalid interval calculation for " << state_element->ToString()
+      << ". Initial value " << init_value << " was marked unreachable.";
   IntervalSet active_intervals = IntervalSet::Precise(init_value.bits());
   CHECK(remaining_intervals.contains(Interval::Precise(init_value.bits())))
       << "Initial value not included in constant values.";
   remaining_intervals.erase(Interval::Precise(init_value.bits()));
+  StateRead* state_read = proc->GetStateRead(state_element);
   XLS_ASSIGN_OR_RETURN(
       SegmentRangeData limiter,
-      SegmentRangeData::Create(nda, ground_truth, param, topo_sort));
+      SegmentRangeData::Create(nda, ground_truth, state_read, topo_sort));
   while (!remaining_intervals.empty()) {
     // Get the ranges of every node (which leads to a 'next' of the param)
     limiter.SetParamIntervals(active_intervals);
@@ -575,11 +585,11 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
     // Get what this says all ranges are.
     IntervalSet run_intervals = active_intervals;
     absl::flat_hash_set<Node*> visited_next_values;
-    visited_next_values.reserve(proc->next_values(param).size());
-    for (Next* n : proc->next_values(param)) {
+    visited_next_values.reserve(proc->next_values(state_read).size());
+    for (Next* n : proc->next_values(state_read)) {
       // Nexts which don't update anything (either due to just being passthrough
       // or having a known-false predicate) don't need to be taken into account.
-      if (n->value() == n->param() ||
+      if (n->value() == n->state_read() ||
           (n->predicate() && rqe.IsAllZeros(*n->predicate()))) {
         continue;
       }
@@ -612,7 +622,7 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
       return RangeData{
           .ternary = interval_ops::ExtractTernaryVector(active_intervals),
           .interval_set = IntervalSetTree::CreateSingleElementTree(
-              param->GetType(), active_intervals)};
+              state_element->type(), active_intervals)};
     }
     active_intervals.AddInterval(*overlap);
     active_intervals.Normalize();
@@ -624,40 +634,43 @@ absl::StatusOr<std::optional<RangeData>> NarrowUsingSegments(
   return std::nullopt;
 }
 // Narrow ranges using the contextual information of the next predicates.
-absl::StatusOr<absl::flat_hash_map<Param*, RangeData>> FindContextualRanges(
-    Proc* proc, const QueryEngine& qe, const RangeQueryEngine& rqe,
-    const NodeDependencyAnalysis& dependency_analysis,
-    absl::Span<Node* const> reverse_topo_sort) {
+absl::StatusOr<absl::flat_hash_map<StateElement*, RangeData>>
+FindContextualRanges(Proc* proc, const QueryEngine& qe,
+                     const RangeQueryEngine& rqe,
+                     const NodeDependencyAnalysis& dependency_analysis,
+                     absl::Span<Node* const> reverse_topo_sort) {
   // List of all the next instructions that change the param for each param.
-  absl::flat_hash_map<Param*, std::vector<Next*>> modifying_nexts_for_param;
-  for (Param* param : proc->StateParams()) {
+  absl::flat_hash_map<StateElement*, std::vector<Next*>>
+      modifying_nexts_for_state;
+  for (StateElement* state_element : proc->StateElements()) {
     // TODO(allight): Being able to narrow inside a compound value would be
     // nice. Since we unpack tuple state elements in other passes however the
     // actual impact would likely be negligible so no reason to bother with it
     // for now.
-    if (!param->GetType()->IsBits()) {
+    if (!state_element->type()->IsBits()) {
       continue;
     }
-    std::vector<Next*>& nexts = modifying_nexts_for_param[param];
-    for (Next* n : proc->next_values(param)) {
+    std::vector<Next*>& nexts = modifying_nexts_for_state[state_element];
+    StateRead* state_read = proc->GetStateRead(state_element);
+    for (Next* n : proc->next_values(state_read)) {
       // TODO(allight): We might want to use data-flow to better track whether
       // things have changed. This should probably be good enough in practice
       // however.
-      if (n->param() != n->value()) {
+      if (n->state_read() != n->value()) {
         nexts.push_back(n);
       }
     }
   }
   // To avoid issues where changes to the param values leads to invalidating the
   // TernaryQueryEngine we do all the modifications at the end.
-  absl::flat_hash_map<Param*, RangeData> transforms;
-  for (const auto& [orig_param, updates] : modifying_nexts_for_param) {
+  absl::flat_hash_map<StateElement*, RangeData> transforms;
+  for (const auto& [orig_state_element, updates] : modifying_nexts_for_state) {
     if (updates.empty()) {
       // The state only has identity updates? Strange but this will be cleaned
       // up by NextValueOptimizationPass so we can ignore it.
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(Value orig_init_value, proc->GetInitValue(orig_param));
+    Value orig_init_value = orig_state_element->initial_value();
     TernaryVector possible_values =
         ternary_ops::BitsToTernary(orig_init_value.bits());
 
@@ -712,10 +725,10 @@ absl::StatusOr<absl::flat_hash_map<Param*, RangeData>> FindContextualRanges(
             contextual_intervals, interval_ops::FromTernary(context_free));
       }
     }
-    transforms[orig_param] = RangeData{
+    transforms[orig_state_element] = RangeData{
         .ternary = possible_values,
         .interval_set = IntervalSetTree::CreateSingleElementTree(
-            orig_param->GetType(), contextual_intervals),
+            orig_state_element->type(), contextual_intervals),
     };
   }
   return transforms;
@@ -755,14 +768,14 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
   // fixed-point to fully incorporate all cross-param knowledge. This could be
   // quite slow however.
   XLS_ASSIGN_OR_RETURN(
-      (absl::flat_hash_map<Param*, RangeData> initial_transforms),
+      (absl::flat_hash_map<StateElement*, RangeData> initial_transforms),
       FindContextualRanges(proc, inner_, *range_, next_node_sources,
                            reverse_topo_sort));
   // Find implied ranges for each param. Note that we consider each parameter in
   // isolation. Technically we could go to fixed-point and maybe get better
   // bounds but that could take a while.
-  absl::flat_hash_map<Param*, RangeData> final_range_data;
-  for (const auto& [orig_param, t] : initial_transforms) {
+  absl::flat_hash_map<StateElement*, RangeData> final_range_data;
+  for (const auto& [orig_state_element, t] : initial_transforms) {
     const auto& [ternary, interval_set] = t;
     int64_t known_leading =
         ternary_ops::ToKnownBits(*ternary).CountLeadingOnes();
@@ -771,17 +784,18 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
     // signed integer things (identified as only being able to eliminate the
     // sign bit or not being able to eliminate anything).
     if (known_leading > 1) {
-      VLOG(2) << "Narrowed range of " << orig_param << " to "
-              << (orig_param->BitCountOrDie() - known_leading)
+      VLOG(2) << "Narrowed range of " << orig_state_element->ToString()
+              << " to "
+              << (orig_state_element->type()->GetFlatBitCount() - known_leading)
               << " bits (savings: " << known_leading
               << ") using back-prop/ternary. Interval is: "
               << interval_set.Get({});
-      final_range_data[orig_param] = t;
+      final_range_data[orig_state_element] = t;
       continue;
     }
     // We can't remove segments from a 1 bit value.
     if (interval_set.Get({}).BitCount() < 2) {
-      VLOG(2) << "Unable to narrow range of " << orig_param
+      VLOG(2) << "Unable to narrow range of " << orig_state_element->ToString()
               << ". Value is unconstrained. Interval is: "
               << interval_set.Get({});
       continue;
@@ -799,20 +813,20 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
     // values.
     XLS_ASSIGN_OR_RETURN(
         std::optional<RangeData> narrowed,
-        NarrowUsingSegments(proc, orig_param, interval_set.Get({}), topo_sort,
-                            next_node_sources, initial_transforms));
+        NarrowUsingSegments(proc, orig_state_element, interval_set.Get({}),
+                            topo_sort, next_node_sources, initial_transforms));
     if (narrowed) {
       VLOG(2)
-          << "Narrowed range of " << orig_param << " to "
-          << (orig_param->BitCountOrDie() -
+          << "Narrowed range of " << orig_state_element->ToString() << " to "
+          << (orig_state_element->type()->GetFlatBitCount() -
               ternary_ops::ToKnownBits(*narrowed->ternary).CountLeadingOnes())
           << " bits (savings: "
           << ternary_ops::ToKnownBits(*narrowed->ternary).CountLeadingOnes()
           << ") using segment walking. Interval is "
           << narrowed->interval_set.Get({});
-      final_range_data[orig_param] = *narrowed;
+      final_range_data[orig_state_element] = *narrowed;
     } else {
-      VLOG(2) << "Unable to narrow range " << orig_param
+      VLOG(2) << "Unable to narrow range " << orig_state_element->ToString()
               << ". Segment walking unable to eliminate high bits. Interval is "
               << interval_set.Get({});
     }
@@ -823,12 +837,13 @@ absl::StatusOr<ReachedFixpoint> ProcStateRangeQueryEngine ::Populate(
   TernaryQueryEngine spec_ternary;
   RangeQueryEngine spec_range;
 
-  absl::flat_hash_map<Node*, IntervalSet> param_intervals;
-  param_intervals.reserve(final_range_data.size());
-  for (const auto& [param, range] : final_range_data) {
-    param_intervals[param] = range.interval_set.Get({});
+  absl::flat_hash_map<Node*, IntervalSet> state_read_intervals;
+  state_read_intervals.reserve(final_range_data.size());
+  for (const auto& [state_element, range] : final_range_data) {
+    state_read_intervals[proc->GetStateRead(state_element)] =
+        range.interval_set.Get({});
   }
-  ProcStateGivens givens(proc, std::move(param_intervals));
+  ProcStateGivens givens(proc, std::move(state_read_intervals));
   XLS_RETURN_IF_ERROR(spec_ternary.PopulateWithGivens(proc, givens).status());
   XLS_RETURN_IF_ERROR(spec_range.PopulateWithGivens(givens).status());
 

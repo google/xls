@@ -34,6 +34,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 
 namespace xls {
 
@@ -87,9 +88,18 @@ absl::StatusOr<std::unique_ptr<Package>> StripPackage(
           chan_map[c->name()] = new_chan_name;
         }
       }
-      XLS_ASSIGN_OR_RETURN(Proc * new_proc,
-                           fb->AsProcOrDie()->Clone(new_name, result.get(),
-                                                    chan_map, func_base_map));
+      int64_t state_cnt = 0;
+      absl::flat_hash_map<std::string, std::string> state_map;
+      for (StateElement* state_element : fb->AsProcOrDie()->StateElements()) {
+        auto new_state_name = options.strip_node_names
+                                  ? absl::StrFormat("state_%d", state_cnt++)
+                                  : std::string(state_element->name());
+        state_map[state_element->name()] = new_state_name;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Proc * new_proc,
+          fb->AsProcOrDie()->Clone(new_name, result.get(), chan_map,
+                                   func_base_map, state_map));
       func_base_map[fb] = new_proc;
     } else {
       absl::flat_hash_map<std::string, std::string> register_map;

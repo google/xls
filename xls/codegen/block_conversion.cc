@@ -67,6 +67,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -2185,11 +2186,11 @@ class CloneNodesIntoBlockHandler {
     for (Node* node : sorted_nodes) {
       Node* next_node = nullptr;
       if (node->Is<Param>()) {
-        if (is_proc_) {
-          XLS_ASSIGN_OR_RETURN(next_node, HandleStateParam(node, stage));
-        } else {
-          XLS_ASSIGN_OR_RETURN(next_node, HandleFunctionParam(node));
-        }
+        XLS_RET_CHECK(!is_proc_);
+        XLS_ASSIGN_OR_RETURN(next_node, HandleFunctionParam(node));
+      } else if (node->Is<StateRead>()) {
+        XLS_RET_CHECK(is_proc_);
+        XLS_ASSIGN_OR_RETURN(next_node, HandleStateRead(node, stage));
       } else if (node->Is<Next>()) {
         XLS_RET_CHECK(is_proc_);
         XLS_RETURN_IF_ERROR(HandleNextValue(node, stage));
@@ -2318,14 +2319,16 @@ class CloneNodesIntoBlockHandler {
   }
 
  private:
-  // Don't clone state Param operations. Instead replace with a RegisterRead
+  // Don't clone state read operations. Instead replace with a RegisterRead
   // operation.
-  absl::StatusOr<Node*> HandleStateParam(Node* node, Stage stage) {
+  absl::StatusOr<Node*> HandleStateRead(Node* node, Stage stage) {
     CHECK_GE(stage, 0);
 
     Proc* proc = function_base_->AsProcOrDie();
-    Param* param = node->As<Param>();
-    XLS_ASSIGN_OR_RETURN(int64_t index, proc->GetStateParamIndex(param));
+    StateRead* state_read = node->As<StateRead>();
+    StateElement* state_element = state_read->state_element();
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         proc->GetStateElementIndex(state_element));
 
     Register* reg = nullptr;
     RegisterRead* reg_read = nullptr;
@@ -2334,7 +2337,7 @@ class CloneNodesIntoBlockHandler {
       // and updated.  That register should be created with the
       // state parameter's name.  See UpdateStateRegisterWithReset().
       std::string name =
-          block()->UniquifyNodeName(absl::StrCat("__", param->name()));
+          block()->UniquifyNodeName(absl::StrCat("__", state_element->name()));
 
       XLS_ASSIGN_OR_RETURN(reg, block()->AddRegister(name, node->GetType()));
 
@@ -2347,8 +2350,8 @@ class CloneNodesIntoBlockHandler {
 
     // The register write will be created later in HandleNextValue.
     result_.state_registers[index] =
-        StateRegister{.name = std::string(param->name()),
-                      .reset_value = proc->GetInitValueElement(index),
+        StateRegister{.name = std::string(state_element->name()),
+                      .reset_value = state_element->initial_value(),
                       .read_stage = stage,
                       .reg = reg,
                       .reg_write = nullptr,
@@ -2391,14 +2394,16 @@ class CloneNodesIntoBlockHandler {
   absl::Status HandleNextValue(Node* node, Stage stage) {
     Proc* proc = function_base_->AsProcOrDie();
     Next* next = node->As<Next>();
-    Param* param = next->param()->As<Param>();
-    XLS_ASSIGN_OR_RETURN(int64_t index, proc->GetStateParamIndex(param));
+    StateElement* state_element =
+        next->state_read()->As<StateRead>()->state_element();
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         proc->GetStateElementIndex(state_element));
 
-    CHECK_EQ(proc->GetNextStateElement(index), param);
+    CHECK_EQ(proc->GetNextStateElement(index), next->state_read());
     StateRegister& state_register = *result_.state_registers.at(index);
     state_register.next_values.push_back(
         {.stage = stage,
-         .value = next->value() == next->param()
+         .value = next->value() == next->state_read()
                       ? std::nullopt
                       : std::make_optional(node_map_.at(next->value())),
          .predicate =
@@ -2406,8 +2411,9 @@ class CloneNodesIntoBlockHandler {
                  ? std::make_optional(node_map_.at(next->predicate().value()))
                  : std::nullopt});
 
-    bool last_next_value =
-        absl::c_all_of(proc->next_values(param), [&](Next* next_value) {
+    bool last_next_value = absl::c_all_of(
+        proc->next_values(proc->GetStateRead(state_element)),
+        [&](Next* next_value) {
           return next_value == next || node_map_.contains(next_value);
         });
     if (!last_next_value) {
@@ -2416,7 +2422,7 @@ class CloneNodesIntoBlockHandler {
       return absl::OkStatus();
     }
 
-    if (param->GetType()->GetFlatBitCount() > 0) {
+    if (state_element->type()->GetFlatBitCount() > 0) {
       // We need a write for the actual value.
 
       // We should only create the RegisterWrite once.
@@ -2431,17 +2437,17 @@ class CloneNodesIntoBlockHandler {
                                /*reset=*/std::nullopt, state_register.reg));
       result_.output_states[stage].push_back(index);
       result_.node_to_stage_map[state_register.reg_write] = stage;
-    } else if (!param->GetType()->IsToken() &&
-               param->GetType() != proc->package()->GetTupleType({})) {
+    } else if (!state_element->type()->IsToken() &&
+               state_element->type() != proc->package()->GetTupleType({})) {
       return absl::UnimplementedError(
           absl::StrFormat("Proc has zero-width state element %d, but type is "
                           "not token or empty tuple, instead got %s.",
                           index, node->GetType()->ToString()));
     }
 
-    // If the next state can be determined in a later cycle than the param
-    // access, we have a non-trivial backedge between initiations (II>1); use a
-    // "full" bit to track whether the state is currently valid.
+    // If the next state can be determined in a later cycle than the state read,
+    // we have a non-trivial backedge between initiations (II>1); use a "full"
+    // bit to track whether the state is currently valid.
     //
     // TODO(epastor): Consider an optimization that merges the "full" bits for
     // all states with the same read stage & matching write stages/predicates...
@@ -3510,16 +3516,15 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
   // In a combinational module, the proc cannot have any state to avoid
   // combinational loops. That is, the only loop state must be empty tuples.
   if (proc->GetStateElementCount() > 1 &&
-      !std::all_of(proc->StateParams().begin(), proc->StateParams().end(),
-                   [&](Param* p) {
-                     return p->GetType() == proc->package()->GetTupleType({});
-                   })) {
+      !absl::c_all_of(proc->StateElements(), [&](StateElement* st) {
+        return st->type() == proc->package()->GetTupleType({});
+      })) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Proc must have no state (or state type is all empty tuples) when "
         "lowering to a combinational block. Proc state type is: {%s}",
-        absl::StrJoin(proc->StateParams(), ", ",
-                      [](std::string* out, Param* p) {
-                        absl::StrAppend(out, p->GetType()->ToString());
+        absl::StrJoin(proc->StateElements(), ", ",
+                      [](std::string* out, StateElement* st) {
+                        absl::StrAppend(out, st->type()->ToString());
                       })));
   }
 

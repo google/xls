@@ -14,6 +14,8 @@
 
 #include "xls/passes/useless_io_removal_pass.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
@@ -111,7 +113,7 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
   EXPECT_THAT(proc->GetNextStateElement(0),
-              m::Send(proc->GetStateParam(0), m::Literal(1)));
+              m::Send(proc->GetStateRead(int64_t{0}), m::Literal(1)));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
@@ -172,7 +174,8 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 8);
   auto tuple = m::Tuple(
-      m::TupleIndex(m::Receive(m::Param("tkn"), m::Channel("test_channel")), 0),
+      m::TupleIndex(m::Receive(m::StateRead("tkn"), m::Channel("test_channel")),
+                    0),
       m::Literal(0));
   EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
   EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
@@ -195,7 +198,7 @@ TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
   EXPECT_THAT(proc->GetNextStateElement(0),
-              m::Send(m::Param("tkn"), m::Literal(1)));
+              m::Send(m::StateRead("tkn"), m::Literal(1)));
   EXPECT_THAT(proc->GetNextStateElement(1), m::Literal(0));
 }
 
@@ -216,7 +219,7 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
   EXPECT_EQ(proc->node_count(), 6);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
-  auto tuple = m::Receive(m::Param("tkn"), m::Channel("test_channel"));
+  auto tuple = m::Receive(m::StateRead("tkn"), m::Channel("test_channel"));
   EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
   EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
 }

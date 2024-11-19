@@ -45,6 +45,7 @@ namespace xls {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::AllOf;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
 TEST(FunctionBuilderTest, SimpleSourceLocation) {
@@ -516,19 +517,17 @@ TEST(FunctionBuilderTest, SendAndReceive) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({after_all, next_state}));
 
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
-                          m::Send(m::Param(), m::Param(), m::Literal(1)),
-                          m::TupleIndex(m::Receive())));
+  EXPECT_THAT(
+      proc->GetNextStateElement(0),
+      m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
+                  m::Send(m::StateRead(), m::StateRead(), m::Literal(1)),
+                  m::TupleIndex(m::Receive())));
   EXPECT_THAT(proc->GetNextStateElement(1),
               m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::Receive())));
 
-  EXPECT_EQ(proc->GetInitValueElement(0), Value::Token());
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "my_token");
-  EXPECT_EQ(proc->GetStateElementType(0), p.GetTokenType());
-  EXPECT_EQ(proc->GetInitValueElement(1), Value(UBits(42, 32)));
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "my_state");
-  EXPECT_EQ(proc->GetStateElementType(1), p.GetBitsType(32));
+  EXPECT_THAT(proc->StateElements(),
+              ElementsAre(m::StateElement("my_token", Value::Token()),
+                          m::StateElement("my_state", Value(UBits(42, 32)))));
 
   EXPECT_EQ(send.node()->GetType(), p.GetTokenType());
   EXPECT_EQ(send_if.node()->GetType(), p.GetTokenType());
@@ -873,7 +872,7 @@ TEST(FunctionBuilderTest, StatelessProcBuilder) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
-  EXPECT_TRUE(proc->StateParams().empty());
+  EXPECT_TRUE(proc->StateElements().empty());
 }
 
 TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
@@ -892,11 +891,9 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, pb.Build(/*next_state=*/{
                        tkn, x, pb.Add(x, y, SourceInfo(), "x_plus_y"), z}));
-  EXPECT_EQ(proc->GetStateElementCount(), 4);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "y");
-  EXPECT_EQ(proc->GetStateParam(3)->GetName(), "z");
+  EXPECT_THAT(proc->StateElements(),
+              ElementsAre(m::StateElement("tkn"), m::StateElement("x"),
+                          m::StateElement("y"), m::StateElement("z")));
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc the_proc(tkn: token, x: bits[32], y: bits[32], "
                         "z: bits[32], init={token, 1, 2, 3})"));
@@ -912,11 +909,12 @@ TEST(FunctionBuilderTest, ProcWithNextStateElement) {
   BValue x = pb.StateElement("x", Value(UBits(1, 1)));
   BValue y = pb.StateElement("y", Value(UBits(2, 32)));
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
-  BValue next = pb.Next(/*param=*/y, /*value=*/z, /*pred=*/x);
+  BValue next = pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x);
 
   XLS_ASSERT_OK(pb.Build(/*next_state=*/{x, y, z}));
-  EXPECT_THAT(next.node(), m::Next(m::Param("y"), /*value=*/m::Param("z"),
-                                   /*predicate=*/m::Param("x")));
+  EXPECT_THAT(next.node(),
+              m::Next(m::StateRead("y"), /*value=*/m::StateRead("z"),
+                      /*predicate=*/m::StateRead("x")));
 }
 
 TEST(FunctionBuilderTest, ProcWithNextStateElementBadPredicate) {
@@ -940,7 +938,7 @@ TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   BValue state = pb.StateElement("st", Value(UBits(42, 16)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({state}));
 
-  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("st"));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::StateRead("st"));
 }
 
 TEST(FunctionBuilderTest, Assert) {

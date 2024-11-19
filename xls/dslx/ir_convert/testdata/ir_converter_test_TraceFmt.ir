@@ -44,6 +44,7 @@ fn __itok__test_module__assert_trace_and_add(__token: token id=18, __activated: 
 top proc __test_module__main_0_next(__state: bits[32], init={0}) {
   __token: token = literal(value=token, id=39)
   literal.41: bits[1] = literal(value=1, id=41)
+  __state: bits[32] = state_read(state_element=__state, id=40)
   after_all.42: token = after_all(id=42)
   invoke.44: (token, bits[32]) = invoke(__token, literal.41, __state, to_apply=__itok__test_module__assert_trace_and_add, id=44)
   tok: token = send(after_all.42, __state, predicate=literal.41, channel=test_module__input_c, id=43)

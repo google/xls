@@ -59,6 +59,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/jit/aot_entrypoint.pb.h"
@@ -586,12 +587,12 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     // Gather the buffers to which the value of `node` must be written.
     std::vector<llvm::Value*> output_buffers;
     if (node->Is<Next>()) {
-      // next_value nodes store their output in the param's location, and return
-      // nothing themselves.
-      Param* param = node->As<Next>()->param()->As<Param>();
-      XLS_RET_CHECK(allocator.GetAllocationKind(param) ==
+      // next_value nodes store their output in the state-read's location, and
+      // return nothing themselves.
+      StateRead* state_read = node->As<Next>()->state_read()->As<StateRead>();
+      XLS_RET_CHECK(allocator.GetAllocationKind(state_read) ==
                     AllocationKind::kNone);
-      output_buffers = wrapper.GetOutputBuffers(param, b);
+      output_buffers = wrapper.GetOutputBuffers(state_read, b);
     } else if (wrapper.IsInputNode(node)) {
       XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
       output_buffers = {};
@@ -731,6 +732,13 @@ std::vector<Node*> GetJittedFunctionInputs(FunctionBase* function_base) {
         [&](Register* r) -> Node* { return *block->GetRegisterRead(r); });
     return out;
   }
+  if (function_base->IsProc()) {
+    Proc* proc = function_base->AsProcOrDie();
+    std::vector<Node*> out;
+    absl::c_transform(proc->StateElements(), std::back_inserter(out),
+                      [&](StateElement* st) { return proc->GetStateRead(st); });
+    return out;
+  }
   std::vector<Node*> inputs(function_base->params().begin(),
                             function_base->params().end());
   return inputs;
@@ -763,8 +771,8 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
     outputs.insert(outputs.end(), proc->NextState().begin(),
                    proc->NextState().end());
   } else {
-    outputs.insert(outputs.end(), proc->StateParams().begin(),
-                   proc->StateParams().end());
+    absl::c_transform(proc->StateElements(), std::back_inserter(outputs),
+                      [&](StateElement* st) { return proc->GetStateRead(st); });
   }
   return outputs;
 }

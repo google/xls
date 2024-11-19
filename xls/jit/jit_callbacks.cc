@@ -73,9 +73,9 @@ void QueueSendWrapper(InstanceContext* thiz, int64_t queue_index,
   thiz->channel_queues[queue_index]->WriteRaw(data);
 }
 
-void RecordActiveNextValue(InstanceContext* thiz, int64_t param_id,
+void RecordActiveNextValue(InstanceContext* thiz, int64_t state_element_idx,
                            int64_t next_id) {
-  thiz->active_next_values[param_id].insert(next_id);
+  thiz->active_next_values[state_element_idx].insert(next_id);
 }
 
 void RecordNodeResult(InstanceContext* thiz, int64_t node_ptr,

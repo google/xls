@@ -13,6 +13,7 @@ top proc __test_module__SomeProc_0_next(__state: (), init={()}) {
   tok_0: token = tuple_index(receive.5, index=0, id=7)
   tok_1: token = tuple_index(receive.9, index=0, id=11)
   __token: token = literal(value=token, id=1)
+  __state: () = state_read(state_element=__state, id=2)
   tuple_index.6: token = tuple_index(receive.5, index=0, id=6)
   tuple_index.8: bits[32] = tuple_index(receive.5, index=1, id=8)
   tuple_index.10: token = tuple_index(receive.9, index=0, id=10)

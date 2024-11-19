@@ -63,6 +63,7 @@ TEST_F(ProcTest, SimpleProc) {
   EXPECT_EQ(proc->GetStateFlatBitCount(), 32);
   EXPECT_EQ(proc->DumpIr(), R"(proc p(st: bits[32], init={42}) {
   literal.2: bits[32] = literal(value=1, id=2)
+  st: bits[32] = state_read(state_element=st, id=1)
   add.3: bits[32] = add(literal.2, st, id=3)
   next (add.3)
 }
@@ -78,17 +79,17 @@ TEST_F(ProcTest, MutateProc) {
   BValue after_all = pb.AfterAll({tkn});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
 
-  EXPECT_THAT(proc->GetNextStateElement(0), m::AfterAll(m::Param("tkn")));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::AfterAll(m::StateRead("tkn")));
   XLS_ASSERT_OK(proc->SetNextStateElement(0, tkn.node()));
   XLS_ASSERT_OK(proc->RemoveNode(after_all.node()));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("tkn"));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::StateRead("tkn"));
 
   EXPECT_THAT(proc->GetNextStateElement(1), m::Add());
-  XLS_ASSERT_OK(proc->SetNextStateElement(1, proc->GetStateParam(1)));
-  EXPECT_THAT(proc->GetNextStateElement(1), m::Param("st"));
+  XLS_ASSERT_OK(proc->SetNextStateElement(1, proc->GetStateRead(1)));
+  EXPECT_THAT(proc->GetNextStateElement(1), m::StateRead("st"));
 
   // Replace the state with a new type. First need to delete the (dead) use of
-  // the existing state param.
+  // the existing state read.
   XLS_ASSERT_OK(proc->RemoveNode(add.node()));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
@@ -97,7 +98,7 @@ TEST_F(ProcTest, MutateProc) {
                                           Value(UBits(100, 100)), new_state));
 
   EXPECT_THAT(proc->GetNextStateElement(1), m::Literal(UBits(100, 100)));
-  EXPECT_THAT(proc->GetStateParam(1), m::Type("bits[100]"));
+  EXPECT_THAT(proc->GetStateRead(1), m::Type("bits[100]"));
   EXPECT_THAT(proc->GetNextStateIndices(new_state), ElementsAre(1));
 }
 
@@ -111,19 +112,19 @@ TEST_F(ProcTest, AddAndRemoveState) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetInitValueElement(0), Value::Token());
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
-  EXPECT_EQ(proc->GetInitValueElement(1), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value::Token());
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
+  EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(42, 32)));
 
   XLS_ASSERT_OK(proc->AppendStateElement("y", Value(UBits(100, 32))));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "y");
-  EXPECT_EQ(proc->GetInitValueElement(0), Value::Token());
-  EXPECT_EQ(proc->GetInitValueElement(1), Value(UBits(42, 32)));
-  EXPECT_EQ(proc->GetInitValueElement(2), Value(UBits(100, 32)));
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
+  EXPECT_EQ(proc->GetStateElement(2)->name(), "y");
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value::Token());
+  EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetStateElement(2)->initial_value(), Value(UBits(100, 32)));
 
   // Add a state element with a specified next state (the literal 0).
   XLS_ASSERT_OK_AND_ASSIGN(Literal * zero_literal,
@@ -132,14 +133,14 @@ TEST_F(ProcTest, AddAndRemoveState) {
   XLS_ASSERT_OK(proc->AppendStateElement("z", Value(UBits(123, 32)),
                                          /*next_state=*/zero_literal));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "y");
-  EXPECT_EQ(proc->GetStateParam(3)->GetName(), "z");
-  EXPECT_EQ(proc->GetInitValueElement(0), Value::Token());
-  EXPECT_EQ(proc->GetInitValueElement(1), Value(UBits(42, 32)));
-  EXPECT_EQ(proc->GetInitValueElement(2), Value(UBits(100, 32)));
-  EXPECT_EQ(proc->GetInitValueElement(3), Value(UBits(123, 32)));
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
+  EXPECT_EQ(proc->GetStateElement(2)->name(), "y");
+  EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
+  EXPECT_EQ(proc->GetStateElement(0)->initial_value(), Value::Token());
+  EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetStateElement(2)->initial_value(), Value(UBits(100, 32)));
+  EXPECT_EQ(proc->GetStateElement(3)->initial_value(), Value(UBits(123, 32)));
   EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "my_after_all");
   EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "my_add");
   EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "y");
@@ -148,35 +149,35 @@ TEST_F(ProcTest, AddAndRemoveState) {
 
   XLS_ASSERT_OK(proc->RemoveStateElement(2));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
+  EXPECT_EQ(proc->GetStateElement(2)->name(), "z");
   EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(2));
 
   XLS_ASSERT_OK(proc->InsertStateElement(0, "foo", Value(UBits(123, 32))));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "foo");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(3)->GetName(), "z");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
+  EXPECT_EQ(proc->GetStateElement(2)->name(), "x");
+  EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
   EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(3));
 
   XLS_ASSERT_OK(proc->InsertStateElement(4, "bar", Value(UBits(1, 64))));
   EXPECT_EQ(proc->GetStateElementCount(), 5);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "foo");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(3)->GetName(), "z");
-  EXPECT_EQ(proc->GetStateParam(4)->GetName(), "bar");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
+  EXPECT_EQ(proc->GetStateElement(2)->name(), "x");
+  EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
+  EXPECT_EQ(proc->GetStateElement(4)->name(), "bar");
   EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(3));
 
   XLS_ASSERT_OK(proc->ReplaceStateElement(3, "baz", Value::Tuple({})));
   EXPECT_EQ(proc->GetStateElementCount(), 5);
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "foo");
-  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "x");
-  EXPECT_EQ(proc->GetStateParam(3)->GetName(), "baz");
-  EXPECT_EQ(proc->GetStateParam(4)->GetName(), "bar");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
+  EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
+  EXPECT_EQ(proc->GetStateElement(2)->name(), "x");
+  EXPECT_EQ(proc->GetStateElement(3)->name(), "baz");
+  EXPECT_EQ(proc->GetStateElement(4)->name(), "bar");
   EXPECT_THAT(proc->GetNextStateIndices(zero_literal), IsEmpty());
 
   EXPECT_THAT(proc->DumpIr(),
@@ -267,7 +268,7 @@ TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
   EXPECT_THAT(proc->ReplaceStateElement(0, "new_state", Value(UBits(100, 100)),
                                         new_state),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("state param st has uses")));
+                       HasSubstr("state read st has uses")));
 }
 
 TEST_F(ProcTest, RemoveStateThatStillHasUse) {
@@ -281,7 +282,7 @@ TEST_F(ProcTest, RemoveStateThatStillHasUse) {
 
   EXPECT_THAT(proc->RemoveStateElement(0),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("state param st has uses")));
+                       HasSubstr("state read st has uses")));
 }
 
 TEST_F(ProcTest, ReplaceStateWithWrongInitValueType) {
@@ -336,7 +337,9 @@ TEST_F(ProcTest, Clone) {
 
   EXPECT_EQ(clone->DumpIr(),
             R"(proc cloned(tkn: token, state: bits[32], init={token, 42}) {
+  tkn: token = state_read(state_element=tkn, id=10)
   literal.12: bits[32] = literal(value=1, id=12)
+  state: bits[32] = state_read(state_element=state, id=11)
   receive_3: (token, bits[32]) = receive(tkn, channel=cloned_chan, id=13)
   add.14: bits[32] = add(literal.12, state, id=14)
   tuple_index.15: bits[32] = tuple_index(receive_3, index=1, id=15)
@@ -386,6 +389,7 @@ TEST_F(ProcTest, CloneNewStyle) {
   tuple_index.15: token = tuple_index(receive_3, index=0, id=15)
   receive_6: (token, bits[32]) = receive(tuple_index.15, channel=baz, id=16)
   tuple_index.17: token = tuple_index(receive_6, index=0, id=17)
+  state: bits[32] = state_read(state_element=state, id=12)
   send_9: token = send(tuple_index.17, state, channel=bar, id=18)
   tuple_index.19: bits[32] = tuple_index(receive_3, index=1, id=19)
   tuple_index.20: bits[32] = tuple_index(receive_6, index=1, id=20)
@@ -411,17 +415,20 @@ TEST_F(ProcTest, TransformStateElement) {
   // Test transformer that inverts the param.
   struct TestTransformer : public Proc::StateElementTransformer {
    public:
-    absl::StatusOr<Node*> TransformParamRead(Proc* proc, Param* new_param,
-                                             Param* old_param) override {
-      return proc->MakeNode<UnOp>(new_param->loc(), new_param, Op::kNeg);
+    absl::StatusOr<Node*> TransformStateRead(
+        Proc* proc, StateRead* new_state_read,
+        StateRead* old_state_read) override {
+      return proc->MakeNode<UnOp>(new_state_read->loc(), new_state_read,
+                                  Op::kNeg);
     }
-    absl::StatusOr<Node*> TransformNextValue(Proc* proc, Param* new_param,
+    absl::StatusOr<Node*> TransformNextValue(Proc* proc,
+                                             StateRead* new_state_read,
                                              Next* old_next) override {
       return proc->MakeNode<UnOp>(old_next->value()->loc(), old_next->value(),
                                   Op::kNeg);
     }
     absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
-        Proc* proc, Param* new_param, Next* old_next) override {
+        Proc* proc, StateRead* new_state_read, Next* old_next) override {
       XLS_ASSIGN_OR_RETURN(
           Node * true_const,
           proc->MakeNode<Literal>(old_next->loc(), Value::Bool(true)));
@@ -436,19 +443,20 @@ TEST_F(ProcTest, TransformStateElement) {
   TestTransformer tt;
   ScopedRecordIr sri(p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
-      Param * new_st, proc->TransformStateElement(st.node()->As<Param>(),
-                                                  Value(UBits(0b0101, 4)), tt));
+      StateRead * new_st,
+      proc->TransformStateElement(st.node()->As<StateRead>(),
+                                  Value(UBits(0b0101, 4)), tt));
 
   // Make sure the st nexts has been identity-ified
-  EXPECT_THAT(st.node(), m::Param(testing::Not("st")));
+  EXPECT_THAT(st.node(), m::StateRead(testing::Not("st")));
   EXPECT_THAT(st.node()->users(),
               UnorderedElementsAre(add_st.node(), sub_st.node()));
   EXPECT_THAT(add_st.node(), m::Next(st.node(), st.node(), cond.node()));
   EXPECT_THAT(sub_st.node(),
               m::Next(st.node(), st.node(), m::Not(cond.node())));
 
-  // Make sure that 'new_param' takes over the name and everything.
-  EXPECT_THAT(new_st, m::Param("st"));
+  // Make sure that 'new_state_read' takes over the name and everything.
+  EXPECT_THAT(new_st, m::StateRead("st"));
   EXPECT_THAT(
       new_st->users(),
       UnorderedElementsAre(

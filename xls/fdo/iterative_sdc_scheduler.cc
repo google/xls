@@ -419,14 +419,14 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
     if (f->IsProc()) {
       Proc *proc = f->AsProcOrDie();
       for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-        Param *const state_access = proc->GetStateParam(index);
+        StateRead *const state_read = proc->GetStateRead(index);
         Node *const next_state_element = proc->GetNextStateElement(index);
 
-        // The next-state element always has lifetime extended to the state
-        // param node, since we can't store the new value in the state register
-        // until the old value's been used.
+        // The next-state element always has lifetime extended to the state-read
+        // node, since we can't store the new value in the state register until
+        // the old value's been used.
         XLS_RETURN_IF_ERROR(
-            model.AddLifetimeConstraint(next_state_element, state_access));
+            model.AddLifetimeConstraint(next_state_element, state_read));
       }
     }
 

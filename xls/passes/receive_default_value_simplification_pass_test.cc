@@ -67,7 +67,7 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
 
   EXPECT_THAT(proc->GetNextStateElement(1),
-              m::Select(m::Param("pred"),
+              m::Select(m::StateRead("pred"),
                         {m::Literal(0), m::TupleIndex(m::Receive(), 1)}));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
@@ -93,7 +93,7 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
 
   EXPECT_THAT(proc->GetNextStateElement(1),
-              m::Select(m::Param("pred"),
+              m::Select(m::StateRead("pred"),
                         {m::Literal(), m::TupleIndex(m::Receive(), 1)}));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));

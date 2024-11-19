@@ -665,10 +665,12 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
 absl::Status InvokeNextValueCallback(llvm::IRBuilder<>* builder, Next* next,
                                      llvm::Value* instance_ctx) {
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
-  llvm::Value* param_value = builder->getInt64(next->param()->id());
+  llvm::Value* state_element_idx = builder->getInt64(
+      *next->function_base()->AsProcOrDie()->GetStateElementIndex(
+          next->state_read()->As<StateRead>()->state_element()));
   llvm::Value* next_value = builder->getInt64(next->id());
   InvokeCallback<InstanceContext::kRecordActiveNextValueOffset>(
-      builder, void_type, instance_ctx, {param_value, next_value});
+      builder, void_type, instance_ctx, {state_element_idx, next_value});
   return absl::OkStatus();
 }
 
@@ -1045,7 +1047,8 @@ llvm::Value* NodeIrContext::LoadOperand(int64_t i, llvm::IRBuilder<>* builder) {
 }
 
 llvm::Value* NodeIrContext::GetInputNodePtr(Node* node) {
-  CHECK(node->Is<Param>() || node->Is<RegisterRead>() || node->Is<InputPort>());
+  CHECK(node->Is<Param>() || node->Is<StateRead>() ||
+        node->Is<RegisterRead>() || node->Is<InputPort>());
   return llvm_function_->getArg(operand_to_arg_.at(node));
 }
 
@@ -1211,6 +1214,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleShra(BinOp* binop) override;
   absl::Status HandleShrl(BinOp* binop) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
+  absl::Status HandleStateRead(StateRead* state_read) override;
   absl::Status HandleSub(BinOp* binop) override;
   absl::Status HandleTrace(Trace* trace_op) override;
   absl::Status HandleTuple(Tuple* tuple) override;
@@ -3032,6 +3036,13 @@ absl::Status IrBuilderVisitor::HandleShrl(BinOp* binop) {
       binop, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         return EmitShiftOp(binop, lhs, rhs, &b, type_converter());
       });
+}
+
+absl::Status IrBuilderVisitor::HandleStateRead(StateRead* state_read) {
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewInputNodeIrContext(state_read));
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), node_context.GetInputNodePtr(state_read));
 }
 
 absl::Status IrBuilderVisitor::HandleSub(BinOp* binop) {

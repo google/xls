@@ -41,6 +41,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -190,6 +191,73 @@ void TypeMatcher::DescribeTo(std::ostream* os) const { *os << type_str_; }
 
 void TypeMatcher::DescribeNegationTo(std::ostream* os) const {
   *os << "is not " << type_str_;
+}
+
+bool StateElementMatcher::MatchAndExplain(
+    const class StateElement* state_element,
+    ::testing::MatchResultListener* listener) const {
+  if (!state_element) {
+    return false;
+  }
+  bool match = true;
+  if (::testing::StringMatchResultListener inner_listener;
+      name_matcher_.has_value() &&
+      !name_matcher_->MatchAndExplain(state_element->name(), &inner_listener)) {
+    if (listener->IsInterested()) {
+      if (match) {
+        *listener << "State element has";
+      }
+      *listener << " incorrect name, expected: ";
+      name_matcher_->DescribeTo(listener->stream());
+      std::string explanation = inner_listener.str();
+      if (!explanation.empty()) {
+        *listener << ", " << explanation;
+      }
+    }
+    match = false;
+  }
+  if (::testing::StringMatchResultListener inner_listener;
+      type_matcher_.has_value() &&
+      !type_matcher_->MatchAndExplain(state_element->type(), &inner_listener)) {
+    if (listener->IsInterested()) {
+      if (match) {
+        *listener << "State element has";
+      }
+      *listener << " incorrect type, expected: ";
+      type_matcher_->DescribeTo(listener->stream());
+      std::string explanation = inner_listener.str();
+      if (!explanation.empty()) {
+        *listener << ", " << explanation;
+      }
+    }
+    match = false;
+  }
+  if (::testing::StringMatchResultListener inner_listener;
+      initial_value_matcher_.has_value() &&
+      !initial_value_matcher_->MatchAndExplain(state_element->initial_value(),
+                                               &inner_listener)) {
+    if (listener->IsInterested()) {
+      if (match) {
+        *listener << "State element has";
+      }
+      *listener << " incorrect initial value, expected: ";
+      initial_value_matcher_->DescribeTo(listener->stream());
+      std::string explanation = inner_listener.str();
+      if (!explanation.empty()) {
+        *listener << ", " << explanation;
+      }
+    }
+    match = false;
+  }
+  return match;
+}
+
+void StateElementMatcher::DescribeTo(::std::ostream* os) const {
+  *os << "state element";
+  if (name_matcher_.has_value()) {
+    *os << " with name ";
+    name_matcher_->DescribeTo(os);
+  }
 }
 
 bool NameMatcher::MatchAndExplain(

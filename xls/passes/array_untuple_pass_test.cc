@@ -253,7 +253,7 @@ TEST_F(ArrayUntuplePassTest, ArrayConcat) {
                                      {m::Param()})));
 }
 
-TEST_F(ArrayUntuplePassTest, ProcParamArrayWithNext) {
+TEST_F(ArrayUntuplePassTest, ProcStateArrayWithNext) {
   // Really simple sram with written-bit type proc
   auto p = CreatePackage();
   // struct Request {
@@ -335,26 +335,29 @@ TEST_F(ArrayUntuplePassTest, ProcParamArrayWithNext) {
   solvers::z3::ScopedVerifyProcEquivalence svpe(pr, /*activation_count=*/4,
                                                 /*include_state=*/false);
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(pr->StateParams(),
-              IsSupersetOf({m::Type("bits[1][4]"), m::Type("bits[3][4]")}));
-  auto param_of_type = [](std::string_view type) {
-    return testing::AllOf(m::Param(), m::Type(type));
+  EXPECT_THAT(pr->StateElements(),
+              IsSupersetOf({m::StateElement(_, m::Type("bits[1][4]")),
+                            m::StateElement(_, m::Type("bits[3][4]"))}));
+  auto state_read_of_type = [](std::string_view type) {
+    return testing::AllOf(m::StateRead(), m::Type(type));
   };
   EXPECT_THAT(
       pr->next_values(),
       UnorderedElementsAre(
-          m::Next(m::Param("foo"), m::Param("foo"), _),
-          m::Next(m::Param("foo"), m::Param("foo"), _),
-          m::Next(m::Param("foo"), m::Param("foo"), _),
-          m::Next(param_of_type("bits[1][4]"), param_of_type("bits[1][4]"), _),
-          m::Next(param_of_type("bits[1][4]"), m::Type("bits[1][4]"), _),
-          m::Next(param_of_type("bits[1][4]"), m::Type("bits[1][4]"), _),
-          m::Next(param_of_type("bits[3][4]"), param_of_type("bits[3][4]"), _),
-          m::Next(param_of_type("bits[3][4]"), m::Type("bits[3][4]"), _),
-          m::Next(param_of_type("bits[3][4]"), m::Type("bits[3][4]"), _)));
+          m::Next(m::StateRead("foo"), m::StateRead("foo"), _),
+          m::Next(m::StateRead("foo"), m::StateRead("foo"), _),
+          m::Next(m::StateRead("foo"), m::StateRead("foo"), _),
+          m::Next(state_read_of_type("bits[1][4]"),
+                  state_read_of_type("bits[1][4]"), _),
+          m::Next(state_read_of_type("bits[1][4]"), m::Type("bits[1][4]"), _),
+          m::Next(state_read_of_type("bits[1][4]"), m::Type("bits[1][4]"), _),
+          m::Next(state_read_of_type("bits[3][4]"),
+                  state_read_of_type("bits[3][4]"), _),
+          m::Next(state_read_of_type("bits[3][4]"), m::Type("bits[3][4]"), _),
+          m::Next(state_read_of_type("bits[3][4]"), m::Type("bits[3][4]"), _)));
 }
 
-TEST_F(ArrayUntuplePassTest, ProcParamArrayImplicitNext) {
+TEST_F(ArrayUntuplePassTest, ProcStateArrayImplicitNext) {
   // Really simple sram with written-bit type proc
   auto p = CreatePackage();
   // struct Request {
@@ -444,8 +447,9 @@ TEST_F(ArrayUntuplePassTest, ProcParamArrayImplicitNext) {
                                                 /*include_state=*/false);
   ScopedRecordIr sri(p.get());
   ASSERT_THAT(RunPass(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(pr->StateParams(),
-              IsSupersetOf({m::Type("bits[1][4]"), m::Type("bits[3][4]")}));
+  EXPECT_THAT(pr->StateElements(),
+              IsSupersetOf({m::StateElement(_, m::Type("bits[1][4]")),
+                            m::StateElement(_, m::Type("bits[3][4]"))}));
 }
 
 }  // namespace

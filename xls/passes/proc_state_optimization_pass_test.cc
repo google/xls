@@ -69,9 +69,9 @@ class ProcStateOptimizationPassTest
         return pb.Build(next_state);
       case NextValueType::kNextValueNodes: {
         for (int64_t index = 0; index < next_state.size(); ++index) {
-          BValue param = pb.GetStateParam(index);
+          BValue state_read = pb.GetStateParam(index);
           BValue next_value = next_state[index];
-          pb.Next(param, next_value);
+          pb.Next(state_read, next_value);
         }
         return pb.Build();
       }
@@ -85,9 +85,9 @@ class ProcStateOptimizationPassTest
         return pb.Build(next_state);
       case NextValueType::kNextValueNodes: {
         for (int64_t index = 0; index < next_state.size(); ++index) {
-          BValue param = pb.GetStateParam(index);
+          BValue state_read = pb.GetStateParam(index);
           BValue next_value = next_state[index];
-          pb.Next(param, next_value);
+          pb.Next(state_read, next_value);
         }
         return pb.Build();
       }
@@ -147,7 +147,7 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "x");
 }
 
 TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadElements) {
@@ -183,8 +183,9 @@ TEST_P(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
 
   EXPECT_EQ(proc->GetStateElementCount(), 5);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->StateParams(),
-              ElementsAre(m::Param("a"), m::Param("b"), m::Param("c")));
+  EXPECT_THAT(proc->StateElements(),
+              ElementsAre(m::StateElement("a"), m::StateElement("b"),
+                          m::StateElement("c")));
 }
 
 TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
@@ -202,10 +203,10 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
-  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "y");
+  EXPECT_EQ(proc->GetStateElement(0)->name(), "y");
   EXPECT_THAT(send.node(),
               m::Send(m::Literal(Value::Token()),
-                      m::Concat(m::Literal(UBits(0, 0)), m::Param("y"))));
+                      m::Concat(m::Literal(UBits(0, 0)), m::StateRead("y"))));
 }
 
 TEST_P(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
@@ -235,7 +236,8 @@ TEST_P(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 2);
-  EXPECT_THAT(proc->StateParams(), ElementsAre(x.node(), y.node()));
+  EXPECT_THAT(proc->StateElements(),
+              ElementsAre(m::StateElement("x"), m::StateElement("y")));
 }
 
 TEST_P(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
@@ -260,10 +262,12 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            BuildProc(pb, {dead_state, next_not_dead_state}));
 
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(m::Param("dead"), m::Param("not_dead")));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("dead"),
+                                   m::StateElement("not_dead")));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->StateParams(), UnorderedElementsAre(m::Param("not_dead")));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("not_dead")));
 }
 
 TEST_P(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
@@ -293,19 +297,19 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithConstantStateElement) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, BuildProc(pb, {constant_state, next_not_constant_state}));
 
-  EXPECT_THAT(
-      proc->StateParams(),
-      UnorderedElementsAre(m::Param("constant"), m::Param("not_constant")));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("constant"),
+                                   m::StateElement("not_constant")));
   EXPECT_THAT(state_usage.node(),
-              m::Add(m::TupleIndex(m::Param("constant")),
-                     m::TupleIndex(m::Param("not_constant"))));
+              m::Add(m::TupleIndex(m::StateRead("constant")),
+                     m::TupleIndex(m::StateRead("not_constant"))));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(m::Param("not_constant")));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("not_constant")));
   // Verify the state element has been replaced with its initial value.
   EXPECT_THAT(state_usage.node(),
               m::Add(m::TupleIndex(m::Literal(Value::Tuple({one, zero}))),
-                     m::TupleIndex(m::Param("not_constant"))));
+                     m::TupleIndex(m::StateRead("not_constant"))));
 }
 
 TEST_P(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
@@ -345,14 +349,14 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
                                   next_implicit_constant_state_1,
                                   next_implicit_constant_state_2}));
 
-  EXPECT_THAT(
-      proc->StateParams(),
-      UnorderedElementsAre(m::Param("constant"), m::Param("not_constant"),
-                           m::Param("implicit_constant_1"),
-                           m::Param("implicit_constant_2")));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("constant"),
+                                   m::StateElement("not_constant"),
+                                   m::StateElement("implicit_constant_1"),
+                                   m::StateElement("implicit_constant_2")));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(proc->StateParams(),
-              UnorderedElementsAre(m::Param("not_constant")));
+  EXPECT_THAT(proc->StateElements(),
+              UnorderedElementsAre(m::StateElement("not_constant")));
 }
 
 TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
@@ -371,11 +375,11 @@ TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
   EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 1);
-  EXPECT_EQ(proc->GetStateParam(0)->GetType()->GetFlatBitCount(), 1);
+  EXPECT_EQ(proc->GetStateElement(0)->type()->GetFlatBitCount(), 1);
 
   EXPECT_THAT(send.node(),
               m::Send(m::Literal(Value::Token()),
-                      m::Select(m::Param("state_machine_x"),
+                      m::Select(m::StateRead("state_machine_x"),
                                 /*cases=*/{m::Literal(100)},
                                 /*default_value=*/m::Literal(200))));
 }

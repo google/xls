@@ -20,6 +20,7 @@ proc __test_module__Counter_0_next(__state: bits[32], init={0}) {
   literal.8: bits[1] = literal(value=1, id=8)
   receive.10: (token, bits[32]) = receive(after_all.9, predicate=literal.8, channel=test_module__in_ch, id=10)
   in_data: bits[32] = tuple_index(receive.10, index=1, id=13)
+  __state: bits[32] = state_read(state_element=__state, id=7)
   x: bits[32] = invoke(in_data, to_apply=__test_module__square__0, id=14)
   tok: token = tuple_index(receive.10, index=0, id=12)
   next_state: bits[32] = add(__state, x, id=15)

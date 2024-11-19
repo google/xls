@@ -1,4 +1,5 @@
 proc ReplaceTupleIndicesWorksWithToken(tkn: token, init={token}) {
+  tkn: token = state_read(state_element=tkn, id=1)
   literal.6: bits[32] = literal(value=0, id=6)
   receive: (token, bits[32]) = tuple(tkn, literal.6, id=9)
   tuple_index.3: token = tuple_index(receive, index=0, id=3)

@@ -66,6 +66,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -459,8 +460,8 @@ absl::Status PrintProcInfo(Proc* p) {
   XLS_RET_CHECK(p != nullptr);
 
   int64_t total_flops = 0;
-  for (Param* param : p->StateParams()) {
-    total_flops += param->GetType()->GetFlatBitCount();
+  for (StateElement* state_element : p->StateElements()) {
+    total_flops += state_element->type()->GetFlatBitCount();
   }
 
   std::cout << absl::StreamFormat("Total state flops: %d\n", total_flops);

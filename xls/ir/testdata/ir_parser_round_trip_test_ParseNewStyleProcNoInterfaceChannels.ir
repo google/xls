@@ -1,5 +1,7 @@
 package test
 
 proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
+  my_token: token = state_read(state_element=my_token, id=3)
+  my_state: bits[32] = state_read(state_element=my_state, id=4)
   next (my_token, my_state)
 }

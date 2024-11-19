@@ -22,6 +22,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/register.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/xls_ir_interface.pb.h"
 
@@ -35,6 +36,11 @@ void AddTyped(PackageInterfaceProto::NamedValue* n, Node* node, Type* ty) {
 
 void AddNamed(PackageInterfaceProto::NamedValue* n, Node* node) {
   AddTyped(n, node, node->GetType());
+}
+
+void AddNamed(PackageInterfaceProto::NamedValue* n, StateElement* st) {
+  *n->mutable_type() = st->type()->ToProto();
+  n->set_name(st->name());
 }
 
 void AddFunctionBase(PackageInterfaceProto::FunctionBase* f, FunctionBase* ir,
@@ -60,8 +66,8 @@ PackageInterfaceProto::Proc ExtractProcInterface(Proc* proc) {
   PackageInterfaceProto::Proc proto;
   AddFunctionBase(proto.mutable_base(), proc,
                   /*top=*/proc->package()->GetTop() == proc);
-  for (auto* param : proc->params()) {
-    AddNamed(proto.add_state(), param);
+  for (StateElement* state_element : proc->StateElements()) {
+    AddNamed(proto.add_state(), state_element);
   }
   for (const auto& c : proc->channel_references()) {
     if (c->direction() == Direction::kSend) {

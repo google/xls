@@ -97,8 +97,8 @@ DataflowDominatorAnalysis::Run(FunctionBase* f) {
   absl::flat_hash_map<Node*, std::optional<std::vector<NodeIndex>>> dominators;
   for (NodeIndex i = 0; i < toposort.size(); ++i) {
     Node* node = toposort[i];
-    if (node->OpIn({Op::kReceive, Op::kRegisterRead, Op::kParam, Op::kInputPort,
-                    Op::kInstantiationInput})) {
+    if (node->OpIn({Op::kReceive, Op::kRegisterRead, Op::kParam, Op::kStateRead,
+                    Op::kInputPort, Op::kInstantiationInput})) {
       // These nodes originate (potentially) variable data; they can't be
       // dominated by anything other than themselves, but they do participate in
       // dataflow .

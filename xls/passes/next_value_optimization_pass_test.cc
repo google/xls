@@ -86,9 +86,9 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(5, 32)),
+  pb.Next(/*state_read=*/x, /*value=*/pb.Literal(UBits(5, 32)),
           /*pred=*/pb.Literal(UBits(0, 1)));
-  pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(3, 32)),
+  pb.Next(/*state_read=*/x, /*value=*/pb.Literal(UBits(3, 32)),
           /*pred=*/pb.Literal(UBits(1, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
@@ -96,7 +96,7 @@ TEST_F(NextValueOptimizationPassTest, NextValuesWithLiteralPredicates) {
 
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
-              ElementsAre(m::Next(m::Param(), m::Literal(3))));
+              ElementsAre(m::Next(m::StateRead(), m::Literal(3))));
 }
 
 TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
@@ -108,7 +108,7 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
       std::vector({pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
                    pb.Literal(UBits(2, 3))}),
       pb.Literal(UBits(0, 3)));
-  pb.Next(/*param=*/x, /*value=*/priority_select);
+  pb.Next(/*state_read=*/x, /*value=*/priority_select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
@@ -117,15 +117,17 @@ TEST_F(NextValueOptimizationPassTest, PrioritySelectNextValue) {
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::Next(m::Param(), m::Literal(2), m::BitSlice(m::Param(), 0, 1)),
-          m::Next(m::Param(), m::Literal(1),
-                  m::And(m::BitSlice(m::Param(), 1, 1),
-                         m::Not(m::BitSlice(m::Param(), 0, 1)))),
-          m::Next(m::Param(), m::Literal(2),
-                  m::And(m::BitSlice(m::Param(), 2, 1),
-                         m::Not(m::OrReduce(m::BitSlice(m::Param(), 0, 2))))),
-          m::Next(m::Param(), m::Literal(0),
-                  m::Eq(m::Param(), m::Literal(0)))));
+          m::Next(m::StateRead(), m::Literal(2),
+                  m::BitSlice(m::StateRead(), 0, 1)),
+          m::Next(m::StateRead(), m::Literal(1),
+                  m::And(m::BitSlice(m::StateRead(), 1, 1),
+                         m::Not(m::BitSlice(m::StateRead(), 0, 1)))),
+          m::Next(
+              m::StateRead(), m::Literal(2),
+              m::And(m::BitSlice(m::StateRead(), 2, 1),
+                     m::Not(m::OrReduce(m::BitSlice(m::StateRead(), 0, 2))))),
+          m::Next(m::StateRead(), m::Literal(0),
+                  m::Eq(m::StateRead(), m::Literal(0)))));
 }
 
 TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
@@ -136,7 +138,7 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
   BValue one_hot_select = pb.OneHotSelect(
       one_hot_x, std::vector{pb.Literal(UBits(2, 3)), pb.Literal(UBits(1, 3)),
                              pb.Literal(UBits(2, 3)), pb.Literal(UBits(3, 3))});
-  pb.Next(/*param=*/x, /*value=*/one_hot_select);
+  pb.Next(/*state_read=*/x, /*value=*/one_hot_select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
@@ -144,13 +146,13 @@ TEST_F(NextValueOptimizationPassTest, OneHotSelectNextValue) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
-                  m::Next(m::Param(), m::Literal(2),
+                  m::Next(m::StateRead(), m::Literal(2),
                           m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 0, 1)),
-                  m::Next(m::Param(), m::Literal(1),
+                  m::Next(m::StateRead(), m::Literal(1),
                           m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 1, 1)),
-                  m::Next(m::Param(), m::Literal(2),
+                  m::Next(m::StateRead(), m::Literal(2),
                           m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 2, 1)),
-                  m::Next(m::Param(), m::Literal(3),
+                  m::Next(m::StateRead(), m::Literal(3),
                           m::BitSlice(m::OneHot(LsbOrMsb::kMsb), 3, 1))));
 }
 
@@ -161,7 +163,7 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
   BValue select = pb.Select(
       x, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
-  pb.Next(/*param=*/x, /*value=*/select);
+  pb.Next(/*state_read=*/x, /*value=*/select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
@@ -169,12 +171,14 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValue) {
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
-      UnorderedElementsAre(
-          m::Next(m::Param(), m::Literal(2), m::Eq(m::Param(), m::Literal(0))),
-          m::Next(m::Param(), m::Literal(1), m::Eq(m::Param(), m::Literal(1))),
-          m::Next(m::Param(), m::Literal(2), m::Eq(m::Param(), m::Literal(2))),
-          m::Next(m::Param(), m::Literal(3),
-                  m::Eq(m::Param(), m::Literal(3)))));
+      UnorderedElementsAre(m::Next(m::StateRead(), m::Literal(2),
+                                   m::Eq(m::StateRead(), m::Literal(0))),
+                           m::Next(m::StateRead(), m::Literal(1),
+                                   m::Eq(m::StateRead(), m::Literal(1))),
+                           m::Next(m::StateRead(), m::Literal(2),
+                                   m::Eq(m::StateRead(), m::Literal(2))),
+                           m::Next(m::StateRead(), m::Literal(3),
+                                   m::Eq(m::StateRead(), m::Literal(3)))));
 }
 
 TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
@@ -186,7 +190,7 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
                 std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
                             pb.Literal(UBits(2, 2))},
                 /*default_value=*/pb.Literal(UBits(3, 2)));
-  pb.Next(/*param=*/x, /*value=*/select);
+  pb.Next(/*state_read=*/x, /*value=*/select);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/3,
                                                 /*include_state=*/true);
@@ -194,12 +198,14 @@ TEST_F(NextValueOptimizationPassTest, SmallSelectNextValueWithDefault) {
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/4), IsOkAndHolds(true));
   EXPECT_THAT(
       proc->next_values(),
-      UnorderedElementsAre(
-          m::Next(m::Param(), m::Literal(2), m::Eq(m::Param(), m::Literal(0))),
-          m::Next(m::Param(), m::Literal(1), m::Eq(m::Param(), m::Literal(1))),
-          m::Next(m::Param(), m::Literal(2), m::Eq(m::Param(), m::Literal(2))),
-          m::Next(m::Param(), m::Literal(3),
-                  m::UGt(m::Param(), m::Literal(2)))));
+      UnorderedElementsAre(m::Next(m::StateRead(), m::Literal(2),
+                                   m::Eq(m::StateRead(), m::Literal(0))),
+                           m::Next(m::StateRead(), m::Literal(1),
+                                   m::Eq(m::StateRead(), m::Literal(1))),
+                           m::Next(m::StateRead(), m::Literal(2),
+                                   m::Eq(m::StateRead(), m::Literal(2))),
+                           m::Next(m::StateRead(), m::Literal(3),
+                                   m::UGt(m::StateRead(), m::Literal(2)))));
 }
 
 TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
@@ -227,7 +233,7 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   BValue select_b_2 = pb.Select(
       b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   BValue select_a = pb.Select(a, std::vector{select_b_1, select_b_2});
-  pb.Next(/*param=*/x, /*value=*/select_a);
+  pb.Next(/*state_read=*/x, /*value=*/select_a);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   // TODO: https://github.com/google/xls/issues/1374 - State elements a & b
   // removed so can't use z3 proving.
@@ -235,18 +241,18 @@ TEST_F(NextValueOptimizationPassTest, CascadingSmallSelectsNextValue) {
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/2), IsOkAndHolds(true));
   EXPECT_THAT(proc->next_values(),
               UnorderedElementsAre(
-                  m::Next(m::Param("x"), m::Literal(2),
-                          m::And(m::Eq(m::Param("a"), m::Literal(0)),
-                                 m::Eq(m::Param("b"), m::Literal(0)))),
-                  m::Next(m::Param("x"), m::Literal(1),
-                          m::And(m::Eq(m::Param("a"), m::Literal(0)),
-                                 m::Eq(m::Param("b"), m::Literal(1)))),
-                  m::Next(m::Param("x"), m::Literal(2),
-                          m::And(m::Eq(m::Param("a"), m::Literal(1)),
-                                 m::Eq(m::Param("b"), m::Literal(0)))),
-                  m::Next(m::Param("x"), m::Literal(3),
-                          m::And(m::Eq(m::Param("a"), m::Literal(1)),
-                                 m::Eq(m::Param("b"), m::Literal(1))))));
+                  m::Next(m::StateRead("x"), m::Literal(2),
+                          m::And(m::Eq(m::StateRead("a"), m::Literal(0)),
+                                 m::Eq(m::StateRead("b"), m::Literal(0)))),
+                  m::Next(m::StateRead("x"), m::Literal(1),
+                          m::And(m::Eq(m::StateRead("a"), m::Literal(0)),
+                                 m::Eq(m::StateRead("b"), m::Literal(1)))),
+                  m::Next(m::StateRead("x"), m::Literal(2),
+                          m::And(m::Eq(m::StateRead("a"), m::Literal(1)),
+                                 m::Eq(m::StateRead("b"), m::Literal(0)))),
+                  m::Next(m::StateRead("x"), m::Literal(3),
+                          m::And(m::Eq(m::StateRead("a"), m::Literal(1)),
+                                 m::Eq(m::StateRead("b"), m::Literal(1))))));
 }
 
 TEST_F(NextValueOptimizationPassTest,
@@ -261,7 +267,7 @@ TEST_F(NextValueOptimizationPassTest,
   BValue select_b_2 = pb.Select(
       b, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
   BValue select_a = pb.Select(a, std::vector{select_b_1, select_b_2});
-  pb.Next(/*param=*/x, /*value=*/select_a);
+  pb.Next(/*state_read=*/x, /*value=*/select_a);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   // State elements a & b removed so can't use z3 proving.
 
@@ -271,12 +277,12 @@ TEST_F(NextValueOptimizationPassTest,
   EXPECT_THAT(
       proc->next_values(),
       UnorderedElementsAre(
-          m::Next(m::Param("x"),
-                  m::Select(m::Param("b"), {m::Literal(2), m::Literal(1)}),
-                  m::Eq(m::Param("a"), m::Literal(0))),
-          m::Next(m::Param("x"),
-                  m::Select(m::Param("b"), {m::Literal(2), m::Literal(3)}),
-                  m::Eq(m::Param("a"), m::Literal(1)))));
+          m::Next(m::StateRead("x"),
+                  m::Select(m::StateRead("b"), {m::Literal(2), m::Literal(1)}),
+                  m::Eq(m::StateRead("a"), m::Literal(0))),
+          m::Next(m::StateRead("x"),
+                  m::Select(m::StateRead("b"), {m::Literal(2), m::Literal(3)}),
+                  m::Eq(m::StateRead("a"), m::Literal(1)))));
 }
 
 }  // namespace

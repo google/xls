@@ -132,6 +132,7 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:op",
         "//xls/ir:source_location",
+        "//xls/ir:state_element",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",

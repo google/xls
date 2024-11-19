@@ -34,6 +34,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -82,22 +83,25 @@ class RegisterCombiningPassTest : public IrTestBase {
 
   auto StateToRegMatcher(BValue st) {
     // TODO(allight): Recreates a block-conversion function.
-    EXPECT_THAT(st.node(), m::Param());
-    return Reg(absl::StrFormat("__%s", st.GetName()));
+    EXPECT_THAT(st.node(), m::StateRead());
+    StateElement* state_element = st.node()->As<StateRead>()->state_element();
+    return Reg(absl::StrFormat("__%s", state_element->name()));
   }
   auto StateToRegFullMatcher(BValue st) {
     // TODO(allight): Recreates a block-conversion function.
-    EXPECT_THAT(st.node(), m::Param());
-    return Reg(absl::StrFormat("__%s_full", st.GetName()));
+    EXPECT_THAT(st.node(), m::StateRead());
+    StateElement* state_element = st.node()->As<StateRead>()->state_element();
+    return Reg(absl::StrFormat("__%s_full", state_element->name()));
   }
   auto StageValidMatcher(Stage s) {
     return Reg(absl::StrFormat("p%d_valid", s));
   }
   auto NodeToRegMatcher(BValue v, Stage s) {
     // TODO(allight): Recreates a block-conversion function.
-    if (v.node()->Is<Param>()) {
-      return Reg(
-          MatchesRegex(absl::StrFormat("p%d___%s__[0-9]+", s, v.GetName())));
+    if (v.node()->Is<StateRead>()) {
+      StateElement* state_element = v.node()->As<StateRead>()->state_element();
+      return Reg(MatchesRegex(
+          absl::StrFormat("p%d___%s__[0-9]+", s, state_element->name())));
     }
     return Reg(MatchesRegex(absl::StrFormat("p%d_%s", s, NodeName(v))));
   }

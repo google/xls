@@ -41,6 +41,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_elaboration.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -54,9 +55,12 @@ class ProcInterpreterContinuation : public ProcContinuation {
   // Construct a new continuation. Execution the proc begins with the state set
   // to its initial values with no proc nodes yet executed.
   explicit ProcInterpreterContinuation(ProcInstance* proc_instance)
-      : ProcContinuation(proc_instance),
-        node_index_(0),
-        state_(proc()->InitValues().begin(), proc()->InitValues().end()) {}
+      : ProcContinuation(proc_instance), node_index_(0) {
+    state_.reserve(proc()->GetStateElementCount());
+    for (StateElement* state_element : proc()->StateElements()) {
+      state_.push_back(state_element->initial_value());
+    }
+  }
 
   ~ProcInterpreterContinuation() override = default;
 
@@ -73,11 +77,12 @@ class ProcInterpreterContinuation : public ProcContinuation {
   void ClearEvents() override { events_.Clear(); }
   bool AtStartOfTick() const override { return node_index_ == 0; }
 
-  const absl::flat_hash_map<Param*, std::vector<Next*>>& GetActiveNextValues()
-      const {
+  const absl::flat_hash_map<StateElement*, std::vector<Next*>>&
+  GetActiveNextValues() const {
     return active_next_values_;
   }
-  absl::flat_hash_map<Param*, std::vector<Next*>>& GetActiveNextValues() {
+  absl::flat_hash_map<StateElement*, std::vector<Next*>>&
+  GetActiveNextValues() {
     return active_next_values_;
   }
   void ClearActiveNextValues() { active_next_values_.clear(); }
@@ -107,7 +112,7 @@ class ProcInterpreterContinuation : public ProcContinuation {
 
   InterpreterEvents events_;
   absl::flat_hash_map<Node*, Value> node_values_;
-  absl::flat_hash_map<Param*, std::vector<Next*>> active_next_values_;
+  absl::flat_hash_map<StateElement*, std::vector<Next*>> active_next_values_;
 };
 
 // A visitor for interpreting procs. Adds handlers for send and receive
@@ -122,12 +127,13 @@ class ProcIrInterpreter : public IrInterpreter {
   //     tick of the proc. Used for continuations.
   //   events: events object to record events in (e.g, traces).
   //   queue_manager: manager for channel queues.
-  ProcIrInterpreter(
-      ProcInstance* proc_instance, absl::Span<const Value> state,
-      absl::flat_hash_map<Node*, Value>* node_values, InterpreterEvents* events,
-      ChannelQueueManager* queue_manager,
-      absl::flat_hash_map<Param*, std::vector<Next*>>* active_next_values,
-      std::optional<EvaluationObserver*> observer)
+  ProcIrInterpreter(ProcInstance* proc_instance, absl::Span<const Value> state,
+                    absl::flat_hash_map<Node*, Value>* node_values,
+                    InterpreterEvents* events,
+                    ChannelQueueManager* queue_manager,
+                    absl::flat_hash_map<StateElement*, std::vector<Next*>>*
+                        active_next_values,
+                    std::optional<EvaluationObserver*> observer)
       : IrInterpreter(node_values, events, observer),
         proc_instance_(proc_instance),
         state_(state.begin(), state.end()),
@@ -186,10 +192,12 @@ class ProcIrInterpreter : public IrInterpreter {
     return SetValueResult(send, Value::Token());
   }
 
-  absl::Status HandleParam(Param* param) override {
-    XLS_ASSIGN_OR_RETURN(int64_t index,
-                         param->function_base()->GetParamIndex(param));
-    return SetValueResult(param, state_[index]);
+  absl::Status HandleStateRead(StateRead* state_read) override {
+    XLS_ASSIGN_OR_RETURN(
+        int64_t index,
+        state_read->function_base()->AsProcOrDie()->GetStateElementIndex(
+            state_read->state_element()));
+    return SetValueResult(state_read, state_[index]);
   }
 
   absl::Status HandleNext(Next* next) override {
@@ -202,7 +210,8 @@ class ProcIrInterpreter : public IrInterpreter {
         return SetValueResult(next, Value::Tuple({}));
       }
     }
-    (*active_next_values_)[next->param()->As<Param>()].push_back(next);
+    (*active_next_values_)[next->state_read()->As<StateRead>()->state_element()]
+        .push_back(next);
     return SetValueResult(next, Value::Tuple({}));
   }
 
@@ -240,7 +249,7 @@ class ProcIrInterpreter : public IrInterpreter {
   std::vector<Value> state_;
   ChannelQueueManager* queue_manager_;
 
-  absl::flat_hash_map<Param*, std::vector<Next*>>* active_next_values_;
+  absl::flat_hash_map<StateElement*, std::vector<Next*>>* active_next_values_;
 
   // Ephemeral values set by the send/receive handlers indicating the channel
   // execution is blocked on or the channel on which data was sent.
@@ -315,18 +324,19 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
     next_state[index] =
         ir_interpreter.ResolveAsValue(proc()->GetNextStateElement(index));
   }
-  for (const auto& [param, next_values] : cont->GetActiveNextValues()) {
+  for (const auto& [state_element, next_values] : cont->GetActiveNextValues()) {
     if (next_values.size() > 1) {
       return absl::AlreadyExistsError(absl::StrFormat(
-          "Multiple active next values for param \"%s\" in a "
+          "Multiple active next values for state element %d (\"%s\") in a "
           "single activation: %s",
-          param->name(),
+          *proc()->GetStateElementIndex(state_element), state_element->name(),
           absl::StrJoin(next_values, ", ", [](std::string* out, Next* next) {
             absl::StrAppend(out, next->GetName());
           })));
     }
 
-    XLS_ASSIGN_OR_RETURN(int64_t index, proc()->GetStateParamIndex(param));
+    XLS_ASSIGN_OR_RETURN(int64_t index,
+                         proc()->GetStateElementIndex(state_element));
     next_state[index] = ir_interpreter.ResolveAsValue(next_values[0]->value());
   }
   cont->ClearActiveNextValues();

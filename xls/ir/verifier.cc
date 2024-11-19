@@ -698,18 +698,15 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
     XLS_RETURN_IF_ERROR(VerifyProcInstantiations(proc));
   }
 
-  // A Proc has zero or more state parameters, which may be tokens.
-  XLS_RET_CHECK_EQ(proc->params().size(), proc->GetStateElementCount());
+  // A Proc cannot have any parameters.
+  XLS_RET_CHECK(proc->params().empty());
 
-  XLS_RET_CHECK_EQ(proc->GetStateElementCount(), proc->InitValues().size());
+  // A Proc has zero or more state elements, which may be tokens.
   XLS_RET_CHECK_EQ(proc->GetStateElementCount(), proc->NextState().size());
   for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    // Verify that the order of parameters matches the state element order.
-    XLS_RET_CHECK_EQ(proc->param(i), proc->GetStateParam(i));
-
-    Param* param = proc->GetStateParam(i);
+    StateRead* state_read = proc->GetStateRead(i);
     Node* next_state = proc->GetNextStateElement(i);
-    if (next_state == param) {
+    if (next_state == state_read) {
       continue;
     }
 
@@ -723,17 +720,17 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
 
     // Verify type of state param matches type of the corresponding initial
     // value and next state element.
-    XLS_RET_CHECK_EQ(proc->GetStateParam(i)->GetType(),
+    XLS_RET_CHECK_EQ(proc->GetStateRead(i)->GetType(),
                      proc->GetNextStateElement(i)->GetType())
         << absl::StreamFormat(
                "State parameter %d of proc %s does not match next state type "
                "%s, is %s",
                i, proc->name(),
                proc->GetNextStateElement(i)->GetType()->ToString(),
-               proc->GetStateParam(i)->GetType()->ToString());
+               proc->GetStateRead(i)->GetType()->ToString());
 
-    XLS_RET_CHECK(ValueConformsToType(proc->GetInitValueElement(i),
-                                      proc->GetStateParam(i)->GetType()));
+    XLS_RET_CHECK(ValueConformsToType(proc->GetStateElement(i)->initial_value(),
+                                      proc->GetStateRead(i)->GetType()));
   }
 
   return absl::OkStatus();

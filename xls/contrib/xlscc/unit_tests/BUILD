@@ -50,6 +50,7 @@ cc_library(
         "//xls/ir:events",
         "//xls/ir:op",
         "//xls/ir:source_location",
+        "//xls/ir:state_element",
         "//xls/ir:value",
         "//xls/ir:value_utils",
         "//xls/simulation:sim_test_base",

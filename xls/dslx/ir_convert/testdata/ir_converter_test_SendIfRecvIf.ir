@@ -14,12 +14,14 @@ fn __test_module__consumer.init() -> bits[1] {
 
 top proc __test_module__main_0_next(__state: (), init={()}) {
   __token: token = literal(value=token, id=3)
+  __state: () = state_read(state_element=__state, id=4)
   literal.5: bits[1] = literal(value=1, id=5)
   tuple.6: () = tuple(id=6)
   next (tuple.6)
 }
 
 proc __test_module__main__producer_0_next(__state: bits[1], init={0}) {
+  __state: bits[1] = state_read(state_element=__state, id=8)
   literal.9: bits[1] = literal(value=1, id=9)
   after_all.10: token = after_all(id=10)
   zero_ext.11: bits[32] = zero_ext(__state, new_bit_count=32, id=11)
@@ -32,6 +34,7 @@ proc __test_module__main__producer_0_next(__state: bits[1], init={0}) {
 
 proc __test_module__main__consumer_0_next(__state: bits[1], init={0}) {
   literal.17: bits[1] = literal(value=1, id=17)
+  __state: bits[1] = state_read(state_element=__state, id=16)
   after_all.18: token = after_all(id=18)
   and.20: bits[1] = and(literal.17, __state, id=20)
   receive.21: (token, bits[32]) = receive(after_all.18, predicate=and.20, channel=test_module__my_chan, id=21)
