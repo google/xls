@@ -2354,3 +2354,586 @@ place_and_route(
     synthesized_rtl = ":literals_decoder_synth_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "huffman_common_dslx",
+    srcs = [
+        "huffman_common.x",
+    ],
+    deps = [],
+)
+
+xls_dslx_library(
+    name = "huffman_prescan_dslx",
+    srcs = [
+        "huffman_prescan.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+        "//xls/dslx/stdlib:acm_random_dslx",
+        ":common_dslx",
+        ":huffman_common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_prescan_dslx_test",
+    library = ":huffman_prescan_dslx",
+)
+
+prescan_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanPrescan",
+    "pipeline_stages": "16",
+    "clock_period_ps": "750",
+    "worst_case_throughput": "1",
+    "ram_configurations":
+      "InternalRam:1R1W:huffman_prescan__internal_read_req_s" +
+        ":huffman_prescan__internal_read_rsp_r:" +
+        "huffman_prescan__internal_write_req_s:" +
+        "huffman_prescan__internal_write_rsp_r:5",
+      "io_constraints" : "huffman_prescan__read_req_s:send:" +
+        "huffman_prescan__read_rsp_r:recv:5:5",
+}
+
+xls_dslx_verilog(
+    name = "huffman_prescan_verilog",
+    codegen_args = prescan_codegen_args,
+    dslx_top = "WeightPreScan",
+    library = ":huffman_prescan_dslx",
+    verilog_file = "huffman_prescan.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_prescan_opt_ir_benchmark",
+    src = ":huffman_prescan_verilog.opt.ir",
+    benchmark_ir_args = prescan_codegen_args,
+)
+
+xls_benchmark_verilog(
+    name = "huffman_prescan_verilog_benchmark",
+    verilog_target = "huffman_prescan_verilog",
+)
+
+verilog_library(
+    name = "huffman_prescan_verilog_lib",
+    srcs = [
+        ":huffman_prescan.v",
+        "fifo.v"
+    ],
+)
+
+synthesize_rtl(
+    name = "huffman_prescan_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "HuffmanPrescan",
+    deps = [
+        ":huffman_prescan_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_prescan_benchmark_synth",
+    synth_target = ":huffman_prescan_synth_asap7",
+)
+
+place_and_route(
+    name = "huffman_prescan_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    synthesized_rtl = ":huffman_prescan_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "huffman_code_builder_dslx",
+    srcs = [
+        "huffman_code_builder.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+        "//xls/dslx/stdlib:acm_random_dslx",
+        ":common_dslx",
+        ":huffman_common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_code_builder_dslx_test",
+    library = ":huffman_code_builder_dslx",
+)
+
+huffman_code_builder_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanCodeBuilder",
+    "pipeline_stages": "8",
+    "clock_period_ps": "750",
+    "worst_case_throughput": "1",
+    "io_constraints" : "huffman_code_builder__weight_r:recv:" +
+      "huffman_code_builder__codes_s:send:2:2",
+}
+
+xls_dslx_verilog(
+    name = "huffman_code_builder_verilog",
+    codegen_args = huffman_code_builder_codegen_args,
+    dslx_top = "WeightCodeBuilder",
+    library = ":huffman_code_builder_dslx",
+    verilog_file = "huffman_code_builder.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_code_builder_opt_ir_benchmark",
+    src = ":huffman_code_builder_verilog.opt.ir",
+    benchmark_ir_args = huffman_code_builder_codegen_args,
+)
+
+xls_benchmark_verilog(
+    name = "huffman_code_builder_verilog_benchmark",
+    verilog_target = "huffman_code_builder_verilog",
+)
+
+verilog_library(
+    name = "huffman_code_builder_verilog_lib",
+    srcs = [
+        ":huffman_code_builder.v",
+        "fifo.v"
+    ],
+)
+
+synthesize_rtl(
+    name = "huffman_code_builder_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "HuffmanCodeBuilder",
+    deps = [
+        ":huffman_code_builder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_code_builder_benchmark_synth",
+    synth_target = ":huffman_code_builder_synth_asap7",
+)
+
+place_and_route(
+    name = "huffman_code_builder_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    synthesized_rtl = ":huffman_code_builder_synth_asap7",
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "huffman_axi_reader_dslx",
+    srcs = [
+        "huffman_axi_reader.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:axi_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_axi_reader_dslx_test",
+    library = ":huffman_axi_reader_dslx",
+    tags = ["manual"],
+)
+
+huffman_axi_reader_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanAxiReader",
+    "pipeline_stages": "8",
+    "clock_period_ps": "750",
+    "worst_case_throughput": "2",
+}
+
+xls_dslx_verilog(
+    name = "huffman_axi_reader_verilog",
+    codegen_args = huffman_axi_reader_codegen_args,
+    dslx_top = "HuffmanAxiReaderInst",
+    library = ":huffman_axi_reader_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__huffman_axi_reader__HuffmanAxiReaderInst__HuffmanAxiReader_0__32_32_32_next",
+    },
+    tags = ["manual"],
+    verilog_file = "huffman_axi_reader.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_axi_reader_opt_ir_benchmark",
+    src = ":huffman_axi_reader_verilog.opt.ir",
+    benchmark_ir_args = huffman_axi_reader_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "huffman_axi_reader_verilog_lib",
+    srcs = [
+        ":huffman_axi_reader.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "huffman_axi_reader_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HuffmanAxiReader",
+    deps = [
+        ":huffman_axi_reader_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_axi_reader_benchmark_synth",
+    synth_target = ":huffman_axi_reader_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "huffman_axi_reader_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":huffman_axi_reader_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "huffman_data_preprocessor_dslx",
+    srcs = [
+        "huffman_data_preprocessor.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":huffman_axi_reader_dslx",
+        ":huffman_common_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_data_preprocessor_dslx_test",
+    library = ":huffman_data_preprocessor_dslx",
+    tags = ["manual"],
+)
+
+huffman_data_preprocessor_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanDataPreprocessor",
+    "pipeline_stages": "36",
+    "clock_period_ps": "810",
+    "clock_margin_percent": "0",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "huffman_data_preprocessor_verilog",
+    codegen_args = huffman_data_preprocessor_codegen_args,
+    dslx_top = "HuffmanDataPreprocessor",
+    library = ":huffman_data_preprocessor_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "",
+    },
+    tags = ["manual"],
+    verilog_file = "huffman_data_preprocessor.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_data_preprocessor_opt_ir_benchmark",
+    src = ":huffman_data_preprocessor_verilog.opt.ir",
+    benchmark_ir_args = huffman_data_preprocessor_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "huffman_data_preprocessor_verilog_lib",
+    srcs = [
+        ":huffman_data_preprocessor.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "huffman_data_preprocessor_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HuffmanDataPreprocessor",
+    deps = [
+        ":huffman_data_preprocessor_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_data_preprocessor_benchmark_synth",
+    synth_target = ":huffman_data_preprocessor_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "huffman_data_preprocessor_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":huffman_data_preprocessor_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "huffman_decoder_dslx",
+    srcs = [
+        "huffman_decoder.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":huffman_common_dslx",
+        ":huffman_data_preprocessor_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_decoder_dslx_test",
+    library = ":huffman_decoder_dslx",
+    tags = ["manual"],
+)
+
+huffman_decoder_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanDecoder",
+    "pipeline_stages": "8",
+    "clock_period_ps": "0",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "huffman_decoder_verilog",
+    codegen_args = huffman_decoder_codegen_args,
+    dslx_top = "HuffmanDecoder",
+    library = ":huffman_decoder_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "",
+    },
+    tags = ["manual"],
+    verilog_file = "huffman_decoder.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_decoder_opt_ir_benchmark",
+    src = ":huffman_decoder_verilog.opt.ir",
+    benchmark_ir_args = huffman_decoder_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "huffman_decoder_verilog_lib",
+    srcs = [
+        ":huffman_decoder.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "huffman_decoder_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HuffmanDecoder",
+    deps = [
+        ":huffman_decoder_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_decoder_benchmark_synth",
+    synth_target = ":huffman_decoder_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "huffman_decoder_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":huffman_decoder_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "huffman_ctrl_dslx",
+    srcs = [
+        "huffman_ctrl.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":huffman_axi_reader_dslx",
+        ":huffman_code_builder_dslx",
+        ":huffman_common_dslx",
+        ":huffman_data_preprocessor_dslx",
+        ":huffman_decoder_dslx",
+        ":huffman_prescan_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_ctrl_dslx_test",
+    library = ":huffman_ctrl_dslx",
+    tags = ["manual"],
+)
+
+huffman_ctrl_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanCtrl",
+    "pipeline_stages": "4",
+    "clock_period_ps": "750",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "huffman_ctrl_verilog",
+    codegen_args = huffman_ctrl_codegen_args,
+    dslx_top = "HuffmanControlAndSequenceInst",
+    library = ":huffman_ctrl_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__huffman_ctrl__HuffmanControlAndSequenceInst__HuffmanControlAndSequence_0__32_next",
+    },
+    tags = ["manual"],
+    verilog_file = "huffman_ctrl.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_ctrl_opt_ir_benchmark",
+    src = ":huffman_ctrl_verilog.opt.ir",
+    benchmark_ir_args = huffman_ctrl_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "huffman_ctrl_verilog_lib",
+    srcs = [
+        ":huffman_ctrl.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "huffman_ctrl_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HuffmanCtrl",
+    deps = [
+        ":huffman_ctrl_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_ctrl_benchmark_synth",
+    synth_target = ":huffman_ctrl_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "huffman_ctrl_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":huffman_ctrl_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "huffman_literals_dec_dslx",
+    srcs = [
+        "huffman_literals_dec.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":huffman_axi_reader_dslx",
+        ":huffman_code_builder_dslx",
+        ":huffman_common_dslx",
+        ":huffman_ctrl_dslx",
+        ":huffman_data_preprocessor_dslx",
+        ":huffman_decoder_dslx",
+        ":huffman_prescan_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_literals_dec_dslx_test",
+    library = ":huffman_literals_dec_dslx",
+    tags = ["manual"],
+)
+
+huffman_literals_dec_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanLiteralsDecoder",
+    "pipeline_stages": "64",
+    "clock_period_ps": "0",
+    "worst_case_throughput": "0",
+    "minimize_worst_case_throughput": "true",
+}
+
+xls_dslx_verilog(
+    name = "huffman_literals_dec_verilog",
+    codegen_args = huffman_literals_dec_codegen_args,
+    dslx_top = "HuffmanLiteralsDecoderInst",
+    library = ":huffman_literals_dec_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__xls_modules_zstd_huffman_decoder__HuffmanLiteralsDecoderInst__HuffmanLiteralsDecoder_0__HuffmanDecoder_0_next",
+    },
+    tags = ["manual"],
+    verilog_file = "huffman_literals_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_literals_dec_opt_ir_benchmark",
+    src = ":huffman_literals_dec_verilog.opt.ir",
+    benchmark_ir_args = huffman_literals_dec_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "huffman_literals_dec_verilog_lib",
+    srcs = [
+        ":huffman_literals_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "huffman_literals_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HuffmanLiteralsDecoder",
+    deps = [
+        ":huffman_literals_dec_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_literals_dec_benchmark_synth",
+    synth_target = ":huffman_literals_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "huffman_literals_dec_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":huffman_literals_dec_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
