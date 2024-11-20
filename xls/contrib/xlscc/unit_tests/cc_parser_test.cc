@@ -25,6 +25,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "clang/include/clang/AST/Attr.h"
+#include "clang/include/clang/AST/AttrIterator.h"
 #include "clang/include/clang/AST/Attrs.inc"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
@@ -268,6 +269,33 @@ TEST_F(CCParserTest, TopNotFound) {
   XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
   EXPECT_THAT(parser.GetTopFunction().status(),
               absl_testing::StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(CCParserTest, Block) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_block
+    int bar(int a, int b) {
+      const int foo = a + b;
+      return foo+1;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  EXPECT_EQ(top_ptr->getNameAsString(), "bar");
+  top_ptr->specific_attrs<clang::AnnotateAttr>();
+
+  const clang::AttrVec& attrs = top_ptr->getAttrs();
+  ASSERT_EQ(attrs.size(), 1);
+  const clang::Attr* attr = attrs.data()[0];
+  const clang::AnnotateAttr* annotate =
+      llvm::dyn_cast<clang::AnnotateAttr>(attr);
+  ASSERT_NE(annotate, nullptr);
+  EXPECT_EQ(annotate->getAnnotation(), "hls_block");
 }
 
 TEST_F(CCParserTest, SourceMeta) {
