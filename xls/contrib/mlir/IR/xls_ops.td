@@ -55,7 +55,9 @@ def Xls_ArrayType : Xls_Type<"Array", [ShapedTypeInterface]> {
   ];
   let extraClassDeclaration = [{
     constexpr bool hasRank() { return true; }
-    ::llvm::ArrayRef<int64_t> getShape() const { return getNumElements(); }
+    ::llvm::SmallVector<int64_t> getShape() const {
+      return ::llvm::SmallVector<int64_t>(1, getNumElements());
+    }
     ::mlir::ShapedType cloneWith(std::optional<llvm::ArrayRef<int64_t>> shape,
                                  Type elementType) {
       assert(0 && "ArrayType::cloneWith unimplemented!");
