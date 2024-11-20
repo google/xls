@@ -16,19 +16,22 @@
 
 #include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/proto_test_utils.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/type_info.h"
-#include "xls/dslx/type_system/type_info_to_proto.h"
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
 
 namespace xls::dslx {
@@ -36,7 +39,6 @@ namespace {
 
 using ::absl_testing::StatusIs;
 using ::testing::ContainsRegex;
-using ::xls::proto_testing::EqualsProto;
 
 class InferenceTableTest : public ::testing::Test {
  public:
@@ -46,11 +48,28 @@ class InferenceTableTest : public ::testing::Test {
     table_ = InferenceTable::Create(*module_, file_table_);
   }
 
-  absl::StatusOr<TypeInfoProto> ConvertTableToProto() {
+  absl::StatusOr<std::string> TypeInfoToString(const TypeInfo& ti) {
+    if (ti.dict().empty()) {
+      return "";
+    }
+    std::vector<std::string> strings;
+    for (const auto& [node, type] : ti.dict()) {
+      Span span = node->GetSpan().has_value() ? *node->GetSpan() : Span::Fake();
+      strings.push_back(absl::Substitute("span: $0, node: `$1`, type: $2",
+                                         span.ToString(file_table_),
+                                         node->ToString(), type->ToString()));
+    }
+    absl::c_sort(strings);
+    return strings.size() == 1
+               ? strings[0]
+               : absl::Substitute("\n$0\n", absl::StrJoin(strings, "\n"));
+  }
+
+  absl::StatusOr<std::string> ConvertTableToTypeInfoString() {
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * ti, InferenceTableToTypeInfo(*table_, *module_,
                                                 type_info_owner_, file_table_));
-    return TypeInfoToProto(*ti);
+    return TypeInfoToString(*ti);
   }
 
   FileTable file_table_;
@@ -60,8 +79,9 @@ class InferenceTableTest : public ::testing::Test {
 };
 
 TEST_F(InferenceTableTest, TypeInfoForEmptyTable) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto proto, ConvertTableToProto());
-  EXPECT_THAT(proto, EqualsProto(""));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           ConvertTableToTypeInfoString());
+  EXPECT_EQ(type_info_string, "");
 }
 
 TEST_F(InferenceTableTest, TypeInfoForOneSimpleAnnotation) {
@@ -71,27 +91,10 @@ TEST_F(InferenceTableTest, TypeInfoForOneSimpleAnnotation) {
       Span::Fake(), BuiltinType::kU32,
       module_->GetOrCreateBuiltinNameDef("u32"));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(x, annotation));
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto proto, ConvertTableToProto());
-  EXPECT_THAT(
-      proto, EqualsProto(R"pb(
-        nodes {
-          kind: AST_NODE_KIND_NAME_DEF
-          span {
-            start { filename: "<no-file>" lineno: 0 colno: 0 }
-            limit { filename: "<no-file>" lineno: 0 colno: 0 }
-          }
-          type {
-            bits_type {
-              is_signed: false
-              dim {
-                interp_value {
-                  bits { is_signed: false bit_count: 32 data: "\000\000\000 " }
-                }
-              }
-            }
-          }
-        }
-      )pb"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           ConvertTableToTypeInfoString());
+  EXPECT_EQ(type_info_string,
+            "span: <no-file>:1:1-1:1, node: `x`, type: uN[32]");
 }
 
 TEST_F(InferenceTableTest, SetTypeVariableToNonInferenceVariable) {
@@ -169,44 +172,12 @@ TEST_F(InferenceTableTest, SignednessAgreement) {
   XLS_EXPECT_OK(table_->SetTypeVariable(y_ref, t0));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(x_ref, u32_annotation));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(y_ref, u32_annotation));
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto proto, ConvertTableToProto());
-  EXPECT_THAT(
-      proto, EqualsProto(R"pb(
-        nodes {
-          kind: AST_NODE_KIND_NAME_REF
-          span {
-            start { filename: "<no-file>" lineno: 0 colno: 0 }
-            limit { filename: "<no-file>" lineno: 0 colno: 0 }
-          }
-          type {
-            bits_type {
-              is_signed: false
-              dim {
-                interp_value {
-                  bits { is_signed: false bit_count: 32 data: "\000\000\000 " }
-                }
-              }
-            }
-          }
-        }
-        nodes {
-          kind: AST_NODE_KIND_NAME_REF
-          span {
-            start { filename: "<no-file>" lineno: 0 colno: 0 }
-            limit { filename: "<no-file>" lineno: 0 colno: 0 }
-          }
-          type {
-            bits_type {
-              is_signed: false
-              dim {
-                interp_value {
-                  bits { is_signed: false bit_count: 32 data: "\000\000\000 " }
-                }
-              }
-            }
-          }
-        }
-      )pb"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           ConvertTableToTypeInfoString());
+  EXPECT_EQ(type_info_string, R"(
+span: <no-file>:1:1-1:1, node: `x`, type: uN[32]
+span: <no-file>:1:1-1:1, node: `y`, type: uN[32]
+)");
 }
 
 }  // namespace
