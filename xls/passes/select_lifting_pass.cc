@@ -50,6 +50,11 @@ struct TransformationResult {
   TransformationResult() : was_code_modified{false} {}
 };
 
+struct LiftableSelectOperandInfo {
+  Node *shared_input;
+  Op op;
+};
+
 std::optional<Node *> GetDefaultValue(Node *select) {
   if (select->Is<PrioritySelect>()) {
     return select->As<PrioritySelect>()->default_value();
@@ -199,8 +204,8 @@ std::optional<Op> SharedOperation(absl::Span<Node *const> cases,
   return shared_op;
 }
 
-absl::StatusOr<std::optional<Node *>> CanLiftSelect(FunctionBase *func,
-                                                    Node *select_to_optimize) {
+absl::StatusOr<std::optional<LiftableSelectOperandInfo>> CanLiftSelect(
+    FunctionBase *func, Node *select_to_optimize) {
   VLOG(3) << "  Checking the applicability guard";
 
   // Only "select" nodes with specific properties can be optimized by this
@@ -233,21 +238,30 @@ absl::StatusOr<std::optional<Node *>> CanLiftSelect(FunctionBase *func,
   }
 
   // Check the type-specific constraints
+  std::optional<Node *> shared_input_node;
   switch (*shared_input_op) {
     case Op::kArrayIndex:
-      return ApplicabilityGuardForArrayIndex(select_cases, default_value);
+      shared_input_node =
+          ApplicabilityGuardForArrayIndex(select_cases, default_value);
+      break;
 
     default:
       VLOG(3) << "    The current input of the select is not handled";
       return std::nullopt;
   }
+  if (!shared_input_node) {
+    return std::nullopt;
+  }
+
+  return LiftableSelectOperandInfo{.shared_input = *shared_input_node,
+                                   .op = *shared_input_op};
 }
 
-bool ProfitabilityGuard(FunctionBase *func, Node *select_to_optimize,
-                        Node *array_reference) {
-  // Check if the transformation is profitable
-  //
-  // Only "select" nodes with the following properties should be optimized
+bool ProfitabilityGuardForArrayIndex(FunctionBase *func,
+                                     Node *select_to_optimize,
+                                     Node *array_reference) {
+  // The next properties when hold guarantee that it is profitable to transform
+  // the "select" node.
   //
   // Property 0: array accesses (i.e., ArrayIndex) within the cases of the
   // select are not all literals. This is because ArrayIndex with only literals
@@ -350,6 +364,28 @@ bool ProfitabilityGuard(FunctionBase *func, Node *select_to_optimize,
   return true;
 }
 
+bool ShouldLiftSelect(FunctionBase *func, Node *select_to_optimize,
+                      const LiftableSelectOperandInfo &shared_between_inputs) {
+  VLOG(3) << "  Checking the profitability guard";
+
+  // Check if the transformation is profitable.
+  //
+  // Only "select" nodes with specific properties should be optimized.
+  // Such properties depend on the inputs of the "select" node.
+  //
+  // The next code checks to see if the "select" node given as input should be
+  // transformed.
+  switch (shared_between_inputs.op) {
+    case Op::kArrayIndex:
+      return ProfitabilityGuardForArrayIndex(
+          func, select_to_optimize, shared_between_inputs.shared_input);
+
+    default:
+      VLOG(3) << "    The current input of the select is not handled";
+      return false;
+  }
+}
+
 absl::StatusOr<TransformationResult> ApplyTransformation(
     FunctionBase *func, Node *select_to_optimize, Node *array_reference) {
   TransformationResult result;
@@ -433,20 +469,21 @@ absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
   TransformationResult result;
 
   // Check if it is safe to apply the transformation
-  XLS_ASSIGN_OR_RETURN(std::optional<Node *> applicability_guard_result,
-                       CanLiftSelect(func, select_to_optimize));
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<LiftableSelectOperandInfo> applicability_guard_result,
+      CanLiftSelect(func, select_to_optimize));
   if (!applicability_guard_result) {
     VLOG(3) << "  It is not safe to apply the transformation for this select";
 
     // The transformation is not applicable
     return result;
   }
-  Node *array_reference = applicability_guard_result.value();
+  LiftableSelectOperandInfo shared_between_inputs = *applicability_guard_result;
 
   // It is safe to apply the transformation
   //
   // Check if it is profitable to apply the transformation
-  if (!ProfitabilityGuard(func, select_to_optimize, array_reference)) {
+  if (!ShouldLiftSelect(func, select_to_optimize, shared_between_inputs)) {
     VLOG(3) << "  This transformation is not profitable for this select";
 
     // The transformation is not profitable
@@ -457,8 +494,9 @@ absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
   // It is now the time to apply it.
   VLOG(3) << "  This transformation is applicable and profitable for this "
              "select";
-  XLS_ASSIGN_OR_RETURN(
-      result, ApplyTransformation(func, select_to_optimize, array_reference));
+  XLS_ASSIGN_OR_RETURN(result,
+                       ApplyTransformation(func, select_to_optimize,
+                                           shared_between_inputs.shared_input));
 
   return result;
 }
