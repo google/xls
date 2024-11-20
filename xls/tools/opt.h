@@ -26,8 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 
-// TODO(meheff): 2021-10-04 Remove this header.
-#include "absl/types/span.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
 
@@ -43,9 +41,9 @@ struct OptOptions {
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
   std::optional<int64_t> split_next_value_selects = std::nullopt;
-  bool inline_procs;
+  bool inline_procs = false;
   std::vector<RamRewrite> ram_rewrites = {};
-  bool use_context_narrowing_analysis;
+  bool use_context_narrowing_analysis = false;
   std::optional<std::string> pass_list;
   std::optional<int64_t> bisect_limit;
 };
@@ -60,17 +58,6 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options);
 // returns the resulting optimized IR.
 absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
                                              const OptOptions& options);
-
-// Convenience wrapper around the above that builds an OptOptions appropriately.
-// Analogous to calling opt_main with each argument being a flag.
-absl::StatusOr<std::string> OptimizeIrForTop(
-    std::string_view input_path, int64_t opt_level, std::string_view top,
-    std::string_view ir_dump_path, absl::Span<const std::string> skip_passes,
-    int64_t convert_array_index_to_select, int64_t split_next_value_selects,
-    bool inline_procs, std::string_view ram_rewrites_pb,
-    bool use_context_narrowing_analysis, std::optional<std::string> pass_list,
-    std::optional<int64_t> bisect_limit);
-
 }  // namespace xls::tools
 
 #endif  // XLS_TOOLS_OPT_H_

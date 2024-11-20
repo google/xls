@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -70,13 +71,13 @@ ABSL_FLAG(std::string, ir_dump_path, "",
 ABSL_FLAG(std::vector<std::string>, skip_passes, {},
           "If specified, passes in this comma-separated list of (short) "
           "pass names are skipped.");
-ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
+ABSL_FLAG(std::optional<int64_t>, convert_array_index_to_select, std::nullopt,
           "If specified, convert array indexes with fewer than or "
           "equal to the given number of possible indices (by range analysis) "
           "into chains of selects. Otherwise, this optimization is skipped, "
           "since it can sometimes reduce output quality.");
 ABSL_FLAG(
-    int64_t, split_next_value_selects, 4,
+    std::optional<int64_t>, split_next_value_selects, 4,
     "If positive, split `next_value`s that assign `sel`s to state params if "
     "they have fewer than the given number of cases. This optimization is "
     "skipped for selects with more cases, since it can sometimes reduce output "
@@ -143,6 +144,15 @@ class FileStderrLogSink final : public absl::LogSink {
   const std::filesystem::path path_;
 };
 
+template <typename T>
+  requires(std::is_integral_v<T>)
+std::optional<T> NegativeIsNullopt(std::optional<T> v) {
+  if (v && *v < 0) {
+    return std::nullopt;
+  }
+  return v;
+}
+
 absl::Status RealMain(std::string_view input_path) {
   auto timeout = StartTimeoutTimer();
   if (input_path == "-") {
@@ -167,32 +177,44 @@ absl::Status RealMain(std::string_view input_path) {
   std::string top = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
   std::vector<std::string> skip_passes = absl::GetFlag(FLAGS_skip_passes);
-  int64_t convert_array_index_to_select =
-      absl::GetFlag(FLAGS_convert_array_index_to_select);
-  int64_t split_next_value_selects =
-      absl::GetFlag(FLAGS_split_next_value_selects);
+  std::optional<int64_t> convert_array_index_to_select =
+      NegativeIsNullopt(absl::GetFlag(FLAGS_convert_array_index_to_select));
+  std::optional<int64_t> split_next_value_selects =
+      NegativeIsNullopt(absl::GetFlag(FLAGS_split_next_value_selects));
   bool inline_procs = absl::GetFlag(FLAGS_inline_procs);
   std::string ram_rewrites_pb = absl::GetFlag(FLAGS_ram_rewrites_pb);
+  std::vector<RamRewrite> ram_rewrites_vec;
+  if (!ram_rewrites_pb.empty()) {
+    RamRewritesProto ram_rewrite_proto;
+    XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
+        std::filesystem::path(ram_rewrites_pb), &ram_rewrite_proto));
+    XLS_ASSIGN_OR_RETURN(ram_rewrites_vec,
+                         RamRewritesFromProto(ram_rewrite_proto));
+  }
   bool use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   std::optional<std::string> pass_list = absl::GetFlag(FLAGS_passes);
   std::optional<int64_t> bisect_limit =
       absl::GetFlag(FLAGS_passes_bisect_limit);
+  XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
 
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
-          /*input_path=*/input_path, /*opt_level=*/opt_level,
-          /*top=*/top,
-          /*ir_dump_path=*/ir_dump_path,
-          /*skip_passes=*/skip_passes,
-          /*convert_array_index_to_select=*/convert_array_index_to_select,
-          /*split_next_value_selects=*/split_next_value_selects,
-          /*inline_procs=*/inline_procs,
-          /*ram_rewrites_pb=*/ram_rewrites_pb,
-          /*use_context_narrowing_analysis=*/use_context_narrowing_analysis,
-          /*pass_list=*/pass_list,
-          /*bisect_limit=*/bisect_limit));
+          ir,
+          OptOptions{
+              .opt_level = opt_level,
+              .top = top,
+              .ir_dump_path = ir_dump_path,
+              .skip_passes = std::move(skip_passes),
+              .convert_array_index_to_select = convert_array_index_to_select,
+              .split_next_value_selects = split_next_value_selects,
+              .inline_procs = inline_procs,
+              .ram_rewrites = std::move(ram_rewrites_vec),
+              .use_context_narrowing_analysis = use_context_narrowing_analysis,
+              .pass_list = pass_list,
+              .bisect_limit = bisect_limit,
+          }));
 
   if (output_path == "-") {
     std::cout << opt_ir;

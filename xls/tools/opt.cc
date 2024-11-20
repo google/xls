@@ -98,42 +98,4 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
   return package->DumpIr();
 }
 
-absl::StatusOr<std::string> OptimizeIrForTop(
-    std::string_view input_path, int64_t opt_level, std::string_view top,
-    std::string_view ir_dump_path, absl::Span<const std::string> skip_passes,
-    int64_t convert_array_index_to_select, int64_t split_next_value_selects,
-    bool inline_procs, std::string_view ram_rewrites_pb,
-    bool use_context_narrowing_analysis, std::optional<std::string> pass_list,
-    std::optional<int64_t> bisect_limit) {
-  XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
-  std::vector<RamRewrite> ram_rewrites;
-  if (!ram_rewrites_pb.empty()) {
-    RamRewritesProto ram_rewrite_proto;
-    XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
-        std::filesystem::path(ram_rewrites_pb), &ram_rewrite_proto));
-    XLS_ASSIGN_OR_RETURN(ram_rewrites, RamRewritesFromProto(ram_rewrite_proto));
-  }
-  const OptOptions options = {
-      .opt_level = opt_level,
-      .top = top,
-      .ir_dump_path = std::string(ir_dump_path),
-      .skip_passes =
-          std::vector<std::string>(skip_passes.begin(), skip_passes.end()),
-      .convert_array_index_to_select =
-          (convert_array_index_to_select < 0)
-              ? std::nullopt
-              : std::make_optional(convert_array_index_to_select),
-      .split_next_value_selects =
-          (split_next_value_selects < 0)
-              ? std::nullopt
-              : std::make_optional(split_next_value_selects),
-      .inline_procs = inline_procs,
-      .ram_rewrites = std::move(ram_rewrites),
-      .use_context_narrowing_analysis = use_context_narrowing_analysis,
-      .pass_list = std::move(pass_list),
-      .bisect_limit = bisect_limit,
-  };
-  return OptimizeIrForTop(ir, options);
-}
-
 }  // namespace xls::tools
