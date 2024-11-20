@@ -104,6 +104,8 @@ void AddSimplificationPasses(OptimizationCompoundPass& pass) {
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<SelectSimplificationPass>();
   pass.Add<DeadCodeEliminationPass>();
+  pass.Add<DataflowSimplificationPass>();
+  pass.Add<DeadCodeEliminationPass>();
   pass.Add<LutConversionPass>();
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
