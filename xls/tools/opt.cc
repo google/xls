@@ -63,17 +63,18 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
 
   std::unique_ptr<OptimizationCompoundPass> pipeline;
   if (!options.pass_list) {
-    pipeline = CreateOptimizationPassPipeline(options.opt_level);
+    pipeline = CreateOptimizationPassPipeline();
   } else {
     XLS_RET_CHECK(options.skip_passes.empty())
         << "Skipping/restricting passes while running a custom pipeline is "
            "probably not something you want to do.";
     XLS_ASSIGN_OR_RETURN(pipeline,
-                         GetOptimizationPipelineGenerator(options.opt_level)
-                             .GeneratePipeline(*options.pass_list));
+                         GetOptimizationPipelineGenerator().GeneratePipeline(
+                             *options.pass_list));
     pipeline->AddInvariantChecker<VerifierChecker>();
   }
   OptimizationPassOptions pass_options;
+  pass_options.opt_level = options.opt_level;
   pass_options.ir_dump_path = options.ir_dump_path;
   pass_options.skip_passes = options.skip_passes;
   pass_options.inline_procs = options.inline_procs;

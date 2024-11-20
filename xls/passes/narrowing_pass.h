@@ -39,16 +39,12 @@ class NarrowingPass : public OptimizationFunctionBasePass {
     kRangeWithOptionalContext,
   };
   static constexpr std::string_view kName = "narrow";
-  explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange,
-                         int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass(kName, "Narrowing"),
-        analysis_(analysis),
-        opt_level_(opt_level) {}
+  explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange)
+      : OptimizationFunctionBasePass(kName, "Narrowing"), analysis_(analysis) {}
   ~NarrowingPass() override = default;
 
  protected:
   AnalysisType analysis_;
-  int64_t opt_level_;
 
   AnalysisType RealAnalysis(const OptimizationPassOptions& options) const;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

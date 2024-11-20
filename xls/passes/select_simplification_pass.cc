@@ -2145,7 +2145,7 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
   for (Node* node : TopoSort(func)) {
     XLS_ASSIGN_OR_RETURN(
         bool node_changed,
-        SimplifyNode(node, query_engine, provenance, opt_level_));
+        SimplifyNode(node, query_engine, provenance, options.opt_level));
     changed = changed || node_changed;
   }
 
@@ -2153,7 +2153,7 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
   // bits in the cases because this transformation creates many more
   // OneHotSelects & PrioritySelects exposing further opportunities for
   // optimizations.
-  if (SplitsEnabled(opt_level_)) {
+  if (options.splits_enabled()) {
     // We need to recalculate provenance and qe if changes happened.
     std::optional<BitProvenanceAnalysis> post_simplify_provenance;
     if (changed) {
@@ -2188,6 +2188,6 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
   return changed;
 }
 
-REGISTER_OPT_PASS(SelectSimplificationPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(SelectSimplificationPass);
 
 }  // namespace xls

@@ -60,8 +60,7 @@ class RamRewritePassTest : public IrTestBase {
                            absl::Span<RamRewrite const> ram_rewrites) {
     PassResults results;
     OptimizationPassOptions options;
-    options.ram_rewrites =
-        std::vector<RamRewrite>(ram_rewrites.begin(), ram_rewrites.end());
+    options.ram_rewrites = ram_rewrites;
     return CreateOptimizationPassPipeline()->Run(p, options, &results);
   }
 

@@ -1633,7 +1633,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   // transforming selects of array to array of selects, etc.
   XLS_ASSIGN_OR_RETURN(
       bool flatten_changed,
-      FlattenSequentialUpdates(func, query_engine, opt_level_));
+      FlattenSequentialUpdates(func, query_engine, options.opt_level));
   if (flatten_changed) {
     changed = true;
     XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
@@ -1684,12 +1684,12 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     SimplifyResult result = {.changed = false, .new_worklist_nodes = {}};
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
-      XLS_ASSIGN_OR_RETURN(
-          result, SimplifyArrayIndex(array_index, query_engine, opt_level_));
+      XLS_ASSIGN_OR_RETURN(result, SimplifyArrayIndex(array_index, query_engine,
+                                                      options.opt_level));
     } else if (node->Is<ArrayUpdate>()) {
       XLS_ASSIGN_OR_RETURN(
           result, SimplifyArrayUpdate(node->As<ArrayUpdate>(), query_engine,
-                                      opt_level_));
+                                      options.opt_level));
     } else if (node->Is<Array>()) {
       XLS_ASSIGN_OR_RETURN(result,
                            SimplifyArray(node->As<Array>(), query_engine));
@@ -1709,6 +1709,6 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   return changed;
 }
 
-REGISTER_OPT_PASS(ArraySimplificationPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(ArraySimplificationPass);
 
 }  // namespace xls

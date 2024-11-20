@@ -1539,7 +1539,7 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
       }
       XLS_ASSIGN_OR_RETURN(
           bool node_changed,
-          MatchArithPatterns(opt_level_, n, StatelessQueryEngine()));
+          MatchArithPatterns(options.opt_level, n, StatelessQueryEngine()));
       if (node_changed) {
         pass_changed = true;
       }
@@ -1549,6 +1549,6 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
   return changed;
 }
 
-REGISTER_OPT_PASS(ArithSimplificationPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(ArithSimplificationPass);
 
 }  // namespace xls

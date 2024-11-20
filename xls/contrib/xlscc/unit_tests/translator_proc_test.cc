@@ -7979,10 +7979,11 @@ TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
     // Don't do cse so that the duplication shows
     // bdd_cse pass wants a delay estimator
     std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
-        xls::GetOptimizationPipelineGenerator(/*opt_level=*/3)
+        xls::GetOptimizationPipelineGenerator()
             .GeneratePipeline("inlining dce")
             .value();
-    xls::OptimizationPassOptions options;
+    xls::OptimizationPassOptions options =
+        xls::OptimizationPassOptions().WithOptLevel(3);
     xls::PassResults results;
 
     XLS_ASSERT_OK(pipeline->Run(package_.get(), options, &results).status());

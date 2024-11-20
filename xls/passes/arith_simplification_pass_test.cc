@@ -69,8 +69,8 @@ class ArithSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return ArithSimplificationPass(kMaxOptLevel)
-        .Run(p, OptimizationPassOptions(), &results);
+    return ArithSimplificationPass().Run(
+        p, OptimizationPassOptions().WithOptLevel(kMaxOptLevel), &results);
   }
 
   void CheckUnsignedDivide(int n, int divisor);
@@ -1905,9 +1905,10 @@ void UmulFuzz(const Bits& multiplicand, const Bits& result, int64_t var_width,
   ScopedVerifyEquivalence sve(f);
   ScopedRecordIr sri(&p);
   PassResults results;
-  ASSERT_THAT(ArithSimplificationPass(kMaxOptLevel)
-                  .Run(&p, OptimizationPassOptions(), &results),
-              absl_testing::IsOk());
+  ASSERT_THAT(
+      ArithSimplificationPass().Run(
+          &p, OptimizationPassOptions().WithOptLevel(kMaxOptLevel), &results),
+      absl_testing::IsOk());
 }
 
 FUZZ_TEST(ArithSimplificationPassFuzzTest, UmulFuzz)

@@ -343,7 +343,7 @@ absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
     }
 
     if (auto it = split_depth.find(next);
-        SplitsEnabled(opt_level_) && max_split_depth_ > 0 &&
+        options.splits_enabled() && max_split_depth_ > 0 &&
         (it == split_depth.end() || it->second < max_split_depth_)) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<std::vector<Next*>> split_select_next_values,

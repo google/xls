@@ -385,6 +385,88 @@ TEST(PassesTest, SkipPassesOption) {
   }
 }
 
+class RecordPass : public OptimizationFunctionBasePass {
+ public:
+  explicit RecordPass(std::vector<int64_t>* record)
+      : OptimizationFunctionBasePass("record", "record opt level"),
+        record_(record) {}
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results) const override {
+    record_->push_back(options.opt_level);
+    return false;
+  }
+
+ private:
+  std::vector<int64_t>* record_;
+};
+TEST(PassesTest, CapOptLevel) {
+  // Verify the test invariant checker works as expected.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(kInvariantTesterPackage));
+  std::vector<int64_t> record;
+  OptimizationCompoundPass passes("test", "test");
+  passes.Add<RecordPass>(&record);
+  passes.Add<CapOptLevel<kMaxOptLevel + 1, RecordPass>>(&record);
+  PassResults res;
+  {
+    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res),
+                IsOkAndHolds(false));
+    EXPECT_THAT(record, ElementsAre(kMaxOptLevel, kMaxOptLevel));
+  }
+  record.clear();
+  {
+    ASSERT_THAT(
+        passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(2), &res),
+        IsOkAndHolds(false));
+    EXPECT_THAT(record, ElementsAre(2, 2));
+  }
+  record.clear();
+  {
+    ASSERT_THAT(
+        passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(12), &res),
+        IsOkAndHolds(false));
+    EXPECT_THAT(record, ElementsAre(12, kMaxOptLevel + 1));
+  }
+}
+
+TEST(PassesTest, OptLevelIsAtLeast) {
+  // Verify the test invariant checker works as expected.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(kInvariantTesterPackage));
+  std::vector<int64_t> record;
+  OptimizationCompoundPass passes("test", "test");
+  passes.Add<RecordPass>(&record);
+  passes.Add<IfOptLevelAtLeast<1, RecordPass>>(&record);
+  PassResults res;
+  {
+    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res),
+                IsOkAndHolds(false));
+    EXPECT_THAT(record, ElementsAre(kMaxOptLevel, kMaxOptLevel));
+  }
+  record.clear();
+  {
+    ASSERT_THAT(
+        passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(0), &res),
+        IsOkAndHolds(false));
+    EXPECT_THAT(record, ElementsAre(0));
+  }
+}
+
+TEST(PassesTest, WithOptLevel) {
+  // Verify the test invariant checker works as expected.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(kInvariantTesterPackage));
+  std::vector<int64_t> record;
+  OptimizationCompoundPass passes("test", "test");
+  passes.Add<RecordPass>(&record);
+  passes.Add<WithOptLevel<1, RecordPass>>(&record);
+  PassResults res;
+  ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res),
+              IsOkAndHolds(false));
+  EXPECT_THAT(record, ElementsAre(kMaxOptLevel, 1));
+}
+
 class NaiveDcePass : public OptimizationFunctionBasePass {
  public:
   NaiveDcePass() : OptimizationFunctionBasePass("naive_dce", "naive dce") {}

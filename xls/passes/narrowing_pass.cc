@@ -1829,7 +1829,7 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   SpecializedQueryEngines sqe(RealAnalysis(options), pda, query_engine);
 
   NarrowVisitor narrower(sqe, RealAnalysis(options), options,
-                         SplitsEnabled(opt_level_));
+                         options.splits_enabled());
 
   for (Node* node : TopoSort(f)) {
     // We specifically want gate ops to be eligible for being reduced to a
@@ -1883,18 +1883,14 @@ std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
 XLS_REGISTER_MODULE_INITIALIZER(narrowing_pass, {
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>("narrow"));
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
-      "narrow(Ternary)", NarrowingPass::AnalysisType::kTernary,
-      pass_config::kOptLevel));
+      "narrow(Ternary)", NarrowingPass::AnalysisType::kTernary));
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
-      "narrow(Range)", NarrowingPass::AnalysisType::kRange,
-      pass_config::kOptLevel));
+      "narrow(Range)", NarrowingPass::AnalysisType::kRange));
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
-      "narrow(Context)", NarrowingPass::AnalysisType::kRangeWithContext,
-      pass_config::kOptLevel));
+      "narrow(Context)", NarrowingPass::AnalysisType::kRangeWithContext));
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>(
       "narrow(OptionalContext)",
-      NarrowingPass::AnalysisType::kRangeWithOptionalContext,
-      pass_config::kOptLevel));
+      NarrowingPass::AnalysisType::kRangeWithOptionalContext));
 });
 
 }  // namespace xls

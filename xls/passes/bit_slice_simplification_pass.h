@@ -30,13 +30,11 @@ namespace xls {
 class BitSliceSimplificationPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "bitslice_simp";
-  explicit BitSliceSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass(kName, "Bit-slice simplification"),
-        opt_level_(opt_level) {}
+  explicit BitSliceSimplificationPass()
+      : OptimizationFunctionBasePass(kName, "Bit-slice simplification") {}
   ~BitSliceSimplificationPass() override = default;
 
  protected:
-  int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;

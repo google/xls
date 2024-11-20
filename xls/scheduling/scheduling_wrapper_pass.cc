@@ -67,8 +67,9 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
 
   XLS_ASSIGN_OR_RETURN(
       bool changed,
-      wrapped_pass_->Run(unit->GetPackage(), OptimizationPassOptions(options),
-                         results));
+      wrapped_pass_->Run(
+          unit->GetPackage(),
+          OptimizationPassOptions(options).WithOptLevel(opt_level_), results));
   if (!changed) {
     return false;
   }

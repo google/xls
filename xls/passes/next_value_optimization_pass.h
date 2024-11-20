@@ -42,15 +42,12 @@ class NextValueOptimizationPass : public OptimizationProcPass {
 
   static constexpr int64_t kDefaultMaxSplitDepth = 10;
   explicit NextValueOptimizationPass(
-      int64_t opt_level = kMaxOptLevel,
       int64_t max_split_depth = kDefaultMaxSplitDepth)
       : OptimizationProcPass(kName, "Next Value Optimization"),
-        opt_level_(opt_level),
         max_split_depth_(max_split_depth) {}
   ~NextValueOptimizationPass() override = default;
 
  protected:
-  const int64_t opt_level_;
   const int64_t max_split_depth_;
   absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
                                          const OptimizationPassOptions& options,

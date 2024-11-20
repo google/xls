@@ -546,7 +546,7 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
   bool was_code_modified = false;
 
   // Collect the "select" nodes that might be optimizable
-  VLOG(3) << "Optimizing the function at level " << this->opt_level_;
+  VLOG(3) << "Optimizing the function at level " << options.opt_level;
   for (Node *node : func->nodes()) {
     // Only consider selects.
     if (!node->OpIn({Op::kSel, Op::kPrioritySel})) {
@@ -578,7 +578,7 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
       VLOG(3) << "    No changes";
       break;
     }
-    if (opt_level_ <= 1) {
+    if (options.opt_level <= 1) {
       // The code got modified, but only higher level of optimizations (compared
       // to the current opt level) are allowed to repeat the transformation.
       break;
@@ -593,6 +593,6 @@ absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
   return was_code_modified;
 }
 
-REGISTER_OPT_PASS(SelectLiftingPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(SelectLiftingPass);
 
 }  // namespace xls

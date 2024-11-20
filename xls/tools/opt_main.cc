@@ -209,8 +209,8 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
 
   if (absl::GetFlag(FLAGS_list_passes)) {
-    std::cout << xls::GetOptimizationPipelineGenerator(xls::kMaxOptLevel)
-                     .GetAvailablePassesStr();
+    std::cout
+        << xls::GetOptimizationPipelineGenerator().GetAvailablePassesStr();
     return 0;
   }
   if (positional_arguments.empty()) {

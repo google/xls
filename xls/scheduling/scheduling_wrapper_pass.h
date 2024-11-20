@@ -15,6 +15,7 @@
 #ifndef XLS_SCHEDULING_SCHEDULING_WRAPPER_PASS_H_
 #define XLS_SCHEDULING_SCHEDULING_WRAPPER_PASS_H_
 
+#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -34,14 +35,18 @@ namespace xls {
 // nodes added by the pass are detected and an error is raised. If
 // reschedule_new_nodes is true, the current schedule is deleted and a
 // scheduling pass must be rerun after this wrapped pass.
+// TODO(allight): Do a refactor to move opt-level into pass-options similar to
+// what's done with optimization-pass
 class SchedulingWrapperPass : public SchedulingPass {
  public:
   explicit SchedulingWrapperPass(std::unique_ptr<OptimizationPass> wrapped_pass,
+                                 int64_t opt_level,
                                  bool reschedule_new_nodes = false)
       : SchedulingPass(
             absl::StrFormat("scheduling_%s", wrapped_pass->short_name()),
             absl::StrFormat("%s (scheduling)", wrapped_pass->long_name())),
         wrapped_pass_(std::move(wrapped_pass)),
+        opt_level_(opt_level),
         reschedule_new_nodes_(reschedule_new_nodes) {}
   ~SchedulingWrapperPass() override = default;
 
@@ -52,6 +57,7 @@ class SchedulingWrapperPass : public SchedulingPass {
 
  private:
   std::unique_ptr<OptimizationPass> wrapped_pass_;
+  int64_t opt_level_;
   bool reschedule_new_nodes_;
 };
 

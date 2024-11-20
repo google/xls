@@ -15,15 +15,21 @@
 #ifndef XLS_PASSES_OPTIMIZATION_PASS_H_
 #define XLS_PASSES_OPTIMIZATION_PASS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
@@ -35,6 +41,8 @@
 #include "xls/passes/pipeline_generator.h"
 
 namespace xls {
+
+inline constexpr int64_t kMaxOptLevel = 3;
 
 // Metadata for RAMs.
 // TODO(google/xls#873): Ideally this metadata should live in the IR.
@@ -101,6 +109,28 @@ struct OptimizationPassOptions : public PassOptionsBase {
   explicit OptimizationPassOptions(const PassOptionsBase& options_base)
       : PassOptionsBase(options_base) {}
 
+  // What opt-level was requested for this pass. This might not be the top-level
+  // --opt_level flag value as compound-passes might lower this for some of
+  // their segments.
+  int64_t opt_level = kMaxOptLevel;
+
+  OptimizationPassOptions WithOptLevel(int64_t opt_level) const& {
+    OptimizationPassOptions opt = *this;
+    opt.opt_level = opt_level;
+    return opt;
+  }
+
+  OptimizationPassOptions&& WithOptLevel(int64_t opt_level) && {
+    this->opt_level = opt_level;
+    return std::move(*this);
+  }
+
+  // Whether narrowing is enabled in this config.
+  bool narrowing_enabled() const;
+
+  // Whether splits is enabled in this config.
+  bool splits_enabled() const;
+
   // Whether to inline all procs by calling the proc inlining pass.
   // TODO(meheff): 2022/2/13 Devise a better mechanism for deciding whether or
   // not to inline procs including figuring out which procs to inline. At the
@@ -121,7 +151,7 @@ struct OptimizationPassOptions : public PassOptionsBase {
 
   // List of RAM rewrites, generally lowering abstract RAMs into concrete
   // variants.
-  std::vector<RamRewrite> ram_rewrites;
+  absl::Span<RamRewrite const> ram_rewrites = {};
 
   // Use select context during narrowing range analysis.
   bool use_context_narrowing_analysis = false;
@@ -131,7 +161,6 @@ struct OptimizationPassOptions : public PassOptionsBase {
 // to PassBase::Run).
 // Defines the pass types for optimizations which operate strictly on XLS IR
 // (i.e., xls::Package).
-// TODO(meheff): Rename to OptimizationPass, etc.
 using OptimizationPass = PassBase<Package, OptimizationPassOptions>;
 using OptimizationCompoundPass =
     CompoundPassBase<Package, OptimizationPassOptions>;
@@ -141,20 +170,102 @@ using OptimizationInvariantChecker = OptimizationCompoundPass::InvariantChecker;
 using OptimizationPipelineGenerator =
     PipelineGeneratorBase<Package, OptimizationPassOptions>;
 
-inline constexpr int64_t kMaxOptLevel = 3;
-
-using OptimizationPassStandardConfig = decltype(kMaxOptLevel);
 using OptimizationPassRegistry =
-    PassRegistry<Package, OptimizationPassOptions, PassResults,
-                 OptimizationPassStandardConfig>;
+    PassRegistry<Package, OptimizationPassOptions, PassResults>;
 using OptimizationPassGenerator =
-    PassGenerator<Package, OptimizationPassOptions, PassResults,
-                  OptimizationPassStandardConfig>;
+    PassGenerator<Package, OptimizationPassOptions, PassResults>;
+
+// Wrapper that uses templates to force opt-level to a specific max value for
+// either a specific pass or a compound pass contents.
+template <int64_t kLevel, typename InnerPass>
+  requires(std::is_base_of_v<OptimizationPass, InnerPass>)
+class CapOptLevel : public OptimizationPass {
+ public:
+  template <typename... Args>
+  explicit CapOptLevel(Args... args)
+      : OptimizationPass(
+            absl::StrFormat("%s(opt_level<=%d)",
+                            InnerPass(args...).short_name(), kLevel),
+            absl::StrFormat("%s with opt_level <= %d",
+                            InnerPass(args...).long_name(), kLevel)),
+        inner_(args...) {}
+
+ protected:
+  absl::StatusOr<bool> RunInternal(Package* ir,
+                                   const OptimizationPassOptions& options,
+                                   PassResults* results) const override {
+    if (VLOG_IS_ON(4) && kLevel < options.opt_level) {
+      VLOG(4) << "Lowering opt-level of pass '" << inner_.long_name() << "' ("
+              << inner_.short_name() << ") to " << kLevel;
+    }
+    return inner_.Run(
+        ir, options.WithOptLevel(std::min(kLevel, options.opt_level)), results);
+  }
+
+ private:
+  InnerPass inner_;
+};
+
+// Wrapper that disables the pass unless the opt-level is at least kLevel.
+template <int64_t kLevel, typename InnerPass>
+  requires(std::is_base_of_v<OptimizationPass, InnerPass>)
+class IfOptLevelAtLeast : public OptimizationPass {
+ public:
+  template <typename... Args>
+  explicit IfOptLevelAtLeast(Args... args)
+      : OptimizationPass(
+            absl::StrFormat("%s(opt_level>=%d)",
+                            InnerPass(args...).short_name(), kLevel),
+            absl::StrFormat("%s when opt_level >= %d",
+                            InnerPass(args...).long_name(), kLevel)),
+        inner_(args...) {}
+
+ protected:
+  absl::StatusOr<bool> RunInternal(Package* ir,
+                                   const OptimizationPassOptions& options,
+                                   PassResults* results) const override {
+    if (options.opt_level < kLevel) {
+      VLOG(4) << "Skipping pass '" << inner_.long_name() << "' ("
+              << inner_.short_name()
+              << ") because opt-level is lower than minimum level of "
+              << kLevel;
+      return false;
+    }
+    return inner_.Run(ir, options, results);
+  }
+
+ private:
+  InnerPass inner_;
+};
+
+// Wrapper that explicitly sets the opt level to a specific value.
+template <int64_t kLevel, typename InnerPass>
+  requires(std::is_base_of_v<OptimizationPass, InnerPass>)
+class WithOptLevel : public InnerPass {
+ public:
+  template <typename... Args>
+  explicit WithOptLevel(Args... args) : InnerPass(args...) {}
+
+ protected:
+  absl::StatusOr<bool> RunInternal(Package* ir,
+                                   const OptimizationPassOptions& options,
+                                   PassResults* results) const override {
+    return InnerPass::RunInternal(ir, options.WithOptLevel(kLevel), results);
+  }
+};
 
 // Whether optimizations which split operations into multiple pieces should be
 // performed at the given optimization level.
 inline bool SplitsEnabled(int64_t opt_level) { return opt_level >= 3; }
 inline bool NarrowingEnabled(int64_t opt_level) { return opt_level >= 2; }
+
+inline bool OptimizationPassOptions::narrowing_enabled() const {
+  return NarrowingEnabled(opt_level);
+}
+
+inline bool OptimizationPassOptions::splits_enabled() const {
+  return SplitsEnabled(opt_level);
+}
 
 // Abstract base class for passes operate at function/proc scope. The derived
 // class must define RunOnFunctionBaseInternal.

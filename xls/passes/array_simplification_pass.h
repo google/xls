@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_ARRAY_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_ARRAY_SIMPLIFICATION_PASS_H_
 
-#include <cstdint>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -30,12 +29,10 @@ namespace xls {
 class ArraySimplificationPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "array_simp";
-  explicit ArraySimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass(kName, "Array Simplification"),
-        opt_level_(opt_level) {}
+  explicit ArraySimplificationPass()
+      : OptimizationFunctionBasePass(kName, "Array Simplification") {}
 
  protected:
-  int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;

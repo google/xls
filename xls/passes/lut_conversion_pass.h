@@ -30,13 +30,11 @@ namespace xls {
 class LutConversionPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "lut_conversion";
-  explicit LutConversionPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass(kName, "LUT Conversion"),
-        opt_level_(opt_level) {}
+  explicit LutConversionPass()
+      : OptimizationFunctionBasePass(kName, "LUT Conversion") {}
   ~LutConversionPass() override = default;
 
  protected:
-  int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;

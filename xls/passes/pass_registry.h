@@ -32,25 +32,21 @@
 namespace xls {
 
 // Base class for a builder for generic passes.
-template <typename IrT, typename OptionsT, typename ResultsT,
-          typename StandardConfigsT>
+template <typename IrT, typename OptionsT, typename ResultsT>
 class PassGenerator {
  public:
   virtual ~PassGenerator() = default;
   // Create a new pass of the templated type and add it to the pipeline.
   virtual absl::Status AddToPipeline(
-      CompoundPassBase<IrT, OptionsT, ResultsT>* pipeline,
-      const StandardConfigsT& config) const = 0;
+      CompoundPassBase<IrT, OptionsT, ResultsT>* pipeline) const = 0;
 };
 
 // A registry for holding passes of a particular type. This allows one to
 // request builders by name.
-template <typename IrT, typename OptionsT, typename ResultsT,
-          typename StandardConfigT>
+template <typename IrT, typename OptionsT, typename ResultsT>
 class PassRegistry final {
  public:
-  using GeneratorPtr =
-      std::unique_ptr<PassGenerator<IrT, OptionsT, ResultsT, StandardConfigT>>;
+  using GeneratorPtr = std::unique_ptr<PassGenerator<IrT, OptionsT, ResultsT>>;
   constexpr PassRegistry() = default;
   constexpr ~PassRegistry() = default;
 
@@ -66,8 +62,8 @@ class PassRegistry final {
   }
 
   // Get a pass generator of the given name.
-  absl::StatusOr<PassGenerator<IrT, OptionsT, ResultsT, StandardConfigT>*>
-  Generator(std::string_view name) const {
+  absl::StatusOr<PassGenerator<IrT, OptionsT, ResultsT>*> Generator(
+      std::string_view name) const {
     absl::MutexLock mu(&registry_lock_);
     if (!generators_.contains(name)) {
       return absl::NotFoundError(

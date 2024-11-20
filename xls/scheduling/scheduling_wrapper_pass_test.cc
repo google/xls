@@ -63,6 +63,7 @@ absl::StatusOr<bool> RunSchedulingPass(
       .scheduling_options = SchedulingOptions().pipeline_stages(10),
       .delay_estimator = &delay_estimator};
   return SchedulingWrapperPass(std::move(wrapped_pass),
+                               /*opt_level=*/kMaxOptLevel,
                                /*reschedule_new_nodes=*/reschedule_new_nodes)
       .Run(&unit, options, &scheduling_results);
 }
@@ -267,9 +268,9 @@ TEST_F(SchedulingWrapperPassTest, DCEMakesLiteralUncommoningANoop) {
   unit.schedules().insert({dead_common_literal_func, std::move(schedule)});
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<DeadCodeEliminationPass>());
+      std::make_unique<DeadCodeEliminationPass>(), kMaxOptLevel);
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<LiteralUncommoningPass>());
+      std::make_unique<LiteralUncommoningPass>(), kMaxOptLevel);
   EXPECT_THAT(RunSchedulingPass(pass_pipeline, unit), IsOkAndHolds(true));
 
   ASSERT_THAT(unit.schedules(),
@@ -292,10 +293,10 @@ TEST_F(SchedulingWrapperPassTest,
   unit.schedules().insert({dead_common_literal_func, std::move(schedule)});
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<LiteralUncommoningPass>(),
+      std::make_unique<LiteralUncommoningPass>(), kMaxOptLevel,
       /*reschedule_new_nodes=*/true);
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<DeadCodeEliminationPass>());
+      std::make_unique<DeadCodeEliminationPass>(), kMaxOptLevel);
   EXPECT_THAT(RunSchedulingPass(pass_pipeline, unit), IsOkAndHolds(true));
   ASSERT_THAT(unit.schedules(), IsEmpty());
 }
@@ -314,10 +315,10 @@ TEST_F(SchedulingWrapperPassTest,
   unit.schedules().insert({dead_common_literal_func, std::move(schedule)});
   SchedulingCompoundPass pass_pipeline("scheduling", "DCE + literal commoning");
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<LiteralUncommoningPass>(),
+      std::make_unique<LiteralUncommoningPass>(), kMaxOptLevel,
       /*reschedule_new_nodes=*/false);
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<DeadCodeEliminationPass>());
+      std::make_unique<DeadCodeEliminationPass>(), kMaxOptLevel);
   EXPECT_THAT(RunSchedulingPass(pass_pipeline, unit),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("can't create new nodes")));
@@ -334,12 +335,13 @@ TEST_F(SchedulingWrapperPassTest, FunctionInliningScheduleDFEWorks) {
   SchedulingCompoundPass pass_pipeline("scheduling", "inline + schedule + dfe");
   // Inlining removes `invoke` ops but leaves the invoked function in.
   pass_pipeline.Add<SchedulingWrapperPass>(std::make_unique<InliningPass>(),
+                                           kMaxOptLevel,
                                            /*reschedule_new_nodes=*/true);
   // This should schedule both functions.
   pass_pipeline.Add<PipelineSchedulingPass>();
   // This should remove the invoked function.
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<DeadFunctionEliminationPass>());
+      std::make_unique<DeadFunctionEliminationPass>(), kMaxOptLevel);
   EXPECT_THAT(RunSchedulingPass(pass_pipeline, unit), IsOkAndHolds(true));
   ASSERT_THAT(unit.schedules(), UnorderedElementsAre(Key(add_func)));
 }
@@ -358,12 +360,13 @@ TEST_F(SchedulingWrapperPassTest,
   SchedulingCompoundPass pass_pipeline("scheduling", "inline + schedule + dfe");
   // Inlining removes `invoke` ops but leaves the invoked function in.
   pass_pipeline.Add<SchedulingWrapperPass>(std::make_unique<InliningPass>(),
+                                           kMaxOptLevel,
                                            /*reschedule_new_nodes=*/true);
   // This should schedule both functions.
   pass_pipeline.Add<PipelineSchedulingPass>();
   // This should remove the invoked function.
   pass_pipeline.Add<SchedulingWrapperPass>(
-      std::make_unique<DeadFunctionEliminationPass>());
+      std::make_unique<DeadFunctionEliminationPass>(), kMaxOptLevel);
   EXPECT_THAT(RunSchedulingPass(pass_pipeline, unit),
               StatusIs(absl::StatusCode::kInternal, HasSubstr("not found")));
 }

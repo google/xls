@@ -1065,7 +1065,7 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
-                       GetQueryEngine(f, opt_level_));
+                       GetQueryEngine(f, options.opt_level));
 
   // Iterating through these operations in reverse topological order makes sure
   // we don't need to re-populate the query engine between nodes.
@@ -1098,14 +1098,15 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   while (!worklist.empty()) {
     BitSlice* bit_slice = worklist.front();
     worklist.pop_front();
-    XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyBitSlice(bit_slice, opt_level_, &worklist));
+    XLS_ASSIGN_OR_RETURN(
+        bool node_changed,
+        SimplifyBitSlice(bit_slice, options.opt_level, &worklist));
     changed = changed || node_changed;
   }
 
   return changed;
 }
 
-REGISTER_OPT_PASS(BitSliceSimplificationPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(BitSliceSimplificationPass);
 
 }  // namespace xls

@@ -591,14 +591,14 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
   // information is always fresh and precise.
   bool modified = false;
   for (Node* node : TopoSort(f)) {
-    XLS_ASSIGN_OR_RETURN(
-        bool node_modified,
-        StrengthReduceNode(node, reducible_adds, query_engine, opt_level_));
+    XLS_ASSIGN_OR_RETURN(bool node_modified,
+                         StrengthReduceNode(node, reducible_adds, query_engine,
+                                            options.opt_level));
     modified |= node_modified;
   }
   return modified;
 }
 
-REGISTER_OPT_PASS(StrengthReductionPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(StrengthReductionPass);
 
 }  // namespace xls

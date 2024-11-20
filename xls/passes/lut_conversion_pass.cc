@@ -245,7 +245,7 @@ absl::StatusOr<bool> SimplifyNode(
 absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results) const {
-  if (!NarrowingEnabled(opt_level_)) {
+  if (!options.narrowing_enabled()) {
     return false;
   }
 
@@ -267,13 +267,13 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
       continue;
     }
     XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyNode(node, query_engine, opt_level_,
+                         SimplifyNode(node, query_engine, options.opt_level,
                                       dataflow_dominator_analysis));
     changed = changed || node_changed;
   }
   return changed;
 }
 
-REGISTER_OPT_PASS(LutConversionPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(LutConversionPass);
 
 }  // namespace xls

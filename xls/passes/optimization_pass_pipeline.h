@@ -31,19 +31,19 @@ namespace xls {
 // The passes which consist of a single simplification run.
 class SimplificationPass : public OptimizationCompoundPass {
  public:
-  explicit SimplificationPass(int64_t opt_level);
+  explicit SimplificationPass();
 };
 
 class FixedPointSimplificationPass : public OptimizationFixedPointCompoundPass {
  public:
-  explicit FixedPointSimplificationPass(int64_t opt_level);
+  explicit FixedPointSimplificationPass();
 };
 
 // The passes which are executed before any inlining has been performed.
 class PreInliningPassGroup : public OptimizationCompoundPass {
  public:
   static constexpr std::string_view kName = "pre-inlining";
-  explicit PreInliningPassGroup(int64_t opt_level);
+  explicit PreInliningPassGroup();
 };
 
 // The passes which perform full function inlining.
@@ -53,7 +53,7 @@ class PreInliningPassGroup : public OptimizationCompoundPass {
 class UnrollingAndInliningPassGroup : public OptimizationCompoundPass {
  public:
   static constexpr std::string_view kName = "full-inlining";
-  explicit UnrollingAndInliningPassGroup(int64_t opt_level);
+  explicit UnrollingAndInliningPassGroup();
 };
 
 // Passes that flatten proc state of aggregate types into individual elements.
@@ -70,13 +70,12 @@ class ProcStateFlatteningFixedPointPass
 class PostInliningPassGroup : public OptimizationCompoundPass {
  public:
   static constexpr std::string_view kName = "post-inlining";
-  explicit PostInliningPassGroup(int64_t opt_level);
+  explicit PostInliningPassGroup();
 };
 
 // CreateOptimizationPassPipeline connects together the various optimization
 // and analysis passes in the order of execution.
-std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
-    int64_t opt_level = kMaxOptLevel);
+std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline();
 
 // Creates and runs the standard pipeline on the given package with default
 // options.
@@ -87,10 +86,8 @@ class OptimizationPassPipelineGenerator final
     : public OptimizationPipelineGenerator {
  public:
   OptimizationPassPipelineGenerator(std::string_view short_name,
-                                    std::string_view long_name,
-                                    int64_t opt_level)
-      : OptimizationPipelineGenerator(short_name, long_name),
-        opt_level_(opt_level) {}
+                                    std::string_view long_name)
+      : OptimizationPipelineGenerator(short_name, long_name) {}
 
   std::vector<std::string_view> GetAvailablePasses() const;
   std::string GetAvailablePassesStr() const;
@@ -98,15 +95,11 @@ class OptimizationPassPipelineGenerator final
  protected:
   absl::Status AddPassToPipeline(OptimizationCompoundPass* pass,
                                  std::string_view pass_name) const final;
-
- private:
-  int64_t opt_level_;
 };
 
-inline OptimizationPassPipelineGenerator GetOptimizationPipelineGenerator(
-    int64_t opt_level) {
+inline OptimizationPassPipelineGenerator GetOptimizationPipelineGenerator() {
   return OptimizationPassPipelineGenerator(
-      "opt_pipeline", "optimization_pass_pipeline_generator", opt_level);
+      "opt_pipeline", "optimization_pass_pipeline_generator");
 }
 
 }  // namespace xls

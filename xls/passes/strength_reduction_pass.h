@@ -30,14 +30,11 @@ namespace xls {
 class StrengthReductionPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "strength_red";
-  explicit StrengthReductionPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass(kName, "Strength Reduction"),
-        opt_level_(opt_level) {}
+  explicit StrengthReductionPass()
+      : OptimizationFunctionBasePass(kName, "Strength Reduction") {}
   ~StrengthReductionPass() override = default;
 
  protected:
-  int64_t opt_level_;
-
   // Run all registered passes in order of registration.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,

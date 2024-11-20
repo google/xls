@@ -31,18 +31,6 @@ namespace xls {
 // Get the singleton pass registry for optimization passes.
 OptimizationPassRegistry& GetOptimizationRegistry();
 
-namespace pass_config {
-struct OptLevel : public std::monostate {};
-
-// Token to replace with opt level but capped to some given value.
-struct CappedOptLevel {
-  // Maximum opt level allowed.
-  decltype(kMaxOptLevel) cap;
-};
-
-inline constexpr OptLevel kOptLevel{};
-}  // namespace pass_config
-
 // Helpers to handle creating and configuring passes in a somewhat reasonable
 // way.
 //
@@ -51,32 +39,6 @@ inline constexpr OptLevel kOptLevel{};
 // should refactor the pass system so every pass only takes a single argument,
 // the opt level, and nothing else.
 namespace optimization_registry::internal {
-// Transform the input given the config. Does nothing by default since the
-// opt-level does not need to be bound to anything.
-template <typename Input>
-inline auto Transform(Input input,
-                      const OptimizationPassStandardConfig& config) {
-  return input;
-}
-
-// Transform the input given the config. Returns the opt level capped to the
-// given value.
-//
-// This binds the real capped opt level to the marker struct.
-template <>
-inline auto Transform(pass_config::CappedOptLevel input,
-                      const OptimizationPassStandardConfig& config) {
-  return std::min(input.cap, config);
-}
-
-// Transform the input given the config. Returns the opt level.
-//
-// This binds the real opt-level to the opt-level marker token.
-template <>
-inline auto Transform(pass_config::OptLevel input,
-                      const OptimizationPassStandardConfig& config) {
-  return config;
-}
 
 // A templated class to hold the argument specification for creating a pass.
 //
@@ -88,16 +50,10 @@ template <typename PassClass, typename... Args>
 class Adder final : public OptimizationPassGenerator {
  public:
   explicit Adder(Args... args) : args_(std::forward_as_tuple(args...)) {}
-  absl::Status AddToPipeline(
-      OptimizationCompoundPass* pass,
-      const OptimizationPassStandardConfig& config) const final {
-    // Function to bind the actual value of the opt-level into any arguments
-    // that need it (eg arguments that are the opt level or a bounded
-    // opt-level).
-    auto transform = [&](auto arg) { return Transform(arg, config); };
+  absl::Status AddToPipeline(OptimizationCompoundPass* pass) const final {
     // Actually construct and insert the PassClass instance
     auto function = [&](auto... args) {
-      pass->Add<PassClass>(transform(std::forward<decltype(args)>(args))...);
+      pass->Add<PassClass>(std::forward<decltype(args)>(args)...);
     };
     // Unpack the argument tuple.
     std::apply(function, args_);

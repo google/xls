@@ -570,13 +570,13 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
     Concat* concat = worklist.front();
     worklist.pop_front();
     XLS_ASSIGN_OR_RETURN(bool node_changed,
-                         SimplifyConcat(concat, opt_level_, &worklist));
+                         SimplifyConcat(concat, options.opt_level, &worklist));
     changed = changed || node_changed;
   }
 
   // For optimizations which optimize around concats, just iterate through once
   // and find all opportunities.
-  if (NarrowingEnabled(opt_level_)) {
+  if (options.narrowing_enabled()) {
     for (Node* node : TopoSort(f)) {
       if (OpIsBitWise(node->op())) {
         XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
@@ -597,6 +597,6 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
   return changed;
 }
 
-REGISTER_OPT_PASS(ConcatSimplificationPass, pass_config::kOptLevel);
+REGISTER_OPT_PASS(ConcatSimplificationPass);
 
 }  // namespace xls

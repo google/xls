@@ -34,15 +34,12 @@ class SelectLiftingPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "select_lifting";
 
-  explicit SelectLiftingPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass(kName, "Select Lifting"),
-        opt_level_(opt_level) {}
+  explicit SelectLiftingPass()
+      : OptimizationFunctionBasePass(kName, "Select Lifting") {}
 
   ~SelectLiftingPass() override = default;
 
  protected:
-  int64_t opt_level_;
-
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;

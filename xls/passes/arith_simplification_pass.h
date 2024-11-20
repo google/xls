@@ -30,14 +30,11 @@ namespace xls {
 class ArithSimplificationPass : public OptimizationFunctionBasePass {
  public:
   static constexpr std::string_view kName = "arith_simp";
-  explicit ArithSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : OptimizationFunctionBasePass(kName, "Arithmetic Simplifications"),
-        opt_level_(opt_level) {}
+  explicit ArithSimplificationPass()
+      : OptimizationFunctionBasePass(kName, "Arithmetic Simplifications") {}
   ~ArithSimplificationPass() override = default;
 
  protected:
-  int64_t opt_level_;
-
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;

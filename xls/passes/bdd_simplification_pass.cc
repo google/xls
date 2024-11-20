@@ -452,7 +452,7 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
   bool modified = false;
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
-                         SimplifyNode(node, query_engine, opt_level_));
+                         SimplifyNode(node, query_engine, options.opt_level));
     modified |= node_modified;
   }
 
@@ -463,12 +463,11 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(bdd_simp, {
-  CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
-      "bdd_simp", pass_config::kOptLevel));
-  CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
-      "bdd_simp(2)", pass_config::CappedOptLevel{2}));
-  CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>(
-      "bdd_simp(3)", pass_config::CappedOptLevel{3}));
+  CHECK_OK(RegisterOptimizationPass<BddSimplificationPass>("bdd_simp"));
+  CHECK_OK((RegisterOptimizationPass<CapOptLevel<2, BddSimplificationPass>>(
+      "bdd_simp(2)")));
+  CHECK_OK((RegisterOptimizationPass<CapOptLevel<3, BddSimplificationPass>>(
+      "bdd_simp(3)")));
 });
 
 }  // namespace xls
