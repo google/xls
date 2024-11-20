@@ -149,8 +149,6 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
 DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
 DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
                bool suppress_parens);
-DocRef FmtImplMember(const ImplMember& n, const Comments& comments,
-                     DocArena& arena);
 DocRef Fmt(const ConstantDef& n, const Comments& comments, DocArena& arena);
 
 // A parametric argument, as in parametric instantiation:
@@ -1016,15 +1014,6 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
       n);
 }
 
-DocRef FmtImplMember(const ImplMember& n, const Comments& comments,
-                     DocArena& arena) {
-  return absl::visit(
-      Visitor{
-          [&](const auto* n) { return Fmt(*n, comments, arena); },
-      },
-      n);
-}
-
 std::optional<DocRef> FmtExplicitParametrics(const Instantiation& n,
                                              const Comments& comments,
                                              DocArena& arena) {
@@ -1544,7 +1533,8 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
 
 DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, {
-                                 arena.MakeText("const_assert!("),
+                                 arena.MakeText("const_assert!"),
+                                 arena.oparen(),
                                  Fmt(*n.arg(), comments, arena),
                                  arena.cparen(),
                              });
@@ -1855,43 +1845,52 @@ DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
   return ConcatNGroup(arena, {leader, body});
 }
 
-DocRef Fmt(const VerbatimNode* n, DocArena& arena) {
+DocRef Formatter::Format(const ConstAssert& n) {
+  // TODO: inline the Fmt method after all Expr-descendants are migrated to the
+  // Formatter class.
+  return Fmt(n, comments_, arena_);
+}
+
+DocRef Formatter::Format(const VerbatimNode* n) {
   if (n->text().empty()) {
-    return arena.empty();
+    return arena_.empty();
   }
-  return arena.MakeZeroIndent(arena.MakeText(std::string(n->text())));
+  return arena_.MakeZeroIndent(arena_.MakeText(std::string(n->text())));
 }
 
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
            bool trailing_semi) {
+  return Formatter(comments, arena).Format(n, trailing_semi);
+}
+
+DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
   auto maybe_concat_semi = [&](DocRef d) {
     if (trailing_semi) {
-      return arena.MakeConcat(d, arena.semi());
+      return arena_.MakeConcat(d, arena_.semi());
     }
     return d;
   };
   return absl::visit(
       Visitor{
           [&](const Expr* n) {
-            return maybe_concat_semi(Fmt(*n, comments, arena));
+            return maybe_concat_semi(Fmt(*n, comments_, arena_));
           },
           [&](const TypeAlias* n) {
-            return maybe_concat_semi(Fmt(*n, comments, arena));
+            return maybe_concat_semi(Fmt(*n, comments_, arena_));
           },
-          [&](const Let* n) { return Fmt(*n, comments, arena, trailing_semi); },
-          [&](const ConstAssert* n) {
-            return maybe_concat_semi(Fmt(*n, comments, arena));
+          [&](const Let* n) {
+            return Fmt(*n, comments_, arena_, trailing_semi);
           },
-          [&](const VerbatimNode* n) { return Fmt(n, arena); },
+          [&](const ConstAssert* n) { return maybe_concat_semi(Format(*n)); },
+          [&](const VerbatimNode* n) { return Format(n); },
       },
       n.wrapped());
 }
 
 // Formats parameters (i.e. function parameters) with leading '(' and trailing
 // ')'.
-static DocRef FmtParams(absl::Span<const Param* const> params,
-                        const Comments& comments, DocArena& arena,
-                        bool align_after_oparen) {
+DocRef Formatter::FormatParams(absl::Span<const Param* const> params,
+                               bool align_after_oparen) {
   DocRef guts = FmtJoin<const Param*>(
       params, Joiner::kCommaBreak1AsGroupNoTrailingComma,
       [](const Param* param, const Comments& comments, DocArena& arena) {
@@ -1899,75 +1898,76 @@ static DocRef FmtParams(absl::Span<const Param* const> params,
         return ConcatN(arena, {arena.MakeText(param->identifier()),
                                arena.colon(), arena.space(), type});
       },
-      comments, arena);
+      comments_, arena_);
 
   if (align_after_oparen) {
     return ConcatNGroup(
-        arena, {arena.oparen(),
-                arena.MakeAlign(arena.MakeConcat(guts, arena.cparen()))});
+        arena_, {arena_.oparen(),
+                 arena_.MakeAlign(arena_.MakeConcat(guts, arena_.cparen()))});
   }
-  return ConcatNGroup(arena, {arena.oparen(), guts, arena.cparen()});
+  return ConcatNGroup(arena_, {arena_.oparen(), guts, arena_.cparen()});
 }
 
-static DocRef Fmt(const ParametricBinding& n, const Comments& comments,
-                  DocArena& arena) {
+DocRef Formatter::Format(const ParametricBinding& n) {
   std::vector<DocRef> pieces = {
-      arena.MakeText(n.identifier()),
-      arena.colon(),
-      arena.break1(),
-      Fmt(*n.type_annotation(), comments, arena),
+      arena_.MakeText(n.identifier()),
+      arena_.colon(),
+      arena_.break1(),
+      Fmt(*n.type_annotation(), comments_, arena_),
   };
   if (n.expr() != nullptr) {
-    pieces.push_back(arena.space());
-    pieces.push_back(arena.equals());
-    pieces.push_back(arena.space());
-    pieces.push_back(arena.ocurl());
-    pieces.push_back(arena.break0());
-    pieces.push_back(arena.MakeNest(Fmt(*n.expr(), comments, arena)));
-    pieces.push_back(arena.ccurl());
+    pieces.push_back(arena_.space());
+    pieces.push_back(arena_.equals());
+    pieces.push_back(arena_.space());
+    pieces.push_back(arena_.ocurl());
+    pieces.push_back(arena_.break0());
+    pieces.push_back(arena_.MakeNest(Fmt(*n.expr(), comments_, arena_)));
+    pieces.push_back(arena_.ccurl());
   }
-  return ConcatNGroup(arena, pieces);
+  return ConcatNGroup(arena_, pieces);
 }
 
-static DocRef FmtParametricBindingPtr(const ParametricBinding* n,
-                                      const Comments& comments,
-                                      DocArena& arena) {
+DocRef Formatter::Format(const ParametricBinding* n) {
   CHECK(n != nullptr);
-  return Fmt(*n, comments, arena);
+  return Format(*n);
 }
 
-DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
+DocRef Formatter::Format(const Function& n) {
   std::vector<DocRef> signature_pieces;
   if (n.is_public()) {
-    signature_pieces.push_back(arena.Make(Keyword::kPub));
-    signature_pieces.push_back(arena.space());
+    signature_pieces.push_back(arena_.Make(Keyword::kPub));
+    signature_pieces.push_back(arena_.space());
   }
-  signature_pieces.push_back(arena.Make(Keyword::kFn));
-  signature_pieces.push_back(arena.space());
-  signature_pieces.push_back(arena.MakeText(n.identifier()));
+  signature_pieces.push_back(arena_.Make(Keyword::kFn));
+  signature_pieces.push_back(arena_.space());
+  signature_pieces.push_back(arena_.MakeText(n.identifier()));
 
   if (n.IsParametric()) {
-    DocRef flat_parametrics =
-        ConcatNGroup(arena, {arena.oangle(),
-                             FmtJoin<const ParametricBinding*>(
-                                 n.parametric_bindings(), Joiner::kCommaSpace,
-                                 FmtParametricBindingPtr, comments, arena),
-                             arena.cangle()});
+    DocRef flat_parametrics = ConcatNGroup(
+        arena_, {arena_.oangle(),
+                 FmtJoin<const ParametricBinding*>(
+                     n.parametric_bindings(), Joiner::kCommaSpace,
+                     [&](const ParametricBinding* n, const Comments& comments,
+                         DocArena& arena) { return Format(n); },
+                     comments_, arena_),
+                 arena_.cangle()});
 
-    DocRef parametric_guts =
-        ConcatN(arena, {arena.oangle(),
-                        arena.MakeAlign(FmtJoin<const ParametricBinding*>(
-                            n.parametric_bindings(),
-                            Joiner::kCommaBreak1AsGroupNoTrailingComma,
-                            FmtParametricBindingPtr, comments, arena)),
-                        arena.cangle()});
+    DocRef parametric_guts = ConcatN(
+        arena_, {arena_.oangle(),
+                 arena_.MakeAlign(FmtJoin<const ParametricBinding*>(
+                     n.parametric_bindings(),
+                     Joiner::kCommaBreak1AsGroupNoTrailingComma,
+                     [&](const ParametricBinding* n, const Comments& comments,
+                         DocArena& arena) { return Format(n); },
+                     comments_, arena_)),
+                 arena_.cangle()});
     DocRef break_parametrics = ConcatNGroup(
-        arena, {
-                   arena.break0(),
-                   arena.MakeFlatChoice(parametric_guts,
-                                        arena.MakeNest(parametric_guts)),
-               });
-    signature_pieces.push_back(arena.MakeNestIfFlatFits(
+        arena_, {
+                    arena_.break0(),
+                    arena_.MakeFlatChoice(parametric_guts,
+                                          arena_.MakeNest(parametric_guts)),
+                });
+    signature_pieces.push_back(arena_.MakeNestIfFlatFits(
         /*on_nested_flat_ref=*/flat_parametrics,
         /*on_other_ref=*/break_parametrics));
   }
@@ -1975,81 +1975,84 @@ DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
   {
     std::vector<DocRef> params_pieces;
 
-    params_pieces.push_back(arena.break0());
+    params_pieces.push_back(arena_.break0());
     params_pieces.push_back(
-        FmtParams(n.params(), comments, arena, /*align_after_oparen=*/true));
+        FormatParams(n.params(), /*align_after_oparen=*/true));
 
     if (n.return_type() == nullptr) {
-      params_pieces.push_back(arena.break1());
-      params_pieces.push_back(arena.ocurl());
+      params_pieces.push_back(arena_.break1());
+      params_pieces.push_back(arena_.ocurl());
     } else {
       params_pieces.push_back(
-          ConcatNGroup(arena, {
-                                  arena.break1(),
-                                  arena.arrow(),
-                                  arena.space(),
-                                  Fmt(*n.return_type(), comments, arena),
-                                  arena.space(),
-                                  arena.ocurl(),
-                              }));
+          ConcatNGroup(arena_, {
+                                   arena_.break1(),
+                                   arena_.arrow(),
+                                   arena_.space(),
+                                   Fmt(*n.return_type(), comments_, arena_),
+                                   arena_.space(),
+                                   arena_.ocurl(),
+                               }));
     }
 
     signature_pieces.push_back(
-        arena.MakeNest(ConcatNGroup(arena, params_pieces)));
+        arena_.MakeNest(ConcatNGroup(arena_, params_pieces)));
   }
 
   // For empty function we don't put spaces between the curls.
   if (n.body()->empty()) {
     std::vector<DocRef> fn_pieces = {
-        ConcatNGroup(arena, signature_pieces),
-        FmtBlock(*n.body(), comments, arena, /*add_curls=*/false),
-        arena.ccurl(),
+        ConcatNGroup(arena_, signature_pieces),
+        FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false),
+        arena_.ccurl(),
     };
 
-    return ConcatNGroup(arena, fn_pieces);
+    return ConcatNGroup(arena_, fn_pieces);
   }
 
   std::vector<DocRef> fn_pieces = {
-      ConcatNGroup(arena, signature_pieces),
-      arena.break1(),
-      FmtBlock(*n.body(), comments, arena, /*add_curls=*/false),
-      arena.break1(),
-      arena.ccurl(),
+      ConcatNGroup(arena_, signature_pieces),
+      arena_.break1(),
+      FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false),
+      arena_.break1(),
+      arena_.ccurl(),
   };
 
-  return ConcatNGroup(arena, fn_pieces);
-}
-static DocRef Fmt(const ProcMember& n, const Comments& comments,
-                  DocArena& arena) {
-  return ConcatNGroup(
-      arena, {Fmt(*n.name_def(), comments, arena), arena.colon(),
-              arena.break1(), Fmt(*n.type_annotation(), comments, arena)});
+  return ConcatNGroup(arena_, fn_pieces);
 }
 
-static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
+DocRef Formatter::Format(const ProcMember& n) {
+  return ConcatNGroup(
+      arena_, {Fmt(*n.name_def(), comments_, arena_), arena_.colon(),
+               arena_.break1(), Fmt(*n.type_annotation(), comments_, arena_)});
+}
+
+DocRef Formatter::Format(const Proc& n) {
   std::vector<DocRef> signature_pieces;
   if (n.is_public()) {
-    signature_pieces.push_back(arena.Make(Keyword::kPub));
-    signature_pieces.push_back(arena.space());
+    signature_pieces.push_back(arena_.Make(Keyword::kPub));
+    signature_pieces.push_back(arena_.space());
   }
-  signature_pieces.push_back(arena.Make(Keyword::kProc));
-  signature_pieces.push_back(arena.space());
-  signature_pieces.push_back(arena.MakeText(n.identifier()));
+  signature_pieces.push_back(arena_.Make(Keyword::kProc));
+  signature_pieces.push_back(arena_.space());
+  signature_pieces.push_back(arena_.MakeText(n.identifier()));
 
   if (n.IsParametric()) {
-    signature_pieces.push_back(
-        ConcatNGroup(arena, {arena.oangle(),
-                             FmtJoin<const ParametricBinding*>(
-                                 n.parametric_bindings(), Joiner::kCommaSpace,
-                                 FmtParametricBindingPtr, comments, arena),
-                             arena.cangle()}));
+    signature_pieces.push_back(ConcatNGroup(
+        arena_, {arena_.oangle(),
+                 FmtJoin<const ParametricBinding*>(
+                     n.parametric_bindings(), Joiner::kCommaSpace,
+                     [&](const ParametricBinding* n, const Comments& comments,
+                         DocArena& arena) { return Format(n); },
+                     comments_, arena_),
+                 arena_.cangle()}));
   }
-  signature_pieces.push_back(arena.break1());
-  signature_pieces.push_back(arena.ocurl());
+  signature_pieces.push_back(arena_.break1());
+  signature_pieces.push_back(arena_.ocurl());
 
   Pos last_stmt_limit = n.body_span().start();
 
-  // We update this with the position that's relevant for config start comments.
+  // We update this with the position that's relevant for config start
+  // comments_.
   std::optional<Pos> config_comment_start_pos;
   std::optional<Pos> init_comment_start_pos;
   std::optional<Pos> next_comment_start_pos;
@@ -2074,55 +2077,55 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
               } else {
                 LOG(FATAL) << "Unexpected proc member function: "
                            << f->identifier() << " @ "
-                           << f->span().ToString(arena.file_table());
+                           << f->span().ToString(arena_.file_table());
               }
               last_stmt_limit = f->span().limit();
             },
             [&](const ProcMember* n) {
               if (std::optional<DocRef> maybe_doc =
                       EmitCommentsBetween(last_stmt_limit, n->span().start(),
-                                          comments, arena, nullptr)) {
+                                          comments_, arena_, nullptr)) {
                 stmt_pieces.push_back(
-                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+                    arena_.MakeConcat(maybe_doc.value(), arena_.hard_line()));
               }
-              stmt_pieces.push_back(Fmt(*n, comments, arena));
-              stmt_pieces.push_back(arena.semi());
-              stmt_pieces.push_back(arena.hard_line());
+              stmt_pieces.push_back(Format(*n));
+              stmt_pieces.push_back(arena_.semi());
+              stmt_pieces.push_back(arena_.hard_line());
               last_stmt_limit = n->span().limit();
             },
             [&](const ConstantDef* n) {
               if (std::optional<DocRef> maybe_doc =
                       EmitCommentsBetween(last_stmt_limit, n->span().start(),
-                                          comments, arena, nullptr)) {
+                                          comments_, arena_, nullptr)) {
                 stmt_pieces.push_back(
-                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+                    arena_.MakeConcat(maybe_doc.value(), arena_.hard_line()));
               }
-              stmt_pieces.push_back(Fmt(*n, comments, arena));
-              stmt_pieces.push_back(arena.hard_line());
+              stmt_pieces.push_back(Fmt(*n, comments_, arena_));
+              stmt_pieces.push_back(arena_.hard_line());
               last_stmt_limit = n->span().limit();
             },
             [&](const TypeAlias* n) {
               if (std::optional<DocRef> maybe_doc =
                       EmitCommentsBetween(last_stmt_limit, n->span().start(),
-                                          comments, arena, nullptr)) {
+                                          comments_, arena_, nullptr)) {
                 stmt_pieces.push_back(
-                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+                    arena_.MakeConcat(maybe_doc.value(), arena_.hard_line()));
               }
-              stmt_pieces.push_back(Fmt(*n, comments, arena));
-              stmt_pieces.push_back(arena.semi());
-              stmt_pieces.push_back(arena.hard_line());
+              stmt_pieces.push_back(Fmt(*n, comments_, arena_));
+              stmt_pieces.push_back(arena_.semi());
+              stmt_pieces.push_back(arena_.hard_line());
               last_stmt_limit = n->span().limit();
             },
             [&](const ConstAssert* n) {
               if (std::optional<DocRef> maybe_doc =
                       EmitCommentsBetween(last_stmt_limit, n->span().start(),
-                                          comments, arena, nullptr)) {
+                                          comments_, arena_, nullptr)) {
                 stmt_pieces.push_back(
-                    arena.MakeConcat(maybe_doc.value(), arena.hard_line()));
+                    arena_.MakeConcat(maybe_doc.value(), arena_.hard_line()));
               }
-              stmt_pieces.push_back(Fmt(*n, comments, arena));
-              stmt_pieces.push_back(arena.semi());
-              stmt_pieces.push_back(arena.hard_line());
+              stmt_pieces.push_back(Format(*n));
+              stmt_pieces.push_back(arena_.semi());
+              stmt_pieces.push_back(arena_.hard_line());
               last_stmt_limit = n->span().limit();
             },
         },
@@ -2132,124 +2135,120 @@ static DocRef Fmt(const Proc& n, const Comments& comments, DocArena& arena) {
   CHECK(config_comment_start_pos.has_value());
   std::optional<DocRef> config_comment =
       EmitCommentsBetween(config_comment_start_pos, n.config().span().start(),
-                          comments, arena, nullptr);
+                          comments_, arena_, nullptr);
   CHECK(init_comment_start_pos.has_value());
   std::optional<DocRef> init_comment =
       EmitCommentsBetween(init_comment_start_pos, n.init().span().start(),
-                          comments, arena, nullptr);
+                          comments_, arena_, nullptr);
   CHECK(next_comment_start_pos.has_value());
   std::optional<DocRef> next_comment =
       EmitCommentsBetween(next_comment_start_pos, n.next().span().start(),
-                          comments, arena, nullptr);
+                          comments_, arena_, nullptr);
 
   std::vector<DocRef> config_pieces = {
-      arena.MakeText("config"),
-      FmtParams(n.config().params(), comments, arena,
-                /*align_after_oparen=*/true),
-      arena.space(),
-      arena.ocurl(),
-      arena.break1(),
-      FmtBlock(*n.config().body(), comments, arena, /*add_curls=*/false),
-      arena.break1(),
-      arena.ccurl(),
+      arena_.MakeText("config"),
+      FormatParams(n.config().params(), /*align_after_oparen=*/true),
+      arena_.space(),
+      arena_.ocurl(),
+      arena_.break1(),
+      FmtBlock(*n.config().body(), comments_, arena_, /*add_curls=*/false),
+      arena_.break1(),
+      arena_.ccurl(),
   };
 
   std::vector<DocRef> init_pieces = {
-      arena.MakeText("init"),
-      arena.space(),
-      arena.ocurl(),
-      arena.break1(),
-      FmtBlock(*n.init().body(), comments, arena, /*add_curls=*/false),
-      arena.break1(),
-      arena.ccurl(),
+      arena_.MakeText("init"),
+      arena_.space(),
+      arena_.ocurl(),
+      arena_.break1(),
+      FmtBlock(*n.init().body(), comments_, arena_, /*add_curls=*/false),
+      arena_.break1(),
+      arena_.ccurl(),
   };
 
   std::vector<DocRef> next_pieces = {
-      arena.MakeText("next"),
-      FmtParams(n.next().params(), comments, arena,
-                /*align_after_oparen=*/true),
-      arena.space(),
-      arena.ocurl(),
-      arena.break1(),
-      FmtBlock(*n.next().body(), comments, arena, /*add_curls=*/false),
-      arena.break1(),
-      arena.ccurl(),
+      arena_.MakeText("next"),
+      FormatParams(n.next().params(), /*align_after_oparen=*/true),
+      arena_.space(),
+      arena_.ocurl(),
+      arena_.break1(),
+      FmtBlock(*n.next().body(), comments_, arena_, /*add_curls=*/false),
+      arena_.break1(),
+      arena_.ccurl(),
   };
 
   auto nest_and_hardline = [&](std::optional<DocRef> doc_ref) {
     if (!doc_ref.has_value()) {
-      return arena.empty();
+      return arena_.empty();
     }
-    return arena.MakeNest(arena.MakeConcat(doc_ref.value(), arena.hard_line()));
+    return arena_.MakeNest(
+        arena_.MakeConcat(doc_ref.value(), arena_.hard_line()));
   };
 
   DocRef config_comment_doc_ref =
       config_comment.has_value() ? nest_and_hardline(config_comment.value())
-                                 : arena.empty();
+                                 : arena_.empty();
   DocRef init_comment_doc_ref = init_comment.has_value()
                                     ? nest_and_hardline(init_comment.value())
-                                    : arena.empty();
+                                    : arena_.empty();
   DocRef next_comment_doc_ref = next_comment.has_value()
                                     ? nest_and_hardline(next_comment.value())
-                                    : arena.empty();
+                                    : arena_.empty();
 
   std::vector<DocRef> proc_pieces = {
-      ConcatNGroup(arena, signature_pieces),
-      arena.hard_line(),
+      ConcatNGroup(arena_, signature_pieces),
+      arena_.hard_line(),
       stmt_pieces.empty()
-          ? arena.empty()
-          : ConcatNGroup(arena,
+          ? arena_.empty()
+          : ConcatNGroup(arena_,
                          {
-                             arena.MakeNest(ConcatNGroup(arena, stmt_pieces)),
-                             arena.hard_line(),
+                             arena_.MakeNest(ConcatNGroup(arena_, stmt_pieces)),
+                             arena_.hard_line(),
                          }),
       config_comment_doc_ref,
-      arena.MakeNest(ConcatNGroup(arena, config_pieces)),
-      arena.hard_line(),
-      arena.hard_line(),
+      arena_.MakeNest(ConcatNGroup(arena_, config_pieces)),
+      arena_.hard_line(),
+      arena_.hard_line(),
       init_comment_doc_ref,
-      arena.MakeNest(ConcatNGroup(arena, init_pieces)),
-      arena.hard_line(),
-      arena.hard_line(),
+      arena_.MakeNest(ConcatNGroup(arena_, init_pieces)),
+      arena_.hard_line(),
+      arena_.hard_line(),
       next_comment_doc_ref,
-      arena.MakeNest(ConcatNGroup(arena, next_pieces)),
-      arena.hard_line(),
-      arena.ccurl(),
+      arena_.MakeNest(ConcatNGroup(arena_, next_pieces)),
+      arena_.hard_line(),
+      arena_.ccurl(),
   };
 
-  return ConcatNGroup(arena, proc_pieces);
+  return ConcatNGroup(arena_, proc_pieces);
 }
 
-static DocRef Fmt(const TestFunction& n, const Comments& comments,
-                  DocArena& arena) {
+DocRef Formatter::Format(const TestFunction& n) {
   std::vector<DocRef> pieces;
-  pieces.push_back(arena.MakeText("#[test]"));
-  pieces.push_back(arena.hard_line());
-  pieces.push_back(Fmt(n.fn(), comments, arena));
-  return ConcatN(arena, pieces);
+  pieces.push_back(arena_.MakeText("#[test]"));
+  pieces.push_back(arena_.hard_line());
+  pieces.push_back(Format(n.fn()));
+  return ConcatN(arena_, pieces);
 }
 
-static DocRef Fmt(const TestProc& n, const Comments& comments,
-                  DocArena& arena) {
+DocRef Formatter::Format(const TestProc& n) {
   std::vector<DocRef> pieces;
-  pieces.push_back(arena.MakeText("#[test_proc]"));
-  pieces.push_back(arena.hard_line());
-  pieces.push_back(Fmt(*n.proc(), comments, arena));
-  return ConcatN(arena, pieces);
+  pieces.push_back(arena_.MakeText("#[test_proc]"));
+  pieces.push_back(arena_.hard_line());
+  pieces.push_back(Format(*n.proc()));
+  return ConcatN(arena_, pieces);
 }
 
-static DocRef Fmt(const QuickCheck& n, const Comments& comments,
-                  DocArena& arena) {
+DocRef Formatter::Format(const QuickCheck& n) {
   std::vector<DocRef> pieces;
   if (std::optional<int64_t> test_count = n.test_count()) {
-    pieces.push_back(arena.MakeText(
+    pieces.push_back(arena_.MakeText(
         absl::StrFormat("#[quickcheck(test_count=%d)]", test_count.value())));
   } else {
-    pieces.push_back(arena.MakeText("#[quickcheck]"));
+    pieces.push_back(arena_.MakeText("#[quickcheck]"));
   }
-  pieces.push_back(arena.hard_line());
-  pieces.push_back(Fmt(*n.fn(), comments, arena));
-  return ConcatN(arena, pieces);
+  pieces.push_back(arena_.hard_line());
+  pieces.push_back(Format(*n.fn()));
+  return ConcatN(arena_, pieces);
 }
 
 static void FmtStructMembers(const StructDefBase& n, const Comments& comments,
@@ -2327,64 +2326,73 @@ static void FmtStructMembers(const StructDefBase& n, const Comments& comments,
   }
 }
 
-static DocRef FmtStructDefBase(
-    const StructDefBase& n, const Comments& comments, DocArena& arena,
-    Keyword keyword, const std::optional<std::string>& extern_type_name) {
+DocRef Formatter::FormatStructDefBase(
+    const StructDefBase& n, Keyword keyword,
+    const std::optional<std::string>& extern_type_name) {
   std::vector<DocRef> pieces;
   std::optional<DocRef> attr;
   if (extern_type_name.has_value()) {
-    attr = FmtSvTypeAttribute(*extern_type_name, arena);
+    attr = FmtSvTypeAttribute(*extern_type_name, arena_);
   }
   if (n.is_public()) {
-    pieces.push_back(arena.Make(Keyword::kPub));
-    pieces.push_back(arena.space());
+    pieces.push_back(arena_.Make(Keyword::kPub));
+    pieces.push_back(arena_.space());
   }
-  pieces.push_back(arena.Make(keyword));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.MakeText(n.identifier()));
+  pieces.push_back(arena_.Make(keyword));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.MakeText(n.identifier()));
 
   if (!n.parametric_bindings().empty()) {
-    pieces.push_back(arena.oangle());
+    pieces.push_back(arena_.oangle());
     pieces.push_back(FmtJoin<const ParametricBinding*>(
-        n.parametric_bindings(), Joiner::kCommaSpace, FmtParametricBindingPtr,
-        comments, arena));
-    pieces.push_back(arena.cangle());
+        n.parametric_bindings(), Joiner::kCommaSpace,
+        [&](const ParametricBinding* n, const Comments& comments,
+            DocArena& arena) { return Format(n); },
+        comments_, arena_));
+    pieces.push_back(arena_.cangle());
   }
 
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.ocurl());
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.ocurl());
 
-  FmtStructMembers(n, comments, arena, pieces);
+  FmtStructMembers(n, comments_, arena_, pieces);
 
-  pieces.push_back(arena.ccurl());
-  return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
+  pieces.push_back(arena_.ccurl());
+  return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
 }
 
-static DocRef Fmt(const StructDef& n, const Comments& comments,
-                  DocArena& arena) {
-  return FmtStructDefBase(n, comments, arena, Keyword::kStruct,
-                          n.extern_type_name());
+DocRef Formatter::Format(const StructDef& n) {
+  return FormatStructDefBase(n, Keyword::kStruct, n.extern_type_name());
 }
 
-static DocRef Fmt(const ProcDef& n, const Comments& comments, DocArena& arena) {
-  return FmtStructDefBase(n, comments, arena, Keyword::kProc,
-                          /*extern_type_name=*/std::nullopt);
+DocRef Formatter::Format(const ProcDef& n) {
+  return FormatStructDefBase(n, Keyword::kProc,
+                             /*extern_type_name=*/std::nullopt);
 }
 
-static DocRef Fmt(const Impl& n, const Comments& comments, DocArena& arena) {
+DocRef Formatter::Format(const ImplMember& n) {
+  return absl::visit(
+      Visitor{
+          [&](const Function* n) { return Format(*n); },
+          [&](const ConstantDef* n) { return Fmt(*n, comments_, arena_); },
+      },
+      n);
+}
+
+DocRef Formatter::Format(const Impl& n) {
   std::vector<DocRef> pieces;
   std::optional<DocRef> attr;
   if (n.is_public()) {
-    pieces.push_back(arena.Make(Keyword::kPub));
-    pieces.push_back(arena.space());
+    pieces.push_back(arena_.Make(Keyword::kPub));
+    pieces.push_back(arena_.space());
   }
-  pieces.push_back(arena.Make(Keyword::kImpl));
-  pieces.push_back(arena.space());
-  pieces.push_back(Fmt(*n.struct_ref(), comments, arena));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.ocurl());
+  pieces.push_back(arena_.Make(Keyword::kImpl));
+  pieces.push_back(arena_.space());
+  pieces.push_back(Fmt(*n.struct_ref(), comments_, arena_));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.ocurl());
   if (!n.members().empty()) {
-    pieces.push_back(arena.break1());
+    pieces.push_back(arena_.break1());
   }
   std::vector<DocRef> body_pieces;
   Pos last_member_pos = n.span().start();
@@ -2392,71 +2400,71 @@ static DocRef Fmt(const Impl& n, const Comments& comments, DocArena& arena) {
   for (int i = 0; i < n.members().size(); i++) {
     const ImplMember member = n.members().at(i);
     if (i > 0 && (last_was_func || std::holds_alternative<Function*>(member))) {
-      body_pieces.push_back(arena.hard_line());
+      body_pieces.push_back(arena_.hard_line());
     }
     last_was_func = std::holds_alternative<Function*>(member);
 
-    // See if there are comments between the last member and the start of this
+    // See if there are comments_ between the last member and the start of this
     // member.
     Span member_span = ToAstNode(member)->GetSpan().value();
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
-            EmitCommentsBetween(last_member_pos, member_span.start(), comments,
-                                arena, &last_comment_span)) {
+            EmitCommentsBetween(last_member_pos, member_span.start(), comments_,
+                                arena_, &last_comment_span)) {
       body_pieces.push_back(comments_doc.value());
-      body_pieces.push_back(arena.hard_line());
+      body_pieces.push_back(arena_.hard_line());
     }
-    body_pieces.push_back(FmtImplMember(member, comments, arena));
+    body_pieces.push_back(Format(member));
     last_member_pos = member_span.limit();
 
     last_member_pos =
-        CollectInlineComments(member_span.limit(), last_member_pos, comments,
-                              arena, body_pieces, last_comment_span);
+        CollectInlineComments(member_span.limit(), last_member_pos, comments_,
+                              arena_, body_pieces, last_comment_span);
 
-    body_pieces.push_back(arena.hard_line());
+    body_pieces.push_back(arena_.hard_line());
   }
   if (!body_pieces.empty()) {
     // Remove last line break.
     body_pieces.pop_back();
-    pieces.push_back(arena.MakeNest(ConcatN(arena, body_pieces)));
-    pieces.push_back(arena.hard_line());
+    pieces.push_back(arena_.MakeNest(ConcatN(arena_, body_pieces)));
+    pieces.push_back(arena_.hard_line());
   }
-  pieces.push_back(arena.ccurl());
+  pieces.push_back(arena_.ccurl());
 
-  return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
+  return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
 }
 
-static DocRef FmtEnumMember(const EnumMember& n, const Comments& comments,
-                            DocArena& arena) {
+DocRef Formatter::Format(const EnumMember& n) {
   return ConcatNGroup(
-      arena, {Fmt(*n.name_def, comments, arena), arena.space(), arena.equals(),
-              arena.break1(), Fmt(*n.value, comments, arena), arena.comma()});
+      arena_,
+      {Fmt(*n.name_def, comments_, arena_), arena_.space(), arena_.equals(),
+       arena_.break1(), Fmt(*n.value, comments_, arena_), arena_.comma()});
 }
 
-static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
+DocRef Formatter::Format(const EnumDef& n) {
   std::vector<DocRef> pieces;
   std::optional<DocRef> attr;
   if (n.extern_type_name()) {
-    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena);
+    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena_);
   }
   if (n.is_public()) {
-    pieces.push_back(arena.Make(Keyword::kPub));
-    pieces.push_back(arena.space());
+    pieces.push_back(arena_.Make(Keyword::kPub));
+    pieces.push_back(arena_.space());
   }
-  pieces.push_back(arena.Make(Keyword::kEnum));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.MakeText(n.identifier()));
+  pieces.push_back(arena_.Make(Keyword::kEnum));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.MakeText(n.identifier()));
 
-  pieces.push_back(arena.space());
+  pieces.push_back(arena_.space());
   if (n.type_annotation() != nullptr) {
-    pieces.push_back(arena.colon());
-    pieces.push_back(arena.space());
-    pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
-    pieces.push_back(arena.space());
+    pieces.push_back(arena_.colon());
+    pieces.push_back(arena_.space());
+    pieces.push_back(Fmt(*n.type_annotation(), comments_, arena_));
+    pieces.push_back(arena_.space());
   }
 
-  pieces.push_back(arena.ocurl());
-  pieces.push_back(arena.hard_line());
+  pieces.push_back(arena_.ocurl());
+  pieces.push_back(arena_.hard_line());
 
   std::vector<DocRef> nested;
   Pos last_member_pos = n.span().start();
@@ -2471,24 +2479,24 @@ static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
 
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
-            EmitCommentsBetween(last_member_pos, member_start, comments, arena,
-                                &last_comment_span)) {
+            EmitCommentsBetween(last_member_pos, member_start, comments_,
+                                arena_, &last_comment_span)) {
       nested.push_back(comments_doc.value());
-      nested.push_back(arena.hard_line());
+      nested.push_back(arena_.hard_line());
 
       // If the comment abuts the member we don't put a newline in
       // between, we assume the comment is associated with the member.
       if (last_comment_span->limit().lineno() != member_start.lineno()) {
-        nested.push_back(arena.hard_line());
+        nested.push_back(arena_.hard_line());
       }
     }
 
     last_member_pos = member_span->limit();
 
     // Here we actually emit the formatted member.
-    nested.push_back(FmtEnumMember(node, comments, arena));
+    nested.push_back(Format(node));
     if (i + 1 != n.values().size()) {
-      nested.push_back(arena.hard_line());
+      nested.push_back(arena_.hard_line());
     }
   }
 
@@ -2496,80 +2504,80 @@ static DocRef Fmt(const EnumDef& n, const Comments& comments, DocArena& arena) {
   // of the block.
   std::optional<Span> last_comment_span;
   if (std::optional<DocRef> comments_doc =
-          EmitCommentsBetween(last_member_pos, n.span().limit(), comments,
-                              arena, &last_comment_span)) {
-    nested.push_back(arena.hard_line());
+          EmitCommentsBetween(last_member_pos, n.span().limit(), comments_,
+                              arena_, &last_comment_span)) {
+    nested.push_back(arena_.hard_line());
     nested.push_back(comments_doc.value());
   }
 
-  DocRef nested_ref = ConcatN(arena, nested);
-  pieces.push_back(arena.MakeNest(nested_ref));
-  pieces.push_back(arena.hard_line());
-  pieces.push_back(arena.ccurl());
-  return JoinWithAttr(attr, ConcatN(arena, pieces), arena);
+  DocRef nested_ref = ConcatN(arena_, nested);
+  pieces.push_back(arena_.MakeNest(nested_ref));
+  pieces.push_back(arena_.hard_line());
+  pieces.push_back(arena_.ccurl());
+  return JoinWithAttr(attr, ConcatN(arena_, pieces), arena_);
 }
 
-static DocRef Fmt(const Import& n, const Comments& comments, DocArena& arena) {
+DocRef Formatter::Format(const Import& n) {
   std::vector<DocRef> dotted_pieces;
   for (size_t i = 0; i < n.subject().size(); ++i) {
     const std::string& subject_part = n.subject()[i];
     DocRef this_doc_ref;
     if (i + 1 == n.subject().size()) {
-      this_doc_ref = ConcatNGroup(arena, {arena.MakeText(subject_part)});
+      this_doc_ref = ConcatNGroup(arena_, {arena_.MakeText(subject_part)});
     } else {
-      this_doc_ref = ConcatNGroup(
-          arena, {arena.MakeText(subject_part), arena.dot(), arena.break0()});
+      this_doc_ref = ConcatNGroup(arena_, {arena_.MakeText(subject_part),
+                                           arena_.dot(), arena_.break0()});
     }
     dotted_pieces.push_back(this_doc_ref);
   }
 
   std::vector<DocRef> pieces = {
-      arena.Make(Keyword::kImport), arena.space(),
-      arena.MakeAlign(ConcatNGroup(arena, dotted_pieces))};
+      arena_.Make(Keyword::kImport), arena_.space(),
+      arena_.MakeAlign(ConcatNGroup(arena_, dotted_pieces))};
 
   if (const std::optional<std::string>& alias = n.alias()) {
-    DocRef alias_text = arena.MakeText(alias.value());
-    DocRef as = arena.Make(Keyword::kAs);
+    DocRef alias_text = arena_.MakeText(alias.value());
+    DocRef as = arena_.Make(Keyword::kAs);
 
     // Flat version is " as alias"
-    DocRef flat_as = ConcatN(
-        arena, {arena.space(), as, arena.space(), alias_text, arena.semi()});
+    DocRef flat_as = ConcatN(arena_, {arena_.space(), as, arena_.space(),
+                                      alias_text, arena_.semi()});
     // Break version puts the "as alias" at an indent on the next line.
     DocRef break_as = ConcatN(
-        arena, {arena.hard_line(),
-                arena.MakeNest(ConcatN(
-                    arena, {as, arena.space(), alias_text, arena.semi()}))});
+        arena_,
+        {arena_.hard_line(),
+         arena_.MakeNest(ConcatN(
+             arena_, {as, arena_.space(), alias_text, arena_.semi()}))});
     // Choose the flat version if it fits.
-    pieces.push_back(arena.MakeFlatChoice(flat_as, break_as));
+    pieces.push_back(arena_.MakeFlatChoice(flat_as, break_as));
   } else {
-    pieces.push_back(arena.semi());
+    pieces.push_back(arena_.semi());
   }
 
-  return ConcatNGroup(arena, pieces);
+  return ConcatNGroup(arena_, pieces);
 }
 
-static DocRef Fmt(const ModuleMember& n, const Comments& comments,
-                  DocArena& arena) {
+DocRef Formatter::Format(const ModuleMember& n) {
   return absl::visit(
       Visitor{
-          [&](const Function* n) { return Fmt(*n, comments, arena); },
-          [&](const Proc* n) { return Fmt(*n, comments, arena); },
-          [&](const TestFunction* n) { return Fmt(*n, comments, arena); },
-          [&](const TestProc* n) { return Fmt(*n, comments, arena); },
-          [&](const QuickCheck* n) { return Fmt(*n, comments, arena); },
+          [&](const Function* n) { return Format(*n); },
+          [&](const Proc* n) { return Format(*n); },
+          [&](const TestFunction* n) { return Format(*n); },
+          [&](const TestProc* n) { return Format(*n); },
+          [&](const QuickCheck* n) { return Format(*n); },
           [&](const TypeAlias* n) {
-            return arena.MakeConcat(Fmt(*n, comments, arena), arena.semi());
+            return arena_.MakeConcat(Fmt(*n, comments_, arena_), arena_.semi());
           },
-          [&](const StructDef* n) { return Fmt(*n, comments, arena); },
-          [&](const ProcDef* n) { return Fmt(*n, comments, arena); },
-          [&](const Impl* n) { return Fmt(*n, comments, arena); },
-          [&](const ConstantDef* n) { return Fmt(*n, comments, arena); },
-          [&](const EnumDef* n) { return Fmt(*n, comments, arena); },
-          [&](const Import* n) { return Fmt(*n, comments, arena); },
+          [&](const StructDef* n) { return Format(*n); },
+          [&](const ProcDef* n) { return Format(*n); },
+          [&](const Impl* n) { return Format(*n); },
+          [&](const ConstantDef* n) { return Fmt(*n, comments_, arena_); },
+          [&](const EnumDef* n) { return Format(*n); },
+          [&](const Import* n) { return Format(*n); },
           [&](const ConstAssert* n) {
-            return arena.MakeConcat(Fmt(*n, comments, arena), arena.semi());
+            return arena_.MakeConcat(Format(*n), arena_.semi());
           },
-          [&](const VerbatimNode* n) { return Fmt(n, arena); },
+          [&](const VerbatimNode* n) { return Format(n); },
       },
       n);
 }
@@ -2642,7 +2650,7 @@ static int NumHardLinesAfter(const AstNode* node, const ModuleMember& member,
   return num_hard_lines;
 }
 
-DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
+DocRef Formatter::Format(const Module& n) {
   std::vector<DocRef> pieces;
 
   if (!n.annotations().empty()) {
@@ -2650,21 +2658,21 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
       switch (annotation) {
         case ModuleAnnotation::kAllowNonstandardConstantNaming:
           pieces.push_back(
-              arena.MakeText("#![allow(nonstandard_constant_naming)]"));
-          pieces.push_back(arena.hard_line());
+              arena_.MakeText("#![allow(nonstandard_constant_naming)]"));
+          pieces.push_back(arena_.hard_line());
           break;
         case ModuleAnnotation::kAllowNonstandardMemberNaming:
           pieces.push_back(
-              arena.MakeText("#![allow(nonstandard_member_naming)]"));
-          pieces.push_back(arena.hard_line());
+              arena_.MakeText("#![allow(nonstandard_member_naming)]"));
+          pieces.push_back(arena_.hard_line());
           break;
         case ModuleAnnotation::kTypeInferenceVersion2:
-          pieces.push_back(arena.MakeText("#![type_inference_version = 2]"));
-          pieces.push_back(arena.hard_line());
+          pieces.push_back(arena_.MakeText("#![type_inference_version = 2]"));
+          pieces.push_back(arena_.hard_line());
           break;
       }
     }
-    pieces.push_back(arena.hard_line());
+    pieces.push_back(arena_.hard_line());
   }
 
   std::optional<Pos> last_entity_pos;
@@ -2688,15 +2696,15 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
         // There's no way to know if the contents of the verbatim node should
         // be part of the previous group or not, so we separate it with a
         // newline.
-        pieces.push_back(arena.hard_line());
+        pieces.push_back(arena_.hard_line());
       }
       // Skip empty verbatim nodes.
       continue;
     }
 
-    VLOG(3) << "Fmt; " << node->GetNodeTypeName()
+    VLOG(3) << "Formatter.Format; " << node->GetNodeTypeName()
             << " module member: " << node->ToString() << " span: "
-            << node->GetSpan().value().ToString(arena.file_table());
+            << node->GetSpan().value().ToString(arena_.file_table());
 
     // If there are comment blocks between the last member position and the
     // member we're about the process, we need to emit them.
@@ -2712,19 +2720,19 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
 
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
-            EmitCommentsBetween(last_entity_pos, member_start, comments, arena,
-                                &last_comment_span)) {
+            EmitCommentsBetween(last_entity_pos, member_start, comments_,
+                                arena_, &last_comment_span)) {
       pieces.push_back(comments_doc.value());
-      pieces.push_back(arena.hard_line());
+      pieces.push_back(arena_.hard_line());
 
       VLOG(3) << "last_comment_span: "
-              << last_comment_span.value().ToString(arena.file_table())
+              << last_comment_span.value().ToString(arena_.file_table())
               << " this member start: " << member_start;
 
       // If the comment abuts the module member we don't put a newline in
       // between, we assume the comment is associated with the member.
       if (last_comment_span->limit().lineno() != member_start.lineno()) {
-        pieces.push_back(arena.hard_line());
+        pieces.push_back(arena_.hard_line());
       }
     }
 
@@ -2734,40 +2742,49 @@ DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
     }
 
     // Here we actually emit the formatted member.
-    pieces.push_back(Fmt(member, comments, arena));
+    pieces.push_back(Format(member));
 
     // Now we reflect the emission of the member.
     last_entity_pos = member_span->limit();
 
     // See if there are inline comments after the statement.
     last_entity_pos =
-        CollectInlineComments(member_limit, last_entity_pos.value(), comments,
-                              arena, pieces, last_comment_span);
+        CollectInlineComments(member_limit, last_entity_pos.value(), comments_,
+                              arena_, pieces, last_comment_span);
 
     int num_hard_lines = NumHardLinesAfter(node, member, n.top(), i);
     for (int i = 0; i < num_hard_lines; ++i) {
-      pieces.push_back(arena.hard_line());
+      pieces.push_back(arena_.hard_line());
     }
   }
 
-  if (std::optional<Pos> last_data_limit = comments.last_data_limit();
+  if (std::optional<Pos> last_data_limit = comments_.last_data_limit();
       last_data_limit.has_value() && last_entity_pos < last_data_limit) {
     std::optional<Span> last_comment_span;
     if (std::optional<DocRef> comments_doc =
             EmitCommentsBetween(last_entity_pos, last_data_limit.value(),
-                                comments, arena, &last_comment_span)) {
+                                comments_, arena_, &last_comment_span)) {
       pieces.push_back(comments_doc.value());
-      pieces.push_back(arena.hard_line());
+      pieces.push_back(arena_.hard_line());
     }
   }
 
-  return ConcatN(arena, pieces);
+  return ConcatN(arena_, pieces);
+}
+
+DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
+  return Formatter(comments, arena).Format(n);
+}
+
+DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
+  return Formatter(comments, arena).Format(n);
 }
 
 std::string LegacyAutoFmt(const Module& m, const Comments& comments,
                           int64_t text_width) {
   DocArena arena(*m.file_table());
-  DocRef ref = Fmt(m, comments, arena);
+  Formatter formatter(comments, arena);
+  DocRef ref = formatter.Format(m);
   return PrettyPrint(arena, ref, text_width);
 }
 

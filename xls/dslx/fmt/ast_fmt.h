@@ -21,12 +21,60 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/fmt/pretty_print.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/token.h"
 
 namespace xls::dslx {
+
+// TODO: davidplass - Move this class to its own file after all the
+// Expr-descendants are migrated to it.
+class Formatter {
+ public:
+  Formatter(const Comments& comments, DocArena& arena)
+      : comments_(comments), arena_(arena) {}
+
+  // keep-sorted start
+  // Each `Format` method creates a pretty-printable document from the given AST
+  // Statement node `n`.
+  DocRef Format(const Function& n);
+  DocRef Format(const Module& n);
+  // If `trailing_semi` is true, then a trailing semicolon will also be emitted.
+  DocRef Format(const Statement& n, bool trailing_semi);
+  // keep-sorted end
+
+ private:
+  // keep-sorted start
+  DocRef Format(const ConstAssert& n);
+  DocRef Format(const EnumDef& n);
+  DocRef Format(const EnumMember& n);
+  DocRef Format(const Impl& n);
+  DocRef Format(const ImplMember& n);
+  DocRef Format(const Import& n);
+  DocRef Format(const ModuleMember& n);
+  DocRef Format(const ParametricBinding& n);
+  DocRef Format(const ParametricBinding* n);
+  DocRef Format(const Proc& n);
+  DocRef Format(const ProcDef& n);
+  DocRef Format(const ProcMember& n);
+  DocRef Format(const QuickCheck& n);
+  DocRef Format(const StructDef& n);
+  DocRef Format(const TestFunction& n);
+  DocRef Format(const TestProc& n);
+  DocRef Format(const VerbatimNode* n);
+  DocRef FormatParams(absl::Span<const Param* const> params,
+                      bool align_after_oparen);
+  DocRef FormatStructDefBase(
+      const StructDefBase& n, Keyword keyword,
+      const std::optional<std::string>& extern_type_name);
+  // keep-sorted end
+
+  const Comments& comments_;
+  DocArena& arena_;
+};
 
 // Functions with this signature create a pretty printable document from the AST
 // node "n".
@@ -35,6 +83,7 @@ DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
 
 // Create a pretty-printable document from the given AST Statement node `n`.
 // If `trailing_semi` is true, then a trailing semicolon will also be emitted.
+// Deprecated; use Formatter::Format instead.
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
            bool trailing_semi);
 
@@ -43,8 +92,10 @@ DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
 DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
            bool trailing_semi);
 
+// Deprecated; use Formatter::Format instead.
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
 
+// Deprecated; use Formatter::Format instead.
 DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena);
 
 inline constexpr int64_t kDslxDefaultTextWidth = 100;
