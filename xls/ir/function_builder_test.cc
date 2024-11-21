@@ -923,7 +923,7 @@ TEST(FunctionBuilderTest, ProcWithNextStateElementBadPredicate) {
   BValue x = pb.StateElement("x", Value(UBits(1, 32)));
   BValue y = pb.StateElement("y", Value(UBits(2, 32)));
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
-  pb.Next(/*param=*/y, /*value=*/z, /*pred=*/x);
+  pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x);
 
   EXPECT_THAT(pb.Build(/*next_state=*/{x, y, z}),
               StatusIs(absl::StatusCode::kInvalidArgument,

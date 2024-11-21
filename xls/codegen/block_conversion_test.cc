@@ -749,10 +749,10 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   b.Send(q_out, q);
 
   // `x_plus_one` is the next state value for both `x` and `y` state elements.
-  b.Next(/*param=*/x, /*value=*/x_plus_one);
-  b.Next(/*param=*/y, /*value=*/x_plus_one);
-  b.Next(/*param=*/z, /*value=*/z);
-  b.Next(/*param=*/q, /*value=*/literal_one);
+  b.Next(/*state_read=*/x, /*value=*/x_plus_one);
+  b.Next(/*state_read=*/y, /*value=*/x_plus_one);
+  b.Next(/*state_read=*/z, /*value=*/z);
+  b.Next(/*state_read=*/q, /*value=*/literal_one);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -828,7 +828,7 @@ TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
   BValue min_delay = b.MinDelay(send_received, 1);
   BValue send_q = b.Send(q_out, min_delay, q);
 
-  BValue next_q = b.Next(/*param=*/q, /*value=*/received_data);
+  BValue next_q = b.Next(/*state_read=*/q, /*value=*/received_data);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build());
 
   PipelineSchedule schedule(proc,
@@ -2177,7 +2177,7 @@ class SimpleRunningCounterProcTestSweepFixture
 
     BValue buffered_state = pb.Not(pb.Not(pb.Not(pb.Not(next_state))));
     pb.Send(ch_out, buffered_state);
-    pb.Next(/*param=*/state, /*value=*/next_state);
+    pb.Next(/*state_read=*/state, /*value=*/next_state);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     VLOG(2) << "Simple counting proc";
@@ -2819,8 +2819,8 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
     BValue sum = pb.Add(next_accum0, next_accum1);
 
     pb.Send(ch_out, sum);
-    pb.Next(/*param=*/accum0, /*value=*/next_accum0);
-    pb.Next(/*param=*/accum1, /*value=*/next_accum1);
+    pb.Next(/*state_read=*/accum0, /*value=*/next_accum0);
+    pb.Next(/*state_read=*/accum1, /*value=*/next_accum1);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     VLOG(2) << "Multi input streaming proc";
@@ -3105,7 +3105,7 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
     BValue state_plus_in1 = pb.Add(state, in1_val);
     pb.Send(ch_out1, state_plus_in1);
 
-    pb.Next(/*param=*/state, /*value=*/next_state);
+    pb.Next(/*state_read=*/state, /*value=*/next_state);
     XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build());
 
     VLOG(2) << "Multi io streaming proc";

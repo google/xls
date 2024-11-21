@@ -624,7 +624,7 @@ TEST_P(ProcEvaluatorTestBase, UnconditionalNextProc) {
   BValue counter = pb.StateElement("counter", Value(UBits(0, 32)));
   pb.Send(channel, pb.Literal(Value::Token()), counter);
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
-  pb.Next(/*param=*/counter, /*value=*/incremented_counter);
+  pb.Next(/*state_read=*/counter, /*value=*/incremented_counter);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   std::unique_ptr<ChannelQueueManager> queue_manager =
@@ -696,9 +696,9 @@ TEST_P(ProcEvaluatorTestBase, ConditionalNextProc) {
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
                                pb.Literal(UBits(1, 1)));
-  pb.Next(/*param=*/counter, /*value=*/incremented_counter,
+  pb.Next(/*state_read=*/counter, /*value=*/incremented_counter,
           /*pred=*/odd_iteration);
-  pb.Next(/*param=*/iteration,
+  pb.Next(/*state_read=*/iteration,
           /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
@@ -797,10 +797,10 @@ TEST_P(ProcEvaluatorTestBase, CollidingNextValuesProc) {
   BValue incremented_counter = pb.Add(counter, pb.Literal(UBits(1, 32)));
   BValue odd_iteration = pb.Eq(pb.BitSlice(iteration, /*start=*/0, /*width=*/1),
                                pb.Literal(UBits(1, 1)));
-  pb.Next(/*param=*/counter, /*value=*/incremented_counter,
+  pb.Next(/*state_read=*/counter, /*value=*/incremented_counter,
           /*pred=*/odd_iteration);
-  pb.Next(/*param=*/counter, /*value=*/pb.Literal(UBits(0, 32)));
-  pb.Next(/*param=*/iteration,
+  pb.Next(/*state_read=*/counter, /*value=*/pb.Literal(UBits(0, 32)));
+  pb.Next(/*state_read=*/iteration,
           /*value=*/pb.Add(iteration, pb.Literal(UBits(1, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 

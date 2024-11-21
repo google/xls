@@ -73,7 +73,7 @@ TEST_F(NextValueOptimizationPassTest, DeadNextValue) {
   auto p = CreatePackage();
   ProcBuilder pb("p", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
-  pb.Next(/*param=*/x, /*value=*/pb.Literal(UBits(5, 32)),
+  pb.Next(/*state_read=*/x, /*value=*/pb.Literal(UBits(5, 32)),
           /*pred=*/pb.Literal(UBits(0, 1)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
@@ -214,7 +214,7 @@ TEST_F(NextValueOptimizationPassTest, BigSelectNextValue) {
   BValue select = pb.Select(
       x, std::vector{pb.Literal(UBits(2, 2)), pb.Literal(UBits(1, 2)),
                      pb.Literal(UBits(2, 2)), pb.Literal(UBits(3, 2))});
-  pb.Next(/*param=*/x, /*value=*/select);
+  pb.Next(/*state_read=*/x, /*value=*/select);
   XLS_ASSERT_OK(pb.Build().status());
 
   EXPECT_THAT(Run(p.get(), /*split_next_value_selects=*/3),
