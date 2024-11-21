@@ -105,6 +105,28 @@ struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
   return reinterpret_cast<xls_vast_data_type*>(type);
 }
 
+struct xls_vast_data_type* xls_vast_verilog_file_make_extern_package_type(
+    struct xls_vast_verilog_file* f, const char* package_name,
+    const char* entity_name) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  xls::verilog::DataType* type =
+      cpp_file->Make<xls::verilog::ExternPackageType>(
+          xls::SourceInfo(), package_name, entity_name);
+  return reinterpret_cast<xls_vast_data_type*>(type);
+}
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_packed_array_type(
+    struct xls_vast_verilog_file* f, struct xls_vast_data_type* element_type,
+    const int64_t* packed_dims, size_t packed_dims_count) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_element_type =
+      reinterpret_cast<xls::verilog::DataType*>(element_type);
+  absl::Span<const int64_t> dims(packed_dims, packed_dims_count);
+  xls::verilog::DataType* type = cpp_file->Make<xls::verilog::PackedArrayType>(
+      xls::SourceInfo(), cpp_element_type, dims, /*dims_are_max=*/false);
+  return reinterpret_cast<xls_vast_data_type*>(type);
+}
+
 void xls_vast_verilog_module_add_member_instantiation(
     struct xls_vast_verilog_module* m, struct xls_vast_instantiation* member) {
   auto* cpp_module = reinterpret_cast<xls::verilog::Module*>(m);
@@ -214,12 +236,28 @@ struct xls_vast_expression* xls_vast_slice_as_expression(
   return reinterpret_cast<xls_vast_expression*>(cpp_expression);
 }
 
+struct xls_vast_expression* xls_vast_concat_as_expression(
+    struct xls_vast_concat* v) {
+  auto* cpp_v = reinterpret_cast<xls::verilog::Concat*>(v);
+  auto* cpp_expression = static_cast<xls::verilog::Expression*>(cpp_v);
+  return reinterpret_cast<xls_vast_expression*>(cpp_expression);
+}
+
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
     struct xls_vast_logic_ref* logic_ref) {
   auto* cpp_logic_ref = reinterpret_cast<xls::verilog::LogicRef*>(logic_ref);
   auto* cpp_indexable_expression =
       static_cast<xls::verilog::IndexableExpression*>(cpp_logic_ref);
+  return reinterpret_cast<xls_vast_indexable_expression*>(
+      cpp_indexable_expression);
+}
+
+struct xls_vast_indexable_expression* xls_vast_index_as_indexable_expression(
+    struct xls_vast_index* index) {
+  auto* cpp_index = reinterpret_cast<xls::verilog::Index*>(index);
+  auto* cpp_indexable_expression =
+      static_cast<xls::verilog::IndexableExpression*>(cpp_index);
   return reinterpret_cast<xls_vast_indexable_expression*>(
       cpp_indexable_expression);
 }
@@ -233,6 +271,60 @@ struct xls_vast_slice* xls_vast_verilog_file_make_slice_i64(
   xls::verilog::Slice* cpp_slice =
       cpp_file->Slice(cpp_subject, hi, lo, xls::SourceInfo());
   return reinterpret_cast<xls_vast_slice*>(cpp_slice);
+}
+
+struct xls_vast_slice* xls_vast_verilog_file_make_slice(
+    struct xls_vast_verilog_file* f,
+    struct xls_vast_indexable_expression* subject,
+    struct xls_vast_expression* hi, struct xls_vast_expression* lo) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_subject =
+      reinterpret_cast<xls::verilog::IndexableExpression*>(subject);
+  auto* cpp_hi = reinterpret_cast<xls::verilog::Expression*>(hi);
+  auto* cpp_lo = reinterpret_cast<xls::verilog::Expression*>(lo);
+  xls::verilog::Slice* cpp_slice =
+      cpp_file->Slice(cpp_subject, cpp_hi, cpp_lo, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_slice*>(cpp_slice);
+}
+
+struct xls_vast_concat* xls_vast_verilog_file_make_concat(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression** elements,
+    size_t element_count) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  std::vector<xls::verilog::Expression*> cpp_elements;
+  cpp_elements.reserve(element_count);
+  for (size_t i = 0; i < element_count; ++i) {
+    auto* cpp_element =
+        reinterpret_cast<xls::verilog::Expression*>(elements[i]);
+    cpp_elements.push_back(cpp_element);
+  }
+  xls::verilog::Concat* cpp_concat =
+      cpp_file->Make<xls::verilog::Concat>(xls::SourceInfo(), cpp_elements);
+  return reinterpret_cast<xls_vast_concat*>(cpp_concat);
+}
+
+struct xls_vast_index* xls_vast_verilog_file_make_index_i64(
+    struct xls_vast_verilog_file* f,
+    struct xls_vast_indexable_expression* subject, int64_t index) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_subject =
+      reinterpret_cast<xls::verilog::IndexableExpression*>(subject);
+  xls::verilog::Index* cpp_index =
+      cpp_file->Index(cpp_subject, index, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_index*>(cpp_index);
+}
+
+struct xls_vast_index* xls_vast_verilog_file_make_index(
+    struct xls_vast_verilog_file* f,
+    struct xls_vast_indexable_expression* subject,
+    struct xls_vast_expression* index) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_subject =
+      reinterpret_cast<xls::verilog::IndexableExpression*>(subject);
+  auto* cpp_index = reinterpret_cast<xls::verilog::Expression*>(index);
+  xls::verilog::Index* result =
+      cpp_file->Index(cpp_subject, cpp_index, xls::SourceInfo());
+  return reinterpret_cast<xls_vast_index*>(result);
 }
 
 }  // extern "C"

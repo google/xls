@@ -64,11 +64,23 @@ void xls_vast_verilog_file_free(struct xls_vast_verilog_file* f);
 struct xls_vast_verilog_module* xls_vast_verilog_file_add_module(
     struct xls_vast_verilog_file* f, const char* name);
 
+// -- VerilogFile::Make*Type
+
 struct xls_vast_data_type* xls_vast_verilog_file_make_scalar_type(
     struct xls_vast_verilog_file* f);
 
 struct xls_vast_data_type* xls_vast_verilog_file_make_bit_vector_type(
     struct xls_vast_verilog_file* f, int64_t bit_count, bool is_signed);
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_extern_package_type(
+    struct xls_vast_verilog_file* f, const char* package_name,
+    const char* entity_name);
+
+struct xls_vast_data_type* xls_vast_verilog_file_make_packed_array_type(
+    struct xls_vast_verilog_file* f, xls_vast_data_type* element_type,
+    const int64_t* packed_dims, size_t packed_dims_count);
+
+// -- Module::Add*
 
 void xls_vast_verilog_module_add_member_instantiation(
     struct xls_vast_verilog_module* m, struct xls_vast_instantiation* member);
@@ -103,9 +115,27 @@ struct xls_vast_instantiation* xls_vast_verilog_file_make_instantiation(
 void xls_vast_verilog_file_add_include(struct xls_vast_verilog_file* f,
                                        const char* path);
 
+struct xls_vast_concat* xls_vast_verilog_file_make_concat(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression** elements,
+    size_t element_count);
+
 struct xls_vast_slice* xls_vast_verilog_file_make_slice_i64(
     struct xls_vast_verilog_file* f,
     struct xls_vast_indexable_expression* subject, int64_t hi, int64_t lo);
+
+struct xls_vast_slice* xls_vast_verilog_file_make_slice(
+    struct xls_vast_verilog_file* f,
+    struct xls_vast_indexable_expression* subject,
+    struct xls_vast_expression* hi, struct xls_vast_expression* lo);
+
+struct xls_vast_index* xls_vast_verilog_file_make_index_i64(
+    struct xls_vast_verilog_file* f,
+    struct xls_vast_indexable_expression* subject, int64_t index);
+
+struct xls_vast_index* xls_vast_verilog_file_make_index(
+    struct xls_vast_verilog_file* f,
+    struct xls_vast_indexable_expression* subject,
+    struct xls_vast_expression* index);
 
 struct xls_vast_literal* xls_vast_verilog_file_make_plain_literal(
     struct xls_vast_verilog_file* f, int32_t value);
@@ -126,10 +156,15 @@ struct xls_vast_expression* xls_vast_logic_ref_as_expression(
     struct xls_vast_logic_ref* v);
 struct xls_vast_expression* xls_vast_slice_as_expression(
     struct xls_vast_slice* v);
+struct xls_vast_expression* xls_vast_concat_as_expression(
+    struct xls_vast_concat* v);
 
 struct xls_vast_indexable_expression*
 xls_vast_logic_ref_as_indexable_expression(
     struct xls_vast_logic_ref* logic_ref);
+
+struct xls_vast_indexable_expression* xls_vast_index_as_indexable_expression(
+    struct xls_vast_index* index);
 
 // Emits/formats the contents of the given verilog file to a string.
 //

@@ -717,4 +717,172 @@ type MyTypeAlias = my_imported_module::SomeType;
   }
 }
 
+TEST(XlsCApiTest, VastExternPackageTypePackedArrayPort) {
+  const std::string_view kWantEmitted = R"(module top(
+  input mypack::mystruct_t [1:0][2:0][3:0] my_input
+);
+
+endmodule
+)";
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* my_struct =
+      xls_vast_verilog_file_make_extern_package_type(f, "mypack", "mystruct_t");
+  const std::vector<int64_t> packed_dims = {2, 3, 4};
+  xls_vast_data_type* my_input_type =
+      xls_vast_verilog_file_make_packed_array_type(
+          f, my_struct, packed_dims.data(), packed_dims.size());
+
+  xls_vast_verilog_module_add_input(m, "my_input", my_input_type);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+// Tests that we can reference a slice of a multidimensional packed array on
+// the LHS or RHS of an assign statement; e.g.
+// ```
+// assign a[1][2][3:4] = b[1:0];
+// assign a[3:4] = c[2:1];
+TEST(XlsCApiTest, VastPackedArraySliceAssignment) {
+  const std::string_view kWantEmitted = R"(module top;
+  wire [1:0][2:0][4:0] a;
+  wire [1:0] b;
+  wire [2:0] c;
+  assign a[1][2][3:4] = b[1:0];
+  assign a[3:4] = c[2:1];
+endmodule
+)";
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u2 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 2, /*is_signed=*/false);
+  xls_vast_data_type* u3 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 3, /*is_signed=*/false);
+
+  const std::vector<int64_t> packed_dims = {3, 5};
+  xls_vast_data_type* a_type = xls_vast_verilog_file_make_packed_array_type(
+      f, u2, packed_dims.data(), packed_dims.size());
+  auto* b_type = u2;
+  auto* c_type = u3;
+
+  xls_vast_logic_ref* a_ref = xls_vast_verilog_module_add_wire(m, "a", a_type);
+  xls_vast_logic_ref* b_ref = xls_vast_verilog_module_add_wire(m, "b", b_type);
+  xls_vast_logic_ref* c_ref = xls_vast_verilog_module_add_wire(m, "c", c_type);
+
+  xls_vast_literal* literal_0 = xls_vast_verilog_file_make_plain_literal(f, 0);
+  xls_vast_literal* literal_1 = xls_vast_verilog_file_make_plain_literal(f, 1);
+  xls_vast_literal* literal_2 = xls_vast_verilog_file_make_plain_literal(f, 2);
+  xls_vast_literal* literal_3 = xls_vast_verilog_file_make_plain_literal(f, 3);
+  xls_vast_literal* literal_4 = xls_vast_verilog_file_make_plain_literal(f, 4);
+
+  // Build the first assign statement.
+  {
+    // The lhs is `a[1][2][3:4]`. We have to build this up via a nested
+    // index/index/slice.
+    xls_vast_index* a_index_0 = xls_vast_verilog_file_make_index(
+        f, xls_vast_logic_ref_as_indexable_expression(a_ref),
+        xls_vast_literal_as_expression(literal_1));
+    xls_vast_index* a_index_1 = xls_vast_verilog_file_make_index(
+        f, xls_vast_index_as_indexable_expression(a_index_0),
+        xls_vast_literal_as_expression(literal_2));
+    xls_vast_slice* a_slice = xls_vast_verilog_file_make_slice(
+        f, xls_vast_index_as_indexable_expression(a_index_1),
+        xls_vast_literal_as_expression(literal_3),
+        xls_vast_literal_as_expression(literal_4));
+
+    // The rhs is `b[1:0]`.
+    xls_vast_slice* b_slice = xls_vast_verilog_file_make_slice(
+        f, xls_vast_logic_ref_as_indexable_expression(b_ref),
+        xls_vast_literal_as_expression(literal_1),
+        xls_vast_literal_as_expression(literal_0));
+
+    xls_vast_continuous_assignment* assignment =
+        xls_vast_verilog_file_make_continuous_assignment(
+            f, xls_vast_slice_as_expression(a_slice),
+            xls_vast_slice_as_expression(b_slice));
+    xls_vast_verilog_module_add_member_continuous_assignment(m, assignment);
+  }
+
+  // Build the second assign statement.
+  {
+    xls_vast_slice* lhs = xls_vast_verilog_file_make_slice(
+        f, xls_vast_logic_ref_as_indexable_expression(a_ref),
+        xls_vast_literal_as_expression(literal_3),
+        xls_vast_literal_as_expression(literal_4));
+    xls_vast_slice* rhs = xls_vast_verilog_file_make_slice(
+        f, xls_vast_logic_ref_as_indexable_expression(c_ref),
+        xls_vast_literal_as_expression(literal_2),
+        xls_vast_literal_as_expression(literal_1));
+    xls_vast_continuous_assignment* assignment =
+        xls_vast_verilog_file_make_continuous_assignment(
+            f, xls_vast_slice_as_expression(lhs),
+            xls_vast_slice_as_expression(rhs));
+    xls_vast_verilog_module_add_member_continuous_assignment(m, assignment);
+  }
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
+TEST(XlsCApiTest, VastSimpleConcat) {
+  const std::string_view kWantEmitted = R"(module top;
+  wire [7:0] a;
+  wire [3:0] b;
+  wire [11:0] c;
+  assign c = {a, b};
+endmodule
+)";
+  xls_vast_verilog_file* f =
+      xls_vast_make_verilog_file(xls_vast_file_type_verilog);
+  ASSERT_NE(f, nullptr);
+  absl::Cleanup free_file([&] { xls_vast_verilog_file_free(f); });
+
+  xls_vast_verilog_module* m = xls_vast_verilog_file_add_module(f, "top");
+  ASSERT_NE(m, nullptr);
+
+  xls_vast_data_type* u8 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 8, /*is_signed=*/false);
+  xls_vast_data_type* u4 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 4, /*is_signed=*/false);
+  xls_vast_data_type* u12 =
+      xls_vast_verilog_file_make_bit_vector_type(f, 12, /*is_signed=*/false);
+
+  xls_vast_logic_ref* a_ref = xls_vast_verilog_module_add_wire(m, "a", u8);
+  xls_vast_logic_ref* b_ref = xls_vast_verilog_module_add_wire(m, "b", u4);
+  xls_vast_logic_ref* c_ref = xls_vast_verilog_module_add_wire(m, "c", u12);
+
+  std::vector<xls_vast_expression*> concat_members = {
+      xls_vast_logic_ref_as_expression(a_ref),
+      xls_vast_logic_ref_as_expression(b_ref)};
+  xls_vast_concat* concat = xls_vast_verilog_file_make_concat(
+      f, concat_members.data(), concat_members.size());
+  xls_vast_continuous_assignment* assignment =
+      xls_vast_verilog_file_make_continuous_assignment(
+          f, xls_vast_logic_ref_as_expression(c_ref),
+          xls_vast_concat_as_expression(concat));
+  xls_vast_verilog_module_add_member_continuous_assignment(m, assignment);
+
+  char* emitted = xls_vast_verilog_file_emit(f);
+  ASSERT_NE(emitted, nullptr);
+  absl::Cleanup free_emitted([&] { xls_c_str_free(emitted); });
+  EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
+}
+
 }  // namespace
