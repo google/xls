@@ -34,6 +34,7 @@
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/ram_configuration.h"
+#include "xls/codegen/unified_generator.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/stopwatch.h"
@@ -93,13 +94,16 @@ struct CodegenMetadata {
             metadata.delay_estimator,
             SetUpDelayEstimator(scheduling_options_flags_proto));
       }
+
+      metadata.codegen_options.generate_combinational(true);
       return metadata;
     }
-
     // Note: this should already be validated by CodegenFlagsFromAbslFlags().
     CHECK_EQ(codegen_flags_proto.generator(), GENERATOR_KIND_PIPELINE)
         << "Invalid generator kind: "
         << static_cast<int>(codegen_flags_proto.generator());
+
+    metadata.codegen_options.generate_combinational(false);
 
     XLS_ASSIGN_OR_RETURN(
         metadata.scheduling_options,
@@ -145,17 +149,81 @@ absl::StatusOr<PipelineScheduleOrGroup> ScheduleFromMetadata(
                   scheduling_time);
 }
 
+absl::StatusOr<PackagePipelineSchedules> DeterminePipelineSchedules(
+    GeneratorKind generator_kind, Package* p,
+    const PipelineScheduleOrGroup* schedules) {
+  if (!p->GetTop().has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Package %s has no top function.", p->name()));
+  }
+  FunctionBase* top = p->GetTop().value();
+
+  // Codegen for a single combinational proc or function.
+  if (schedules == nullptr) {
+    XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_COMBINATIONAL);
+    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+                         PipelineSchedule::SingleStage(p->GetTop().value()));
+    return PackagePipelineSchedules{{top, std::move(schedule)}};
+  }
+
+  XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_PIPELINE);
+
+  // Codegen for a single proc.
+  if (std::holds_alternative<PipelineSchedule>(*schedules)) {
+    return PackagePipelineSchedules{
+        {top, std::get<PipelineSchedule>(*schedules)}};
+  }
+
+  // Multi-proc codegen is in play.
+  return std::get<PackagePipelineSchedules>(*schedules);
+}
+
 absl::StatusOr<CodegenResult> CodegenFromMetadata(
     Package* p, GeneratorKind generator_kind, const CodegenMetadata& metadata,
     const PipelineScheduleOrGroup* schedules, absl::Duration* codegen_time) {
-  if (generator_kind == GENERATOR_KIND_COMBINATIONAL) {
-    return CodegenCombinational(p, metadata.codegen_options,
-                                metadata.delay_estimator, codegen_time);
+  if (metadata.codegen_options.codegen_version() ==
+          verilog::CodegenOptions::Version::kOneDotZero ||
+      metadata.codegen_options.codegen_version() ==
+          verilog::CodegenOptions::Version::kDefault) {
+    if (generator_kind == GENERATOR_KIND_COMBINATIONAL) {
+      return CodegenCombinational(p, metadata.codegen_options,
+                                  metadata.delay_estimator, codegen_time);
+    }
+    XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_PIPELINE);
+    XLS_RET_CHECK(schedules != nullptr);
+    return CodegenPipeline(p, *schedules, metadata.codegen_options,
+                           metadata.delay_estimator, codegen_time);
   }
-  XLS_RET_CHECK_EQ(generator_kind, GENERATOR_KIND_PIPELINE);
-  XLS_RET_CHECK(schedules != nullptr);
-  return CodegenPipeline(p, *schedules, metadata.codegen_options,
-                         metadata.delay_estimator, codegen_time);
+
+  // Codegen 2.0.
+  XLS_ASSIGN_OR_RETURN(
+      PackagePipelineSchedules package_schedules,
+      DeterminePipelineSchedules(generator_kind, p, schedules));
+
+  XLS_RETURN_IF_ERROR(VerifyPackage(p, /*codegen=*/true));
+
+  std::optional<Stopwatch> stopwatch;
+  if (codegen_time != nullptr) {
+    stopwatch.emplace();
+  }
+
+  PackagePipelineSchedulesProto package_pipeline_schedules_proto =
+      PackagePipelineSchedulesToProto(package_schedules,
+                                      *metadata.delay_estimator);
+
+  XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult result,
+                       verilog::GenerateModuleText(package_schedules, p,
+                                                   metadata.codegen_options,
+                                                   metadata.delay_estimator));
+
+  if (codegen_time != nullptr) {
+    *codegen_time = stopwatch->GetElapsedTime();
+  }
+
+  return CodegenResult{
+      .module_generator_result = result,
+      .package_pipeline_schedules_proto = package_pipeline_schedules_proto,
+  };
 }
 
 verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
@@ -328,6 +396,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     default:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Unknown merge strategy: %v", p.register_merge_strategy()));
+  }
+
+  if (p.has_codegen_version()) {
+    options.codegen_version(p.codegen_version());
   }
 
   return options;

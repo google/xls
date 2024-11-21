@@ -52,6 +52,7 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
       reset_proto_(options.reset_proto_),
       pipeline_control_(options.pipeline_control_),
       clock_name_(options.clock_name_),
+      generate_combinational_(options.generate_combinational_),
       use_system_verilog_(options.use_system_verilog_),
       separate_lines_(options.separate_lines_),
       flop_inputs_(options.flop_inputs_),
@@ -70,7 +71,8 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
       register_merge_strategy_(options.register_merge_strategy_),
       package_interface_(options.package_interface_),
       emit_sv_types_(options.emit_sv_types_),
-      simulation_macro_name_(options.simulation_macro_name_) {
+      simulation_macro_name_(options.simulation_macro_name_),
+      codegen_version_(options.codegen_version_) {
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
@@ -87,6 +89,7 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   reset_proto_ = options.reset_proto_;
   pipeline_control_ = options.pipeline_control_;
   clock_name_ = options.clock_name_;
+  generate_combinational_ = options.generate_combinational_;
   use_system_verilog_ = options.use_system_verilog_;
   separate_lines_ = options.separate_lines_;
   flop_inputs_ = options.flop_inputs_;
@@ -106,6 +109,7 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   package_interface_ = options.package_interface_;
   emit_sv_types_ = options.emit_sv_types_;
   simulation_macro_name_ = options.simulation_macro_name_;
+  codegen_version_ = options.codegen_version_;
 
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());

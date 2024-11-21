@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
@@ -44,6 +45,13 @@ class CodegenOptions {
   CodegenOptions(CodegenOptions&& options) = default;
   CodegenOptions& operator=(CodegenOptions&& options) = default;
   ~CodegenOptions() = default;
+
+  // Enum to describe which codegen version to use.
+  enum class Version : uint8_t {
+    kDefault = 0,
+    kOneDotZero = 1,
+    kTwoDotZero = 2
+  };
 
   // Enum to describe how IO should be registered.
   enum class IOKind : uint8_t { kFlop = 0, kSkidBuffer, kZeroLatencyBuffer };
@@ -283,6 +291,25 @@ class CodegenOptions {
     return *this;
   }
 
+  // Sets which codegen version to use.
+  CodegenOptions& codegen_version(int64_t value) {
+    QCHECK(value >= 0 && value <= 2) << "codegen_version must be 0, 1, or 2";
+    codegen_version_ = static_cast<Version>(value);
+    return *this;
+  }
+  CodegenOptions& codegen_version(Version value) {
+    codegen_version_ = value;
+    return *this;
+  }
+  Version codegen_version() const { return codegen_version_; }
+
+  // Whether to generate combinational logic.
+  CodegenOptions& generate_combinational(bool value) {
+    generate_combinational_ = value;
+    return *this;
+  }
+  bool generate_combinational() const { return generate_combinational_; }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -290,6 +317,7 @@ class CodegenOptions {
   std::optional<ResetProto> reset_proto_;
   std::optional<PipelineControl> pipeline_control_;
   std::optional<std::string> clock_name_;
+  bool generate_combinational_ = false;
   bool use_system_verilog_ = true;
   bool separate_lines_ = false;
   int64_t max_inline_depth_ = 5;
@@ -315,6 +343,7 @@ class CodegenOptions {
   std::vector<std::string> includes_;
   bool emit_sv_types_ = true;
   std::string simulation_macro_name_ = "SIMULATION";
+  Version codegen_version_ = Version::kDefault;
 };
 
 template <typename Sink>

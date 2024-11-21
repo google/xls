@@ -163,6 +163,10 @@ ABSL_FLAG(std::string, simulation_macro_name, "SIMULATION",
           "Verilog macro name to use in an `ifdef guard for "
           "simulation-specific constructs such as $display statements. If "
           "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
+ABSL_FLAG(int64_t, codegen_version, 0,
+          "Version of codegen to use.  Either 2 (refactored codegen), 1 "
+          "(orignal codegen path), or 0 for default");
+
 // LINT.ThenChange(
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
@@ -253,6 +257,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_outputs_kind)));
   proto.set_flop_outputs_kind(flop_outputs_kind);
 
+  POPULATE_FLAG(codegen_version);
   POPULATE_FLAG(flop_single_value_channels);
   POPULATE_FLAG(add_idle_output);
   POPULATE_FLAG(module_name);

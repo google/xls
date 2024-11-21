@@ -122,6 +122,7 @@ CODEGEN_FIELDS = {
     "register_merge_strategy": "The strategy to use for merging registers. Either " +
                                "'IdentityOnly' or 'None'",
     "emit_sv_types": "Whether or not to honor the #[sv_type(NAME)] annotations in the source DSLX.",
+    "codegen_version": "Version of codegen to use (0=default).",
 }
 
 SCHEDULING_FIELDS = {

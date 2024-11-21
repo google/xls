@@ -196,6 +196,31 @@ cc_library(
 )
 
 cc_library(
+    name = "unified_generator",
+    srcs = ["unified_generator.cc"],
+    hdrs = ["unified_generator.h"],
+    deps = [
+        ":block_conversion",
+        ":block_generator",
+        ":codegen_options",
+        ":codegen_pass",
+        ":codegen_pass_pipeline",
+        ":module_signature",
+        ":verilog_line_map_cc_proto",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/estimators/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/passes:pass_base",
+        "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:vlog_is_on",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "module_signature",
     srcs = ["module_signature.cc"],
     hdrs = ["module_signature.h"],
@@ -418,6 +443,7 @@ cc_library(
         "//xls/ir:xls_ir_interface_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/types:span",
     ],
 )

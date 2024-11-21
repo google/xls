@@ -138,6 +138,10 @@ control the scheduler.
 -   `--scheduling_options_used_textproto_file` is the path to write a textproto
     containing the actual configuration used for scheduling.
 
+-   `--codegen_version` is the version of codegen pipeline to use. Either 2
+    (refactored codegen), 1 (original codegen path), or 0 for default. Currently
+    default means the 1 (original).
+
 # Feedback-driven Optimization (FDO) Options
 
 The following flags control the feedback-driven optimizations in XLS. For now,
@@ -317,7 +321,7 @@ string. These format strings use placeholders to fill in relevant information.
 -   `--flop_inputs` and `--flop_outputs` control if inputs and outputs should be
     flopped respectively. These flags are only used by the pipeline generator.
 
-    For procs, inputs and outputs are channels with ready/valid signalling and
+    For procs, inputs and outputs are channels with ready/valid signaling and
     have additional options controlling how inputs and outputs are registered.
     `--flop_inputs_kind=...` and `--flop_outputs_kind=...` flags control what
     the logic around the outputs and inputs look like respectively. The list

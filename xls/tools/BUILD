@@ -637,6 +637,7 @@ cc_library(
         "//xls/codegen:op_override_impls",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
+        "//xls/codegen:unified_generator",
         "//xls/common:stopwatch",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
