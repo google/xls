@@ -331,9 +331,6 @@ TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPauses) {
 }
 
 TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
-  // TODO(allight): Technically a valid transform would be to narrow this with a
-  // sign-extend. We don't have the ability to see this transformation in our
-  // analysis at the moment however.
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       auto* chan, p->CreateStreamingChannel("test_chan", ChannelOps::kSendOnly,
@@ -343,9 +340,10 @@ TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
   pb.Send(chan, pb.Literal(Value::Token()), state);
   // State just counts up 1 to 7 then goes from -7 to 7 repeating
   // NB Limit is exactly 7 and comparison is LT so that however the transform is
-  // done the state fits in 3 bits.
+  // done the state fits in 4 bits.
   // NB This is a signed comparison so naieve contextual narrowing will see
-  // range as [[0, 7], [INT_MIN, -1]].
+  // range as [[0, 7], [INT_MIN, -1]]. We need interval exploration to get the
+  // -7 lower bound.
   auto in_loop = pb.SLt(state, pb.Literal(UBits(7, 32)));
   pb.Next(state, pb.Add(state, pb.Literal(UBits(1, 32))), in_loop);
   // If we aren't looping the value goes to -8
@@ -353,13 +351,14 @@ TEST_F(ProcStateNarrowingPassTest, NegativeNumbersAreNotRemoved) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/16,
+  solvers::z3::ScopedVerifyProcEquivalence svpe(proc, /*activation_count=*/32,
                                                 /*include_state=*/false);
   ScopedRecordIr sri(p.get());
-  EXPECT_THAT(RunPass(proc), IsOkAndHolds(false));
+  EXPECT_THAT(RunPass(proc), IsOkAndHolds(true));
+  EXPECT_THAT(RunProcStateCleanup(proc), IsOkAndHolds(true));
 
   EXPECT_THAT(proc->StateElements(), UnorderedElementsAre(m::StateElement(
-                                         "the_state", p->GetBitsType(32))));
+                                         "the_state", p->GetBitsType(4))));
 }
 
 TEST_F(ProcStateNarrowingPassTest, StateExplorationWithPartialBackProp) {
