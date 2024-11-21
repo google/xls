@@ -56,6 +56,7 @@ common_linkopts = [
 
 cc_library(
     name = "z3lib",
+    include_prefix = "z3",
     srcs = GEN_SRCS + glob([
         "src/ackermannization/*.cpp",
         "src/api/*.cpp",
@@ -283,6 +284,7 @@ cc_library(
 
 cc_library(
     name = "api",
+    include_prefix = "z3",
     hdrs = glob(
         [
             "src/api/z3*.h",
@@ -404,6 +406,7 @@ cc_binary(
 
 cc_library(
     name = "z3main",
+    include_prefix = "z3",
     srcs = glob(
         [
             "src/shell/*.cpp",

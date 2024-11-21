@@ -438,8 +438,6 @@ cc_library(
         ":ast_node",
         ":module",
         ":proc",
-        "//xls/ir:foreign_function_data_cc_proto",
-        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
     ],
 )

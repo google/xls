@@ -46,7 +46,6 @@ cc_library(
     deps = [
         ":inference_table",
         "//xls/common/status:status_macros",
-        "//xls/dslx:errors",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
