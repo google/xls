@@ -21,14 +21,14 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -42,6 +42,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -1207,8 +1208,9 @@ class ModuleFmtTest : public testing::Test {
         std::unique_ptr<Module> m,
         ParseModule(input, "fake.x", "fake", file_table_, &comments_vec));
     Comments comments = Comments::Create(comments_vec);
+    AllErrorsFilesystem vfs;
     XLS_ASSERT_OK_AND_ASSIGN(std::string got,
-                             AutoFmt(*m, comments, input, text_width));
+                             AutoFmt(vfs, *m, comments, input, text_width));
 
     if (opportunistic_postcondition) {
       std::optional<AutoFmtPostconditionViolation> maybe_violation =

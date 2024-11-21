@@ -1085,34 +1085,6 @@ ParseChannelFilenames(absl::Span<const std::string> files_raw) {
   return ret;
 }
 
-absl::StatusOr<absl::flat_hash_map<
-    std::string,
-    std::pair<int64_t,
-              Value>>> static ParseMemoryModels(absl::Span<const std::string>
-                                                    models_raw) {
-  absl::flat_hash_map<std::string, std::pair<int64_t, Value>> ret;
-  for (const std::string& model_str : models_raw) {
-    std::vector<std::string> split = absl::StrSplit(model_str, '=');
-    if (split.size() != 2) {
-      return absl::InvalidArgumentError(
-          "Format of argument should be memory=size/initial_value");
-    }
-    std::vector<std::string> model_split = absl::StrSplit(split[1], '/');
-    if (model_split.size() != 2) {
-      return absl::InvalidArgumentError(
-          "Format of memory model should be size/initial_value");
-    }
-    int64_t size = -1;
-    if (!absl::SimpleAtoi(model_split[0], &size)) {
-      return absl::InvalidArgumentError("Size should be an integer");
-    }
-    XLS_ASSIGN_OR_RETURN(Value initial_value,
-                         Parser::ParseTypedValue(model_split[1]));
-    ret[split[0]] = std::make_pair(size, initial_value);
-  }
-  return ret;
-}
-
 static absl::StatusOr<absl::btree_map<std::string, std::vector<Value>>>
 GetValuesForEachChannels(
     absl::Span<const std::string> filenames_for_each_channel,

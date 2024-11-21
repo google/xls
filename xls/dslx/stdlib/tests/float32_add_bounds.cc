@@ -34,15 +34,18 @@
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "xls/common/exit_status.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
+
+// Warning: z3 headers are order dependent -- these need to be included after
+// other includes.
 #include "z3/src/api/z3_api.h"
 #include "z3/src/api/z3_fpa.h"
 
@@ -136,17 +139,19 @@ static absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
   return error;
 }
 
-static absl::StatusOr<std::unique_ptr<Package>> GetIr(bool opt_ir) {
+static absl::StatusOr<std::unique_ptr<Package>> GetIr(
+    xls::dslx::VirtualizableFilesystem& vfs, bool opt_ir) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_path,
                        GetXlsRunfilePath(opt_ir ? kOptIrPath : kIrPath));
-  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
+  XLS_ASSIGN_OR_RETURN(std::string ir_text, vfs.GetFileContents(ir_path));
   return Parser::ParsePackage(ir_text);
 }
 
-static absl::Status CompareToReference(bool use_opt_ir, uint32_t error_bound,
+static absl::Status CompareToReference(xls::dslx::VirtualizableFilesystem& vfs,
+                                       bool use_opt_ir, uint32_t error_bound,
                                        bool flush_subnormals,
                                        absl::Duration timeout) {
-  XLS_ASSIGN_OR_RETURN(auto package, GetIr(use_opt_ir));
+  XLS_ASSIGN_OR_RETURN(auto package, GetIr(vfs, use_opt_ir));
   XLS_ASSIGN_OR_RETURN(auto function, package->GetFunction(kFunctionName));
 
   // Translate our IR into a matching Z3 AST.
@@ -188,8 +193,9 @@ static absl::Status CompareToReference(bool use_opt_ir, uint32_t error_bound,
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
 
+  xls::dslx::RealFilesystem vfs;
   return xls::ExitStatus(xls::CompareToReference(
-      absl::GetFlag(FLAGS_reference_use_opt_ir),
+      vfs, absl::GetFlag(FLAGS_reference_use_opt_ir),
       absl::GetFlag(FLAGS_error_bound), absl::GetFlag(FLAGS_flush_subnormals),
       absl::GetFlag(FLAGS_timeout)));
 }

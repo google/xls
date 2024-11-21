@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <functional>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -27,34 +26,28 @@
 
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
-#include "xls/common/file/filesystem.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 
-absl::Status PrintPositionalError(
-    const Span& error_span, std::string_view error_message, std::ostream& os,
-    std::function<absl::StatusOr<std::string>(std::string_view)>
-        get_file_contents,
-    PositionalErrorColor color, const FileTable& file_table,
-    int64_t error_context_line_count) {
+absl::Status PrintPositionalError(const Span& error_span,
+                                  std::string_view error_message,
+                                  std::ostream& os, PositionalErrorColor color,
+                                  const FileTable& file_table,
+                                  VirtualizableFilesystem& vfs,
+                                  int64_t error_context_line_count) {
   XLS_RET_CHECK_EQ(error_context_line_count % 2, 1);
 
-  if (get_file_contents == nullptr) {
-    get_file_contents = [](std::string_view path) {
-      return GetFileContents(path);
-    };
-  }
   XLS_ASSIGN_OR_RETURN(std::string contents,
-                       get_file_contents(error_span.GetFilename(file_table)));
+                       vfs.GetFileContents(error_span.GetFilename(file_table)));
   std::vector<std::string_view> lines = absl::StrSplit(contents, '\n');
   // Lines are \n-terminated, not \n-separated.
   if (lines.size() > 1 && lines.back().empty()) {
@@ -163,11 +156,11 @@ absl::Status PrintPositionalError(
 }
 
 void PrintWarnings(const WarningCollector& warnings,
-                   const FileTable& file_table) {
+                   const FileTable& file_table, VirtualizableFilesystem& vfs) {
   for (const WarningCollector::Entry& e : warnings.warnings()) {
     absl::Status print_status = PrintPositionalError(
-        e.span, e.message, std::cerr, /*get_file_contents=*/nullptr,
-        PositionalErrorColor::kWarningColor, file_table);
+        e.span, e.message, std::cerr, PositionalErrorColor::kWarningColor,
+        file_table, vfs);
     if (!print_status.ok()) {
       LOG(WARNING) << "Could not print warning: " << print_status;
     }

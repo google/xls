@@ -17,7 +17,6 @@
 #include <stdio.h>  // NOLINT(modernize-deprecated-headers)
 #include <unistd.h>
 
-#include <functional>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -33,14 +32,12 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
-bool TryPrintError(
-    const absl::Status& status,
-    const std::function<absl::StatusOr<std::string>(std::string_view)>&
-        get_file_contents,
-    FileTable& file_table) {
+bool TryPrintError(const absl::Status& status, FileTable& file_table,
+                   VirtualizableFilesystem& vfs) {
   if (status.ok()) {
     return false;
   }
@@ -55,10 +52,10 @@ bool TryPrintError(
   bool is_tty = isatty(fileno(stderr)) != 0;
   absl::Status print_status = PrintPositionalError(
       data.span, absl::StrFormat("%s: %s", data.error_type, data.message),
-      std::cerr, get_file_contents,
+      std::cerr,
       is_tty ? PositionalErrorColor::kErrorColor
              : PositionalErrorColor::kNoColor,
-      file_table);
+      file_table, vfs);
   if (!print_status.ok()) {
     LOG(ERROR) << "Could not print positional error: " << print_status;
   }

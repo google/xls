@@ -21,8 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
@@ -30,6 +28,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"

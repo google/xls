@@ -17,9 +17,9 @@
 #include <optional>
 #include <string>
 
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
+#include "gtest/gtest.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/fmt/ast_fmt.h"
@@ -28,6 +28,7 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/fuzzer/ast_generator.h"
 
 namespace xls::dslx {
@@ -50,6 +51,8 @@ TEST_P(FmtGeneratedAstTest, RunShard) {
 
     std::string stringified = am.module->ToString();
 
+    UniformContentFilesystem vfs(stringified);
+
     // We re-parse the module so we can get proper positional annotations -- all
     // positions are trivial in the generated AST structure.
     Scanner scanner(file_table, Fileno(0), stringified);
@@ -59,7 +62,7 @@ TEST_P(FmtGeneratedAstTest, RunShard) {
 
     Comments comments;
     XLS_ASSERT_OK_AND_ASSIGN(std::string autoformatted,
-                             AutoFmt(*parsed, comments));
+                             AutoFmt(vfs, *parsed, comments));
 
     // Note that the AST generator currently does not generate any constructs
     // that the "opportunistic postcondition" has difficulty with (such as

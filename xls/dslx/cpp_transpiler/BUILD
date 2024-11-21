@@ -134,6 +134,7 @@ cc_binary(
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_kind",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",

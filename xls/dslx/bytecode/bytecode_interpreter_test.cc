@@ -22,12 +22,12 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -48,6 +48,7 @@
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/format_strings.h"
@@ -68,12 +69,8 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, "test.x", "test", import_data);
   if (!tm_or.ok()) {
-    TryPrintError(
-        tm_or.status(),
-        [&](std::string_view) -> absl::StatusOr<std::string> {
-          return std::string{program};
-        },
-        import_data->file_table());
+    UniformContentFilesystem vfs(program);
+    TryPrintError(tm_or.status(), import_data->file_table(), vfs);
   }
   return tm_or;
 }

@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <ctime>
-#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -42,6 +41,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "re2/re2.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode.h"
@@ -70,6 +70,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
@@ -78,7 +79,6 @@
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -90,7 +90,8 @@ constexpr int kQuickcheckSpaces = 15;
 void HandleError(TestResultData& result, const absl::Status& status,
                  std::string_view test_name, const Pos& start_pos,
                  const absl::Time& start, const absl::Duration& duration,
-                 bool is_quickcheck, FileTable& file_table) {
+                 bool is_quickcheck, FileTable& file_table,
+                 VirtualizableFilesystem& vfs) {
   VLOG(1) << "Handling error; status: " << status
           << " test_name: " << test_name;
   absl::StatusOr<PositionalErrorData> data_or =
@@ -100,10 +101,9 @@ void HandleError(TestResultData& result, const absl::Status& status,
   std::string suffix;
   if (data_or.ok()) {
     const auto& data = data_or.value();
-    CHECK_OK(
-        PrintPositionalError(data.span, data.GetMessageWithType(), std::cerr,
-                             /*get_file_contents=*/nullptr,
-                             PositionalErrorColor::kErrorColor, file_table));
+    CHECK_OK(PrintPositionalError(data.span, data.GetMessageWithType(),
+                                  std::cerr, PositionalErrorColor::kErrorColor,
+                                  file_table, vfs));
     one_liner = data.GetMessageWithType();
   } else {
     // If we can't extract positional data we log the error and put the error
@@ -411,7 +411,8 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
 static absl::Status RunQuickChecksIfJitEnabled(
     const RE2* test_filter, Module* entry_module, TypeInfo* type_info,
     AbstractRunComparator* run_comparator, Package* ir_package,
-    std::optional<int64_t> seed, TestResultData& result) {
+    std::optional<int64_t> seed, TestResultData& result,
+    VirtualizableFilesystem& vfs) {
   if (run_comparator == nullptr) {
     // TODO(leary): 2024-02-08 Note that this skips /all/ the quickchecks so we
     // don't make an entry for it right now in the test XML.
@@ -457,7 +458,7 @@ static absl::Status RunQuickChecksIfJitEnabled(
     if (!status.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
                   duration,
-                  /*is_quickcheck=*/true, file_table);
+                  /*is_quickcheck=*/true, file_table, vfs);
     } else {
       result.AddTestCase(test_xml::TestCase{
           .name = quickcheck_name,
@@ -490,7 +491,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
-    if (TryPrintError(tm_or.status(), nullptr, file_table)) {
+    if (TryPrintError(tm_or.status(), file_table, import_data.vfs())) {
       result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
       return ParseAndProveResult{.test_result_data = result};
     }
@@ -502,7 +503,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
   if (options.warnings_as_errors) {
-    PrintWarnings(tm_or->warnings, file_table);
+    PrintWarnings(tm_or->warnings, file_table, import_data.vfs());
   }
 
   if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
@@ -552,7 +553,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
                                            ConvertOptions{}, &conv);
     if (!status.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table);
+                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
+                  import_data.vfs());
       continue;
     }
 
@@ -562,7 +564,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     status = RunOptimizationPassPipeline(&package).status();
     if (!status.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table);
+                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
+                  import_data.vfs());
       continue;
     }
 
@@ -570,7 +573,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
         entry_module->name(), f->identifier(), CallingConvention::kTypical);
     if (!ir_function_name_or.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table);
+                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
+                  import_data.vfs());
       continue;
     }
 
@@ -578,7 +582,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
         package.GetFunction(ir_function_name_or.value());
     if (!ir_function_or.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table);
+                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
+                  import_data.vfs());
       continue;
     }
 
@@ -590,7 +595,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
 
     if (!proven_or.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table);
+                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
+                  import_data.vfs());
       continue;
     }
 
@@ -634,7 +640,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     absl::Time test_case_end = absl::Now();
     absl::Duration duration = test_case_end - test_case_start;
     HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                duration, /*is_quickcheck=*/true, file_table);
+                duration, /*is_quickcheck=*/true, file_table,
+                import_data.vfs());
   }
 
   result.Finish(TestResult::kSomeFailed, absl::Now() - start);
@@ -666,7 +673,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
-    if (TryPrintError(tm_or.status(), nullptr, import_data.file_table())) {
+    if (TryPrintError(tm_or.status(), import_data.file_table(),
+                      import_data.vfs())) {
       result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
       return result;
     }
@@ -678,7 +686,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
   if (options.execute || options.warnings_as_errors) {
-    PrintWarnings(tm_or->warnings, import_data.file_table());
+    PrintWarnings(tm_or->warnings, import_data.file_table(), import_data.vfs());
   }
 
   if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
@@ -703,8 +711,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
         ConvertModuleToPackage(entry_module, &import_data,
                                options.convert_options);
     if (!ir_package_or.ok()) {
-      if (TryPrintError(ir_package_or.status(), nullptr,
-                        import_data.file_table())) {
+      if (TryPrintError(ir_package_or.status(), import_data.file_table(),
+                        import_data.vfs())) {
         result.Finish(TestResult::kSomeFailed, absl::Now() - start);
         return result;
       }
@@ -783,7 +791,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     } else {
       HandleError(result, out.result, test_name, start_pos, test_case_start,
                   test_case_end - test_case_start,
-                  /*is_quickcheck=*/false, file_table);
+                  /*is_quickcheck=*/false, file_table, import_data.vfs());
     }
   }
 
@@ -797,7 +805,8 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
         options.test_filter, entry_module, tm_or.value().type_info,
-        options.run_comparator, ir_package.get(), options.seed, result));
+        options.run_comparator, ir_package.get(), options.seed, result,
+        import_data.vfs()));
   }
 
   result.Finish(

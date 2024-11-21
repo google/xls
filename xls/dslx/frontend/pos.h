@@ -25,7 +25,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/strong_int.h"
@@ -46,19 +45,17 @@ class FileTable {
     path_to_number_.emplace("<no-file>", Fileno(0));
   }
 
-  Fileno GetOrCreate(std::string_view path) {
-    VLOG(5) << absl::StreamFormat("FileTable::GetOrCreate: %s", path);
-    auto it = path_to_number_.find(path);
-    if (it == path_to_number_.end()) {
-      Fileno this_fileno = next_fileno_++;
-      path_to_number_.emplace_hint(it, std::string(path), this_fileno);
-      number_to_path_.emplace(this_fileno, std::string(path));
-      VLOG(5) << "Added to filetable";
-      return this_fileno;
-    }
-    VLOG(5) << "Already in filetable";
-    return it->second;
-  }
+  // Gets-or-creates the resolution of the given `path` to a file number.
+  // Note that paths are not canonicalized here; e.g. if you give two filesystem
+  // paths that happen to alias, or are somehow non-canonicalized, like having
+  // multiple slashes or dots in them, they will get two different file numbers.
+  //
+  // Precondition: `path` must not be a URI, it should be a filesystem path;
+  // i.e. it must not start with `file://`
+  //
+  // Note that for scenarios like the DSLX language server, the conversion from
+  // URI to filesystem path happen beyond the file table implementation.
+  Fileno GetOrCreate(std::string_view path);
 
   std::string_view Get(Fileno fileno) const {
     return number_to_path_.at(fileno);

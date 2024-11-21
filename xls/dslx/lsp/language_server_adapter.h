@@ -35,6 +35,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/lsp/import_sensitivity.h"
+#include "xls/dslx/lsp/lsp_uri.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -50,8 +51,8 @@ inline std::ostream& LspLog() { return std::cerr; }
 // serializing entity).
 class LanguageServerAdapter {
  public:
-  LanguageServerAdapter(std::string_view stdlib,
-                        const std::vector<std::filesystem::path>& dslx_paths);
+  LanguageServerAdapter(LspUri stdlib_uri,
+                        const std::vector<LspUri>& dslx_paths);
 
   // Takes note that `dslx_code` is the current file contents for `file_uri`
   // and performs a parse-and-typecheck using that file/contents as the entry
@@ -67,7 +68,7 @@ class LanguageServerAdapter {
   // Implementation note: since we currently do not react to buffer closed
   // events in the buffer change listener, we keep track of every file ever
   // opened and never delete.
-  absl::Status Update(std::string_view file_uri,
+  absl::Status Update(LspUri file_uri,
                       std::optional<std::string_view> dslx_code);
 
   // Generate LSP diagnostics for the file with given `uri`.
@@ -75,15 +76,15 @@ class LanguageServerAdapter {
   // Note that this only finds the existing parse-and-typecheck result, it does
   // not trigger any new parsing activity, for that we need to `Update`.
   std::vector<verible::lsp::Diagnostic> GenerateParseDiagnostics(
-      std::string_view uri) const;
+      LspUri uri) const;
 
   std::vector<verible::lsp::DocumentSymbol> GenerateDocumentSymbols(
-      std::string_view uri) const;
+      LspUri uri) const;
 
   // Note: the return type is slightly unintuitive, but the latest LSP protocol
   // supports multiple defining locations for a single reference.
   absl::StatusOr<std::vector<verible::lsp::Location>> FindDefinitions(
-      std::string_view uri, const verible::lsp::Position& position) const;
+      LspUri uri, const verible::lsp::Position& position) const;
 
   // Implements the functionality for full document formatting:
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting
@@ -91,31 +92,29 @@ class LanguageServerAdapter {
   // TODO(cdleary): 2024-03-10 We may want to consider adding formatting
   // options.
   absl::StatusOr<std::vector<verible::lsp::TextEdit>> FormatDocument(
-      std::string_view uri) const;
+      LspUri uri) const;
 
   // Present links to imports to directly open the relevant file.
-  std::vector<verible::lsp::DocumentLink> ProvideImportLinks(
-      std::string_view uri) const;
+  std::vector<verible::lsp::DocumentLink> ProvideImportLinks(LspUri uri) const;
 
   absl::StatusOr<std::vector<verible::lsp::InlayHint>> InlayHint(
-      std::string_view uri, const verible::lsp::Range& range) const;
+      LspUri uri, const verible::lsp::Range& range) const;
 
   absl::StatusOr<std::optional<verible::lsp::Range>> PrepareRename(
-      std::string_view uri, const verible::lsp::Position& position) const;
+      LspUri uri, const verible::lsp::Position& position) const;
 
   absl::StatusOr<std::optional<verible::lsp::WorkspaceEdit>> Rename(
-      std::string_view uri, const verible::lsp::Position& position,
+      LspUri uri, const verible::lsp::Position& position,
       std::string_view new_name) const;
 
   // See
   // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_documentHighlight
   absl::StatusOr<std::vector<verible::lsp::DocumentHighlight>>
-  DocumentHighlight(std::string_view uri,
-                    const verible::lsp::Position& position) const;
+  DocumentHighlight(LspUri uri, const verible::lsp::Position& position) const;
 
   ImportSensitivity& import_sensitivity() { return import_sensitivity_; }
 
-  const absl::flat_hash_map<std::string, std::string>& vfs_contents() const {
+  const absl::flat_hash_map<LspUri, std::string>& vfs_contents() const {
     return vfs_contents_;
   }
 
@@ -123,7 +122,9 @@ class LanguageServerAdapter {
   class ParseData;
 
   // Find parse result of opened file with given URI or nullptr, if not opened.
-  ParseData* FindParsedForUri(std::string_view uri) const;
+  ParseData* FindParsedForUri(LspUri uri) const;
+
+  std::vector<std::filesystem::path> GetDslxPathsAsFilesystemPaths() const;
 
   struct TypecheckedModuleWithComments {
     TypecheckedModule tm;
@@ -171,15 +172,15 @@ class LanguageServerAdapter {
     absl::StatusOr<TypecheckedModuleWithComments> tmc_;
   };
 
-  const std::string stdlib_;
-  const std::vector<std::filesystem::path> dslx_paths_;
-  absl::flat_hash_map<std::string, std::unique_ptr<ParseData>> uri_parse_data_;
+  const LspUri stdlib_;
+  const std::vector<LspUri> dslx_paths_;
+  absl::flat_hash_map<LspUri, std::unique_ptr<ParseData>> uri_parse_data_;
 
   // The language server, in effect, needs to maintain a virtual filesystem
   // layer, that's interwoven with the true filesystem; i.e. if a file is
   // present on disk but not opened in the LSP workspace, we resolve it on
   // disk.
-  absl::flat_hash_map<std::string, std::string> vfs_contents_;
+  absl::flat_hash_map<LspUri, std::string> vfs_contents_;
 
   ImportSensitivity import_sensitivity_;
 };

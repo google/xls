@@ -41,7 +41,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
@@ -65,6 +64,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/function.h"
@@ -448,13 +448,14 @@ absl::StatusOr<std::string> ConvertOneFunction(
 
 namespace {
 absl::StatusOr<std::unique_ptr<Module>> ParseText(
-    FileTable& file_table, std::string_view text, std::string_view module_name,
-    bool print_on_error, std::string_view filename, bool* printed_error) {
+    VirtualizableFilesystem& vfs, FileTable& file_table, std::string_view text,
+    std::string_view module_name, bool print_on_error,
+    std::string_view filename, bool* printed_error) {
   Fileno fileno = file_table.GetOrCreate(filename);
   Scanner scanner{file_table, fileno, std::string(text)};
   Parser parser(std::string(module_name), &scanner);
   absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
-  *printed_error = TryPrintError(module_or.status(), nullptr, file_table);
+  *printed_error = TryPrintError(module_or.status(), file_table, vfs);
   return module_or;
 }
 
@@ -485,15 +486,16 @@ absl::Status AddContentsToPackage(
   // Parse the module text.
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> module,
-      ParseText(import_data->file_table(), file_contents, module_name,
+      ParseText(import_data->vfs(), import_data->file_table(), file_contents,
+                module_name,
                 /*print_on_error=*/true,
                 /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
   WarningCollector warnings(import_data->enabled_warnings());
   absl::StatusOr<TypeInfo*> type_info_or =
       TypecheckModule(module.get(), import_data, &warnings);
   if (!type_info_or.ok()) {
-    *printed_error = TryPrintError(type_info_or.status(), nullptr,
-                                   import_data->file_table());
+    *printed_error = TryPrintError(
+        type_info_or.status(), import_data->file_table(), import_data->vfs());
     return type_info_or.status();
   }
 
@@ -501,7 +503,7 @@ absl::Status AddContentsToPackage(
     if (printed_error != nullptr) {
       *printed_error = true;
     }
-    PrintWarnings(warnings, import_data->file_table());
+    PrintWarnings(warnings, import_data->file_table(), import_data->vfs());
     return absl::InvalidArgumentError(
         "Warnings encountered and warnings-as-errors set.");
   }
@@ -553,7 +555,8 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
     ImportData import_data(CreateImportData(
         stdlib_path, dslx_paths, convert_options.enabled_warnings,
         std::make_unique<RealFilesystem>()));
-    XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
+    XLS_ASSIGN_OR_RETURN(std::string text,
+                         import_data.vfs().GetFileContents(path));
     XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
     XLS_RETURN_IF_ERROR(AddContentsToPackage(
         text, module_name, /*path=*/path, /*entry=*/top, convert_options,

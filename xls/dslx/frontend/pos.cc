@@ -15,14 +15,34 @@
 #include "xls/dslx/frontend/pos.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
+
+Fileno FileTable::GetOrCreate(std::string_view path) {
+  CHECK(!absl::StartsWith(path, "file://"))
+      << "FileTable does not support URIs as paths: " << path;
+  VLOG(5) << absl::StreamFormat("FileTable::GetOrCreate: %s", path);
+  auto it = path_to_number_.find(path);
+  if (it == path_to_number_.end()) {
+    Fileno this_fileno = next_fileno_++;
+    path_to_number_.emplace_hint(it, std::string(path), this_fileno);
+    number_to_path_.emplace(this_fileno, std::string(path));
+    VLOG(5) << "Added to filetable";
+    return this_fileno;
+  }
+  VLOG(5) << "Already in filetable";
+  return it->second;
+}
 
 /* static */ absl::StatusOr<Span> Span::FromString(std::string_view s,
                                                    FileTable& file_table) {

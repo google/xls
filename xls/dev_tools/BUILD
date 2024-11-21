@@ -786,6 +786,7 @@ cc_binary(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck_module",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/ir",
         "//xls/passes:optimization_pass_pipeline",
         "@com_google_absl//absl/base:no_destructor",

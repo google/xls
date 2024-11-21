@@ -41,6 +41,7 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
@@ -48,9 +49,15 @@ namespace xls::dslx {
 struct DslxPath {
   // The path to the source file as passed to the tool or import statement.
   std::filesystem::path source_path;
+
   // Path to the source file in the filesystem. This may include gobbledy gook
   // (runtimes path) build system path for embedded files in build targets.
   std::filesystem::path filesystem_path;
+
+  std::string ToString() const {
+    return absl::StrFormat("source_path: \"%s\" filesystem_path: \"%s\"",
+                           source_path, filesystem_path);
+  }
 };
 
 static absl::StatusOr<DslxPath> FindExistingPath(
@@ -58,6 +65,15 @@ static absl::StatusOr<DslxPath> FindExistingPath(
     absl::Span<const std::filesystem::path> additional_search_paths,
     const Span& import_span, const FileTable& file_table,
     VirtualizableFilesystem& vfs) {
+  VLOG(3) << "FindExistingPath; subject: " << subject.ToString()
+          << " stdlib_path: " << stdlib_path << " additional_search_paths: "
+          << absl::StrJoin(
+                 additional_search_paths, ", ",
+                 [](std::string* out, const std::filesystem::path& p) {
+                   absl::StrAppend(out, p.c_str());
+                 })
+          << " import_span: " << import_span.ToString(file_table);
+
   absl::Span<std::string const> pieces = subject.pieces();
   std::optional<std::string> subject_parent_path;
   const absl::flat_hash_set<std::string> builtins = {
@@ -87,6 +103,7 @@ static absl::StatusOr<DslxPath> FindExistingPath(
     }
     return std::nullopt;
   };
+
   // Helper that tries to see if the path/parent_path are present
   auto try_paths =
       [&try_path, subject_path, subject_parent_path](
@@ -173,6 +190,13 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
                                         import_data->additional_search_paths(),
                                         import_span, file_table, vfs));
 
+  VLOG(3) << "Found DSLX path: " << dslx_path.ToString();
+
+  // We make a note about the import that's about to happen:
+  // - so we can detect circular imports
+  // - so that external entities can observe what's happening in the import
+  // process, e.g. if they
+  //   wanted to understand the dependency DAG
   XLS_RETURN_IF_ERROR(
       import_data->AddToImporterStack(import_span, dslx_path.source_path));
   absl::Cleanup cleanup = absl::MakeCleanup(

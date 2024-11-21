@@ -15,12 +15,11 @@
 #ifndef XLS_DSLX_LSP_IMPORT_SENSITIVITY_H_
 #define XLS_DSLX_LSP_IMPORT_SENSITIVITY_H_
 
-#include <string>
-#include <string_view>
 #include <vector>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "xls/dslx/lsp/lsp_uri.h"
 
 namespace xls::dslx {
 
@@ -28,15 +27,14 @@ namespace xls::dslx {
 // which we should try to re-evaluate when there's a change.
 class ImportSensitivity {
  public:
-  void NoteImportAttempt(std::string_view importer_uri,
-                         std::string_view imported_uri);
+  void NoteImportAttempt(const LspUri& importer_uri,
+                         const LspUri& imported_uri);
 
-  std::vector<std::string> GatherAllSensitiveToChangeIn(std::string_view uri);
+  std::vector<LspUri> GatherAllSensitiveToChangeIn(const LspUri& uri);
 
  private:
   // Note: we use a btree set for the values for stable ordering of results.
-  absl::flat_hash_map<std::string, absl::btree_set<std::string>>
-      imported_to_importers_;
+  absl::flat_hash_map<LspUri, absl::btree_set<LspUri>> imported_to_importers_;
 };
 
 }  // namespace xls::dslx

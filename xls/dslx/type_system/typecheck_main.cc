@@ -39,6 +39,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.pb.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
 ABSL_FLAG(std::string, dslx_path, "",
@@ -66,12 +67,14 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
       dslx_stdlib_path,
       /*additional_search_paths=*/dslx_paths, kDefaultWarningsSet,
       std::make_unique<RealFilesystem>()));
-  XLS_ASSIGN_OR_RETURN(std::string input_contents, GetFileContents(input_path));
+  XLS_ASSIGN_OR_RETURN(std::string input_contents,
+                       import_data.vfs().GetFileContents(input_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(input_path.c_str()));
   absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
       input_contents, input_path.c_str(), module_name, &import_data);
   if (!tm_or.ok()) {
-    if (TryPrintError(tm_or.status(), nullptr, import_data.file_table())) {
+    if (TryPrintError(tm_or.status(), import_data.file_table(),
+                      import_data.vfs())) {
       return absl::InvalidArgumentError(
           "An error occurred during parsing / typechecking.");
     }

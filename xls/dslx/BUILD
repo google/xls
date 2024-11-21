@@ -16,7 +16,6 @@
 
 # pytype tests are present in this file
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -31,6 +30,19 @@ package(
 bzl_library(
     name = "strip_comments_bzl",
     srcs = ["strip_comments.bzl"],
+)
+
+cc_library(
+    name = "virtualizable_file_system",
+    srcs = ["virtualizable_file_system.cc"],
+    hdrs = ["virtualizable_file_system.h"],
+    deps = [
+        "//xls/common/file:filesystem",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
 )
 
 cc_library(
@@ -113,6 +125,7 @@ cc_library(
     deps = [
         ":default_dslx_stdlib_path",
         ":import_data",
+        ":virtualizable_file_system",
         ":warning_kind",
         "//xls/dslx/bytecode:bytecode_cache",
         "@com_google_absl//absl/memory",
@@ -317,8 +330,8 @@ cc_library(
         ":errors",
         ":import_record",
         ":interp_bindings",
+        ":virtualizable_file_system",
         ":warning_kind",
-        "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/bytecode:bytecode_cache_interface",
@@ -347,6 +360,7 @@ cc_library(
     data = ["//xls/dslx/stdlib:x_files"],
     deps = [
         ":import_data",
+        ":virtualizable_file_system",
         "//xls/common/config:xls_config",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
@@ -448,8 +462,8 @@ cc_library(
     srcs = ["error_printer.cc"],
     hdrs = ["error_printer.h"],
     deps = [
+        ":virtualizable_file_system",
         ":warning_collector",
-        "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:pos",
@@ -467,6 +481,7 @@ cc_test(
     srcs = ["error_printer_test.cc"],
     deps = [
         ":error_printer",
+        ":virtualizable_file_system",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
@@ -484,7 +499,6 @@ cc_library(
     deps = [
         ":import_data",
         ":warning_collector",
-        "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -514,6 +528,7 @@ cc_library(
     hdrs = ["command_line_utils.h"],
     deps = [
         ":error_printer",
+        ":virtualizable_file_system",
         "//xls/common/status:ret_check",
         "//xls/dslx/frontend:bindings",
         "//xls/dslx/frontend:pos",
@@ -534,6 +549,7 @@ cc_binary(
     deps = [
         ":command_line_utils",
         ":default_dslx_stdlib_path",
+        ":virtualizable_file_system",
         ":warning_kind",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -586,9 +602,9 @@ cc_binary(
     name = "highlight_main",
     srcs = ["highlight_main.cc"],
     deps = [
+        ":virtualizable_file_system",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:pos",
@@ -620,9 +636,9 @@ cc_binary(
     name = "strip_comments_main",
     srcs = ["strip_comments_main.cc"],
     deps = [
+        ":virtualizable_file_system",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
@@ -767,6 +783,7 @@ cc_library(
         ":import_data",
         ":interp_value",
         ":parse_and_typecheck",
+        ":virtualizable_file_system",
         ":warning_kind",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
@@ -824,6 +841,7 @@ cc_binary(
         ":default_dslx_stdlib_path",
         ":import_data",
         ":parse_and_typecheck",
+        ":virtualizable_file_system",
         ":warning_kind",
         "//xls/common:exit_status",
         "//xls/common:init_xls",

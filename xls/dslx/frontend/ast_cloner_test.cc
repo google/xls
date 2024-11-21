@@ -20,10 +20,10 @@
 #include <string_view>
 #include <variant>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -32,6 +32,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -1442,12 +1443,8 @@ proc MyProc {
   absl::StatusOr<std::unique_ptr<Module>> module_or =
       ParseModule(kProgram, "fake_path.x", "the_module", file_table);
   if (!module_or.ok()) {
-    TryPrintError(
-        module_or.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string(kProgram);
-        },
-        file_table);
+    UniformContentFilesystem vfs(kProgram);
+    TryPrintError(module_or.status(), file_table, vfs);
   }
   XLS_ASSERT_OK(module_or.status());
   Module* module = module_or.value().get();

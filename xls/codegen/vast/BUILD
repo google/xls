@@ -167,6 +167,7 @@ cc_library(
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode",

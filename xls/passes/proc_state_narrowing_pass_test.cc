@@ -38,7 +38,6 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 using ::absl_testing::IsOkAndHolds;
-using ::testing::AllOf;
 using ::testing::UnorderedElementsAre;
 
 class ProcStateNarrowingPassTest : public IrTestBase {

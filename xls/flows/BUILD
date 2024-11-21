@@ -72,6 +72,7 @@ cc_test(
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:module",
         "//xls/interpreter:serial_proc_runtime",

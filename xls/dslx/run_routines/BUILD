@@ -39,6 +39,7 @@ cc_library(
         "//xls/dslx:interp_value_utils",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_cache",

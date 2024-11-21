@@ -18,8 +18,6 @@
 #include <string>
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -31,6 +29,8 @@
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/Basic/LLVM.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "llvm/include/llvm/Support/Casting.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"

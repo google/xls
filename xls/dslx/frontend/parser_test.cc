@@ -22,15 +22,15 @@
 #include <variant>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest-spi.h"
-#include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest-spi.h"
+#include "gtest/gtest.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
@@ -41,6 +41,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
@@ -61,12 +62,8 @@ class ParserTest : public ::testing::Test {
       std::optional<std::string_view> target = std::nullopt) {
     absl::StatusOr<std::unique_ptr<Module>> module = Parse(program);
     if (!module.ok()) {
-      TryPrintError(
-          module.status(),
-          [&](std::string_view path) -> absl::StatusOr<std::string> {
-            return std::string(program);
-          },
-          file_table_);
+      UniformContentFilesystem vfs(program);
+      TryPrintError(module.status(), file_table_, vfs);
       XLS_EXPECT_OK(module) << module.status();
       return nullptr;
     }
@@ -82,12 +79,8 @@ class ParserTest : public ::testing::Test {
   std::unique_ptr<Module> ExpectParsesSuccessfully(std::string_view program) {
     absl::StatusOr<std::unique_ptr<Module>> module = Parse(program);
     if (!module.ok()) {
-      TryPrintError(
-          module.status(),
-          [&](std::string_view path) -> absl::StatusOr<std::string> {
-            return std::string(program);
-          },
-          file_table_);
+      UniformContentFilesystem vfs(program);
+      TryPrintError(module.status(), file_table_, vfs);
       XLS_EXPECT_OK(module) << module.status();
       return nullptr;
     }
@@ -117,12 +110,8 @@ class ParserTest : public ::testing::Test {
     }
     auto expr_or = parser_->ParseExpression(/*bindings=*/b);
     if (!expr_or.ok()) {
-      TryPrintError(
-          expr_or.status(),
-          [&](std::string_view path) -> absl::StatusOr<std::string> {
-            return std::string{expr_text};
-          },
-          file_table_);
+      UniformContentFilesystem vfs(expr_text);
+      TryPrintError(expr_or.status(), file_table_, vfs);
     }
     return expr_or;
   }
@@ -854,12 +843,8 @@ TEST_F(ParserTest, ParseSimpleProc) {
   auto proc =
       parser.ParseProc(Pos(), /*is_public=*/false, /*bindings=*/bindings);
   if (!proc.ok()) {
-    TryPrintError(
-        proc.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string(text);
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(proc.status(), file_table_, vfs);
     XLS_ASSERT_OK(proc.status());
   }
   const Proc* p = std::get<Proc*>(*proc);
@@ -1024,12 +1009,8 @@ TEST_F(ParserTest, ParseNextTooManyArgs) {
   auto proc =
       parser.ParseProc(Pos(), /*is_public=*/false, /*bindings=*/bindings);
   if (!proc.ok()) {
-    TryPrintError(
-        proc.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string(text);
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(proc.status(), file_table_, vfs);
   }
   EXPECT_THAT(proc,
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1060,12 +1041,8 @@ TEST_F(ParserTest, ParseSimpleProcWithAlias) {
   auto proc =
       parser.ParseProc(Pos(), /*is_public=*/false, /*bindings=*/bindings);
   if (!proc.ok()) {
-    TryPrintError(
-        proc.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string(text);
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(proc.status(), file_table_, vfs);
     XLS_ASSERT_OK(proc.status());
   }
   const Proc* p = std::get<Proc*>(*proc);
@@ -1095,12 +1072,8 @@ TEST_F(ParserTest, ParseSimpleProcWithDepdenentTypeAlias) {
   auto proc =
       parser.ParseProc(Pos(), /*is_public=*/false, /*bindings=*/bindings);
   if (!proc.ok()) {
-    TryPrintError(
-        proc.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string(text);
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(proc.status(), file_table_, vfs);
     XLS_ASSERT_OK(proc.status());
   }
   const Proc* p = std::get<Proc*>(*proc);
@@ -1662,12 +1635,8 @@ TEST_F(ParserTest, ZeroMacroSimpleStructArray) {
 
   auto expr_or = p.ParseExpression(/*bindings=*/b);
   if (!expr_or.ok()) {
-    TryPrintError(
-        expr_or.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string{text};
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(expr_or.status(), file_table_, vfs);
   }
   ASSERT_TRUE(expr_or.ok());
 }
@@ -1710,12 +1679,8 @@ TEST_F(ParserTest, ZeroMacroParametricStruct) {
 
   auto expr_or = p.ParseExpression(/*bindings=*/b);
   if (!expr_or.ok()) {
-    TryPrintError(
-        expr_or.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string{text};
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(expr_or.status(), file_table_, vfs);
   }
   ASSERT_TRUE(expr_or.ok());
 }
@@ -1758,12 +1723,8 @@ TEST_F(ParserTest, ZeroMacroParametricStructArray) {
 
   auto expr_or = p.ParseExpression(/*bindings=*/b);
   if (!expr_or.ok()) {
-    TryPrintError(
-        expr_or.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string{text};
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(expr_or.status(), file_table_, vfs);
   }
   ASSERT_TRUE(expr_or.ok());
 }
@@ -3217,12 +3178,8 @@ TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
   auto proc =
       parser.ParseProc(Pos(), /*is_public=*/false, /*bindings=*/bindings);
   if (!proc.ok()) {
-    TryPrintError(
-        proc.status(),
-        [&](std::string_view path) -> absl::StatusOr<std::string> {
-          return std::string(text);
-        },
-        file_table_);
+    UniformContentFilesystem vfs(text);
+    TryPrintError(proc.status(), file_table_, vfs);
     XLS_ASSERT_OK(proc.status());
   }
   const Proc* p = std::get<Proc*>(*proc);

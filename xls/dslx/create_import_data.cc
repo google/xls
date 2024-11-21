@@ -23,6 +23,7 @@
 #include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {

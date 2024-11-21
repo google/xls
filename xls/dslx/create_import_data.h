@@ -23,8 +23,8 @@
 
 #include "absl/types/span.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
-
 namespace xls::dslx {
 
 // Creates an ImportData with the given stdlib and search paths and assigns a
