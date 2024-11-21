@@ -63,13 +63,14 @@ class BddQueryEngine : public QueryEngine {
     return known_bits_.contains(node);
   }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
     CHECK(node->GetType()->IsBits());
     TernaryVector ternary =
         ternary_ops::FromKnownBits(known_bits_.at(node), bits_values_.at(node));
     return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-        node->GetType(), std::move(ternary));
+               node->GetType(), std::move(ternary))
+        .AsShared();
   }
 
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
@@ -110,7 +111,7 @@ class BddQueryEngine : public QueryEngine {
   // TODO(meheff): Enable queries on a BDD with out mutating the BDD itself.
   BinaryDecisionDiagram& bdd() const { return bdd_function_->bdd(); }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node, BddNodeIndex assumption) const;
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits,

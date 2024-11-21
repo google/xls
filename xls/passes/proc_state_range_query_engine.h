@@ -134,7 +134,7 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
   // Returns whether any information is available for this node.
   bool IsTracked(Node* node) const override { return inner_.IsTracked(node); }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
     return inner_.GetTernary(node);
   }

@@ -137,6 +137,7 @@ cc_library(
     hdrs = ["leaf_type_tree.h"],
     deps = [
         "//xls/common:math_util",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:type",

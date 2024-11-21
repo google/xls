@@ -317,7 +317,7 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
   if (binary_op->op == Op::kUMul) {
     // Check if the binary op can overflow.
     int64_t op_width = compare->operand->BitCountOrDie();
-    std::optional<LeafTypeTree<TernaryVector>> op_ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> op_ternary =
         query_engine.GetTernary(binary_op->operand);
     int64_t op_size = op_ternary.has_value()
                           ? ternary_ops::MinimumBitCount(op_ternary->Get({}))

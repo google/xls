@@ -17,6 +17,7 @@
 
 #include <optional>
 #include <utility>
+#include <variant>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
@@ -58,11 +59,11 @@ class TernaryQueryEngine : public QueryEngine {
     return values_.contains(node) && values_.at(node).type() == node->GetType();
   }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
-    return LeafTypeTree<TernaryVector>(node->GetType(),
-                                       GetTernaryView(node).elements());
+    return GetTernaryView(node).AsShared();
   }
+
   LeafTypeTreeView<TernaryVector> GetTernaryView(Node* node) const {
     CHECK(IsTracked(node)) << node;
     return values_.at(node).AsView();

@@ -97,9 +97,9 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelect(
       select->default_value().has_value() ? select->cases().size()
                                           : select->cases().size() - 1);
   Node* best_dominator = nullptr;
-  std::optional<LeafTypeTree<TernaryVector>> best_dominator_ternary;
+  std::optional<SharedLeafTypeTree<TernaryVector>> best_dominator_ternary;
   for (Node* dominator : dominators) {
-    std::optional<LeafTypeTree<TernaryVector>> dominator_ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> dominator_ternary =
         query_engine.GetTernary(dominator);
     int64_t unknown_bits =
         dominator_ternary.has_value()
@@ -138,13 +138,16 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelect(
   VLOG(2) << "Merging a lookup table into a select: " << select->ToString();
 
   if (!best_dominator_ternary.has_value()) {
-    best_dominator_ternary = *LeafTypeTree<TernaryVector>::CreateFromFunction(
-        best_dominator->GetType(),
-        [](Type* leaf_type,
-           absl::Span<const int64_t>) -> absl::StatusOr<TernaryVector> {
-          return TernaryVector(leaf_type->GetFlatBitCount(),
-                               TernaryValue::kUnknown);
-        });
+    best_dominator_ternary =
+        LeafTypeTree<TernaryVector>::CreateFromFunction(
+            best_dominator->GetType(),
+            [](Type* leaf_type,
+               absl::Span<const int64_t>) -> absl::StatusOr<TernaryVector> {
+              return TernaryVector(leaf_type->GetFlatBitCount(),
+                                   TernaryValue::kUnknown);
+            })
+            .value()
+            .AsShared();
   }
   XLS_ASSIGN_OR_RETURN(
       std::vector<Value> dominator_values,

@@ -447,9 +447,9 @@ absl::StatusOr<bool> StrengthReduceNode(
       query_engine.IsTracked(node->operand(1))) {
     Node* left = node->operand(0);
     Node* right = node->operand(1);
-    std::optional<LeafTypeTree<TernaryVector>> left_ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> left_ternary =
         query_engine.GetTernary(left);
-    std::optional<LeafTypeTree<TernaryVector>> right_ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> right_ternary =
         query_engine.GetTernary(right);
     int64_t left_unknown_count =
         left_ternary.has_value()
@@ -491,9 +491,9 @@ absl::StatusOr<bool> StrengthReduceNode(
     // TODO(allight): It might be good to do this with more unknown bits in some
     // cases (eg 200 bit mul with -> 8 branch select).
     if (left_unknown_count + right_unknown_count == 1) {
-      const std::optional<LeafTypeTree<TernaryVector>>& known_ternary =
+      const std::optional<SharedLeafTypeTree<TernaryVector>>& known_ternary =
           left_unknown_count == 0 ? left_ternary : right_ternary;
-      const std::optional<LeafTypeTree<TernaryVector>>& unknown_ternary =
+      const std::optional<SharedLeafTypeTree<TernaryVector>>& unknown_ternary =
           left_unknown_count == 0 ? right_ternary : left_ternary;
       Value known_value =
           Value(ternary_ops::ToKnownBitsValues(known_ternary->Get({})));

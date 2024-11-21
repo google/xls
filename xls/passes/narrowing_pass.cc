@@ -217,7 +217,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       // which is not useful.
       return false;
     }
-    std::optional<LeafTypeTree<TernaryVector>> ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         query_engine.GetTernary(to_replace);
     if (!ternary.has_value()) {
       return false;

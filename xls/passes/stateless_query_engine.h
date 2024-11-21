@@ -53,7 +53,7 @@ class StatelessQueryEngine : public QueryEngine {
   }
   std::optional<Value> KnownValue(Node* node) const override;
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override;
 
   bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override;
@@ -92,7 +92,7 @@ class StatelessQueryEngine : public QueryEngine {
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
     CHECK(node->GetType()->IsBits());
-    std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
     if (!ternary.has_value()) {
       return std::nullopt;
     }

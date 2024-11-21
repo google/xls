@@ -163,7 +163,7 @@ absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
       continue;
     }
     StateRead* state_read = proc->GetStateRead(state_element);
-    std::optional<LeafTypeTree<TernaryVector>> ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         qe.GetTernary(state_read);
     if (!ternary) {
       continue;

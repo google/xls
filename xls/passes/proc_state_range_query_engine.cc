@@ -166,7 +166,7 @@ ExtractContextSensitiveRange(
                                   std::move(results), dependencies);
   RangeQueryEngine contextual_range;
   XLS_RETURN_IF_ERROR(contextual_range.PopulateWithGivens(givens).status());
-  std::optional<LeafTypeTree<TernaryVector>> ternary =
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
       contextual_range.GetTernary(next->value());
   TernaryVector ternary_vec =
       ternary.has_value() ? ternary->Get({})
@@ -677,7 +677,7 @@ FindContextualRanges(Proc* proc, const QueryEngine& qe,
     IntervalSet contextual_intervals =
         IntervalSet::Precise(orig_init_value.bits());
     for (Next* next : updates) {
-      std::optional<LeafTypeTree<TernaryVector>> context_free_ltt =
+      std::optional<SharedLeafTypeTree<TernaryVector>> context_free_ltt =
           qe.GetTernary(next->value());
       TernaryVector context_free =
           context_free_ltt.has_value()

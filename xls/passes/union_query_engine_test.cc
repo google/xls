@@ -52,14 +52,14 @@ class FakeQueryEngine : public QueryEngine {
 
   bool IsTracked(Node* node) const override { return tracked_.contains(node); }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
     CHECK(node->GetType()->IsBits());
     TernaryVector ternary = ternary_ops::FromKnownBits(
         known_bits_.at(node), known_bit_values_.at(node));
     LeafTypeTree<TernaryVector> result(node->GetType());
     result.Set({}, ternary);
-    return result;
+    return std::move(result).AsShared();
   }
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {

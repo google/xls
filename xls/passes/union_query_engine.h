@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -53,7 +54,7 @@ class UnownedUnionQueryEngine : public QueryEngine {
 
   bool IsTracked(Node* node) const override;
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override;
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;

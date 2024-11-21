@@ -85,7 +85,7 @@ class AliasingQueryEngine final : public QueryEngine {
   bool IsTracked(Node* node) const override {
     return base_->IsTracked(UnaliasNode(node));
   }
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
     return base_->GetTernary(UnaliasNode(node));
   }

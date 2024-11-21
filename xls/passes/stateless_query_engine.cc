@@ -73,19 +73,21 @@ bool StatelessQueryEngine::IsAllOnes(Node* node) const {
   return false;
 }
 
-std::optional<LeafTypeTree<TernaryVector>> StatelessQueryEngine::GetTernary(
-    Node* node) const {
+std::optional<SharedLeafTypeTree<TernaryVector>>
+StatelessQueryEngine::GetTernary(Node* node) const {
   if (node->Is<Literal>()) {
     LeafTypeTree<Value> values =
         ValueToLeafTypeTree(node->As<Literal>()->value(), node->GetType())
             .value();
     return leaf_type_tree::Map<TernaryVector, Value>(
-        values.AsView(), [](const Value& v) -> TernaryVector {
-          if (v.IsToken()) {
-            return TernaryVector();
-          }
-          return ternary_ops::BitsToTernary(v.bits());
-        });
+               values.AsView(),
+               [](const Value& v) -> TernaryVector {
+                 if (v.IsToken()) {
+                   return TernaryVector();
+                 }
+                 return ternary_ops::BitsToTernary(v.bits());
+               })
+        .AsShared();
   }
 
   if (node->op() == Op::kZeroExt) {
@@ -96,7 +98,8 @@ std::optional<LeafTypeTree<TernaryVector>> StatelessQueryEngine::GetTernary(
       ternary[i] = TernaryValue::kKnownZero;
     }
     return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-        node->GetType(), std::move(ternary));
+               node->GetType(), std::move(ternary))
+        .AsShared();
   }
 
   return std::nullopt;
@@ -133,7 +136,7 @@ StatelessQueryEngine::BitCounts StatelessQueryEngine::KnownBitCounts(
       continue;
     }
 
-    std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
     if (!ternary.has_value()) {
       continue;
     }

@@ -64,7 +64,7 @@ class BddQueryEngine::AssumingBddQueryEngine final : public QueryEngine {
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
   bool IsTracked(Node* node) const override;
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override;
   std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
       const absl::flat_hash_set<PredicateState>& state) const override;
@@ -106,7 +106,7 @@ BddQueryEngine::AssumingBddQueryEngine::Populate(FunctionBase* f) {
 bool BddQueryEngine::AssumingBddQueryEngine::IsTracked(Node* node) const {
   return query_engine_->IsTracked(node);
 }
-std::optional<LeafTypeTree<TernaryVector>>
+std::optional<SharedLeafTypeTree<TernaryVector>>
 BddQueryEngine::AssumingBddQueryEngine::GetTernary(Node* node) const {
   if (!query_engine_->IsTracked(node)) {
     return std::nullopt;
@@ -136,7 +136,7 @@ BddQueryEngine::AssumingBddQueryEngine::GetTernary(Node* node) const {
   if (!ltt.ok()) {
     return std::nullopt;
   }
-  return *std::move(ltt);
+  return std::move(ltt).value().AsShared();
 };
 
 std::unique_ptr<QueryEngine>
@@ -618,7 +618,7 @@ bool BddQueryEngine::AtMostOneTrue(
   return result == bdd().zero();
 }
 
-std::optional<LeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(
+std::optional<SharedLeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(
     Node* node, BddNodeIndex assumption) const {
   if (!IsTracked(node)) {
     return std::nullopt;
@@ -647,7 +647,7 @@ std::optional<LeafTypeTree<TernaryVector>> BddQueryEngine::GetTernary(
   if (!ltt.ok()) {
     return std::nullopt;
   }
-  return *std::move(ltt);
+  return std::move(ltt).value().AsShared();
 }
 
 bool BddQueryEngine::AtLeastOneTrue(
@@ -905,7 +905,7 @@ std::optional<Value> BddQueryEngine::KnownValue(
     return std::nullopt;
   }
 
-  std::optional<LeafTypeTree<TernaryVector>> ternary =
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
       GetTernary(node, *assumption);
   if (!ternary.has_value() ||
       !absl::c_all_of(ternary->elements(), [](const TernaryVector& v) {
@@ -939,7 +939,7 @@ bool BddQueryEngine::IsAllZeros(Node* n,
   if (!IsTracked(n) || TypeHasToken(n->GetType())) {
     return false;
   }
-  std::optional<LeafTypeTree<TernaryVector>> ternary_value =
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
       GetTernary(n, *assumption);
   return ternary_value.has_value() &&
          absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
@@ -955,7 +955,7 @@ bool BddQueryEngine::IsAllOnes(Node* n,
   if (!IsTracked(n) || TypeHasToken(n->GetType())) {
     return false;
   }
-  std::optional<LeafTypeTree<TernaryVector>> ternary_value =
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
       GetTernary(n, *assumption);
   return ternary_value.has_value() &&
          absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
@@ -970,7 +970,7 @@ bool BddQueryEngine::IsFullyKnown(
   if (!IsTracked(n) || TypeHasToken(n->GetType())) {
     return false;
   }
-  std::optional<LeafTypeTree<TernaryVector>> ternary_value =
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
       GetTernary(n, *assumption);
   return ternary_value.has_value() &&
          absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {

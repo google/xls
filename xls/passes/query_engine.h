@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -83,6 +84,7 @@ class TreeBitLocation {
 
 using TernaryTree = LeafTypeTree<TernaryVector>;
 using TernaryTreeView = LeafTypeTreeView<TernaryVector>;
+using SharedTernaryTree = SharedLeafTypeTree<TernaryVector>;
 using MutableTernaryTreeView = MutableLeafTypeTreeView<TernaryVector>;
 
 using IntervalSetTree = LeafTypeTree<IntervalSet>;
@@ -117,10 +119,10 @@ class QueryEngine {
   // Returns whether any information is available for this node.
   virtual bool IsTracked(Node* node) const = 0;
 
-  // Returns a `LeafTypeTree<TernaryVector>` indicating which bits have known
-  // values for the given node and what that bit's known value is. May return
-  // `std::nullopt` if no bits are known.
-  virtual std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  // Returns a `SharedLeafTypeTree<TernaryVector>` indicating which bits have
+  // known values for the given node and what that bit's known value is. May
+  // return `std::nullopt` if no bits are known.
+  virtual std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const = 0;
 
   // Return a query engine which is specialized with the given predicates. The

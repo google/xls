@@ -53,7 +53,7 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override;
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override;
 
   LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(

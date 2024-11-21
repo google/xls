@@ -21,6 +21,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -33,12 +34,17 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/type.h"
 
 namespace xls {
 
 // Returns true if `t` is a leaf type (i.e. not an aggregate type).
 inline bool IsLeafType(Type* t) { return t->IsBits() || t->IsToken(); }
+
+// forward decl
+template <typename T>
+class SharedLeafTypeTree;
 
 namespace leaf_type_tree_internal {
 
@@ -100,6 +106,8 @@ class LeafTypeTreeView {
   LeafTypeTreeView& operator=(LeafTypeTreeView<T>&& other) = default;
   friend bool operator==(const LeafTypeTreeView<T>& lhs,
                          const LeafTypeTreeView<T>& rhs) = default;
+
+  SharedLeafTypeTree<T> AsShared() const;
 
   // Factory function for creating a view (or view of a subtree) of a
   // LeafTypeTree. This should only be used internally.
@@ -377,6 +385,8 @@ class LeafTypeTree {
     CHECK_EQ(elements_.size(), leaf_types_.size());
   }
 
+  SharedLeafTypeTree<T> AsShared() &&;
+
   // Factory for efficiently constructing a LeafTypeTree by moving in the vector
   // of data elements.
   static LeafTypeTree<T> CreateFromVector(Type* type,
@@ -572,6 +582,106 @@ absl::Status ForEachSubArrayHelper(
 }
 
 }  // namespace leaf_type_tree_internal
+
+// An immutable shared view of a LeafTypeTree. This might or might not own the
+// underlying data. This can be used for (eg) the QueryEngine functions which
+// might either return a pre-calculated LTT or generate one on the fly depending
+// on what sort of query-engine/node is being used. Using this a copy of
+// pre-existing ones is not needed and no significant work by the users is
+// needed to check for this situation.
+template <typename T>
+class SharedLeafTypeTree {
+ public:
+  using DataT = const T;
+  using DataContainerT = absl::Span<const T>;
+  using TypeContainerT = absl::Span<Type* const>;
+
+  // If you want to have an owned copy use ToOwned. To get an unowned view use
+  // AsView. Doing an implicit copy is probably not what you ever want.
+  SharedLeafTypeTree(const SharedLeafTypeTree<T>& other) = delete;
+  SharedLeafTypeTree& operator=(const SharedLeafTypeTree<T>& other) = delete;
+
+  SharedLeafTypeTree(SharedLeafTypeTree<T>&& other) = default;
+  SharedLeafTypeTree& operator=(SharedLeafTypeTree<T>&& other) = default;
+
+  friend bool operator==(const SharedLeafTypeTree<T>& lhs,
+                         const SharedLeafTypeTree<T>& rhs) = default;
+
+  bool IsOwned() const {
+    return std::holds_alternative<LeafTypeTree<T>>(inner_);
+  }
+
+  // Make an owned LTT out of this shared tree.
+  LeafTypeTree<T> ToOwned() && {
+    if (std::holds_alternative<LeafTypeTree<T>>(inner_)) {
+      return std::get<LeafTypeTree<T>>(std::move(inner_));
+    }
+    return LeafTypeTree<T>(type(), elements());
+  }
+
+  // Make an owned LTT out of this shared tree. This may cause a copy.
+  LeafTypeTree<T> ToOwned() const& {
+    return std::visit(
+        Visitor{[](const LeafTypeTree<T>& t) -> LeafTypeTree<T> { return t; },
+                [](const LeafTypeTreeView<T>& t) -> LeafTypeTree<T> {
+                  return LeafTypeTree<T>(t.type(), t.elements());
+                }},
+        inner_);
+  }
+
+  // These methods are mirrors of those on LeafTypeTree. See LeafTypeTree for
+  // descriptions.
+  Type* type() const { return AsView().type(); }
+  int64_t size() const { return AsView().size(); }
+  const T& Get(absl::Span<int64_t const> index) const {
+    return AsView().Get(index);
+  }
+  absl::Span<T const> elements() const { return AsView().elements(); }
+  absl::Span<Type* const> leaf_types() const { return AsView().leaf_types(); }
+  LeafTypeTreeView<T> AsView(absl::Span<const int64_t> index = {}) const {
+    return std::visit(
+               Visitor{[](LeafTypeTreeView<T> t) -> LeafTypeTreeView<T> {
+                         return t;
+                       },
+                       [](const LeafTypeTree<T>& t) -> LeafTypeTreeView<T> {
+                         return t.AsView();
+                       }},
+               inner_)
+        .AsView(index);
+  }
+  std::string ToString(const std::function<std::string(const T&)>& f) const {
+    return leaf_type_tree_internal::ToString(
+        type(), leaf_type_tree_internal::ElementsToStrings<T>(elements(), f),
+        /*multiline=*/false);
+  }
+  std::string ToString() const {
+    return ToString([](const T& element) { return absl::StrCat(element); });
+  }
+  std::string ToMultilineString(
+      const std::function<std::string(const T&)>& f) const {
+    return leaf_type_tree_internal::ToString(
+        type(), leaf_type_tree_internal::ElementsToStrings<T>(elements(), f),
+        /*multiline=*/true);
+  }
+  std::string ToMultilineString() const {
+    return ToMultilineString(
+        [](const T& element) { return absl::StrCat(element); });
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const SharedLeafTypeTree<T>& ltt) {
+    return AbslHashValue(h, ltt.AsView());
+  }
+
+ private:
+  std::variant<LeafTypeTreeView<T>, LeafTypeTree<T>> inner_;
+
+  SharedLeafTypeTree(std::variant<LeafTypeTreeView<T>, LeafTypeTree<T>>&& inner)
+      : inner_(std::move(inner)) {}
+
+  friend class LeafTypeTree<T>;
+  friend class LeafTypeTreeView<T>;
+};
 
 namespace leaf_type_tree {
 
@@ -908,6 +1018,15 @@ absl::Status ForEachSubArray(
 }
 
 }  // namespace leaf_type_tree
+
+template <typename T>
+SharedLeafTypeTree<T> LeafTypeTree<T>::AsShared() && {
+  return SharedLeafTypeTree<T>(std::move(*this));
+}
+template <typename T>
+SharedLeafTypeTree<T> LeafTypeTreeView<T>::AsShared() const {
+  return SharedLeafTypeTree<T>(*this);
+}
 }  // namespace xls
 
 #endif  // XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_

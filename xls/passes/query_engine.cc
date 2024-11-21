@@ -77,7 +77,7 @@ LeafTypeTree<IntervalSet> QueryEngine::GetIntervals(Node* node) const {
   // `1 << kMaxTernaryIntervalBits` separate intervals.
   // "4" is arbitrary, but keeps the number of intervals from blowing up.
   constexpr int64_t kMaxTernaryIntervalBits = 4;
-  std::optional<LeafTypeTree<TernaryVector>> tern = GetTernary(node);
+  std::optional<SharedLeafTypeTree<TernaryVector>> tern = GetTernary(node);
   if (!tern.has_value()) {
     return *LeafTypeTree<IntervalSet>::CreateFromFunction(
         node->GetType(), [](Type* leaf_type) -> absl::StatusOr<IntervalSet> {
@@ -129,7 +129,8 @@ bool QueryEngine::IsKnown(const TreeBitLocation& bit) const {
   if (!IsTracked(bit.node())) {
     return false;
   }
-  std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(bit.node());
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+      GetTernary(bit.node());
   if (!ternary.has_value()) {
     return false;
   }
@@ -142,7 +143,8 @@ std::optional<bool> QueryEngine::KnownValue(const TreeBitLocation& bit) const {
     return std::nullopt;
   }
 
-  std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(bit.node());
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+      GetTernary(bit.node());
   if (!ternary.has_value()) {
     return std::nullopt;
   }
@@ -164,7 +166,7 @@ std::optional<Value> QueryEngine::KnownValue(Node* node) const {
     return std::nullopt;
   }
 
-  std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
   if (!ternary.has_value() ||
       !absl::c_all_of(ternary->elements(), [](const TernaryVector& v) {
         return ternary_ops::IsFullyKnown(v);
@@ -240,7 +242,8 @@ bool QueryEngine::IsAllZeros(Node* node) const {
   if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return false;
   }
-  std::optional<LeafTypeTree<TernaryVector>> ternary_value = GetTernary(node);
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
+      GetTernary(node);
   return ternary_value.has_value() &&
          absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
            return ternary_ops::IsKnownZero(v);
@@ -251,7 +254,8 @@ bool QueryEngine::IsAllOnes(Node* node) const {
   if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return false;
   }
-  std::optional<LeafTypeTree<TernaryVector>> ternary_value = GetTernary(node);
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary_value =
+      GetTernary(node);
   return ternary_value.has_value() &&
          absl::c_all_of(ternary_value->elements(), [](const TernaryVector& v) {
            return ternary_ops::IsKnownOne(v);
@@ -263,7 +267,7 @@ bool QueryEngine::IsFullyKnown(Node* node) const {
     return false;
   }
 
-  std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
   return ternary.has_value() &&
          absl::c_all_of(ternary->elements(), [](const TernaryVector& v) {
            return ternary_ops::IsFullyKnown(v);
@@ -336,13 +340,16 @@ bool QueryEngine::NodesKnownUnsignedEquals(Node* a, Node* b) const {
 
 std::string QueryEngine::ToString(Node* node) const {
   CHECK(IsTracked(node));
-  std::optional<LeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
   if (!ternary.has_value()) {
-    ternary = *LeafTypeTree<TernaryVector>::CreateFromFunction(
-        node->GetType(), [](Type* leaf_type) -> absl::StatusOr<TernaryVector> {
-          return TernaryVector(leaf_type->GetFlatBitCount(),
-                               TernaryValue::kUnknown);
-        });
+    ternary = LeafTypeTree<TernaryVector>::CreateFromFunction(
+                  node->GetType(),
+                  [](Type* leaf_type) -> absl::StatusOr<TernaryVector> {
+                    return TernaryVector(leaf_type->GetFlatBitCount(),
+                                         TernaryValue::kUnknown);
+                  })
+                  .value()
+                  .AsShared();
   }
   if (node->GetType()->IsBits()) {
     return xls::ToString(ternary->Get({}));
@@ -361,7 +368,7 @@ class ForwardingQueryEngine final : public QueryEngine {
 
   bool IsTracked(Node* node) const override { return real_.IsTracked(node); }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
     return real_.GetTernary(node);
   };

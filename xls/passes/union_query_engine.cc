@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
@@ -109,28 +110,40 @@ bool UnownedUnionQueryEngine::IsTracked(Node* node) const {
   return false;
 }
 
-std::optional<LeafTypeTree<TernaryVector>> UnownedUnionQueryEngine::GetTernary(
-    Node* node) const {
-  std::optional<LeafTypeTree<TernaryVector>> result = std::nullopt;
+std::optional<SharedLeafTypeTree<TernaryVector>>
+UnownedUnionQueryEngine::GetTernary(Node* node) const {
+  std::optional<LeafTypeTree<TernaryVector>> owned = std::nullopt;
+  std::optional<SharedLeafTypeTree<TernaryVector>> shared = std::nullopt;
   for (const auto& engine : engines_) {
+    CHECK(!owned || !shared) << "Both owned and unowned ltts present.";
     if (engine->IsTracked(node)) {
-      std::optional<LeafTypeTree<TernaryVector>> ternary =
+      std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
           engine->GetTernary(node);
-      if (!ternary.has_value()) {
+      if (!ternary) {
         continue;
       }
-      if (!result.has_value()) {
-        result = std::move(ternary);
-        continue;
+      if (owned || shared) {
+        if (shared) {
+          // Actually merging things so do the copy.
+          owned = std::move(shared).value().ToOwned();
+          shared.reset();
+        }
+        leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
+            owned->AsMutableView(), ternary->AsView(),
+            [](TernaryVector& lhs, const TernaryVector& rhs) {
+              CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
+            });
+      } else {
+        // Avoid copying if we can.
+        shared = *std::move(ternary);
       }
-      leaf_type_tree::SimpleUpdateFrom<TernaryVector, TernaryVector>(
-          result->AsMutableView(), ternary->AsView(),
-          [](TernaryVector& lhs, const TernaryVector& rhs) {
-            CHECK_OK(ternary_ops::UpdateWithUnion(lhs, rhs));
-          });
     }
   }
-  return result;
+  CHECK(!owned || !shared) << "Both owned and unowned ltts present.";
+  if (owned) {
+    return std::move(*owned).AsShared();
+  }
+  return shared;
 }
 
 std::unique_ptr<QueryEngine> UnownedUnionQueryEngine::SpecializeGivenPredicate(

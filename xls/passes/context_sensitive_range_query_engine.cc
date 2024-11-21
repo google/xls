@@ -335,7 +335,7 @@ class Analysis {
             return std::nullopt;
           }
           // return memoized value from base
-          std::optional<LeafTypeTree<TernaryVector>> ternary =
+          std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
               n->GetType()->IsBits() ? base_range_.GetTernary(n) : std::nullopt;
           return RangeData{
               .ternary = ternary.has_value()
@@ -374,7 +374,7 @@ class Analysis {
       if (interval.IsEmpty()) {
         // This case is actually impossible? For now just ignore.
         // TODO: Figure out some way to communicate this.
-        std::optional<LeafTypeTree<TernaryVector>> ternary =
+        std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
             base_range_.GetTernary(node);
         ranges[node] = RangeData{
             .ternary = ternary.has_value()
@@ -412,7 +412,7 @@ class ProxyContextQueryEngine final : public QueryEngine {
   }
   bool IsTracked(Node* node) const override { return base_.IsTracked(node); }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
     return MostSpecific(node).GetTernary(node);
   }
@@ -623,7 +623,7 @@ LeafTypeTree<IntervalSet> ContextSensitiveRangeQueryEngine::GetIntervals(
   return select_ranges_.at(node).interval_set;
 }
 
-std::optional<LeafTypeTree<TernaryVector>>
+std::optional<SharedLeafTypeTree<TernaryVector>>
 ContextSensitiveRangeQueryEngine::GetTernary(Node* node) const {
   if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {
     return base_case_ranges_.GetTernary(node);
@@ -632,7 +632,8 @@ ContextSensitiveRangeQueryEngine::GetTernary(Node* node) const {
     return std::nullopt;
   }
   return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
-      node->GetType(), *select_ranges_.at(node).ternary);
+             node->GetType(), *select_ranges_.at(node).ternary)
+      .AsShared();
 }
 Bits ContextSensitiveRangeQueryEngine::MaxUnsignedValue(Node* node) const {
   if (!node->OpIn({Op::kSel}) || !select_ranges_.contains(node)) {

@@ -148,7 +148,7 @@ class RangeQueryEngine : public QueryEngine {
     return IsTracked(node) || HasExplicitIntervals(node);
   }
 
-  std::optional<LeafTypeTree<TernaryVector>> GetTernary(
+  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
     if (!node->GetType()->IsBits()) {
       return std::nullopt;
@@ -157,7 +157,7 @@ class RangeQueryEngine : public QueryEngine {
                                                     known_bit_values_.at(node));
     LeafTypeTree<TernaryVector> tree(node->GetType());
     tree.Set({}, tvec);
-    return tree;
+    return std::move(tree).AsShared();
   }
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {

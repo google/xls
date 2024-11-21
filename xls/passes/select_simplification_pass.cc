@@ -266,7 +266,7 @@ absl::StatusOr<bool> TrySqueezeSelect(SelectT* sel,
                                       const BitProvenanceAnalysis& provenance) {
   Node* node = sel;
   auto is_squeezable_mux = [&](Bits* msb, Bits* lsb) {
-    std::optional<LeafTypeTree<TernaryVector>> ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         query_engine.GetTernary(node);
     if (!ternary.has_value()) {
       return false;
@@ -927,7 +927,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
   if (node->Is<PrioritySelect>()) {
     PrioritySelect* sel = node->As<PrioritySelect>();
     XLS_RET_CHECK(sel->selector()->GetType()->IsBits());
-    std::optional<LeafTypeTree<TernaryVector>> selector_ltt =
+    std::optional<SharedLeafTypeTree<TernaryVector>> selector_ltt =
         query_engine.GetTernary(sel->selector());
     if (selector_ltt.has_value()) {
       const TernaryVector selector = selector_ltt->Get({});
@@ -1568,7 +1568,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                                         ? node->As<OneHotSelect>()->cases()
                                         : node->As<PrioritySelect>()->cases();
     if (query_engine.IsTracked(selector)) {
-      std::optional<LeafTypeTree<TernaryVector>> selector_ltt =
+      std::optional<SharedLeafTypeTree<TernaryVector>> selector_ltt =
           query_engine.GetTernary(selector);
       TernaryVector selector_bits =
           selector_ltt.has_value() ? selector_ltt->Get({})

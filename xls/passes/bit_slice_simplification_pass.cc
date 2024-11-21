@@ -83,7 +83,7 @@ absl::StatusOr<std::optional<Node*>> GetUnscaledIndex(
     // Check whether `scaled_index` has enough low zero-bits for us to take a
     // slice of it as the unscaled version.
     XLS_RET_CHECK(scaled_index->GetType()->IsBits());
-    std::optional<LeafTypeTree<TernaryVector>> ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         query_engine->GetTernary(scaled_index);
     if (!ternary.has_value()) {
       return std::nullopt;

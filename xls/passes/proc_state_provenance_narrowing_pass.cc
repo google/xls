@@ -207,7 +207,7 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
     if (unchanged_bits.IsZero()) {
       return unchanged_bits;
     }
-    std::optional<LeafTypeTree<TernaryVector>> ternary =
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
         tqe.GetTernary(next->value());
     Bits ternary_known_unchanged =
         ternary.has_value()
