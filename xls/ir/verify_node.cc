@@ -953,7 +953,9 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectHasBitsType(sel->selector()));
     const int64_t selector_width = sel->selector()->BitCountOrDie();
     const int64_t minimum_selector_width =
-        Bits::MinBitCountUnsigned(sel->cases().size() - 1);
+        sel->cases().empty()
+            ? 0
+            : Bits::MinBitCountUnsigned(sel->cases().size() - 1);
     const bool power_of_2_cases = IsPowerOfTwo(sel->cases().size());
     if (selector_width < minimum_selector_width) {
       return absl::InternalError(absl::StrFormat(

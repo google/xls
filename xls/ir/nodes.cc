@@ -946,7 +946,9 @@ Select::Select(const SourceInfo& loc, Node* selector,
                absl::Span<Node* const> cases,
                std::optional<Node*> default_value, std::string_view name,
                FunctionBase* function)
-    : Node(Op::kSel, cases[0]->GetType(), loc, name, function),
+    : Node(Op::kSel,
+           cases.empty() ? (*default_value)->GetType() : cases[0]->GetType(),
+           loc, name, function),
       cases_size_(cases.size()),
       has_default_value_(default_value.has_value()) {
   CHECK(IsOpClass<Select>(op_))
