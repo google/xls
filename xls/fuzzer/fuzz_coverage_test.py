@@ -343,6 +343,7 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_ONE_HOT_SEL,
         ir_op_pb2.OP_OR,
         ir_op_pb2.OP_OR_REDUCE,
+        ir_op_pb2.OP_PARAM,
         ir_op_pb2.OP_PRIORITY_SEL,
         ir_op_pb2.OP_RECEIVE,
         ir_op_pb2.OP_REVERSE,
@@ -388,7 +389,6 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_NEXT_VALUE,
         ir_op_pb2.OP_NOR,
         ir_op_pb2.OP_OUTPUT_PORT,
-        ir_op_pb2.OP_PARAM,
         ir_op_pb2.OP_REGISTER_READ,
         ir_op_pb2.OP_REGISTER_WRITE,
         ir_op_pb2.OP_SMOD,
@@ -414,10 +414,10 @@ class FuzzCoverageTest(test_base.TestCase):
 
     summary = self._read_summaries(summaries_path)
 
-    # Test that we generate interesting parameters.
-    self.assertGreater(summary.get_op_count('param'), 0)
-    self.assertGreater(summary.get_op_count('param', type_str='tuple'), 0)
-    self.assertGreater(summary.get_op_count('param', type_str='array'), 0)
+    # Test that we generate interesting state elements.
+    self.assertGreater(summary.get_op_count('state_read'), 0)
+    self.assertGreater(summary.get_op_count('state_read', type_str='tuple'), 0)
+    self.assertGreater(summary.get_op_count('state_read', type_str='array'), 0)
 
     for op in expect_seen:
       logging.vlog(

@@ -896,6 +896,10 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleParam(Param* param) override {
+    if (param->function_base()->IsProc()) {
+      return absl::InternalError(
+          absl::StrFormat("Param node %s is in a proc", param->GetName()));
+    }
     return ExpectOperandCount(param, 0);
   }
 
