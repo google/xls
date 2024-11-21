@@ -1264,6 +1264,8 @@ class __xls_channel {
 template<typename T, unsigned long long Size>
 class __xls_memory {
  public:
+  using value_type = T;
+
   unsigned long long size()const {
     return Size;
   };
