@@ -65,8 +65,7 @@ class Formatter {
   DocRef Format(const TestFunction& n);
   DocRef Format(const TestProc& n);
   DocRef Format(const VerbatimNode* n);
-  DocRef FormatParams(absl::Span<const Param* const> params,
-                      bool align_after_oparen);
+  DocRef FormatParams(absl::Span<const Param* const> params);
   DocRef FormatStructDefBase(
       const StructDefBase& n, Keyword keyword,
       const std::optional<std::string>& extern_type_name);

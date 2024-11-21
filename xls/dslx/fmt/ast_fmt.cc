@@ -1889,8 +1889,7 @@ DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
 
 // Formats parameters (i.e. function parameters) with leading '(' and trailing
 // ')'.
-DocRef Formatter::FormatParams(absl::Span<const Param* const> params,
-                               bool align_after_oparen) {
+DocRef Formatter::FormatParams(absl::Span<const Param* const> params) {
   DocRef guts = FmtJoin<const Param*>(
       params, Joiner::kCommaBreak1AsGroupNoTrailingComma,
       [](const Param* param, const Comments& comments, DocArena& arena) {
@@ -1900,12 +1899,9 @@ DocRef Formatter::FormatParams(absl::Span<const Param* const> params,
       },
       comments_, arena_);
 
-  if (align_after_oparen) {
-    return ConcatNGroup(
-        arena_, {arena_.oparen(),
-                 arena_.MakeAlign(arena_.MakeConcat(guts, arena_.cparen()))});
-  }
-  return ConcatNGroup(arena_, {arena_.oparen(), guts, arena_.cparen()});
+  return ConcatNGroup(
+      arena_, {arena_.oparen(),
+               arena_.MakeAlign(arena_.MakeConcat(guts, arena_.cparen()))});
 }
 
 DocRef Formatter::Format(const ParametricBinding& n) {
@@ -1976,8 +1972,7 @@ DocRef Formatter::Format(const Function& n) {
     std::vector<DocRef> params_pieces;
 
     params_pieces.push_back(arena_.break0());
-    params_pieces.push_back(
-        FormatParams(n.params(), /*align_after_oparen=*/true));
+    params_pieces.push_back(FormatParams(n.params()));
 
     if (n.return_type() == nullptr) {
       params_pieces.push_back(arena_.break1());
@@ -2147,7 +2142,7 @@ DocRef Formatter::Format(const Proc& n) {
 
   std::vector<DocRef> config_pieces = {
       arena_.MakeText("config"),
-      FormatParams(n.config().params(), /*align_after_oparen=*/true),
+      FormatParams(n.config().params()),
       arena_.space(),
       arena_.ocurl(),
       arena_.break1(),
@@ -2168,7 +2163,7 @@ DocRef Formatter::Format(const Proc& n) {
 
   std::vector<DocRef> next_pieces = {
       arena_.MakeText("next"),
-      FormatParams(n.next().params(), /*align_after_oparen=*/true),
+      FormatParams(n.next().params()),
       arena_.space(),
       arena_.ocurl(),
       arena_.break1(),
