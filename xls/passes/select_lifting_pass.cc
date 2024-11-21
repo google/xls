@@ -24,6 +24,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
@@ -386,10 +387,9 @@ bool ShouldLiftSelect(FunctionBase *func, Node *select_to_optimize,
   }
 }
 
-absl::StatusOr<TransformationResult> ApplyTransformation(
+absl::StatusOr<TransformationResult> LiftSelectForArrayIndex(
     FunctionBase *func, Node *select_to_optimize, Node *array_reference) {
   TransformationResult result;
-  VLOG(3) << "  Apply the transformation";
 
   // Step 0: add a new "select" for the indices
   VLOG(3) << "    Step 0: create a new \"select\" between the indices of the "
@@ -464,6 +464,28 @@ absl::StatusOr<TransformationResult> ApplyTransformation(
   return result;
 }
 
+absl::StatusOr<TransformationResult> LiftSelect(
+    FunctionBase *func, Node *select_to_optimize,
+    const LiftableSelectOperandInfo &shared_between_inputs) {
+  TransformationResult result;
+  VLOG(3) << "  Apply the transformation";
+
+  // The transformation depends on the specific inputs of the "select" node
+  switch (shared_between_inputs.op) {
+    case Op::kArrayIndex:
+      return LiftSelectForArrayIndex(func, select_to_optimize,
+                                     shared_between_inputs.shared_input);
+
+    default:
+
+      // If the execution arrives here, then the applicability guard has a bug.
+      VLOG(3) << "    The current input of the select is not handled";
+      return absl::InternalError(
+          "The applicability guard incorrectly classified a \"select\" as "
+          "applicable.");
+  }
+}
+
 absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
                                                 Node *select_to_optimize) {
   TransformationResult result;
@@ -494,9 +516,8 @@ absl::StatusOr<TransformationResult> LiftSelect(FunctionBase *func,
   // It is now the time to apply it.
   VLOG(3) << "  This transformation is applicable and profitable for this "
              "select";
-  XLS_ASSIGN_OR_RETURN(result,
-                       ApplyTransformation(func, select_to_optimize,
-                                           shared_between_inputs.shared_input));
+  XLS_ASSIGN_OR_RETURN(
+      result, LiftSelect(func, select_to_optimize, shared_between_inputs));
 
   return result;
 }
