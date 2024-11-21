@@ -4,5 +4,5 @@ file_number 0 "test_module.x"
 
 top fn __test_module__f() -> bits[32] {
   x: bits[32] = literal(value=2, id=1, pos=[(0,1,15)])
-  ret add.2: bits[32] = add(x, x, id=2, pos=[(0,2,3)])
+  ret add.2: bits[32] = add(x, x, id=2, pos=[(0,2,2)])
 }

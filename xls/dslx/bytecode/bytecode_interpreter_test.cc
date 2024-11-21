@@ -3107,7 +3107,7 @@ fn main(x: u2, y: u2) -> u2 {
 
     if (x + y >= 4) {  // We should have a rollover in these cases.
       ASSERT_EQ(source_spans.size(), 1);
-      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
+      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:3-3:8");
     } else {
       ASSERT_TRUE(source_spans.empty());
     }
@@ -3147,7 +3147,7 @@ fn main(x: u2, y: u2) -> u2 {
     if (static_cast<int64_t>(x) - static_cast<int64_t>(y) <
         0) {  // We should have a rollover in these cases.
       ASSERT_EQ(source_spans.size(), 1);
-      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
+      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:3-3:8");
     } else {
       ASSERT_TRUE(source_spans.empty());
     }
@@ -3186,7 +3186,7 @@ fn main(x: u2, y: u2) -> u2 {
 
     if (x * y >= 4) {  // We should have a rollover in these cases.
       ASSERT_EQ(source_spans.size(), 1);
-      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
+      EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:3-3:8");
     } else {
       ASSERT_TRUE(source_spans.empty());
     }
@@ -3222,7 +3222,7 @@ fn main(x: s2, y: s2) -> s2 {
               << " rollover: " << rollover;
       if (rollover) {
         ASSERT_EQ(source_spans.size(), 1);
-        EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:5-3:6");
+        EXPECT_EQ(source_spans.at(0).ToString(file_table), "test.x:3:3-3:8");
       } else {
         ASSERT_TRUE(source_spans.empty());
       }

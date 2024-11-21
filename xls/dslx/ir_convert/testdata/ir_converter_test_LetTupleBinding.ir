@@ -8,5 +8,5 @@ top fn __test_module__f() -> bits[32] {
   t: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3, pos=[(0,1,10)])
   x: bits[32] = tuple_index(t, index=0, id=4, pos=[(0,2,7)])
   y: bits[32] = tuple_index(t, index=1, id=5, pos=[(0,2,10)])
-  ret add.6: bits[32] = add(x, y, id=6, pos=[(0,3,3)])
+  ret add.6: bits[32] = add(x, y, id=6, pos=[(0,3,2)])
 }

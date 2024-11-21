@@ -14,6 +14,6 @@ proc __top__foo_0_next() {
   a: bits[32] = tuple_index(receive.17, index=1, id=8, pos=[(0,12,18)])
   b: bits[32] = tuple_index(receive.18, index=1, id=12, pos=[(0,13,18)])
   tok__2: token = tuple_index(receive.18, index=0, id=11, pos=[(0,13,13)])
-  add.13: bits[32] = add(a, b, id=13, pos=[(0,14,38)])
+  add.13: bits[32] = add(a, b, id=13, pos=[(0,14,36)])
   tok__3: token = send(tok__2, add.13, channel=test_package__output, id=19)
 }

@@ -599,7 +599,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         warnings_as_errors=False,
         want_err_retcode=False,
     )
-    self.assertIn('useless_expression_statement.x:19:9-19:11', stderr)
+    self.assertIn('useless_expression_statement.x:19:5-19:16', stderr)
     self.assertIn(
         'Expression statement `bar || abcd` appears useless (i.e. has no'
         ' side-effects)',
@@ -873,7 +873,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/add_to_name_from_trailing_semi_block.x'
     )
-    self.assertIn('add_to_name_from_trailing_semi_block.x:19:5-19:6', stderr)
+    self.assertIn('add_to_name_from_trailing_semi_block.x:19:3-19:13', stderr)
     self.assertIn(
         'note that "x" was defined by a block with a trailing semicolon', stderr
     )

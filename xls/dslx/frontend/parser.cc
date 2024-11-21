@@ -1291,7 +1291,8 @@ absl::StatusOr<Expr*> Parser::ParseBinopChain(
       XLS_ASSIGN_OR_RETURN(Expr * rhs, sub_production());
       XLS_ASSIGN_OR_RETURN(BinopKind kind,
                            BinopKindFromString(TokenKindToString(op.kind())));
-      lhs = module_->Make<Binop>(op.span(), kind, lhs, rhs);
+      Span span(lhs->span().start(), rhs->span().limit());
+      lhs = module_->Make<Binop>(span, kind, lhs, rhs);
     } else {
       break;
     }
