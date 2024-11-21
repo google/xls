@@ -68,7 +68,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "external/z3/src/api/z3_api.h"
+#include "z3/src/api/z3_api.h"
 
 namespace xlscc {
 

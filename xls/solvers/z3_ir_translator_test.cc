@@ -40,8 +40,8 @@
 #include "xls/ir/package.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 #include "xls/solvers/z3_utils.h"
-#include "external/z3/src/api/z3.h"  // IWYU pragma: keep
-#include "external/z3/src/api/z3_api.h"
+#include "z3/src/api/z3.h"  // IWYU pragma: keep
+#include "z3/src/api/z3_api.h"
 
 namespace xls {
 namespace {

@@ -32,7 +32,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/solvers/z3_ir_translator.h"
-#include "external/z3/src/api/z3_api.h"
+#include "z3/src/api/z3_api.h"
 
 ABSL_FLAG(
     std::string, top, "",

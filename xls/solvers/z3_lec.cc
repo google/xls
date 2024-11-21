@@ -49,7 +49,7 @@
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_netlist_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "external/z3/src/api/z3_api.h"
+#include "z3/src/api/z3_api.h"
 
 namespace xls {
 namespace solvers {

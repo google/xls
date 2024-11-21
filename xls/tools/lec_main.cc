@@ -53,7 +53,7 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/solvers/z3_lec.h"
-#include "external/z3/src/api/z3_api.h"
+#include "z3/src/api/z3_api.h"
 
 ABSL_FLAG(std::string, cell_lib_path, "",
           "Path to the cell library. "
