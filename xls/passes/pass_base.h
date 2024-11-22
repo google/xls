@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -25,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
@@ -41,6 +43,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
+#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -126,6 +129,20 @@ class PassBase {
   const std::string& short_name() const { return short_name_; }
   const std::string& long_name() const { return long_name_; }
 
+  // Generate a proto that can be used to reconstitute this pass. By default is
+  // 'short_name()'
+  // TODO(allight): This is not very elegant. Ideally the registry could handle
+  // this? Doing it there would probably be even more weird though.
+  virtual absl::StatusOr<PassPipelineProto::Element> ToProto() const {
+    if (IsCompound()) {
+      return absl::UnimplementedError(
+          "Compound pass without overriden ToProto.");
+    }
+    PassPipelineProto::Element res;
+    *res.mutable_pass_name() = short_name_;
+    return res;
+  }
+
   // Run the specific pass. Returns true if the graph was changed by the pass.
   // Typically the "changed" indicator is used to determine when to terminate
   // fixed point computation.
@@ -162,8 +179,31 @@ class PassBase {
   virtual absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
                                            ResultsT* results) const = 0;
 
-  const std::string short_name_;
-  const std::string long_name_;
+  std::string short_name_;
+  std::string long_name_;
+};
+
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults>
+class WrapperPassBase final : public PassBase<IrT, OptionsT, ResultsT> {
+ public:
+  explicit WrapperPassBase(
+      std::unique_ptr<PassBase<IrT, OptionsT, ResultsT>>&& base)
+      : PassBase<IrT, OptionsT, ResultsT>(base->short_name(),
+                                          base->long_name()),
+        base_(std::move(base)) {}
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const final {
+    return base_->ToProto();
+  }
+
+ protected:
+  absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
+                                   ResultsT* results) const final {
+    return base_->Run(ir, options, results);
+  }
+
+ private:
+  std::unique_ptr<PassBase<IrT, OptionsT, ResultsT>> base_;
 };
 
 // A base class for abstractions which check invariants of the IR. These
@@ -226,6 +266,17 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
   CompoundPassBase(std::string_view short_name, std::string_view long_name)
       : Pass(short_name, long_name) {}
   ~CompoundPassBase() override = default;
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
+    PassPipelineProto::Element res;
+    for (const auto& p : this->passes()) {
+      XLS_ASSIGN_OR_RETURN(*res.mutable_pipeline()->mutable_elements()->Add(),
+                           p->ToProto());
+    }
+    *res.mutable_pipeline()->mutable_short_name() = this->short_name();
+    *res.mutable_pipeline()->mutable_long_name() = this->long_name();
+    return res;
+  }
 
   // Add a new pass to this compound pass. Arguments to method are the arguments
   // to the pass constructor. Example usage:
@@ -318,6 +369,17 @@ class FixedPointCompoundPassBase
   FixedPointCompoundPassBase(std::string_view short_name,
                              std::string_view long_name)
       : CompoundPassBase<IrT, OptionsT, ResultsT>(short_name, long_name) {}
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
+    PassPipelineProto::Element res;
+    for (const auto& p : this->passes()) {
+      XLS_ASSIGN_OR_RETURN(*res.mutable_fixedpoint()->mutable_elements()->Add(),
+                           p->ToProto());
+    }
+    *res.mutable_fixedpoint()->mutable_short_name() = this->short_name();
+    *res.mutable_fixedpoint()->mutable_long_name() = this->long_name();
+    return res;
+  }
 
  protected:
   absl::StatusOr<CompoundPassResult> RunNested(

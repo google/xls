@@ -21,13 +21,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls::tools {
 
@@ -44,7 +45,8 @@ struct OptOptions {
   bool inline_procs = false;
   std::vector<RamRewrite> ram_rewrites = {};
   bool use_context_narrowing_analysis = false;
-  std::optional<std::string> pass_list;
+  std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
+      pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
 };
 

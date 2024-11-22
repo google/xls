@@ -1880,6 +1880,27 @@ std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a) {
   }
 }
 
+absl::StatusOr<PassPipelineProto::Element> NarrowingPass::ToProto() const {
+  // TODO(allight): This is not very elegant. Ideally the registry could handle
+  // this? Doing it there would probably be even more weird though.
+  PassPipelineProto::Element e;
+  switch (analysis_) {
+    case AnalysisType::kTernary:
+      *e.mutable_pass_name() = "narrow(Ternary)";
+      break;
+    case AnalysisType::kRange:
+      *e.mutable_pass_name() = "narrow(Range)";
+      break;
+    case AnalysisType::kRangeWithContext:
+      *e.mutable_pass_name() = "narrow(Context)";
+      break;
+    case AnalysisType::kRangeWithOptionalContext:
+      *e.mutable_pass_name() = "narrow(OptionalContext)";
+      break;
+  }
+  return e;
+}
+
 XLS_REGISTER_MODULE_INITIALIZER(narrowing_pass, {
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>("narrow"));
   CHECK_OK(RegisterOptimizationPass<NarrowingPass>(

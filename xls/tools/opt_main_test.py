@@ -15,10 +15,15 @@
 
 """Tests for xls.tools.codegen_main."""
 
+import concurrent
+import concurrent.futures
 import subprocess
+from typing import Optional
 
+from absl.testing import absltest
+from absl.testing import parameterized
 from xls.common import runfiles
-from xls.common import test_base
+from xls.passes import pass_pipeline_pb2
 
 OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 
@@ -52,7 +57,7 @@ top fn add_zero(x: bits[32]) -> bits[32] {
 """
 
 
-class OptMainTest(test_base.TestCase):
+class OptMainTest(parameterized.TestCase):
 
   def test_no_options(self):
     ir_file = self.create_tempfile(content=ADD_ZERO_IR)
@@ -184,6 +189,113 @@ class OptMainTest(test_base.TestCase):
     # add is not removed since the DCE was not run.
     self.assertIn('bits[32] = add', optimized_ir)
 
+  @parameterized.parameters(range(0, 5))
+  def test_proto_pipeline(self, opt_level):
+    test_file = runfiles.get_path('xls/modules/aes/aes_ctr.ir')
+    base_call = [OPT_MAIN_PATH, test_file, f'--opt_level={opt_level}']
+    # These take ~60 seconds each so just do them in parallel.
+    with concurrent.futures.ThreadPoolExecutor() as tpe:
+      oracle_output = tpe.submit(
+          lambda: subprocess.check_output(base_call).decode('utf-8')
+      )
+      test_output = tpe.submit(
+          lambda: subprocess.check_output(
+              base_call
+              + [
+                  f'--passes_proto={runfiles.get_path("xls/passes/default_opt_pass_pipeline.binarypb")}'
+              ]
+          ).decode('utf-8')
+      )
+    self.assertEqual(oracle_output.result(), test_output.result())
+
+  def filter_non_zero_opt_level(
+      self, e: pass_pipeline_pb2.PassPipelineProto.Element
+  ) -> Optional[pass_pipeline_pb2.PassPipelineProto.Element]:
+    """Filter out any pass marked as requiring an opt level of 1 or higher."""
+    if e.options.HasField('min_opt_level') and e.options.min_opt_level >= 1:
+      return None
+    if e.HasField('pass_name'):
+      return e
+    out = []
+    for i in (
+        e.pipeline.elements if e.HasField('pipeline') else e.fixedpoint.elements
+    ):
+      filt = self.filter_non_zero_opt_level(i)
+      if filt is not None:
+        out.append(filt)
+    if not out:
+      return None
+    if e.HasField('pipeline'):
+      res = pass_pipeline_pb2.PassPipelineProto.Element(
+          pipeline=pass_pipeline_pb2.PassPipelineProto.Pipeline(elements=out),
+          options=e.options,
+      )
+    else:
+      res = pass_pipeline_pb2.PassPipelineProto.Element(
+          fixedpoint=pass_pipeline_pb2.PassPipelineProto.Pipeline(elements=out),
+          options=e.options,
+      )
+    return res
+
+  def test_proto_changed_pipeline(self):
+    test_file = runfiles.get_path('xls/modules/aes/aes_ctr.ir')
+    pipeline = pass_pipeline_pb2.PassPipelineProto().FromString(
+        runfiles.get_contents_as_bytes(
+            'xls/passes/default_opt_pass_pipeline.binarypb'
+        )
+    )
+    small_pipeline = pass_pipeline_pb2.PassPipelineProto(
+        top=self.filter_non_zero_opt_level(pipeline.top)
+    )
+    test_pipeline = self.create_tempfile(
+        content=small_pipeline.SerializeToString()
+    )
+    with concurrent.futures.ThreadPoolExecutor() as tpe:
+      oracle_output = tpe.submit(
+          lambda: subprocess.check_output(
+              [OPT_MAIN_PATH, test_file, '--opt_level=0']
+          ).decode('utf-8')
+      )
+      test_output = tpe.submit(
+          lambda: subprocess.check_output([
+              OPT_MAIN_PATH,
+              test_file,
+              '--opt_level=3',
+              f'--passes_proto={test_pipeline.full_path}',
+          ]).decode('utf-8')
+      )
+    self.assertEqual(len(oracle_output.result()), len(test_output.result()))
+    self.assertEqual(oracle_output.result(), test_output.result())
+
+  def test_proto_changed_pipeline_not_equal(self):
+    test_file = runfiles.get_path('xls/modules/aes/aes_ctr.ir')
+    pipeline = pass_pipeline_pb2.PassPipelineProto().FromString(
+        runfiles.get_contents_as_bytes(
+            'xls/passes/default_opt_pass_pipeline.binarypb'
+        )
+    )
+    small_pipeline = pass_pipeline_pb2.PassPipelineProto(
+        top=self.filter_non_zero_opt_level(pipeline.top)
+    )
+    test_pipeline = self.create_tempfile(
+        content=small_pipeline.SerializeToString()
+    )
+    with concurrent.futures.ThreadPoolExecutor() as tpe:
+      oracle_output = tpe.submit(
+          lambda: subprocess.check_output(
+              [OPT_MAIN_PATH, test_file, '--opt_level=3']
+          ).decode('utf-8')
+      )
+      test_output = tpe.submit(
+          lambda: subprocess.check_output([
+              OPT_MAIN_PATH,
+              test_file,
+              '--opt_level=3',
+              f'--passes_proto={test_pipeline.full_path}',
+          ]).decode('utf-8')
+      )
+    self.assertNotEqual(oracle_output.result(), test_output.result())
+
 
 if __name__ == '__main__':
-  test_base.main()
+  absltest.main()

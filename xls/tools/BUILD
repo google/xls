@@ -359,6 +359,7 @@ cc_library(
     hdrs = ["opt.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -367,6 +368,7 @@ cc_library(
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
+        "//xls/passes:pass_pipeline_cc_proto",
         "//xls/passes:verifier_checker",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
@@ -385,11 +387,14 @@ cc_binary(
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dev_tools:tool_timeout",
         "//xls/ir:ram_rewrite_cc_proto",
         "//xls/passes:optimization_pass",
         "//xls/passes:optimization_pass_pipeline",
+        "//xls/passes:pass_pipeline_cc_proto",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
@@ -400,18 +405,27 @@ cc_binary(
         "@com_google_absl//absl/log:log_sink_registry",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
 py_test(
     name = "opt_main_test",
     srcs = ["opt_main_test.py"],
-    data = [":opt_main"],
+    data = [
+        ":opt_main",
+        "//xls/modules/aes:aes_ctr.ir",
+        "//xls/passes:default_optimization_pipeline_proto",
+    ],
     python_version = "PY3",
+    shard_count = 3,
     srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
-        "//xls/common:test_base",
+        "//xls/passes:pass_pipeline_py_pb2",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 

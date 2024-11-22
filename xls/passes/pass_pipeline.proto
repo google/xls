@@ -1,0 +1,50 @@
+// Copyright 2024 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+// A set of passes which can be used to transform an IR.
+message PassPipelineProto {
+  message PassOptions {
+    // opt-level where the pass will be skipped if the opt level is not at least
+    // this value
+    optional int64 min_opt_level = 1;
+    // Opt level cap
+    optional int64 max_opt_level = 2;
+  }
+
+  message Pipeline {
+    optional string short_name = 1;
+    optional string long_name = 2;
+    repeated Element elements = 3;
+  }
+
+  message Element {
+    // Options which modify the passes
+    optional PassOptions options = 1;
+    oneof type {
+      // A single plass. Identified with the pass_name from opt_main
+      // --list_passes
+      string pass_name = 2;
+      // A fixed-point pass group
+      Pipeline fixedpoint = 3;
+      // A non-fixed-point pass group
+      Pipeline pipeline = 4;
+    }
+  }
+
+  optional Element top = 1;
+}

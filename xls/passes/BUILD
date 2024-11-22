@@ -14,6 +14,9 @@
 
 # Optimization passes, pass managers.
 
+load("@rules_python//python:proto.bzl", "py_proto_library")
+# cc_proto_library is used in this file
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
@@ -22,6 +25,58 @@ package(
         "parse_headers",
     ],
     licenses = ["notice"],  # Apache 2.0
+)
+
+proto_library(
+    name = "pass_pipeline_proto",
+    srcs = ["pass_pipeline.proto"],
+    visibility = ["//xls:xls_users"],
+)
+
+cc_proto_library(
+    name = "pass_pipeline_cc_proto",
+    visibility = ["//xls:xls_users"],
+    deps = [":pass_pipeline_proto"],
+)
+
+py_proto_library(
+    name = "pass_pipeline_py_pb2",
+    visibility = ["//xls:xls_users"],
+    deps = [":pass_pipeline_proto"],
+)
+
+cc_binary(
+    name = "dump_default_optimization_pass_pipeline_main",
+    srcs = ["dump_default_optimization_pass_pipeline_main.cc"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":optimization_pass",
+        ":optimization_pass_pipeline",
+        ":pass_pipeline_cc_proto",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+genrule(
+    name = "default_optimization_pipeline_proto",
+    outs = ["default_opt_pass_pipeline.binarypb"],
+    cmd = "$(location :dump_default_optimization_pass_pipeline_main) --proto_out $@",
+    tools = [":dump_default_optimization_pass_pipeline_main"],
+)
+
+genrule(
+    name = "default_optimization_pipeline_textproto",
+    outs = ["default_opt_pass_pipeline.textpb"],
+    cmd = "$(location :dump_default_optimization_pass_pipeline_main) --textproto_out $@",
+    tools = [":dump_default_optimization_pass_pipeline_main"],
 )
 
 cc_library(
@@ -58,6 +113,7 @@ cc_library(
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
+        ":pass_pipeline_cc_proto",
         ":proc_inlining_pass",
         ":proc_state_array_flattening_pass",
         ":proc_state_narrowing_pass",
@@ -573,6 +629,7 @@ cc_library(
     hdrs = ["optimization_pass_registry.h"],
     deps = [
         ":optimization_pass",
+        ":pass_pipeline_cc_proto",
         "//xls/common:module_initializer",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -1223,12 +1280,14 @@ cc_library(
     srcs = ["pass_base.cc"],
     hdrs = ["pass_base.h"],
     deps = [
+        ":pass_pipeline_cc_proto",
         "//xls/common:casts",
         "//xls/common/file:filesystem",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:vlog_is_on",
@@ -1272,6 +1331,7 @@ cc_library(
     hdrs = ["pass_registry.h"],
     deps = [
         ":pass_base",
+        ":pass_pipeline_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -1287,8 +1347,10 @@ cc_library(
     hdrs = ["pipeline_generator.h"],
     deps = [
         ":pass_base",
+        ":pass_pipeline_cc_proto",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -1303,6 +1365,7 @@ cc_test(
         ":dce_pass",
         ":optimization_pass",
         ":pass_base",
+        ":pass_pipeline_cc_proto",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
@@ -1313,12 +1376,14 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
+        "@com_google_protobuf//:protobuf",
         "@com_googlesource_code_re2//:re2",
     ],
 )
@@ -1347,6 +1412,7 @@ cc_library(
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
+        ":pass_pipeline_cc_proto",
         ":predicate_dominator_analysis",
         ":predicate_state",
         ":proc_state_range_query_engine",
@@ -1644,6 +1710,7 @@ cc_library(
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
+        ":pass_pipeline_cc_proto",
         ":query_engine",
         ":stateless_query_engine",
         ":union_query_engine",

@@ -956,6 +956,14 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
   return changed;
 }
+absl::StatusOr<PassPipelineProto::Element>
+ConditionalSpecializationPass::ToProto() const {
+  // TODO(allight): This is not very elegant. Ideally the registry could handle
+  // this? Doing it there would probably be even more weird though.
+  PassPipelineProto::Element e;
+  *e.mutable_pass_name() = use_bdd_ ? "cond_spec(Bdd)" : "cond_spec(noBdd)";
+  return e;
+}
 
 XLS_REGISTER_MODULE_INITIALIZER(cond_spec, {
   CHECK_OK(RegisterOptimizationPass<ConditionalSpecializationPass>(

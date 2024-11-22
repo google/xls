@@ -24,8 +24,10 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
@@ -36,14 +38,18 @@
 #include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dev_tools/tool_timeout.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt.h"
 
 static constexpr std::string_view kUsage = R"(
@@ -110,6 +116,12 @@ ABSL_FLAG(
     "given pipeline will run in reasonable amount of time. See the map in "
     "passes/optimization_pass_pipeline.cc for pass mappings. Available "
     "passes shown by running with --list_passes");
+ABSL_FLAG(std::optional<std::string>, passes_proto, std::nullopt,
+          "A file containing binary PipelinePassList proto defining a pipeline "
+          "of passes to run");
+ABSL_FLAG(std::optional<std::string>, passes_textproto, std::nullopt,
+          "A file containing textproto PipelinePassList proto defining a "
+          "pipeline of passes to run");
 ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
           "Number of passes to allow to execute. This can be used as compiler "
           "fuel to ensure the compiler finishes at a particular point.");
@@ -198,6 +210,36 @@ absl::Status RealMain(std::string_view input_path) {
   std::optional<int64_t> bisect_limit =
       absl::GetFlag(FLAGS_passes_bisect_limit);
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
+  std::optional<std::string> pipeline_textproto =
+      absl::GetFlag(FLAGS_passes_textproto);
+  std::optional<std::string> pipeline_binproto =
+      absl::GetFlag(FLAGS_passes_proto);
+  std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
+      pass_pipeline = std::nullopt;
+  if (absl::c_count_if(
+          absl::Span<std::optional<std::string> const>{
+              pass_list, pipeline_textproto, pipeline_binproto},
+          [](const auto& v) -> bool { return v.has_value(); }) > 1) {
+    return absl::InvalidArgumentError(
+        "At most one of --pipeline_proto, --pipeline_textproto or --passes is "
+        "allowed.");
+  }
+  if (pipeline_textproto) {
+    XLS_ASSIGN_OR_RETURN(std::string data,
+                         GetFileContents(*pipeline_textproto));
+    PassPipelineProto res;
+    XLS_RET_CHECK(google::protobuf::TextFormat::ParseFromString(data, &res));
+    pass_pipeline = std::move(res);
+  }
+  if (pipeline_binproto) {
+    XLS_ASSIGN_OR_RETURN(std::string data, GetFileContents(*pipeline_binproto));
+    PassPipelineProto res;
+    XLS_RET_CHECK(res.ParseFromString(data));
+    pass_pipeline = std::move(res);
+  }
+  if (pass_list) {
+    pass_pipeline = *pass_list;
+  }
 
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
@@ -213,7 +255,7 @@ absl::Status RealMain(std::string_view input_path) {
               .inline_procs = inline_procs,
               .ram_rewrites = std::move(ram_rewrites_vec),
               .use_context_narrowing_analysis = use_context_narrowing_analysis,
-              .pass_list = pass_list,
+              .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
           }));
 

@@ -27,8 +27,10 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
@@ -168,73 +170,118 @@ using OptimizationFixedPointCompoundPass =
 using OptimizationInvariantChecker = OptimizationCompoundPass::InvariantChecker;
 using OptimizationPipelineGenerator =
     PipelineGeneratorBase<Package, OptimizationPassOptions>;
+using OptimizationWrapperPass =
+    WrapperPassBase<Package, OptimizationPassOptions>;
 
 using OptimizationPassRegistry =
     PassRegistry<Package, OptimizationPassOptions, PassResults>;
 using OptimizationPassGenerator =
     PassGenerator<Package, OptimizationPassOptions, PassResults>;
 
+namespace internal {
 // Wrapper that uses templates to force opt-level to a specific max value for
 // either a specific pass or a compound pass contents.
-template <int64_t kLevel, typename InnerPass>
+template <typename InnerPass>
   requires(std::is_base_of_v<OptimizationPass, InnerPass>)
-class CapOptLevel : public OptimizationPass {
+class DynamicCapOptLevel : public OptimizationPass {
  public:
   template <typename... Args>
-  explicit CapOptLevel(Args... args)
-      : OptimizationPass(
-            absl::StrFormat("%s(opt_level<=%d)",
-                            InnerPass(args...).short_name(), kLevel),
-            absl::StrFormat("%s with opt_level <= %d",
-                            InnerPass(args...).long_name(), kLevel)),
-        inner_(args...) {}
+  explicit DynamicCapOptLevel(int64_t level, Args... args)
+      : OptimizationPass("short", "long"),
+        level_(level),
+        inner_(std::forward<Args>(args)...) {
+    short_name_ =
+        absl::StrFormat("%s(opt_level<=%d)", inner_.short_name(), level);
+    long_name_ =
+        absl::StrFormat("%s with opt_level <= %d", inner_.long_name(), level);
+  }
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
+    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res, inner_.ToProto());
+    res.mutable_options()->set_max_opt_level(level_);
+    return res;
+  }
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* ir,
                                    const OptimizationPassOptions& options,
                                    PassResults* results) const override {
-    if (VLOG_IS_ON(4) && kLevel < options.opt_level) {
+    if (VLOG_IS_ON(4) && level_ < options.opt_level) {
       VLOG(4) << "Lowering opt-level of pass '" << inner_.long_name() << "' ("
-              << inner_.short_name() << ") to " << kLevel;
+              << inner_.short_name() << ") to " << level_;
     }
     return inner_.Run(
-        ir, options.WithOptLevel(std::min(kLevel, options.opt_level)), results);
+        ir, options.WithOptLevel(std::min(level_, options.opt_level)), results);
   }
 
  private:
+  int64_t level_;
   InnerPass inner_;
 };
 
 // Wrapper that disables the pass unless the opt-level is at least kLevel.
-template <int64_t kLevel, typename InnerPass>
+template <typename InnerPass>
   requires(std::is_base_of_v<OptimizationPass, InnerPass>)
-class IfOptLevelAtLeast : public OptimizationPass {
+class DynamicIfOptLevelAtLeast : public OptimizationPass {
  public:
   template <typename... Args>
-  explicit IfOptLevelAtLeast(Args... args)
-      : OptimizationPass(
-            absl::StrFormat("%s(opt_level>=%d)",
-                            InnerPass(args...).short_name(), kLevel),
-            absl::StrFormat("%s when opt_level >= %d",
-                            InnerPass(args...).long_name(), kLevel)),
-        inner_(args...) {}
+  explicit DynamicIfOptLevelAtLeast(int64_t level, Args... args)
+      : OptimizationPass("short", "long"),
+        level_(level),
+        inner_(std::forward<Args>(args)...) {
+    short_name_ =
+        absl::StrFormat("%s(opt_level>=%d)", inner_.short_name(), level);
+    long_name_ =
+        absl::StrFormat("%s when opt_level >= %d", inner_.long_name(), level);
+  }
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
+    XLS_ASSIGN_OR_RETURN(PassPipelineProto::Element res, inner_.ToProto());
+    res.mutable_options()->set_min_opt_level(level_);
+    return res;
+  }
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* ir,
                                    const OptimizationPassOptions& options,
                                    PassResults* results) const override {
-    if (options.opt_level < kLevel) {
+    if (options.opt_level < level_) {
       VLOG(4) << "Skipping pass '" << inner_.long_name() << "' ("
               << inner_.short_name()
               << ") because opt-level is lower than minimum level of "
-              << kLevel;
+              << level_;
       return false;
     }
     return inner_.Run(ir, options, results);
   }
 
  private:
+  int64_t level_;
   InnerPass inner_;
+};
+}  // namespace internal
+
+// Wrapper that uses templates to force opt-level to a specific max value for
+// either a specific pass or a compound pass contents.
+template <int64_t kLevel, typename InnerPass>
+  requires(std::is_base_of_v<OptimizationPass, InnerPass>)
+class CapOptLevel : public internal::DynamicCapOptLevel<InnerPass> {
+ public:
+  template <typename... Args>
+  explicit CapOptLevel(Args... args)
+      : internal::DynamicCapOptLevel<InnerPass>(kLevel,
+                                                std::forward<Args>(args)...) {}
+};
+
+// Wrapper that disables the pass unless the opt-level is at least kLevel.
+template <int64_t kLevel, typename InnerPass>
+  requires(std::is_base_of_v<OptimizationPass, InnerPass>)
+class IfOptLevelAtLeast : public internal::DynamicIfOptLevelAtLeast<InnerPass> {
+ public:
+  template <typename... Args>
+  explicit IfOptLevelAtLeast(Args... args)
+      : internal::DynamicIfOptLevelAtLeast<InnerPass>(
+            kLevel, std::forward<Args>(args)...) {}
 };
 
 // Wrapper that explicitly sets the opt level to a specific value.
@@ -244,6 +291,10 @@ class WithOptLevel : public InnerPass {
  public:
   template <typename... Args>
   explicit WithOptLevel(Args... args) : InnerPass(args...) {}
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override {
+    return absl::UnimplementedError("WithOptLevel not exportable to proto");
+  }
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* ir,

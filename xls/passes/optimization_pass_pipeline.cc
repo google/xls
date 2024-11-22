@@ -22,6 +22,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -60,6 +61,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/proc_state_array_flattening_pass.h"
 #include "xls/passes/proc_state_narrowing_pass.h"
@@ -308,10 +310,29 @@ absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
 }
 
 absl::Status OptimizationPassPipelineGenerator::AddPassToPipeline(
-    OptimizationCompoundPass* pass, std::string_view pass_name) const {
+    OptimizationCompoundPass* pass, std::string_view pass_name,
+    const PassPipelineProto::PassOptions& options) const {
   XLS_ASSIGN_OR_RETURN(auto* generator,
                        GetOptimizationRegistry().Generator(pass_name));
-  return generator->AddToPipeline(pass);
+  return generator->AddToPipeline(pass, options);
+}
+
+absl::StatusOr<std::unique_ptr<OptimizationPass>>
+OptimizationPassPipelineGenerator::FinalizeWithOptions(
+    std::unique_ptr<OptimizationCompoundPass>&& cur,
+    const PassPipelineProto::PassOptions& options) const {
+  std::unique_ptr<OptimizationPass> base = std::move(cur);
+  if (options.has_max_opt_level()) {
+    base = std::make_unique<
+        xls::internal::DynamicCapOptLevel<OptimizationWrapperPass>>(
+        options.max_opt_level(), std::move(base));
+  }
+  if (options.has_min_opt_level()) {
+    base = std::make_unique<
+        xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
+        options.min_opt_level(), std::move(base));
+  }
+  return std::move(base);
 }
 
 std::string OptimizationPassPipelineGenerator::GetAvailablePassesStr() const {

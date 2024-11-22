@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/log/log.h"
@@ -28,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -35,6 +37,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/verifier_checker.h"
 
 namespace xls::tools {
@@ -57,18 +60,40 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   }
   VLOG(3) << "Top entity: '" << top.value()->name() << "'";
 
-  std::unique_ptr<OptimizationCompoundPass> pipeline;
-  if (!options.pass_list) {
-    pipeline = CreateOptimizationPassPipeline();
-  } else {
-    XLS_RET_CHECK(options.skip_passes.empty())
-        << "Skipping/restricting passes while running a custom pipeline is "
-           "probably not something you want to do.";
-    XLS_ASSIGN_OR_RETURN(pipeline,
-                         GetOptimizationPipelineGenerator().GeneratePipeline(
-                             *options.pass_list));
-    pipeline->AddInvariantChecker<VerifierChecker>();
-  }
+  using PipelineResult = absl::StatusOr<std::unique_ptr<OptimizationPass>>;
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<OptimizationPass> pipeline,
+      std::visit(
+          Visitor{
+              [](std::nullopt_t) -> PipelineResult {
+                return CreateOptimizationPassPipeline();
+              },
+              [&](std::string_view list) -> PipelineResult {
+                XLS_RET_CHECK(options.skip_passes.empty())
+                    << "Skipping/restricting passes while running a custom "
+                       "pipeline is probably not something you want to do.";
+                XLS_ASSIGN_OR_RETURN(
+                    std::unique_ptr<OptimizationCompoundPass> res,
+                    GetOptimizationPipelineGenerator().GeneratePipeline(list));
+                res->AddInvariantChecker<VerifierChecker>();
+                return res;
+              },
+              [&](const PassPipelineProto& list) -> PipelineResult {
+                XLS_RET_CHECK(options.skip_passes.empty())
+                    << "Skipping/restricting passes while running a custom "
+                       "pipeline is probably not something you want to do.";
+                XLS_ASSIGN_OR_RETURN(
+                    std::unique_ptr<OptimizationCompoundPass> res,
+                    GetOptimizationPipelineGenerator().GeneratePipeline(list));
+                res->AddInvariantChecker<VerifierChecker>();
+                return res;
+              },
+          },
+          options.pass_pipeline));
+  // if (!options.pass_list) {
+  //   pipeline = CreateOptimizationPassPipeline();
+  // } else {
+  // }
   OptimizationPassOptions pass_options;
   pass_options.opt_level = options.opt_level;
   pass_options.ir_dump_path = options.ir_dump_path;

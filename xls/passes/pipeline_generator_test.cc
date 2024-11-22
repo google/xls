@@ -13,8 +13,11 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -23,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -35,10 +39,12 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "re2/re2.h"
 
 namespace m = ::xls::op_matchers;
@@ -82,6 +88,30 @@ class CountPass final : public OptimizationFunctionBasePass {
   int32_t* global_counter_;
 };
 
+// Adds a new element to the return tuple literal with the opt-level
+class RecordPass final : public OptimizationFunctionBasePass {
+ public:
+  RecordPass() : OptimizationFunctionBasePass("record", "record") {}
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results) const override {
+    // Just increment return literal by 1.
+    XLS_RET_CHECK(f->IsFunction());
+    XLS_RET_CHECK(f->AsFunctionOrDie()->return_value()->Is<Literal>());
+    XLS_RET_CHECK(f->AsFunctionOrDie()->return_value()->GetType()->IsTuple());
+    Node* n = f->AsFunctionOrDie()->return_value();
+    auto elements = n->As<Literal>()->value().elements();
+    std::vector<Value> vals(elements.begin(), elements.end());
+    vals.push_back(Value(UBits(options.opt_level, 32)));
+    XLS_ASSIGN_OR_RETURN(
+        Node * nn, f->MakeNode<Literal>(SourceInfo(), Value::Tuple(vals)));
+    XLS_RETURN_IF_ERROR(f->AsFunctionOrDie()->set_return_value(nn));
+    return true;
+  }
+};
+
 class TestPipelineGenerator : public OptimizationPipelineGenerator {
  public:
   TestPipelineGenerator()
@@ -91,27 +121,64 @@ class TestPipelineGenerator : public OptimizationPipelineGenerator {
 
  protected:
   // Pass is count_pass_<a|b>(cnt_to_stable)
-  absl::Status AddPassToPipeline(OptimizationCompoundPass* pass,
-                                 std::string_view pass_name) const override {
+  absl::Status AddPassToPipeline(
+      OptimizationCompoundPass* pass, std::string_view pass_name,
+      const PassPipelineProto::PassOptions& options) const override {
     std::string idx;
     if (pass_name == "dce") {
-      pass->Add<DeadCodeEliminationPass>();
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<OptimizationPass> new_pass,
+          WrapWithOptions(std::make_unique<DeadCodeEliminationPass>(),
+                          options));
+      pass->AddOwned(std::move(new_pass));
+      return absl::OkStatus();
+    }
+    if (pass_name == "record") {
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<OptimizationPass> new_pass,
+          WrapWithOptions(std::make_unique<RecordPass>(), options));
+      pass->AddOwned(std::move(new_pass));
       return absl::OkStatus();
     }
     XLS_RET_CHECK(
         RE2::FullMatch(pass_name, "count_pass_[ab]\\(([0-9]+)\\)", &idx))
         << "bad pass " << pass_name;
     int64_t cnt = std::stoi(idx);
+    std::unique_ptr<OptimizationPass> new_pass;
     if (absl::StartsWith(pass_name, "count_pass_a")) {
-      pass->Add<CountPass>("a", &a_count_, cnt);
+      new_pass = std::make_unique<CountPass>("a", &a_count_, cnt);
     } else if (absl::StartsWith(pass_name, "count_pass_b")) {
-      pass->Add<CountPass>("b", &b_count_, cnt);
+      new_pass = std::make_unique<CountPass>("b", &b_count_, cnt);
     } else {
       return absl::InvalidArgumentError(
           absl::StrCat("Bad pass name ", pass_name));
     }
-    pass->Add<DeadCodeEliminationPass>();
+    XLS_ASSIGN_OR_RETURN(new_pass,
+                         WrapWithOptions(std::move(new_pass), options));
+    pass->AddOwned(std::move(new_pass));
     return absl::OkStatus();
+  }
+
+  absl::StatusOr<std::unique_ptr<OptimizationPass>> FinalizeWithOptions(
+      std::unique_ptr<OptimizationCompoundPass>&& cur,
+      const PassPipelineProto::PassOptions& options) const override {
+    return WrapWithOptions(std::move(cur), options);
+  }
+  absl::StatusOr<std::unique_ptr<OptimizationPass>> WrapWithOptions(
+      std::unique_ptr<OptimizationPass>&& cur,
+      const PassPipelineProto::PassOptions& options) const {
+    std::unique_ptr<OptimizationPass> src = std::move(cur);
+    if (options.has_max_opt_level()) {
+      src = std::make_unique<
+          xls::internal::DynamicCapOptLevel<OptimizationWrapperPass>>(
+          options.max_opt_level(), std::move(src));
+    }
+    if (options.has_min_opt_level()) {
+      src = std::make_unique<
+          xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
+          options.min_opt_level(), std::move(src));
+    }
+    return std::move(src);
   }
 
  private:
@@ -193,5 +260,89 @@ TEST_F(PassBaseTest, PipelineGeneratorUnmatchedFixedpointClose) {
                   testing::MatchesRegex(".*Unmatched '\\]' in pipeline.*")));
 }
 
+TEST_F(PassBaseTest, PipelineGeneratorCapOptLevelOptions) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(Value::Tuple({}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  TestPipelineGenerator gen;
+  PassPipelineProto pipeline_proto;
+  ASSERT_TRUE(
+      google::protobuf::TextFormat::ParseFromString(R"pb(
+                                            top {
+                                              pipeline {
+                                                elements { pass_name: "record" }
+                                                elements {
+                                                  options { max_opt_level: 2 }
+                                                  pass_name: "record"
+                                                }
+                                                elements {
+                                                  options { max_opt_level: 3 }
+                                                  pass_name: "record"
+                                                }
+                                                elements { pass_name: "dce" }
+                                              }
+                                            }
+                                          )pb",
+                                          &pipeline_proto));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pipeline, gen.GeneratePipeline(pipeline_proto));
+  PassResults res;
+  ASSERT_THAT(
+      pipeline->Run(p.get(), OptimizationPassOptions().WithOptLevel(100), &res),
+      absl_testing::IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Literal(Value::Tuple({
+                                     Value(UBits(100, 32)),
+                                     Value(UBits(2, 32)),
+                                     Value(UBits(3, 32)),
+                                 })));
+}
+
+TEST_F(PassBaseTest, PipelineGeneratorMinOptLevel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.Literal(UBits(0, 64));
+  XLS_ASSERT_OK(fb.Build().status());
+  TestPipelineGenerator gen;
+  PassPipelineProto pipeline_proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"pb(
+        top {
+          pipeline {
+            elements { pass_name: "count_pass_a(1)" }
+            elements {
+              options { min_opt_level: 1 }
+              pass_name: "count_pass_a(1)"
+            }
+            elements {
+              options { min_opt_level: 2 }
+              pass_name: "count_pass_a(1)"
+            }
+            elements {
+              options { min_opt_level: 2 }
+              pipeline {
+                elements { pass_name: "count_pass_b(1)" }
+                elements { pass_name: "count_pass_b(1)" }
+              }
+            }
+            elements {
+              options { min_opt_level: 1 }
+              pipeline {
+                elements { pass_name: "count_pass_b(1)" }
+                elements { pass_name: "count_pass_b(1)" }
+              }
+            }
+            elements { pass_name: "dce" }
+          }
+        }
+      )pb",
+      &pipeline_proto));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pipeline, gen.GeneratePipeline(pipeline_proto));
+  PassResults res;
+  ASSERT_THAT(
+      pipeline->Run(p.get(), OptimizationPassOptions().WithOptLevel(1), &res),
+      absl_testing::IsOkAndHolds(true));
+  EXPECT_EQ(gen.a_count(), 2);
+  EXPECT_EQ(gen.b_count(), 2);
+}
 }  // namespace
 }  // namespace xls

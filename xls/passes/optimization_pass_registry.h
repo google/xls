@@ -18,11 +18,13 @@
 #include <memory>
 #include <string_view>
 #include <tuple>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "xls/common/module_initializer.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -48,10 +50,24 @@ template <typename PassClass, typename... Args>
 class Adder final : public OptimizationPassGenerator {
  public:
   explicit Adder(Args... args) : args_(std::forward_as_tuple(args...)) {}
-  absl::Status AddToPipeline(OptimizationCompoundPass* pass) const final {
+  absl::Status AddToPipeline(
+      OptimizationCompoundPass* pass,
+      const PassPipelineProto::PassOptions& options) const final {
     // Actually construct and insert the PassClass instance
     auto function = [&](auto... args) {
-      pass->Add<PassClass>(std::forward<decltype(args)>(args)...);
+      std::unique_ptr<OptimizationPass> base =
+          std::make_unique<PassClass>(std::forward<decltype(args)>(args)...);
+      if (options.has_max_opt_level()) {
+        base = std::make_unique<
+            ::xls::internal::DynamicCapOptLevel<OptimizationWrapperPass>>(
+            options.max_opt_level(), std::move(base));
+      }
+      if (options.has_min_opt_level()) {
+        base = std::make_unique<
+            ::xls::internal::DynamicIfOptLevelAtLeast<OptimizationWrapperPass>>(
+            options.min_opt_level(), std::move(base));
+      }
+      pass->AddOwned(std::move(base));
     };
     // Unpack the argument tuple.
     std::apply(function, args_);

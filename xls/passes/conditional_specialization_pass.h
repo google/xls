@@ -21,6 +21,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -35,6 +36,8 @@ class ConditionalSpecializationPass : public OptimizationFunctionBasePass {
       : OptimizationFunctionBasePass(kName, "Conditional specialization"),
         use_bdd_(use_bdd) {}
   ~ConditionalSpecializationPass() override = default;
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override;
 
  protected:
   bool use_bdd_;

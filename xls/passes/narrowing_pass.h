@@ -23,6 +23,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
 
@@ -42,6 +43,8 @@ class NarrowingPass : public OptimizationFunctionBasePass {
   explicit NarrowingPass(AnalysisType analysis = AnalysisType::kRange)
       : OptimizationFunctionBasePass(kName, "Narrowing"), analysis_(analysis) {}
   ~NarrowingPass() override = default;
+
+  absl::StatusOr<PassPipelineProto::Element> ToProto() const override;
 
  protected:
   AnalysisType analysis_;
