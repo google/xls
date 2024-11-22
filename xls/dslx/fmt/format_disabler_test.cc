@@ -22,6 +22,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
@@ -35,6 +37,7 @@
 namespace xls::dslx {
 namespace {
 
+using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 constexpr std::string_view kFmtOff = "// dslx-fmt::off\n";
@@ -327,6 +330,53 @@ TEST(FormatDisablerTest, NoSpan) {
   XLS_ASSERT_OK_AND_ASSIGN(actual, disabler(&built_in));
 
   ASSERT_FALSE(actual.has_value());
+}
+
+TEST(FormatDisablerTest, TwoDisables) {
+  constexpr std::string_view kProgram = R"(
+// dslx-fmt::off
+// dslx-fmt::off
+import m;
+)";
+
+  std::vector<CommentData> comments_vec;
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> m,
+      ParseModule(kProgram, "fake.x", "fake", file_table, &comments_vec));
+  Comments comments = Comments::Create(comments_vec);
+
+  Import* import_node = std::get<Import*>(m->top().at(0));
+  FormatDisabler disabler(comments, kProgram);
+  EXPECT_THAT(disabler(import_node),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("between module start and")));
+}
+
+TEST(FormatDisablerTest, TwoDisablesAfterImport) {
+  constexpr std::string_view kProgram = R"(
+import m;
+
+// dslx-fmt::off
+// dslx-fmt::off
+    import m2;
+)";
+
+  std::vector<CommentData> comments_vec;
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> m,
+      ParseModule(kProgram, "fake.x", "fake", file_table, &comments_vec));
+  Comments comments = Comments::Create(comments_vec);
+
+  FormatDisabler disabler(comments, kProgram);
+  Import* first_import_node = std::get<Import*>(m->top().at(0));
+  XLS_ASSERT_OK(disabler(first_import_node));
+
+  Import* second_import_node = std::get<Import*>(m->top().at(1));
+  EXPECT_THAT(disabler(second_import_node),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("between import m; and import m2")));
 }
 
 TEST(FormatDisablerTest, InternalCommentIncludedInVerbatimNode) {

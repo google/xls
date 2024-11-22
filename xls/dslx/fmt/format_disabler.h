@@ -54,13 +54,13 @@ class FormatDisabler {
   // contents.
   absl::Status SetContents();
 
-  // Find a CommentData object with the matching text in the given span.
-  std::optional<const CommentData *> FindCommentWithText(std::string_view text,
-                                                         Span span);
+  // Find CommentData objects with the matching text in the given span.
+  std::vector<const CommentData *> FindCommentsWithText(std::string_view text,
+                                                        Span span);
 
-  // Find a CommentData object that is a disable comment between the "prevoius"
-  // node and the given one.
-  std::optional<const CommentData *> FindDisableBefore(const AstNode *node);
+  // Find a CommentData object that is a disable comment between the two nodes.
+  std::vector<const CommentData *> FindDisablesBetween(const AstNode *before,
+                                                       const AstNode *current);
 
   // Find a CommentData object that is a enable comment after the given node
   std::optional<const CommentData *> FindEnableAfter(const AstNode *node);

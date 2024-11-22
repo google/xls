@@ -65,15 +65,24 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   }
 
   // Look for a disable comment between the previous node and this node.
-  std::optional<const CommentData *> disable_comment = FindDisableBefore(node);
-  if (!disable_comment.has_value()) {
+  std::vector<const CommentData *> disable_comments =
+      FindDisablesBetween(previous_node_, node);
+  if (disable_comments.empty()) {
     previous_node_ = node;
     // Node should be unchanged.
     return std::nullopt;
   }
-
-  // TODO: https://github.com/google/xls/issues/1320 - detect two disable
-  // formatting comments in a row and report an error.
+  if (disable_comments.size() > 1) {
+    if (previous_node_ == nullptr) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Multiple dslx-fmt::off commands between module start and ",
+          node->ToString()));
+    }
+    return absl::InvalidArgumentError(
+        absl::StrCat("Multiple dslx-fmt::off commands between ",
+                     previous_node_->ToString(), " and ", node->ToString()));
+  }
+  const CommentData *disable_comment = disable_comments[0];
 
   // If there's a disable comment between the previous node and this node:
 
@@ -91,7 +100,7 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
 
   // b. Extract the content between the disable comment and the end position
   // from the original text.
-  Span unformatted_span((*disable_comment)->span.limit(), limit);
+  Span unformatted_span(disable_comment->span.limit(), limit);
   XLS_ASSIGN_OR_RETURN(std::string text, GetTextInSpan(unformatted_span));
 
   // c. Create a new VerbatimNode with the content from step b.
@@ -110,41 +119,42 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   return verbatim_node;
 }
 
-std::optional<const CommentData *> FormatDisabler::FindCommentWithText(
+std::vector<const CommentData *> FormatDisabler::FindCommentsWithText(
     std::string_view text, Span span) {
+  std::vector<const CommentData *> results;
   const std::vector<const CommentData *> comments = comments_.GetComments(span);
   for (const CommentData *comment : comments) {
     if (comment->text == text) {
-      return comment;
+      results.push_back(comment);
     }
   }
-  return std::nullopt;
+  return results;
 }
 
-std::optional<const CommentData *> FormatDisabler::FindDisableBefore(
-    const AstNode *node) {
-  if (!node->GetSpan().has_value()) {
-    return std::nullopt;
+std::vector<const CommentData *> FormatDisabler::FindDisablesBetween(
+    const AstNode *before, const AstNode *current) {
+  if (!current->GetSpan().has_value()) {
+    return {};
   }
 
   // Default start to start of module
-  Pos start = node->owner()->span().start();
-  if (previous_node_ != nullptr && previous_node_->GetSpan().has_value()) {
+  Pos start = current->owner()->span().start();
+  if (before != nullptr && before->GetSpan().has_value()) {
     // Span from end of previous node to start of this node.
-    start = previous_node_->GetSpan()->start();
+    start = before->GetSpan()->start();
   }
 
-  if (node->GetSpan()->start() < start) {
+  if (current->GetSpan()->start() < start) {
     // This node is before the previous node, so it's not disableable.
-    VLOG(5) << "Node " << node->ToString() << " @ "
-            << node->GetSpan()->start().ToStringNoFile()
+    VLOG(5) << "Node " << current->ToString() << " @ "
+            << current->GetSpan()->start().ToStringNoFile()
             << " is before previous span: " << start.ToStringNoFile()
             << ", skipping";
-    return std::nullopt;
+    return {};
   }
 
-  Span span(start, node->GetSpan()->start());
-  return FindCommentWithText(" dslx-fmt::off\n", span);
+  Span span(start, current->GetSpan()->start());
+  return FindCommentsWithText(" dslx-fmt::off\n", span);
 }
 
 std::optional<const CommentData *> FormatDisabler::FindEnableAfter(
@@ -155,7 +165,12 @@ std::optional<const CommentData *> FormatDisabler::FindEnableAfter(
 
   // The limit of the span is the end of the module.
   Span span(node->GetSpan()->limit(), node->owner()->span().limit());
-  return FindCommentWithText(" dslx-fmt::on\n", span);
+  std::vector<const CommentData *> results =
+      FindCommentsWithText(" dslx-fmt::on\n", span);
+  if (results.empty()) {
+    return std::nullopt;
+  }
+  return results[0];
 }
 
 // Checks that the column is non-negative and within the line length.
