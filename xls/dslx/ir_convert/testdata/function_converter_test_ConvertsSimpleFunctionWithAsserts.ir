@@ -16,7 +16,7 @@ fn __itok__test_module__f(__token: token id=1, __activated: bits[1] id=2) -> (to
   literal.22: bits[32] = literal(value=41, id=22, pos=[(0,3,18)])
   add.25: bits[32] = add(literal.23, literal.24, id=25, pos=[(0,3,26)])
   not.9: bits[1] = not(__activated, id=9)
-  eq.7: bits[1] = eq(literal.3, add.6, id=7, pos=[(0,1,23)])
+  eq.7: bits[1] = eq(literal.3, add.6, id=7, pos=[(0,1,16)])
   not.18: bits[1] = not(__activated, id=18)
   eq.17: bits[1] = eq(literal.13, add.16, id=17)
   not.27: bits[1] = not(__activated, id=27)

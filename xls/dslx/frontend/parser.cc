@@ -685,7 +685,7 @@ absl::StatusOr<Expr*> Parser::ParseRangeExpression(
 
 absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
     Bindings& bindings, ExprRestrictions restrictions) {
-  XLS_ASSIGN_OR_RETURN(Token if_, PopKeywordOrError(Keyword::kIf));
+  XLS_ASSIGN_OR_RETURN(Token if_kw, PopKeywordOrError(Keyword::kIf));
   XLS_ASSIGN_OR_RETURN(
       Expr * test,
       ParseExpression(bindings,
@@ -697,14 +697,14 @@ absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
   std::variant<StatementBlock*, Conditional*> alternate;
 
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
+  if (peek->IsKeyword(Keyword::kIf)) {  // else if
     XLS_ASSIGN_OR_RETURN(alternate,
                          ParseConditionalNode(bindings, kNoRestrictions));
   } else {
     XLS_ASSIGN_OR_RETURN(alternate, ParseBlockExpression(bindings));
   }
 
-  return module_->Make<Conditional>(Span(if_.span().start(), GetPos()), test,
+  return module_->Make<Conditional>(Span(if_kw.span().start(), GetPos()), test,
                                     consequent, alternate);
 }
 
@@ -1399,7 +1399,8 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
       return ParseErrorStatus(op.span(),
                               "comparison operators cannot be chained");
     }
-    lhs = module_->Make<Binop>(op.span(), kind, lhs, rhs);
+    Span span(lhs->span().start(), rhs->span().limit());
+    lhs = module_->Make<Binop>(span, kind, lhs, rhs);
   }
   VLOG(5) << "ParseComparisonExpression; result: `" << lhs->ToString() << "`";
   return lhs;
@@ -1426,7 +1427,8 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
       XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
       XLS_ASSIGN_OR_RETURN(ColonRef * colon_ref,
                            ParseColonRef(bindings, subject, subject->span()));
-      return module_->Make<NameDefTree>(tok.span(), colon_ref);
+      Span span(tok.span().start(), colon_ref->span().limit());
+      return module_->Make<NameDefTree>(span, colon_ref);
     }
 
     std::optional<BoundNode> resolved = bindings.ResolveNode(*tok.GetValue());
@@ -1445,7 +1447,8 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
     // If the name is not bound, this pattern is creating a binding.
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
     bindings.Add(name_def->identifier(), name_def);
-    auto* result = module_->Make<NameDefTree>(tok.span(), name_def);
+    Span span(tok.span().start(), GetPos());
+    auto* result = module_->Make<NameDefTree>(span, name_def);
     name_def->set_definer(result);
     return result;
   }
@@ -1587,8 +1590,8 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
   XLS_RETURN_IF_ERROR(
       DropTokenOrError(TokenKind::kSemi, /*start=*/&kw,
                        /*context=*/"Expect an ';' at end of import statement"));
-
-  auto* import = module_->Make<Import>(kw.span(), subject, *name_def, alias);
+  Span span(kw.span().start(), GetPos());
+  auto* import = module_->Make<Import>(span, subject, *name_def, alias);
   name_def->set_definer(import);
   bindings.Add(name_def->identifier(), import);
   return import;
@@ -1908,13 +1911,13 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   switch (peek->kind()) {
     case TokenKind::kColon: {  // Possibly a Number of ColonRef type.
-      Span span(new_pos, GetPos());
       // The only valid construct here would be declaring a number via
       // ColonRef-colon-Number, e.g., "module::type:7".
       if (dynamic_cast<ColonRef*>(lhs) == nullptr) {
         goto done;
       }
 
+      Span span(new_pos, GetPos());
       auto* type_ref =
           module_->Make<TypeRef>(span, ToTypeDefinition(lhs).value());
       auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
@@ -2233,7 +2236,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
   if (std::holds_alternative<NameRef*>(name_or_colon_ref)) {
     NameRef* name_ref = std::get<NameRef*>(name_or_colon_ref);
     spawnee = name_ref;
-    // We avoid name collisions b/w exiesting functions and Proc config/next fns
+    // We avoid name collisions b/w existing functions and Proc config/next fns
     // by using a "." as the separator, which is invalid for function
     // specifications.
     std::string config_name = absl::StrCat(name_ref->identifier(), ".config");
@@ -2985,7 +2988,7 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
 }
 
 absl::StatusOr<For*> Parser::ParseFor(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(Token for_, PopKeywordOrError(Keyword::kFor));
+  XLS_ASSIGN_OR_RETURN(Token for_kw, PopKeywordOrError(Keyword::kFor));
 
   Bindings for_bindings(&bindings);
   XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(for_bindings));
@@ -3005,7 +3008,7 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(StatementBlock * body,
                        ParseBlockExpression(for_bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(
-      TokenKind::kOParen, &for_,
+      TokenKind::kOParen, &for_kw,
       "Need an initial accumulator value to start the for loop."));
 
   // We must be sure to use the outer bindings when parsing the init
@@ -3013,7 +3016,7 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings& bindings) {
   // trips have iterated when the init value is evaluated).
   XLS_ASSIGN_OR_RETURN(Expr * init, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-  return module_->Make<For>(Span(for_.span().limit(), GetPos()), names, type,
+  return module_->Make<For>(Span(for_kw.span().start(), GetPos()), names, type,
                             iterable, body, init);
 }
 
@@ -3040,7 +3043,7 @@ absl::StatusOr<UnrollFor*> Parser::ParseUnrollFor(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(Expr * init, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
 
-  return module_->Make<UnrollFor>(Span(unroll_for.span().limit(), GetPos()),
+  return module_->Make<UnrollFor>(Span(unroll_for.span().start(), GetPos()),
                                   names, types, iterable, body, init);
 }
 

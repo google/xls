@@ -237,7 +237,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'xls/dslx/tests/errors/match_multi_pattern_with_bindings.x'
     )
     self.assertIn(
-        'xls/dslx/tests/errors/match_multi_pattern_with_bindings.x:17:5-17:6',
+        'xls/dslx/tests/errors/match_multi_pattern_with_bindings.x:17:5-17:7',
         stderr,
     )
     self.assertIn('Cannot have multiple patterns that bind names', stderr)

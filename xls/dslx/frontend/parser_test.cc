@@ -2928,7 +2928,7 @@ const x)";
       parser.ParseModule(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                "ParseError: <no-file>:2:7-2:8 Constant definition is "
-               "shadowing an existing definition from <no-file>:1:1-1:7"));
+               "shadowing an existing definition from <no-file>:1:1-1:10"));
 }
 
 TEST_F(ParserTest, ZeroLengthStringAtEof) {
@@ -2951,7 +2951,7 @@ import repetitively;)";
       module_or,
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Import of `repetitively` is shadowing an existing "
-                         "definition at <no-file>:1:1-1:7")));
+                         "definition at <no-file>:1:1-1:21")));
 }
 
 TEST_F(ParserTest, UnreasonablyDeepExpr) {
