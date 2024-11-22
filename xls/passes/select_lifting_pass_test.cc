@@ -14,6 +14,8 @@
 
 #include "xls/passes/select_lifting_pass.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
@@ -212,6 +214,32 @@ TEST_F(SelectLiftingPassTest, LiftSingleSelectWithIndicesOfDifferentBitwidth) {
   EXPECT_EQ(f->node_count(), 9);
   EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
   EXPECT_EQ(f->node_count(), 9);
+}
+
+TEST_F(SelectLiftingPassTest, LiftSingleSelectWithNoCases) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  // Fetch the types
+  Type* u32_type = p->GetBitsType(32);
+
+  // Create the parameters of the IR function
+  BValue a = fb.Param("array", p->GetArrayType(16, u32_type));
+  BValue c = fb.Param("condition", u32_type);
+  BValue i = fb.Param("first_index", u32_type);
+
+  // Create the body of the IR function
+  BValue condition_constant = fb.Literal(UBits(10, 32));
+  BValue selector = fb.AddCompareOp(Op::kUGt, c, condition_constant);
+  BValue array_index_i = fb.ArrayIndex(a, {i});
+  std::vector<BValue> cases;
+  BValue select_node = fb.Select(selector, cases, array_index_i);
+
+  // Build the function
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(select_node));
+
+  // Set the expected outputs
+  EXPECT_THAT(Run(f), absl_testing::IsOkAndHolds(false));
 }
 
 }  // namespace

@@ -212,9 +212,16 @@ absl::StatusOr<std::optional<LiftableSelectOperandInfo>> CanLiftSelect(
   // Only "select" nodes with specific properties can be optimized by this
   // transformation.
   //
-  // Shared property that must hold for all cases:
-  // Only "select" nodes with the same node type for all its inputs can
-  // be optimized.
+  // Shared properties that must hold for all cases:
+  //
+  // Property A:
+  //   Only "select" nodes with at least one input case can be optimized.
+  //
+  // Property B:
+  //   Only "select" nodes with the same node type for all its inputs can
+  //   be optimized.
+  //
+  //
   //
   // There are more properties that must hold for the transformation to be
   // applicable. Such properties are specific to the node type of the inputs of
@@ -229,7 +236,14 @@ absl::StatusOr<std::optional<LiftableSelectOperandInfo>> CanLiftSelect(
   absl::Span<Node *const> select_cases = GetCases(select_to_optimize);
   std::optional<Node *> default_value = GetDefaultValue(select_to_optimize);
 
-  // Check the shared property
+  // Check the shared property A
+  if (select_cases.empty()) {
+    VLOG(3) << "    The transformation is not applicable: the select does not "
+               "have input cases";
+    return std::nullopt;
+  }
+
+  // Check the shared property B
   std::optional<Op> shared_input_op =
       SharedOperation(select_cases, default_value);
   if (!shared_input_op) {
