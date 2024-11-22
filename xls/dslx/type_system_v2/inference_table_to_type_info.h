@@ -19,8 +19,10 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -28,8 +30,8 @@ namespace xls::dslx {
 // types associated with all nodes in the table. This is the final step of type
 // inference.
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
-    const InferenceTable& table, Module& module, TypeInfoOwner& type_info_owner,
-    const FileTable& file_table);
+    const InferenceTable& table, Module& module, ImportData& import_data,
+    WarningCollector& warning_collector, const FileTable& file_table);
 
 }  // namespace xls::dslx
 

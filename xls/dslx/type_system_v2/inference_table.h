@@ -18,11 +18,13 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/substitute.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
@@ -31,6 +33,86 @@ namespace xls::dslx {
 
 // The kinds of variables that can be defined in an `InferenceTable`.
 enum class InferenceVariableKind : uint8_t { kInteger, kBool, kType };
+
+// Identifies an invocation of a parametric function, with enough context to
+// determine what its effective parametric value expressions must be. These are
+// dealt out by an `InferenceTable`.
+class ParametricInvocation {
+ public:
+  ParametricInvocation(
+      uint64_t id, const Invocation& node, const Function& callee,
+      const Function& caller,
+      std::optional<const ParametricInvocation*> caller_invocation)
+      : id_(id),
+        node_(node),
+        callee_(callee),
+        caller_(caller),
+        caller_invocation_(caller_invocation) {}
+
+  const Invocation& node() const { return node_; }
+  const Function& callee() const { return callee_; }
+  const Function& caller() const { return caller_; }
+
+  // Note: this is `nullopt` if the caller is not parametric.
+  const std::optional<const ParametricInvocation*>& caller_invocation() const {
+    return caller_invocation_;
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const ParametricInvocation& invocation) {
+    return H::combine(std::move(h), invocation.node_,
+                      invocation.caller_invocation_);
+  }
+
+  std::string ToString() const {
+    return absl::Substitute(
+        "ParametricInvocation(id=$0, node=$1, caller=$2, caller_id=$3)", id_,
+        node_.ToString(), caller_.identifier(),
+        caller_invocation_.has_value()
+            ? std::to_string((*caller_invocation_)->id_)
+            : "none");
+  }
+
+ private:
+  const uint64_t id_;  // Just for logging.
+  const Invocation& node_;
+  const Function& callee_;
+  const Function& caller_;
+  const std::optional<const ParametricInvocation*> caller_invocation_;
+};
+
+// An `Expr` paired with the `ParametricInvocation` in whose context any
+// parametrics in it should be evaluated. This is useful for capturing the
+// effective value expressions of parametrics, which may in turn refer to other
+// parametrics. Defaulted values are scoped to the callee, while explicit values
+// are scoped to the caller. In a scenario like:
+//
+//   fn foo<M: u32, N: u32 = {M * M}>(a: uN[M], b: uN[N]) { ... }
+//   fn bar<M: u32> {
+//     foo<M + u32:1>(...);
+//   }
+//
+// - `M + u32:1`, as the value of `M`, is scoped to a `bar` invocation.
+// - `M * M`, as the value of `N`, is scoped to a `foo` invocation.
+class InvocationScopedExpr {
+ public:
+  InvocationScopedExpr(std::optional<const ParametricInvocation*> invocation,
+                       const TypeAnnotation* type_annotation, const Expr* expr)
+      : invocation_(invocation),
+        type_annotation_(type_annotation),
+        expr_(expr) {}
+
+  const std::optional<const ParametricInvocation*>& invocation() const {
+    return invocation_;
+  }
+  const TypeAnnotation* type_annotation() const { return type_annotation_; }
+  const Expr* expr() const { return expr_; }
+
+ private:
+  const std::optional<const ParametricInvocation*> invocation_;
+  const TypeAnnotation* const type_annotation_;
+  const Expr* const expr_;
+};
 
 // A table that facilitates a type inference algorithm where unknowns during the
 // course of inference are represented using variables (which we call "inference
@@ -63,6 +145,45 @@ class InferenceTable {
   virtual absl::StatusOr<NameRef*> DefineInternalVariable(
       InferenceVariableKind kind, AstNode* definer, std::string_view name) = 0;
 
+  // Defines an inference variable corresponding to a parametric in the DSLX
+  // source code. Unlike an internal variable, a parametric has a different
+  // actual value or constraints per instantiation, so instantiations must be
+  // created via `AddParametricInvocation`. In an example like:
+  //    `fn foo<N: u32>(a: uN[N]) -> uN[N] { a + a }`
+  //
+  // N is a parametric variable, which is referenced by the type annotation for
+  // `a`, the return type of `foo`, etc.
+  //
+  // The table will store different value expressions for `N` per invocation
+  // context for `foo`, but it does not need distinct copies of the type
+  // annotation for `a` for example. There is one copy of that in the table,
+  // which uses a `NameRef` to the variable `N`.
+  //
+  // At the time of conversion of the table to `TypeInfo`, we distinctly resolve
+  // `N` and its dependent types for each invocation context of `foo`.
+  virtual absl::StatusOr<NameRef*> DefineParametricVariable(
+      const ParametricBinding& binding) = 0;
+
+  // Defines an invocation context for a parametric function, giving its
+  // associated parametric variables distinct value expression storage for that
+  // context.
+  virtual absl::StatusOr<const ParametricInvocation*> AddParametricInvocation(
+      const Invocation& invocation, const Function& callee,
+      const Function& caller,
+      std::optional<const ParametricInvocation*> caller_invocation) = 0;
+
+  // Retrieves all the parametric invocations that have been defined for all
+  // parametric functions.
+  virtual std::vector<const ParametricInvocation*> GetParametricInvocations()
+      const = 0;
+
+  // Returns the expression for the value of the given parametric in the given
+  // invocation. Note that the return value may be scoped to either `invocation`
+  // or its caller, depending on where the value expression originated from.
+  virtual InvocationScopedExpr GetParametricValue(
+      const NameDef& binding_name_def,
+      const ParametricInvocation& invocation) const = 0;
+
   // Sets the type variable associated with `node`. The `type` must refer to a
   // type variable previously defined in this table. This can serve as a way to
   // constrain one or more nodes to match some unknown type, such as the left
@@ -76,9 +197,17 @@ class InferenceTable {
   virtual absl::Status SetTypeAnnotation(const AstNode* node,
                                          const TypeAnnotation* type) = 0;
 
-  // Returns all the nodes that have information stored in the table, in the
-  // order the table first became aware of the nodes.
-  virtual const std::vector<const AstNode*>& GetNodes() const = 0;
+  // Returns all the nodes that have information in the table and are not
+  // dependent on parametric variables (i.e. their types, if any, should have
+  // single concretizations). The nodes are returned in the order added to the
+  // table.
+  virtual std::vector<const AstNode*> GetStaticNodes() const = 0;
+
+  // Returns all the nodes that have information in the table and whose types
+  // may have distinct concretizations in the context of the given `invocation`.
+  // The nodes are returned in the order added to the table.
+  virtual std::vector<const AstNode*> GetNodesWithInvocationSpecificTypes(
+      const ParametricInvocation* invocation) const = 0;
 
   // Returns the type annotation for `node` in the table, if any.
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(
