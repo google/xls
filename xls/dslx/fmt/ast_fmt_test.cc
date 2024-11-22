@@ -2754,5 +2754,19 @@ TEST_F(ModuleFmtTest, TooLongLines) {
 )");
 }
 
+TEST_F(ModuleFmtTest, ExternVerilog) {
+  // Note alternate string literal delimiter * so it can use )" on the
+  // last line of the annotation.
+  DoFmt(R"*(#[extern_verilog("external_divmod #(
+     .divisor_width({B_WIDTH})
+    ) {fn} (
+     .dividend({a}),
+     .by_zero({return.1})
+    )")]
+fn divmod() {
+}
+)*");
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -393,10 +393,14 @@ class AstCloner : public AstNodeVisitor {
       new_return_type =
           down_cast<TypeAnnotation*>(old_to_new_.at(n->return_type()));
     }
-    old_to_new_[n] = module_->Make<Function>(
+    auto new_function = module_->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
         new_return_type, down_cast<StatementBlock*>(old_to_new_.at(n->body())),
         n->tag(), n->is_public());
+    if (n->extern_verilog_module().has_value()) {
+      new_function->set_extern_verilog_module(*n->extern_verilog_module());
+    }
+    old_to_new_[n] = new_function;
     new_name_def->set_definer(old_to_new_.at(n));
     return absl::OkStatus();
   }

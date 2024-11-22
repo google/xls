@@ -1636,5 +1636,26 @@ struct Point {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, ExternVerilog) {
+  // Note alternate string literal delimiter * so it can use )" on the
+  // last line of the annotation.
+  constexpr std::string_view kProgram =
+      R"*(#[extern_verilog("external_divmod #(
+     .divisor_width({B_WIDTH})
+    ) {fn} (
+     .dividend({a}),
+     .by_zero({return.1})
+    )")]
+fn divmod() {})*";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx

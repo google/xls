@@ -15,7 +15,6 @@
 // Example how to instantiate an existing Verilog module, with the DSLX
 // foreign function interface.
 
-
 // A function that we want to interface with some existing verilog module
 // we implement the function itself in DSLX and provide a text template that
 // will be used to create an instantiation of the module with the correct
@@ -47,25 +46,18 @@
      .remainder({return.0.1}),  // ... values referenced as return.0 and return.1
      .by_zero({return.1})
     )")]
-fn divmod<A_WIDTH:u32, B_WIDTH:u32>(a:bits[A_WIDTH], b:bits[B_WIDTH])
-                                    -> ((bits[A_WIDTH], bits[B_WIDTH]), bool) {
-    if (b == u32:0) {
-        ((a, b), true)
-    } else {
-        ((a / b, a % b), false)
-    }
+fn divmod<A_WIDTH: u32, B_WIDTH: u32>
+    (a: bits[A_WIDTH], b: bits[B_WIDTH]) -> ((bits[A_WIDTH], bits[B_WIDTH]), bool) {
+    if b == u32:0 { ((a, b), true) } else { ((a / b, a % b), false) }
 }
 
-
-fn main(dividend:u32, divisor:u32) -> ((u32, u32), bool) {
-  divmod(dividend, divisor)
-}
+fn main(dividend: u32, divisor: u32) -> ((u32, u32), bool) { divmod(dividend, divisor) }
 
 // In regular testing and bytecode interpretation, the DSLX function is used.
 // Only in the finaly code-generation, the function invocation is replaced with
 // the user-chosen module.
 #[test]
 fn divmod_test() {
-  assert_eq(divmod(u32:42, u32:5), ((u32:8, u32:2), false));
-  assert_eq(divmod(u32:42, u32:0), ((u32:42, u32:0), true));
+    assert_eq(divmod(u32:42, u32:5), ((u32:8, u32:2), false));
+    assert_eq(divmod(u32:42, u32:0), ((u32:42, u32:0), true));
 }

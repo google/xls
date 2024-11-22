@@ -2007,23 +2007,33 @@ DocRef Formatter::Format(const Function& n) {
         arena_.MakeNest(ConcatNGroup(arena_, params_pieces)));
   }
 
-  // For empty function we don't put spaces between the curls.
-  if (n.body()->empty()) {
-    std::vector<DocRef> fn_pieces = {
-        ConcatNGroup(arena_, signature_pieces),
-        FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false),
-        arena_.ccurl(),
-    };
-
-    return ConcatNGroup(arena_, fn_pieces);
+  std::vector<DocRef> fn_pieces;
+  if (n.extern_verilog_module().has_value()) {
+    auto code_template = (*n.extern_verilog_module()).code_template();
+    fn_pieces.push_back(
+        ConcatN(arena_, {
+                            arena_.MakeText("#[extern_verilog(\""),
+                            arena_.MakeText(code_template),
+                            arena_.MakeText("\")]"),
+                            arena_.hard_line(),
+                        }));
   }
 
-  std::vector<DocRef> fn_pieces = {
-      ConcatNGroup(arena_, signature_pieces),
-      arena_.break1(),
-      FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false),
-      arena_.break1(),
-      arena_.ccurl(),
+  if (n.body()->empty()) {
+    // For empty function we don't put spaces between the curls.
+    fn_pieces.push_back(ConcatNGroup(arena_, signature_pieces));
+    fn_pieces.push_back(
+        FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false));
+    fn_pieces.push_back(arena_.ccurl());
+  } else {
+    // For non-empty functions, we break after the signature and before
+    // the ccurl.
+    fn_pieces.push_back(ConcatNGroup(arena_, signature_pieces));
+    fn_pieces.push_back(arena_.break1());
+    fn_pieces.push_back(
+        FmtBlock(*n.body(), comments_, arena_, /*add_curls=*/false));
+    fn_pieces.push_back(arena_.break1());
+    fn_pieces.push_back(arena_.ccurl());
   };
 
   return ConcatNGroup(arena_, fn_pieces);

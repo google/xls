@@ -319,6 +319,11 @@ xls_dslx_test(
     dslx_test_args = {"compare": "jit"},
 )
 
+xls_dslx_fmt_test(
+    name = "ffi_fmt_test",
+    src = "ffi.x",
+)
+
 xls_dslx_verilog(
     name = "ffi_codegen",
     codegen_args = {
