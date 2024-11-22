@@ -668,6 +668,10 @@ absl::Status ConstexprEvaluator::HandleUnrollFor(const UnrollFor* expr) {
   return absl::OkStatus();
 }
 
+absl::Status ConstexprEvaluator::HandleVerbatimNode(const VerbatimNode* node) {
+  return absl::UnimplementedError("Should not evaluate VerbatimNode");
+}
+
 absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {

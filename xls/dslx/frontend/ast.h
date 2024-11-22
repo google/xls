@@ -75,6 +75,7 @@
   X(TupleIndex)                    \
   X(Unop)                          \
   X(UnrollFor)                     \
+  X(VerbatimNode)                  \
   X(XlsTuple)                      \
   X(ZeroMacro)
 
@@ -107,7 +108,6 @@
   X(TestProc)                     \
   X(TypeAlias)                    \
   X(TypeRef)                      \
-  X(VerbatimNode)                 \
   X(WidthSlice)                   \
   X(WildcardPattern)              \
   /* type annotations */          \
@@ -3361,12 +3361,12 @@ class ChannelDecl : public Expr {
 
 // A node that contains original source text only; it is typically used by the
 // formatter.
-class VerbatimNode : public AstNode {
+class VerbatimNode : public Expr {
  public:
   VerbatimNode(Module* owner, Span span, const std::string text)
-      : AstNode(owner), span_(std::move(span)), text_(std::move(text)) {}
+      : Expr(owner, span, /*in_parens=*/false), text_(std::move(text)) {}
   VerbatimNode(Module* owner, Span span)
-      : AstNode(owner), span_(std::move(span)), text_("") {}
+      : Expr(owner, span, /*in_parens=*/false), text_("") {}
 
   ~VerbatimNode() override;
 
@@ -3377,7 +3377,7 @@ class VerbatimNode : public AstNode {
 
   std::string_view GetNodeTypeName() const override { return "VerbatimNode"; }
 
-  std::string ToString() const override { return text_; }
+  std::string ToStringInternal() const override { return text_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
@@ -3386,12 +3386,14 @@ class VerbatimNode : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleVerbatimNode(this);
   }
-
-  const Span& span() const { return span_; }
-  std::optional<Span> GetSpan() const override { return span_; }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleVerbatimNode(this);
+  }
+  Precedence GetPrecedenceWithoutParens() const override {
+    return Precedence::kStrongest;
+  }
 
  private:
-  Span span_;
   std::string text_;
 };
 

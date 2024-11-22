@@ -1597,6 +1597,10 @@ absl::Status BytecodeEmitter::HandleUnop(const Unop* node) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleVerbatimNode(const VerbatimNode* node) {
+  return absl::UnimplementedError("Should not emit VerbatimNode");
+}
+
 absl::Status BytecodeEmitter::HandleXlsTuple(const XlsTuple* node) {
   for (auto* member : node->members()) {
     XLS_RETURN_IF_ERROR(member->AcceptExpr(this));

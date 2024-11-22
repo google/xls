@@ -122,6 +122,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleTupleIndex(const TupleIndex* node) override;
   absl::Status HandleUnop(const Unop* node) override;
   absl::Status HandleUnrollFor(const UnrollFor* node) override;
+  absl::Status HandleVerbatimNode(const VerbatimNode* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
 
   absl::Status HandleBuiltinDecode(const Invocation* node);

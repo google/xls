@@ -417,6 +417,11 @@ class InvocationVisitor : public ExprVisitor {
     return expr->operand()->AcceptExpr(this);
   }
 
+  absl::Status HandleVerbatimNode(const VerbatimNode* node) override {
+    return absl::Status(absl::StatusCode::kUnimplemented,
+                        "Should not convert VerbatimNode");
+  }
+
   absl::Status HandleXlsTuple(const XlsTuple* expr) override {
     for (const Expr* member : expr->members()) {
       XLS_RETURN_IF_ERROR(member->AcceptExpr(this));

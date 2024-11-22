@@ -296,6 +296,13 @@ DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
   return arena.MakeText(BuiltinTypeToString(n.builtin_type()));
 }
 
+DocRef Fmt(const VerbatimNode& n, const Comments& comments, DocArena& arena) {
+  if (n.text().empty()) {
+    return arena.empty();
+  }
+  return arena.MakeZeroIndent(arena.MakeText(std::string(n.text())));
+}
+
 DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
            DocArena& arena) {
   DocRef elem = Fmt(*n.element_type(), comments, arena);
@@ -1852,10 +1859,9 @@ DocRef Formatter::Format(const ConstAssert& n) {
 }
 
 DocRef Formatter::Format(const VerbatimNode* n) {
-  if (n->text().empty()) {
-    return arena_.empty();
-  }
-  return arena_.MakeZeroIndent(arena_.MakeText(std::string(n->text())));
+  // TODO: inline the Fmt method after all Expr-descendants are migrated to the
+  // Formatter class.
+  return Fmt(*n, comments_, arena_);
 }
 
 DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
@@ -1872,6 +1878,7 @@ DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
   };
   return absl::visit(
       Visitor{
+          [&](const VerbatimNode* n) { return Format(n); },
           [&](const Expr* n) {
             return maybe_concat_semi(Fmt(*n, comments_, arena_));
           },
@@ -1882,7 +1889,6 @@ DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
             return Fmt(*n, comments_, arena_, trailing_semi);
           },
           [&](const ConstAssert* n) { return maybe_concat_semi(Format(*n)); },
-          [&](const VerbatimNode* n) { return Format(n); },
       },
       n.wrapped());
 }
