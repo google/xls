@@ -80,7 +80,8 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleSelfTypeAnnotation(const SelfTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    old_to_new_[n] = module_->Make<SelfTypeAnnotation>(n->span());
+    old_to_new_[n] =
+        module_->Make<SelfTypeAnnotation>(n->span(), n->explicit_type());
     return absl::OkStatus();
   }
 

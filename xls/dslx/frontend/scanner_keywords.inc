@@ -48,6 +48,7 @@
   X(kXN, XN, "xN")                         \
   X(kBool, BOOL, "bool")                   \
   X(kChan, CHAN, "chan")                   \
+  X(kSelfType, SELF_TYPE, "Self")          \
   /* unsigned */                           \
   X(kU1, U1, "u1")                         \
   X(kU2, U2, "u2")                         \
@@ -322,6 +323,7 @@
   X(kXN, XN, "xN")                \
   X(kBool, BOOL, "bool")          \
   X(kChan, CHAN, "chan")          \
+  X(kSelfType, SELF_TYPE, "Self") \
   XLS_DSLX_SIZED_TYPE_KEYWORDS(X) \
   /* done */
 

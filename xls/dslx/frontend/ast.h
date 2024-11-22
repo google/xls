@@ -430,7 +430,7 @@ class ArrayTypeAnnotation : public TypeAnnotation {
 // the typechecking deduction step, the type will be determined by context.
 class SelfTypeAnnotation : public TypeAnnotation {
  public:
-  SelfTypeAnnotation(Module* owner, Span span);
+  SelfTypeAnnotation(Module* owner, Span span, bool explicit_type);
 
   ~SelfTypeAnnotation() override;
 
@@ -445,6 +445,11 @@ class SelfTypeAnnotation : public TypeAnnotation {
   std::vector<AstNode*> GetChildren(bool want_types) const { return {}; }
 
   std::string ToString() const { return "Self"; }
+
+  bool explicit_type() const { return explicit_type_; }
+
+ private:
+  bool explicit_type_;
 };
 
 // Represents the definition point of a built-in name.
@@ -1346,7 +1351,8 @@ class Param : public AstNode {
 
   std::string_view GetNodeTypeName() const override { return "Param"; }
   std::string ToString() const override {
-    if (dynamic_cast<SelfTypeAnnotation*>(type_annotation_)) {
+    if (auto* st = dynamic_cast<SelfTypeAnnotation*>(type_annotation_);
+        st != nullptr && !st->explicit_type()) {
       return name_def_->ToString();
     }
     return absl::StrFormat("%s: %s", name_def_->ToString(),

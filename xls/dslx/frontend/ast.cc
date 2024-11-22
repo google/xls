@@ -902,8 +902,9 @@ std::string ArrayTypeAnnotation::ToString() const {
 
 // -- class SelfTypeAnnotation
 
-SelfTypeAnnotation::SelfTypeAnnotation(Module* owner, Span span)
-    : TypeAnnotation(owner, std::move(span)) {}
+SelfTypeAnnotation::SelfTypeAnnotation(Module* owner, Span span,
+                                       bool explicit_type)
+    : TypeAnnotation(owner, std::move(span)), explicit_type_(explicit_type) {}
 
 SelfTypeAnnotation::~SelfTypeAnnotation() = default;
 

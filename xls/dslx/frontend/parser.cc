@@ -824,6 +824,10 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 
   if (tok.IsTypeKeyword()) {  // Builtin types.
     Pos start_pos = tok.span().start();
+    if (tok.GetKeyword() == Keyword::kSelfType) {
+      return module_->Make<SelfTypeAnnotation>(tok.span(),
+                                               /*explicit_type=*/true);
+    }
     if (tok.GetKeyword() == Keyword::kChan) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
       XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
@@ -3128,8 +3132,10 @@ Parser::ParseNameDefOrWildcard(Bindings& bindings) {
 absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
   TypeAnnotation* type;
   XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
-  if (name->identifier() == KeywordToString(Keyword::kSelf)) {
-    type = module_->Make<SelfTypeAnnotation>(name->span());
+  XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
+  if (name->identifier() == KeywordToString(Keyword::kSelf) && !peek_is_colon) {
+    type = module_->Make<SelfTypeAnnotation>(name->span(),
+                                             /*explicit_type=*/false);
   } else {
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,

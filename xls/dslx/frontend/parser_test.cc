@@ -302,7 +302,7 @@ fn main() -> u9 {
   EXPECT_TRUE(impl->GetFunction("my_func").has_value());
 }
 
-TEST_F(ParserTest, DISABLED_ImplWithExplicitSelfType) {
+TEST_F(ParserTest, ImplWithExplicitSelfType) {
   RoundTrip(R"(struct foo {
     a: bits[9],
     b: bits[16],
