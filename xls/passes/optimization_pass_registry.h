@@ -15,11 +15,9 @@
 #ifndef XLS_PASSES_OPTIMIZATION_PASS_REGISTRY_H_
 #define XLS_PASSES_OPTIMIZATION_PASS_REGISTRY_H_
 
-#include <algorithm>
 #include <memory>
 #include <string_view>
 #include <tuple>
-#include <variant>
 
 #include "absl/log/check.h"
 #include "absl/status/status.h"

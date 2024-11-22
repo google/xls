@@ -34,7 +34,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/evaluator_options.h"
 #include "xls/interpreter/proc_runtime.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"

@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_SELECT_SIMPLIFICATION_PASS_H_
 
-#include <cstdint>
 #include <string_view>
 
 #include "absl/status/statusor.h"
