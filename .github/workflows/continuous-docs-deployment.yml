@@ -41,6 +41,7 @@ jobs:
     runs-on:
       labels: ubuntu-22.04-4core
     needs: build
+    if: github.event_name == 'push'
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
