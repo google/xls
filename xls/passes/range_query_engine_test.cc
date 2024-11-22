@@ -2546,6 +2546,32 @@ TEST_F(RangeQueryEngineTest, MultipleRangeGivenValue) {
             BitsLTT(ltxyz.node(), {Interval::Precise(UBits(1, 1))}));
 }
 
+TEST_F(RangeQueryEngineTest, SmallNegativeSelectChain) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue inp = fb.Param("inp", u1);
+  // exp is [[-1], [0]]
+  BValue exp = fb.SignExtend(inp, 32);
+  BValue s1 = fb.Select(fb.Param("a", u1), exp, fb.Literal(UBits(0, 32)));
+  BValue s2 = fb.Select(fb.Param("b", u1), s1, fb.Literal(UBits(1, 32)));
+  BValue s3 = fb.Select(fb.Param("c", u1), s2, fb.Literal(UBits(2, 32)));
+  BValue s4 = fb.Select(fb.Param("d", u1), s3, fb.Literal(UBits(3, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f).status());
+
+  EXPECT_EQ(engine.GetIntervalSetTree(exp.node()),
+            BitsLTT(exp.node(), {Interval::Precise(SBits(-1, 32)),
+                                 Interval::Precise(UBits(0, 32))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(s4.node()),
+            BitsLTT(s4.node(), {Interval::Precise(SBits(-1, 32)),
+                                Interval(UBits(0, 32), UBits(3, 32))}));
+  EXPECT_EQ(interval_ops::MinimumSignedBitCount(
+                engine.GetIntervalSetTree(s4.node()).Get({})),
+            3);
+}
+
 TEST_F(RangeQueryEngineTest, MaxMinUnsignedValue) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

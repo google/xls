@@ -15,6 +15,7 @@
 #include "xls/passes/select_simplification_pass.h"
 
 #include <optional>
+#include <ostream>
 #include <string>
 
 #include "gmock/gmock.h"
@@ -47,18 +48,40 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::testing::Eq;
 
-class SelectSimplificationPassTest : public IrTestBase {
+enum class AnalysisType {
+  kTernary,
+  kRange,
+};
+std::ostream& operator<<(std::ostream& os, AnalysisType a) {
+  switch (a) {
+    case AnalysisType::kTernary:
+      return os << "Ternary";
+    case AnalysisType::kRange:
+      return os << "Range";
+  }
+}
+class SelectSimplificationPassTest
+    : public IrTestBase,
+      public testing::WithParamInterface<AnalysisType> {
  protected:
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         SelectSimplificationPass().RunOnFunctionBase(
-                             f, OptimizationPassOptions(), &results));
+    if (GetParam() == AnalysisType::kTernary) {
+      SelectSimplificationPass tern_pass;
+      XLS_ASSIGN_OR_RETURN(
+          bool changed,
+          tern_pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results));
+      return changed;
+    }
+    SelectRangeSimplificationPass range_pass;
+    XLS_ASSIGN_OR_RETURN(
+        bool changed,
+        range_pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results));
     return changed;
   }
 };
 
-TEST_F(SelectSimplificationPassTest, BinaryTupleSelect) {
+TEST_P(SelectSimplificationPassTest, BinaryTupleSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[1], x: bits[8], y: bits[8], z: bits[8]) -> (bits[8], bits[8]) {
@@ -80,7 +103,7 @@ TEST_F(SelectSimplificationPassTest, BinaryTupleSelect) {
                                             m::TupleIndex(m::Tuple(), 1)})));
 }
 
-TEST_F(SelectSimplificationPassTest, BinaryTupleOneHotSelect) {
+TEST_P(SelectSimplificationPassTest, BinaryTupleOneHotSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[8], y: bits[8], z: bits[8]) -> (bits[8], bits[8]) {
@@ -103,7 +126,7 @@ TEST_F(SelectSimplificationPassTest, BinaryTupleOneHotSelect) {
                                           m::TupleIndex(m::Tuple(), 1)})));
 }
 
-TEST_F(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
+TEST_P(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[8], y: bits[8], z: bits[8]) -> (bits[8], bits[8]) {
@@ -133,7 +156,7 @@ TEST_F(SelectSimplificationPassTest, BinaryTuplePrioritySelect) {
                    /*default_value=*/m::TupleIndex(m::Tuple(), 1))));
 }
 
-TEST_F(SelectSimplificationPassTest, FourWayTupleSelect) {
+TEST_P(SelectSimplificationPassTest, FourWayTupleSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[8], y: bits[8], z: bits[8]) -> (bits[8], bits[8]) {
@@ -161,7 +184,7 @@ TEST_F(SelectSimplificationPassTest, FourWayTupleSelect) {
                                             m::TupleIndex(m::Tuple(), 1)})));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectWithConstantZeroSelector) {
+TEST_P(SelectSimplificationPassTest, SelectWithConstantZeroSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42]) -> bits[42] {
@@ -176,7 +199,7 @@ TEST_F(SelectSimplificationPassTest, SelectWithConstantZeroSelector) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectWithConstantOneSelector) {
+TEST_P(SelectSimplificationPassTest, SelectWithConstantOneSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42]) -> bits[42] {
@@ -191,7 +214,7 @@ TEST_F(SelectSimplificationPassTest, SelectWithConstantOneSelector) {
   EXPECT_THAT(f->return_value(), m::Param("y"));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantZeroSelector) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantZeroSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -207,7 +230,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantZeroSelector) {
   EXPECT_THAT(f->return_value(), m::Param("d"));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantOneSelector) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantOneSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -223,7 +246,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantOneSelector) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantTwoSelector) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantTwoSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -239,7 +262,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantTwoSelector) {
   EXPECT_THAT(f->return_value(), m::Param("y"));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantThreeSelector) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithConstantThreeSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -255,7 +278,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithConstantThreeSelector) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitSet) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitSet) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -272,7 +295,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitSet) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitSet) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitSet) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -291,7 +314,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitSet) {
       m::PrioritySelect(m::BitSlice(m::Or()), {m::Param("x")}, m::Param("y")));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitSet) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitSet) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -310,7 +333,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitSet) {
                                 {m::Param("x"), m::Param("y")}, m::Param("z")));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitUnset) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitUnset) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -329,7 +352,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorLowBitUnset) {
                                 {m::Param("y"), m::Param("z")}, m::Param("d")));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitUnset) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitUnset) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -350,7 +373,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorMidBitUnset) {
                   {m::Param("x"), m::Param("z")}, m::Param("d")));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitUnset) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitUnset) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -369,7 +392,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorHighBitUnset) {
                                 {m::Param("x"), m::Param("y")}, m::Param("d")));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorBitsUnset) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithSelectorBitsUnset) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[3], x: bits[42], y: bits[42], z: bits[42], d: bits[42]) -> bits[42] {
@@ -388,7 +411,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithSelectorBitsUnset) {
       m::PrioritySelect(m::BitSlice(m::And()), {m::Param("y")}, m::Param("d")));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectWithConstantSelector) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectWithConstantSelector) {
   std::string tmpl = R"(
      fn f(x: bits[42], y: bits[42]) -> bits[42] {
         literal.1: bits[2] = literal(value=$0)
@@ -425,7 +448,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithConstantSelector) {
   }
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectWithIdenticalCases) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectWithIdenticalCases) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[2], x: bits[42]) -> bits[42] {
@@ -441,7 +464,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithIdenticalCases) {
                         {m::Literal("bits[42]:0"), m::Param("x")}));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithTwoDistinctCases) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithTwoDistinctCases) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(s: bits[2], x: bits[42], y: bits[42]) -> bits[42] {
@@ -458,7 +481,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithTwoDistinctCases) {
                         {m::Param("y")}, /*default_value=*/m::Param("x")));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        ComplexPrioritySelectWithTwoDistinctCases) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -480,7 +503,7 @@ TEST_F(SelectSimplificationPassTest,
           {m::Param("y")}, /*default_value=*/m::Param("x")));
 }
 
-TEST_F(SelectSimplificationPassTest, UselessSelect) {
+TEST_P(SelectSimplificationPassTest, UselessSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[1]) -> bits[32] {
@@ -493,7 +516,7 @@ TEST_F(SelectSimplificationPassTest, UselessSelect) {
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
 
-TEST_F(SelectSimplificationPassTest, UselessOneHotSelect) {
+TEST_P(SelectSimplificationPassTest, UselessOneHotSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[2]) -> bits[32] {
@@ -509,7 +532,7 @@ TEST_F(SelectSimplificationPassTest, UselessOneHotSelect) {
                                    m::Literal("bits[32]:42")}));
 }
 
-TEST_F(SelectSimplificationPassTest, MeaningfulSelect) {
+TEST_P(SelectSimplificationPassTest, MeaningfulSelect) {
   auto p = CreatePackage();
   const std::string program =
       R"(fn f(s: bits[1], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
@@ -523,7 +546,7 @@ TEST_F(SelectSimplificationPassTest, MeaningfulSelect) {
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-TEST_F(SelectSimplificationPassTest, Useless3ArySelectWithDefault) {
+TEST_P(SelectSimplificationPassTest, Useless3ArySelectWithDefault) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(x: bits[2]) -> bits[32] {
@@ -537,7 +560,7 @@ TEST_F(SelectSimplificationPassTest, Useless3ArySelectWithDefault) {
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
 
-TEST_F(SelectSimplificationPassTest, Meaningful3ArySelectViaDefault) {
+TEST_P(SelectSimplificationPassTest, Meaningful3ArySelectViaDefault) {
   auto p = CreatePackage();
   const std::string program = R"(fn f(x: bits[3]) -> bits[8] {
   literal.1: bits[8] = literal(value=0)
@@ -555,7 +578,7 @@ TEST_F(SelectSimplificationPassTest, Meaningful3ArySelectViaDefault) {
                      m::SignExt(m::UGe(m::Param("x"), m::Literal(3)))));
 }
 
-TEST_F(SelectSimplificationPassTest, MeaningfulArrayTyped3ArySelectViaDefault) {
+TEST_P(SelectSimplificationPassTest, MeaningfulArrayTyped3ArySelectViaDefault) {
   auto p = CreatePackage();
   const std::string program = R"(fn f(x: bits[3]) -> bits[4][2] {
   literal.1: bits[4][2] = literal(value=[0, 0])
@@ -580,7 +603,7 @@ TEST_F(SelectSimplificationPassTest, MeaningfulArrayTyped3ArySelectViaDefault) {
                                            m::Literal(default_value)));
 }
 
-TEST_F(SelectSimplificationPassTest, OneBitMuxSel) {
+TEST_P(SelectSimplificationPassTest, OneBitMuxSel) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn func(s: bits[1], a: bits[1]) -> bits[1] {
@@ -596,7 +619,7 @@ TEST_F(SelectSimplificationPassTest, OneBitMuxSel) {
                     m::And(m::Not(m::Param("s")), m::Param("s"))));
 }
 
-TEST_F(SelectSimplificationPassTest, OneBitMuxPrioritySel) {
+TEST_P(SelectSimplificationPassTest, OneBitMuxPrioritySel) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn func(s: bits[1], a: bits[1]) -> bits[1] {
@@ -612,7 +635,7 @@ TEST_F(SelectSimplificationPassTest, OneBitMuxPrioritySel) {
                     m::And(m::Not(m::Param("s")), m::Param("a"))));
 }
 
-TEST_F(SelectSimplificationPassTest, OneBitMuxOneHotSel) {
+TEST_P(SelectSimplificationPassTest, OneBitMuxOneHotSel) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn func(s: bits[1], a: bits[1]) -> bits[1] {
@@ -627,7 +650,7 @@ TEST_F(SelectSimplificationPassTest, OneBitMuxOneHotSel) {
   EXPECT_THAT(f->return_value(), m::And(m::Param("s"), m::Param("a")));
 }
 
-TEST_F(SelectSimplificationPassTest, SelSqueezing) {
+TEST_P(SelectSimplificationPassTest, SelSqueezing) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
 fn f(s: bits[2]) -> bits[3] {
@@ -646,7 +669,7 @@ fn f(s: bits[2]) -> bits[3] {
                         m::Literal("bits[1]:0")));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelSqueezing) {
+TEST_P(SelectSimplificationPassTest, OneHotSelSqueezing) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
 fn f(s: bits[3], x: bits[8]) -> bits[8] {
@@ -677,7 +700,7 @@ fn f(s: bits[3], x: bits[8]) -> bits[8] {
                                      m::BitSlice(/*start=*/0, /*width=*/2)})));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectCommoning) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectCommoning) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(s: bits[4], x: bits[3], y: bits[3]) -> bits[3] {
@@ -695,7 +718,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectCommoning) {
                       /*cases=*/{m::Param("x"), m::Param("y")}));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectCommoning) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectCommoning) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
  fn f(s: bits[6], x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
@@ -715,7 +738,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectCommoning) {
                   /*default_value=*/m::Param("z")));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectFeedingOneHotSelect) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectFeedingOneHotSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
@@ -731,7 +754,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectFeedingOneHotSelect) {
                       /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        OneHotSelectFeedingOneHotSelectWithMultipleUses) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -746,7 +769,7 @@ TEST_F(SelectSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectFeedingPrioritySelect) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectFeedingPrioritySelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p0: bits[2], p1: bits[2], x: bits[32], y: bits[32], z: bits[32], d: bits[32]) -> bits[32] {
@@ -775,7 +798,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectFeedingPrioritySelect) {
           /*default_value=*/m::Literal(0)));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        PrioritySelectFeedingPrioritySelectWithMultipleUses) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -791,7 +814,7 @@ TEST_F(SelectSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        PrioritySelectFeedingPrioritySelectDefault) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -813,7 +836,7 @@ TEST_F(SelectSimplificationPassTest,
                   /*default_value=*/m::Param("d")));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectChain) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectChain) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p0: bits[3], p1: bits[2], p2: bits[4], v: bits[32], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
@@ -832,7 +855,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectChain) {
                      m::Param("z"), m::Param("z"), m::Param("w")}));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectTree) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectTree) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p0: bits[2], p1: bits[2], p2: bits[3], v: bits[32], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
@@ -850,7 +873,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectTree) {
                                  m::Param("y"), m::Param("z")}));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectWithLiteralZeroArms) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectWithLiteralZeroArms) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[6], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
@@ -868,7 +891,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithLiteralZeroArms) {
                       /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        OneHotSelectWithLiteralZeroArmAndZeroSelectorBits) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -887,7 +910,7 @@ TEST_F(SelectSimplificationPassTest,
                               /*cases=*/{m::Param("x"), m::Param("z")}));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        PrioritySelectWithLiteralZeroArmsAndZeroSelectorBits) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -909,7 +932,7 @@ TEST_F(SelectSimplificationPassTest,
                   /*default_value=*/m::Literal(0)));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyLiteralZeroArms) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectWithOnlyLiteralZeroArms) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[3]) -> bits[32] {
@@ -924,7 +947,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyLiteralZeroArms) {
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyLiteralZeroArms) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyLiteralZeroArms) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[3]) -> bits[32] {
@@ -942,7 +965,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyLiteralZeroArms) {
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        OneHotSelectWithOnlyLiteralZeroArmsAndZeroSelectorBits) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -959,7 +982,7 @@ TEST_F(SelectSimplificationPassTest,
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        PrioritySelectWithOnlyLiteralZeroArmsAndZeroSelectorBits) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -978,7 +1001,7 @@ TEST_F(SelectSimplificationPassTest,
   EXPECT_THAT(f->return_value(), m::Literal("bits[32]:0"));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseZero) {
+TEST_P(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[1], x: bits[32]) -> bits[32] {
@@ -994,7 +1017,7 @@ TEST_F(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseZero) {
               m::And(m::Param("x"), m::SignExt(m::Not(m::Param("p")))));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseOne) {
+TEST_P(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseOne) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[1], x: bits[32]) -> bits[32] {
@@ -1010,7 +1033,7 @@ TEST_F(SelectSimplificationPassTest, SelectWithOnlyNonzeroCaseOne) {
               m::And(m::Param("x"), m::SignExt(m::Param("p"))));
 }
 
-TEST_F(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseZero) {
+TEST_P(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1027,7 +1050,7 @@ TEST_F(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseZero) {
       m::And(m::Param("x"), m::SignExt(m::Eq(m::Param("p"), m::Literal(0)))));
 }
 
-TEST_F(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseTwo) {
+TEST_P(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseTwo) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1044,7 +1067,7 @@ TEST_F(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseTwo) {
       m::And(m::Param("x"), m::SignExt(m::Eq(m::Param("p"), m::Literal(2)))));
 }
 
-TEST_F(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseDefault) {
+TEST_P(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseDefault) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1061,7 +1084,7 @@ TEST_F(SelectSimplificationPassTest, LargerSelectWithOnlyNonzeroCaseDefault) {
       m::And(m::Param("x"), m::SignExt(m::UGe(m::Param("p"), m::Literal(2)))));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseZero) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1079,7 +1102,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseZero) {
                                             /*width=*/Eq(1)))));
 }
 
-TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseOne) {
+TEST_P(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseOne) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1097,7 +1120,7 @@ TEST_F(SelectSimplificationPassTest, OneHotSelectWithOnlyNonzeroCaseOne) {
                                             /*width=*/Eq(1)))));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseZero) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseZero) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1116,7 +1139,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseZero) {
                                             /*width=*/Eq(1)))));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseOne) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseOne) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1134,7 +1157,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseOne) {
                      m::SignExt(m::Eq(m::Param("p"), m::Literal(0b10)))));
 }
 
-TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseDefault) {
+TEST_P(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseDefault) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32]) -> bits[32] {
@@ -1152,7 +1175,7 @@ TEST_F(SelectSimplificationPassTest, PrioritySelectWithOnlyNonzeroCaseDefault) {
                      m::SignExt(m::Eq(m::Param("p"), m::Literal(0b00)))));
 }
 
-TEST_F(SelectSimplificationPassTest, TwoWayOneHotSelectWhichIsNotOneHot) {
+TEST_P(SelectSimplificationPassTest, TwoWayOneHotSelectWhichIsNotOneHot) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32], y: bits[32]) -> bits[32] {
@@ -1163,7 +1186,7 @@ TEST_F(SelectSimplificationPassTest, TwoWayOneHotSelectWhichIsNotOneHot) {
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-TEST_F(SelectSimplificationPassTest, LsbOneHotFeedingOneHotSelect) {
+TEST_P(SelectSimplificationPassTest, LsbOneHotFeedingOneHotSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
@@ -1181,7 +1204,7 @@ TEST_F(SelectSimplificationPassTest, LsbOneHotFeedingOneHotSelect) {
                                 /*default_value=*/m::Param("z")));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        LsbOneHotFeedingOneHotSelectWithMultipleUses) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1196,7 +1219,7 @@ TEST_F(SelectSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-TEST_F(SelectSimplificationPassTest, LsbOneHotFeedingMultipleOneHotSelects) {
+TEST_P(SelectSimplificationPassTest, LsbOneHotFeedingMultipleOneHotSelects) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], bits[32]) {
@@ -1220,7 +1243,7 @@ TEST_F(SelectSimplificationPassTest, LsbOneHotFeedingMultipleOneHotSelects) {
                                  /*default_value=*/m::Param("x"))));
 }
 
-TEST_F(SelectSimplificationPassTest, MsbOneHotFeedingOneHotSelect) {
+TEST_P(SelectSimplificationPassTest, MsbOneHotFeedingOneHotSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
@@ -1238,7 +1261,7 @@ TEST_F(SelectSimplificationPassTest, MsbOneHotFeedingOneHotSelect) {
                                 /*default_value=*/m::Param("z")));
 }
 
-TEST_F(SelectSimplificationPassTest,
+TEST_P(SelectSimplificationPassTest,
        MsbOneHotFeedingOneHotSelectWithMultipleUses) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
@@ -1253,7 +1276,7 @@ TEST_F(SelectSimplificationPassTest,
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
-TEST_F(SelectSimplificationPassTest, MsbOneHotFeedingMultipleOneHotSelects) {
+TEST_P(SelectSimplificationPassTest, MsbOneHotFeedingMultipleOneHotSelects) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], bits[32]) {
@@ -1277,7 +1300,7 @@ TEST_F(SelectSimplificationPassTest, MsbOneHotFeedingMultipleOneHotSelects) {
                                  /*default_value=*/m::Param("x"))));
 }
 
-TEST_F(SelectSimplificationPassTest, OneBitOneHot) {
+TEST_P(SelectSimplificationPassTest, OneBitOneHot) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[1]) -> bits[2] {
@@ -1290,7 +1313,7 @@ TEST_F(SelectSimplificationPassTest, OneBitOneHot) {
               m::Concat(m::Not(m::Param("p")), m::Param("p")));
 }
 
-TEST_F(SelectSimplificationPassTest, SplittableOneHotSelect) {
+TEST_P(SelectSimplificationPassTest, SplittableOneHotSelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[3], x: bits[8], y: bits[4]) -> bits[8] {
@@ -1325,7 +1348,7 @@ TEST_F(SelectSimplificationPassTest, SplittableOneHotSelect) {
                                      m::BitSlice(/*start=*/0, /*width=*/2)})));
 }
 
-TEST_F(SelectSimplificationPassTest, SplittablePrioritySelect) {
+TEST_P(SelectSimplificationPassTest, SplittablePrioritySelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn f(p: bits[2], x: bits[8], y: bits[4]) -> bits[8] {
@@ -1365,7 +1388,7 @@ TEST_F(SelectSimplificationPassTest, SplittablePrioritySelect) {
                     /*default_value=*/m::BitSlice(/*start=*/0, /*width=*/2))));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase0) {
+TEST_P(SelectSimplificationPassTest, SelectsWithCommonCase0) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -1380,7 +1403,7 @@ TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase0) {
                         {m::Param("y"), m::Param("x")}));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase1) {
+TEST_P(SelectSimplificationPassTest, SelectsWithCommonCase1) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -1395,7 +1418,7 @@ TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase1) {
                         {m::Param("y"), m::Param("x")}));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase2) {
+TEST_P(SelectSimplificationPassTest, SelectsWithCommonCase2) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -1410,7 +1433,7 @@ TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase2) {
                         {m::Param("y"), m::Param("x")}));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase3) {
+TEST_P(SelectSimplificationPassTest, SelectsWithCommonCase3) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -1432,7 +1455,7 @@ TEST_F(SelectSimplificationPassTest, SelectsWithCommonCase3) {
 //  }
 //
 // Which can simplify to: if x { 0b001 } else { 0b010 }
-TEST_F(SelectSimplificationPassTest, OneHotWithSingleUnknownBit) {
+TEST_P(SelectSimplificationPassTest, OneHotWithSingleUnknownBit) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u1 = p->GetBitsType(1);
@@ -1454,7 +1477,7 @@ TEST_F(SelectSimplificationPassTest, OneHotWithSingleUnknownBit) {
           {m::Literal("bits[3]:0b010"), m::Literal("bits[3]:0b001")}));
 }
 
-TEST_F(SelectSimplificationPassTest, ReorderableAffineSelect) {
+TEST_P(SelectSimplificationPassTest, ReorderableAffineSelect) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -1471,7 +1494,7 @@ TEST_F(SelectSimplificationPassTest, ReorderableAffineSelect) {
                                          m::Param("a"), m::Param("d")}));
 }
 
-TEST_F(SelectSimplificationPassTest, ReorderableSelectWithOperandReuse) {
+TEST_P(SelectSimplificationPassTest, ReorderableSelectWithOperandReuse) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u32 = p->GetBitsType(32);
@@ -1489,7 +1512,7 @@ TEST_F(SelectSimplificationPassTest, ReorderableSelectWithOperandReuse) {
                                          m::Param("a"), m::Param("b")}));
 }
 
-TEST_F(SelectSimplificationPassTest, UnchangedBitsSelSqueeze) {
+TEST_P(SelectSimplificationPassTest, UnchangedBitsSelSqueeze) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue high = fb.Param("high", p->GetBitsType(10));
@@ -1543,6 +1566,40 @@ TEST_F(SelectSimplificationPassTest, UnchangedBitsSelSqueeze) {
             f->return_value()->operand(2)->operand(3)->operand(
                 0));  // second tuple-index
 }
+
+TEST_P(SelectSimplificationPassTest, NarrowWithRangeAnalysis) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue inp = fb.Param("inp", u1);
+  // exp is [[-1], [0]]
+  BValue exp = fb.SignExtend(inp, 32);
+  BValue s1 = fb.Select(fb.Param("a", u1), exp, fb.Literal(UBits(1, 32)));
+  BValue s2 = fb.Select(fb.Param("b", u1), s1, fb.Literal(UBits(2, 32)));
+  BValue s3 = fb.Select(fb.Param("c", u1), s2, fb.Literal(UBits(3, 32)));
+  fb.Select(fb.Param("d", u1), s3, fb.Literal(UBits(3, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedRecordIr sri(p.get());
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent{f};
+
+  if (GetParam() == AnalysisType::kTernary) {
+    ASSERT_THAT(Run(f), IsOkAndHolds(false));
+    return;
+  }
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  // NB other passes need to do a lot of cleanup to get rid of chained
+  // '(bit-slice (sign-ext ...))'. Just do a basic check for the first level.
+  EXPECT_THAT(f->return_value(),
+              m::SignExt(m::Select(m::Param("d"),
+                                   {m::BitSlice(m::Literal()),
+                                    m::BitSlice(m::SignExt(m::Select()))})));
+}
+
+INSTANTIATE_TEST_SUITE_P(SelectSimplificationPassTest,
+                         SelectSimplificationPassTest,
+                         testing::Values(AnalysisType::kTernary,
+                                         AnalysisType::kRange),
+                         testing::PrintToStringParamName());
 
 }  // namespace
 }  // namespace xls

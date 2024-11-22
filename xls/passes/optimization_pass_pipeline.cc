@@ -263,6 +263,12 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
 
     Add<CapOptLevel<3, FixedPointSimplificationPass>>();
 
+    // Range based select simplification is heavier so we only do it once.
+    Add<SelectRangeSimplificationPass>();
+    Add<DeadCodeEliminationPass>();
+
+    Add<CapOptLevel<3, FixedPointSimplificationPass>>();
+
     Add<CapOptLevel<3, BddSimplificationPass>>();
     Add<DeadCodeEliminationPass>();
     Add<BddCsePass>();

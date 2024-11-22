@@ -24,19 +24,49 @@
 
 namespace xls {
 
-// Pass which simplifies selects and one-hot-selects. Example optimizations
-// include removing dead arms and eliminating selects with constant selectors.
-class SelectSimplificationPass : public OptimizationFunctionBasePass {
+// Base class which simplifies selects and one-hot-selects. Example
+// optimizations include removing dead arms and eliminating selects with
+// constant selectors.
+class SelectSimplificationPassBase : public OptimizationFunctionBasePass {
  public:
-  static constexpr std::string_view kName = "select_simp";
-  explicit SelectSimplificationPass()
-      : OptimizationFunctionBasePass(kName, "Select Simplification") {}
-  ~SelectSimplificationPass() override = default;
+  ~SelectSimplificationPassBase() override = default;
 
  protected:
+  explicit SelectSimplificationPassBase(std::string_view short_name,
+                                        std::string_view name,
+                                        bool with_range_analysis = false)
+      : OptimizationFunctionBasePass(short_name, name),
+        range_analysis_(with_range_analysis) {}
+
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
+
+  bool range_analysis_;
+};
+
+// Pass which simplifies selects and one-hot-selects. Example optimizations
+// include removing dead arms and eliminating selects with constant selectors.
+// Uses ternary analysis to determine possible values.
+class SelectSimplificationPass : public SelectSimplificationPassBase {
+ public:
+  static constexpr std::string_view kName = "select_simp";
+  SelectSimplificationPass()
+      : SelectSimplificationPassBase(kName, "Select Simplification",
+                                     /*with_range_analysis=*/false) {}
+  ~SelectSimplificationPass() override = default;
+};
+
+// Pass which simplifies selects and one-hot-selects. Example optimizations
+// include removing dead arms and eliminating selects with constant selectors.
+// Uses range analysis to determine possible values.
+class SelectRangeSimplificationPass : public SelectSimplificationPassBase {
+ public:
+  static constexpr std::string_view kName = "select_range_simp";
+  SelectRangeSimplificationPass()
+      : SelectSimplificationPassBase(kName, "Select Range Simplification",
+                                     /*with_range_analysis=*/true) {}
+  ~SelectRangeSimplificationPass() override = default;
 };
 
 }  // namespace xls
