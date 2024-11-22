@@ -1590,6 +1590,43 @@ impl MyStruct {
 )");
 }
 
+TEST_F(ModuleFmtTest, ImplMethodWithVars) {
+  DoFmt(R"(struct MyStruct { x: u32 }
+
+impl MyStruct {
+    fn my_function(self, a: u32, b: u32) -> u32 {
+        // Do something important.
+        a * b * self.x
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplMethodExplicitType) {
+  DoFmt(R"(struct MyStruct { x: u32 }
+
+impl MyStruct {
+    fn my_function(self: Self, a: u32, b: u32) -> u32 {
+        // Do something important.
+        a * b * self.x
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplFunctionWithVars) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    fn my_function(a: u32, b: u32) -> u32 {
+        // Do something important.
+        a * b
+    }
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, ImplWithOneFunction) {
   DoFmt(
       R"(struct MyStruct {}

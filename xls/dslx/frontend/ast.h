@@ -435,7 +435,7 @@ class SelfTypeAnnotation : public TypeAnnotation {
   ~SelfTypeAnnotation() override;
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return absl::UnimplementedError("`self` not yet supported");
+    return v->HandleSelfTypeAnnotation(this);
   }
 
   std::string_view GetNodeTypeName() const override {

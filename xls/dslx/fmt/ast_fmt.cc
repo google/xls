@@ -391,6 +391,9 @@ DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const ChannelTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
+  if (auto* t = dynamic_cast<const SelfTypeAnnotation*>(&n)) {
+    return arena.Make(Keyword::kSelfType);
+  }
 
   LOG(FATAL) << "handle type annotation: " << n.ToString()
              << " type: " << n.GetNodeTypeName();
@@ -1899,9 +1902,14 @@ DocRef Formatter::FormatParams(absl::Span<const Param* const> params) {
   DocRef guts = FmtJoin<const Param*>(
       params, Joiner::kCommaBreak1AsGroupNoTrailingComma,
       [](const Param* param, const Comments& comments, DocArena& arena) {
+        DocRef id = arena.MakeText(param->identifier());
+        if (auto* st =
+                dynamic_cast<SelfTypeAnnotation*>(param->type_annotation());
+            st != nullptr && !st->explicit_type()) {
+          return id;
+        }
         DocRef type = Fmt(*param->type_annotation(), comments, arena);
-        return ConcatN(arena, {arena.MakeText(param->identifier()),
-                               arena.colon(), arena.space(), type});
+        return ConcatN(arena, {id, arena.colon(), arena.space(), type});
       },
       comments_, arena_);
 
