@@ -1091,8 +1091,8 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
 absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
     Bindings& bindings, std::string_view context) {
   VLOG(5) << "ParseNameOrColonRef  @ " << GetPos() << " context: " << context;
-  XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier,
-                                                  /*start=*/nullptr, context));
+
+  XLS_ASSIGN_OR_RETURN(Token tok, PopSelfOrIdentifier(context));
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
                        PeekTokenIs(TokenKind::kDoubleColon));
   if (peek_is_double_colon) {
@@ -1102,10 +1102,19 @@ absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
   return ParseNameRef(bindings, &tok);
 }
 
+absl::StatusOr<Token> Parser::PopSelfOrIdentifier(std::string_view context) {
+  XLS_ASSIGN_OR_RETURN(bool is_self, PeekTokenIs(Keyword::kSelf));
+  if (is_self) {
+    return PopTokenOrError(TokenKind::kKeyword,
+                           /*start=*/nullptr, context);
+  }
+  return PopTokenOrError(TokenKind::kIdentifier,
+                         /*start=*/nullptr, context);
+}
+
 absl::StatusOr<NameDef*> Parser::ParseNameDef(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(
-      Token tok, PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
-                                 "Expected name (definition)"));
+  XLS_ASSIGN_OR_RETURN(Token tok,
+                       PopSelfOrIdentifier("Expected name (definition)"));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
   bindings.Add(name_def->identifier(), name_def);
   return name_def;
@@ -1740,6 +1749,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
 
   bool peek_is_kw_in = peek->IsKeyword(Keyword::kIn);
   bool peek_is_kw_out = peek->IsKeyword(Keyword::kOut);
+  bool peek_is_kw_self = peek->IsKeyword(Keyword::kSelf);
 
   Expr* lhs = nullptr;
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter}) ||
@@ -1777,7 +1787,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
     XLS_ASSIGN_OR_RETURN(
         lhs, ParseCastOrEnumRefOrStructInstanceOrToken(outer_bindings));
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
-             peek_is_kw_out) {
+             peek_is_kw_out || peek_is_kw_self) {
     VLOG(5) << "ParseTerm, kind is identifier but not a known type";
     XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref,
                          ParseNameOrColonRef(outer_bindings));
@@ -3116,10 +3126,16 @@ Parser::ParseNameDefOrWildcard(Bindings& bindings) {
 }
 
 absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
+  TypeAnnotation* type;
   XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
-                                       "Expect type annotation on parameters"));
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+  if (name->identifier() == KeywordToString(Keyword::kSelf)) {
+    type = module_->Make<SelfTypeAnnotation>(name->span());
+  } else {
+    XLS_RETURN_IF_ERROR(
+        DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
+                         "Expect type annotation on parameters"));
+    XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
+  }
   auto* param = module_->Make<Param>(name, type);
   name->set_definer(param);
   return param;
@@ -3140,7 +3156,16 @@ absl::StatusOr<ProcMember*> Parser::ParseProcMember(
 absl::StatusOr<std::vector<Param*>> Parser::ParseParams(Bindings& bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   auto sub_production = [&] { return ParseParam(bindings); };
-  return ParseCommaSeq<Param*>(sub_production, TokenKind::kCParen);
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<Param*> params,
+      ParseCommaSeq<Param*>(sub_production, TokenKind::kCParen));
+  for (int i = 1; i < params.size(); i++) {
+    Param* p = params.at(i);
+    if (dynamic_cast<SelfTypeAnnotation*>(p->type_annotation())) {
+      return ParseErrorStatus(p->span(), "`self` must be the first parameter");
+    }
+  }
+  return params;
 }
 
 absl::StatusOr<Number*> Parser::ParseNumber(Bindings& bindings) {

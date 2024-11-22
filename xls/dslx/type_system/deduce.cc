@@ -1767,6 +1767,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRefTypeAnnotation(
   return std::move(base_type);
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceSelfTypeAnnotation(
+    const SelfTypeAnnotation* node, DeduceCtx* ctx) {
+  return absl::UnimplementedError("`self` not yet supported in type system");
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceMatchArm(const MatchArm* node,
                                                      DeduceCtx* ctx) {
   return ctx->Deduce(node->expr());
@@ -2041,6 +2046,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(ArrayTypeAnnotation, DeduceArrayTypeAnnotation)
   DEDUCE_DISPATCH(TupleTypeAnnotation, DeduceTupleTypeAnnotation)
   DEDUCE_DISPATCH(TypeRefTypeAnnotation, DeduceTypeRefTypeAnnotation)
+  DEDUCE_DISPATCH(SelfTypeAnnotation, DeduceSelfTypeAnnotation)
   DEDUCE_DISPATCH(MatchArm, DeduceMatchArm)
   DEDUCE_DISPATCH(Invocation, DeduceInvocation)
   DEDUCE_DISPATCH(FormatMacro, DeduceFormatMacro)

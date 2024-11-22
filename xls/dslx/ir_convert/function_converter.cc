@@ -359,6 +359,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ArrayTypeAnnotation)
   INVALID(BuiltinTypeAnnotation)
   INVALID(ChannelTypeAnnotation)
+  INVALID(SelfTypeAnnotation)
   INVALID(TupleTypeAnnotation)
   INVALID(TypeRefTypeAnnotation)
   // keep-sorted end

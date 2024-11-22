@@ -276,6 +276,8 @@ class Parser : public TokenParser {
 
   absl::StatusOr<NameDef*> ParseNameDef(Bindings& bindings);
 
+  absl::StatusOr<Token> PopSelfOrIdentifier(std::string_view context);
+
   absl::StatusOr<std::variant<NameDef*, WildcardPattern*, RestOfTuple*>>
   ParseNameDefOrWildcard(Bindings& bindings);
 

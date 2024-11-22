@@ -114,6 +114,7 @@
   X(ArrayTypeAnnotation)          \
   X(BuiltinTypeAnnotation)        \
   X(ChannelTypeAnnotation)        \
+  X(SelfTypeAnnotation)           \
   X(TupleTypeAnnotation)          \
   X(TypeRefTypeAnnotation)        \
   XLS_DSLX_EXPR_NODE_EACH(X)
@@ -423,6 +424,27 @@ class ArrayTypeAnnotation : public TypeAnnotation {
  private:
   TypeAnnotation* element_type_;
   Expr* dim_;
+};
+
+// Represents the type for the `self` keyword (e.g., used in impl methods). In
+// the typechecking deduction step, the type will be determined by context.
+class SelfTypeAnnotation : public TypeAnnotation {
+ public:
+  SelfTypeAnnotation(Module* owner, Span span);
+
+  ~SelfTypeAnnotation() override;
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return absl::UnimplementedError("`self` not yet supported");
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "SelfTypeAnnotation";
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const { return {}; }
+
+  std::string ToString() const { return "Self"; }
 };
 
 // Represents the definition point of a built-in name.
@@ -1324,6 +1346,9 @@ class Param : public AstNode {
 
   std::string_view GetNodeTypeName() const override { return "Param"; }
   std::string ToString() const override {
+    if (dynamic_cast<SelfTypeAnnotation*>(type_annotation_)) {
+      return name_def_->ToString();
+    }
     return absl::StrFormat("%s: %s", name_def_->ToString(),
                            type_annotation_->ToString());
   }

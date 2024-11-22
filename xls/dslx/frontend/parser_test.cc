@@ -272,6 +272,133 @@ impl foo {
 })");
 }
 
+TEST_F(ParserTest, ImplWithFunctionDefRoundTrip) {
+  RoundTrip(R"(struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    fn my_func() -> u9 {
+        u9:0
+    }
+})");
+}
+
+TEST_F(ParserTest, ImplWithMethodDefRoundTrip) {
+  std::unique_ptr<Module> module = RoundTrip(R"(struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    fn my_func(self) -> u9 {
+        self.a
+    }
+}
+fn main() -> u9 {
+    let st = foo { a: u9:5, b: u16:0 };
+    st.my_func()
+})");
+  Impl* impl = module->GetImpls().at(0);
+  EXPECT_TRUE(impl->GetFunction("my_func").has_value());
+}
+
+TEST_F(ParserTest, DISABLED_ImplWithExplicitSelfType) {
+  RoundTrip(R"(struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    fn my_func(self: Self) -> u9 {
+        self.a
+    }
+}
+fn main() -> u9 {
+    let st = foo { a: u9:5, b: u16:0 };
+    st.my_func()
+})");
+}
+
+TEST_F(ParserTest, ImplWithMethodMultipleParams) {
+  RoundTrip(R"(struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    fn my_func(self, mult: u9) -> u9 {
+        self.a * mult
+    }
+})");
+}
+
+TEST(ParserErrorTest, ImplWithMisplacedSelf) {
+  constexpr std::string_view kProgram = R"(struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    fn my_func(b: u32, self, mult: u9) -> u9 {
+        self.a * mult
+    }
+}
+fn main() -> u9 {
+    self.a
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or.status(),
+              IsPosError("ParseError",
+                         HasSubstr("`self` must be the first parameter")));
+}
+
+TEST(ParserErrorTest, SelfOutsideImpl) {
+  constexpr std::string_view kProgram = R"(struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    fn my_func(self, mult: u9) -> u9 {
+        self.a * mult
+    }
+}
+fn main() -> u9 {
+    self.a
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError",
+                 HasSubstr("Cannot find a definition for name: \"self\"")));
+}
+
+TEST(ParserErrorTest, ImplUsingSelfInFunction) {
+  constexpr std::string_view kProgram = R"(struct foo {
+    a: bits[9],
+    b: bits[16],
+}
+impl foo {
+    fn my_func(self, mult: u9) -> u9 {
+        self.a * mult
+    }
+
+    fn static_func() -> u16 {
+        self.b
+    }
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError",
+                 HasSubstr("Cannot find a definition for name: \"self\"")));
+}
+
 TEST_F(ParserTest, ImplSpanSetsCorrectSpan) {
   std::unique_ptr<Module> module = RoundTrip(R"(struct foo {
 }

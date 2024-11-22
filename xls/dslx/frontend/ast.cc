@@ -900,6 +900,13 @@ std::string ArrayTypeAnnotation::ToString() const {
   return absl::StrFormat("%s[%s]", element_type_->ToString(), dim_->ToString());
 }
 
+// -- class SelfTypeAnnotation
+
+SelfTypeAnnotation::SelfTypeAnnotation(Module* owner, Span span)
+    : TypeAnnotation(owner, std::move(span)) {}
+
+SelfTypeAnnotation::~SelfTypeAnnotation() = default;
+
 // -- class BuiltinNameDef
 
 BuiltinNameDef::~BuiltinNameDef() = default;
