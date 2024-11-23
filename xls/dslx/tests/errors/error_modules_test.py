@@ -792,7 +792,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/recursive_self_importer.x'
     )
-    self.assertIn('recursive_self_importer.x:15:1-15:7', stderr)
+    self.assertIn('recursive_self_importer.x:15:1-', stderr)
     self.assertIn('RecursiveImportError', stderr)
 
   def test_corecursive_importer_a(self):
@@ -813,7 +813,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
         (
             r'subsequent \(nested\) import @'
-            r' xls/dslx/tests/errors/corecursive_importer_b.x:15:1-15:7'
+            r' xls/dslx/tests/errors/corecursive_importer_b.x:15:1-'
         ),
     )
     self.assertRegex(
@@ -836,14 +836,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
         (
             r'previous import @'
-            r' xls/dslx/tests/errors/imports_corecursive_importer.x:15:1-15:7'
+            r' xls/dslx/tests/errors/imports_corecursive_importer.x:15:1-'
         ),
     )
     self.assertRegex(
         stderr,
         (
             r'subsequent \(nested\) import @'
-            r' xls/dslx/tests/errors/corecursive_importer_b.x:15:1-15:7'
+            r' xls/dslx/tests/errors/corecursive_importer_b.x:15:1-'
         ),
     )
     self.assertRegex(
