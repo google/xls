@@ -3866,3 +3866,166 @@ place_and_route(
     synthesized_rtl = ":hash_table_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "aligned_parallel_ram_dslx",
+    srcs = [
+        "aligned_parallel_ram.x",
+    ],
+    deps = [
+        ":common_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "aligned_parallel_ram_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":aligned_parallel_ram_dslx",
+    tags = ["manual"],
+)
+
+aligned_parallel_ram_codegen_args = common_codegen_args | {
+    "module_name": "AlignedParallelRam",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "aligned_parallel_ram_verilog",
+    codegen_args = aligned_parallel_ram_codegen_args,
+    dslx_top = "AlignedParallelRamInst",
+    library = ":aligned_parallel_ram_dslx",
+    tags = ["manual"],
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__aligned_parallel_ram__AlignedParallelRamInst__AlignedParallelRam_0__10_64_7_8_1_8_128_1024_next",
+    },
+    verilog_file = "aligned_parallel_ram.v",
+)
+
+xls_benchmark_ir(
+    name = "aligned_parallel_ram_opt_ir_benchmark",
+    src = ":aligned_parallel_ram_verilog.opt.ir",
+    benchmark_ir_args = aligned_parallel_ram_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "aligned_parallel_ram_verilog_lib",
+    srcs = [
+        ":aligned_parallel_ram.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "aligned_parallel_ram_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "AlignedParallelRam",
+    deps = [
+        ":aligned_parallel_ram_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "aligned_parallel_ram_benchmark_synth",
+    synth_target = ":aligned_parallel_ram_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "aligned_parallel_ram_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":aligned_parallel_ram_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "history_buffer_dslx",
+    srcs = [
+        "history_buffer.x",
+    ],
+    deps = [
+        ":common_dslx",
+        ":aligned_parallel_ram_dslx",
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "history_buffer_dslx_test",
+    dslx_test_args = {"compare": "jit"},
+    library = ":history_buffer_dslx",
+    tags = ["manual"],
+)
+
+history_buffer_codegen_args = common_codegen_args | {
+    "module_name": "HistoryBuffer",
+    "clock_period_ps": "750",
+    "pipeline_stages": "8",
+    "worst_case_throughput": "1",
+}
+
+xls_dslx_verilog(
+    name = "history_buffer_verilog",
+    codegen_args = history_buffer_codegen_args,
+    dslx_top = "HistoryBufferInst",
+    library = ":history_buffer_dslx",
+    tags = ["manual"],
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__history_buffer__HistoryBufferInst__HistoryBuffer_0__64_10_7_8_1_8_128_1024_next",
+    },
+    verilog_file = "history_buffer.v",
+)
+
+xls_benchmark_ir(
+    name = "history_buffer_opt_ir_benchmark",
+    src = ":history_buffer_verilog.opt.ir",
+    benchmark_ir_args = history_buffer_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "history_buffer_verilog_lib",
+    srcs = [
+        ":history_buffer.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "history_buffer_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HistoryBuffer",
+    deps = [
+        ":history_buffer_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "history_buffer_benchmark_synth",
+    synth_target = ":history_buffer_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "history_buffer_place_and_route",
+    clock_period = CLOCK_PERIOD_PS,
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":history_buffer_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
