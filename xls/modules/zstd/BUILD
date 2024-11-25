@@ -3783,3 +3783,86 @@ collect_benchmark_reports(
         ":huffman_weights_dec_place_and_route",
     ],
 )
+
+xls_dslx_library(
+    name = "hash_table_dslx",
+    srcs = [
+        "hash_table.x",
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "hash_table_dslx_test",
+    library = ":hash_table_dslx",
+)
+
+hash_table_codegen_args = common_codegen_args | {
+    "module_name": "HashTable",
+    "pipeline_stages": "16",
+}
+
+xls_dslx_verilog(
+    name = "hash_table_verilog",
+    codegen_args = hash_table_codegen_args | {
+        "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            latency = 5,
+            rd_req = "hash_table__ram_read_req_s",
+            rd_resp = "hash_table__ram_read_resp_r",
+            wr_req = "hash_table__ram_write_req_s",
+            wr_resp = "hash_table__ram_write_resp_r",
+        ),
+    },
+    dslx_top = "HashTableInst",
+    library = ":hash_table_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__hash_table__HashTableInst__HashTable_0__HashTableWriteRespHandler_0_next",
+    },
+    verilog_file = "hash_table.v",
+)
+
+xls_benchmark_ir(
+    name = "hash_table_opt_ir_benchmark",
+    src = ":hash_table_verilog.opt.ir",
+    benchmark_ir_args = hash_table_codegen_args,
+)
+
+xls_benchmark_verilog(
+    name = "hash_table_verilog_benchmark",
+    verilog_target = "hash_table_verilog",
+)
+
+verilog_library(
+    name = "hash_table_verilog_lib",
+    srcs = [
+        ":hash_table.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "hash_table_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "HashTable",
+    deps = [
+        ":hash_table_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "hash_table_benchmark_synth",
+    synth_target = ":hash_table_asap7",
+)
+
+place_and_route(
+    name = "hash_table_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.09",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":hash_table_asap7",
+    target_die_utilization_percentage = "10",
+)
