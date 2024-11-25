@@ -30,6 +30,7 @@
 #include "xls/codegen/vast/vast.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 
 namespace mlir::xls {
 namespace {
@@ -74,7 +75,7 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
       top->AddInput(options.reset_signal_name, i1, SourceInfo());
 
   DenseMap<ChanOp, ChannelLogicRefs> channelRefs;
-  op->walk([&](ChanOp chan) {
+  auto result = op->walk([&](ChanOp chan) {
     // If the channel is used by a discardable eproc, then it never appears
     // during stitching.
     bool isEphemeralChannel =
@@ -83,12 +84,22 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
           return eproc && eproc.getDiscardable();
         });
     if (isEphemeralChannel) {
-      return;
+      return mlir::WalkResult::advance();
     }
 
     ChannelPortNames names = getChannelPortNames(chan, options);
-    vast::DataType* dataType =
-        f.BitVectorType(chan.getType().getIntOrFloatBitWidth(), SourceInfo());
+    vast::DataType* dataType;
+    if (chan.getType().isIntOrFloat()) {
+      dataType =
+          f.BitVectorType(chan.getType().getIntOrFloatBitWidth(), SourceInfo());
+    } else if (auto arrayType = dyn_cast<xls::ArrayType>(chan.getType())) {
+      dataType =
+          f.PackedArrayType(arrayType.getElementType().getIntOrFloatBitWidth(),
+                            arrayType.getShape(), SourceInfo());
+    } else {
+      op->emitError("unsupported channel type: ") << chan.getType();
+      return mlir::WalkResult::interrupt();
+    }
     ChannelLogicRefs refs;
     if (chan.getSendSupported() && chan.getRecvSupported()) {
       // Interior port; this becomes a wire.
@@ -108,7 +119,11 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
       refs.valid = top->AddInput(names.valid, i1, SourceInfo());
     }
     channelRefs[chan] = refs;
+    return mlir::WalkResult::advance();
   });
+  if (result.wasInterrupted()) {
+    return failure();
+  }
 
   DenseMap<StringRef, int> instantiationCount;
   op->walk([&](InstantiateEprocOp op) {
