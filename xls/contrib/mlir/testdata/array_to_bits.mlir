@@ -274,3 +274,13 @@ func.func @array_concat(%arg0: !xls.array<2 x i32>, %arg1: !xls.array<2 x i32>) 
   %0 = "xls.array_concat"(%arg0, %arg1) : (!xls.array<2 x i32>, !xls.array<2 x i32>) -> !xls.array<4 x i32>
   return %0 : !xls.array<4 x i32>
 }
+
+// CHECK-LABEL:   func.func @array_update_slice(
+// CHECK-SAME:                         %[[VAL_0:.*]]: i128,
+// CHECK-SAME:                         %[[VAL_1:.*]]: i64,
+// CHECK-SAME:                         %[[VAL_2:.*]]: i32) -> i128 attributes {xls = true} {
+// CHECK:           %[[VAL_3:.*]] = "xls.bit_slice_update"(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) : (i128, i64, i32) -> i128
+func.func @array_update_slice(%arg0: !xls.array<4 x i32>, %arg1: !xls.array<2 x i32>, %arg2: i32) -> !xls.array<4 x i32> attributes {xls = true} {
+  %0 = xls.array_update_slice %arg1 into %arg0[%arg2 +: 2] : !xls.array<4 x i32>
+  return %0 : !xls.array<4 x i32>
+}

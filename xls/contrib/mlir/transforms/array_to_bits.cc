@@ -239,6 +239,21 @@ class LegalizeArraySlicePattern : public OpConversionPattern<ArraySliceOp> {
   }
 };
 
+class LegalizeArrayUpdateSlicePattern
+    : public OpConversionPattern<ArrayUpdateSliceOp> {
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      ArrayUpdateSliceOp op, OpAdaptor adaptor,
+      ConversionPatternRewriter& rewriter) const override {
+    (void)adaptor;
+    Value slice = CoerceFloats({adaptor.getSlice()}, rewriter, op)[0];
+    rewriter.replaceOpWithNewOp<BitSliceUpdateOp>(
+        op, adaptor.getArray().getType(), adaptor.getArray(), slice,
+        adaptor.getStart());
+    return success();
+  }
+};
+
 class LegalizeArrayIndexPattern : public OpConversionPattern<ArrayIndexOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -328,8 +343,8 @@ class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
              all_of(op->getResultTypes(), is_legal);
     });
     target.addIllegalOp<VectorizedCallOp, ArrayOp, ArrayUpdateOp, ArraySliceOp,
-                        ArrayIndexOp, ArrayIndexStaticOp, ArrayZeroOp,
-                        ArrayConcatOp>();
+                        ArrayUpdateSliceOp, ArrayIndexOp, ArrayIndexStaticOp,
+                        ArrayZeroOp, ArrayConcatOp>();
     RewritePatternSet chanPatterns(&getContext());
     chanPatterns.add<LegalizeChanOpPattern>(typeConverter, &getContext());
     FrozenRewritePatternSet frozenChanPatterns(std::move(chanPatterns));
@@ -341,6 +356,7 @@ class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
         LegalizeArrayPattern,
         LegalizeArrayUpdatePattern,
         LegalizeArraySlicePattern,
+        LegalizeArrayUpdateSlicePattern,
         LegalizeArrayIndexPattern,
         LegalizeArrayIndexStaticPattern,
         LegalizeArrayZeroPattern,
