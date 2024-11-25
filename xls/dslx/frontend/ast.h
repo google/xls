@@ -442,9 +442,11 @@ class SelfTypeAnnotation : public TypeAnnotation {
     return "SelfTypeAnnotation";
   }
 
-  std::vector<AstNode*> GetChildren(bool want_types) const { return {}; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  }
 
-  std::string ToString() const { return "Self"; }
+  std::string ToString() const override { return "Self"; }
 
   bool explicit_type() const { return explicit_type_; }
 
