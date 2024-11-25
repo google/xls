@@ -1034,6 +1034,29 @@ cc_library(
 )
 
 cc_library(
+    name = "dataflow_graph_analysis",
+    srcs = ["dataflow_graph_analysis.cc"],
+    hdrs = ["dataflow_graph_analysis.h"],
+    deps = [
+        ":query_engine",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:ternary",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_ortools//ortools/graph:ebert_graph",
+        "@com_google_ortools//ortools/graph:max_flow",
+    ],
+)
+
+cc_library(
     name = "post_dominator_analysis",
     srcs = ["post_dominator_analysis.cc"],
     hdrs = ["post_dominator_analysis.h"],
@@ -2533,6 +2556,25 @@ cc_test(
 )
 
 cc_test(
+    name = "dataflow_graph_analysis_test",
+    srcs = ["dataflow_graph_analysis_test.cc"],
+    deps = [
+        ":dataflow_graph_analysis",
+        ":ternary_query_engine",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "post_dominator_analysis_test",
     srcs = ["post_dominator_analysis_test.cc"],
     deps = [
@@ -3420,7 +3462,7 @@ cc_library(
     srcs = ["lut_conversion_pass.cc"],
     hdrs = ["lut_conversion_pass.h"],
     deps = [
-        ":dataflow_dominator_analysis",
+        ":dataflow_graph_analysis",
         ":optimization_pass",
         ":optimization_pass_registry",
         ":pass_base",
@@ -3428,6 +3470,7 @@ cc_library(
         ":stateless_query_engine",
         ":ternary_query_engine",
         ":union_query_engine",
+        "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -3438,13 +3481,16 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:ternary",
-        "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )

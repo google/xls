@@ -286,7 +286,8 @@ inline xabsl::iterator_range<RealizedTernaryIterator> AllBitsValues(
 
 // Make an iterator range that enumerates all possible values which match the
 // given tree of ternaries. The values are produced in order from smallest to
-// largest at each position; no guarantee is made about the order beyond this.
+// largest at each position, in little-endian order (i.e., the first leaf
+// changes most often, and the last leaf changes least often).
 absl::StatusOr<std::vector<Value>> AllValues(
     LeafTypeTreeView<TernaryVector> ltt);
 

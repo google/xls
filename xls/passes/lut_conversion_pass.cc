@@ -14,19 +14,28 @@
 
 #include "xls/passes/lut_conversion_pass.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/fixed_array.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -39,9 +48,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
-#include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/passes/dataflow_dominator_analysis.h"
+#include "xls/passes/dataflow_graph_analysis.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -54,7 +62,7 @@ namespace xls {
 
 namespace {
 
-bool IsTriviallyDerived(Node* node, Node* ancestor) {
+bool IsTriviallyDerived(Node* node, absl::flat_hash_set<Node*> ancestors) {
   static constexpr auto is_trivial_array_index = [](Node* node) {
     if (!node->Is<ArrayIndex>()) {
       return false;
@@ -62,97 +70,139 @@ bool IsTriviallyDerived(Node* node, Node* ancestor) {
     return absl::c_all_of(node->As<ArrayIndex>()->indices(),
                           [](Node* index) { return index->Is<Literal>(); });
   };
-  while (node != ancestor && (node->OpIn({Op::kTupleIndex, Op::kBitSlice}) ||
-                              is_trivial_array_index(node))) {
+  while (!ancestors.contains(node) &&
+         (node->OpIn({Op::kTupleIndex, Op::kBitSlice}) ||
+          is_trivial_array_index(node))) {
     node = node->operand(0);
+  }
+  if (ancestors.contains(node)) {
+    return true;
   }
   if (node->Is<Literal>()) {
     return true;
   }
-  if (node != ancestor && node->Is<Concat>()) {
+  if (node->Is<Concat>()) {
     return absl::c_all_of(node->operands(), [&](Node* operand) {
-      return IsTriviallyDerived(operand, ancestor);
+      return IsTriviallyDerived(operand, ancestors);
     });
   }
-  return node == ancestor;
+  return false;
 }
 
-absl::StatusOr<bool> MaybeMergeLutIntoSelect(
-    Select* select, const QueryEngine& query_engine, int64_t opt_level,
-    const DataflowDominatorAnalysis& dataflow_dominator_analysis) {
-  Node* selector = select->selector();
-  absl::Span<Node* const> dominators =
-      dataflow_dominator_analysis.GetDominatorsOfNode(selector);
+int64_t CaseCount(Select* select) {
+  if (select->default_value().has_value()) {
+    return select->cases().size() + 1;
+  }
+  return select->cases().size();
+}
 
-  // We favor the dominator with the fewest unknown bits, since this minimizes
-  // the risk that we need too many additional pipeline flops on the path to
-  // the resulting LUT; we break ties by preferring the most distant
-  // dominator, which should usually reduce both area & delay as much as
-  // possible.
-  //
-  // NOTE: The dominators are topologically sorted, so we iterate from most to
-  // least distant.
-  VLOG(4) << "Looking for earlier selector: " << selector->ToString();
-  int64_t original_bits_needed = Bits::MinBitCountUnsigned(
-      select->default_value().has_value() ? select->cases().size()
-                                          : select->cases().size() - 1);
-  Node* best_dominator = nullptr;
-  std::optional<SharedLeafTypeTree<TernaryVector>> best_dominator_ternary;
-  for (Node* dominator : dominators) {
-    std::optional<SharedLeafTypeTree<TernaryVector>> dominator_ternary =
-        query_engine.GetTernary(dominator);
-    int64_t unknown_bits =
-        dominator_ternary.has_value()
-            ? absl::c_accumulate(
-                  dominator_ternary->elements(), 0,
-                  [](int64_t sum, const TernaryVector& ternary) {
-                    return sum + absl::c_count_if(ternary, [](TernaryValue v) {
-                             return ternary_ops::IsUnknown(v);
-                           });
-                  })
-            : dominator->GetType()->GetFlatBitCount();
+Node* GetCase(Select* select, const Bits& selector) {
+  if (bits_ops::UGreaterThanOrEqual(selector, select->cases().size())) {
+    CHECK(select->default_value().has_value());
+    return *select->default_value();
+  }
+  absl::StatusOr<uint64_t> selector_value = selector.ToUint64();
+  CHECK_OK(selector_value.status());
+  return select->get_case(static_cast<int64_t>(*selector_value));
+}
 
-    // For now, only consider dominators that will not result in a wider
-    // selector than the original. If the selector is "trivially" derived from
-    // the dominator (via tuple index, bit slice, array index with literal
-    // indices, and concat), we only consider it if the selector will be
-    // *strictly* narrower.
-    if (unknown_bits <= original_bits_needed &&
-        (!IsTriviallyDerived(selector, dominator) ||
-         unknown_bits < original_bits_needed)) {
-      best_dominator = dominator;
-      if (dominator_ternary.has_value()) {
-        best_dominator_ternary = std::move(dominator_ternary);
-      }
-      VLOG(3) << "Found earlier selector with " << unknown_bits
-              << " unknown bits (original: " << selector->BitCountOrDie()
-              << " bits, " << original_bits_needed
-              << " needed): " << dominator->ToString();
-      break;
+absl::StatusOr<bool> MaybeMergeLutIntoSelects(
+    Node* selector, const QueryEngine& query_engine, int64_t opt_level,
+    std::optional<DataflowGraphAnalysis>& dataflow_graph_analysis) {
+  int64_t max_case_count = 0;
+  std::vector<Select*> candidate_selects;
+  candidate_selects.reserve(1);
+  for (Node* user : selector->users()) {
+    if (user->Is<Select>() && user->As<Select>()->selector() == selector) {
+      candidate_selects.push_back(user->As<Select>());
+      max_case_count = std::max(max_case_count, CaseCount(user->As<Select>()));
     }
   }
-  if (best_dominator == nullptr || best_dominator == selector) {
+  if (candidate_selects.empty()) {
+    return false;
+  }
+  CHECK(!candidate_selects.empty());
+
+  // Find the minimum set of unknown bits that fully determine the value of the
+  // selector; we can treat the selector as defined by a LUT, then merge it into
+  // the select(s) it controls by reordering cases.
+  int64_t unknown_bits = 0;
+  int64_t max_bits_needed = Bits::MinBitCountUnsigned(max_case_count - 1);
+  if (max_bits_needed <= 1) {
+    // We can't narrow the controlled selects any further unless the selector is
+    // actually constant... which should be handled by other (cheaper) passes.
+    return false;
+  }
+
+  // Initialize the graph analysis if not done already.
+  if (!dataflow_graph_analysis.has_value()) {
+    dataflow_graph_analysis.emplace(selector->function_base(), &query_engine);
+  }
+
+  VLOG(3) << "Finding min cut for " << selector->GetName() << " ("
+          << max_bits_needed << " bits needed)" << " controlling "
+          << candidate_selects.size() << " select(s)";
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<Node*> min_cut,
+      dataflow_graph_analysis->GetMinCutFor(
+          selector, /*max_unknown_bits=*/max_bits_needed, &unknown_bits));
+  if (min_cut.empty()) {
     // There's no better alternative; this selector is already optimal.
     return false;
   }
-  VLOG(2) << "Merging a lookup table into a select: " << select->ToString();
+  VLOG(3) << "Found " << unknown_bits << "-bit min cut for "
+          << selector->GetName() << ": "
+          << absl::StrJoin(min_cut, ", ", [](std::string* out, Node* node) {
+               absl::StrAppend(out, node->GetName());
+             });
 
-  if (!best_dominator_ternary.has_value()) {
-    best_dominator_ternary =
-        LeafTypeTree<TernaryVector>::CreateFromFunction(
-            best_dominator->GetType(),
-            [](Type* leaf_type,
-               absl::Span<const int64_t>) -> absl::StatusOr<TernaryVector> {
-              return TernaryVector(leaf_type->GetFlatBitCount(),
-                                   TernaryValue::kUnknown);
-            })
-            .value()
-            .AsShared();
+  // Remove all candidate selects that wouldn't benefit from this transform.
+  const bool selector_is_trivial = IsTriviallyDerived(
+      selector, absl::flat_hash_set<Node*>(min_cut.begin(), min_cut.end()));
+  std::erase_if(candidate_selects, [&](Select* select) {
+    int64_t bits_needed = Bits::MinBitCountUnsigned(CaseCount(select) - 1);
+    if (unknown_bits < bits_needed) {
+      // This transform will narrow this select.
+      return false;
+    }
+    if (unknown_bits == bits_needed && !selector_is_trivial) {
+      // This transform will keep this select approximately the same width, but
+      // should save delay through the selector.
+      return false;
+    }
+    // Without a way to tell whether this transform is still beneficial, we
+    // can't confidently use this optimization.
+    //
+    // TODO(epastor): Use delay & area estimators to check for net benefit.
+    return true;
+  });
+  if (candidate_selects.empty()) {
+    return false;
   }
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<Value> dominator_values,
-      ternary_ops::AllValues(best_dominator_ternary->AsView()));
-  XLS_RET_CHECK(!dominator_values.empty());
+
+  std::vector<SharedLeafTypeTree<TernaryVector>> cut_ternaries;
+  cut_ternaries.reserve(min_cut.size());
+  for (size_t i = 0; i < min_cut.size(); ++i) {
+    Node* cut_node = min_cut[i];
+    std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+        query_engine.GetTernary(cut_node);
+    VLOG(4) << "Ternary for cut node " << cut_node->GetName() << ": "
+            << ternary->ToString(
+                   [](TernarySpan span) { return ToString(span); });
+    cut_ternaries.push_back(*std::move(ternary));
+  }
+
+  VLOG(2) << "Merging a " << unknown_bits
+          << "-bit lookup table into its controlled selects: "
+          << absl::StrJoin(candidate_selects, ", ",
+                           [](std::string* out, Select* select) {
+                             absl::StrAppend(out, select->GetName());
+                           });
+  if (VLOG_IS_ON(3)) {
+    for (Select* candidate : candidate_selects) {
+      VLOG(3) << "- " << candidate->ToString();
+    }
+  }
 
   // Populate an interpreter with all known values that feed into the
   // selector.
@@ -175,69 +225,129 @@ absl::StatusOr<bool> MaybeMergeLutIntoSelect(
     }
   }
 
-  std::vector<Node*> new_cases;
-  new_cases.reserve(dominator_values.size());
-  for (const Value& dominator_value : dominator_values) {
-    // Invoke an interpreter using known values & this `dominator_value` to
-    // compute the value of the selector.
-    IrInterpreter interpreter = base_interpreter;
-    if (interpreter.IsVisited(best_dominator)) {
-      // It seems the dominator is actually fully-known!
-      XLS_RET_CHECK_EQ(interpreter.ResolveAsValue(best_dominator),
-                       dominator_value);
-    } else {
-      XLS_RETURN_IF_ERROR(
-          interpreter.SetValueResult(best_dominator, dominator_value));
-      interpreter.MarkVisited(best_dominator);
-    }
-    XLS_RETURN_IF_ERROR(selector->Accept(&interpreter));
-
-    Value selector_value = interpreter.ResolveAsValue(selector);
-    XLS_RET_CHECK(selector_value.IsBits());
-    new_cases.push_back(
-        bits_ops::ULessThan(selector_value.bits(), select->cases().size())
-            ? select->get_case(
-                  static_cast<int64_t>(*selector_value.bits().ToUint64()))
-            : *select->default_value());
+  std::vector<std::vector<Value>> cut_values(min_cut.size());
+  for (size_t i = 0; i < min_cut.size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(cut_values[i],
+                         ternary_ops::AllValues(cut_ternaries[i].AsView()));
+    XLS_RET_CHECK(!cut_values[i].empty());
   }
 
-  if (new_cases.size() == 1) {
+  int64_t new_case_count = 1;
+  std::vector<int64_t> values_radix;
+  values_radix.reserve(cut_values.size());
+  for (const std::vector<Value>& cut_value : cut_values) {
+    new_case_count *= cut_value.size();
+    values_radix.push_back(cut_value.size());
+  }
+
+  std::vector<Bits> new_case_sequence;
+  new_case_sequence.reserve(new_case_count);
+  absl::Status status = absl::OkStatus();
+  MixedRadixIterate(
+      values_radix, [&](const std::vector<int64_t>& value_indices) {
+        // Invoke an interpreter using known values & these values on the
+        // min-cut to compute the value of the selector.
+        IrInterpreter interpreter = base_interpreter;
+        for (size_t i = 0; i < value_indices.size(); ++i) {
+          Node* cut_node = min_cut[i];
+          int64_t value_index = value_indices[i];
+          const Value& cut_value = cut_values[i][value_index];
+          if (interpreter.IsVisited(cut_node)) {
+            // It seems this cut node is actually fully-known!
+            if (const Value& resolved_value =
+                    interpreter.ResolveAsValue(cut_node);
+                resolved_value != cut_value) {
+              status.Update(absl::InternalError(absl::StrFormat(
+                  "Cut node %s has different value in interpreter (%s) than "
+                  "expected (%s)",
+                  cut_node->ToString(), resolved_value.ToString(),
+                  cut_value.ToString())));
+              return true;
+            }
+          } else {
+            status.Update(interpreter.SetValueResult(cut_node, cut_value));
+            if (!status.ok()) {
+              return true;
+            }
+            interpreter.MarkVisited(cut_node);
+          }
+        }
+        status.Update(selector->Accept(&interpreter));
+        if (!status.ok()) {
+          return true;
+        }
+
+        Value selector_value = interpreter.ResolveAsValue(selector);
+        CHECK(selector_value.IsBits());
+        new_case_sequence.push_back(std::move(selector_value).bits());
+        return false;
+      });
+  XLS_RETURN_IF_ERROR(status);
+  XLS_RET_CHECK_EQ(new_case_sequence.size(), new_case_count);
+
+  if (absl::c_all_of(new_case_sequence, [&](const Bits& index) {
+        return index == new_case_sequence.front();
+      })) {
     // We've proven that only one case is ever selected; just use that
     // directly.
-    XLS_RETURN_IF_ERROR(select->ReplaceUsesWith(new_cases.front()));
+    for (Select* select : candidate_selects) {
+      XLS_RETURN_IF_ERROR(
+          select->ReplaceUsesWith(GetCase(select, new_case_sequence.front())));
+    }
     return true;
   }
 
-  // Assemble the new selector out of the unknown bits of the dominator.
-  LeafTypeTree<Bits> unknown_positions_ltt =
-      leaf_type_tree::Map<Bits, TernaryVector>(
-          best_dominator_ternary->AsView(),
-          [&](const TernaryVector& ternary) -> Bits {
-            return bits_ops::Not(ternary_ops::ToKnownBits(ternary));
-          });
-  XLS_ASSIGN_OR_RETURN(
-      Node * new_selector,
-      GatherBits(best_dominator, unknown_positions_ltt.AsView()));
+  // Assemble the new selector out of the unknown bits of the min-cut nodes.
+  std::vector<Node*> selector_pieces;
+  selector_pieces.reserve(min_cut.size());
+  for (size_t i = 0; i < min_cut.size(); ++i) {
+    LeafTypeTree<Bits> unknown_positions_ltt =
+        leaf_type_tree::Map<Bits, TernaryVector>(
+            cut_ternaries[i].AsView(),
+            [&](const TernaryVector& ternary) -> Bits {
+              return bits_ops::Not(ternary_ops::ToKnownBits(ternary));
+            });
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_selector_piece,
+        GatherBits(min_cut[i], unknown_positions_ltt.AsView()));
+    selector_pieces.push_back(new_selector_piece);
+  }
 
-  XLS_RETURN_IF_ERROR(
-      select
-          ->ReplaceUsesWithNew<Select>(new_selector, new_cases,
-                                       /*default_value=*/std::nullopt)
-          .status());
+  Node* new_selector;
+  XLS_RET_CHECK(!selector_pieces.empty());
+  if (selector_pieces.size() == 1) {
+    new_selector = selector_pieces.front();
+  } else {
+    // Concat assumes big-endian order.
+    absl::c_reverse(selector_pieces);
+    XLS_ASSIGN_OR_RETURN(new_selector,
+                         selector->function_base()->MakeNode<Concat>(
+                             selector->loc(), selector_pieces));
+  }
+
+  for (Select* select : candidate_selects) {
+    absl::FixedArray<Node*> new_cases(new_case_count);
+    for (int64_t i = 0; i < new_case_count; ++i) {
+      new_cases[i] = GetCase(select, new_case_sequence[i]);
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_select,
+        select->ReplaceUsesWithNew<Select>(new_selector, new_cases,
+                                           /*default_value=*/std::nullopt));
+    VLOG(3) << "Replaced " << select->GetName()
+            << " with: " << new_select->ToString();
+  }
   return true;
 }
 
 absl::StatusOr<bool> SimplifyNode(
     Node* node, const QueryEngine& query_engine, int64_t opt_level,
-    const DataflowDominatorAnalysis& dataflow_dominator_analysis) {
-  if (node->Is<Select>()) {
-    XLS_ASSIGN_OR_RETURN(
-        bool changed_select_incorporating_lut,
-        MaybeMergeLutIntoSelect(node->As<Select>(), query_engine, opt_level,
-                                dataflow_dominator_analysis));
-    if (changed_select_incorporating_lut) {
-      return true;
-    }
+    std::optional<DataflowGraphAnalysis>& dataflow_graph_analysis) {
+  XLS_ASSIGN_OR_RETURN(bool changed_select_incorporating_lut,
+                       MaybeMergeLutIntoSelects(node, query_engine, opt_level,
+                                                dataflow_graph_analysis));
+  if (changed_select_incorporating_lut) {
+    return true;
   }
 
   return false;
@@ -259,8 +369,7 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
   UnionQueryEngine query_engine(std::move(query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
-  XLS_ASSIGN_OR_RETURN(DataflowDominatorAnalysis dataflow_dominator_analysis,
-                       DataflowDominatorAnalysis::Run(func));
+  std::optional<DataflowGraphAnalysis> dataflow_graph_analysis;
 
   bool changed = false;
   // By running in reverse topological order, the analyses will stay valid for
@@ -269,10 +378,10 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
     if (node->IsDead()) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(bool node_changed,
+    XLS_ASSIGN_OR_RETURN(bool changed_at_node,
                          SimplifyNode(node, query_engine, options.opt_level,
-                                      dataflow_dominator_analysis));
-    changed = changed || node_changed;
+                                      dataflow_graph_analysis));
+    changed = changed || changed_at_node;
   }
   return changed;
 }

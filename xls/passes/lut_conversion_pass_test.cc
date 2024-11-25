@@ -127,9 +127,9 @@ TEST_F(LutConversionPassTest, AffineSelector) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::Select(m::Param("x"),
-                {m::Param("x"), m::Param("x"), m::Literal(0), m::Literal(0),
-                 m::Literal(1), m::Literal(1), m::Literal(2), m::Literal(2)}));
+      m::Select(m::BitSlice(m::Shrl(m::Param("x"), m::Literal(1)), /*start=*/0,
+                            /*width=*/2),
+                {m::Param("x"), m::Literal(0), m::Literal(1), m::Literal(2)}));
 }
 
 TEST_F(LutConversionPassTest, IneligibleDominator) {
@@ -153,6 +153,58 @@ TEST_F(LutConversionPassTest, IneligibleDominator) {
   EXPECT_THAT(f->return_value(),
               m::Select(m::BitSlice(), {m::Literal(3), m::Literal(0),
                                         m::Literal(1), m::Literal(2)}));
+}
+
+TEST_F(LutConversionPassTest, MultipleSources) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn test(x: bits[2], y: bits[1]) -> bits[3] {
+        literal.0: bits[3] = literal(value=0)
+        literal.1: bits[3] = literal(value=1)
+        literal.2: bits[3] = literal(value=2)
+        literal.3: bits[3] = literal(value=3)
+        literal.4: bits[3] = literal(value=4)
+        literal.5: bits[3] = literal(value=5)
+        literal.6: bits[3] = literal(value=6)
+        literal.7: bits[3] = literal(value=7)
+        six_x: bits[5] = umul(x, literal.6)
+        seven_y: bits[5] = umul(y, literal.7)
+        selector: bits[5] = sub(six_x, seven_y)
+        ret result: bits[3] = sel(selector, cases=[literal.0, literal.1, literal.2, literal.3, literal.4, literal.5, literal.6, literal.7], default=literal.0)
+     }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Concat(m::Param("y"), m::Param("x")),
+                {m::Literal(0), m::Literal(6), m::Literal(0), m::Literal(0),
+                 m::Literal(0), m::Literal(0), m::Literal(5), m::Literal(0)}));
+}
+
+// Found by minimizing a real example during development.
+TEST_F(LutConversionPassTest, ComplexExample) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+    fn test(x: bits[2]) -> bits[1] {
+      bit_slice.2: bits[1] = bit_slice(x, start=0, width=1)
+      bit_slice.3: bits[1] = bit_slice(x, start=0, width=1)
+      literal.4: bits[2] = literal(value=0)
+      zero_ext.5: bits[2] = zero_ext(bit_slice.2, new_bit_count=2)
+      sel.6: bits[2] = sel(bit_slice.3, cases=[literal.4, zero_ext.5])
+      literal.7: bits[1] = literal(value=0)
+      ret sel.8: bits[1] = sel(sel.6, cases=[literal.7, literal.7], default=literal.7)
+    }
+  )",
+                                                       p.get()));
+
+  solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Param("x"), {m::Literal(0), m::Literal(0),
+                                        m::Literal(0), m::Literal(0)}));
 }
 
 }  // namespace
