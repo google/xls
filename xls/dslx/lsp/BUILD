@@ -27,7 +27,7 @@ cc_library(
     hdrs = ["lsp_type_utils.h"],
     deps = [
         "//xls/dslx/frontend:pos",
-        "@verible//common/lsp:lsp-protocol",
+        "@verible//verible/common/lsp:lsp-protocol",
     ],
 )
 
@@ -87,10 +87,10 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@jsonhpp//:json",
-        "@verible//common/lsp:lsp-file-utils",
-        "@verible//common/lsp:lsp-protocol",
-        "@verible//common/lsp:lsp-protocol-enums",
+        "@jsonhpp//:singleheader-json",
+        "@verible//verible/common/lsp:lsp-file-utils",
+        "@verible//verible/common/lsp:lsp-protocol",
+        "@verible//verible/common/lsp:lsp-protocol-enums",
     ],
 )
 
@@ -111,7 +111,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
-        "@verible//common/lsp:lsp-protocol",
+        "@verible//verible/common/lsp:lsp-protocol",
     ],
 )
 
@@ -127,11 +127,11 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@jsonhpp//:json",
-        "@verible//common/lsp:json-rpc-dispatcher",
-        "@verible//common/lsp:lsp-protocol",
-        "@verible//common/lsp:lsp-text-buffer",
-        "@verible//common/lsp:message-stream-splitter",
+        "@jsonhpp//:singleheader-json",
+        "@verible//verible/common/lsp:json-rpc-dispatcher",
+        "@verible//verible/common/lsp:lsp-protocol",
+        "@verible//verible/common/lsp:lsp-text-buffer",
+        "@verible//verible/common/lsp:message-stream-splitter",
     ],
 )
 
@@ -146,8 +146,8 @@ cc_library(
         "//xls/dslx/frontend:module",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:variant",
-        "@verible//common/lsp:lsp-protocol",
-        "@verible//common/lsp:lsp-protocol-enums",
+        "@verible//verible/common/lsp:lsp-protocol",
+        "@verible//verible/common/lsp:lsp-protocol-enums",
     ],
 )
 

@@ -29,7 +29,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "external/verible/common/lsp/lsp-protocol.h"
+#include "verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"

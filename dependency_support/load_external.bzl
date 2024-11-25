@@ -300,18 +300,16 @@ def load_external_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
-    # Tagged 2024-10-16, current as of 2024-10-16
-    VERIBLE_TAG = "v0.0-3836-g86ee9bab"
+    # Tagged 2024-11-23, current as of 2024-11-25
+    VERIBLE_TAG = "v0.0-3858-g660d1664"
     http_archive(
         name = "verible",
-        sha256 = "946625a1527d0a97772ea031ab7358af29e61258c189a2ab0d9533b43e71f35b",
+        sha256 = "89bba2f840bacc9cb9145e7e40ae70d30657cd874425ecee589bc04e623803f3",
         strip_prefix = "verible-" + VERIBLE_TAG.lstrip("v"),
         urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/" + VERIBLE_TAG + ".tar.gz"],
-        patch_args = ["-p1"],
-        patches = ["//dependency_support/verible:visibility.patch"],
     )
 
-    # Used by Verible; current as of 2024-06-26
+    # Used by Verible; current as of 2024-11-25
     http_archive(
         name = "jsonhpp",
         build_file = "@verible//bazel:jsonhpp.BUILD",

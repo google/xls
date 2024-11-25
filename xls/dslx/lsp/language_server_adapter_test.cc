@@ -27,7 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
-#include "external/verible/common/lsp/lsp-protocol.h"
+#include "verible/common/lsp/lsp-protocol.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"

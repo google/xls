@@ -19,7 +19,7 @@
 
 #include <string_view>
 
-#include "external/verible/common/lsp/lsp-protocol.h"
+#include "verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {

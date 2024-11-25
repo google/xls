@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "external/verible/common/lsp/lsp-protocol.h"
+#include "verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 

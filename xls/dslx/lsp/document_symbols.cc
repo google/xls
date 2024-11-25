@@ -19,8 +19,8 @@
 
 #include "absl/log/log.h"
 #include "absl/types/variant.h"
-#include "external/verible/common/lsp/lsp-protocol-enums.h"
-#include "external/verible/common/lsp/lsp-protocol.h"
+#include "verible/common/lsp/lsp-protocol-enums.h"
+#include "verible/common/lsp/lsp-protocol.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
