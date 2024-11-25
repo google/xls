@@ -23,7 +23,7 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
 
-namespace xls {
+namespace xls::integrator {
 
 // Abstraction describing an area model for XLS operations.
 class AreaEstimator {
@@ -48,6 +48,6 @@ class AreaEstimator {
 absl::StatusOr<std::unique_ptr<AreaEstimator>> GetAreaEstimatorByName(
     std::string_view name);
 
-}  // namespace xls
+}  // namespace xls::integrator
 
 #endif  // XLS_CONTRIB_INTEGRATOR_AREA_MODEL_AREA_ESTIMATOR_H_
