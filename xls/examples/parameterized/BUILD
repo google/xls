@@ -14,6 +14,7 @@
 
 # Build rules for proto to DSLX example
 
+# Load proto_library
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_dslx_ir",

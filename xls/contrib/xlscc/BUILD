@@ -18,6 +18,7 @@
 # Email xls-team@ or seanhaskell@ if a dependency is desired.
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+# Load proto_library
 # cc_proto_library is used in this file
 
 # pytype binary only

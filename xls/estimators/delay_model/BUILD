@@ -18,6 +18,8 @@ load("@rules_hdl//dependency_support/org_theopenroadproject_asap7_pdk_r1p7:cells
 # pytype binary only
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+
+# Load proto_library
 load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
 # cc_proto_library is used in this file
 

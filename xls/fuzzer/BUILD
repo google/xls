@@ -17,6 +17,8 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 # pytype test and library
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+
+# Load proto_library
 load("//xls/dslx:strip_comments.bzl", "dslx_strip_comments")
 load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file

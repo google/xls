@@ -15,6 +15,7 @@
 # Common utilities shared among XLA subfolders.
 
 # pytype test and library
+# Load proto_library
 # cc_proto_library is used in this file
 
 package(

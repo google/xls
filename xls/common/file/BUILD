@@ -14,6 +14,7 @@
 
 # Common utilities for filesystem interaction shared among XLA subfolders.
 
+# Load proto_library
 # cc_proto_library is used in this file
 
 package(

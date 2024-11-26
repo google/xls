@@ -21,6 +21,8 @@ load("@bazel_skylib//rules:build_test.bzl", "build_test")
 # pytype binary and test
 load("@rules_python//python:proto.bzl", "py_proto_library")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+
+# Load proto_library
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",

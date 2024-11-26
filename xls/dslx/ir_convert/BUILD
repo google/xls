@@ -15,6 +15,7 @@
 # Conversion from frontend representation to XLS IR.
 
 # pytype tests are present in this file
+# Load proto_library
 # cc_proto_library is used in this file
 
 package(

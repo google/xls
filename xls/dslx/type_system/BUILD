@@ -15,6 +15,7 @@
 # Frontend type-system and associated data structures.
 
 # pytype tests are present in this file
+# Load proto_library
 # cc_proto_library is used in this file
 
 package(
