@@ -17,8 +17,6 @@
 #ifndef XLS_DSLX_LSP_LSP_TYPE_UTILS_H_
 #define XLS_DSLX_LSP_LSP_TYPE_UTILS_H_
 
-#include <string_view>
-
 #include "verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/lsp/lsp_uri.h"
