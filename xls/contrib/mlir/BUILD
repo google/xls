@@ -503,6 +503,11 @@ cc_binary(
     ],
 )
 
+filegroup(
+    name = "stdlib",
+    srcs = glob(["stdlib/*.x"]),
+)
+
 cc_library(
     name = "xls_translate_lib",
     srcs = [
