@@ -83,6 +83,9 @@ message SampleOptionsProto {
   // Number ticks to execute the generated proc. Only meaningful for procs.
   optional int64 proc_ticks = 14;
 
+  // Inputs are spaced out with valid holdoffs
+  optional bool with_valid_holdoff = 16;
+
   // Regex of error messages which are known to be domain-errors in fuzzing.
   //
   // Any crasher which has a match the regular-expressions in the correct tool

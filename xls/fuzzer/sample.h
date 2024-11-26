@@ -104,6 +104,11 @@ class SampleOptions {
   bool simulate() const { return proto_.simulate(); }
   void set_simulate(bool value) { proto_.set_simulate(value); }
 
+  bool with_valid_holdoff() const { return proto_.with_valid_holdoff(); }
+  void set_with_valid_holdoff(bool value) {
+    proto_.set_with_valid_holdoff(value);
+  }
+
   const std::string& simulator() const { return proto_.simulator(); }
   void set_simulator(std::string_view value) {
     proto_.set_simulator(ToProtoString(value));

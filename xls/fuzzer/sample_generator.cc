@@ -34,6 +34,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -57,6 +58,7 @@
 #include "xls/fuzzer/sample.h"
 #include "xls/fuzzer/sample.pb.h"
 #include "xls/fuzzer/value_generator.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls {
 namespace {
@@ -302,6 +304,20 @@ static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
   return channel_names;
 }
 
+// Convert InterpValue to value used in SampleInputsProto
+std::string ToArgString(const InterpValue& v) {
+  return v.ConvertToIr().value().ToString(FormatPreference::kHex);
+}
+
+// Converts a list of interpreter values to a string as needed in SampleInputs
+std::string InterpValueListToString(
+    const std::vector<InterpValue>& interpv_list) {
+  return absl::StrJoin(interpv_list, "; ",
+                       [](std::string* out, const InterpValue& v) {
+                         absl::StrAppend(out, ToArgString(v));
+                       });
+}
+
 static absl::StatusOr<Sample> GenerateFunctionSample(
     dslx::Function* function, const TypecheckedModule& tm,
     const SampleOptions& sample_options, absl::BitGenRef bit_gen,
@@ -310,14 +326,16 @@ static absl::StatusOr<Sample> GenerateFunctionSample(
                        GetParamTypesOfFunction(function, tm));
   std::vector<const dslx::Type*> params = TranslateTypeList(top_params);
 
-  std::vector<std::vector<InterpValue>> args_batch;
+  testvector::SampleInputsProto testvector;
+  testvector::FunctionArgsProto* fun_args = testvector.mutable_function_args();
+
   for (int64_t i = 0; i < sample_options.calls_per_sample(); ++i) {
     XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
                          GenerateInterpValues(bit_gen, params));
-    args_batch.push_back(std::move(args));
+    fun_args->add_args(InterpValueListToString(args));
   }
 
-  return Sample(dslx_text, sample_options, std::move(args_batch));
+  return Sample(dslx_text, sample_options, testvector);
 }
 
 static absl::StatusOr<Sample> GenerateProcSample(
@@ -330,6 +348,9 @@ static absl::StatusOr<Sample> GenerateProcSample(
   std::vector<const dslx::Type*> input_channel_payload_types_ptr =
       TranslateTypeList(input_channel_payload_types);
 
+  // Create number of values needed for the proc_ticks.
+  // Actual proc-tics the execution needs might be longer depending on
+  // if it deals with holdoff values.
   std::vector<std::vector<InterpValue>> channel_values_batch;
   for (int64_t i = 0; i < sample_options.proc_ticks(); ++i) {
     XLS_ASSIGN_OR_RETURN(
@@ -338,16 +359,34 @@ static absl::StatusOr<Sample> GenerateProcSample(
     channel_values_batch.push_back(std::move(channel_values));
   }
 
-  std::vector<std::string> input_channel_names =
+  const std::vector<std::string> input_channel_names =
       GetInputChannelNamesOfProc(proc);
-  std::vector<std::string> ir_channel_names(input_channel_names.size());
-  for (int64_t index = 0; index < input_channel_names.size(); ++index) {
-    ir_channel_names[index] =
-        absl::StrCat(proc->owner()->name(), "__", input_channel_names[index]);
+
+  const int64_t holdoff_range = sample_options.proc_ticks() / 10;
+  testvector::SampleInputsProto testvector;
+  testvector::ChannelInputsProto* inputs_proto =
+      testvector.mutable_channel_inputs();
+  using testvector::ValidHoldoff;
+
+  // Create data per channel. Each channel gets data with randomized
+  // valid-holdoff prepended if requested.
+  for (int64_t ch_idx = 0; ch_idx < input_channel_names.size(); ++ch_idx) {
+    testvector::ChannelInputProto* channel_input = inputs_proto->add_inputs();
+    channel_input->set_channel_name(
+        absl::StrCat(proc->owner()->name(), "__", input_channel_names[ch_idx]));
+    for (int64_t i = 0; i < sample_options.proc_ticks(); ++i) {
+      if (sample_options.with_valid_holdoff()) {
+        int64_t holdoff = absl::Uniform<int64_t>(bit_gen, 0, holdoff_range);
+        ValidHoldoff* holdoff_data = channel_input->add_valid_holdoffs();
+        holdoff_data->set_cycles(holdoff);
+      }
+
+      const std::vector<InterpValue>& args = channel_values_batch[i];
+      channel_input->add_values(ToArgString(args[ch_idx]));
+    }
   }
 
-  return Sample(dslx_text, sample_options, std::move(channel_values_batch),
-                std::move(ir_channel_names));
+  return Sample(dslx_text, sample_options, testvector);
 }
 
 absl::StatusOr<Sample> GenerateSample(

@@ -68,6 +68,8 @@ ABSL_FLAG(
     std::optional<absl::Duration>, sample_timeout, std::nullopt,
     "Maximum time to run each sample before timing out. Examples: 10s, 2m, 1h");
 ABSL_FLAG(bool, generate_proc, false, "Generate a proc sample.");
+ABSL_FLAG(bool, with_valid_holdoff, false,
+          "If true, emit valid random holdoffs on proc input channels.");
 
 // The maximum number of failures before the test aborts.
 constexpr int64_t kMaxFailures = 10;
@@ -133,6 +135,8 @@ TEST(FuzzIntegrationTest, Fuzzing) {
     sample_options.set_timeout_seconds(
         absl::ToInt64Seconds(*absl::GetFlag(FLAGS_sample_timeout)));
   }
+  sample_options.set_with_valid_holdoff(
+      absl::GetFlag(FLAGS_with_valid_holdoff));
 
   int64_t crasher_count = 0;
   int64_t sample_count = 0;

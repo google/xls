@@ -809,6 +809,7 @@ cc_library(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",
+        "//xls/ir:format_preference",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random:bit_gen_ref",

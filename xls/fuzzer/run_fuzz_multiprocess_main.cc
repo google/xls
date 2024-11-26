@@ -83,6 +83,8 @@ ABSL_FLAG(
 ABSL_FLAG(std::optional<int64_t>, worker_count, std::nullopt,
           "Number of workers to use for execution; defaults to number of "
           "physical cores detected.");
+ABSL_FLAG(bool, with_valid_holdoff, false,
+          "If true, emit valid random holdoffs on proc input channels.");
 
 namespace xls {
 namespace {
@@ -108,6 +110,7 @@ struct Options {
   bool use_llvm_jit;
   bool use_system_verilog;
   std::optional<int64_t> worker_count;
+  bool with_valid_holdoff;
 };
 
 absl::Status CheckOrCreateWritableDirectory(const std::filesystem::path& path) {
@@ -168,6 +171,7 @@ absl::Status RealMain(const Options& options) {
   }
   sample_options.set_use_jit(options.use_llvm_jit);
   sample_options.set_use_system_verilog(options.use_system_verilog);
+  sample_options.set_with_valid_holdoff(options.with_valid_holdoff);
 
   return ParallelGenerateAndRunSamples(
       worker_count, ast_generator_options, sample_options, options.seed,
@@ -216,5 +220,6 @@ int main(int argc, char** argv) {
       .use_llvm_jit = absl::GetFlag(FLAGS_use_llvm_jit),
       .use_system_verilog = absl::GetFlag(FLAGS_use_system_verilog),
       .worker_count = absl::GetFlag(FLAGS_worker_count),
+      .with_valid_holdoff = absl::GetFlag(FLAGS_with_valid_holdoff),
   }));
 }
