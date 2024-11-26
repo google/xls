@@ -293,6 +293,22 @@ struct CodegenPassUnit {
   using MetadataMap = absl::btree_map<Block*, CodegenMetadata, BlockByName>;
   MetadataMap metadata;
 
+  // Sorted map from FunctionBase to schedule.
+  absl::btree_map<FunctionBase*, PipelineSchedule,
+                  struct FunctionBase::NameLessThan>
+      function_base_to_schedule_;
+
+  // Sorted map from FunctionBase to block.
+  absl::btree_map<FunctionBase*, Block*, struct FunctionBase::NameLessThan>
+      function_base_to_block_;
+
+  // Adds necessary maps from the Schedule to FunctionBase and to the Block.
+  void AssociateBlock(FunctionBase* fb, PipelineSchedule schedule,
+                      Block* block) {
+    function_base_to_schedule_.emplace(fb, std::move(schedule));
+    function_base_to_block_.emplace(fb, block);
+  }
+
   // These methods are required by CompoundPassBase.
   std::string DumpIr() const;
   const std::string& name() const {

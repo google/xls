@@ -21,6 +21,8 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/base/nullability.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -35,6 +37,13 @@
 
 namespace xls {
 namespace verilog {
+
+// If specified by user, returns the PackageInterFaceProto::Function for the
+// function with the given name.
+std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
+    const std::optional<PackageInterfaceProto>& src,
+    std::string_view func_name);
+
 // Return a schedule based on the given schedule that adjusts the cycles of the
 // nodes to introduce pipeline registers immediately after input ports or
 // immediately before output ports based on the `flop_inputs` and `flop_outputs`
@@ -59,6 +68,32 @@ absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
 absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
     const PackagePipelineSchedules& schedule, const CodegenOptions& options,
     Package* package);
+
+// Converts a function into a pipelined block.
+//
+// Parameters:
+//  input - schedule: Schedule for the to-be-created block.
+//  input - options:  Codegen options.
+//  inout - unit:     Metadata for codegen passes.
+//  input - function: Function to convert to a pipelined block.
+//  inout - block:    Destination block, should be empty.
+absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
+                                            const CodegenOptions& options,
+                                            CodegenPassUnit& unit, Function* f,
+                                            absl::Nonnull<Block*> block);
+
+// Converts a proc into a pipelined block.
+//
+// Parameters:
+//  input - schedule: Schedule for the to-be-created block.
+//  input - options:  Codegen options.
+//  inout - unit:     Metadata for codegen passes.
+//  input - proc:     Function to convert to a pipelined block.
+//  inout - block:    Destination block, should be empty.
+absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
+                                        const CodegenOptions& options,
+                                        CodegenPassUnit& unit, Proc* proc,
+                                        absl::Nonnull<Block*> block);
 
 // Converts a function into a combinational block. Function arguments become
 // input ports, function return value becomes an output port. Returns a pointer
@@ -101,6 +136,21 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     const std::optional<xls::Reset>& reset_behavior, Block* block,
     std::vector<std::optional<Node*>>& valid_nodes);
 
+// Clones every node in the given proc into the given block. Some nodes are
+// handled specially.  See CloneNodesIntoBlockHandler for details.
+absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
+    Proc* proc, const CodegenOptions& options, Block* block);
+
+// Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
+// adds logic which propagates ready and valid signals through the block.
+absl::Status AddCombinationalFlowControl(
+    std::vector<std::vector<StreamingInput>>& streaming_inputs,
+    std::vector<std::vector<StreamingOutput>>& streaming_outputs,
+    std::vector<std::optional<Node*>>& stage_valid,
+    const CodegenOptions& options, Block* block);
+
+// Update io channel metadata with latest information from block conversion.
+absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io, Block* block);
 }  // namespace verilog
 }  // namespace xls
 

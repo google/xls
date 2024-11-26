@@ -197,11 +197,81 @@ cc_library(
 )
 
 cc_library(
+    name = "convert_ir_to_blocks_passes",
+    srcs = ["convert_ir_to_blocks_passes.cc"],
+    hdrs = ["convert_ir_to_blocks_passes.h"],
+    deps = [
+        ":bdd_io_analysis",
+        ":block_conversion",
+        ":codegen_pass",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:state_element",
+        "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "update_channel_metadata_pass",
+    srcs = ["update_channel_metadata_pass.cc"],
+    hdrs = ["update_channel_metadata_pass.h"],
+    deps = [
+        ":block_conversion",
+        ":codegen_pass",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "block_conversion_dead_token_removal_pass",
+    srcs = ["block_conversion_dead_token_removal_pass.cc"],
+    hdrs = ["block_conversion_dead_token_removal_pass.h"],
+    deps = [
+        ":codegen_checker",
+        ":codegen_pass",
+        ":codegen_wrapper_pass",
+        ":register_legalization_pass",
+        "//xls/passes:dataflow_simplification_pass",
+        "//xls/passes:dce_pass",
+    ],
+)
+
+cc_library(
+    name = "block_conversion_pass_pipeline",
+    srcs = ["block_conversion_pass_pipeline.cc"],
+    hdrs = ["block_conversion_pass_pipeline.h"],
+    deps = [
+        ":block_conversion_dead_token_removal_pass",
+        ":codegen_options",
+        ":codegen_pass",
+        ":convert_ir_to_blocks_passes",
+        ":update_channel_metadata_pass",
+        "//xls/codegen/vast",
+        "//xls/common/status:ret_check",
+        "//xls/ir",
+        "//xls/ir:name_uniquer",
+        "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "unified_generator",
     srcs = ["unified_generator.cc"],
     hdrs = ["unified_generator.h"],
     deps = [
-        ":block_conversion",
+        ":block_conversion_pass_pipeline",
         ":block_generator",
         ":codegen_options",
         ":codegen_pass",

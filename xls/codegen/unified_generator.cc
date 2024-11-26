@@ -20,7 +20,7 @@
 
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
-#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/block_conversion_pass_pipeline.h"
 #include "xls/codegen/block_generator.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
@@ -50,10 +50,6 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
     }
   }
 
-  CodegenPassOptions pass_options;
-  pass_options.codegen_options = options;
-  pass_options.delay_estimator = delay_estimator;
-
   // TODO(tedhong): 2024-11-15 - Make passes that can be done at the IR level
   // into to IR to IR codegen passes.  Passes that will be needed to unify
   // codegen are:
@@ -63,11 +59,17 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
   //
   // For now, these passes call the existing generators and go directly from IR
   // to Block IR.
-  XLS_ASSIGN_OR_RETURN(
-      CodegenPassUnit unit,
-      options.generate_combinational()
-          ? FunctionBaseToCombinationalBlock(*package->GetTop(), options)
-          : PackageToPipelinedBlocks(schedules, options, package));
+  XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
+                       CreateBlocksFor(schedules, options, package));
+
+  CodegenPassOptions pass_options;
+  pass_options.codegen_options = options;
+  pass_options.delay_estimator = delay_estimator;
+
+  CodegenPassResults results;
+  XLS_RETURN_IF_ERROR(CreateBlockConversionPassPipeline(options)
+                          ->Run(&unit, pass_options, &results)
+                          .status());
 
   // Block to Block codegen passes.
   if (std::any_of(
@@ -82,7 +84,6 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
     pass_options.codegen_options.emit_as_pipeline(false);
   }
 
-  CodegenPassResults results;
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
   XLS_RET_CHECK(unit.top_block != nullptr &&

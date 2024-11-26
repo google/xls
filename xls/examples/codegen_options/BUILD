@@ -41,7 +41,7 @@ xls_ir_verilog(
     src = ":f_proc.opt.ir",
     codegen_args = {
         "generator": "pipeline",
-        "pipeline_stages": "1",
+        "pipeline_stages": "4",
         "flop_inputs": "false",
         "flop_outputs": "false",
         "use_system_verilog": "true",
@@ -68,10 +68,50 @@ xls_ir_verilog(
     verilog_file = "f_proc_as_comb.sv",
 )
 
+xls_dslx_opt_ir(
+    name = "f_func",
+    srcs = ["f_func.x"],
+    dslx_top = "f_func",
+)
+
+xls_ir_verilog(
+    name = "f_func_sv",
+    src = ":f_func.opt.ir",
+    codegen_args = {
+        "generator": "pipeline",
+        "pipeline_stages": "3",
+        "flop_inputs": "false",
+        "flop_outputs": "false",
+        "use_system_verilog": "true",
+        "module_name": "f_func",
+        "codegen_version": "2",
+    },
+    enable_presubmit_generated_file = True,
+    verilog_file = "f_func.sv",
+)
+
+xls_ir_verilog(
+    name = "f_func_as_comb_sv",
+    src = ":f_func.opt.ir",
+    codegen_args = {
+        "generator": "combinational",
+        "pipeline_stages": "1",
+        "flop_inputs": "false",
+        "flop_outputs": "false",
+        "use_system_verilog": "true",
+        "module_name": "f_func_as_comb",
+        "codegen_version": "2",
+    },
+    enable_presubmit_generated_file = True,
+    verilog_file = "f_func_as_comb.sv",
+)
+
 build_test(
     name = "verilog_targets_build",
     targets = [
         ":f_proc_sv",
         ":f_proc_as_comb_sv",
+        ":f_func_sv",
+        ":f_func_as_comb_sv",
     ],
 )
