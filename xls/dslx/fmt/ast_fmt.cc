@@ -420,26 +420,6 @@ static DocRef FmtSvTypeAttribute(std::string_view name, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const TypeAlias& n, const Comments& comments, DocArena& arena) {
-  std::vector<DocRef> pieces;
-  std::optional<DocRef> attr;
-  if (n.extern_type_name()) {
-    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena);
-  }
-  if (n.is_public()) {
-    pieces.push_back(arena.Make(Keyword::kPub));
-    pieces.push_back(arena.space());
-  }
-  pieces.push_back(arena.Make(Keyword::kType));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.MakeText(n.identifier()));
-  pieces.push_back(arena.space());
-  pieces.push_back(arena.equals());
-  pieces.push_back(arena.break1());
-  pieces.push_back(Fmt(n.type_annotation(), comments, arena));
-  return JoinWithAttr(attr, ConcatNGroup(arena, pieces), arena);
-}
-
 DocRef Fmt(const NameDef& n, const Comments& comments, DocArena& arena) {
   return arena.MakeText(n.identifier());
 }
@@ -660,6 +640,11 @@ static Pos CollectInlineComments(const Pos& prev_limit,
                               comments_doc.value());
   }
   return last_entity_pos;
+}
+
+static DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
+                  bool trailing_semi) {
+  return Formatter(comments, arena).Format(n, trailing_semi);
 }
 
 static DocRef FmtSingleStatementBlockInline(const StatementBlock& n,
@@ -1636,7 +1621,7 @@ DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena);
 // Default formatting for let-as-expression is to not emit the RHS with a
 // semicolon on it.
 DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
-  return Fmt(n, comments, arena, /*trailing_semi=*/false);
+  return Formatter(comments, arena).Format(n, /*trailing_semi=*/false);
 }
 
 class FmtExprVisitor : public ExprVisitor {
@@ -1783,78 +1768,6 @@ DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
 
 }  // namespace
 
-DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
-           bool trailing_semi) {
-  std::vector<DocRef> leader_pieces = {
-      arena.MakeText(n.is_const() ? "const" : "let"), arena.space(),
-      Fmt(*n.name_def_tree(), comments, arena)};
-  if (const TypeAnnotation* t = n.type_annotation()) {
-    leader_pieces.push_back(arena.colon());
-    leader_pieces.push_back(arena.space());
-    leader_pieces.push_back(Fmt(*t, comments, arena));
-  }
-
-  leader_pieces.push_back(arena.space());
-  leader_pieces.push_back(arena.equals());
-
-  const DocRef rhs_doc_internal = Fmt(*n.rhs(), comments, arena);
-
-  DocRef rhs_doc = rhs_doc_internal;
-  if (trailing_semi) {
-    // Reduce the width by 1 so we know we can emit the semi inline.
-    rhs_doc = arena.MakeConcat(arena.MakeReduceTextWidth(rhs_doc_internal, 1),
-                               arena.semi());
-  }
-
-  DocRef body;
-  if (n.rhs()->IsBlockedExprAnyLeader()) {
-    // For blocked expressions we don't align them to the equals in the let,
-    // because it'd shove constructs like `let really_long_identifier = for ...`
-    // too far to the right hand side.
-    //
-    // Note: if you do e.g. a binary operation on blocked constructs as the
-    // RHS it /will/ align because we don't look for blocked constructs
-    // transitively -- seems reasonable given that's going to look funky no
-    // matter what.
-    //
-    // Note: if it's an expression that acts as a block of contents, but has
-    // leading chars, e.g. an invocation, we don't know with reasonable
-    // confidence it'll fit on the current line.
-
-    DocRef on_other_ref = ConcatN(arena, {arena.space(), rhs_doc});
-
-    // If the blocky expression has a leader, and that leader doesn't fit in
-    // the line, we want to nest the whole thing so it has space to look
-    // normal and it knows it's in break mode.
-    if (n.rhs()->IsBlockedExprWithLeader()) {
-      // If the leading component fits, then see what we can fit flat from the
-      // RHS, we know we can at least fit that.
-      //
-      // If the leading component does not fit, emit the whole construct nested
-      // on the next line.
-      DocRef leader = arena.MakeConcat(
-          arena.space(), FmtBlockedExprLeader(*n.rhs(), comments, arena));
-      DocRef nested =
-          arena.MakeNest(arena.MakeConcat(arena.hard_line(), rhs_doc));
-      on_other_ref = arena.MakeModeSelect(leader, /*on_flat=*/on_other_ref,
-                                          /*on_break=*/nested);
-    }
-
-    body = arena.MakeNestIfFlatFits(
-        /*on_nested_flat_ref=*/rhs_doc,
-        /*on_other_ref=*/on_other_ref);
-  } else {
-    // Same as above but with an aligned RHS.
-    DocRef aligned_rhs = arena.MakeAlign(arena.MakeGroup(rhs_doc));
-    body = arena.MakeNestIfFlatFits(
-        /*on_nested_flat_ref=*/rhs_doc,
-        /*on_other_ref=*/arena.MakeConcat(arena.space(), aligned_rhs));
-  }
-
-  DocRef leader = ConcatN(arena, leader_pieces);
-  return ConcatNGroup(arena, {leader, body});
-}
-
 DocRef Formatter::Format(const ConstAssert& n) {
   // TODO: inline the Fmt method after all Expr-descendants are migrated to the
   // Formatter class.
@@ -1865,11 +1778,6 @@ DocRef Formatter::Format(const VerbatimNode* n) {
   // TODO: inline the Fmt method after all Expr-descendants are migrated to the
   // Formatter class.
   return Fmt(*n, comments_, arena_);
-}
-
-DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
-           bool trailing_semi) {
-  return Formatter(comments, arena).Format(n, trailing_semi);
 }
 
 DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
@@ -1885,12 +1793,8 @@ DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
           [&](const Expr* n) {
             return maybe_concat_semi(Fmt(*n, comments_, arena_));
           },
-          [&](const TypeAlias* n) {
-            return maybe_concat_semi(Fmt(*n, comments_, arena_));
-          },
-          [&](const Let* n) {
-            return Fmt(*n, comments_, arena_, trailing_semi);
-          },
+          [&](const TypeAlias* n) { return maybe_concat_semi(Format(*n)); },
+          [&](const Let* n) { return Format(*n, trailing_semi); },
           [&](const ConstAssert* n) { return maybe_concat_semi(Format(*n)); },
       },
       n.wrapped());
@@ -2130,7 +2034,7 @@ DocRef Formatter::Format(const Proc& n) {
                 stmt_pieces.push_back(
                     arena_.MakeConcat(maybe_doc.value(), arena_.hard_line()));
               }
-              stmt_pieces.push_back(Fmt(*n, comments_, arena_));
+              stmt_pieces.push_back(Format(*n));
               stmt_pieces.push_back(arena_.semi());
               stmt_pieces.push_back(arena_.hard_line());
               last_stmt_limit = n->span().limit();
@@ -2576,6 +2480,97 @@ DocRef Formatter::Format(const Import& n) {
   return ConcatNGroup(arena_, pieces);
 }
 
+DocRef Formatter::Format(const Let& n, bool trailing_semi) {
+  std::vector<DocRef> leader_pieces = {
+      arena_.Make(n.is_const() ? Keyword::kConst : Keyword::kLet),
+      arena_.space(), Fmt(*n.name_def_tree(), comments_, arena_)};
+  if (const TypeAnnotation* t = n.type_annotation()) {
+    leader_pieces.push_back(arena_.colon());
+    leader_pieces.push_back(arena_.space());
+    leader_pieces.push_back(Fmt(*t, comments_, arena_));
+  }
+
+  leader_pieces.push_back(arena_.space());
+  leader_pieces.push_back(arena_.equals());
+
+  const DocRef rhs_doc_internal = Fmt(*n.rhs(), comments_, arena_);
+
+  DocRef rhs_doc = rhs_doc_internal;
+  if (trailing_semi) {
+    // Reduce the width by 1 so we know we can emit the semi inline.
+    rhs_doc = arena_.MakeConcat(arena_.MakeReduceTextWidth(rhs_doc_internal, 1),
+                                arena_.semi());
+  }
+
+  DocRef body;
+  if (n.rhs()->IsBlockedExprAnyLeader()) {
+    // For blocked expressions we don't align them to the equals in the let,
+    // because it'd shove constructs like `let really_long_identifier = for ...`
+    // too far to the right hand side.
+    //
+    // Note: if you do e.g. a binary operation on blocked constructs as the
+    // RHS it /will/ align because we don't look for blocked constructs
+    // transitively -- seems reasonable given that's going to look funky no
+    // matter what.
+    //
+    // Note: if it's an expression that acts as a block of contents, but has
+    // leading chars, e.g. an invocation, we don't know with reasonable
+    // confidence it'll fit on the current line.
+
+    DocRef on_other_ref = ConcatN(arena_, {arena_.space(), rhs_doc});
+
+    // If the blocky expression has a leader, and that leader doesn't fit in
+    // the line, we want to nest the whole thing so it has space to look
+    // normal and it knows it's in break mode.
+    if (n.rhs()->IsBlockedExprWithLeader()) {
+      // If the leading component fits, then see what we can fit flat from the
+      // RHS, we know we can at least fit that.
+      //
+      // If the leading component does not fit, emit the whole construct nested
+      // on the next line.
+      DocRef leader = arena_.MakeConcat(
+          arena_.space(), FmtBlockedExprLeader(*n.rhs(), comments_, arena_));
+      DocRef nested =
+          arena_.MakeNest(arena_.MakeConcat(arena_.hard_line(), rhs_doc));
+      on_other_ref = arena_.MakeModeSelect(leader, /*on_flat=*/on_other_ref,
+                                           /*on_break=*/nested);
+    }
+
+    body = arena_.MakeNestIfFlatFits(
+        /*on_nested_flat_ref=*/rhs_doc,
+        /*on_other_ref=*/on_other_ref);
+  } else {
+    // Same as above but with an aligned RHS.
+    DocRef aligned_rhs = arena_.MakeAlign(arena_.MakeGroup(rhs_doc));
+    body = arena_.MakeNestIfFlatFits(
+        /*on_nested_flat_ref=*/rhs_doc,
+        /*on_other_ref=*/arena_.MakeConcat(arena_.space(), aligned_rhs));
+  }
+
+  DocRef leader = ConcatN(arena_, leader_pieces);
+  return ConcatNGroup(arena_, {leader, body});
+}
+
+DocRef Formatter::Format(const TypeAlias& n) {
+  std::vector<DocRef> pieces;
+  std::optional<DocRef> attr;
+  if (n.extern_type_name()) {
+    attr = FmtSvTypeAttribute(*n.extern_type_name(), arena_);
+  }
+  if (n.is_public()) {
+    pieces.push_back(arena_.Make(Keyword::kPub));
+    pieces.push_back(arena_.space());
+  }
+  pieces.push_back(arena_.Make(Keyword::kType));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.MakeText(n.identifier()));
+  pieces.push_back(arena_.space());
+  pieces.push_back(arena_.equals());
+  pieces.push_back(arena_.break1());
+  pieces.push_back(Fmt(n.type_annotation(), comments_, arena_));
+  return JoinWithAttr(attr, ConcatNGroup(arena_, pieces), arena_);
+}
+
 DocRef Formatter::Format(const ModuleMember& n) {
   return absl::visit(
       Visitor{
@@ -2585,7 +2580,7 @@ DocRef Formatter::Format(const ModuleMember& n) {
           [&](const TestProc* n) { return Format(*n); },
           [&](const QuickCheck* n) { return Format(*n); },
           [&](const TypeAlias* n) {
-            return arena_.MakeConcat(Fmt(*n, comments_, arena_), arena_.semi());
+            return arena_.MakeConcat(Format(*n), arena_.semi());
           },
           [&](const StructDef* n) { return Format(*n); },
           [&](const ProcDef* n) { return Format(*n); },

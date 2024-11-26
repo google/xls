@@ -165,7 +165,8 @@ TEST(AstFmtTest, FormatLet) {
   Comments comments = Comments::Create(s.comments());
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*stmt, comments, arena, /*trailing_semi=*/false);
+  Formatter fmt(comments, arena);
+  DocRef doc = fmt.Format(*stmt, /*trailing_semi=*/false);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "let x: u32 = u32:42");
 }
 
@@ -195,7 +196,8 @@ TEST(AstFmtTest, FormatVerbatimNodeStatement) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(statement, empty_comments, arena, /*trailing_semi=*/false);
+  DocRef doc = Formatter(empty_comments, arena)
+                   .Format(statement, /*trailing_semi=*/false);
 
   // Intentionally small text width, should still be formatted verbatim.
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), verbatim_text);

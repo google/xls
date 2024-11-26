@@ -41,6 +41,7 @@ class Formatter {
   // Each `Format` method creates a pretty-printable document from the given AST
   // Statement node `n`.
   DocRef Format(const Function& n);
+  DocRef Format(const Let& n, bool trailing_semi);
   DocRef Format(const Module& n);
   // If `trailing_semi` is true, then a trailing semicolon will also be emitted.
   DocRef Format(const Statement& n, bool trailing_semi);
@@ -64,6 +65,7 @@ class Formatter {
   DocRef Format(const StructDef& n);
   DocRef Format(const TestFunction& n);
   DocRef Format(const TestProc& n);
+  DocRef Format(const TypeAlias& n);
   DocRef Format(const VerbatimNode* n);
   DocRef FormatParams(absl::Span<const Param* const> params);
   DocRef FormatStructDefBase(
@@ -78,18 +80,8 @@ class Formatter {
 // Functions with this signature create a pretty printable document from the AST
 // node "n".
 
-DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
-
-// Create a pretty-printable document from the given AST Statement node `n`.
-// If `trailing_semi` is true, then a trailing semicolon will also be emitted.
 // Deprecated; use Formatter::Format instead.
-DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
-           bool trailing_semi);
-
-// Create a pretty-printable document from the given AST Let node `n`.
-// If `trailing_semi` is true, then a trailing semicolon will also be emitted.
-DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena,
-           bool trailing_semi);
+DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
 
 // Deprecated; use Formatter::Format instead.
 DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
