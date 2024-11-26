@@ -162,7 +162,7 @@ StructType CreateStructWithParametricExpr(Module& module) {
   NameDef* type_n_name_def = module.Make<NameDef>(
       Span::Fake(), "N",
       module.Make<Binop>(Span::Fake(), BinopKind::kAdd, type_m_name_ref,
-                         type_m_name_ref));
+                         type_m_name_ref, Span::Fake()));
   bindings.push_back(
       module.Make<ParametricBinding>(type_n_name_def, u32_type_annot, nullptr));
 

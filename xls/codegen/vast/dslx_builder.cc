@@ -439,13 +439,16 @@ absl::StatusOr<dslx::Expr*> DslxBuilder::ConvertMaxToWidth(
   dslx::Number* one = module().Make<dslx::Number>(
       span, "1", dslx::NumberKind::kOther, type_annot);
   return module().Make<dslx::Binop>(span, dslx::BinopKind::kAdd, casted_max,
-                                    one);
+                                    one, span);
 }
 
 dslx::Unop* DslxBuilder::HandleUnaryOperator(const dslx::Span& span,
                                              dslx::UnopKind unop_kind,
                                              dslx::Expr* arg) {
-  return module().Make<dslx::Unop>(span, dslx::UnopKind::kNegate, arg);
+  // Note it uses the same span for the whole node and the operand;
+  // the only time the operand span is used is for formatting, and
+  // this node won't be used for formatting.
+  return module().Make<dslx::Unop>(span, dslx::UnopKind::kNegate, arg, span);
 }
 
 absl::StatusOr<dslx::Expr*> DslxBuilder::HandleIntegerExponentiation(

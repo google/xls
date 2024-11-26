@@ -1305,7 +1305,7 @@ absl::StatusOr<Expr*> Parser::ParseBinopChain(
       XLS_ASSIGN_OR_RETURN(BinopKind kind,
                            BinopKindFromString(TokenKindToString(op.kind())));
       Span span(lhs->span().start(), rhs->span().limit());
-      lhs = module_->Make<Binop>(span, kind, lhs, rhs);
+      lhs = module_->Make<Binop>(span, kind, lhs, rhs, op.span());
     } else {
       break;
     }
@@ -1413,7 +1413,7 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
                               "comparison operators cannot be chained");
     }
     Span span(lhs->span().start(), rhs->span().limit());
-    lhs = module_->Make<Binop>(span, kind, lhs, rhs);
+    lhs = module_->Make<Binop>(span, kind, lhs, rhs, op.span());
   }
   VLOG(5) << "ParseComparisonExpression; result: `" << lhs->ToString() << "`";
   return lhs;
@@ -1781,7 +1781,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
         LOG(FATAL) << "Inconsistent unary operation token kind.";
     }
     Span span(tok.span().start(), arg->span().limit());
-    lhs = module_->Make<Unop>(span, unop_kind, arg);
+    lhs = module_->Make<Unop>(span, unop_kind, arg, tok.span());
   } else if (peek->IsTypeKeyword() ||
              (peek->kind() == TokenKind::kIdentifier &&
               outer_bindings.ResolveNodeIsTypeDefinition(*peek->GetValue()))) {

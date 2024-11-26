@@ -1388,9 +1388,10 @@ std::string UnopKindToString(UnopKind k);
 class Unop : public Expr {
  public:
   Unop(Module* owner, Span span, UnopKind unop_kind, Expr* operand,
-       bool in_parens = false)
+       Span op_span, bool in_parens = false)
       : Expr(owner, std::move(span), in_parens),
         unop_kind_(unop_kind),
+        op_span_(op_span),
         operand_(operand) {}
 
   ~Unop() override;
@@ -1412,6 +1413,8 @@ class Unop : public Expr {
 
   UnopKind unop_kind() const { return unop_kind_; }
   Expr* operand() const { return operand_; }
+  // The span of the operator, e.g., `++` for `x ++ y`.
+  Span op_span() const { return op_span_; }
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kUnaryOp;
@@ -1422,6 +1425,7 @@ class Unop : public Expr {
 
   UnopKind unop_kind_;
   Expr* operand_;
+  Span op_span_;
 };
 
 #define XLS_DSLX_BINOP_KIND_EACH(X)       \
@@ -1484,7 +1488,7 @@ const absl::btree_set<BinopKind>& GetBinopShifts();
 class Binop : public Expr {
  public:
   Binop(Module* owner, Span span, BinopKind kind, Expr* lhs, Expr* rhs,
-        bool in_parens = false);
+        Span op_span, bool in_parens = false);
 
   ~Binop() override;
 
@@ -1505,6 +1509,8 @@ class Binop : public Expr {
   BinopKind binop_kind() const { return binop_kind_; }
   Expr* lhs() const { return lhs_; }
   Expr* rhs() const { return rhs_; }
+  // The span of the operator, e.g., `++` for `x ++ y`.
+  Span op_span() const { return op_span_; }
 
   Precedence GetPrecedenceWithoutParens() const final;
 
@@ -1512,6 +1518,7 @@ class Binop : public Expr {
   std::string ToStringInternal() const final;
 
   BinopKind binop_kind_;
+  Span op_span_;
   Expr* lhs_;
   Expr* rhs_;
 };

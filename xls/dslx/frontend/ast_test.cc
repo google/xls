@@ -262,7 +262,8 @@ TEST(AstTest, IsConstantBinopOfNameRefs) {
       m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
   NameRef* left = m.Make<NameRef>(fake_span, "name", name_def);
   NameRef* right = m.Make<NameRef>(fake_span, "name", name_def);
-  Binop* binop = m.Make<Binop>(fake_span, BinopKind::kAdd, left, right);
+  Binop* binop =
+      m.Make<Binop>(fake_span, BinopKind::kAdd, left, right, Span::Fake());
 
   EXPECT_FALSE(IsConstant(binop));
 }
@@ -276,7 +277,8 @@ TEST(AstTest, IsConstantBinopOfNumbers) {
                                 NumberKind::kOther, /*type=*/nullptr);
   Number* right = m.Make<Number>(fake_span, std::string("42"),
                                  NumberKind::kOther, /*type=*/nullptr);
-  Binop* binop = m.Make<Binop>(fake_span, BinopKind::kAdd, left, right);
+  Binop* binop =
+      m.Make<Binop>(fake_span, BinopKind::kAdd, left, right, Span::Fake());
 
   EXPECT_TRUE(IsConstant(binop));
 }
@@ -289,7 +291,7 @@ TEST(AstTest, IsConstantUnopOfNameRefs) {
   NameDef* name_def =
       m.Make<NameDef>(fake_span, std::string("MyStruct"), nullptr);
   NameRef* operand = m.Make<NameRef>(fake_span, "name", name_def);
-  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, operand);
+  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, operand, fake_span);
 
   EXPECT_FALSE(IsConstant(unop));
 }
@@ -301,7 +303,7 @@ TEST(AstTest, IsConstantUnopOfNumbers) {
 
   Number* operand = m.Make<Number>(fake_span, std::string("41"),
                                    NumberKind::kOther, /*type=*/nullptr);
-  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, operand);
+  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, operand, fake_span);
 
   EXPECT_TRUE(IsConstant(unop));
 }

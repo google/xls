@@ -1612,9 +1612,10 @@ absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {
 }
 
 Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
-             Expr* rhs, bool in_parens)
+             Expr* rhs, Span op_span, bool in_parens)
     : Expr(owner, std::move(span), in_parens),
       binop_kind_(binop_kind),
+      op_span_(op_span),
       lhs_(lhs),
       rhs_(rhs) {}
 

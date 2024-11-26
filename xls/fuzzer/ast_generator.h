@@ -596,7 +596,8 @@ class AstGenerator {
     return module_->Make<Conditional>(fake_span_, test, consequent, alternate);
   }
   Expr* MakeGe(Expr* lhs, Expr* rhs) {
-    return module_->Make<Binop>(fake_span_, BinopKind::kGe, lhs, rhs);
+    return module_->Make<Binop>(fake_span_, BinopKind::kGe, lhs, rhs,
+                                fake_span_);
   }
 
   // Creates a number AST node with value 'value' represented in a decimal

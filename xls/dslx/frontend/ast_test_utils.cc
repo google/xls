@@ -54,7 +54,7 @@ std::tuple<FileTable, Module, Binop*> MakeCastWithinLtComparison() {
 
   // x as t < x
   Cast* cast = m.Make<Cast>(fake_span, x_ref, type_ref_type_annotation);
-  Binop* lt = m.Make<Binop>(fake_span, BinopKind::kLt, cast, x_ref);
+  Binop* lt = m.Make<Binop>(fake_span, BinopKind::kLt, cast, x_ref, fake_span);
   return std::make_tuple(file_table, std::move(m), lt);
 }
 
@@ -134,7 +134,7 @@ std::tuple<FileTable, Module, Unop*> MakeCastWithinNegateExpression() {
 
   // x as u32
   Cast* cast = m.Make<Cast>(fake_span, x_ref, builtin_u32);
-  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, cast);
+  Unop* unop = m.Make<Unop>(fake_span, UnopKind::kNegate, cast, fake_span);
   return std::make_tuple(file_table, std::move(m), unop);
 }
 
@@ -147,7 +147,8 @@ std::tuple<FileTable, Module, Attr*> MakeArithWithinAttrExpression() {
   BuiltinNameDef* y_def = m.GetOrCreateBuiltinNameDef("y");
   NameRef* y_ref = m.Make<NameRef>(fake_span, "y", y_def);
 
-  Binop* binop = m.Make<Binop>(fake_span, BinopKind::kMul, x_ref, y_ref);
+  Binop* binop =
+      m.Make<Binop>(fake_span, BinopKind::kMul, x_ref, y_ref, fake_span);
   Attr* attr = m.Make<Attr>(fake_span, binop, "my_attr");
   return std::make_tuple(file_table, std::move(m), attr);
 }

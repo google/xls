@@ -213,7 +213,10 @@ class VastToDslxTranslator {
             "%s vs %s",
             op->Emit(nullptr), lhs_type->ToString(), rhs_type->ToString()));
       }
-      result = module().Make<dslx::Binop>(span, kind, lhs, rhs);
+      // Note it uses the same span for the whole node and the operand;
+      // the only time the operand span is used is for formatting, and
+      // this node won't be used for formatting.
+      result = module().Make<dslx::Binop>(span, kind, lhs, rhs, span);
     }
     return dslx_builder_->MaybeCastToInferredVastType(op, result);
   }
@@ -266,11 +269,14 @@ class VastToDslxTranslator {
         dslx_expr =
             module().Make<dslx::Cast>(dslx_expr->span(), dslx_expr, annot);
       }
+      dslx::Span span = CreateNodeSpan(concat);
+      // Note it uses the same span for the whole node and the operand;
+      // the only time the operand span is used is for formatting, and
+      // this node won't be used for formatting.
       result = result == nullptr
                    ? dslx_expr
-                   : module().Make<dslx::Binop>(CreateNodeSpan(concat),
-                                                dslx::BinopKind::kConcat,
-                                                result, dslx_expr);
+                   : module().Make<dslx::Binop>(span, dslx::BinopKind::kConcat,
+                                                result, dslx_expr, span);
     }
     return result;
   }

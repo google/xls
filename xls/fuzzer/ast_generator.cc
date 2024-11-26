@@ -353,7 +353,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
-  Binop* binop = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr);
+  Binop* binop =
+      module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr, fake_span_);
   return TypedExpr{.expr = binop,
                    .type = MakeTypeAnnotation(false, 1),
                    .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
@@ -626,12 +627,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
   BinopKind op = RandomBool(0.5) ? BinopKind::kEq : BinopKind::kNe;
-  return TypedExpr{
-      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-      .type = MakeTypeAnnotation(false, 1),
-      .last_delaying_op =
-          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
-      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
+  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, op, lhs.expr,
+                                                rhs.expr, fake_span_),
+                   .type = MakeTypeAnnotation(false, 1),
+                   .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
+                                                          rhs.last_delaying_op),
+                   .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
@@ -783,12 +784,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
                        ChooseEnvValueTupleWithoutToken(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
   BinopKind op = RandomBool(0.5) ? BinopKind::kEq : BinopKind::kNe;
-  return TypedExpr{
-      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-      .type = MakeTypeAnnotation(false, 1),
-      .last_delaying_op =
-          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
-      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
+  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, op, lhs.expr,
+                                                rhs.expr, fake_span_),
+                   .type = MakeTypeAnnotation(false, 1),
+                   .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
+                                                          rhs.last_delaying_op),
+                   .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
@@ -1059,11 +1060,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
   Bits divisor = GenerateBits(bit_gen_, bit_count);
   Number* divisor_node = GenerateNumberFromBits(divisor, lhs.type);
-  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, BinopKind::kDiv,
-                                                lhs.expr, divisor_node),
-                   .type = lhs.type,
-                   .last_delaying_op = lhs.last_delaying_op,
-                   .min_stage = lhs.min_stage};
+  return TypedExpr{
+      .expr = module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr,
+                                   divisor_node, fake_span_),
+      .type = lhs.type,
+      .last_delaying_op = lhs.last_delaying_op,
+      .min_stage = lhs.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
@@ -1094,12 +1096,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
       rhs.expr = MakeNumber(shift_amount);
     }
   }
-  return TypedExpr{
-      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-      .type = lhs.type,
-      .last_delaying_op =
-          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
-      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
+  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, op, lhs.expr,
+                                                rhs.expr, fake_span_),
+                   .type = lhs.type,
+                   .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
+                                                          rhs.last_delaying_op),
+                   .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 absl::StatusOr<TypedExpr>
@@ -1154,8 +1156,8 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
                                             /*index=*/MakeNumber(0));
   auto mulp_rhs = module_->Make<TupleIndex>(fake_span_, mulp_name_ref,
                                             /*index=*/MakeNumber(1));
-  Expr* sum =
-      module_->Make<Binop>(fake_span_, BinopKind::kAdd, mulp_lhs, mulp_rhs);
+  Expr* sum = module_->Make<Binop>(fake_span_, BinopKind::kAdd, mulp_lhs,
+                                   mulp_rhs, fake_span_);
   if (is_signed) {  // For smul we have to cast the summation to signed.
     sum = module_->Make<Cast>(fake_span_, sum, signed_type);
   }
@@ -1186,12 +1188,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
   if (GetBinopShifts().contains(op)) {
     return GenerateShift(ctx);
   }
-  return TypedExpr{
-      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-      .type = lhs.type,
-      .last_delaying_op =
-          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
-      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
+  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, op, lhs.expr,
+                                                rhs.expr, fake_span_),
+                   .type = lhs.type,
+                   .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
+                                                          rhs.last_delaying_op),
+                   .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
@@ -1204,12 +1206,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
   BinopKind op = RandomChoice(
       absl::MakeConstSpan({BinopKind::kAnd, BinopKind::kOr, BinopKind::kXor}),
       bit_gen_);
-  return TypedExpr{
-      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-      .type = lhs.type,
-      .last_delaying_op =
-          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
-      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
+  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, op, lhs.expr,
+                                                rhs.expr, fake_span_),
+                   .type = lhs.type,
+                   .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
+                                                          rhs.last_delaying_op),
+                   .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 Number* AstGenerator::MakeNumber(int64_t value, TypeAnnotation* type) {
@@ -1496,8 +1498,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Context* ctx) {
 
   auto* rhs_array_type = dynamic_cast<ArrayTypeAnnotation*>(rhs.type);
   XLS_RET_CHECK(rhs_array_type != nullptr);
-  Binop* result =
-      module_->Make<Binop>(fake_span_, BinopKind::kConcat, lhs.expr, rhs.expr);
+  Binop* result = module_->Make<Binop>(fake_span_, BinopKind::kConcat, lhs.expr,
+                                       rhs.expr, fake_span_);
   int64_t result_size =
       GetArraySize(lhs_array_type) + GetArraySize(rhs_array_type);
   Number* dim = MakeNumber(result_size);
@@ -1677,7 +1679,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
   Expr* result = e.expr;
   for (int64_t i = 1; i < count; ++i) {
     result = module_->Make<Binop>(fake_span_, BinopKind::kConcat, result,
-                                  operands[i].expr);
+                                  operands[i].expr, fake_span_);
   }
 
   TypeAnnotation* return_type = MakeTypeAnnotation(false, total_width);
@@ -2096,7 +2098,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Context* ctx) {
   UnopKind op = RandomChoice(
       absl::MakeConstSpan({UnopKind::kInvert, UnopKind::kNegate}), bit_gen_);
   return TypedExpr{
-      .expr = module_->Make<Unop>(fake_span_, op, arg.expr),
+      .expr = module_->Make<Unop>(fake_span_, op, arg.expr, fake_span_),
       .type = arg.type,
       .last_delaying_op = arg.last_delaying_op,
       .min_stage = arg.min_stage,

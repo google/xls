@@ -159,8 +159,8 @@ TEST_F(InferenceTableTest, SignednessMismatch) {
   NameDef* y = module_->Make<NameDef>(Span::Fake(), "y", /*definer=*/nullptr);
   NameRef* x_ref = module_->Make<NameRef>(Span::Fake(), "x", x);
   NameRef* y_ref = module_->Make<NameRef>(Span::Fake(), "y", y);
-  AstNode* add_node =
-      module_->Make<Binop>(Span::Fake(), BinopKind::kAdd, x_ref, y_ref);
+  AstNode* add_node = module_->Make<Binop>(Span::Fake(), BinopKind::kAdd, x_ref,
+                                           y_ref, Span::Fake());
 
   TypeAnnotation* u32_annotation = module_->Make<BuiltinTypeAnnotation>(
       Span::Fake(), BuiltinType::kU32,
@@ -190,8 +190,8 @@ TEST_F(InferenceTableTest, SignednessAgreement) {
   NameDef* y = module_->Make<NameDef>(Span::Fake(), "y", /*definer=*/nullptr);
   NameRef* x_ref = module_->Make<NameRef>(Span::Fake(), "x", x);
   NameRef* y_ref = module_->Make<NameRef>(Span::Fake(), "y", y);
-  AstNode* add_node =
-      module_->Make<Binop>(Span::Fake(), BinopKind::kAdd, x_ref, y_ref);
+  AstNode* add_node = module_->Make<Binop>(Span::Fake(), BinopKind::kAdd, x_ref,
+                                           y_ref, Span::Fake());
 
   TypeAnnotation* u32_annotation = module_->Make<BuiltinTypeAnnotation>(
       Span::Fake(), BuiltinType::kU32,

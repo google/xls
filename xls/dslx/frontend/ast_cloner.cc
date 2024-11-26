@@ -99,7 +99,8 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] = module_->Make<Binop>(
         n->span(), n->binop_kind(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
-        down_cast<Expr*>(old_to_new_.at(n->rhs())), n->in_parens());
+        down_cast<Expr*>(old_to_new_.at(n->rhs())), n->op_span(),
+        n->in_parens());
     return absl::OkStatus();
   }
 
@@ -926,9 +927,10 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleUnop(const Unop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<Unop>(
-        n->span(), n->unop_kind(),
-        down_cast<Expr*>(old_to_new_.at(n->operand())), n->in_parens());
+    old_to_new_[n] =
+        module_->Make<Unop>(n->span(), n->unop_kind(),
+                            down_cast<Expr*>(old_to_new_.at(n->operand())),
+                            n->op_span(), n->in_parens());
     return absl::OkStatus();
   }
 
