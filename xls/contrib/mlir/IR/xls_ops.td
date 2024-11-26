@@ -921,6 +921,7 @@ def Xls_OneHotOp : Xls_UnaryOp<"one_hot", [Pure, ShapesAreConsistent<["operand",
 def Xls_SelOp : Xls_Op<"sel", [
     Pure,
     ShapesAreConsistent<["cases", "otherwise", "result"]>,
+    AttrSizedOperandSegments,
     Elementwise,
     Scalarizable,
     TensorArrayTypeFungible]> {
@@ -935,15 +936,26 @@ def Xls_SelOp : Xls_Op<"sel", [
   }];
   let arguments = (ins
     Xls_Bits:$selector,
-    Xls_BitsOrTuple:$otherwise,  // Avoiding "default" as this is a C++ keyword.
+    Optional<Xls_BitsOrTuple>:$otherwise,  // Avoiding "default" as this is a C++ keyword.
     Variadic<Xls_BitsOrTuple>:$cases
   );
   let results = (outs
     Xls_BitsOrTuple:$result
   );
+  let assemblyFormat = [{
+    $selector `in` ` ` `[` $cases `]` (`else` $otherwise^)? attr-dict
+    `:` `(` type($selector) `,` `[` type($cases) `]` (`,` type($otherwise)^)? `)` `->` type($result)
+  }];
   let builders = [
     OpBuilder<(ins "::mlir::Value":$selector, "::mlir::Value":$otherwise, "::mlir::ValueRange":$cases), [{
       build($_builder, $_state, otherwise.getType(), selector, otherwise, cases);
+    }]>,
+    OpBuilder<(ins "::mlir::Type":$resultType, "::mlir::Value":$selector, "::mlir::ValueRange":$cases), [{
+      build($_builder, $_state, resultType, selector, mlir::Value(), cases);
+    }]>,
+    OpBuilder<(ins "::mlir::Value":$selector, "::mlir::ValueRange":$cases), [{
+      assert(!cases.empty() && "'cases' must be non-empty");
+      build($_builder, $_state, cases.front().getType(), selector, mlir::Value(), cases);
     }]>,
     // This builder provides a "Select" like interface. The operand ordering to
     // actually implement this is backwards, so we accept a tag-struct that

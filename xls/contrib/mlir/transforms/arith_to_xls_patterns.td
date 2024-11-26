@@ -161,14 +161,20 @@ def : Pat<(Arith_FPToSIOp:$op BF16:$a),
                             ConstUnitAttr, (returnType "$_builder.getI16Type()"))),
           [(ScalarOrTensorOf<I8> $op)]>;
 
-// The expansion is a little tricky to read due to the one-hot select with the
-// default case being the first argument.
+// Creates a `SelOp` with two `cases` (and no `otherwise` operand). This wrapper
+// is needed because DRR doesn't deal well with the `AttrSizedOperandSegments`
+// of the `SelOp`.
+def createSelOp2Cases : NativeCodeCall<[{
+    $_builder.create<::mlir::xls::SelOp>(
+        $_loc, $0, ArrayRef<::mlir::Value>{$1, $2})
+  }]>;
+
 // (> a b)           -> 0b1 if a > b else 0b0
-// (sel (> a b) ...) -> first case if (a > b) else default case.
-// (sel (> a b) b a) -> a if (a > b) else b (b is default case).
+// (sel (> a b) ...) -> first case if (a > b) else second case.
+// (sel (> a b) b a) -> a if (a > b) else b.
 class MinMaxPatBase<dag Matcher, dag Predicate> : Pat<
   Matcher,
-  (Xls_SelOp Predicate, /*otherwise=*/$b, /*cases=*/(variadic $a))>;
+  (createSelOp2Cases Predicate, $a, $b)>;
 
 class FPMinMaxPat<Op Op, string Name> : MinMaxPatBase<
   (Op:$op $a, $b, /*FastMathFlags=*/$_),
@@ -183,10 +189,7 @@ def : MinMaxPatBase<(Arith_MinSIOp:$op $a, $b), (Xls_SltOp $a, $b)>;
 def : MinMaxPatBase<(Arith_MaxUIOp:$op $a, $b), (Xls_UgtOp $a, $b)>;
 def : MinMaxPatBase<(Arith_MinUIOp:$op $a, $b), (Xls_UltOp $a, $b)>;
 
-// SelOp will return cases[0] if selector is false and the default value if
-// selector is true (because 1 is out of bound of cases).
-def : Pat<(SelectOp $selector, $a, $b),
-          (Xls_SelOp $selector, /*otherwise=*/$a, /*cases=*/(variadic $b))>;
+def : Pat<(SelectOp $selector, $a, $b), (createSelOp2Cases $selector, $b, $a)>;
 
 def GetBitwidthAsI64Attr : NativeCodeCall<
   "$_builder.getI64IntegerAttr(cast<IntegerType>($0.getType()).getWidth())"

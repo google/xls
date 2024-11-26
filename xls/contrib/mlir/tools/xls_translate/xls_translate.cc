@@ -519,8 +519,12 @@ BValue convertOp(SelOp op, const TranslationState& state, BuilderBase& fb) {
   for (auto v : op.getCases()) {
     cases.push_back(state.getXlsValue(v));
   }
-  return fb.Select(state.getXlsValue(op.getSelector()), cases,
-                   state.getXlsValue(op.getOtherwise()), state.getLoc(op));
+  std::optional<BValue> otherwise;
+  if (op.getOtherwise()) {
+    otherwise = state.getXlsValue(op.getOtherwise());
+  }
+  return fb.Select(state.getXlsValue(op.getSelector()), cases, otherwise,
+                   state.getLoc(op));
 }
 
 BValue convertOp(OneHotSelOp op, const TranslationState& state,

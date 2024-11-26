@@ -286,6 +286,6 @@ func.func @call_dslx_with_splat(%arg0: tensor<4xi32>, %arg1: i32) -> tensor<4xf3
 // CHECK-NEXT: xls.sel
 // CHECK-NEXT: return
 func.func @select(%arg0: tensor<2xi32>, %arg1: tensor<2xi32>, %arg2: tensor<2xi1>) -> tensor<2xi32> attributes {xls = true} {
-  %0 = "xls.sel"(%arg2, %arg0, %arg1) : (tensor<2xi1>, tensor<2xi32>, tensor<2xi32>) -> tensor<2xi32>
+  %0 = xls.sel %arg2 in [%arg1] else %arg0 : (tensor<2xi1>, [tensor<2xi32>], tensor<2xi32>) -> tensor<2xi32>
   return %0 : tensor<2xi32>
 }

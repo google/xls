@@ -111,7 +111,7 @@ func.func @triple_nest(%addend: i32) -> (i32) attributes { "xls" = true } {
 // CHECK-NEXT:    %0 = xls.not %arg1 : i1
 // CHECK-NEXT:    %1 = arith.addi %c0_i32, %arg0 : i32
 // CHECK-NEXT:    %2 = arith.subi %c0_i32, %arg0 : i32
-// CHECK-NEXT:    %3 = "xls.sel"(%arg1, %1, %2) : (i1, i32, i32) -> i32
+// CHECK-NEXT:    %3 = xls.sel %arg1 in [%2] else %1 : (i1, [i32], i32) -> i32
 // CHECK-NEXT:    return %3 : i32
 // CHECK-NEXT:  }
 func.func @if(%addend: i32, %cond: i1) -> (i32) attributes { "xls" = true } {

@@ -198,8 +198,13 @@ func.func @one_hot(%arg0: i4) -> i5 {
   return %0 : i5
 }
 
-func.func @sel(%arg0: i2, %arg1: i32, %arg2: i32, %arg3: i32) -> i32 {
-  %0 = "xls.sel"(%arg0, %arg1, %arg1, %arg2, %arg3) : (i2, i32, i32, i32, i32) -> i32
+func.func @sel_nonpow2(%arg0: i2, %arg1: i32, %arg2: i32, %arg3: i32) -> i32 {
+  %0 = xls.sel %arg0 in [%arg1, %arg2, %arg3] else %arg1 : (i2, [i32, i32, i32], i32) -> i32
+  return %0 : i32
+}
+
+func.func @sel_pow2(%arg0: i2, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: i32) -> i32 {
+  %0 = xls.sel %arg0 in [%arg1, %arg2, %arg3, %arg4] : (i2, [i32, i32, i32, i32]) -> i32
   return %0 : i32
 }
 
