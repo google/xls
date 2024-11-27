@@ -218,9 +218,9 @@ cc_binary(
     deps = [
         "//xls/common:exit_status",
         "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:status_macros",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/solvers:z3_ir_translator",

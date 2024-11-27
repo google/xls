@@ -17,27 +17,27 @@
 #ifndef XLS_DSLX_LSP_LSP_TYPE_UTILS_H_
 #define XLS_DSLX_LSP_LSP_TYPE_UTILS_H_
 
-#include <string_view>
-
 #include "verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/lsp/lsp_uri.h"
 
 namespace xls::dslx {
 
 verible::lsp::Position ConvertPosToLspPosition(const Pos& pos);
 verible::lsp::Range ConvertSpanToLspRange(const Span& span);
 
-verible::lsp::Location ConvertSpanToLspLocation(const Span& span);
+verible::lsp::Location ConvertSpanToLspLocation(const Span& span,
+                                                const FileTable& file_table);
 
 // Note: DSLX positions have filenames included in them, whereas LSP positions
 // do not -- we need the LSP adapter to handle filename resolution from URIs to
 // handle this in a uniform way, so we assume this will only be used in
 // single-file contexts for the moment and use an empty string for the filename.
-Pos ConvertLspPositionToPos(std::string_view file_uri,
+Pos ConvertLspPositionToPos(const LspUri& file_uri,
                             const verible::lsp::Position& position,
                             FileTable& file_table);
 
-Span ConvertLspRangeToSpan(std::string_view file_uri,
+Span ConvertLspRangeToSpan(const LspUri& file_uri,
                            const verible::lsp::Range& range,
                            FileTable& file_table);
 

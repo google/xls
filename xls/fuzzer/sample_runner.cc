@@ -67,6 +67,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/fuzzer/cpp_sample_runner.h"
 #include "xls/fuzzer/sample.h"

@@ -34,6 +34,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"

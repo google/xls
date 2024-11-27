@@ -24,7 +24,6 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -80,7 +79,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
     ImportData* import_data) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
                        GetXlsRunfilePath(file_path));
-  XLS_ASSIGN_OR_RETURN(std::string text_dslx, GetFileContents(path));
+  XLS_ASSIGN_OR_RETURN(std::string text_dslx,
+                       import_data->vfs().GetFileContents(path));
   return ParseModule(text_dslx, file_path, module_name,
                      import_data->file_table());
 }

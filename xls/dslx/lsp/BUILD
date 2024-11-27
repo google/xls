@@ -22,11 +22,24 @@ package(
 )
 
 cc_library(
+    name = "lsp_uri",
+    srcs = ["lsp_uri.cc"],
+    hdrs = ["lsp_uri.h"],
+    deps = [
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "lsp_type_utils",
     srcs = ["lsp_type_utils.cc"],
     hdrs = ["lsp_type_utils.h"],
     deps = [
+        ":lsp_uri",
         "//xls/dslx/frontend:pos",
+        "@verible//verible/common/lsp:lsp-file-utils",
         "@verible//verible/common/lsp:lsp-protocol",
     ],
 )
@@ -58,6 +71,7 @@ cc_library(
         ":find_definition",
         ":import_sensitivity",
         ":lsp_type_utils",
+        ":lsp_uri",
         "//xls/common:casts",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
@@ -66,6 +80,7 @@ cc_library(
         "//xls/dslx:extract_module_name",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/fmt:ast_fmt",
@@ -99,6 +114,7 @@ cc_test(
     srcs = ["language_server_adapter_test.cc"],
     deps = [
         ":language_server_adapter",
+        ":lsp_uri",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -111,6 +127,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
+        "@verible//verible/common/lsp:lsp-file-utils",
         "@verible//verible/common/lsp:lsp-protocol",
     ],
 )
@@ -121,6 +138,7 @@ cc_binary(
     visibility = ["//visibility:public"],
     deps = [
         ":language_server_adapter",
+        ":lsp_uri",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/dslx:default_dslx_stdlib_path",
@@ -156,6 +174,7 @@ cc_library(
     srcs = ["import_sensitivity.cc"],
     hdrs = ["import_sensitivity.h"],
     deps = [
+        ":lsp_uri",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -169,6 +188,7 @@ cc_test(
     srcs = ["import_sensitivity_test.cc"],
     deps = [
         ":import_sensitivity",
+        ":lsp_uri",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],

@@ -14,7 +14,6 @@
 
 #include "xls/dslx/error_printer.h"
 
-#include <functional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -22,11 +21,11 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -48,11 +47,11 @@ line 7)",
   const Pos start_pos(fileno, 5, 0);
   const Pos limit_pos(fileno, 5, 4);
   const Span error_span(start_pos, limit_pos);
+  RealFilesystem vfs;
   std::stringstream ss;
   XLS_ASSERT_OK(PrintPositionalError(error_span, "my error message", ss,
-                                     /*get_file_contents=*/nullptr,
                                      /*color=*/PositionalErrorColor::kNoColor,
-                                     file_table,
+                                     file_table, vfs,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
   // Note: we split lines and compare instead of doing a full string comparison
@@ -86,11 +85,11 @@ TEST(PrintPositionalErrorTest, MultiLineErrorTest) {
   // of the span is.
   const Pos limit_pos(fileno, 3, 3);
   const Span error_span(start_pos, limit_pos);
+  RealFilesystem vfs;
   std::stringstream ss;
   XLS_ASSERT_OK(PrintPositionalError(error_span, "match not exhaustive", ss,
-                                     /*get_file_contents=*/nullptr,
                                      /*color=*/PositionalErrorColor::kNoColor,
-                                     file_table,
+                                     file_table, vfs,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
   // Note: we split lines and compare instead of doing a full string comparison
@@ -114,19 +113,14 @@ TEST(PrintPositionalErrorTest, ZeroLineErrorTest) {
   const std::string filename = "zero_lines.x";
   FileTable file_table;
   Fileno fileno = file_table.GetOrCreate(filename);
-  std::function<absl::StatusOr<std::string>(std::string_view)>
-      get_file_contents =
-          [&](std::string_view file) -> absl::StatusOr<std::string> {
-    return std::string("");
-  };
+  UniformContentFilesystem vfs("");
 
   // The first nonexistent character in the file.
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 0}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
               "zero_lines.x:1:1-1:1\n"
@@ -139,19 +133,14 @@ TEST(PrintPositionalErrorTest, OneLineErrorTest) {
   const std::string filename = "one_line.x";
   FileTable file_table;
   Fileno fileno = file_table.GetOrCreate(filename);
-  std::function<absl::StatusOr<std::string>(std::string_view)>
-      get_file_contents =
-          [&](std::string_view file) -> absl::StatusOr<std::string> {
-    return std::string("x\n");
-  };
+  UniformContentFilesystem vfs("x\n");
 
   // The single character in the file.
   {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 1}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
               "one_line.x:1:1-1:2\n"
@@ -167,8 +156,7 @@ TEST(PrintPositionalErrorTest, OneLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 0, 0}, Pos{fileno, 1, 0}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
               "one_line.x:1:1-2:1\n"
@@ -183,8 +171,7 @@ TEST(PrintPositionalErrorTest, OneLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 1, 0}, Pos{fileno, 1, 0}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
               "one_line.x:2:1-2:1\n"
@@ -194,11 +181,9 @@ TEST(PrintPositionalErrorTest, OneLineErrorTest) {
 }
 
 TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
-  std::function<absl::StatusOr<std::string>(std::string_view)>
-      get_file_contents =
-          [&](std::string_view file) -> absl::StatusOr<std::string> {
-    return std::string("x\nyz\n");
-  };
+  constexpr std::string_view kAllFileContent = "x\nyz\n";
+  UniformContentFilesystem vfs(kAllFileContent);
+
   const std::string filename = "two_line.x";
   FileTable file_table;
   Fileno fileno = file_table.GetOrCreate(filename);
@@ -208,8 +193,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 0, 0}, Pos{fileno, 0, 1}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
               "two_line.x:1:1-1:2\n"
@@ -223,8 +207,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 0, 0}, Pos{fileno, 1, 0}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
     // The last line is weird, but so is the limit coordinate.
@@ -241,8 +224,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 1, 0}, Pos{fileno, 1, 2}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
     EXPECT_EQ(ss.str(),
               "two_line.x:2:1-2:3\n"
@@ -256,8 +238,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, 1, 1}, Pos{fileno, 1, 999}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
     // The error range is widely overshooting the actual output,
@@ -274,8 +255,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, -99, -17}, Pos{fileno, 88, 999}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
     // The error range is widely overshooting the actual output,
@@ -293,8 +273,7 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
     std::stringstream ss;
     XLS_ASSERT_OK(PrintPositionalError(
         Span(Pos{fileno, -88, 5}, Pos{fileno, -77, 3}), "here", ss,
-        get_file_contents,
-        /*color=*/PositionalErrorColor::kNoColor, file_table,
+        /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
         /*error_context_line_count=*/3));
 
     EXPECT_EQ(ss.str(),
@@ -306,16 +285,14 @@ TEST(PrintPositionalErrorTest, TwoLineErrorTest) {
 }
 
 TEST(PrintPositionalErrorTest, FiveLineErrorFuzzTest) {
-  std::function<absl::StatusOr<std::string>(std::string_view)>
-      get_file_contents =
-          [&](std::string_view file) -> absl::StatusOr<std::string> {
-    return std::string(
-        "abcde\n"
-        "fghij\n"
-        "klmno\n"
-        "pqrst\n"
-        "uvwxyz\n");
-  };
+  const std::string_view kAllFileContent =
+      "abcde\n"
+      "fghij\n"
+      "klmno\n"
+      "pqrst\n"
+      "uvwxyz\n";
+  UniformContentFilesystem vfs(kAllFileContent);
+
   FileTable file_table;
   const std::string filename = "five_line.x";
   Fileno fileno = file_table.GetOrCreate(filename);
@@ -332,8 +309,8 @@ TEST(PrintPositionalErrorTest, FiveLineErrorFuzzTest) {
           const Pos to_pos(fileno, to_line, to_col);
           const Span span(from_pos, to_pos);
           XLS_ASSERT_OK(PrintPositionalError(
-              Span(from_pos, to_pos), "here", ss, get_file_contents,
-              /*color=*/PositionalErrorColor::kNoColor, file_table,
+              Span(from_pos, to_pos), "here", ss,
+              /*color=*/PositionalErrorColor::kNoColor, file_table, vfs,
               /*error_context_line_count=*/3));
           EXPECT_THAT(ss.str(), testing::Not(testing::IsEmpty()));
         }

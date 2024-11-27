@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -55,17 +56,12 @@ absl::Status ParseAndTypecheck(std::string_view text,
 
   std::string filename = absl::StrCat(module_name, ".x");
 
-  auto get_file_contents =
-      [&](std::string_view path) -> absl::StatusOr<std::string> {
-    CHECK_EQ(path, filename);
-    return std::string(text);
-  };
-
   auto import_data = CreateImportDataForTest();
   absl::StatusOr<TypecheckedModule> parsed_or = ParseAndTypecheck(
       text, /*path=*/filename, /*module_name=*/module_name, &import_data);
-  TryPrintError(parsed_or.status(), get_file_contents,
-                import_data.file_table());
+
+  UniformContentFilesystem vfs(text, /*expect_path=*/filename);
+  TryPrintError(parsed_or.status(), import_data.file_table(), vfs);
   XLS_ASSIGN_OR_RETURN(TypecheckedModule parsed, parsed_or);
   XLS_RETURN_IF_ERROR(
       parsed.module->GetMemberOrError<ModuleMember>("main").status());

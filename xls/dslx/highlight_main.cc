@@ -24,13 +24,13 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/exit_status.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/token.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -94,9 +94,10 @@ std::string ToHighlightStr(const Token& t) {
 }
 
 absl::Status RealMain(const std::filesystem::path& path) {
+  RealFilesystem vfs;
   FileTable file_table;
   Fileno fileno = file_table.GetOrCreate(path.c_str());
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
+  XLS_ASSIGN_OR_RETURN(std::string contents, vfs.GetFileContents(path));
   Scanner s(file_table, fileno, contents,
             /*include_whitespace_and_comments=*/true);
   while (!s.AtEof()) {

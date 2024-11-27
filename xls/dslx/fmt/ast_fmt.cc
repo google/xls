@@ -52,6 +52,7 @@
 #include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/token.h"
 #include "xls/dslx/frontend/token_utils.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
@@ -2802,19 +2803,21 @@ std::string LegacyAutoFmt(const Module& m, const Comments& comments,
   return PrettyPrint(arena, ref, text_width);
 }
 
-absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
+                                    const Module& m, Comments& comments,
                                     int64_t text_width) {
   XLS_RET_CHECK(m.fs_path().has_value());
-  FormatDisabler disabler(comments, *m.fs_path());
+  FormatDisabler disabler(vfs, comments, *m.fs_path());
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
       CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));
   return LegacyAutoFmt(*clone, comments, text_width);
 }
 
-absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
+                                    const Module& m, Comments& comments,
                                     std::string contents, int64_t text_width) {
-  FormatDisabler disabler(comments, contents);
+  FormatDisabler disabler(vfs, comments, contents);
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
       CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));

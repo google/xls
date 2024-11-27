@@ -27,12 +27,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/exit_status.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/frontend/token.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 ABSL_FLAG(bool, original_on_error, false,
           "emit original source if a scan error is encountered");
@@ -48,7 +48,8 @@ Emits the original DSLX source text with comment tokens stripped out.
 
 absl::StatusOr<std::string> RealMain(const std::filesystem::path& path,
                                      std::optional<std::string>* contents_out) {
-  XLS_ASSIGN_OR_RETURN(*contents_out, GetFileContents(path));
+  RealFilesystem vfs;
+  XLS_ASSIGN_OR_RETURN(*contents_out, vfs.GetFileContents(path));
   FileTable file_table;
   Fileno fileno = file_table.GetOrCreate(std::string{path});
   Scanner s(file_table, fileno, contents_out->value(),

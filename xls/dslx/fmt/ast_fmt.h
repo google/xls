@@ -27,6 +27,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/token.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
@@ -101,13 +102,15 @@ std::string LegacyAutoFmt(const Module& m, const Comments& comments,
 
 // Performs a reflow-capable formatting of module `m` with standard line width,
 // but with the ability to disable formatting for specific ranges of text.
-absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
+                                    const Module& m, Comments& comments,
                                     int64_t text_width = kDslxDefaultTextWidth);
 
 // Performs a reflow-capable formatting of module `m` with standard line width,
 // for the actual `content` but with the ability to disable formatting for
 // specific ranges of text.
-absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
+                                    const Module& m, Comments& comments,
                                     std::string contents,
                                     int64_t text_width = kDslxDefaultTextWidth);
 

@@ -29,7 +29,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -54,9 +53,11 @@
 #include "xls/dslx/lsp/document_symbols.h"
 #include "xls/dslx/lsp/find_definition.h"
 #include "xls/dslx/lsp/lsp_type_utils.h"
+#include "xls/dslx/lsp/lsp_uri.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -98,46 +99,6 @@ void AppendDiagnosticFromTypecheck(
   }
 }
 
-// If the span's filename is a relative path, we map it into a URI by finding
-// its path on disk.
-//
-// Note: there may be a more holistic way to do this long term -- the LSP
-// effectively requires us to create a filesystem overlay that mixes real files
-// and in-memory files with modifications. For now, this at least enables
-// things like go-to-definition in files that have not yet been loaded into the
-// language server.
-absl::StatusOr<std::string> MaybeRelpathToUri(
-    std::string_view path_or_uri,
-    absl::Span<const std::filesystem::path> dslx_paths) {
-  if (absl::StartsWith(path_or_uri, "file://") ||
-      absl::StartsWith(path_or_uri, "memfile://")) {
-    return std::string{path_or_uri};
-  }
-
-  std::vector<std::string> results;
-  for (std::filesystem::path dirpath : dslx_paths) {
-    if (dirpath.empty()) {
-      dirpath = std::filesystem::current_path();
-    }
-    std::filesystem::path full = dirpath / path_or_uri;
-    if (std::filesystem::exists(full)) {
-      results.push_back(absl::StrCat("file://", full.c_str()));
-    }
-  }
-
-  if (results.empty()) {
-    return absl::NotFoundError(absl::StrFormat(
-        "Could not find path to convert to URI: `%s`", path_or_uri));
-  }
-
-  if (results.size() > 1) {
-    LspLog() << "Found more than one URI for path: " << path_or_uri
-             << " results: " << absl::StrJoin(results, " :: ");
-  }
-
-  return results.at(0);
-}
-
 }  // namespace
 
 // Implements an overlay on top of the underlying filesystem that prefers the
@@ -152,7 +113,7 @@ class LanguageServerFilesystem : public VirtualizableFilesystem {
       : parent_(parent) {}
 
   absl::Status FileExists(const std::filesystem::path& path) override {
-    std::string uri = verible::lsp::PathToLSPUri(path.c_str());
+    LspUri uri(verible::lsp::PathToLSPUri(path.c_str()));
     auto it = parent_.vfs_contents().find(uri);
     if (it == parent_.vfs_contents().end()) {
       return xls::FileExists(path);
@@ -164,7 +125,7 @@ class LanguageServerFilesystem : public VirtualizableFilesystem {
   absl::StatusOr<std::string> GetFileContents(
       const std::filesystem::path& path) override {
     // First we check if it exists in the virtual layer.
-    std::string uri = verible::lsp::PathToLSPUri(path.c_str());
+    LspUri uri(verible::lsp::PathToLSPUri(path.c_str()));
     auto it = parent_.vfs_contents().find(uri);
     if (it == parent_.vfs_contents().end()) {
       return xls::GetFileContents(path);
@@ -174,7 +135,9 @@ class LanguageServerFilesystem : public VirtualizableFilesystem {
   }
 
   absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override {
-    return xls::GetCurrentDirectory();
+    XLS_ASSIGN_OR_RETURN(std::filesystem::path current,
+                         xls::GetCurrentDirectory());
+    return verible::lsp::PathToLSPUri(current.c_str());
   }
 
  private:
@@ -182,20 +145,29 @@ class LanguageServerFilesystem : public VirtualizableFilesystem {
 };
 
 LanguageServerAdapter::LanguageServerAdapter(
-    std::string_view stdlib,
-    const std::vector<std::filesystem::path>& dslx_paths)
+    LspUri stdlib, const std::vector<LspUri>& dslx_paths)
     : stdlib_(stdlib), dslx_paths_(dslx_paths) {}
 
 LanguageServerAdapter::ParseData* LanguageServerAdapter::FindParsedForUri(
-    std::string_view uri) const {
+    LspUri uri) const {
   if (auto found = uri_parse_data_.find(uri); found != uri_parse_data_.end()) {
     return found->second.get();
   }
   return nullptr;
 }
 
+std::vector<std::filesystem::path>
+LanguageServerAdapter::GetDslxPathsAsFilesystemPaths() const {
+  std::vector<std::filesystem::path> result;
+  result.reserve(dslx_paths_.size());
+  for (const LspUri& path : dslx_paths_) {
+    result.push_back(path.GetFilesystemPath());
+  }
+  return result;
+}
+
 absl::Status LanguageServerAdapter::Update(
-    std::string_view file_uri, std::optional<std::string_view> dslx_code) {
+    LspUri file_uri, std::optional<std::string_view> dslx_code) {
   // Either update or get the last contents from the virtual filesystem map.
   if (dslx_code.has_value()) {
     vfs_contents_[file_uri] = std::string{dslx_code.value()};
@@ -210,7 +182,8 @@ absl::Status LanguageServerAdapter::Update(
   XLS_RET_CHECK(dslx_code.has_value());
 
   const absl::Time start = absl::Now();
-  absl::StatusOr<std::string> module_name_or = ExtractModuleName(file_uri);
+  absl::StatusOr<std::string> module_name_or =
+      ExtractModuleName(file_uri.GetFilesystemPath());
   if (!module_name_or.ok()) {
     LspLog() << "Could not determine module name from file URI: " << file_uri
              << " status: " << module_name_or.status() << "\n";
@@ -220,28 +193,35 @@ absl::Status LanguageServerAdapter::Update(
   auto inserted = uri_parse_data_.emplace(file_uri, nullptr);
   std::unique_ptr<ParseData>& insert_value = inserted.first->second;
 
-  ImportData import_data =
-      CreateImportData(stdlib_, dslx_paths_, kAllWarningsSet,
-                       std::make_unique<LanguageServerFilesystem>(*this));
+  std::vector<std::filesystem::path> dslx_paths_as_filesystem_paths =
+      GetDslxPathsAsFilesystemPaths();
+
+  ImportData import_data = CreateImportData(
+      stdlib_.GetFilesystemPath(), dslx_paths_as_filesystem_paths,
+      kAllWarningsSet, std::make_unique<LanguageServerFilesystem>(*this));
 
   import_data.SetImporterStackObserver(
       [&](const Span& importer_span, const std::filesystem::path& imported) {
+        // Here we check that the filename as reported by the span is a valid
+        // URI. When we are using the LSP we expect /all/ files in the file
+        // table to be in URI form.
         std::string_view importer_filename =
             importer_span.GetFilename(import_data.file_table());
-        CHECK(absl::StartsWith(importer_filename, "file://") ||
-              absl::StartsWith(importer_filename, "memfile://"))
+        CHECK(!absl::StartsWith(importer_filename, "file://"))
             << "importer_filename: " << importer_filename
             << " imported: " << imported;
-        std::string imported_uri = verible::lsp::PathToLSPUri(imported.c_str());
-        import_sensitivity_.NoteImportAttempt(importer_filename, imported_uri);
+        const auto importer_uri = LspUri::FromFilesystemPath(importer_filename);
+
+        const LspUri imported_uri(verible::lsp::PathToLSPUri(imported.c_str()));
+        import_sensitivity_.NoteImportAttempt(importer_uri, imported_uri);
       });
 
   const std::string& module_name = module_name_or.value();
 
   std::vector<CommentData> comments;
-  absl::StatusOr<TypecheckedModule> typechecked_module =
-      ParseAndTypecheck(dslx_code.value(), /*path=*/file_uri,
-                        /*module_name=*/module_name, &import_data, &comments);
+  absl::StatusOr<TypecheckedModule> typechecked_module = ParseAndTypecheck(
+      dslx_code.value(), /*path=*/file_uri.GetFilesystemPath().c_str(),
+      /*module_name=*/module_name, &import_data, &comments);
 
   if (typechecked_module.ok()) {
     insert_value = std::make_unique<ParseData>(
@@ -264,7 +244,7 @@ absl::Status LanguageServerAdapter::Update(
 }
 
 std::vector<verible::lsp::Diagnostic>
-LanguageServerAdapter::GenerateParseDiagnostics(std::string_view uri) const {
+LanguageServerAdapter::GenerateParseDiagnostics(LspUri uri) const {
   std::vector<verible::lsp::Diagnostic> result;
   if (ParseData* parsed = FindParsedForUri(uri)) {
     FileTable& file_table = parsed->file_table();
@@ -279,7 +259,7 @@ LanguageServerAdapter::GenerateParseDiagnostics(std::string_view uri) const {
 }
 
 std::vector<verible::lsp::DocumentSymbol>
-LanguageServerAdapter::GenerateDocumentSymbols(std::string_view uri) const {
+LanguageServerAdapter::GenerateDocumentSymbols(LspUri uri) const {
   VLOG(1) << "GenerateDocumentSymbols; uri: " << uri;
   if (const ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     return ToDocumentSymbols(parsed->module());
@@ -289,7 +269,7 @@ LanguageServerAdapter::GenerateDocumentSymbols(std::string_view uri) const {
 
 absl::StatusOr<std::vector<verible::lsp::Location>>
 LanguageServerAdapter::FindDefinitions(
-    std::string_view uri, const verible::lsp::Position& position) const {
+    LspUri uri, const verible::lsp::Position& position) const {
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     FileTable& file_table = parsed->file_table();
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
@@ -297,15 +277,14 @@ LanguageServerAdapter::FindDefinitions(
     std::optional<const NameDef*> maybe_definition = xls::dslx::FindDefinition(
         parsed->module(), pos, parsed->type_info(), parsed->import_data());
     if (maybe_definition.has_value()) {
+      // We've found a definition for the entity at the target `position` -- it
+      // has a span we want to return as an LSP location.
       const Span& definition_span = maybe_definition.value()->span();
       VLOG(1) << "FindDefinition; span: "
               << definition_span.ToString(file_table);
+
       verible::lsp::Location location =
-          ConvertSpanToLspLocation(definition_span);
-      XLS_ASSIGN_OR_RETURN(
-          location.uri,
-          MaybeRelpathToUri(definition_span.GetFilename(parsed->file_table()),
-                            dslx_paths_));
+          ConvertSpanToLspLocation(definition_span, file_table);
       return std::vector<verible::lsp::Location>{location};
     }
   }
@@ -313,13 +292,14 @@ LanguageServerAdapter::FindDefinitions(
 }
 
 absl::StatusOr<std::vector<verible::lsp::TextEdit>>
-LanguageServerAdapter::FormatDocument(std::string_view uri) const {
+LanguageServerAdapter::FormatDocument(LspUri uri) const {
   using ResultT = std::vector<verible::lsp::TextEdit>;
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     const Module& module = parsed->module();
     const std::string& dslx_code = parsed->contents();
     XLS_ASSIGN_OR_RETURN(std::string new_contents,
-                         AutoFmt(module, parsed->comments(), dslx_code));
+                         AutoFmt(parsed->import_data().vfs(), module,
+                                 parsed->comments(), dslx_code));
     return ResultT{
         verible::lsp::TextEdit{.range = ConvertSpanToLspRange(module.span()),
                                .newText = new_contents}};
@@ -328,7 +308,7 @@ LanguageServerAdapter::FormatDocument(std::string_view uri) const {
 }
 
 std::vector<verible::lsp::DocumentLink>
-LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
+LanguageServerAdapter::ProvideImportLinks(LspUri uri) const {
   std::vector<verible::lsp::DocumentLink> result;
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     const Module& module = parsed->module();
@@ -340,7 +320,7 @@ LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
       }
       verible::lsp::DocumentLink link = {
           .range = ConvertSpanToLspRange(import_node->name_def().span()),
-          .target = verible::lsp::PathToLSPUri(info.value()->path().string()),
+          .target = verible::lsp::PathToLSPUri(info.value()->path().c_str()),
           .has_target = true,
       };
       result.emplace_back(link);
@@ -350,7 +330,7 @@ LanguageServerAdapter::ProvideImportLinks(std::string_view uri) const {
 }
 
 absl::StatusOr<std::vector<verible::lsp::InlayHint>>
-LanguageServerAdapter::InlayHint(std::string_view uri,
+LanguageServerAdapter::InlayHint(LspUri uri,
                                  const verible::lsp::Range& range) const {
   std::vector<verible::lsp::InlayHint> results;
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
@@ -393,7 +373,7 @@ LanguageServerAdapter::InlayHint(std::string_view uri,
 
 absl::StatusOr<std::optional<verible::lsp::Range>>
 LanguageServerAdapter::PrepareRename(
-    std::string_view uri, const verible::lsp::Position& position) const {
+    LspUri uri, const verible::lsp::Position& position) const {
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     FileTable& file_table = parsed->file_table();
 
@@ -429,7 +409,7 @@ static absl::Status RenameInGeneric(
 }
 
 absl::StatusOr<std::optional<verible::lsp::WorkspaceEdit>>
-LanguageServerAdapter::Rename(std::string_view uri,
+LanguageServerAdapter::Rename(LspUri uri,
                               const verible::lsp::Position& position,
                               std::string_view new_name) const {
   std::vector<verible::lsp::TextEdit> edits;
@@ -489,7 +469,7 @@ LanguageServerAdapter::Rename(std::string_view uri,
 
     return verible::lsp::WorkspaceEdit{
         .changes = nlohmann::json::object({
-            {std::string{uri}, edits_json},
+            {std::string{uri.GetStringView()}, edits_json},
         }),
     };
   }
@@ -498,7 +478,7 @@ LanguageServerAdapter::Rename(std::string_view uri,
 
 absl::StatusOr<std::vector<verible::lsp::DocumentHighlight>>
 LanguageServerAdapter::DocumentHighlight(
-    std::string_view uri, const verible::lsp::Position& position) const {
+    LspUri uri, const verible::lsp::Position& position) const {
   if (ParseData* parsed = FindParsedForUri(uri); parsed && parsed->ok()) {
     FileTable& file_table = parsed->file_table();
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);

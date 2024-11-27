@@ -37,36 +37,10 @@
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
-
-// A virtualizable filesystem seam so that we can perform imports using either
-// the real filesystem or a virtual filesystem.
-//
-// This is useful for use-cases like language servers where a mix of real
-// filesystem and virtualized filesystem contents (i.e. with temporary edits in
-// working buffers) are used.
-class VirtualizableFilesystem {
- public:
-  virtual ~VirtualizableFilesystem() = default;
-
-  virtual absl::Status FileExists(const std::filesystem::path& path) = 0;
-
-  virtual absl::StatusOr<std::string> GetFileContents(
-      const std::filesystem::path& path) = 0;
-
-  virtual absl::StatusOr<std::filesystem::path> GetCurrentDirectory() = 0;
-};
-
-class RealFilesystem : public VirtualizableFilesystem {
- public:
-  ~RealFilesystem() override = default;
-  absl::Status FileExists(const std::filesystem::path& path) override;
-  absl::StatusOr<std::string> GetFileContents(
-      const std::filesystem::path& path) override;
-  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override;
-};
 
 // An entry that goes into the ImportData.
 class ModuleInfo {

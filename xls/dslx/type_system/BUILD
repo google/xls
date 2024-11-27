@@ -406,6 +406,7 @@ cc_library(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -424,6 +425,7 @@ cc_test(
         "//xls/dslx:error_test_utils",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:pos",
@@ -732,6 +734,7 @@ cc_binary(
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_kind",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",

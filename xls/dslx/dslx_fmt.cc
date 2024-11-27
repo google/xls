@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
 // Note: we attempt to keep our command line interface similar to clang-format.
@@ -73,13 +74,15 @@ absl::Status RealMain(std::string_view input_path,
   }
   std::filesystem::path path = input_path;
 
-  XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path.c_str()));
-  XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
-
   ImportData import_data =
       CreateImportData(xls::kDefaultDslxStdlibPath,
                        /*additional_search_paths=*/{}, kNoWarningsSet,
                        std::make_unique<RealFilesystem>());
+
+  XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path.c_str()));
+  XLS_ASSIGN_OR_RETURN(std::string contents,
+                       import_data.vfs().GetFileContents(path));
+
   std::string formatted;
   if (mode == "autofmt") {
     std::vector<CommentData> comments_vec;
@@ -87,7 +90,8 @@ absl::Status RealMain(std::string_view input_path,
                          ParseModule(contents, path.c_str(), module_name,
                                      import_data.file_table(), &comments_vec));
     Comments comments = Comments::Create(comments_vec);
-    XLS_ASSIGN_OR_RETURN(formatted, AutoFmt(*module, comments, contents));
+    XLS_ASSIGN_OR_RETURN(
+        formatted, AutoFmt(import_data.vfs(), *module, comments, contents));
   } else if (mode == "typecheck") {
     // Note: we don't flag any warnings in this binary as we're just formatting
     // the text.

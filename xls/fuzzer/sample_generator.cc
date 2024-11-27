@@ -53,6 +53,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"

@@ -27,6 +27,7 @@
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 
@@ -37,10 +38,12 @@ namespace xls::dslx {
 // NOTE: this class is stateful and should only be used once per module.
 class FormatDisabler {
  public:
-  FormatDisabler(Comments &comments, const std::string &contents)
-      : comments_(comments), contents_(contents) {};
-  FormatDisabler(Comments &comments, const std::filesystem::path &path)
-      : comments_(comments), path_(path) {};
+  FormatDisabler(VirtualizableFilesystem &vfs, Comments &comments,
+                 const std::string &contents)
+      : vfs_(vfs), comments_(comments), contents_(contents) {};
+  FormatDisabler(VirtualizableFilesystem &vfs, Comments &comments,
+                 const std::filesystem::path &path)
+      : vfs_(vfs), comments_(comments), path_(path) {};
 
   // Functor that implements the 'CloneReplacer' interface.
   absl::StatusOr<std::optional<AstNode *>> operator()(const AstNode *node);
@@ -64,6 +67,8 @@ class FormatDisabler {
 
   // Find a CommentData object that is a enable comment after the given node
   std::optional<const CommentData *> FindEnableAfter(const AstNode *node);
+
+  VirtualizableFilesystem &vfs_;
 
   Comments &comments_;
 

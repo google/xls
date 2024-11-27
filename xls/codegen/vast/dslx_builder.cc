@@ -61,6 +61,7 @@
 #include "xls/dslx/type_system/typecheck_function.h"
 #include "xls/dslx/type_system/typecheck_invocation.h"
 #include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
@@ -792,7 +793,8 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
     }
   }
   dslx::Comments comments = dslx::Comments::Create(comment_data);
-  return AutoFmt(*parsed_module.module, comments, /*text_width=*/100);
+  return AutoFmt(import_data.vfs(), *parsed_module.module, comments,
+                 /*text_width=*/100);
 }
 
 }  // namespace xls

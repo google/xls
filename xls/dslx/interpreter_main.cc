@@ -43,6 +43,7 @@
 #include "xls/dslx/run_routines/run_comparator.h"
 #include "xls/dslx/run_routines/run_routines.h"
 #include "xls/dslx/run_routines/test_xml.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/format_preference.h"
 #include "re2/re2.h"
@@ -152,7 +153,10 @@ absl::StatusOr<TestResult> RealMain(
 
   warnings |= warnings_to_enable;
 
-  XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
+  RealFilesystem vfs;
+
+  XLS_ASSIGN_OR_RETURN(std::string program,
+                       vfs.GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 
   std::unique_ptr<AbstractRunComparator> run_comparator;

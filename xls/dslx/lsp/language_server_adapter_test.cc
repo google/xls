@@ -14,6 +14,7 @@
 
 #include "xls/dslx/lsp/language_server_adapter.h"
 
+#include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,12 +27,15 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "verible/common/lsp/lsp-file-utils.h"
 #include "verible/common/lsp/lsp-protocol.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/lsp/lsp_uri.h"
 
 namespace xls::dslx {
 namespace {
@@ -63,9 +67,15 @@ bool operator==(const verible::lsp::Range& lhs,
   return lhs.start == rhs.start && lhs.end == rhs.end;
 }
 
+LspUri GetDslxStdlibUri() {
+  std::filesystem::path current = xls::GetCurrentDirectory().value();
+  std::filesystem::path stdlib_path = current / kDefaultDslxStdlibPath;
+  return LspUri(verible::lsp::PathToLSPUri(stdlib_path.c_str()));
+}
+
 TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, "fn f() { () }"));
   std::vector<verible::lsp::Diagnostic> diagnostics =
       adapter.GenerateParseDiagnostics(kUri);
@@ -76,14 +86,14 @@ TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
 }
 
 TEST(LanguageServerAdapterTest, LanguageServerRetainsParseResultForAllBuffers) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
 
   // Fill language server editor buffers with two files (one valid, one not)
-  constexpr std::string_view kUriValidContent = "memfile://valid.x";
+  const LspUri kUriValidContent("file:///fake/path/valid.x");
   EXPECT_THAT(adapter.Update(kUriValidContent, "fn f() { () }"),
               StatusIs(absl::StatusCode::kOk));
 
-  constexpr std::string_view kUriErrorContent = "memfile://error.x";
+  const LspUri kUriErrorContent("file:///fake/path/error.x");
   EXPECT_THAT(adapter.Update(kUriErrorContent, "parse-error: not a valid file"),
               StatusIs(absl::StatusCode::kInvalidArgument));
 
@@ -95,15 +105,23 @@ TEST(LanguageServerAdapterTest, LanguageServerRetainsParseResultForAllBuffers) {
   EXPECT_EQ(adapter.GenerateDocumentSymbols(kUriErrorContent).size(), 0);
 
   // Query of unknown buffer is handled gracefully.
-  EXPECT_EQ(adapter.GenerateParseDiagnostics("non-existent.x").size(), 0);
-  EXPECT_EQ(adapter.GenerateDocumentSymbols("non-existent.x").size(), 0);
+  EXPECT_EQ(
+      adapter.GenerateParseDiagnostics(LspUri("file://non-existent.x")).size(),
+      0);
+  EXPECT_EQ(
+      adapter.GenerateDocumentSymbols(LspUri("file://non-existent.x")).size(),
+      0);
 }
 
 TEST(LanguageServerAdapterTest, TestFindDefinitionsFunctionRef) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+
+  // We load this one sample file into the workspace via `Update()`.
+  const LspUri kUri("file:///fake/path/test.x");
+  EXPECT_EQ(kUri.GetFilesystemPath(), "/fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f() { () }
 fn main() { f() })"));
+
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
   verible::lsp::Position position{1, 12};
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -119,8 +137,8 @@ fn main() { f() })"));
 }
 
 TEST(LanguageServerAdapterTest, TestFindDefinitionsTypeRef) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(
 type T = ();
 fn f() -> T { () }
@@ -142,8 +160,8 @@ fn f() -> T { () }
 // After we parse an invalid file the language server can still get requests,
 // check that works reasonably.
 TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   ASSERT_FALSE(adapter.Update(kUri, "blahblahblah").ok());
 
   verible::lsp::Position position{1, 12};
@@ -169,8 +187,8 @@ TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
 }
 
 TEST(LanguageServerAdapterTest, DocumentLinksAreCreatedForImports) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, "import std;"));
   //                             pos: 0123456789A
   std::vector<verible::lsp::DocumentLink> links =
@@ -183,8 +201,8 @@ TEST(LanguageServerAdapterTest, DocumentLinksAreCreatedForImports) {
 }
 
 TEST(LanguageServerAdapterTest, DocumentLevelFormattingComment) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(// Top of module comment.
 
 fn messy() {
@@ -209,8 +227,8 @@ fn messy() {
 }
 
 TEST(LanguageServerAdapterTest, DisableFormatting) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   constexpr std::string_view kInput = R"(// Top of module comment.
 
 // dslx-fmt::off
@@ -237,8 +255,8 @@ fn messy(){()// retval comment
 }
 
 TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f(x: u32) -> u32 {
   let y = x;
   let z = y;
@@ -263,31 +281,41 @@ TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
 
 TEST(LanguageServerAdapterTest, FindDefinitionAcrossFiles) {
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory tempdir, TempDirectory::Create());
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath,
-                                /*dslx_paths=*/{tempdir.path()});
+  const LspUri tempdir_uri = LspUri::FromFilesystemPath(tempdir.path());
+  LanguageServerAdapter adapter(GetDslxStdlibUri(),
+                                /*dslx_paths=*/{tempdir_uri});
 
-  std::string imported_uri =
-      absl::StrFormat("file://%s/imported.x", tempdir.path());
+  // First we place the `imported` module contents on disk without loading it
+  // into the language server explicitly. It will be discovered by the import
+  // process, since the tempdir's URI is part of the DSLX search path.
   const std::string_view kImportedContents = "pub fn f() { () }";
   XLS_ASSERT_OK(
       SetFileContents(tempdir.path() / "imported.x", kImportedContents));
 
-  std::string importer_uri =
-      absl::StrFormat("file://%s/importer.x", tempdir.path());
+  // Now we load the `importer` module contents *into the language server* --
+  // this should be able to see/discover the `imported` module even though it
+  // was not loaded explicitly.
+  const LspUri importer_uri(
+      absl::StrFormat("file://%s/importer.x", tempdir.path()));
   const std::string_view kImporterContents = R"(import imported;
 
 fn main() { imported::f() }
 )";
   XLS_ASSERT_OK(adapter.Update(importer_uri, kImporterContents));
 
-  verible::lsp::Position position{2, 13};
+  // Find the definitions referred to by `imported::f()` in `importer.x`.
+  const verible::lsp::Position position{2, 13};
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<verible::lsp::Location> definition_locations,
       adapter.FindDefinitions(importer_uri, position));
   ASSERT_EQ(definition_locations.size(), 1);
-
-  verible::lsp::Location definition_location = definition_locations.at(0);
+  const verible::lsp::Location definition_location = definition_locations.at(0);
   VLOG(1) << "definition location: " << DebugString(definition_location);
+
+  // Check the definition of `imported::f()` is in the `imported.x` file where
+  // we placed `f` lexically.
+  std::string imported_uri =
+      absl::StrFormat("file://%s/imported.x", tempdir.path());
   EXPECT_EQ(definition_location.uri, imported_uri);
   const verible::lsp::Range kWantRange{
       .start = verible::lsp::Position{0, 7},
@@ -297,8 +325,8 @@ fn main() { imported::f() }
 }
 
 TEST(LanguageServerAdapterTest, RenameForParameter) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr char kUri[] = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f(x: u32) -> u32 {
   let y = x;
   let z = y;
@@ -325,12 +353,12 @@ TEST(LanguageServerAdapterTest, RenameForParameter) {
                            adapter.Rename(kUri, kWantRange.start, "foo"));
   ASSERT_TRUE(edit.has_value());
 
-  EXPECT_EQ(edit->changes.at(kUri).size(), 2);
+  EXPECT_EQ(edit->changes.at(kUri.GetStringView()).size(), 2);
 }
 
 TEST(LanguageServerAdapterTest, RenameForModuleScopedConstant) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr char kUri[] = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(const FOO = u32:42;
 
 const BAR: u32 = FOO + FOO;)"));
@@ -355,14 +383,14 @@ const BAR: u32 = FOO + FOO;)"));
                            adapter.Rename(kUri, kWantRange.start, "FT"));
   ASSERT_TRUE(edit.has_value());
 
-  EXPECT_EQ(edit->changes.at(kUri).size(), 3);
+  EXPECT_EQ(edit->changes.at(kUri.GetStringView()).size(), 3);
 }
 
 // Currently we cannot rename across files so we refuse to rename `pub`
 // visibility members.
 TEST(LanguageServerAdapterTest, RenameForPublicModuleScopedConstant) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(pub const FOO = u32:42;
 
 const BAR: u32 = FOO + FOO;)"));
@@ -383,8 +411,8 @@ const BAR: u32 = FOO + FOO;)"));
 }
 
 TEST(LanguageServerAdapterTest, DocumentHighlight) {
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, /*dslx_paths=*/{"."});
-  constexpr std::string_view kUri = "memfile://test.x";
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
   XLS_ASSERT_OK(adapter.Update(kUri, R"(pub const FOO = u32:42;
 
 const BAR: u32 = FOO + FOO;
@@ -419,17 +447,19 @@ fn f() -> u32 { FOO })"));
 // `inner.x` is fixed.
 TEST(LanguageServerAdapterTest, DagShowsUnsuccessfulImports) {
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory tempdir, TempDirectory::Create());
-  LanguageServerAdapter adapter(kDefaultDslxStdlibPath,
-                                /*dslx_paths=*/{tempdir.path()});
+  LanguageServerAdapter adapter(
+      GetDslxStdlibUri(),
+      /*dslx_paths=*/{LspUri::FromFilesystemPath(tempdir.path())});
 
-  std::string inner_uri = absl::StrFormat("file://%s/inner.x", tempdir.path());
+  const LspUri inner_uri =
+      LspUri(absl::StrFormat("file://%s/inner.x", tempdir.path()));
   const std::string bad_inner_contents = R"(const FOO = u32:42;)";
   const std::string good_inner_contents = R"(pub const FOO = u32:42;)";
   XLS_ASSERT_OK(
       SetFileContents(tempdir.path() / "inner.x", bad_inner_contents));
   XLS_ASSERT_OK(adapter.Update(inner_uri, bad_inner_contents));
 
-  std::string outer_uri = absl::StrFormat("file://%s/outer.x", tempdir.path());
+  const LspUri outer_uri(absl::StrFormat("file://%s/outer.x", tempdir.path()));
   std::string outer_contents = R"(import inner;
 
 const OUTER_FOO = inner::FOO;  // this is not public, at first
@@ -447,13 +477,13 @@ const OUTER_FOO = inner::FOO;  // this is not public, at first
   // This should cause outer to be re-evaluated, and we should no longer see
   // error diagnostics for it.
   XLS_ASSERT_OK(adapter.Update(inner_uri, good_inner_contents));
-  auto sensitive_set =
+  std::vector<LspUri> sensitive_set =
       adapter.import_sensitivity().GatherAllSensitiveToChangeIn(inner_uri);
   ASSERT_EQ(sensitive_set.size(), 2);
   EXPECT_THAT(sensitive_set,
               testing::UnorderedElementsAre(inner_uri, outer_uri));
 
-  for (const std::string& sensitive : sensitive_set) {
+  for (const LspUri& sensitive : sensitive_set) {
     if (sensitive == inner_uri) {
       continue;
     }
@@ -464,6 +494,45 @@ const OUTER_FOO = inner::FOO;  // this is not public, at first
 
   diags = adapter.GenerateParseDiagnostics(outer_uri);
   ASSERT_TRUE(diags.empty());
+}
+
+// Tests that when DSLX path values are given we can resolve imports against
+// them.
+TEST(LanguageServerAdapterTest, NontrivialDslxPathResolution) {
+  // Make a temporary directory to home our modules in.
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory tempdir, TempDirectory::Create());
+
+  // Make a subdirectory where we can place a module that we import via
+  // dslx_path resolution.
+  XLS_ASSERT_OK(RecursivelyCreateDir(tempdir.path() / "subdir"));
+  std::filesystem::path subdir = tempdir.path() / "subdir";
+  const LspUri subdir_uri = LspUri::FromFilesystemPath(subdir);
+
+  // Make a module inside the subdir with MOL as contents.
+  XLS_ASSERT_OK(SetFileContents(subdir / "mol.x", R"(
+import std;
+
+pub const MOL = u32:42;
+pub const MOL_BITS = std::clog2(MOL);
+)"));
+
+  // Make a module (conceptually outside the subdir at tempdir in the hierarchy)
+  // that imports mod and asserts its value.
+  constexpr std::string_view kMainContents = R"(
+import mol;
+
+#[test]
+fn test_mol() { assert_eq(mol::MOL, u32:42); }
+)";
+
+  // Make a language server adapter with the DSLX path set to the subdir.
+  LanguageServerAdapter adapter(GetDslxStdlibUri(),
+                                /*dslx_paths=*/{subdir_uri});
+
+  // Update the main file via the language server.
+  const LspUri main_file_uri(
+      absl::StrCat("file://", std::string{tempdir.path() / "main.x"}));
+  XLS_ASSERT_OK(adapter.Update(main_file_uri, kMainContents));
 }
 
 }  // namespace

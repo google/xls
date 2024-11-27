@@ -41,6 +41,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 
 static constexpr std::string_view kUsage = R"(

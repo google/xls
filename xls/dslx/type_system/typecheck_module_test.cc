@@ -35,6 +35,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -2956,11 +2957,11 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "'Splatted' struct instance has all members of struct defined, "
             "consider removing the `..s`");
+  UniformContentFilesystem vfs(program);
   XLS_ASSERT_OK(PrintPositionalError(
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
-      std::cerr,
-      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
-      PositionalErrorColor::kWarningColor, tr.import_data->file_table()));
+      std::cerr, PositionalErrorColor::kWarningColor,
+      tr.import_data->file_table(), vfs));
 }
 
 TEST(TypecheckTest, LetWithWildcardMatchGivesWarning) {
@@ -2981,11 +2982,10 @@ fn f(x: u32) -> u32 {
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "`let _ = expr;` statement can be simplified to `expr;` -- there "
             "is no need for a `let` binding here");
+  UniformContentFilesystem vfs(program);
   XLS_ASSERT_OK(PrintPositionalError(
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
-      std::cerr,
-      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
-      PositionalErrorColor::kWarningColor, file_table));
+      std::cerr, PositionalErrorColor::kWarningColor, file_table, vfs));
 }
 
 TEST(TypecheckTest, UselessTrailingNilGivesWarning) {
@@ -3006,11 +3006,10 @@ fn f() -> () {
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Block has a trailing nil (empty) tuple after a semicolon -- this "
             "is implied, please remove it");
+  UniformContentFilesystem vfs(program);
   XLS_ASSERT_OK(PrintPositionalError(
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
-      std::cerr,
-      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
-      PositionalErrorColor::kWarningColor, file_table));
+      std::cerr, PositionalErrorColor::kWarningColor, file_table, vfs));
 }
 
 TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {

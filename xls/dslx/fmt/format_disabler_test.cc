@@ -33,6 +33,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
@@ -58,7 +59,8 @@ TEST(FormatDisablerTest, NotDisabled) {
   ASSERT_NE(import_node, nullptr);
 
   // Act.
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -84,7 +86,8 @@ TEST(FormatDisablerTest, NotDisabled_WithComments) {
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -104,7 +107,8 @@ TEST(FormatDisablerTest, DisabledAroundImport) {
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -129,7 +133,8 @@ TEST(FormatDisablerTest, EnabledOnSameLine) {
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -154,7 +159,8 @@ TEST(FormatDisablerTest, EnabledOnSameLineWithNewlineBetween) {
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -180,7 +186,8 @@ TEST(FormatDisablerTest, MultipleDisabledStatements) {
   ASSERT_NE(first_import_node, nullptr);
   ASSERT_NE(second_import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> first_actual,
                            disabler(first_import_node));
 
@@ -218,7 +225,8 @@ TEST(FormatDisablerTest, OneDisabledOneEnabledStatement) {
   ASSERT_NE(first_import_node, nullptr);
   ASSERT_NE(second_import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> first_actual,
                            disabler(first_import_node));
 
@@ -252,7 +260,8 @@ TEST(FormatDisablerTest, MultipleEnabledStatements) {
   ASSERT_NE(first_import_node, nullptr);
   ASSERT_NE(second_import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   // First node should be returned as-is, since there's no "start disable"
   // before it.
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> first_actual,
@@ -278,7 +287,8 @@ TEST(FormatDisablerTest, EnabledOnly) {
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -299,7 +309,8 @@ TEST(FormatDisablerTest, NeverEnabled) {
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -319,9 +330,9 @@ TEST(FormatDisablerTest, NoSpan) {
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_list));
   Comments comments = Comments::Create(comments_list);
-
+  UniformContentFilesystem vfs(kProgram, "fake.x");
   Import* import_node = std::get<Import*>(m->top().at(0));
-  FormatDisabler disabler(comments, kProgram);
+  FormatDisabler disabler(vfs, comments, kProgram);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));
 
@@ -345,9 +356,10 @@ import m;
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_vec));
   Comments comments = Comments::Create(comments_vec);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
 
   Import* import_node = std::get<Import*>(m->top().at(0));
-  FormatDisabler disabler(comments, kProgram);
+  FormatDisabler disabler(vfs, comments, kProgram);
   EXPECT_THAT(disabler(import_node),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("between module start and")));
@@ -368,8 +380,9 @@ import m;
       std::unique_ptr<Module> m,
       ParseModule(kProgram, "fake.x", "fake", file_table, &comments_vec));
   Comments comments = Comments::Create(comments_vec);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
 
-  FormatDisabler disabler(comments, kProgram);
+  FormatDisabler disabler(vfs, comments, kProgram);
   Import* first_import_node = std::get<Import*>(m->top().at(0));
   XLS_ASSERT_OK(disabler(first_import_node));
 
@@ -395,7 +408,8 @@ TEST(FormatDisablerTest, InternalCommentIncludedInVerbatimNode) {
   Import* import_node = std::get<Import*>(m->top().at(0));
   ASSERT_NE(import_node, nullptr);
 
-  FormatDisabler disabler(comments, kProgram);
+  UniformContentFilesystem vfs(kProgram, "fake.x");
+  FormatDisabler disabler(vfs, comments, kProgram);
   EXPECT_EQ(comments.GetComments(m->GetSpan().value()).size(), 4);
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<AstNode*> actual,
                            disabler(import_node));

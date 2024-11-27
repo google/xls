@@ -27,7 +27,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/fmt/comments.h"
 #include "xls/dslx/frontend/ast.h"
@@ -187,7 +186,7 @@ absl::Status FormatDisabler::SetContents() {
     if (!path_.has_value()) {
       return absl::NotFoundError("Path not found");
     }
-    XLS_ASSIGN_OR_RETURN(contents_, GetFileContents(*path_));
+    XLS_ASSIGN_OR_RETURN(contents_, vfs_.GetFileContents(*path_));
   }
 
   if (lines_.empty()) {

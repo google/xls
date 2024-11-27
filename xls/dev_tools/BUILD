@@ -774,6 +774,7 @@ cc_binary(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:mangle",
+        "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",

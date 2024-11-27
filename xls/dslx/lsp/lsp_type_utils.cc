@@ -14,10 +14,13 @@
 
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
+#include <filesystem>  // NOLINT
 #include <string_view>
 
+#include "verible/common/lsp/lsp-file-utils.h"
 #include "verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/lsp/lsp_uri.h"
 
 namespace xls::dslx {
 
@@ -31,18 +34,22 @@ verible::lsp::Range ConvertSpanToLspRange(const Span& span) {
                              .end = ConvertPosToLspPosition(span.limit())};
 }
 
-verible::lsp::Location ConvertSpanToLspLocation(const Span& span) {
-  return verible::lsp::Location{.range = ConvertSpanToLspRange(span)};
+verible::lsp::Location ConvertSpanToLspLocation(const Span& span,
+                                                const FileTable& file_table) {
+  verible::lsp::Location location{.range = ConvertSpanToLspRange(span)};
+  location.uri = verible::lsp::PathToLSPUri(span.GetFilename(file_table));
+  return location;
 }
 
-Pos ConvertLspPositionToPos(std::string_view file_uri,
+Pos ConvertLspPositionToPos(const LspUri& file_uri,
                             const verible::lsp::Position& position,
                             FileTable& file_table) {
-  Fileno fileno = file_table.GetOrCreate(file_uri);
+  std::filesystem::path path = file_uri.GetFilesystemPath();
+  Fileno fileno = file_table.GetOrCreate(path.c_str());
   return Pos(fileno, position.line, position.character);
 }
 
-Span ConvertLspRangeToSpan(std::string_view file_uri,
+Span ConvertLspRangeToSpan(const LspUri& file_uri,
                            const verible::lsp::Range& range,
                            FileTable& file_table) {
   return Span(ConvertLspPositionToPos(file_uri, range.start, file_table),
