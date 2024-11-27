@@ -17,6 +17,7 @@
 #include "mlir/include/mlir/Pass/PassManager.h"
 #include "mlir/include/mlir/Pass/PassRegistry.h"
 #include "mlir/include/mlir/Transforms/Passes.h"
+#include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/contrib/mlir/transforms/passes.h"
 
 namespace mlir::xls {
@@ -26,6 +27,7 @@ void XlsLowerPassPipeline(OpPassManager& pm,
   pm.addPass(createProcifyLoopsPass({
       .apply_by_default = options.procify_loops_apply_by_default,
   }));
+  pm.addNestedPass<xls::SprocOp>(createOptimizeSpawnsPass());
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(createProcElaborationPass());
   if (options.instantiate_eprocs) {

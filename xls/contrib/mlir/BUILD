@@ -377,7 +377,9 @@ cc_library(
         ":index_type_conversion",  # buildcleaner: keep
         ":instantiate_eprocs",  # buildcleaner: keep
         ":math_to_xls",  # buildcleaner: keep
+        ":mlir_xls",
         ":normalize_xls_calls",  # buildcleaner: keep
+        ":optimize_spawns",  # buildcleaner: keep
         ":proc_elaboration",  # buildcleaner: keep
         ":procify_loops",  # buildcleaner: keep
         ":scalarize",  # buildcleaner: keep
@@ -475,6 +477,20 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "optimize_spawns",
+    srcs = ["transforms/optimize_spawns.cc"],
+    deps = [
+        ":mlir_xls",
+        ":xls_transforms_passes_inc_gen",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:TransformUtils",
+    ],
+)
+
 cc_binary(
     name = "xls_opt",
     srcs = ["tools/xls_opt/xls_opt.cc"],
@@ -486,6 +502,7 @@ cc_binary(
         ":instantiate_eprocs",
         ":mlir_xls",
         ":normalize_xls_calls",
+        ":optimize_spawns",
         ":proc_elaboration",
         ":proc_utils",
         ":procify_loops",

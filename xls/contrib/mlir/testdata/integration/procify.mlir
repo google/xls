@@ -62,10 +62,8 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:    %tkn_out, %result = xls.blocking_receive %0, @body_arg_0 : i32
 // CHECK-MLIR:    %tkn_out_0, %result_1 = xls.blocking_receive %0, @body_arg_1 : i32
 // CHECK-MLIR:    %1 = xls.add %result, %result_1 : i32
-// CHECK-MLIR:    %2 = xls.after_all  : !xls.token
-// CHECK-MLIR:    %3 = xls.trace %2, "sum_next: {}, {}"(%result, %1) : i32, i32
-// CHECK-MLIR:    %4 = xls.after_all  : !xls.token
-// CHECK-MLIR:    %5 = xls.send %4, %1, @body_result_0 : i32
+// CHECK-MLIR:    %2 = xls.trace %0, "sum_next: {}, {}"(%result, %1) : i32, i32
+// CHECK-MLIR:    %3 = xls.send %0, %1, @body_result_0 : i32
 // CHECK-MLIR:    xls.yield %arg0 : i32
 // CHECK-MLIR:  }
 // CHECK-MLIR:  xls.eproc @reduce_for_controller_1_1(%arg0: i32) zeroinitializer {
@@ -76,20 +74,16 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:    %4 = xls.not %3 : i1
 // CHECK-MLIR:    %5 = xls.after_all  : !xls.token
 // CHECK-MLIR:    %tkn_out, %result = xls.blocking_receive %5, %3, @for_arg_0 : i32
-// CHECK-MLIR:    %6 = xls.after_all  : !xls.token
-// CHECK-MLIR:    %tkn_out_0, %result_1 = xls.blocking_receive %6, %4, @body_result_0 : i32
-// CHECK-MLIR:    %7 = xls.sel %3 in [%result_1] else %result : (i1, [i32], i32) -> i32
-// CHECK-MLIR:    %8 = xls.eq %arg0, %2 : (i32, i32) -> i1
-// CHECK-MLIR:    %9 = xls.not %8 : i1
-// CHECK-MLIR:    %10 = xls.after_all  : !xls.token
-// CHECK-MLIR:    %11 = xls.send %10, %7, %8, @for_result_0 : i32
-// CHECK-MLIR:    %12 = xls.after_all  : !xls.token
-// CHECK-MLIR:    %13 = xls.send %12, %7, %9, @body_arg_1 : i32
-// CHECK-MLIR:    %14 = xls.after_all  : !xls.token
-// CHECK-MLIR:    %15 = xls.send %14, %arg0, %9, @body_arg_0 : i32
-// CHECK-MLIR:    %16 = xls.add %arg0, %1 : i32
-// CHECK-MLIR:    %17 = xls.sel %8 in [%16] else %0 : (i1, [i32], i32) -> i32
-// CHECK-MLIR:    xls.yield %17 : i32
+// CHECK-MLIR:    %tkn_out_0, %result_1 = xls.blocking_receive %5, %4, @body_result_0 : i32
+// CHECK-MLIR:    %6 = xls.sel %3 in [%result_1] else  %result : (i1, [i32], i32) -> i32
+// CHECK-MLIR:    %7 = xls.eq %arg0, %2 : (i32, i32) -> i1
+// CHECK-MLIR:    %8 = xls.not %7 : i1
+// CHECK-MLIR:    %9 = xls.send %5, %6, %7, @for_result_0 : i32
+// CHECK-MLIR:    %10 = xls.send %5, %6, %8, @body_arg_1 : i32
+// CHECK-MLIR:    %11 = xls.send %5, %arg0, %8, @body_arg_0 : i32
+// CHECK-MLIR:    %12 = xls.add %arg0, %1 : i32
+// CHECK-MLIR:    %13 = xls.sel %7 in  [%12] else %0 : (i1, [i32], i32) -> i32
+// CHECK-MLIR:    xls.yield %13 : i32
 // CHECK-MLIR:  }
 // CHECK-MLIR:  xls.eproc @reduce_2_0(%arg0: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64} {
 // CHECK-MLIR:    %0 = xls.after_all  : !xls.token

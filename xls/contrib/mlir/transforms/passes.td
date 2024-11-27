@@ -147,4 +147,46 @@ def ProcifyLoopsPass : Pass<"procify-loops", "mlir::ModuleOp"> {
   ];
 }
 
+def OptimizeSpawnsPass : Pass<"optimize-spawns", "SprocOp"> {
+  let summary = "Optimizes spawn ops";
+  let description = [{
+    Optimizes away sends and receives to channels that are interior to multiple
+    spawns, or argument or result channels. For example:
+
+    ```
+      spawns {
+        chan X, Y;
+        spawn @y(X, Y);
+        chan A, B;
+        spawn @x(A, B);
+        yield X, Y, A, B;
+      }
+      next (A, B) {
+        ssend X;
+        %0 = sblocking_recv Y;
+        ssend %0 to A;  // Pointless recv/send pair, could be removed.
+        sblocking_recv B;
+        ... use B ...
+      }
+    ```
+
+    into:
+
+    ```
+      spawns {
+        chan X, Y;
+        spawn @y(X, Y);
+        chan B;
+        spawn @x(Y, B);  // Channel A is removed and replaced by Y.
+        yield X, B;
+      }
+      next (A, B) {
+        ssend X;
+        sblocking_recv B;
+        ... use B ...
+      }
+    ```
+  }];
+}
+
 #endif // MLIR_XLS_TRANSFORMS_PASSES

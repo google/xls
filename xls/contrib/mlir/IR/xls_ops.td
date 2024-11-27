@@ -1158,7 +1158,7 @@ def Xls_CountedForOp : Xls_Op<"counted_for",
 // Sequencing operations
 //===----------------------------------------------------------------------===//
 
-def Xls_AfterAllOp : Xls_Op<"after_all", []> {
+def Xls_AfterAllOp : Xls_Op<"after_all", [Pure]> {
   let summary = "Constructs partial orderings among channel operations";
   let description = [{
     Used to construct partial orderings among channel operations.
@@ -1568,6 +1568,20 @@ def Xls_SprocOp : Xls_Op<"sproc", [
     }
     ::llvm::ArrayRef<::mlir::Type> getResultTypes() {
       return {};
+    }
+
+    // Adds the given values to the yield op and the next region. Returns the
+    // index of the first value in both the yield operands and the
+    // getNextChannels().
+    int64_t addYieldedChannels(ValueRange values) {
+      Operation* yield = getSpawns().getBlocks().front().getTerminator();
+      int64_t index = getNext().getNumArguments() - getStateArguments().size();
+      yield->insertOperands(index, values);
+      int64_t i = index;
+      for (Value value : values) {
+        getNext().insertArgument(i++, value.getType(), value.getLoc());
+      }
+      return index;
     }
   }];
 }
