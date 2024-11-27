@@ -142,7 +142,7 @@ class InferenceTable {
   // which has no direct representation in the DSLX source code that is being
   // analyzed. It is up to the inference system using the table to decide a
   // naming scheme for such variables.
-  virtual absl::StatusOr<NameRef*> DefineInternalVariable(
+  virtual absl::StatusOr<const NameRef*> DefineInternalVariable(
       InferenceVariableKind kind, AstNode* definer, std::string_view name) = 0;
 
   // Defines an inference variable corresponding to a parametric in the DSLX
@@ -161,7 +161,7 @@ class InferenceTable {
   //
   // At the time of conversion of the table to `TypeInfo`, we distinctly resolve
   // `N` and its dependent types for each invocation context of `foo`.
-  virtual absl::StatusOr<NameRef*> DefineParametricVariable(
+  virtual absl::StatusOr<const NameRef*> DefineParametricVariable(
       const ParametricBinding& binding) = 0;
 
   // Defines an invocation context for a parametric function, giving its
@@ -212,6 +212,15 @@ class InferenceTable {
   // Returns the type annotation for `node` in the table, if any.
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(
       const AstNode* node) const = 0;
+
+  // Returns the type variable for `node` in the table, if any.
+  virtual std::optional<const NameRef*> GetTypeVariable(
+      const AstNode* node) const = 0;
+
+  // Returns all type annotations that have been associated with the given
+  // variable, in the order they were added to the table.
+  virtual absl::StatusOr<std::vector<const TypeAnnotation*>>
+  GetTypeAnnotationsForTypeVariable(const NameRef* variable) const = 0;
 };
 
 }  // namespace xls::dslx

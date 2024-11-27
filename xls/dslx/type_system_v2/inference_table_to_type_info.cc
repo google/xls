@@ -14,29 +14,33 @@
 
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -99,13 +103,26 @@ class InferenceTableConverter {
     }
 
     for (const AstNode* node : nodes) {
-      std::optional<const TypeAnnotation*> annotation =
-          table_.GetTypeAnnotation(node);
+      std::optional<const TypeAnnotation*> annotation;
+      const std::optional<const NameRef*> type_variable =
+          table_.GetTypeVariable(node);
+      if (type_variable.has_value()) {
+        // A type variable implies unification may be needed, so don't just use
+        // the type annotation of the node if it has a variable associated with
+        // it.
+        std::optional<Span> node_span = node->GetSpan();
+        CHECK(node_span.has_value());
+        XLS_ASSIGN_OR_RETURN(annotation,
+                             UnifyTypeAnnotations(parametric_invocation,
+                                                  *type_variable, *node_span));
+      } else {
+        annotation = table_.GetTypeAnnotation(node);
+      }
       if (!annotation.has_value()) {
-        return absl::UnimplementedError(absl::Substitute(
-            "Type inference version 2 is a work in progress and cannot yet "
-            "handle `$0` because it has no type annotation.",
-            node->ToString()));
+        return absl::FailedPreconditionError(
+            absl::Substitute("Node should have either a type annotation or "
+                             "annotated type variable: $0",
+                             node->ToString()));
       }
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                            Concretize(*annotation, parametric_invocation));
@@ -122,37 +139,24 @@ class InferenceTableConverter {
   // or in the context of a parametric invocation.
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
-      const std::optional<const ParametricInvocation*>& invocation) {
-    if (const auto* builtin_annotation =
-            dynamic_cast<const BuiltinTypeAnnotation*>(annotation);
-        builtin_annotation != nullptr) {
-      return ConcretizeBuiltinTypeAnnotation(*builtin_annotation, file_table_);
+      std::optional<const ParametricInvocation*> parametric_invocation) {
+    absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
+        GetSignednessAndBitCount(annotation);
+    if (!signedness_and_bit_count.ok()) {
+      return absl::UnimplementedError(absl::Substitute(
+          "Type inference version 2 is a work in progress and cannot yet "
+          "handle non-bits-like type annotation `$0`.",
+          annotation->ToString()));
     }
-    if (const auto* array_annotation =
-            dynamic_cast<const ArrayTypeAnnotation*>(annotation)) {
-      if (auto* builtin_element_type =
-              dynamic_cast<const BuiltinTypeAnnotation*>(
-                  array_annotation->element_type());
-          builtin_element_type != nullptr &&
-          builtin_element_type->GetBitCount() == 0) {
-        // This means we are concretizing uN[N] or sN[N], where the N is some
-        // u32 expr.
-        TypeAnnotation* u32_annotation = module_.Make<BuiltinTypeAnnotation>(
-            array_annotation->dim()->span(), BuiltinType::kU32,
-            module_.GetOrCreateBuiltinNameDef("u32"));
-        XLS_ASSIGN_OR_RETURN(InterpValue size, Evaluate(InvocationScopedExpr(
-                                                   invocation, u32_annotation,
-                                                   array_annotation->dim())));
-        XLS_ASSIGN_OR_RETURN(bool signedness,
-                             builtin_element_type->GetSignedness());
-        XLS_ASSIGN_OR_RETURN(int64_t size_value, size.GetBitValueUnsigned());
-        return std::make_unique<BitsType>(signedness, size_value);
-      }
-    }
-    return absl::UnimplementedError(absl::Substitute(
-        "Type inference version 2 is a work in progress and cannot yet handle "
-        "type annotation `$0`.",
-        annotation->ToString()));
+    XLS_ASSIGN_OR_RETURN(
+        bool signedness,
+        EvaluateBoolOrExpr(parametric_invocation,
+                           signedness_and_bit_count->signedness));
+    XLS_ASSIGN_OR_RETURN(
+        int64_t bit_count,
+        EvaluateS64OrExpr(parametric_invocation,
+                          signedness_and_bit_count->bit_count));
+    return std::make_unique<BitsType>(signedness, bit_count);
   }
 
   // Constexpr-evaluates the given expression, whose dependencies must already
@@ -222,6 +226,81 @@ class InferenceTableConverter {
     ParametricEnv env(values);
     converted_parametric_envs_.emplace(invocation, env);
     return env;
+  }
+
+  absl::StatusOr<bool> EvaluateBoolOrExpr(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::variant<bool, const Expr*> value_or_expr) {
+    if (std::holds_alternative<bool>(value_or_expr)) {
+      return std::get<bool>(value_or_expr);
+    }
+    const Expr* expr = std::get<const Expr*>(value_or_expr);
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        Evaluate(InvocationScopedExpr(
+            parametric_invocation, CreateBoolAnnotation(module_, expr->span()),
+            expr)));
+    return value.GetBitValueUnsigned();
+  }
+
+  absl::StatusOr<int64_t> EvaluateS64OrExpr(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::variant<int64_t, const Expr*> value_or_expr) {
+    if (std::holds_alternative<int64_t>(value_or_expr)) {
+      return std::get<int64_t>(value_or_expr);
+    }
+    const Expr* expr = std::get<const Expr*>(value_or_expr);
+    std::optional<const TypeAnnotation*> type_annotation =
+        table_.GetTypeAnnotation(expr);
+    if (!type_annotation.has_value()) {
+      type_annotation = CreateS64Annotation(module_, expr->span());
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         Evaluate(InvocationScopedExpr(
+                             parametric_invocation, *type_annotation, expr)));
+    return value.GetBitValueSigned();
+  }
+
+  // Comes up with one type annotation reconciling the information in any
+  // type annotations that have been associated with the given type variable. If
+  // the information has unreconcilable conflicts, returns an error. The given
+  // `parametric_invocation` argument is used as a context for the evaluation of
+  // any expressions inside the type annotations.
+  absl::StatusOr<TypeAnnotation*> UnifyTypeAnnotations(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const NameRef* type_variable, const Span& span) {
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<const TypeAnnotation*> annotations,
+        table_.GetTypeAnnotationsForTypeVariable(type_variable));
+    if (annotations.empty()) {
+      return absl::InvalidArgumentError(
+          absl::Substitute("Failed to unify type variable $0 because no type "
+                           "annotations were associated with it.",
+                           type_variable->ToString()));
+    }
+    std::optional<bool> unified_signedness;
+    std::optional<int64_t> unified_bit_count;
+    for (int i = 0; i < annotations.size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
+                           GetSignednessAndBitCount(annotations[i]));
+      XLS_ASSIGN_OR_RETURN(
+          bool signedness,
+          EvaluateBoolOrExpr(parametric_invocation,
+                             signedness_and_bit_count.signedness));
+      XLS_ASSIGN_OR_RETURN(
+          int64_t bit_count,
+          EvaluateS64OrExpr(parametric_invocation,
+                            signedness_and_bit_count.bit_count));
+      if (unified_signedness.has_value() && signedness != *unified_signedness) {
+        return SignednessMismatchErrorStatus(annotations[i], annotations[i - 1],
+                                             file_table_);
+      }
+      unified_bit_count = std::max(
+          unified_bit_count.has_value() ? *unified_bit_count : 0, bit_count);
+      unified_signedness = signedness;
+    }
+    return CreateUnOrSnAnnotation(module_, span, *unified_signedness,
+                                  *unified_bit_count);
   }
 
   const InferenceTable& table_;

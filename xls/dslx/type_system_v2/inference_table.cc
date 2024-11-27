@@ -89,32 +89,41 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
 // Represents the immutable metadata for a variable in an `InferenceTable`.
 class InferenceVariable {
  public:
-  InferenceVariable(const AstNode* definer, std::string_view name,
+  InferenceVariable(const AstNode* definer, const NameRef* name_ref,
                     InferenceVariableKind kind, bool parametric)
-      : definer_(definer), name_(name), kind_(kind), parametric_(parametric) {}
+      : definer_(definer),
+        name_ref_(name_ref),
+        kind_(kind),
+        parametric_(parametric) {}
 
   const AstNode* definer() const { return definer_; }
 
-  std::string_view name() const { return name_; }
+  std::string_view name() const { return name_ref_->identifier(); }
 
   InferenceVariableKind kind() const { return kind_; }
 
   bool parametric() const { return parametric_; }
 
+  // Returns the `NameRef` dealt out for this variable at creation time. This
+  // is used to avoid spurious creations of additional refs by table functions
+  // that look up variables. However, any `NameRef` to the variable's `NameDef`
+  // is equally usable.
+  const NameRef* name_ref() const { return name_ref_; }
+
   template <typename H>
   friend H AbslHashValue(H h, const InferenceVariable& v) {
-    return H::combine(std::move(h), v.definer_, v.name_, v.kind_);
+    return H::combine(std::move(h), v.definer_, v.name(), v.kind_);
   }
 
   std::string ToString() const {
     return absl::Substitute("InferenceVariable(name=$0, kind=$1, definer=$2)",
-                            name_, InferenceVariableKindToString(kind_),
+                            name(), InferenceVariableKindToString(kind_),
                             definer_->ToString());
   }
 
  private:
   const AstNode* const definer_;
-  const std::string name_;
+  const NameRef* const name_ref_;
   const InferenceVariableKind kind_;
   const bool parametric_;
 };
@@ -177,28 +186,32 @@ class InferenceTableImpl : public InferenceTable {
   InferenceTableImpl(Module& module, const FileTable& file_table)
       : module_(module), file_table_(file_table) {}
 
-  absl::StatusOr<NameRef*> DefineInternalVariable(
+  absl::StatusOr<const NameRef*> DefineInternalVariable(
       InferenceVariableKind kind, AstNode* definer,
       std::string_view name) override {
     CHECK(definer->GetSpan().has_value());
     Span span = *definer->GetSpan();
-    NameDef* name_def = module_.Make<NameDef>(span, std::string(name), definer);
+    const NameDef* name_def =
+        module_.Make<NameDef>(span, std::string(name), definer);
+    const NameRef* name_ref =
+        module_.Make<NameRef>(span, std::string(name), name_def);
     AddVariable(name_def, std::make_unique<InferenceVariable>(
-                              definer, name, kind, /*parametric=*/false));
-    return module_.Make<NameRef>(span, std::string(name), name_def);
+                              definer, name_ref, kind, /*parametric=*/false));
+    return name_ref;
   }
 
-  absl::StatusOr<NameRef*> DefineParametricVariable(
+  absl::StatusOr<const NameRef*> DefineParametricVariable(
       const ParametricBinding& binding) override {
     XLS_ASSIGN_OR_RETURN(
         InferenceVariableKind kind,
         TypeAnnotationToInferenceVariableKind(binding.type_annotation()));
     const NameDef* name_def = binding.name_def();
+    const NameRef* name_ref = module_.Make<NameRef>(
+        name_def->span(), name_def->identifier(), name_def);
     AddVariable(name_def, std::make_unique<InferenceVariable>(
-                              name_def, name_def->identifier(), kind,
-                              /*parametric=*/true));
-    return module_.Make<NameRef>(name_def->span(), name_def->identifier(),
-                                 name_def);
+                              name_def, name_ref, kind, /*parametric=*/true));
+    XLS_RETURN_IF_ERROR(SetTypeAnnotation(name_def, binding.type_annotation()));
+    return name_ref;
   }
 
   absl::StatusOr<const ParametricInvocation*> AddParametricInvocation(
@@ -323,17 +336,34 @@ class InferenceTableImpl : public InferenceTable {
     return it->second.type_annotation;
   }
 
+  std::optional<const NameRef*> GetTypeVariable(
+      const AstNode* node) const override {
+    const auto it = node_data_.find(node);
+    if (it == node_data_.end()) {
+      return std::nullopt;
+    }
+    const std::optional<const InferenceVariable*>& variable =
+        it->second.type_variable;
+    return variable.has_value() ? std::make_optional((*variable)->name_ref())
+                                : std::nullopt;
+  }
+
+  absl::StatusOr<std::vector<const TypeAnnotation*>>
+  GetTypeAnnotationsForTypeVariable(const NameRef* ref) const override {
+    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
+    const auto it = type_annotations_per_type_variable_.find(variable);
+    return it == type_annotations_per_type_variable_.end()
+               ? std::vector<const TypeAnnotation*>()
+               : it->second;
+  }
+
  private:
   void AddVariable(const NameDef* name_def,
                    std::unique_ptr<InferenceVariable> variable) {
-    if (variable->kind() == InferenceVariableKind::kType) {
-      type_constraints_.emplace(variable.get(),
-                                std::make_unique<TypeConstraints>());
-    }
     variables_.emplace(name_def, std::move(variable));
   }
 
-  absl::StatusOr<InferenceVariable*> GetVariable(const NameRef* ref) {
+  absl::StatusOr<InferenceVariable*> GetVariable(const NameRef* ref) const {
     if (std::holds_alternative<const NameDef*>(ref->name_def())) {
       const auto it =
           variables_.find(std::get<const NameDef*>(ref->name_def()));
@@ -362,8 +392,8 @@ class InferenceTableImpl : public InferenceTable {
     // Refine and check the associated type variable.
     if (node_data.type_variable.has_value() &&
         node_data.type_annotation.has_value()) {
-      XLS_RETURN_IF_ERROR(RefineAndCheckTypeVariable(
-          *node_data.type_variable, *node_data.type_annotation));
+      type_annotations_per_type_variable_[*node_data.type_variable].push_back(
+          *node_data.type_annotation);
     }
     // Update the dependencies of the node.
     if (node_data.type_variable.has_value()) {
@@ -376,37 +406,6 @@ class InferenceTableImpl : public InferenceTable {
       for (const InferenceVariable* variable : referenced_variables) {
         AddDependency(node, variable);
       }
-    }
-    return absl::OkStatus();
-  }
-
-  // Refines what is known about the given `variable` (which is assumed to be a
-  // type-kind variable) based on the given `annotation` that it must satisfy,
-  // and errors if there is a conflict with existing information.
-  absl::Status RefineAndCheckTypeVariable(const InferenceVariable* variable,
-                                          const TypeAnnotation* annotation) {
-    const auto* builtin_annotation =
-        dynamic_cast<const BuiltinTypeAnnotation*>(annotation);
-    if (builtin_annotation == nullptr) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("Type inference version 2 does not yet support refining "
-                       "and updating a variable with type annotation: ",
-                       annotation->ToString()));
-    }
-    TypeConstraints& constraints = *type_constraints_[variable];
-    if (!constraints.min_width.has_value() ||
-        builtin_annotation->GetBitCount() > *constraints.min_width) {
-      constraints.min_width = builtin_annotation->GetBitCount();
-    }
-    XLS_ASSIGN_OR_RETURN(const bool annotation_is_signed,
-                         builtin_annotation->GetSignedness());
-    if (constraints.is_signed.has_value() &&
-        annotation_is_signed != *constraints.is_signed) {
-      return SignednessMismatchErrorStatus(
-          annotation, *constraints.signedness_definer, file_table_);
-    } else if (!constraints.is_signed.has_value()) {
-      constraints.is_signed = annotation_is_signed;
-      constraints.signedness_definer = annotation;
     }
     return absl::OkStatus();
   }
@@ -444,11 +443,11 @@ class InferenceTableImpl : public InferenceTable {
   // internally.
   absl::flat_hash_map<const NameDef*, std::unique_ptr<InferenceVariable>>
       variables_;
-  // The constraints that have been determined for `variables_` that are
-  // of `kType` kind.
+  // The type annotations that have been associated with each inference
+  // variable of type-kind.
   absl::flat_hash_map<const InferenceVariable*,
-                      std::unique_ptr<TypeConstraints>>
-      type_constraints_;
+                      std::vector<const TypeAnnotation*>>
+      type_annotations_per_type_variable_;
   // The `AstNode` objects that have associated data.
   absl::flat_hash_map<const AstNode*, NodeData> node_data_;
   // Which `AstNode` objects depend on which variables.
