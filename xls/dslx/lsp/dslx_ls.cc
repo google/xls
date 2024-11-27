@@ -29,6 +29,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <system_error>  // NOLINT
 #include <utility>
 #include <vector>
 
@@ -127,6 +128,19 @@ void TextChangeHandler(const LspUri& file_uri,
   }
 }
 
+// Attempt to canonicalize path and return that if successful; else keep as-is.
+static std::filesystem::path FailSafeCanonicalize(
+    const std::filesystem::path& original_path) {
+  std::error_code ec;
+  std::filesystem::path canonicalized =
+      std::filesystem::canonical(original_path, ec);
+  if (!ec) {
+    return canonicalized;
+  }
+  LspLog() << "Error: " << original_path << ": " << ec.message() << "\n";
+  return original_path;
+}
+
 absl::Status RealMain() {
   const std::string stdlib_path = absl::GetFlag(FLAGS_stdlib_path);
   const std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
@@ -134,7 +148,7 @@ absl::Status RealMain() {
       absl::StrSplit(dslx_path, ':');
 
   const std::filesystem::path stdlib_realpath =
-      std::filesystem::canonical(stdlib_path);
+      FailSafeCanonicalize(stdlib_path);
 
   LspLog() << "XLS testing language server" << "\n";
   LspLog() << "Path configuration:\n"
