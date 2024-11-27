@@ -57,7 +57,8 @@ filegroup(
         "//xls/examples/adler32:adler32.opt.ir",
         "//xls/examples/crc32:crc32.ir",
         "//xls/examples/crc32:crc32.opt.ir",
-        "//xls/examples/matmul_4x4:matmul_4x4.ir",
+        "//xls/examples/matmul_4x4:matmul_4x4_opt_ir.ir",
+        "//xls/examples/matmul_4x4:matmul_4x4_opt_ir.opt.ir",
     ],
 )
 

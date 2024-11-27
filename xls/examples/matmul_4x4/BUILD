@@ -14,6 +14,8 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "xls_dslx_library",
+    "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
 
@@ -27,33 +29,19 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+xls_dslx_library(
+    name = "matmul_4x4_dslx",
+    srcs = ["matmul_4x4.x"],
+)
+
 xls_dslx_test(
     name = "matmul_4x4_dslx_test",
-    srcs = ["matmul_4x4.x"],
     dslx_test_args = {"compare": "jit"},
-    # TODO(rspringer): 2022-05-24: Does not successfully lower to IR.
-    # Needs support for arrays of channels.
+    library = ":matmul_4x4_dslx",
 )
 
-cc_test(
-    name = "matmul_4x4_test",
-    srcs = ["matmul_4x4_test.cc"],
-    data = ["matmul_4x4.ir"],
-    deps = [
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/interpreter:channel_queue",
-        "//xls/interpreter:evaluator_options",
-        "//xls/interpreter:interpreter_proc_runtime",
-        "//xls/interpreter:serial_proc_runtime",
-        "//xls/ir:bits",
-        "//xls/ir:channel",
-        "//xls/ir:ir_parser",
-        "//xls/ir:value",
-        "@com_google_googletest//:gtest",
-    ],
+xls_dslx_opt_ir(
+    name = "matmul_4x4_opt_ir",
+    dslx_top = "matmul_4x4",
+    library = ":matmul_4x4_dslx",
 )
-
-exports_files(["matmul_4x4.ir"])
