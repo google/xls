@@ -107,8 +107,6 @@ void AddSimplificationPasses(OptimizationCompoundPass& pass) {
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<DataflowSimplificationPass>();
   pass.Add<DeadCodeEliminationPass>();
-  pass.Add<LutConversionPass>();
-  pass.Add<DeadCodeEliminationPass>();
   pass.Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
   pass.Add<DeadCodeEliminationPass>();
   pass.Add<ReassociationPass>();
@@ -256,6 +254,9 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     Add<DeadCodeEliminationPass>();
     Add<BddCsePass>();
     Add<SelectLiftingPass>();
+    Add<DeadCodeEliminationPass>();
+
+    Add<LutConversionPass>();
     Add<DeadCodeEliminationPass>();
 
     Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
