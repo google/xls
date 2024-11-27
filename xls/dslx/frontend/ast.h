@@ -1391,8 +1391,8 @@ class Unop : public Expr {
        Span op_span, bool in_parens = false)
       : Expr(owner, std::move(span), in_parens),
         unop_kind_(unop_kind),
-        op_span_(op_span),
-        operand_(operand) {}
+        operand_(operand),
+        op_span_(op_span) {}
 
   ~Unop() override;
 
