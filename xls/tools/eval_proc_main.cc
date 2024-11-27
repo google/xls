@@ -825,6 +825,7 @@ static absl::Status RunBlock(
 
   int64_t last_output_cycle = 0;
   int64_t matched_outputs = 0;
+  bool checked_any_output = false;
   absl::Time start_time = absl::Now();
   if (signature.reset().name().empty()) {
     LOG(WARNING) << "No reset found in signature!";
@@ -947,6 +948,7 @@ static absl::Status RunBlock(
                               name, outputs.at(info.channel_data).ToString()));
           continue;
         }
+        checked_any_output = true;
         if (info.width != 0) {
           const Value& data_value = outputs.at(info.channel_data);
           const Value& match_value = queue.front();
@@ -1061,7 +1063,9 @@ static absl::Status RunBlock(
                     "expected outputs were produced. Remaining inputs:\n"
                  << ChannelValuesToString(unconsumed_inputs);
   }
-
+  if (!checked_any_output) {
+    return absl::UnknownError("No output verified (empty expected values?)");
+  }
   if (!output_stats_path.empty()) {
     XLS_RETURN_IF_ERROR(xls::SetFileContents(
         output_stats_path, absl::StrFormat("%i", last_output_cycle)));
