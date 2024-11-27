@@ -69,6 +69,7 @@ cc_library(
         "//xls/dslx:virtualizable_file_system",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:comment_data",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
