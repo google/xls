@@ -483,6 +483,7 @@ cc_library(
     deps = [
         ":mlir_xls",
         ":xls_transforms_passes_inc_gen",
+        "@llvm-project//mlir:Analysis",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",

@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "mlir/include/mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/IR/PatternMatch.h"
 #include "mlir/include/mlir/IR/Value.h"
@@ -115,6 +116,10 @@ class OptimizeSpawnsPass
                                             std::move(patterns)))) {
       signalPassFailure();
     }
+
+    // Ensure that all spawns regions are topologically sorted; given the order
+    // in which the pattern is applied, this is not currently guaranteed.
+    sortTopologically(&getOperation().getSpawns().front());
   }
 };
 
