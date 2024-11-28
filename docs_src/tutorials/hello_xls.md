@@ -107,7 +107,7 @@ up! Open a terminal and execute the following in the XLS checkout root
 directory:
 
 ```
-$ ./bazel-bin/xls/dslx/interpreter_main hello_xls.x
+$ ./bazel-bin/xls/dslx/interpreter_main --logtostderr hello_xls.x
 ```
 
 You should see the following output:
