@@ -443,7 +443,9 @@ enum class DataKind : int8_t {
   kUser,
   // The data kind of an enum definition itself that has no specified kind, i.e.
   // "enum { elements }" as opposed to "enum int { elements }" or similar.
-  kUntypedEnum
+  kUntypedEnum,
+  // Used as an integer during elaboration to evaluate a generate loop.
+  kGenvar,
 };
 
 // Represents the definition of a variable or net.
@@ -547,6 +549,13 @@ class IntegerDef final : public Def {
   IntegerDef(std::string_view name, VerilogFile* file, const SourceInfo& loc);
   IntegerDef(std::string_view name, DataType* data_type, Expression* init,
              VerilogFile* file, const SourceInfo& loc);
+};
+
+// Represents a genvar definition, for use in generate loops. Example:
+//   genvar i;
+class GenvarDef final : public Def {
+ public:
+  GenvarDef(std::string_view name, VerilogFile* file, const SourceInfo& loc);
 };
 
 // Represents a #${delay} statement.
@@ -667,6 +676,34 @@ class StatementBlock final : public VastNode {
 
  private:
   std::vector<Statement*> statements_;
+};
+
+// Represents a generate loop construct. Example:
+// ```verilog
+// generate
+//   for (i = 0; i < 32; i++) begin
+//     assign output[i] = input[i];
+//   end
+// endgenerate
+// ```
+class GenerateLoop final : public Statement {
+ public:
+  GenerateLoop(LogicRef* genvar, Expression* init, Expression* limit,
+               std::optional<std::string_view> label, VerilogFile* file,
+               const SourceInfo& loc);
+
+  void AddBodyNode(VastNode* node) { body_.push_back(node); }
+
+  std::string Emit(LineInfo* line_info) const final;
+
+ private:
+  LogicRef* genvar_;
+  GenvarDef* genvar_def_;
+
+  Expression* init_;
+  Expression* limit_;
+  std::vector<VastNode*> body_;
+  std::optional<std::string> label_;
 };
 
 // Similar to statement block,  but for use if `ifdef `else `endif blocks (no
@@ -2121,7 +2158,10 @@ using ModuleMember =
                  VerilogFunction*,         // Function definition
                  Typedef*, Enum*, Cover*, ConcurrentAssertion*,
                  DeferredImmediateAssertion*, ModuleConditionalDirective*,
-                 ModuleSection*>;
+                 ModuleSection*,
+                 // Generate loop, can effectively generate more module members
+                 // at elaboration time
+                 GenerateLoop*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may
@@ -2232,6 +2272,8 @@ class Module final : public VastNode {
                     const SourceInfo& loc, ModuleSection* section = nullptr);
   LogicRef* AddInteger(std::string_view name, const SourceInfo& loc,
                        ModuleSection* section = nullptr);
+  LogicRef* AddGenvar(std::string_view name, const SourceInfo& loc,
+                      ModuleSection* section = nullptr);
 
   ParameterRef* AddParameter(std::string_view name, Expression* rhs,
                              const SourceInfo& loc);

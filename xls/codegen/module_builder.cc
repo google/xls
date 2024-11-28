@@ -601,6 +601,39 @@ absl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
   return NodeToExpression(node, inputs, file_, options_);
 }
 
+absl::Status ModuleBuilder::EmitArrayCopyAndUpdateViaGenerate1D(
+    std::string_view op_name, IndexableExpression* lhs,
+    IndexableExpression* rhs, Expression* update_value, IndexType index_type,
+    Type* xls_type) {
+  ArrayType* array_type = xls_type->AsArrayOrDie();
+
+  std::string op_name_sanitized = SanitizeIdentifier(op_name);
+
+  // Create names derived from the unique operation name to ensure the derived
+  // names are unique. We namespace via double underscore in an attempt to
+  // reserve the suffixes and avoid collisions.
+  std::string genvar_name = absl::StrCat(op_name_sanitized, "__index");
+  std::string generate_loop_name = absl::StrCat(op_name_sanitized, "__gen");
+
+  auto* genvar = module_->AddGenvar(genvar_name, SourceInfo());
+
+  auto* generate_loop = module_->Add<GenerateLoop>(
+      SourceInfo(), genvar, file_->PlainLiteral(0, SourceInfo()),
+      file_->PlainLiteral(array_type->size(), SourceInfo()),
+      generate_loop_name);
+
+  // In the body there is a conditional where we choose to either assign the rhs
+  // index directly or the updated value.
+  Expression* index_is_match =
+      file_->Equals(index_type.expression, genvar, SourceInfo());
+  Expression* rhs_at_index = file_->Index(rhs, genvar, SourceInfo());
+  generate_loop->AddBodyNode(file_->Make<ContinuousAssignment>(
+      SourceInfo(), file_->Make<Index>(SourceInfo(), lhs, genvar),
+      file_->Ternary(index_is_match, update_value, rhs_at_index,
+                     SourceInfo())));
+  return absl::OkStatus();
+}
+
 // Emits a copy and update of an array as a sequence of assignments.
 // Specifically, 'rhs' is copied to 'lhs' with the element at the indices
 // 'indices' replaced with 'update_value'.  Examples of emitted verilog:
@@ -883,13 +916,27 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
           index_types.push_back(
               IndexType{inputs[i], node->operand(i)->GetType()->AsBitsOrDie()});
         }
-        XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
-            /*lhs=*/ref,
-            /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),
-            /*update_value=*/inputs[1],
-            /*indices=*/index_types,
-            /*index_match=*/true,
-            /*xls_type=*/array_type));
+
+        // We use a generate loop in the simple case where the array is 1D and
+        // the element type is bits.
+        if (index_types.size() == 1 &&
+            node->GetType()->AsArrayOrDie()->element_type()->IsBits()) {
+          XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdateViaGenerate1D(
+              /*op_name=*/node->GetName(),
+              /*lhs=*/ref,
+              /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),
+              /*update_value=*/inputs[1],
+              /*index_type=*/index_types[0],
+              /*xls_type=*/array_type));
+        } else {
+          XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
+              /*lhs=*/ref,
+              /*rhs=*/inputs[0]->AsIndexableExpressionOrDie(),
+              /*update_value=*/inputs[1],
+              /*indices=*/index_types,
+              /*index_match=*/true,
+              /*xls_type=*/array_type));
+        }
         break;
       }
       case Op::kArrayConcat: {

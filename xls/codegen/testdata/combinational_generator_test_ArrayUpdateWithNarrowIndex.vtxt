@@ -16,15 +16,11 @@ module ArrayUpdateWithNarrowIndex(
   assign a_unflattened[8] = a[287:256];
   assign a_unflattened[9] = a[319:288];
   wire [31:0] array_update_8[0:9];
-  assign array_update_8[0] = idx == 2'h0 ? v : a_unflattened[0];
-  assign array_update_8[1] = idx == 2'h1 ? v : a_unflattened[1];
-  assign array_update_8[2] = idx == 2'h2 ? v : a_unflattened[2];
-  assign array_update_8[3] = idx == 2'h3 ? v : a_unflattened[3];
-  assign array_update_8[4] = a_unflattened[4];
-  assign array_update_8[5] = a_unflattened[5];
-  assign array_update_8[6] = a_unflattened[6];
-  assign array_update_8[7] = a_unflattened[7];
-  assign array_update_8[8] = a_unflattened[8];
-  assign array_update_8[9] = a_unflattened[9];
   assign out = {array_update_8[9], array_update_8[8], array_update_8[7], array_update_8[6], array_update_8[5], array_update_8[4], array_update_8[3], array_update_8[2], array_update_8[1], array_update_8[0]};
+  genvar array_update_8__index;
+  generate
+    for (array_update_8__index = 0; array_update_8__index < 10; array_update_8__index = array_update_8__index + 1) begin : array_update_8__gen
+      assign array_update_8[array_update_8__index] = idx == array_update_8__index ? v : a_unflattened[array_update_8__index];
+    end
+  endgenerate
 endmodule

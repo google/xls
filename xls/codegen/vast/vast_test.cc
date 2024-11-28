@@ -2300,6 +2300,39 @@ TEST_P(VastTest, SliceOfMultidimensionalPackedArrayOnLhsAndRhs) {
 endmodule)");
 }
 
+TEST_P(VastTest, SimpleGenerateLoop) {
+  VerilogFile f(GetFileType());
+  const SourceInfo si;
+  Module* m = f.AddModule("top", si);
+
+  // Add a 32-bit input and output.
+  LogicRef* input = m->AddInput("my_input", f.BitVectorType(32, si), si);
+  LogicRef* output = m->AddOutput("my_output", f.BitVectorType(32, si), si);
+
+  LogicRef* i = m->AddGenvar("i", si);
+
+  // Add a generate loop that assigns the output to be the input at index i.
+  // This is not generally necessary but shows a simple legal case.
+  auto* generate_loop = m->Add<GenerateLoop>(
+      si, i, f.PlainLiteral(0, si), f.PlainLiteral(32, si), "gen_loop");
+  generate_loop->AddBodyNode(f.Make<ContinuousAssignment>(
+      si, f.Make<Index>(si, output, i), f.Make<Index>(si, input, i)));
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
+            R"(module top(
+  input wire [31:0] my_input,
+  output wire [31:0] my_output
+);
+  genvar i;
+  generate
+    for (i = 0; i < 32; i = i + 1) begin : gen_loop
+      assign my_output[i] = my_input[i];
+    end
+  endgenerate
+endmodule)");
+}
+
 INSTANTIATE_TEST_SUITE_P(VastTestInstantiation, VastTest,
                          testing::Values(false, true),
                          [](const testing::TestParamInfo<bool>& info) {
