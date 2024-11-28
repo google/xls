@@ -236,10 +236,6 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstantArray(const ConstantArray* expr) override {
-    return HandleArray(expr);
-  }
-
   absl::Status HandleFor(const For* expr) override {
     XLS_RETURN_IF_ERROR(expr->init()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->iterable()->AcceptExpr(this));

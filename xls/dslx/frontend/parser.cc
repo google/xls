@@ -1217,10 +1217,6 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings& bindings) {
   }
 
   Span span(start_tok.span().start(), cbrack_pos);
-  if (std::all_of(exprs.begin(), exprs.end(), IsConstant)) {
-    return module_->Make<ConstantArray>(span, std::move(exprs),
-                                        has_trailing_ellipsis);
-  }
   return module_->Make<Array>(span, std::move(exprs), has_trailing_ellipsis);
 }
 

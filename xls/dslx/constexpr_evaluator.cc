@@ -397,11 +397,6 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
       subject);
 }
 
-absl::Status ConstexprEvaluator::HandleConstantArray(
-    const ConstantArray* expr) {
-  return HandleArray(expr);
-}
-
 absl::Status ConstexprEvaluator::HandleConstAssert(
     const ConstAssert* const_assert) {
   const FileTable& file_table = *const_assert->owner()->file_table();

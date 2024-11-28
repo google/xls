@@ -1910,10 +1910,11 @@ TEST(TypecheckTest, OutOfRangeNumberInConstantArray) {
 }
 
 TEST(TypecheckErrorTest, BadTypeForConstantArrayOfNumbers) {
-  EXPECT_THAT(Typecheck("const A = u8[3][4]:[1, 2, 3, 4];"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Annotated element type for array cannot be "
-                                 "applied to a literal number")));
+  EXPECT_THAT(
+      Typecheck("const A = u8[3][4]:[1, 2, 3, 4];"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Non-bits type (array) used to define a numeric literal")));
 }
 
 TEST(TypecheckErrorTest, ConstantArrayEmptyMembersWrongCountVsDecl) {
@@ -2263,14 +2264,14 @@ fn main() -> () {
 }
 
 TEST(TypecheckTest, BadArrayLiteralType) {
-  EXPECT_THAT(Typecheck(R"(
+  EXPECT_THAT(
+      Typecheck(R"(
 fn main() -> s32[2] {
   s32:[1, 2]
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Annotated type for array literal must be an "
-                                 "array type; got sbits s32")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Array was not annotated with an array type")));
 }
 
 TEST(TypecheckTest, CharLiteralArray) {

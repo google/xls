@@ -2060,7 +2060,7 @@ TEST_F(ParserTest, TupleArrayAndInt) {
   auto* tuple = dynamic_cast<XlsTuple*>(e);
   EXPECT_EQ(2, tuple->members().size());
   auto* array = tuple->members()[0];
-  EXPECT_NE(dynamic_cast<ConstantArray*>(array), nullptr);
+  EXPECT_NE(dynamic_cast<Array*>(array), nullptr);
 }
 
 TEST_F(ParserTest, Cast) { RoundTripExpr("foo() as u32", {"foo"}); }
@@ -2424,9 +2424,9 @@ fn f(a: MyStruct) -> u32 {
 })");
 }
 
-TEST_F(ParserTest, ConstantArray) {
+TEST_F(ParserTest, ArrayOfConstantNumberLiterals) {
   Expr* e = RoundTripExpr("u32[2]:[0, 1]", {}, false, std::nullopt);
-  ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
+  ASSERT_TRUE(dynamic_cast<Array*>(e) != nullptr);
 }
 
 TEST_F(ParserTest, MixedArrayIsNotConstantArray) {
@@ -2447,9 +2447,9 @@ const b = u32[2]:[a, a];)");
   ASSERT_TRUE(dynamic_cast<Array*>(array) != nullptr);
 }
 
-TEST_F(ParserTest, EmptyArrayIsConstant) {
+TEST_F(ParserTest, EmptyArray) {
   Expr* e = RoundTripExpr("u32[2]:[]", {}, false, std::nullopt);
-  ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
+  ASSERT_TRUE(dynamic_cast<Array*>(e) != nullptr);
 }
 
 TEST_F(ParserTest, DoubleNegation) { RoundTripExpr("!!x", {"x"}, false); }

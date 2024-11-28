@@ -319,6 +319,9 @@ TEST(AstTest, IsConstantNumber) {
   EXPECT_TRUE(IsConstant(number));
 }
 
+// Tests the IsConstant predicate on an array with a single `name` reference.
+//
+// Since the name reference is not constant, the array is not constant.
 TEST(AstTest, IsConstantArrayOfNameRefs) {
   FileTable file_table;
   const Span fake_span;
@@ -332,6 +335,8 @@ TEST(AstTest, IsConstantArrayOfNameRefs) {
   EXPECT_FALSE(IsConstant(array));
 }
 
+// Tests the IsConstant predicate on an array with a single `number` literal.
+// Since the number literal is constant, the array is constant.
 TEST(AstTest, IsConstantArrayOfNumbers) {
   FileTable file_table;
   const Span fake_span;
@@ -344,6 +349,8 @@ TEST(AstTest, IsConstantArrayOfNumbers) {
   EXPECT_TRUE(IsConstant(array));
 }
 
+// Tests the IsConstant predicate on an empty array.
+// Since there are no members, the array is constant.
 TEST(AstTest, IsConstantEmptyArray) {
   FileTable file_table;
   const Span fake_span;

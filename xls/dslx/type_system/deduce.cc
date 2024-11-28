@@ -2030,7 +2030,6 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Attr, DeduceAttr)
   DEDUCE_DISPATCH(StatementBlock, DeduceStatementBlock)
   DEDUCE_DISPATCH(ChannelDecl, DeduceChannelDecl)
-  DEDUCE_DISPATCH(ConstantArray, DeduceConstantArray)
   DEDUCE_DISPATCH(ColonRef, DeduceColonRef)
   DEDUCE_DISPATCH(Index, DeduceIndex)
   DEDUCE_DISPATCH(Match, DeduceMatch)

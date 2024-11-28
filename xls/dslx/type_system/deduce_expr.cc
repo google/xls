@@ -47,9 +47,27 @@
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {
+namespace {
 
-static absl::StatusOr<std::unique_ptr<Type>> DeduceEmptyArray(const Array* node,
-                                                              DeduceCtx* ctx) {
+// Notes that `type` is the type of `node` in the type information and notes the
+// constexpr value for the literal number in the type info.
+absl::Status NoteTypeForNumber(const Number& node, const Type& type,
+                               DeduceCtx* ctx) {
+  ctx->type_info()->SetItem(&node, type);
+  // We can't do any constexpr evaluation until parametric dims have been
+  // resolved.
+  if (type.HasParametricDims()) {
+    return absl::OkStatus();
+  }
+  XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(node, type));
+  ctx->type_info()->NoteConstExpr(&node, value);
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceEmptyArray(
+    const Array* node, DeduceCtx* ctx) {
   // We cannot have an array that is just an ellipsis, ellipsis indicates we
   // should replicate the last member.
   if (node->has_ellipsis()) {
@@ -95,15 +113,80 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceEmptyArray(const Array* node,
         ctx->file_table());
   }
 
-  return annotated;
+  return absl::WrapUnique(dynamic_cast<ArrayType*>(annotated.release()));
 }
 
-absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
-                                                  DeduceCtx* ctx) {
+// Note: returns nullptr if there is no type annotation.
+static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayTypeAnnotation(
+    const Array* node, DeduceCtx* ctx) {
+  if (node->type_annotation() == nullptr) {
+    return nullptr;
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> annotated,
+                       ctx->Deduce(node->type_annotation()));
+  XLS_ASSIGN_OR_RETURN(
+      annotated,
+      UnwrapMetaType(std::move(annotated), node->span(),
+                     "array type-prefix position", ctx->file_table()));
+  VLOG(5) << absl::StreamFormat(
+      "DeduceArray; inferred type annotation `%s` to be `%s`",
+      node->type_annotation()->ToString(), annotated->ToString());
+
+  // It must be an array!
+  auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
+  if (array_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), annotated.get(),
+        "Array was not annotated with an array type.", ctx->file_table());
+  }
+
+  if (array_type->HasParametricDims()) {
+    return TypeInferenceErrorStatus(
+        node->type_annotation()->span(), array_type,
+        absl::StrFormat("Annotated type for array "
+                        "literal must be constexpr; type has dimensions that "
+                        "cannot be resolved."),
+        ctx->file_table());
+  }
+
+  return absl::WrapUnique(dynamic_cast<ArrayType*>(annotated.release()));
+}
+
+// Implemention note: there are a few cases to handle in appropriate order:
+// - empty arrays we handle independently
+// - if there is a type annotation that is not appropriate, we want to report
+// that first instead of reporting about problems in the contents of the array
+// - then we report problems with the contents of the array as normal
+//
+// As a user convenience, if the array type is annotated and there are bare
+// numbers inside the array, we propagate the element type to the literal
+// numbers. This will become more generalized with type inference 2.0.
+static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayInternal(
+    const Array* node, DeduceCtx* ctx) {
   VLOG(5) << "DeduceArray; node: " << node->ToString();
 
   if (node->members().empty()) {
     return DeduceEmptyArray(node, ctx);
+  }
+
+  // Note: `annotated` may be nullptr.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ArrayType> annotated,
+                       DeduceArrayTypeAnnotation(node, ctx));
+
+  if (annotated != nullptr) {
+    // If the array type is annotated, as a user convenience, we propagate the
+    // element type to bare (unannotated) literal numbers contained in the
+    // array.
+    for (Expr* member : node->members()) {
+      if (auto* number = dynamic_cast<Number*>(member);
+          number != nullptr && number->type_annotation() == nullptr) {
+        XLS_RETURN_IF_ERROR(
+            TryEnsureFitsInType(*number, annotated->element_type()));
+        XLS_RETURN_IF_ERROR(
+            NoteTypeForNumber(*number, annotated->element_type(), ctx));
+      }
+    }
   }
 
   std::vector<std::unique_ptr<Type>> member_types;
@@ -138,7 +221,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
   std::unique_ptr<ArrayType> inferred = std::make_unique<ArrayType>(
       member_types[0]->CloneToUnique(), member_types_dim);
 
-  if (node->type_annotation() == nullptr) {
+  if (annotated == nullptr) {
     if (node->has_ellipsis()) {
       const Span array_obrack_span(node->span().start(), node->span().start());
       return TypeInferenceErrorStatus(
@@ -154,35 +237,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
     return inferred;
   }
 
-  // The type annotation is present, see what it is.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> annotated,
-                       ctx->Deduce(node->type_annotation()));
-  XLS_ASSIGN_OR_RETURN(
-      annotated,
-      UnwrapMetaType(std::move(annotated), node->span(),
-                     "array type-prefix position", ctx->file_table()));
-  VLOG(5) << absl::StreamFormat(
-      "DeduceArray; inferred type annotation `%s` to be `%s`",
-      node->type_annotation()->ToString(), annotated->ToString());
-
-  // It must be an array!
-  auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
-  if (array_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), annotated.get(),
-        "Array was not annotated with an array type.", ctx->file_table());
-  }
-
-  if (array_type->HasParametricDims()) {
-    return TypeInferenceErrorStatus(
-        node->type_annotation()->span(), array_type,
-        absl::StrFormat("Annotated type for array "
-                        "literal must be constexpr; type has dimensions that "
-                        "cannot be resolved."),
-        ctx->file_table());
-  }
-
-  const TypeDim& annotation_size = array_type->size();
+  XLS_RET_CHECK(annotated != nullptr);
+  const TypeDim& annotation_size = annotated->size();
 
   // If we were presented with the wrong number of elements (vs what the
   // annotated type expected), flag an error.
@@ -194,22 +250,22 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
       std::string message = absl::StrFormat(
           "Annotated array size %s is too small for observed array member "
           "count %d",
-          array_type->size().ToString(), member_types.size());
-      return ctx->TypeMismatchError(node->span(), nullptr, *array_type, nullptr,
+          annotated->size().ToString(), member_types.size());
+      return ctx->TypeMismatchError(node->span(), nullptr, *annotated, nullptr,
                                     *inferred, message);
     }
   } else {  // No ellipsis.
     if (annotation_size != member_types_dim) {
       std::string message = absl::StrFormat(
           "Annotated array size %s does not match inferred array size %d.",
-          array_type->size().ToString(), member_types.size());
+          annotated->size().ToString(), member_types.size());
       if (inferred == nullptr) {
         // No type to compare our expectation to, as there was no member to
         // infer the type from.
-        return TypeInferenceErrorStatus(node->span(), array_type, message,
+        return TypeInferenceErrorStatus(node->span(), annotated.get(), message,
                                         ctx->file_table());
       }
-      return ctx->TypeMismatchError(node->span(), nullptr, *array_type, nullptr,
+      return ctx->TypeMismatchError(node->span(), nullptr, *annotated, nullptr,
                                     *inferred, message);
     }
   }
@@ -217,7 +273,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
   // Check the element type of the annotation is the same as the inferred type
   // from the element(s).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_element_type,
-                       ctx->Resolve(array_type->element_type()));
+                       ctx->Resolve(annotated->element_type()));
   if (*resolved_element_type != *member_types[0]) {
     return ctx->TypeMismatchError(
         node->members().at(0)->span(), nullptr, *resolved_element_type, nullptr,
@@ -227,69 +283,58 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
   }
 
   // In case of an ellipsis, the annotated type wins out.
-  return annotated;
+  return absl::WrapUnique(dynamic_cast<ArrayType*>(annotated.release()));
 }
 
-absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
-    const ConstantArray* node, DeduceCtx* ctx) {
-  if (node->type_annotation() == nullptr) {
-    return DeduceArray(node, ctx);
+// Implementation note: we wrap up DeduceArrayInternal with a check to see the
+// members are all constexpr, in which case the array itself is constexpr.
+absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
+                                                  DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ArrayType> type,
+                       DeduceArrayInternal(node, ctx));
+
+  VLOG(5) << "DeduceArray; node: `" << node->ToString() << "`; type: `"
+          << type->ToString() << "`";
+
+  std::vector<InterpValue> constexpr_values;
+  constexpr_values.reserve(node->members().size());
+  for (const Expr* member : node->members()) {
+    std::optional<InterpValue> value =
+        ctx->type_info()->GetConstExprOption(member);
+    if (!value.has_value()) {
+      VLOG(5) << "DeduceArray; member: `" << member->ToString()
+              << "` is not constexpr";
+      return type;
+    }
+    constexpr_values.push_back(std::move(value.value()));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                       ctx->Deduce(node->type_annotation()));
-  XLS_ASSIGN_OR_RETURN(
-      type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
-                           "array type-prefix position", ctx->file_table()));
+  VLOG(5) << "DeduceArray; constexpr_values: ["
+          << absl::StrJoin(constexpr_values, ", ") << "]";
 
-  auto* array_type = dynamic_cast<ArrayType*>(type.get());
-  if (array_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->type_annotation()->span(), type.get(),
-        absl::StrFormat("Annotated type for array "
-                        "literal must be an array type; got %s %s",
-                        type->GetDebugTypeName(),
-                        node->type_annotation()->ToString()),
-        ctx->file_table());
-  }
-
-  const Type& element_type = array_type->element_type();
-  for (Expr* member : node->members()) {
-    XLS_RET_CHECK(IsConstant(member));
-    if (Number* number = dynamic_cast<Number*>(member);
-        number != nullptr && number->type_annotation() == nullptr) {
-      ctx->type_info()->SetItem(member, element_type);
-
-      if (std::optional<BitsLikeProperties> bits_like =
-              GetBitsLike(element_type);
-          bits_like.has_value()) {
-        XLS_RETURN_IF_ERROR(
-            TryEnsureFitsInType(*number, bits_like.value(), element_type));
-      } else {
-        return TypeInferenceErrorStatus(
-            number->span(), &element_type,
-            absl::StrFormat("Annotated element type for array cannot be "
-                            "applied to a literal number"),
-            ctx->file_table());
-      }
+  // If there is an ellipsis at the end we need to fill with the last value
+  // until we reach the array size.
+  if (node->has_ellipsis()) {
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, type->size().GetAsInt64());
+    XLS_RET_CHECK(constexpr_values.size() > 0)
+        << "Cannot have an array with ellipsis but no given member to repeat";
+    InterpValue last_value = constexpr_values.back();
+    while (constexpr_values.size() < array_size) {
+      constexpr_values.push_back(last_value);
     }
   }
 
-  XLS_RETURN_IF_ERROR(DeduceArray(node, ctx).status());
+  // We made it through all the elements observing they are constexpr -- note in
+  // the type information that the array is constexpr.
+  XLS_ASSIGN_OR_RETURN(InterpValue array_value,
+                       InterpValue::MakeArray(std::move(constexpr_values)));
+  ctx->type_info()->NoteConstExpr(node, array_value);
   return type;
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
                                                    DeduceCtx* ctx) {
   VLOG(5) << "DeduceNumber: " << node->ToString();
-  auto note_constexpr_value = [&](const Type& type) -> absl::Status {
-    if (type.HasParametricDims()) {
-      return absl::OkStatus();
-    }
-    XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*node, type));
-    ctx->type_info()->NoteConstExpr(node, value);
-    return absl::OkStatus();
-  };
 
   std::unique_ptr<Type> type;
 
@@ -299,13 +344,13 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
       case NumberKind::kBool: {
         auto type = BitsType::MakeU1();
         ctx->type_info()->SetItem(node, *type);
-        XLS_RETURN_IF_ERROR(note_constexpr_value(*type));
+        XLS_RETURN_IF_ERROR(NoteTypeForNumber(*node, *type, ctx));
         return type;
       }
       case NumberKind::kCharacter: {
         auto type = BitsType::MakeU8();
         ctx->type_info()->SetItem(node, *type);
-        XLS_RETURN_IF_ERROR(note_constexpr_value(*type));
+        XLS_RETURN_IF_ERROR(NoteTypeForNumber(*node, *type, ctx));
         return type;
       }
       default:
@@ -339,8 +384,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
         node->span(), type.get(),
         "Non-bits type used to define a numeric literal.", ctx->file_table());
   }
-  ctx->type_info()->SetItem(node, *type);
-  XLS_RETURN_IF_ERROR(note_constexpr_value(*type));
+
+  XLS_RETURN_IF_ERROR(NoteTypeForNumber(*node, *type, ctx));
   return type;
 }
 

@@ -42,10 +42,16 @@ using ColonRefSubjectT =
     std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
                  StructDef*, TypeRefTypeAnnotation*, ColonRef*>;
 
-// If the width is known for "type", checks that "number" fits in that type.
+// Validates that "number" fits in `bits_like` if the size is known. `bits_like`
+// should have been derived from `type` -- this routine uses `type` for error
+// reporting.
 absl::Status TryEnsureFitsInType(const Number& number,
                                  const BitsLikeProperties& bits_like,
                                  const Type& type);
+
+// Validates whether the given `type` is bits-like and, if so, delegates to
+// `TryEnsureFitsInType(number, bits_like, type)`.
+absl::Status TryEnsureFitsInType(const Number& number, const Type& type);
 
 // Shorthand for the above where we know a prori the type is a `BitsType` (note
 // that there are types that are bits-like that are not exactly `BitsType`, see

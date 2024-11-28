@@ -31,9 +31,6 @@ namespace xls::dslx {
 absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
                                                   DeduceCtx* ctx);
 
-absl::StatusOr<std::unique_ptr<Type>> DeduceConstantArray(
-    const ConstantArray* node, DeduceCtx* ctx);
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceNumber(const Number* node,
                                                    DeduceCtx* ctx);
 

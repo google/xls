@@ -342,7 +342,7 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
     const dslx::FileTable& file_table = *module->file_table();
     XLS_ASSIGN_OR_RETURN(uint64_t real_size,
                          array_size->GetAsUint64(file_table));
-    return module->Make<dslx::ConstantArray>(
+    return module->Make<dslx::Array>(
         span, std::vector<dslx::Expr*>(real_size, member),
         /*has_ellipsis=*/false);
   }
@@ -708,8 +708,7 @@ absl::Status EmitArray(
     }
   }
 
-  auto* array =
-      module->Make<dslx::ConstantArray>(span, *array_elements, has_ellipsis);
+  auto* array = module->Make<dslx::Array>(span, *array_elements, has_ellipsis);
   elements->push_back(std::make_pair(std::string(field_name), array));
 
   auto* u32_type = module->Make<dslx::BuiltinTypeAnnotation>(
