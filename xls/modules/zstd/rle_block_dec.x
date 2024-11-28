@@ -87,7 +87,7 @@ pub proc RleBlockDecoder<DATA_W: u32> {
                 last_block: req.last_block,
                 id: req.id,
                 data: checked_cast<BlockData>(data),
-                length: checked_cast<BlockPacketLength>(length << 3),
+                length: checked_cast<BlockPacketLength>(length),
             }
         };
 
@@ -153,7 +153,7 @@ proc RleBlockDecoderTest {
                 last_block: true,
                 id: u32:5,
                 data: BlockData:0xABAB_ABAB_ABAB_ABAB,
-                length: BlockPacketLength:64
+                length: BlockPacketLength:8
             }
         });
 
@@ -165,20 +165,7 @@ proc RleBlockDecoderTest {
                 last_block: true,
                 id: u32:5,
                 data: BlockData:0xABAB_ABAB_ABAB_ABAB,
-                length: BlockPacketLength:64
-            }
-        });
-
-
-        let (tok, output) = recv(tok, output_r);
-        assert_eq(output, Output {
-            msg_type: SequenceExecutorMessageType::LITERAL,
-            packet: BlockDataPacket {
-                last: false,
-                last_block: true,
-                id: u32:5,
-                data: BlockData:0xABAB_ABAB_ABAB_ABAB,
-                length: BlockPacketLength:64
+                length: BlockPacketLength:8
             }
         });
 
@@ -191,7 +178,20 @@ proc RleBlockDecoderTest {
                 last_block: true,
                 id: u32:5,
                 data: BlockData:0xABAB_ABAB_ABAB_ABAB,
-                length: BlockPacketLength:64
+                length: BlockPacketLength:8
+            }
+        });
+
+
+        let (tok, output) = recv(tok, output_r);
+        assert_eq(output, Output {
+            msg_type: SequenceExecutorMessageType::LITERAL,
+            packet: BlockDataPacket {
+                last: false,
+                last_block: true,
+                id: u32:5,
+                data: BlockData:0xABAB_ABAB_ABAB_ABAB,
+                length: BlockPacketLength:8
             }
         });
 
@@ -204,7 +204,7 @@ proc RleBlockDecoderTest {
                 last_block: true,
                 id: u32:5,
                 data: BlockData:0xABAB_ABAB_ABAB_ABAB,
-                length: BlockPacketLength:64
+                length: BlockPacketLength:8
             }
         });
 
