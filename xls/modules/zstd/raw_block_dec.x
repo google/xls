@@ -116,7 +116,7 @@ pub proc RawBlockDecoder<DATA_W: u32, ADDR_W: u32> {
                 last_block: state.last_block,
                 id: state.id,
                 data: checked_cast<BlockData>(mem_resp.data),
-                length: checked_cast<BlockPacketLength>(mem_resp.length ++ u3:0),
+                length: checked_cast<BlockPacketLength>(mem_resp.length),
             },
         };
 
@@ -234,7 +234,7 @@ proc RawBlockDecoderTest {
                 last_block: false,
                 id: u32:0,
                 data: Data:0x1122_3344,
-                length: Length:64,
+                length: Length:8,
             },
         });
 
@@ -269,7 +269,7 @@ proc RawBlockDecoderTest {
                 last_block: true,
                 id: u32:1,
                 data: Data:0x1122_3344_5566_7788,
-                length: Length:64,
+                length: Length:8,
             },
         });
 
@@ -281,7 +281,7 @@ proc RawBlockDecoderTest {
                 last_block: true,
                 id: u32:1,
                 data: Data:0xAA_BBCC_DDEE_FF99,
-                length: Length:56,
+                length: Length:7,
             },
         });
 
