@@ -282,6 +282,13 @@ fn f() -> u32 { p<u32:28>() }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+TEST(TypecheckTest, TupleWithExplicitlyAnnotatedType) {
+  constexpr std::string_view kProgram = R"(
+const MY_TUPLE = (u32, u64):(u32:32, u64:64);
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckTest, ProcWithImplEmpty) {
   constexpr std::string_view kProgram = R"(
 proc Foo {}

@@ -1268,11 +1268,18 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings& bindings,
     return term;
   }
 
+  // This handles the case where we're trying to make a tuple constant that has
+  // an explicitly annotated type; e.g.
+  //
+  // ```dslx
+  // const MY_TUPLE = (u32, u64):(u32:32, u64:64);
+  // ```
   if (auto* tuple = dynamic_cast<XlsTuple*>(term);
       tuple != nullptr && std::all_of(tuple->members().begin(),
                                       tuple->members().end(), IsConstant)) {
     return term;
   }
+
   return ParseErrorStatus(
       type->span(),
       "Old-style cast only permitted for constant arrays/tuples "
