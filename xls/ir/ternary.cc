@@ -115,14 +115,38 @@ TernaryVector FromKnownBits(const Bits& known_bits,
                             const Bits& known_bits_values) {
   CHECK_EQ(known_bits.bit_count(), known_bits_values.bit_count());
   TernaryVector result;
-  result.reserve(known_bits.bit_count());
 
-  for (int64_t i = 0; i < known_bits.bit_count(); ++i) {
-    if (known_bits.Get(i)) {
-      result.push_back(known_bits_values.Get(i) ? TernaryValue::kKnownOne
-                                                : TernaryValue::kKnownZero);
-    } else {
-      result.push_back(TernaryValue::kUnknown);
+  // This function is hyper-optimized because it is incredibly hot and with
+  // large Bits sizes can dominate profiles. It morally just does:
+  //   for (int64_t i = 0; i < known_bits.bit_count(); ++i) {
+  //     if (known_bits.Get(i)) {
+  //       result.push_back(known_bits_values.Get(i) ? TernaryValue::kKnownOne
+  //                                              : TernaryValue::kKnownZero);
+  //     } else {
+  //       result.push_back(TernaryValue::kUnknown);
+  //     }
+  //   }
+  result.resize(known_bits.bit_count(), TernaryValue::kUnknown);
+  TernaryValue* data = result.data();
+  const InlineBitmap& known_bits_bitmap = known_bits.bitmap();
+  const InlineBitmap& known_bits_values_bitmap = known_bits_values.bitmap();
+  auto extract_bit = [](uint64_t word, int64_t bit) -> bool {
+    return (word >> bit) & uint64_t{1};
+  };
+  for (int64_t word = 0; word < known_bits_bitmap.word_count(); ++word) {
+    uint64_t mask_word = known_bits_bitmap.GetWord(word);
+    uint64_t value_word = known_bits_values_bitmap.GetWord(word);
+    if (mask_word == 0) {
+      data += 64;
+      continue;
+    }
+    int64_t limit = std::min<int64_t>(64, known_bits.bit_count() - word * 64);
+    for (int64_t bit = 0; bit < limit; ++bit) {
+      if (extract_bit(mask_word, bit)) {
+        *data = extract_bit(value_word, bit) ? TernaryValue::kKnownOne
+                                             : TernaryValue::kKnownZero;
+      }
+      ++data;
     }
   }
 
