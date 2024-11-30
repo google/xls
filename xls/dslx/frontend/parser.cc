@@ -753,7 +753,7 @@ absl::StatusOr<TypeAlias*> Parser::ParseTypeAlias(const Pos& start_pos,
                                                   bool is_public,
                                                   Bindings& bindings) {
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kType));
-  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
+  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
@@ -1116,10 +1116,15 @@ absl::StatusOr<Token> Parser::PopSelfOrIdentifier(std::string_view context) {
                          /*start=*/nullptr, context);
 }
 
-absl::StatusOr<NameDef*> Parser::ParseNameDef(Bindings& bindings) {
+absl::StatusOr<NameDef*> Parser::ParseNameDefNoBind() {
   XLS_ASSIGN_OR_RETURN(Token tok,
                        PopSelfOrIdentifier("Expected name (definition)"));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
+  return name_def;
+}
+
+absl::StatusOr<NameDef*> Parser::ParseNameDef(Bindings& bindings) {
+  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
   bindings.Add(name_def->identifier(), name_def);
   return name_def;
 }
@@ -3065,7 +3070,11 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(const Pos& start_pos,
                                               bool is_public,
                                               Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(Token enum_tok, PopKeywordOrError(Keyword::kEnum));
-  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
+
+  // We don't bind the enum's name until the end to prevent recursive references
+  // to itself in its body.
+  XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+
   XLS_ASSIGN_OR_RETURN(bool saw_colon, TryDropToken(TokenKind::kColon));
   TypeAnnotation* type_annotation = nullptr;
   if (saw_colon) {

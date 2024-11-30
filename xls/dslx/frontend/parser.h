@@ -274,6 +274,12 @@ class Parser : public TokenParser {
   absl::StatusOr<std::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
       Bindings& bindings, std::string_view context = "");
 
+  // As above, but does not add the parsed identifier to any set of bindings.
+  absl::StatusOr<NameDef*> ParseNameDefNoBind();
+
+  // Parses a name definition and adds it to the given set of bindings.
+  //
+  // Wrapper around `ParseNameDefNoBind` above.
   absl::StatusOr<NameDef*> ParseNameDef(Bindings& bindings);
 
   absl::StatusOr<Token> PopSelfOrIdentifier(std::string_view context);
