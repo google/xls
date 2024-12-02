@@ -142,12 +142,10 @@ function. A spawn produces no value, hence no `let` on the left-hand side.
 
 ### Channel arrays and loop-based spawning
 
-> **Note**: This feature is currently WIP and is not yet available.
-
 Many hardware layouts have regular arrays of components, such as systolic
 arrays, vector units, etc. Individually specifying these quickly grows
 cumbersome, so users can instead declare arrays of channels and spawn procs
-inside `for` loops. This looks as follows:
+inside `unroll_for!` loops. This looks as follows:
 
 ```dslx-snippet
 proc Spawner4x4 {
@@ -160,8 +158,8 @@ proc Spawner4x4 {
     let (input_producers, input_consumers) = chan<F32>[4][4]("node_input");
     let (output_producers, output_consumers) = chan<F32>[4][4]("node_output");
 
-    for (i, _) : (u32, ()) in range(u32:0, u32:4) {
-      for (j, _) : (u32, ()) in range(u32:0, u32:4) {
+    unroll_for! (i, _) : (u32, ()) in range(u32:0, u32:4) {
+      unroll_for! (j, _) : (u32, ()) in range(u32:0, u32:4) {
         spawn Node(input_consumers[i][j],
                    output_producers[i][j]);
       }(());
