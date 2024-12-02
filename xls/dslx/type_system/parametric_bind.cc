@@ -181,12 +181,14 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
                                             nullptr, arg_type, message);
   };
 
+  // Note that we actually need to handle the distinction between
+  // BitsConstructorType and BitsType here, because array of BitsConstructorType
+  // has another dimension to bind (the signedness).
   if (auto* arg = dynamic_cast<const BitsType*>(&arg_type);
       arg != nullptr && IsArrayOfBitsConstructor(param_type)) {
     auto* param = down_cast<const ArrayType*>(&param_type);
     return ParametricBindBitsToConstructor(*param, *arg, ctx);
   }
-
   if (auto* param_bits = dynamic_cast<const BitsType*>(&param_type)) {
     auto* arg_bits = dynamic_cast<const BitsType*>(&arg_type);
     if (arg_bits == nullptr) {
@@ -194,6 +196,7 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
     }
     return ParametricBindBits(*param_bits, *arg_bits, ctx);
   }
+
   if (auto* param_tuple = dynamic_cast<const TupleType*>(&param_type)) {
     auto* arg_tuple = dynamic_cast<const TupleType*>(&arg_type);
     if (arg_tuple == nullptr) {

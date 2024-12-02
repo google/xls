@@ -56,6 +56,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
@@ -770,12 +771,17 @@ absl::Status BytecodeInterpreter::EvalDecode(const Bytecode& bytecode) {
   }
 
   Type* to = std::get<std::unique_ptr<Type>>(bytecode.data().value()).get();
-  if (!IsUBits(*to)) {
+  std::optional<BitsLikeProperties> to_bits_like = GetBitsLike(*to);
+  if (!to_bits_like.has_value()) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Decode op requires bits-like output type, was: ", to->ToString()));
+  }
+  XLS_ASSIGN_OR_RETURN(bool is_signed, to_bits_like->is_signed.GetAsBool());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, to_bits_like->size.GetAsInt64());
+  if (is_signed) {
     return absl::InvalidArgumentError(absl::StrCat(
         "Decode op requires UBits-type output, was: ", to->ToString()));
   }
-  BitsType* to_bits = dynamic_cast<BitsType*>(to);
-  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, to_bits->size().GetAsInt64());
 
   XLS_ASSIGN_OR_RETURN(InterpValue decoded, from.Decode(new_bit_count));
   stack_.Push(std::move(decoded));
@@ -1389,9 +1395,12 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(const Type* type, bytecode.type_data());
-  const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
-  XLS_RET_CHECK_NE(bits_type, nullptr);
-  XLS_ASSIGN_OR_RETURN(int64_t width_value, bits_type->size().GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(const Type* unwrapped_type, UnwrapMetaType(*type));
+  std::optional<BitsLikeProperties> bits_like = GetBitsLike(*unwrapped_type);
+  XLS_RET_CHECK(bits_like.has_value())
+      << "Wide slice type is not bits-like: " << type->ToString();
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+  XLS_ASSIGN_OR_RETURN(int64_t width_value, bits_like->size.GetAsInt64());
 
   InterpValue oob_value(InterpValue::MakeUBits(width_value, /*value=*/0));
   XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
@@ -1418,7 +1427,7 @@ absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
 
   Bits result_bits = basis_bits.Slice(start_index, width_value);
   InterpValueTag tag =
-      bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
+      is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        InterpValue::MakeBits(tag, result_bits));
   stack_.Push(result);

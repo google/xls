@@ -455,7 +455,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnop(const Unop* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> operand_type,
                        ctx->Deduce(node->operand()));
 
-  if (dynamic_cast<BitsType*>(operand_type.get()) == nullptr) {
+  if (!IsBitsLike(*operand_type)) {
     return TypeInferenceErrorStatus(
         node->span(), operand_type.get(),
         absl::StrFormat(
@@ -511,29 +511,32 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceShift(const Binop* node,
                        ctx->DeduceAndResolve(node->rhs()));
 
   // Validate bits type for lhs and rhs.
-  BitsType* lhs_bit_type = dynamic_cast<BitsType*>(lhs.get());
-  if (lhs_bit_type == nullptr) {
+  std::optional<BitsLikeProperties> lhs_bits_like = GetBitsLike(*lhs);
+  if (!lhs_bits_like.has_value()) {
     return TypeInferenceErrorStatus(
         node->lhs()->span(), lhs.get(),
         "Shift operations can only be applied to bits-typed operands.",
         ctx->file_table());
   }
-  BitsType* rhs_bit_type = dynamic_cast<BitsType*>(rhs.get());
-  if (rhs_bit_type == nullptr) {
+
+  std::optional<BitsLikeProperties> rhs_bits_like = GetBitsLike(*rhs);
+  if (!rhs_bits_like.has_value()) {
     return TypeInferenceErrorStatus(
         node->rhs()->span(), rhs.get(),
         "Shift operations can only be applied to bits-typed operands.",
         ctx->file_table());
   }
 
-  if (rhs_bit_type->is_signed()) {
+  XLS_ASSIGN_OR_RETURN(bool rhs_is_signed,
+                       rhs_bits_like->is_signed.GetAsBool());
+  if (rhs_is_signed) {
     return TypeInferenceErrorStatus(node->rhs()->span(), rhs.get(),
                                     "Shift amount must be unsigned.",
                                     ctx->file_table());
   }
 
   if (number_value.has_value()) {
-    const TypeDim& lhs_size = lhs_bit_type->size();
+    const TypeDim& lhs_size = lhs_bits_like->size;
     CHECK(!lhs_size.IsParametric()) << "Shift amount type not inferred.";
     XLS_ASSIGN_OR_RETURN(int64_t lhs_bit_count, lhs_size.GetAsInt64());
     if (lhs_bit_count < number_value.value()) {

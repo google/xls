@@ -340,9 +340,9 @@ absl::StatusOr<std::pair<std::vector<int64_t>, verilog::DataType*>>
 DslxTypeToVerilogManager::GetArrayDimsAndBaseType(
     const Type* type, const ArrayTypeAnnotation* array_type_annotation) {
   // Check if this "array" is actualy a bits type.
-  if (const auto* bc = dynamic_cast<const BitsType*>(type)) {
-    XLS_ASSIGN_OR_RETURN(TypeDim dim, bc->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(int64_t size, dim.GetAsInt64());
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
+      bits_like.has_value()) {
+    XLS_ASSIGN_OR_RETURN(int64_t size, bits_like->size.GetAsInt64());
 
     verilog::DataType* base_type = nullptr;
     if (size == 1) {

@@ -82,44 +82,56 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceEnumSansUnderlyingType(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
                                                     DeduceCtx* ctx) {
-  std::unique_ptr<Type> type;
+  std::unique_ptr<Type> underlying_type;
   if (node->type_annotation() == nullptr) {
-    XLS_ASSIGN_OR_RETURN(type, DeduceEnumSansUnderlyingType(node, ctx));
+    XLS_ASSIGN_OR_RETURN(underlying_type,
+                         DeduceEnumSansUnderlyingType(node, ctx));
   } else {
-    XLS_ASSIGN_OR_RETURN(type, ctx->DeduceAndResolve(node->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(underlying_type,
+                         ctx->DeduceAndResolve(node->type_annotation()));
     XLS_ASSIGN_OR_RETURN(
-        type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
-                             "enum underlying type", ctx->file_table()));
+        underlying_type,
+        UnwrapMetaType(std::move(underlying_type),
+                       node->type_annotation()->span(), "enum underlying type",
+                       ctx->file_table()));
   }
 
-  auto* bits_type = dynamic_cast<BitsType*>(type.get());
-  if (bits_type == nullptr) {
-    return TypeInferenceErrorStatus(node->span(), bits_type,
+  std::optional<BitsLikeProperties> bits_like = GetBitsLike(*underlying_type);
+  if (!bits_like.has_value()) {
+    return TypeInferenceErrorStatus(node->span(), underlying_type.get(),
                                     "Underlying type for an enum "
                                     "must be a bits type.",
                                     ctx->file_table());
   }
 
+  auto matches_underlying = [&](const Type& t) -> bool {
+    std::optional<BitsLikeProperties> t_bits_like = GetBitsLike(t);
+    return t_bits_like.has_value() && *t_bits_like == *bits_like;
+  };
+
   // Grab the bit count of the Enum's underlying type.
-  const TypeDim& bit_count = bits_type->size();
+  const TypeDim& bit_count = bits_like->size;
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
 
   std::vector<InterpValue> members;
   members.reserve(node->values().size());
   for (const EnumMember& member : node->values()) {
     if (const Number* number = dynamic_cast<const Number*>(member.value);
         number != nullptr && number->type_annotation() == nullptr) {
-      XLS_RETURN_IF_ERROR(ValidateNumber(*number, *type));
-      ctx->type_info()->SetItem(number, *type);
+      XLS_RETURN_IF_ERROR(ValidateNumber(*number, *underlying_type));
+      ctx->type_info()->SetItem(number, *underlying_type);
       XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
           ctx->import_data(), ctx->type_info(), ctx->warnings(),
-          ctx->GetCurrentParametricEnv(), number, type.get()));
+          ctx->GetCurrentParametricEnv(), number, underlying_type.get()));
     } else {
       // Some other constexpr expression that should have the same type as the
       // underlying bits type for this enum.
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> t, ctx->Deduce(member.value));
-      if (*t != *bits_type) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> member_value_type,
+                           ctx->Deduce(member.value));
+      if (!matches_underlying(*member_value_type)) {
         return ctx->TypeMismatchError(
-            member.value->span(), nullptr, *t, nullptr, *bits_type,
+            member.value->span(), nullptr, *member_value_type, nullptr,
+            *underlying_type,
             "Enum-member type did not match the enum's underlying type.");
       }
     }
@@ -136,8 +148,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
     XLS_RET_CHECK((value.IsEnum() && value.GetEnumData().value().def == node) ||
                   value.IsBits());
     if (value.IsBits()) {
-      value = InterpValue::MakeEnum(value.GetBitsOrDie(),
-                                    bits_type->is_signed(), node);
+      value = InterpValue::MakeEnum(value.GetBitsOrDie(), is_signed, node);
       ctx->type_info()->NoteConstExpr(member.name_def, value);
       ctx->type_info()->NoteConstExpr(member.value, value);
     }
@@ -145,8 +156,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceEnumDef(const EnumDef* node,
     members.push_back(value);
   }
 
-  auto enum_type = std::make_unique<EnumType>(*node, bit_count,
-                                              bits_type->is_signed(), members);
+  auto enum_type =
+      std::make_unique<EnumType>(*node, bit_count, is_signed, members);
 
   for (const EnumMember& member : node->values()) {
     ctx->type_info()->SetItem(member.name_def, *enum_type);

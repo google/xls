@@ -438,7 +438,7 @@ static absl::StatusOr<Type*> GetTypeOfNode(const AstNode* node,
   return maybe_type.value();
 }
 
-static absl::StatusOr<BitsType*> GetTypeOfNodeAsBits(
+static absl::StatusOr<std::unique_ptr<BitsType>> GetTypeOfNodeAsBits(
     const AstNode* node, const TypeInfo* type_info) {
   std::optional<Type*> maybe_type = type_info->GetItem(node);
 
@@ -447,30 +447,31 @@ static absl::StatusOr<BitsType*> GetTypeOfNodeAsBits(
         absl::StrCat("Could not find type for node ", node->ToString()));
   }
 
-  BitsType* bits_type = dynamic_cast<BitsType*>(maybe_type.value());
-
-  if (bits_type == nullptr) {
+  std::optional<BitsLikeProperties> bits_like =
+      GetBitsLike(*maybe_type.value());
+  if (!bits_like.has_value()) {
     return absl::InternalError(
         absl::StrCat("Bytecode emitter only supports widening or checked "
                      "casts from/to bits; got ",
                      node->ToString()));
   }
 
-  return bits_type;
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+  return std::make_unique<BitsType>(is_signed, bits_like->size);
 }
 
 static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
                                               const Type* from,
                                               const Type* to) {
   const ArrayType* from_array = dynamic_cast<const ArrayType*>(from);
-  const BitsType* to_bits = dynamic_cast<const BitsType*>(to);
+  bool to_is_bits_like = IsBitsLike(*to);
 
-  if (from_array != nullptr && to_bits == nullptr) {
+  if (from_array != nullptr && !to_is_bits_like) {
     return absl::InternalError(absl::StrCat(
         "The only valid array cast is to bits: ", node->ToString()));
   }
 
-  if (from_array == nullptr || to_bits == nullptr) {
+  if (from_array == nullptr || !to_is_bits_like) {
     return absl::OkStatus();
   }
 
@@ -489,7 +490,7 @@ static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
   XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from_array->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t array_bit_count, bit_count_dim.GetAsInt64());
 
-  XLS_ASSIGN_OR_RETURN(bit_count_dim, to_bits->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(bit_count_dim, to->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
 
   if (array_bit_count != bits_bit_count) {
@@ -505,9 +506,9 @@ static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
 static absl::Status MaybeCheckEnumToBitsCast(const AstNode* node,
                                              const Type* from, const Type* to) {
   const EnumType* from_enum = dynamic_cast<const EnumType*>(from);
-  const BitsType* to_bits = dynamic_cast<const BitsType*>(to);
+  bool to_is_bits_like = IsBitsLike(*to);
 
-  if (from_enum != nullptr && to_bits == nullptr) {
+  if (from_enum != nullptr && !to_is_bits_like) {
     return absl::InternalError(absl::StrCat(
         "The only valid enum cast is to bits: ", node->ToString()));
   }
@@ -518,15 +519,15 @@ static absl::Status MaybeCheckEnumToBitsCast(const AstNode* node,
 static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
                                               const Type* from,
                                               const Type* to) {
-  const BitsType* from_bits = dynamic_cast<const BitsType*>(from);
+  bool from_is_bits_like = IsBitsLike(*from);
   const ArrayType* to_array = dynamic_cast<const ArrayType*>(to);
 
-  if (to_array != nullptr && from_bits == nullptr) {
+  if (to_array != nullptr && !from_is_bits_like) {
     return absl::InternalError(absl::StrCat(
         "The only valid array cast is from bits: ", node->ToString()));
   }
 
-  if (from_bits == nullptr || to_array == nullptr) {
+  if (!from_is_bits_like || to_array == nullptr) {
     return absl::OkStatus();
   }
 
@@ -542,10 +543,10 @@ static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
         "Only casts to/from one-dimensional arrays are supported.");
   }
 
-  VLOG(5) << "from_bits: " << from_bits->ToString()
+  VLOG(5) << "from_bits: " << from->ToString()
           << " to_array: " << to_array->ToString();
 
-  XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from_bits->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
 
   XLS_ASSIGN_OR_RETURN(bit_count_dim, to_array->GetTotalBitCount());
@@ -563,10 +564,10 @@ static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
 
 static absl::Status MaybeCheckBitsToEnumCast(const AstNode* node,
                                              const Type* from, const Type* to) {
-  const BitsType* from_bits = dynamic_cast<const BitsType*>(from);
+  bool from_is_bits_like = IsBitsLike(*from);
   const EnumType* to_enum = dynamic_cast<const EnumType*>(to);
 
-  if (to_enum != nullptr && from_bits == nullptr) {
+  if (to_enum != nullptr && !from_is_bits_like) {
     return absl::InternalError(absl::StrCat(
         "The only valid enum cast is from bits: ", node->ToString()));
   }
@@ -576,12 +577,11 @@ static absl::Status MaybeCheckBitsToEnumCast(const AstNode* node,
 
 static absl::Status CheckSupportedCastTypes(const AstNode* node,
                                             const Type* type) {
-  const BitsType* as_bits_type = dynamic_cast<const BitsType*>(type);
+  bool is_bits_like = IsBitsLike(*type);
   const ArrayType* as_array_type = dynamic_cast<const ArrayType*>(type);
   const EnumType* as_enum_type = dynamic_cast<const EnumType*>(type);
 
-  if (as_bits_type == nullptr && as_array_type == nullptr &&
-      as_enum_type == nullptr) {
+  if (!is_bits_like && as_array_type == nullptr && as_enum_type == nullptr) {
     return absl::InternalError(
         absl::StrCat("Bytecode emitter only supports casts from/to "
                      "arrays, enums, or bits; got ",
@@ -738,10 +738,11 @@ absl::Status BytecodeEmitter::HandleBuiltinDecode(const Invocation* node) {
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BitsType> to,
+                       GetTypeOfNodeAsBits(node, type_info_));
 
   bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kDecode, to->CloneToUnique()));
+      Bytecode(node->span(), Bytecode::Op::kDecode, std::move(to)));
 
   return absl::OkStatus();
 }
@@ -753,10 +754,11 @@ absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BitsType> to,
+                       GetTypeOfNodeAsBits(node, type_info_));
 
   bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kCheckedCast, to->CloneToUnique()));
+      Bytecode(node->span(), Bytecode::Op::kCheckedCast, std::move(to)));
 
   return absl::OkStatus();
 }
@@ -769,10 +771,11 @@ absl::Status BytecodeEmitter::HandleBuiltinWideningCast(
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BitsType> to,
+                       GetTypeOfNodeAsBits(node, type_info_));
 
   bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kCheckedCast, to->CloneToUnique()));
+      Bytecode(node->span(), Bytecode::Op::kCheckedCast, std::move(to)));
 
   return absl::OkStatus();
 }
@@ -1116,11 +1119,10 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
 
     MetaType* type = dynamic_cast<MetaType*>(maybe_type.value());
     XLS_RET_CHECK(type != nullptr) << maybe_type.value()->ToString();
-    BitsType* bits_type = dynamic_cast<BitsType*>(type->wrapped().get());
-    XLS_RET_CHECK(bits_type != nullptr) << type->ToString();
+    XLS_RET_CHECK(IsBitsLike(*type->wrapped())) << type->ToString();
 
     bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kWidthSlice,
-                                 bits_type->CloneToUnique()));
+                                 type->CloneToUnique()));
     return absl::OkStatus();
   }
 

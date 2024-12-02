@@ -96,9 +96,11 @@ absl::StatusOr<InterpValue> ZeroOfLeafType(const Type& type,
     return InterpValue::MakeEnum(Bits(size), enum_type->is_signed(),
                                  &enum_type->nominal_type());
   }
-  if (const auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(int64_t size, bits_type->size().GetAsInt64());
-    return InterpValue::MakeBits(bits_type->is_signed(), Bits(size));
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      bits_like.has_value()) {
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+    XLS_ASSIGN_OR_RETURN(int64_t size, bits_like->size.GetAsInt64());
+    return InterpValue::MakeBits(is_signed, Bits(size));
   }
 
   return absl::InvalidArgumentError(
@@ -123,9 +125,11 @@ absl::StatusOr<InterpValue> AllOnesOfLeafType(const Type& type,
     return InterpValue::MakeEnum(Bits::AllOnes(size), enum_type->is_signed(),
                                  &enum_type->nominal_type());
   }
-  if (const auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(int64_t size, bits_type->size().GetAsInt64());
-    return InterpValue::MakeBits(bits_type->is_signed(), Bits::AllOnes(size));
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      bits_like.has_value()) {
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+    XLS_ASSIGN_OR_RETURN(int64_t size, bits_like->size.GetAsInt64());
+    return InterpValue::MakeBits(is_signed, Bits::AllOnes(size));
   }
 
   return absl::InvalidArgumentError(

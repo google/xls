@@ -286,7 +286,7 @@ class Checker {
       return *this;
     }
     const Type& t = GetArgType(argno);
-    if (auto* a = dynamic_cast<const BitsType*>(&t)) {
+    if (IsBitsLike(t)) {
       return *this;
     }
     status_ = TypeInferenceErrorStatus(
@@ -335,20 +335,38 @@ class Checker {
     return *this;
   }
 
-  Checker& IsSN(int64_t argno, const BitsType** type_out = nullptr) {
+  Checker& IsSN(int64_t argno,
+                std::optional<BitsLikeProperties>* bits_like_out = nullptr) {
     if (!status_.ok()) {
       return *this;
     }
     const Type& t = GetArgType(argno);
-    auto* a = dynamic_cast<const BitsType*>(&t);
-    if (a == nullptr || !a->is_signed()) {
+    std::optional<BitsLikeProperties> bits_like = GetBitsLike(t);
+    if (!bits_like.has_value()) {
+      status_ = TypeInferenceErrorStatus(
+          span_, &t,
+          absl::StrFormat("Want argument %d to be signed bits; got %s", argno,
+                          t.ToString()));
+      return *this;
+    }
+
+    absl::StatusOr<bool> is_signed_or = bits_like->is_signed.GetAsBool();
+    if (!is_signed_or.ok()) {
+      status_ = TypeInferenceErrorStatus(
+          span_, &t,
+          absl::StrCat("Could not determine signedness of argument ", argno,
+                       "; got ", t.ToString()));
+      return *this;
+    }
+    bool is_signed = is_signed_or.value();
+    if (!is_signed) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrFormat("Want argument %d to be signed bits; got %s", argno,
                           t.ToString()));
     }
-    if (type_out != nullptr) {
-      *type_out = a;
+    if (bits_like_out != nullptr) {
+      *bits_like_out = std::move(bits_like);
     }
     return *this;
   }
@@ -370,7 +388,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    if (auto* bits = dynamic_cast<const BitsType*>(&t); bits == nullptr) {
+    if (!IsBitsLike(t)) {
       status_ = TypeInferenceErrorStatus(span_, &t, make_msg());
     }
     return *this;
@@ -404,8 +422,7 @@ class Checker {
       return *this;
     }
     const Type& t = GetArgType(argno);
-    if (auto* bits = dynamic_cast<const BitsType*>(&t);
-        bits == nullptr || bits->size() != TypeDim::CreateU32(1)) {
+    if (!IsBitsLikeWithNBitsAndSignedness(t, /*is_signed=*/false, /*size=*/1)) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrFormat("Expected argument %d to '%s' to be a u1; got %s",
@@ -1108,8 +1125,16 @@ PopulateSignatureToLambdaMap() {
     XLS_ASSIGN_OR_RETURN(return_type,
                          UnwrapMetaType(std::move(return_type), data.span,
                                         data.name, ctx->file_table()));
-    if (auto* a = dynamic_cast<const BitsType*>(return_type.get());
-        a == nullptr || a->is_signed()) {
+    std::optional<BitsLikeProperties> bits_like = GetBitsLike(*return_type);
+    if (!bits_like.has_value()) {
+      return TypeInferenceErrorStatus(
+          param_type->GetSpan().value_or(FakeSpan()), return_type.get(),
+          absl::StrFormat("Want return type to be unsigned bits; got %s",
+                          return_type->ToString()),
+          ctx->file_table());
+    }
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+    if (is_signed) {
       return TypeInferenceErrorStatus(
           param_type->GetSpan().value_or(FakeSpan()), return_type.get(),
           absl::StrFormat("Want return type to be unsigned bits; got %s",
@@ -1255,12 +1280,12 @@ PopulateSignatureToLambdaMap() {
   map["(sN[N], sN[N]) -> (uN[N], uN[N])"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
-    const BitsType* lhs_type;
-    const BitsType* rhs_type;
+    std::optional<BitsLikeProperties> lhs_bits_like;
+    std::optional<BitsLikeProperties> rhs_bits_like;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
-                       .IsSN(0, &lhs_type)
-                       .IsSN(1, &rhs_type);
+                       .IsSN(0, &lhs_bits_like)
+                       .IsSN(1, &rhs_bits_like);
     XLS_RETURN_IF_ERROR(checker.status());
 
     checker.Eq(*data.arg_types[0], *data.arg_types[1], [&] {

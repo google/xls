@@ -1881,9 +1881,16 @@ TEST(TypecheckTest, Index) {
   EXPECT_THAT(
       Typecheck("fn f(x: u32, i: u8) -> u32 { x[i] }"),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not an array")));
+
+  // Use an array as an index.
   EXPECT_THAT(Typecheck("fn f(x: u32[5], i: u8[5]) -> u32 { x[i] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("not unsigned-bits type")));
+                       HasSubstr("Index is not bits typed")));
+
+  // Use a signed number as an index.
+  EXPECT_THAT(Typecheck("fn f(x: u32[5], i: s8) -> u32 { x[i] }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Index is not unsigned-bits typed")));
 }
 
 TEST(TypecheckTest, OutOfRangeNumber) {
