@@ -655,7 +655,7 @@ fn main() -> foo::BAR {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
-TEST(AstClonerTest, ConstantArray) {
+TEST(AstClonerTest, IotaArray) {
   constexpr std::string_view kProgram = R"(const ARRAY_SIZE = uN[32]:5;
 fn main() -> u32[ARRAY_SIZE] {
     ([u32:0, u32:1, u32:2, u32:3, u32:4])

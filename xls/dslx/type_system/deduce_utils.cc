@@ -205,6 +205,18 @@ absl::Status TryEnsureFitsInType(const Number& number,
   return absl::OkStatus();
 }
 
+absl::Status TryEnsureFitsInType(const Number& number, const Type& type) {
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      bits_like.has_value()) {
+    return TryEnsureFitsInType(number, bits_like.value(), type);
+  }
+  return TypeInferenceErrorStatus(
+      number.span(), &type,
+      absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
+                      type.GetDebugTypeName()),
+      *number.owner()->file_table());
+}
+
 absl::Status TryEnsureFitsInBitsType(const Number& number,
                                      const BitsType& type) {
   std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);

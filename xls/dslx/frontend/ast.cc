@@ -728,19 +728,6 @@ Array::Array(Module* owner, Span span, std::vector<Expr*> members,
       members_(std::move(members)),
       has_ellipsis_(has_ellipsis) {}
 
-ConstantArray::ConstantArray(Module* owner, Span span,
-                             std::vector<Expr*> members, bool has_ellipsis,
-                             bool in_parens)
-    : Array(owner, std::move(span), std::move(members), has_ellipsis,
-            in_parens) {
-  for (Expr* expr : this->members()) {
-    CHECK(IsConstant(expr))
-        << "non-constant in constant array: " << expr->ToString();
-  }
-}
-
-ConstantArray::~ConstantArray() = default;
-
 // -- class TypeRef
 
 TypeRef::TypeRef(Module* owner, Span span, TypeDefinition type_definition)
@@ -925,7 +912,7 @@ SelfTypeAnnotation::~SelfTypeAnnotation() = default;
 BuiltinNameDef::~BuiltinNameDef() = default;
 
 bool IsConstant(AstNode* node) {
-  if (IsOneOf<ConstantArray, Number, ConstRef, ColonRef>(node)) {
+  if (IsOneOf<Number, ConstRef, ColonRef>(node)) {
     return true;
   }
   if (IsOneOf<NameRef>(node)) {

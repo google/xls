@@ -884,10 +884,6 @@ absl::Status BytecodeEmitter::HandleConstAssert(const ConstAssert* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::HandleConstantArray(const ConstantArray* node) {
-  return HandleArray(node);
-}
-
 absl::Status BytecodeEmitter::HandleConstRef(const ConstRef* node) {
   return HandleNameRef(node);
 }

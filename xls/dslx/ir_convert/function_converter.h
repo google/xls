@@ -333,7 +333,6 @@ class FunctionConverter {
   absl::Status HandleStatementBlock(const StatementBlock* node);
   absl::Status HandleCast(const Cast* node);
   absl::Status HandleColonRef(const ColonRef* node);
-  absl::Status HandleConstantArray(const ConstantArray* node);
   absl::Status HandleConstantDef(const ConstantDef* node);
   absl::Status HandleFor(const For* node);
   absl::Status HandleFormatMacro(const FormatMacro* node);

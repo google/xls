@@ -241,23 +241,6 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstantArray(const ConstantArray* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-
-    std::vector<Expr*> new_members;
-    for (const Expr* old_member : n->members()) {
-      new_members.push_back(down_cast<Expr*>(old_to_new_.at(old_member)));
-    }
-    ConstantArray* new_array = module_->Make<ConstantArray>(
-        n->span(), new_members, n->has_ellipsis(), n->in_parens());
-    if (n->type_annotation() != nullptr) {
-      new_array->set_type_annotation(
-          down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
-    }
-    old_to_new_[n] = new_array;
-    return absl::OkStatus();
-  }
-
   absl::Status HandleConstantDef(const ConstantDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     TypeAnnotation* new_type_annotation = nullptr;

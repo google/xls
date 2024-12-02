@@ -314,7 +314,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Attr)
   NO_TRAVERSE_DISPATCH_VISIT(Array)
   NO_TRAVERSE_DISPATCH_VISIT(StatementBlock)
-  NO_TRAVERSE_DISPATCH_VISIT(ConstantArray)
   NO_TRAVERSE_DISPATCH_VISIT(Cast)
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
@@ -3723,14 +3722,6 @@ absl::StatusOr<Bits> FunctionConverter::GetConstBits(
     const AstNode* node) const {
   XLS_ASSIGN_OR_RETURN(Value value, GetConstValue(node));
   return value.GetBitsWithStatus();
-}
-
-absl::Status FunctionConverter::HandleConstantArray(const ConstantArray* node) {
-  // Note: previously we would force constant evaluation here, but because all
-  // constexprs should be evaluated during typechecking, we shouldn't need to
-  // forcibly do constant evaluation at IR conversion time; therefore, we just
-  // build BValues and let XLS opt constant fold them.
-  return HandleArray(node);
 }
 
 absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(

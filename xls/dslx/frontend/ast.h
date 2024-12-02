@@ -54,7 +54,6 @@
   X(Cast)                          \
   X(ChannelDecl)                   \
   X(ColonRef)                      \
-  X(ConstantArray)                 \
   X(ConstRef)                      \
   X(For)                           \
   X(FormatMacro)                   \
@@ -1152,7 +1151,7 @@ class TypeAlias : public AstNode {
 };
 
 // Represents an array expression; e.g. `[a, b, c]`.
-class Array : public Expr {
+class Array final : public Expr {
  public:
   Array(Module* owner, Span span, std::vector<Expr*> members, bool has_ellipsis,
         bool in_parens = false);
@@ -1202,22 +1201,6 @@ class Array : public Expr {
   TypeAnnotation* type_annotation_ = nullptr;
   std::vector<Expr*> members_;
   bool has_ellipsis_;
-};
-
-// A constant array expression is an array expression where all of the
-// expressions contained within it are constant.
-class ConstantArray : public Array {
- public:
-  // Adds checking for constant-expression-ness of the members beyond
-  // Array::Array.
-  ConstantArray(Module* owner, Span span, std::vector<Expr*> members,
-                bool has_ellipsis, bool in_parens = false);
-
-  ~ConstantArray() override;
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleConstantArray(this);
-  }
 };
 
 // Several different AST nodes define types that can be referred to by a
@@ -3442,10 +3425,8 @@ class VerbatimNode : public Expr {
   std::string text_;
 };
 
-// Helper for determining whether an AST node is constant (e.g., can be
-// considered a constant value in a ConstantArray). In general a node
-// with no children is considered constant, but there are some exceptions
-// (e.g., NameRef).
+// Helper for determining whether an AST node is constant (e.g., clearly can be
+// considered a constant value before type checking).
 bool IsConstant(AstNode* n);
 
 }  // namespace xls::dslx
