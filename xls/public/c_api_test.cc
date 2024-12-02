@@ -529,6 +529,10 @@ enum MyEnum : u5 {
   xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
   xls_dslx_type_info* type_info = xls_dslx_typechecked_module_get_type_info(tm);
 
+  char* module_name = xls_dslx_module_get_name(module);
+  absl::Cleanup free_module_name([=] { xls_c_str_free(module_name); });
+  EXPECT_EQ(std::string_view{module_name}, std::string_view{"foo"});
+
   int64_t type_definition_count =
       xls_dslx_module_get_type_definition_count(module);
   ASSERT_EQ(type_definition_count, 2);
@@ -714,6 +718,10 @@ type MyTypeAlias = my_imported_module::SomeType;
     xls_dslx_import* import_subject =
         xls_dslx_colon_ref_resolve_import_subject(colon_ref);
     EXPECT_NE(import_subject, nullptr);
+
+    char* attr = xls_dslx_colon_ref_get_attr(colon_ref);
+    absl::Cleanup free_attr([=] { xls_c_str_free(attr); });
+    EXPECT_EQ(std::string_view{attr}, std::string_view{"SomeType"});
   }
 }
 

@@ -73,6 +73,9 @@ struct xls_dslx_type_info* xls_dslx_typechecked_module_get_type_info(
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module);
 
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_module_get_name(struct xls_dslx_module*);
+
 xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
     struct xls_dslx_module* module, int64_t i);
 
@@ -149,10 +152,18 @@ struct xls_dslx_type_definition* xls_dslx_type_ref_get_type_definition(
 struct xls_dslx_colon_ref* xls_dslx_type_definition_get_colon_ref(
     struct xls_dslx_type_definition*);
 
+// -- import
+
+int64_t xls_dslx_import_get_subject_count(struct xls_dslx_import*);
+char* xls_dslx_import_get_subject(struct xls_dslx_import*, int64_t);
+
 // -- colon_ref
 
 struct xls_dslx_import* xls_dslx_colon_ref_resolve_import_subject(
     struct xls_dslx_colon_ref*);
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_colon_ref_get_attr(struct xls_dslx_colon_ref*);
 
 // -- type_alias
 
