@@ -205,9 +205,10 @@ absl::StatusOr<ElaborationJitData> CloneElaborationPackage(
   XLS_RET_CHECK(elab.top()->block())
       << "Top block of elaboration must be an XLS 'block' in order to use JIT";
 
-  // TODO(allight): We should just support this.
-  XLS_RET_CHECK_EQ(absl::c_count_if(elab.package()->GetFunctionBases(),
-                                    [&](FunctionBase* fb) {
+  // The verifier should check this, but it's worth checking here too to avoid
+  // confusing errors.
+  XLS_RET_CHECK_EQ(absl::c_count_if(elab.package()->blocks(),
+                                    [&](const std::unique_ptr<Block>& fb) {
                                       return fb->name() == top_name;
                                     }),
                    1)
