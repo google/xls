@@ -90,10 +90,11 @@ TEST(BinaryDecisionDiagramTest, BddSize) {
 
 TEST(BinaryDecisionDiagramTest, ToString) {
   BinaryDecisionDiagram bdd;
-  BddNodeIndex x0 = bdd.NewVariable();
-  BddNodeIndex x1 = bdd.NewVariable();
-  BddNodeIndex x2 = bdd.NewVariable();
-  BddNodeIndex x3 = bdd.NewVariable();
+  std::vector<BddNodeIndex> vars = bdd.NewVariables(4);
+  BddNodeIndex x0 = vars[0];
+  BddNodeIndex x1 = vars[1];
+  BddNodeIndex x2 = vars[2];
+  BddNodeIndex x3 = vars[3];
 
   EXPECT_EQ(bdd.ToStringDnf(bdd.zero()), "0");
   EXPECT_EQ(bdd.ToStringDnf(bdd.one()), "1");

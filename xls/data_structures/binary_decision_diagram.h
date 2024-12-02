@@ -68,6 +68,12 @@ class BinaryDecisionDiagram {
   // variable's value.
   BddNodeIndex NewVariable();
 
+  // Adds `count` new variables to the BDD and returns the nodes corresponding
+  // to the variables' values. This is more efficient than calling NewVariable
+  // repeatedly for large `count`. This is efficient for both large and small
+  // `count`.
+  std::vector<BddNodeIndex> NewVariables(int64_t count);
+
   // Returns the inverse of the given expression.
   BddNodeIndex Not(BddNodeIndex expr);
 
@@ -96,7 +102,7 @@ class BinaryDecisionDiagram {
   int64_t size() const { return nodes_.size(); }
 
   // Returns the number of variables in the graph.
-  int64_t variable_count() const { return next_var_.value(); }
+  int64_t variable_count() const { return variable_base_nodes_.size(); }
 
   // Returns the number of paths in the given expression.
   int64_t path_count(BddNodeIndex expr) const {
@@ -136,12 +142,15 @@ class BinaryDecisionDiagram {
 
   // Returns the node corresponding to the value of the given variable.
   BddNodeIndex GetVariableBaseNode(BddVariable variable) const {
-    return node_map_.at({variable, one(), zero()});
+    return variable_base_nodes_.at(variable.value());
   }
 
-  // The numeric id to use for the next created variable. Increments with each
-  // call to NewVariable which
-  BddVariable next_var_ = BddVariable(0);
+  // Creates the base BddNode corresponding to the given variable.
+  BddNodeIndex CreateVariableBaseNode(BddVariable var);
+
+  // NodeIndexes corresponding to the base nodes (var, one, zero) for each
+  // variable.
+  std::vector<BddNodeIndex> variable_base_nodes_;
 
   // The vector of all the nodes in the BDD.
   std::vector<BddNode> nodes_;

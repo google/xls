@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
@@ -245,9 +246,8 @@ class BddStatistics {
   // Create and return a vector containing newly defined BDD variables.
   auto create_new_node_vector = [&](Node* n) {
     SaturatingBddNodeVector v(n->BitCountOrDie());
-    for (int64_t i = 0; i < n->BitCountOrDie(); ++i) {
-      v[i] = bdd_function->bdd().NewVariable();
-    }
+    absl::c_copy(bdd_function->bdd().NewVariables(n->BitCountOrDie()),
+                 v.begin());
     bdd_function->saturated_expressions_.insert(n);
     return v;
   };
