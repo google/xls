@@ -117,6 +117,7 @@
   X(SelfTypeAnnotation)           \
   X(TupleTypeAnnotation)          \
   X(TypeRefTypeAnnotation)        \
+  X(TypeVariableTypeAnnotation)   \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
@@ -397,6 +398,41 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
  private:
   TypeRef* type_ref_;
   std::vector<ExprOrType> parametrics_;
+};
+
+// A type annotation that is a reference to a type variable created either by
+// the programmer (as a type parametric) or internally by the type inference
+// system. This is different from a `TypeRefTypeAnnotation`, which statically
+// refers to a particular user-named type. A `TypeVariableTypeAnnotation` can
+// in principle resolve to any built-in or user-defined type, and it can resolve
+// to different types in different invocation contexts.
+class TypeVariableTypeAnnotation : public TypeAnnotation {
+ public:
+  explicit TypeVariableTypeAnnotation(Module* owner,
+                                      const NameRef* type_variable);
+
+  // Returns a `NameRef` for the type variable indicated by this annotation. The
+  // variable may be a type parametric or an internally-defined type variable.
+  const NameRef* type_variable() const { return type_variable_; }
+
+  std::string ToString() const override;
+
+  std::string_view GetNodeTypeName() const override {
+    return "TypeVariableTypeAnnotation";
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    // Note: We can't return the `NameRef` here without a const_cast, and there
+    // isn't a use case that would want it.
+    return {};
+  }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleTypeVariableTypeAnnotation(this);
+  }
+
+ private:
+  const NameRef* const type_variable_;
 };
 
 // Represents an array type annotation; e.g. `u32[5]`.

@@ -362,6 +362,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(SelfTypeAnnotation)
   INVALID(TupleTypeAnnotation)
   INVALID(TypeRefTypeAnnotation)
+  INVALID(TypeVariableTypeAnnotation)
   // keep-sorted end
 
   // The visitor operates within a function, so none of these should be visible.

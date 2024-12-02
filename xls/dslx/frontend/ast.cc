@@ -881,6 +881,18 @@ std::string TypeRefTypeAnnotation::ToString() const {
   return absl::StrCat(type_ref_->ToString(), parametric_str);
 }
 
+// -- class TypeVariableTypeAnnotation
+
+TypeVariableTypeAnnotation::TypeVariableTypeAnnotation(
+    Module* owner, const NameRef* type_variable)
+    : TypeAnnotation(owner, type_variable->span()),
+      type_variable_(type_variable) {}
+
+std::string TypeVariableTypeAnnotation::ToString() const {
+  return absl::StrCat("TypeVariableTypeAnnotation: ",
+                      type_variable_->ToString());
+}
+
 // -- class ArrayTypeAnnotation
 
 ArrayTypeAnnotation::ArrayTypeAnnotation(Module* owner, Span span,

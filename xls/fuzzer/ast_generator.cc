@@ -670,6 +670,11 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
     return type_ref_type->type_ref()->Accept(this);
   }
 
+  absl::Status HandleTypeVariableTypeAnnotation(
+      const TypeVariableTypeAnnotation* type_variable_type) override {
+    return type_variable_type->type_variable()->Accept(this);
+  }
+
   absl::Status HandleTypeRef(const TypeRef* type_ref) override {
     const TypeDefinition& type_def = type_ref->type_definition();
     if (std::holds_alternative<TypeAlias*>(type_def)) {

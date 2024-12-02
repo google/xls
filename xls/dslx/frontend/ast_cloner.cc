@@ -925,6 +925,14 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleTypeVariableTypeAnnotation(
+      const TypeVariableTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->type_variable()));
+    old_to_new_[n] = module_->Make<TypeVariableTypeAnnotation>(
+        down_cast<const NameRef*>(old_to_new_[n->type_variable()]));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleUnop(const Unop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] =
