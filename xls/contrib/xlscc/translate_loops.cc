@@ -1324,6 +1324,8 @@ Translator::GenerateIR_PipelinedLoopContents(
 
   xls::BValue save_full_condition = context().full_condition;
 
+  PushContextGuard pb_guard_block(*this, loc);
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<GeneratedFunction> dummy_top_func,
       GenerateIRBlockPrepare(prepared, pb,

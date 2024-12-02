@@ -275,7 +275,7 @@ TEST_F(CCParserTest, Block) {
   xlscc::CCParser parser;
 
   const std::string cpp_src = R"(
-    #pragma hls_block
+    #pragma hls_design block
     int bar(int a, int b) {
       const int foo = a + b;
       return foo+1;

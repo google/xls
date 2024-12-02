@@ -202,42 +202,6 @@ struct XlsTopAttrInfo : public clang::ParsedAttrInfo {
 static clang::ParsedAttrInfoRegistry::Add<XlsTopAttrInfo> hls_top(
     "hls_top", "Marks a function as the top function of an HLS block.");
 
-struct XlsBlockAttrInfo : public clang::ParsedAttrInfo {
-  XlsBlockAttrInfo() {
-    // GNU-style __attribute__(("hls_block")) and C++/C23-style [[hls_block]]
-    // and [[xlscc::hls_block]] supported.
-    static constexpr Spelling S[] = {
-        {clang::ParsedAttr::AS_GNU, "hls_block"},
-        {clang::ParsedAttr::AS_C23, "hls_block"},
-        {clang::ParsedAttr::AS_CXX11, "hls_block"},
-        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_block"}};
-    Spellings = S;
-  }
-
-  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
-                            const clang::Decl* D) const override {
-    // This attribute appertains to functions only.
-    if (!isa<clang::FunctionDecl>(D)) {
-      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
-          << Attr << Attr.isRegularKeywordAttribute() << "functions";
-      return false;
-    }
-    return true;
-  }
-
-  AttrHandling handleDeclAttribute(
-      clang::Sema& S, clang::Decl* D,
-      const clang::ParsedAttr& Attr) const override {
-    // Attach an annotate attribute to the Decl.
-    D->addAttr(clang::AnnotateAttr::Create(S.Context, "hls_block", nullptr, 0,
-                                           Attr.getRange()));
-    return AttributeApplied;
-  }
-};
-static clang::ParsedAttrInfoRegistry::Add<XlsBlockAttrInfo> hls_block(
-    "hls_block",
-    "Marks a function its own HLS block, below the top in the hierarchy.");
-
 struct XlsAllowDefaultPadAttrInfo : public clang::ParsedAttrInfo {
   XlsAllowDefaultPadAttrInfo() {
     // GNU-style __attribute__(("hls_array_allow_default_pad")) and
@@ -720,6 +684,42 @@ static clang::ParsedAttrInfoRegistry::Add<XlsAsapAttrInfo> xlscc_asap(
     "Marks a loop to be scheduled ASAP; declares that there are no "
     "cross-iteration dependencies.");
 
+struct XlsBlockAttrInfo : public clang::ParsedAttrInfo {
+  XlsBlockAttrInfo() {
+    // GNU-style __attribute__(("hls_block")) and C++/C23-style [[hls_block]]
+    // and [[xlscc::hls_block]] supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_block"},
+        {clang::ParsedAttr::AS_C23, "hls_block"},
+        {clang::ParsedAttr::AS_CXX11, "hls_block"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_block"}};
+    Spellings = S;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to functions only.
+    if (!isa<clang::FunctionDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "functions";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    // Attach an annotate attribute to the Decl.
+    D->addAttr(clang::AnnotateAttr::Create(S.Context, "hls_block", nullptr, 0,
+                                           Attr.getRange()));
+    return AttributeApplied;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsBlockAttrInfo> hls_block(
+    "hls_block",
+    "Marks a function its own HLS block, below the top in the hierarchy.");
+
 class HlsArgsPragmaHandler : public clang::PragmaHandler {
  public:
   explicit HlsArgsPragmaHandler(const std::string& pragma_name,
@@ -813,24 +813,6 @@ static clang::PragmaHandlerRegistry::Add<HlsTopPragmaHandler> hls_top_pragma(
     "hls_top",
     "Pragma to mark a function or method as the entrypoint for translation.");
 
-class HlsBlockPragmaHandler : public HlsArgsPragmaHandler {
- public:
-  explicit HlsBlockPragmaHandler()
-      : HlsArgsPragmaHandler("hls_block", /*num_args=*/0) {}
-
-  void HandlePragma(clang::Preprocessor& PP, clang::PragmaIntroducer Introducer,
-                    clang::Token& firstToken,
-                    const std::vector<clang::Token>& toks) override {
-    GenerateAnnotation(PP, clang::PragmaHandler::getName(), firstToken,
-                       /*arguments=*/{});
-  }
-};
-
-static clang::PragmaHandlerRegistry::Add<HlsBlockPragmaHandler>
-    hls_block_pragma("hls_block",
-                     "Pragma to mark a function or method as the entrypoint "
-                     "for translation.");
-
 class HlsAllowDefaultPadPragmaHandler : public HlsArgsPragmaHandler {
  public:
   explicit HlsAllowDefaultPadPragmaHandler()
@@ -864,6 +846,9 @@ class HlsDesignPragmaHandler : public HlsArgsPragmaHandler {
       const clang::IdentifierInfo* identifier = tok.getIdentifierInfo();
       if (identifier->isStr("top")) {
         GenerateAnnotation(PP, "hls_top", tok,
+                           /*arguments=*/{});
+      } else if (identifier->isStr("block")) {
+        GenerateAnnotation(PP, "hls_block", tok,
                            /*arguments=*/{});
       } else {
         LOG(WARNING) << "Ignoring unknown #pragma hls_design: "

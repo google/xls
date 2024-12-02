@@ -795,6 +795,40 @@ struct PipelinedLoopSubProc {
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
 };
 
+struct ChannelBundle {
+  xls::Channel* regular = nullptr;
+
+  xls::Channel* read_request = nullptr;
+  xls::Channel* read_response = nullptr;
+  xls::Channel* write_request = nullptr;
+  xls::Channel* write_response = nullptr;
+
+  inline bool operator==(const ChannelBundle& o) const {
+    return regular == o.regular && read_request == o.read_request &&
+           read_response == o.read_response &&
+           write_request == o.write_request &&
+           write_response == o.write_response;
+  }
+
+  inline bool operator!=(const ChannelBundle& o) const { return !(*this == o); }
+
+  inline bool operator<(const ChannelBundle& o) const {
+    if (regular != o.regular) {
+      return regular < o.regular;
+    }
+    if (read_request != o.read_request) {
+      return read_request < o.read_request;
+    }
+    if (read_response != o.read_response) {
+      return read_response < o.read_response;
+    }
+    if (write_request != o.write_request) {
+      return write_request < o.write_request;
+    }
+    return write_response < o.write_response;
+  }
+};
+
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
   const clang::FunctionDecl* clang_decl = nullptr;
@@ -855,6 +889,15 @@ struct GeneratedFunction {
   absl::flat_hash_map<IOChannel*, IOChannel*>
       generated_caller_channels_by_callee;
 
+  // XLS channel orders for all calls. Vector has an element for each
+  // channel parameter.
+  std::map<std::vector<ChannelBundle>, int64_t>
+      state_index_by_called_channel_order;
+
+  // For sub-blocks
+  xls::Channel* control_in_channel = nullptr;
+  xls::Channel* control_out_channel = nullptr;
+
   template <typename ValueType>
   std::vector<const clang::NamedDecl*> DeterministicKeyNames(
       const absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map)
@@ -880,40 +923,6 @@ struct FunctionInProgress {
   std::unique_ptr<xls::FunctionBuilder> builder;
   std::unique_ptr<TranslationContext> translation_context;
   std::unique_ptr<GeneratedFunction> generated_function;
-};
-
-struct ChannelBundle {
-  xls::Channel* regular = nullptr;
-
-  xls::Channel* read_request = nullptr;
-  xls::Channel* read_response = nullptr;
-  xls::Channel* write_request = nullptr;
-  xls::Channel* write_response = nullptr;
-
-  inline bool operator==(const ChannelBundle& o) const {
-    return regular == o.regular && read_request == o.read_request &&
-           read_response == o.read_response &&
-           write_request == o.write_request &&
-           write_response == o.write_response;
-  }
-
-  inline bool operator!=(const ChannelBundle& o) const { return !(*this == o); }
-
-  inline bool operator<(const ChannelBundle& o) const {
-    if (regular != o.regular) {
-      return regular < o.regular;
-    }
-    if (read_request != o.read_request) {
-      return read_request < o.read_request;
-    }
-    if (read_response != o.read_response) {
-      return read_response < o.read_response;
-    }
-    if (write_request != o.write_request) {
-      return write_request < o.write_request;
-    }
-    return write_response < o.write_response;
-  }
 };
 
 int Debug_CountNodes(const xls::Node* node,
@@ -1154,7 +1163,9 @@ class Translator {
       const absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>&
           top_channel_injections,
       bool force_static = false, bool member_references_become_channels = false,
-      int default_init_interval = 0);
+      int default_init_interval = 0,
+      const clang::FunctionDecl* top_function_override = nullptr,
+      std::string_view name_postfix = "");
 
   // Generates IR as an HLS block / XLS proc.
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
@@ -1168,6 +1179,16 @@ class Translator {
       xls::Package* package, HLSBlock* block_spec_out,
       int top_level_init_interval = 0,
       const ChannelOptions& channel_options = {});
+
+  // Generates the stub function that invokes a sub-block via IO ops.
+  absl::Status GenerateIR_SubBlockStub(GeneratedFunction& sf,
+                                       const clang::FunctionDecl* funcdecl,
+                                       const FunctionInProgress& header);
+
+  // Generates the proc for a sub-block which is invoked via IO ops.
+  absl::Status GenerateIR_SubBlock(GeneratedFunction* gen_func,
+                                   xls::Package* package,
+                                   int top_level_init_interval);
 
   // Generate some useful metadata after either GenerateIR_Top_Function() or
   //  GenerateIR_Block() has run.
@@ -1471,6 +1492,8 @@ class Translator {
   // so that IO operations can be generated without calling GenerateIR_Block()
   bool io_test_mode_ = false;
 
+  const int64_t kNumSubBlockModeBits = 8;
+
   struct InstTypeHash {
     size_t operator()(
         const std::shared_ptr<CInstantiableTypeAlias>& value) const {
@@ -1516,9 +1539,6 @@ class Translator {
   // Scans for top-level function candidates
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
 
-  absl::flat_hash_map<const clang::FunctionDecl*, std::string>
-      xls_names_for_functions_generated_;
-
   int next_asm_number_ = 1;
   int next_for_number_ = 1;
   int next_local_channel_number_ = 1;
@@ -1534,10 +1554,18 @@ class Translator {
   xls::Package* package_ = nullptr;
   int default_init_interval_ = 0;
 
+  absl::flat_hash_map<const clang::FunctionDecl*, std::string>
+      xls_names_for_functions_generated_;
+
+  const clang::FunctionDecl* currently_generating_top_function_ = nullptr;
+
   // Initially contains keys for the channels of the top function,
   // then subroutine parameters are added as their headers are translated.
   absl::btree_multimap<const IOChannel*, ChannelBundle>
       external_channels_by_internal_channel_;
+
+  // Stub functions generated by the block currently being generated.
+  std::list<GeneratedFunction*> sub_block_stub_functions_;
 
   static bool ContainsKeyValuePair(
       const absl::btree_multimap<const IOChannel*, ChannelBundle>& map,
@@ -1676,6 +1704,17 @@ class Translator {
       std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& body_loc, int top_level_init_interval,
       bool force_static, bool member_references_become_channels);
+
+  absl::StatusOr<xls::Proc*> GenerateIR_Block(
+      xls::Package* package, std::string_view block_name,
+      const absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>&
+          top_channel_injections,
+      const std::shared_ptr<CType>& this_type,
+      const clang::CXXRecordDecl* this_decl,
+      const std::list<ExternalChannelInfo>& top_decls,
+      const xls::SourceInfo& body_loc, int top_level_init_interval,
+      bool force_static, bool member_references_become_channels,
+      const GeneratedFunction* caller_sub_function = nullptr);
 
   // Verifies the function prototype in the Clang AST and HLSBlock are sound.
   absl::Status GenerateIRBlockCheck(
@@ -2245,6 +2284,8 @@ class Translator {
   }
   clang::PresumedLoc GetPresumedLoc(const clang::Stmt& stmt);
   clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
+
+  bool DeclHasAnnotation(const clang::NamedDecl& decl, std::string_view name);
 
   absl::StatusOr<xls::solvers::z3::IrTranslator*> GetZ3Translator(
       xls::FunctionBase* func) ABSL_ATTRIBUTE_LIFETIME_BOUND;

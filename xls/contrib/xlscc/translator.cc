@@ -1085,6 +1085,63 @@ absl::StatusOr<std::list<xls::BValue>> Translator::UnpackTuple(
   return ret;
 }
 
+absl::Status Translator::GenerateIR_SubBlockStub(
+    GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
+    const FunctionInProgress& header) {
+  const xls::SourceInfo body_loc = GetLoc(*funcdecl);
+
+  // Only IO ops are on the control channels
+  auto control_in_ctype =
+      std::make_shared<CIntType>(kNumSubBlockModeBits, /*is_signed=*/false);
+  xls::Type* control_in_type = control_in_ctype->GetXLSType(package_);
+
+  // Create control channel
+  IOChannel* control_in_channel = nullptr;
+  {
+    std::string ch_name =
+        absl::StrFormat("%s_ctx_out", funcdecl->getNameAsString());
+    xls::Channel* xls_channel = nullptr;
+    XLS_ASSIGN_OR_RETURN(
+        xls_channel,
+        package_->CreateStreamingChannel(
+            ch_name, xls::ChannelOps::kSendReceive, control_in_type,
+            /*initial_values=*/{},
+            /*fifo_config=*/
+            xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
+                            /*register_push_outputs=*/false,
+                            /*register_pop_outputs=*/false),
+            xls::FlowControl::kReadyValid));
+    IOChannel new_channel;
+    new_channel.item_type = control_in_ctype;
+    new_channel.unique_name = ch_name;
+    new_channel.generated = xls_channel;
+    control_in_channel = AddChannel(new_channel, body_loc);
+    sf.control_in_channel = xls_channel;
+  }
+
+  xls::BValue context_out_value =
+      context().fb->Literal(xls::UBits(0, kNumSubBlockModeBits), body_loc);
+
+  // Send and receive context tuples
+  IOOp* ctx_out_op_ptr = nullptr;
+  {
+    IOOp op;
+    op.op = OpType::kSend;
+    std::vector<xls::BValue> sp = {context_out_value,
+                                   context().full_condition_bval(body_loc)};
+    op.ret_value =
+        context().fb->Tuple(sp, body_loc, /*name=*/"context_out_send_tup");
+    XLS_ASSIGN_OR_RETURN(ctx_out_op_ptr,
+                         AddOpToChannel(op, control_in_channel, body_loc));
+  }
+
+  // Add a record to generate the proc later, once all channel combinations
+  // are known
+  sub_block_stub_functions_.push_back(&sf);
+
+  return absl::OkStatus();
+}
+
 absl::Status Translator::GenerateIR_Function_Body(
     GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
     const FunctionInProgress& header) {
@@ -1099,7 +1156,15 @@ absl::Status Translator::GenerateIR_Function_Body(
     context().propagate_up = true;
 
     if (body != nullptr) {
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, funcdecl->getASTContext()));
+      bool sub_block = DeclHasAnnotation(*funcdecl, "hls_block");
+
+      // Check not currently generating this sub block
+      if (sub_block && funcdecl != currently_generating_top_function_) {
+        XLS_RETURN_IF_ERROR(GenerateIR_SubBlockStub(sf, funcdecl, header));
+      } else {
+        XLS_RETURN_IF_ERROR(
+            GenerateIR_Compound(body, funcdecl->getASTContext()));
+      }
     }
   }
 
@@ -3250,6 +3315,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   absl::flat_hash_map<const clang::ParmVarDecl*, bool> will_assign_param;
 
+  bool sub_block_call = DeclHasAnnotation(*funcdecl, "hls_block");
+
+  std::vector<ChannelBundle> external_channels_in_parameter_order;
+
   // Add other parameters
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
@@ -3270,6 +3339,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(expr_args[pi], arg_loc));
     }
     XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(p->getType(), arg_loc));
+    if (sub_block_call && !is_channel) {
+      return absl::UnimplementedError(ErrorMessage(
+          arg_loc, "Non-channel parameters not supported in sub-block calls"));
+    }
     if (is_channel) {
       // TODO(seanhaskell): This can be further generalized to allow
       // structs with channels inside
@@ -3286,6 +3359,21 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
           /*callee_lval=*/callee_lvalue, &caller_channels_by_callee_channel,
           arg_loc));
 
+      if (sub_block_call) {
+        // TODO: File bug for moving external_channels_by_internal_channel_
+        // into context to trace it down
+        IOChannel* caller_channel = argv.lvalue()->channel_leaf();
+        if (external_channels_by_internal_channel_.count(caller_channel) != 1) {
+          return absl::UnimplementedError(ErrorMessage(
+              arg_loc,
+              "Calls to sub-blocks in functions called with multiple different "
+              "channel parameter combinations"));
+        }
+
+        external_channels_in_parameter_order.push_back(
+            external_channels_by_internal_channel_.find(caller_channel)
+                ->second);
+      }
       continue;
     }
 
@@ -3377,6 +3465,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     XLSCC_CHECK(pass_bval.valid(), arg_loc);
     args.push_back(pass_bval);
+  }
+
+  if (sub_block_call) {
+    func->state_index_by_called_channel_order.insert(
+        std::make_pair(external_channels_in_parameter_order,
+                       func->state_index_by_called_channel_order.size()));
   }
 
   // Translate to external channels
@@ -5949,11 +6043,17 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
     const absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>&
         top_channel_injections,
     bool force_static, bool member_references_become_channels,
-    int default_init_interval) {
-  const clang::FunctionDecl* top_function = nullptr;
+    int default_init_interval, const clang::FunctionDecl* top_function_override,
+    std::string_view name_postfix) {
+  const clang::FunctionDecl* top_function = top_function_override;
+
+  if (top_function == nullptr) {
+    XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
+  }
+
+  currently_generating_top_function_ = top_function;
 
   CHECK_NE(parser_.get(), nullptr);
-  XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
 
   package_ = package;
   default_init_interval_ = default_init_interval;
@@ -5968,11 +6068,13 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
   inst_functions_[signature] = std::make_unique<GeneratedFunction>();
   GeneratedFunction& sf = *inst_functions_[signature];
 
-  XLS_ASSIGN_OR_RETURN(FunctionInProgress header,
-                       GenerateIR_Function_Header(
-                           sf, top_function,
-                           /*name_override=*/top_function->getNameAsString(),
-                           force_static, member_references_become_channels));
+  XLS_ASSIGN_OR_RETURN(
+      FunctionInProgress header,
+      GenerateIR_Function_Header(
+          sf, top_function,
+          /*name_override=*/
+          absl::StrCat(top_function->getNameAsString(), name_postfix),
+          force_static, member_references_become_channels));
 
   for (const auto& [decl, bundle] : top_channel_injections) {
     XLSCC_CHECK(sf.lvalues_by_param.contains(decl), GetLoc(*top_function));
@@ -6164,6 +6266,17 @@ absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
             /*source=*/nullptr, /*allow_unsupported=*/false));
   }
   return iter->second.get();
+}
+
+bool Translator::DeclHasAnnotation(const clang::NamedDecl& decl,
+                                   std::string_view name) {
+  for (const clang::AnnotateAttr* attr :
+       decl.specific_attrs<clang::AnnotateAttr>()) {
+    if (std::string_view(attr->getAnnotation()) == name) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace xlscc

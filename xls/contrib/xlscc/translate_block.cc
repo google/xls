@@ -361,27 +361,157 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   XLS_RETURN_IF_ERROR(
       GenerateExternalChannels(top_decls, &top_channel_injections, body_loc));
 
+  return GenerateIR_Block(package, block.name(), top_channel_injections,
+                          this_type, this_decl, top_decls, body_loc,
+                          top_level_init_interval, force_static,
+                          member_references_become_channels);
+}
+
+absl::Status Translator::GenerateIR_SubBlock(GeneratedFunction* gen_func,
+                                             xls::Package* package,
+                                             int top_level_init_interval) {
+  if (clang::isa<clang::CXXMethodDecl>(gen_func->clang_decl)) {
+    return absl::UnimplementedError(
+        absl::StrFormat("Sub-block methods not supported for now"));
+  }
+  absl::flat_hash_map<
+      int64_t, absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>>
+      top_channel_injections_by_state;
+
+  // TODO: Separate function
+  for (const auto& [channels, state_index] :
+       gen_func->state_index_by_called_channel_order) {
+    CHECK_EQ(channels.size(), gen_func->clang_decl->getNumParams());
+
+    // Generate sub block
+    absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
+        top_channel_injections;
+    for (int pi = 0; pi < gen_func->clang_decl->getNumParams(); ++pi) {
+      const clang::ParmVarDecl* p = gen_func->clang_decl->getParamDecl(pi);
+
+      // IO returns are later
+      XLS_ASSIGN_OR_RETURN(bool is_channel,
+                           TypeIsChannel(p->getType(), GetLoc(*p)));
+      CHECK(is_channel);
+
+      top_channel_injections_by_state[state_index][p] = channels.at(pi);
+    }
+  }
+
+  if (top_channel_injections_by_state.size() != 1) {
+    return absl::UnimplementedError(
+        absl::StrFormat("Sub-block %s has %i states (combinations of "
+                        "channels parameters), only 1 supported for now",
+                        gen_func->clang_decl->getNameAsString(),
+                        (int)top_channel_injections_by_state.size()));
+  }
+
+  // Save necessary global caller context and set up global callee context
+
+  const clang::FunctionDecl* currently_generating_top_function_caller =
+      currently_generating_top_function_;
+
+  // Used for metadata, point to the actual implementation
+  CHECK(xls_names_for_functions_generated_.contains(gen_func->clang_decl));
+  xls_names_for_functions_generated_.erase(gen_func->clang_decl);
+
+  // Many clang::NamedDecls will be re-encountered, since a stub was already
+  // generated for the caller.
+  auto unique_decl_ids_caller = std::move(unique_decl_ids_);
+  unique_decl_ids_ = absl::flat_hash_set<const clang::NamedDecl*>();
+
+  // Don't propagate sub-sub-blocks up,
+  //  and don't generate the caller's sub-blocks again (infinite recursion)
+  auto sub_block_stub_functions_caller = std::move(sub_block_stub_functions_);
+  sub_block_stub_functions_ = std::list<GeneratedFunction*>();
+
+  // IOChannel* pointers will be different in the sub-block context
+  auto external_channels_by_internal_channel_caller =
+      std::move(external_channels_by_internal_channel_);
+  external_channels_by_internal_channel_ =
+      absl::btree_multimap<const IOChannel*, ChannelBundle>();
+
+  // The implementation function shares the same clang::NamedDecl as the
+  // caller's stub function.
+  CHECK(inst_functions_.contains(gen_func->clang_decl));
+  std::unique_ptr<GeneratedFunction> caller_sub_function_caller =
+      std::move(inst_functions_.at(gen_func->clang_decl));
+  inst_functions_.erase(gen_func->clang_decl);
+
+  XLS_RETURN_IF_ERROR(
+      GenerateIR_Block(
+          package,
+          absl::StrCat(gen_func->clang_decl->getNameAsString(), "_proc"),
+          top_channel_injections_by_state.begin()->second,
+          /*this_type=*/std::shared_ptr<CType>(), /*this_decl=*/nullptr,
+          /*top_decls=*/std::list<ExternalChannelInfo>(),
+          GetLoc(*gen_func->clang_decl), top_level_init_interval,
+          /*force_static=*/false,
+          /*member_references_become_channels=*/false,
+          /*caller_sub_function=*/gen_func)
+          .status());
+
+  // Restore caller's context
+  inst_functions_[gen_func->clang_decl] = std::move(caller_sub_function_caller);
+  unique_decl_ids_ = std::move(unique_decl_ids_caller);
+  currently_generating_top_function_ = currently_generating_top_function_caller;
+  sub_block_stub_functions_ = std::move(sub_block_stub_functions_caller);
+  external_channels_by_internal_channel_ =
+      std::move(external_channels_by_internal_channel_caller);
+  return absl::OkStatus();
+}
+
+absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
+    xls::Package* package, std::string_view block_name,
+    const absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>&
+        top_channel_injections,
+    const std::shared_ptr<CType>& this_type,
+    const clang::CXXRecordDecl* this_decl,
+    const std::list<ExternalChannelInfo>& top_decls,
+    const xls::SourceInfo& body_loc, int top_level_init_interval,
+    bool force_static, bool member_references_become_channels,
+    const GeneratedFunction* caller_sub_function) {
   // Generate function without FIFO channel parameters
   // Force top function in block to be static.
   PreparedBlock prepared;
 
   XLS_ASSIGN_OR_RETURN(
       prepared.xls_func,
-      GenerateIR_Top_Function(package,
-                              /*top_channel_injections=*/top_channel_injections,
-                              force_static, member_references_become_channels,
-                              top_level_init_interval));
+      GenerateIR_Top_Function(
+          package,
+          /*top_channel_injections=*/top_channel_injections, force_static,
+          member_references_become_channels, top_level_init_interval,
+          caller_sub_function != nullptr ? caller_sub_function->clang_decl
+                                         : nullptr,
+          "_impl"));
 
-  xls::ProcBuilder pb(block.name() + "_proc", package);
+  for (GeneratedFunction* gen_func : sub_block_stub_functions_) {
+    XLS_RETURN_IF_ERROR(
+        GenerateIR_SubBlock(gen_func, package, top_level_init_interval));
+  }
+
+  xls::ProcBuilder pb(absl::StrCat(block_name, "_proc"), package);
 
   prepared.orig_token = pb.Literal(xls::Value::Token());
   prepared.token = prepared.orig_token;
+
+  PushContextGuard pb_guard(*this, body_loc);
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<GeneratedFunction> proc_func_generated_ownership,
       GenerateIRBlockPrepare(prepared, pb,
                              /*next_return_index=*/0, this_type, this_decl,
                              top_decls, body_loc));
+
+  // Generate control receive
+  if (caller_sub_function != nullptr) {
+    CHECK_NE(caller_sub_function->control_in_channel, nullptr);
+    xls::BValue tup = pb.Receive(caller_sub_function->control_in_channel,
+                                 prepared.token, body_loc,
+                                 /*name=*/"control_receive");
+    prepared.token = pb.TupleIndex(tup, 0, body_loc,
+                                   /*name=*/"control_receive_token");
+  }
 
   XLS_ASSIGN_OR_RETURN(
       GenerateFSMInvocationReturn fsm_ret,
@@ -392,7 +522,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       body_loc);
 
   // Generate default ops for unused external channels
-  XLS_RETURN_IF_ERROR(GenerateDefaultIOOps(prepared, pb, body_loc));
+  // (Only in the top proc)
+  if (caller_sub_function == nullptr) {
+    XLS_RETURN_IF_ERROR(GenerateDefaultIOOps(prepared, pb, body_loc));
+  }
 
   // Create next state values
   CHECK_GE(prepared.xls_func->return_value_count,
@@ -427,7 +560,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
 
     NextStateValue next_state_value = {.priority = 0,
-                                       .extra_label = block.name()};
+                                       .extra_label = std::string{block_name}};
 
     if (!is_on_reset) {
       next_state_value.value = next_val;
@@ -1558,7 +1691,6 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvoke(
     const InvokeToGenerate& invoke, xls::BValue before_token,
     PreparedBlock& prepared, xls::BValue& last_ret_val, xls::ProcBuilder& pb) {
   const IOOp& op = invoke.op;
-
   xls::SourceInfo op_loc = op.op_location;
   const int64_t return_index = prepared.return_index_for_op.at(&op);
 
@@ -1959,7 +2091,7 @@ Translator::GenerateIRBlockPrepare(
   // For defaults, updates, invokes
   auto temp_sf = std::make_unique<GeneratedFunction>();
 
-  XLSCC_CHECK(!context_stack_.empty(), body_loc);
+  CHECK(!context_stack_.empty());
   context() = TranslationContext();
   context().propagate_up = false;
   context().sf = temp_sf.get();
