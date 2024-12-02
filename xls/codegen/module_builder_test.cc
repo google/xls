@@ -806,6 +806,32 @@ TEST_P(ModuleBuilderTest, ShraAsFunctionSingleBit) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, ArrayUpdate1D) {
+  VerilogFile file = NewVerilogFile();
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  ArrayType* array_type = package.GetArrayType(4, package.GetBitsType(32));
+  BValue array = fb.Param("array", array_type);
+  BValue index = fb.Param("index", package.GetBitsType(2));
+  BValue value = fb.Param("value", package.GetBitsType(32));
+  BValue updated_array = fb.ArrayUpdate(array, value, /*indices=*/{index});
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * array_ref,
+                           mb.AddInputPort("array", array_type));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * index_ref,
+                           mb.AddInputPort("index", package.GetBitsType(2)));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * value_ref,
+                           mb.AddInputPort("value", package.GetBitsType(32)));
+  XLS_ASSERT_OK(mb.EmitAsAssignment("updated_array", updated_array.node(),
+                                    {array_ref, index_ref, value_ref})
+                    .status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
 INSTANTIATE_TEST_SUITE_P(ModuleBuilderTestInstantiation, ModuleBuilderTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ModuleBuilderTest>);

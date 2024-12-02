@@ -89,6 +89,8 @@ std::string DataKindToString(DataKind kind) {
       return "logic";
     case DataKind::kInteger:
       return "integer";
+    case DataKind::kGenvar:
+      return "genvar";
     default:
       // For any other type, the `DataType->Emit()` output is sufficient.
       return "";
@@ -484,6 +486,39 @@ std::string StatementBlock::Emit(LineInfo* line_info) const {
   return result;
 }
 
+GenerateLoop::GenerateLoop(LogicRef* genvar, Expression* init,
+                           Expression* limit,
+                           std::optional<std::string_view> label,
+                           VerilogFile* file, const SourceInfo& loc)
+    : Statement(file, loc),
+      genvar_(genvar),
+      init_(init),
+      limit_(limit),
+      label_(label) {
+  genvar_def_ = dynamic_cast<GenvarDef*>(genvar->def());
+}
+
+std::string GenerateLoop::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::vector<std::string> lines;
+  lines.push_back(absl::StrFormat("generate"));
+  LineInfoIncrease(line_info, 1);
+  std::string label_suffix =
+      label_.has_value() ? absl::StrCat(" : ", label_.value()) : "";
+  lines.push_back(Indent(absl::StrFormat(
+      "for (%s = %s; %s < %s; %s = %s + 1) begin%s", genvar_->Emit(line_info),
+      init_->Emit(line_info), genvar_->Emit(line_info), limit_->Emit(line_info),
+      genvar_->Emit(line_info), genvar_->Emit(line_info), label_suffix)));
+  for (const auto& node : body_) {
+    lines.push_back(Indent(Indent(node->Emit(line_info))));
+    LineInfoIncrease(line_info, 1);
+  }
+  lines.push_back(Indent("end"));
+  lines.push_back("endgenerate");
+  LineInfoEnd(line_info, this);
+  return absl::StrJoin(lines, "\n");
+}
+
 std::string MacroStatementBlock::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::string result;
@@ -647,6 +682,14 @@ LogicRef* Module::AddInteger(std::string_view name, const SourceInfo& loc,
     section = &top_;
   }
   return file()->Make<LogicRef>(loc, section->Add<IntegerDef>(loc, name));
+}
+
+LogicRef* Module::AddGenvar(std::string_view name, const SourceInfo& loc,
+                            ModuleSection* section) {
+  if (section == nullptr) {
+    section = &top_;
+  }
+  return file()->Make<LogicRef>(loc, section->Add<GenvarDef>(loc, name));
 }
 
 ParameterRef* Module::AddParameter(std::string_view name, Expression* rhs,
@@ -955,6 +998,10 @@ IntegerDef::IntegerDef(std::string_view name, DataType* data_type,
                        Expression* init, VerilogFile* file,
                        const SourceInfo& loc)
     : Def(name, DataKind::kInteger, data_type, init, file, loc) {}
+
+GenvarDef::GenvarDef(std::string_view name, VerilogFile* file,
+                     const SourceInfo& loc)
+    : Def(name, DataKind::kGenvar, file->IntegerType(loc), file, loc) {}
 
 namespace {
 

@@ -1,0 +1,18 @@
+module ArrayUpdate1D(
+  input wire [127:0] array,
+  input wire [1:0] index,
+  input wire [31:0] value
+);
+  wire [31:0] array_unflattened[0:3];
+  assign array_unflattened[0] = array[31:0];
+  assign array_unflattened[1] = array[63:32];
+  assign array_unflattened[2] = array[95:64];
+  assign array_unflattened[3] = array[127:96];
+  wire [31:0] updated_array[0:3];
+  genvar array_update_4__index;
+  generate
+    for (array_update_4__index = 0; array_update_4__index < 4; array_update_4__index = array_update_4__index + 1) begin : array_update_4__gen
+      assign updated_array[array_update_4__index] = value == array_update_4__index ? index : array_unflattened[array_update_4__index];
+    end
+  endgenerate
+endmodule

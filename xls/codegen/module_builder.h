@@ -297,6 +297,15 @@ class ModuleBuilder {
                                       absl::Span<const IndexType> indices,
                                       IndexMatch index_match, Type* xls_type);
 
+  // Emits a copy-and-update of an array using a generate loop, which avoids
+  // unnecessary bloat in the output code size.
+  absl::Status EmitArrayCopyAndUpdateViaGenerate1D(std::string_view op_name,
+                                                   IndexableExpression* lhs,
+                                                   IndexableExpression* rhs,
+                                                   Expression* update_value,
+                                                   IndexType index_type,
+                                                   Type* xls_type);
+
   // Assigns the arbitrarily-typed Value 'value' to 'lhs'. Depending upon the
   // type this may require multiple assignment statements. The function
   // add_assignment should add a single assignment statement.
