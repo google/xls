@@ -597,7 +597,7 @@ absl::Status FunctionConverter::HandleConcat(const Binop* node, BValue lhs,
                                              BValue rhs) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> output_type, ResolveType(node));
   std::vector<BValue> pieces = {lhs, rhs};
-  if (dynamic_cast<BitsType*>(output_type.get()) != nullptr) {
+  if (IsBitsLike(*output_type)) {
     Def(node, [&](const SourceInfo& loc) {
       return function_builder_->Concat(pieces, loc);
     });
@@ -888,6 +888,8 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> input_type,
                        ResolveType(node->expr()));
+
+  // We break out the case where the input type is an array.
   if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr &&
       !IsArrayOfBitsConstructor(*input_type)) {
     return CastFromArray(node, *output_type);
@@ -906,6 +908,8 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
       std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
 
   if (new_bit_count < old_bit_count) {
+    // Truncating conversion -- since the bit count is going down, we just bit
+    // slice.
     auto bvalue_status = DefWithStatus(
         node,
         [this, node,
@@ -916,6 +920,8 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
         });
     XLS_RETURN_IF_ERROR(bvalue_status.status());
   } else {
+    // Widening conversion -- since the bit count is going up, we need to sign
+    // or zero extend -- this is done based on the signedness of the input type.
     XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
     auto bvalue_status = DefWithStatus(
         node,
@@ -995,8 +1001,8 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> input_type,
                        ResolveType(node->args()[0]));
 
-  CHECK_NE(dynamic_cast<BitsType*>(input_type.get()), nullptr);
-  CHECK_NE(dynamic_cast<BitsType*>(output_type.get()), nullptr);
+  XLS_RET_CHECK(IsBitsLike(*input_type));
+  XLS_RET_CHECK(IsBitsLike(*output_type));
 
   XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
 
@@ -1721,7 +1727,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
     Def(node, [&](const SourceInfo& loc) {
       return function_builder_->TupleIndex(lhs, index, loc);
     });
-  } else if (dynamic_cast<const BitsType*>(lhs_type.value()) != nullptr) {
+  } else if (IsBitsLike(*lhs_type.value())) {
     IndexRhs rhs = node->rhs();
     if (std::holds_alternative<WidthSlice*>(rhs)) {
       auto* width_slice = std::get<WidthSlice*>(rhs);
@@ -1888,10 +1894,16 @@ absl::Status FunctionConverter::HandleAssertLtBuiltin(const Invocation* node,
   std::optional<Type*> rhs_type = current_type_info_->GetItem(node->args()[1]);
   XLS_RET_CHECK(lhs_type.has_value());
   XLS_RET_CHECK(rhs_type.has_value());
-  auto* lhs_bits_type = dynamic_cast<const BitsType*>(lhs_type.value());
-  bool is_lhs_signed = lhs_bits_type != nullptr && lhs_bits_type->is_signed();
-  auto* rhs_bits_type = dynamic_cast<const BitsType*>(rhs_type.value());
-  bool is_rhs_signed = rhs_bits_type != nullptr && rhs_bits_type->is_signed();
+  std::optional<BitsLikeProperties> lhs_bits_like =
+      GetBitsLike(*lhs_type.value());
+  std::optional<BitsLikeProperties> rhs_bits_like =
+      GetBitsLike(*rhs_type.value());
+  XLS_RET_CHECK(lhs_bits_like.has_value());
+  XLS_RET_CHECK(rhs_bits_like.has_value());
+  XLS_ASSIGN_OR_RETURN(bool is_lhs_signed,
+                       lhs_bits_like->is_signed.GetAsBool());
+  XLS_ASSIGN_OR_RETURN(bool is_rhs_signed,
+                       rhs_bits_like->is_signed.GetAsBool());
   XLS_RET_CHECK_EQ(is_lhs_signed, is_rhs_signed);
   BValue cmp;
   if (is_lhs_signed) {
@@ -2275,18 +2287,19 @@ absl::Status FunctionConverter::HandleRange(const Range* node) {
     return absl::InvalidArgumentError(
         "Range expressions must resolve to array-of-bits type.");
   }
-  auto* element_type =
-      dynamic_cast<const BitsType*>(&array_type->element_type());
-  if (element_type == nullptr) {
+  std::optional<BitsLikeProperties> bits_like =
+      GetBitsLike(array_type->element_type());
+  if (!bits_like.has_value()) {
     return absl::InvalidArgumentError(
         "Range expressions must resolve to array-of-bits type.");
   }
 
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
   XLS_ASSIGN_OR_RETURN(RangeData range_data, GetRangeData(node));
   std::vector<Value> elements;
   for (int i = 0; i < range_data.trip_count; i++) {
     Value value =
-        element_type->is_signed()
+        is_signed
             ? Value(SBits(i + range_data.start_value, range_data.bit_width))
             : Value(UBits(i + range_data.start_value, range_data.bit_width));
     elements.push_back(value);
@@ -2984,8 +2997,20 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
   std::optional<const Type*> lhs_type =
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
-  auto* bits_type = dynamic_cast<const BitsType*>(lhs_type.value());
-  bool signed_input = bits_type != nullptr && bits_type->is_signed();
+
+  // Helper lambda that does all the appropriate checking that we're only
+  // querying the signedness of our operand types when it's appropriate to do
+  // so.
+  auto is_signed_bits_like = [&]() -> bool {
+    std::optional<BitsLikeProperties> lhs_bits_like_properties =
+        GetBitsLike(*lhs_type.value());
+    CHECK(lhs_bits_like_properties.has_value());
+    const TypeDim& is_signed = lhs_bits_like_properties->is_signed;
+    absl::StatusOr<bool> result_or = is_signed.GetAsBool();
+    CHECK_OK(result_or.status());
+    return result_or.value();
+  };
+
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
   std::function<BValue(const SourceInfo&)> ir_func;
@@ -3014,7 +3039,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     case BinopKind::kMul:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->SMul(lhs, rhs, loc);
         }
         return function_builder_->UMul(lhs, rhs, loc);
@@ -3022,7 +3047,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     case BinopKind::kDiv:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->SDiv(lhs, rhs, loc);
         }
         return function_builder_->UDiv(lhs, rhs, loc);
@@ -3030,7 +3055,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     case BinopKind::kMod:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->SMod(lhs, rhs, loc);
         }
         return function_builder_->UMod(lhs, rhs, loc);
@@ -3039,7 +3064,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
     // Non-equality comparisons.
     case BinopKind::kGe:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->SGe(lhs, rhs, loc);
         }
         return function_builder_->UGe(lhs, rhs, loc);
@@ -3047,7 +3072,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     case BinopKind::kGt:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->SGt(lhs, rhs, loc);
         }
         return function_builder_->UGt(lhs, rhs, loc);
@@ -3055,7 +3080,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     case BinopKind::kLe:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->SLe(lhs, rhs, loc);
         }
         return function_builder_->ULe(lhs, rhs, loc);
@@ -3063,7 +3088,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     case BinopKind::kLt:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->SLt(lhs, rhs, loc);
         }
         return function_builder_->ULt(lhs, rhs, loc);
@@ -3072,7 +3097,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
     // Shifts.
     case BinopKind::kShr:
       ir_func = [&](const SourceInfo& loc) {
-        if (signed_input) {
+        if (is_signed_bits_like()) {
           return function_builder_->Shra(lhs, rhs, loc);
         }
         return function_builder_->Shrl(lhs, rhs, loc);

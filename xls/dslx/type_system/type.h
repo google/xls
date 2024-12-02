@@ -1079,23 +1079,6 @@ inline std::vector<std::unique_ptr<Type>> CloneToUnique(
   return result;
 }
 
-// TODO(https://github.com/google/xls/issues/480) replace these dynamic casts
-// with uses of a TypeVisitor.
-// Returns whether the given concrete type is a unsigned/signed BitsType (for
-// IsUBits/IsSBits respectively).
-inline bool IsUBits(const Type& c) {
-  if (auto* b = dynamic_cast<const BitsType*>(&c); b != nullptr) {
-    return !b->is_signed();
-  }
-  return false;
-}
-inline bool IsSBits(const Type& c) {
-  if (auto* b = dynamic_cast<const BitsType*>(&c); b != nullptr) {
-    return b->is_signed();
-  }
-  return false;
-}
-
 inline bool IsBitsConstructor(const Type& t) {
   return dynamic_cast<const BitsConstructorType*>(&t) != nullptr;
 }
@@ -1123,10 +1106,22 @@ struct BitsLikeProperties {
   TypeDim size;
 };
 
+inline bool operator==(const BitsLikeProperties& a,
+                       const BitsLikeProperties& b) {
+  return a.is_signed == b.is_signed && a.size == b.size;
+}
+
+// Returns ths "bits-like properties" for a given type `t` -- in practice this
+// means that the type can either be a true `BitsType` or an instantiated
+// `BitsConstructorType` -- from both of these forms we can retrieve information
+// on the signedness and bit count.
+//
+// They are generally type compatible, so testing via this routine should always
+// be preferred to dynamic casting.
 std::optional<BitsLikeProperties> GetBitsLike(const Type& t);
 
 inline bool IsBitsLikeWithNBitsAndSignedness(const Type& t, bool is_signed,
-                                             uint32_t size) {
+                                             int64_t size) {
   const TypeDim want = TypeDim::CreateU32(size);
   if (auto* b = dynamic_cast<const BitsType*>(&t)) {
     return b->is_signed() == is_signed && b->size() == want;

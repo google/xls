@@ -969,16 +969,16 @@ static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
 }
 
 static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
-    const Index* node, const BitsType& subject_type,
-    const WidthSlice& width_slice, DeduceCtx* ctx) {
+    const Index* node, const Type& subject_type,
+    const BitsLikeProperties& subject_bits_like, const WidthSlice& width_slice,
+    DeduceCtx* ctx) {
   VLOG(5) << "DeduceWidthSliceType: " << node->ToString();
 
   // Start expression; e.g. in `x[a+:u4]` this is `a`.
   Expr* start = width_slice.start();
 
   // Determined type of the start expression (must be bits kind).
-  std::unique_ptr<Type> start_type_owned;
-  BitsType* start_type;
+  std::optional<BitsLikeProperties> start_bits_like;
 
   if (Number* start_number = dynamic_cast<Number*>(start);
       start_number != nullptr && start_number->type_annotation() == nullptr) {
@@ -986,8 +986,9 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
     //
     // By default, we use the "subject" type (converted to unsigned) as the type
     // for the slice start.
-    start_type_owned = subject_type.ToUBits();
-    start_type = dynamic_cast<BitsType*>(start_type_owned.get());
+    start_bits_like.emplace(
+        BitsLikeProperties{.is_signed = TypeDim::CreateBool(false),
+                           .size = subject_bits_like.size});
 
     // Get the start number as an integral value, after we make sure it fits.
     XLS_ASSIGN_OR_RETURN(Bits start_bits,
@@ -1003,44 +1004,44 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
           ctx->file_table());
     }
 
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_start_type,
-                         ctx->Resolve(*start_type));
-    XLS_ASSIGN_OR_RETURN(TypeDim bit_count_ctd,
-                         resolved_start_type->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bit_count_ctd.GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, start_bits_like->size.GetAsInt64());
 
     // Make sure the start_int literal fits in the type we determined.
     absl::Status fits_status = SBitsWithStatus(start_int, bit_count).status();
     if (!fits_status.ok()) {
       return TypeInferenceErrorStatus(
-          node->span(), resolved_start_type.get(),
+          node->span(), nullptr,
           absl::StrFormat("Cannot fit slice start %d in %d bits (width "
                           "inferred from slice subject).",
                           start_int, bit_count),
           ctx->file_table());
     }
-    ctx->type_info()->SetItem(start, *resolved_start_type);
+
+    BitsType start_type(/*is_signed=*/false, bit_count);
+    ctx->type_info()->SetItem(start, start_type);
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
         ctx->import_data(), ctx->type_info(), ctx->warnings(),
-        ctx->GetCurrentParametricEnv(), start_number,
-        resolved_start_type.get()));
+        ctx->GetCurrentParametricEnv(), start_number, &start_type));
   } else {
     // Aside from a bare literal (with no type) we should be able to deduce the
     // start expression's type.
-    XLS_ASSIGN_OR_RETURN(start_type_owned, ctx->Deduce(start));
-    start_type = dynamic_cast<BitsType*>(start_type_owned.get());
-    if (start_type == nullptr) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> start_type, ctx->Deduce(start));
+    start_bits_like = GetBitsLike(*start_type);
+    if (!start_bits_like.has_value()) {
       return TypeInferenceErrorStatus(
-          start->span(), start_type,
+          start->span(), start_type.get(),
           "Start expression for width slice must be bits typed.",
           ctx->file_table());
     }
   }
 
+  XLS_ASSIGN_OR_RETURN(bool start_is_signed,
+                       start_bits_like->is_signed.GetAsBool());
+
   // Validate that the start is unsigned.
-  if (start_type->is_signed()) {
+  if (start_is_signed) {
     return TypeInferenceErrorStatus(
-        node->span(), start_type,
+        node->span(), nullptr,
         "Start index for width-based slice must be unsigned.",
         ctx->file_table());
   }
@@ -1055,7 +1056,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
                      "width slice type", ctx->file_table()));
 
   XLS_ASSIGN_OR_RETURN(TypeDim width_ctd, width_type->GetTotalBitCount());
-  const TypeDim& subject_ctd = subject_type.size();
+  const TypeDim& subject_ctd = subject_bits_like.size;
   if (std::holds_alternative<InterpValue>(width_ctd.value()) &&
       std::holds_alternative<InterpValue>(subject_ctd.value())) {
     XLS_ASSIGN_OR_RETURN(int64_t width_bits, width_ctd.GetAsInt64());
@@ -1071,7 +1072,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
 
   // Validate that the width type is bits-based (e.g. no enums, since sliced
   // value could be out of range of the valid enum values).
-  if (dynamic_cast<BitsType*>(width_type.get()) == nullptr) {
+  if (!IsBitsLike(*width_type)) {
     return TypeInferenceErrorStatus(
         node->span(), width_type.get(),
         "A bits type is required for a width-based slice.", ctx->file_table());
@@ -1131,8 +1132,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
     const Index* node, DeduceCtx* ctx, std::unique_ptr<Type> lhs_type) {
   VLOG(5) << "DeduceSliceType: " << node->ToString();
 
-  auto* bits_type = dynamic_cast<BitsType*>(lhs_type.get());
-  if (bits_type == nullptr) {
+  std::optional<BitsLikeProperties> lhs_bits_like = GetBitsLike(*lhs_type);
+  if (!lhs_bits_like.has_value()) {
     // TODO(leary): 2019-10-28 Only slicing bits types for now, and only with
     // Number AST nodes, generalize to arrays and constant expressions.
     return TypeInferenceErrorStatus(node->span(), lhs_type.get(),
@@ -1140,7 +1141,9 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
                                     ctx->file_table());
   }
 
-  if (bits_type->is_signed()) {
+  XLS_ASSIGN_OR_RETURN(bool lhs_is_signed,
+                       lhs_bits_like->is_signed.GetAsBool());
+  if (lhs_is_signed) {
     return TypeInferenceErrorStatus(node->span(), lhs_type.get(),
                                     "Bit slice LHS must be unsigned.",
                                     ctx->file_table());
@@ -1148,7 +1151,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
 
   if (std::holds_alternative<WidthSlice*>(node->rhs())) {
     auto* width_slice = std::get<WidthSlice*>(node->rhs());
-    return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
+    return DeduceWidthSliceType(node, *lhs_type, lhs_bits_like.value(),
+                                *width_slice, ctx);
   }
 
   absl::flat_hash_map<std::string, InterpValue> env;
@@ -1299,8 +1303,21 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceIndex(const Index* node,
                        ctx->Deduce(ToAstNode(rhs)));
   XLS_RET_CHECK(index_type != nullptr);
 
-  auto* index_bits = dynamic_cast<BitsType*>(index_type.get());
-  if (index_bits == nullptr || index_bits->is_signed()) {
+  auto index_is_unsigned_bits_like = [&]() -> absl::StatusOr<bool> {
+    std::optional<BitsLikeProperties> index_bits_like =
+        GetBitsLike(*index_type);
+    if (!index_bits_like.has_value()) {
+      return TypeInferenceErrorStatus(node->span(), index_type.get(),
+                                      "Index is not bits typed.",
+                                      ctx->file_table());
+    }
+    XLS_ASSIGN_OR_RETURN(bool is_signed,
+                         index_bits_like->is_signed.GetAsBool());
+    return !is_signed;
+  };
+
+  XLS_ASSIGN_OR_RETURN(bool index_is_unsigned, index_is_unsigned_bits_like());
+  if (!index_is_unsigned) {
     return TypeInferenceErrorStatus(node->span(), index_type.get(),
                                     "Index is not unsigned-bits typed.",
                                     ctx->file_table());
@@ -1853,7 +1870,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceRange(const Range* node,
                                   "Range start and end types didn't match.");
   }
 
-  if (dynamic_cast<BitsType*>(start_type.get()) == nullptr) {
+  if (!IsBitsLike(*start_type)) {
     return TypeInferenceErrorStatus(
         node->span(), start_type.get(),
         "Range start and end types must resolve to bits types.",

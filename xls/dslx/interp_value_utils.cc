@@ -96,10 +96,12 @@ absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
 }
 
 absl::StatusOr<InterpValue> CreateZeroValueFromType(const Type& type) {
-  if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type->size().GetAsInt64());
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      bits_like.has_value()) {
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_like->size.GetAsInt64());
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
 
-    if (bits_type->is_signed()) {
+    if (is_signed) {
       return InterpValue::MakeSBits(bit_count, /*value=*/0);
     }
 
@@ -245,17 +247,19 @@ absl::StatusOr<InterpValue> SignConvertValue(const Type& type,
     }
     return InterpValue::MakeArray(std::move(results));
   }
-  if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
     XLS_RET_CHECK(value.IsBits()) << value.ToString();
-    if (bits_type->is_signed()) {
+    if (enum_type->is_signed()) {
       return InterpValue::MakeBits(InterpValueTag::kSBits,
                                    value.GetBitsOrDie());
     }
     return value;
   }
-  if (auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      bits_like.has_value()) {
     XLS_RET_CHECK(value.IsBits()) << value.ToString();
-    if (enum_type->is_signed()) {
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+    if (is_signed) {
       return InterpValue::MakeBits(InterpValueTag::kSBits,
                                    value.GetBitsOrDie());
     }
@@ -285,10 +289,10 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
     case ValueKind::kBits: {
       InterpValueTag tag = InterpValueTag::kUBits;
       if (type != nullptr) {
-        XLS_RET_CHECK(type != nullptr);
-        auto* bits_type = dynamic_cast<const BitsType*>(type);
-        tag = bits_type->is_signed() ? InterpValueTag::kSBits
-                                     : InterpValueTag::kUBits;
+        std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
+        XLS_RET_CHECK(bits_like.has_value());
+        XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+        tag = is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
       }
       return InterpValue::MakeBits(tag, v.bits());
     }

@@ -184,7 +184,7 @@ TEST(TypeTest, TestU32) {
   EXPECT_EQ(false, t.HasEnum());
   EXPECT_EQ(std::vector<TypeDim>{TypeDim::CreateU32(32)}, t.GetAllDims());
   EXPECT_EQ(t, *t.ToUBits());
-  EXPECT_TRUE(IsUBits(t));
+  EXPECT_TRUE(IsBitsLikeWithNBitsAndSignedness(t, false, 32));
   EXPECT_FALSE(t.IsTuple());
 }
 
@@ -196,7 +196,7 @@ TEST(TypeTest, TestUnit) {
   EXPECT_EQ(false, t.HasEnum());
   EXPECT_TRUE(t.GetAllDims().empty());
   EXPECT_TRUE(t.IsTuple());
-  EXPECT_FALSE(IsUBits(t));
+  EXPECT_FALSE(IsBitsLikeWithNBitsAndSignedness(t, false, 0));
 
   Type* generic_type = &t;
   EXPECT_TRUE(generic_type->IsTuple());
@@ -245,7 +245,7 @@ TEST(TypeTest, TestArrayOfU32) {
   std::vector<TypeDim> want_dims = {TypeDim::CreateU32(1),
                                     TypeDim::CreateU32(32)};
   EXPECT_EQ(want_dims, t.GetAllDims());
-  EXPECT_FALSE(IsUBits(t));
+  EXPECT_FALSE(IsBitsLikeWithNBitsAndSignedness(t, false, 32));
 }
 
 TEST(TypeTest, TestEnum) {
