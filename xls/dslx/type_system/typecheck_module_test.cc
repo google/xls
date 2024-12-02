@@ -44,6 +44,20 @@ using ::absl_testing::StatusIs;
 using ::testing::AllOf;
 using ::testing::HasSubstr;
 
+TEST(TypecheckErrorTest, EnumItemSelfReference) {
+  std::string_view text = "enum E:u2{ITEM=E::ITEM}";
+  EXPECT_THAT(Typecheck(text),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot find a definition for name: \"E\"")));
+}
+
+TEST(TypecheckErrorTest, TypeAliasSelfReference) {
+  std::string_view text = "type T=uN[T::A as u2];";
+  EXPECT_THAT(Typecheck(text),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot find a definition for name: \"T\"")));
+}
+
 TEST(TypecheckErrorTest, SendInFunction) {
   std::string_view text = R"(
 fn f(tok: token, output_r: chan<u8> in, expected: u8) -> token {
