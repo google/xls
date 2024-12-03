@@ -299,10 +299,8 @@ DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
 }
 
 DocRef Fmt(const VerbatimNode& n, const Comments& comments, DocArena& arena) {
-  if (n.text().empty()) {
-    return arena.empty();
-  }
-  return arena.MakeZeroIndent(arena.MakeText(std::string(n.text())));
+  CHECK(false) << "VerbatimNode should be handled by Formatter::Format";
+  return arena.empty();
 }
 
 DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
@@ -1529,12 +1527,8 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
-  return ConcatNGroup(arena, {
-                                 arena.MakeText("const_assert!"),
-                                 arena.oparen(),
-                                 Fmt(*n.arg(), comments, arena),
-                                 arena.cparen(),
-                             });
+  CHECK(false) << "ConstAssert should be handled by Formatter::Format.";
+  return arena.empty();
 }
 
 static DocRef Fmt(const ConstantDef& n, const Comments& comments,
@@ -1830,15 +1824,19 @@ DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
 }  // namespace
 
 DocRef Formatter::Format(const ConstAssert& n) {
-  // TODO: inline the Fmt method after all Expr-descendants are migrated to the
-  // Formatter class.
-  return Fmt(n, comments_, arena_);
+  return ConcatNGroup(arena_, {
+                                  arena_.MakeText("const_assert!"),
+                                  arena_.oparen(),
+                                  Fmt(*n.arg(), comments_, arena_),
+                                  arena_.cparen(),
+                              });
 }
 
-DocRef Formatter::Format(const VerbatimNode* n) {
-  // TODO: inline the Fmt method after all Expr-descendants are migrated to the
-  // Formatter class.
-  return Fmt(*n, comments_, arena_);
+DocRef Formatter::Format(const VerbatimNode& n) {
+  if (n.text().empty()) {
+    return arena_.empty();
+  }
+  return arena_.MakeZeroIndent(arena_.MakeText(std::string(n.text())));
 }
 
 DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
@@ -1850,7 +1848,7 @@ DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
   };
   return absl::visit(
       Visitor{
-          [&](const VerbatimNode* n) { return Format(n); },
+          [&](const VerbatimNode* n) { return Format(*n); },
           [&](const Expr* n) {
             return maybe_concat_semi(Fmt(*n, comments_, arena_));
           },
@@ -2652,7 +2650,7 @@ DocRef Formatter::Format(const ModuleMember& n) {
           [&](const ConstAssert* n) {
             return arena_.MakeConcat(Format(*n), arena_.semi());
           },
-          [&](const VerbatimNode* n) { return Format(n); },
+          [&](const VerbatimNode* n) { return Format(*n); },
       },
       n);
 }

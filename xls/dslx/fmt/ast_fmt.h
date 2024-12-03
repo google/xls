@@ -40,7 +40,7 @@ class Formatter {
 
   // keep-sorted start
   // Each `Format` method creates a pretty-printable document from the given AST
-  // Statement node `n`.
+  // node `n`.
   DocRef Format(const Function& n);
   DocRef Format(const Let& n, bool trailing_semi);
   DocRef Format(const Module& n);
@@ -67,7 +67,7 @@ class Formatter {
   DocRef Format(const TestFunction& n);
   DocRef Format(const TestProc& n);
   DocRef Format(const TypeAlias& n);
-  DocRef Format(const VerbatimNode* n);
+  DocRef Format(const VerbatimNode& n);
   DocRef FormatParams(absl::Span<const Param* const> params);
   DocRef FormatStructDefBase(
       const StructDefBase& n, Keyword keyword,
