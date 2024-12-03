@@ -118,7 +118,7 @@ proc AxiRamReaderRequester<
 
         // send RAM read reqest
         let addr_valid = state.addr < ((RAM_SIZE * RAM_DATA_W_DIV8) as uN[AXI_ADDR_W]);
-        let addr = (state.addr / RAM_DATA_W_DIV8) as uN[RAM_ADDR_W];
+        let addr = (state.addr / RAM_DATA_W_DIV8 as uN[AXI_ADDR_W]) as uN[RAM_ADDR_W];
 
         let do_read_from_ram = (
             (state.status == Status::READ_BURST) &&
@@ -152,7 +152,7 @@ proc AxiRamReaderRequester<
         } else {
             (
                 arsize_bits,
-                ((state.addr % RAM_DATA_W_DIV8) << u32:3) as uN[RAM_DATA_W_PLUS1_LOG2],
+                ((state.addr % RAM_DATA_W_DIV8 as uN[AXI_ADDR_W]) << u32:3) as uN[RAM_DATA_W_PLUS1_LOG2],
             )
         };
 
@@ -190,7 +190,7 @@ proc AxiRamReaderRequester<
                     let addr = match state.ar_bundle.burst {
                         AxiAxBurst::FIXED => state.addr,
                         AxiAxBurst::INCR => state.addr + incr,
-                        AxiAxBurst::WRAP => if ((state.addr + incr) >= (RAM_SIZE * RAM_DATA_W_DIV8)) {
+                        AxiAxBurst::WRAP => if ((state.addr + incr) as u32 >= (RAM_SIZE * RAM_DATA_W_DIV8)) {
                             uN[AXI_ADDR_W]:0
                         } else {
                             state.addr + incr
@@ -424,7 +424,7 @@ proc AxiRamReaderInstWithEmptyWrites {
         )
     }
 
-    next(state: ()) { 
+    next(state: ()) {
         send_if(join(), wr_req_s, false, zero!<WriteReq>());
         recv_if(join(), wr_resp_r, false, zero!<WriteResp>());
     }
