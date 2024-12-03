@@ -352,25 +352,41 @@ absl::StatusOr<std::filesystem::path> Codegen(
     const std::filesystem::path& ir_path,
     absl::Span<const std::string> codegen_args, const SampleOptions& options,
     const std::filesystem::path& run_dir,
-    const SampleRunner::Commands& commands) {
+    const SampleRunner::Commands& commands, bool use_codegen_ng = false) {
   std::optional<SampleRunner::Commands::Callable> command =
       commands.codegen_main;
   if (!command.has_value()) {
     command = CallableFromExecutable(kBinary.codegen_main);
   }
 
-  std::vector<std::string> args = {
-      "--output_signature_path=module_sig.textproto",
-      "--delay_model=unit",
-  };
+  std::vector<std::string> args;
+  if (use_codegen_ng) {
+    args = std::vector<std::string>{
+        "--codegen_version=2",
+        "--output_signature_path=module_sig.ng.textproto",
+        "--delay_model=unit",
+    };
+  } else {
+    args = std::vector<std::string>{
+        "--output_signature_path=module_sig.textproto",
+        "--delay_model=unit",
+    };
+  }
+
   args.insert(args.end(), codegen_args.begin(), codegen_args.end());
   args.push_back(ir_path.string());
   XLS_ASSIGN_OR_RETURN(
       std::string verilog_text,
       RunCommand("Generating Verilog", *command, args, run_dir, options));
   VLOG(3) << "Verilog:\n" << verilog_text;
-  std::filesystem::path verilog_path =
-      run_dir / (options.use_system_verilog() ? "sample.sv" : "sample.v");
+  std::filesystem::path verilog_path;
+  if (use_codegen_ng) {
+    verilog_path = run_dir / (options.use_system_verilog() ? "sample.ng.sv"
+                                                           : "sample.ng.v");
+  } else {
+    verilog_path =
+        run_dir / (options.use_system_verilog() ? "sample.sv" : "sample.v");
+  }
   XLS_RETURN_IF_ERROR(SetFileContents(verilog_path, verilog_text));
   return verilog_path;
 }
@@ -990,6 +1006,26 @@ absl::Status SampleRunner::RunFunction(
         timing_.set_simulate_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
       }
     }
+
+    if (options.codegen_ng()) {
+      t.Reset();
+      XLS_ASSIGN_OR_RETURN(
+          std::filesystem::path verilog_path,
+          Codegen(opt_ir_path, options.codegen_args(), options, run_dir_,
+                  commands_, /*use_codegen_ng=*/true));
+      timing_.set_codegen_ng_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+
+      if (options.simulate()) {
+        XLS_RET_CHECK(args_batch.has_value());
+        t.Reset();
+        XLS_ASSIGN_OR_RETURN(
+            results["simulated_ng"],
+            SimulateFunction(verilog_path, "module_sig.ng.textproto",
+                             testvector_path, options, run_dir_, commands_));
+        timing_.set_simulate_ng_ns(
+            absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+      }
+    }
   }
 
   absl::flat_hash_map<std::string, absl::Span<const dslx::InterpValue>>
@@ -1130,6 +1166,31 @@ absl::Status SampleRunner::RunProc(
                            testvector_path, output_channel_counts_str, options,
                            run_dir_, commands_));
           timing_.set_simulate_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+        }
+      }
+
+      if (options.codegen_ng()) {
+        t.Reset();
+        XLS_ASSIGN_OR_RETURN(
+            std::filesystem::path verilog_path,
+            Codegen(*opt_ir_path, options.codegen_args(), options, run_dir_,
+                    commands_, /*use_codegen_ng=*/true));
+        timing_.set_codegen_ng_ns(absl::ToInt64Nanoseconds(t.GetElapsedTime()));
+
+        if (options.simulate()) {
+          t.Reset();
+          XLS_RET_CHECK(reference.has_value());
+          absl::flat_hash_map<std::string, int64_t> output_channel_counts =
+              GetOutputChannelCounts(*reference);
+          std::string output_channel_counts_str =
+              GetOutputChannelToString(output_channel_counts);
+          XLS_ASSIGN_OR_RETURN(
+              results["simulated_ng"],
+              SimulateProc(verilog_path, "module_sig.ng.textproto",
+                           testvector_path, output_channel_counts_str, options,
+                           run_dir_, commands_));
+          timing_.set_simulate_ng_ns(
+              absl::ToInt64Nanoseconds(t.GetElapsedTime()));
         }
       }
     }

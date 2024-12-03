@@ -582,6 +582,7 @@ TEST_F(SampleRunnerTest, CodegenCombinational) {
   options.set_input_is_dslx(true);
   options.set_ir_converter_args({"--top=main"});
   options.set_codegen(true);
+  options.set_codegen_ng(true);
   options.set_codegen_args({"--generator=combinational"});
   options.set_use_system_verilog(false);
   options.set_simulate(true);
@@ -604,6 +605,14 @@ TEST_F(SampleRunnerTest, CodegenCombinational) {
                            GetFileContents(GetTempPath() / "sample.v.results"));
   EXPECT_THAT(absl::StrSplit(absl::StripAsciiWhitespace(verilog_results), "\n",
                              absl::SkipEmpty()),
+              ElementsAre("bits[8]:0x8e"));
+
+  // Codegen NG results should match.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string verilog_ng_results,
+      GetFileContents(GetTempPath() / "sample.ng.v.results"));
+  EXPECT_THAT(absl::StrSplit(absl::StripAsciiWhitespace(verilog_ng_results),
+                             "\n", absl::SkipEmpty()),
               ElementsAre("bits[8]:0x8e"));
 }
 
@@ -788,6 +797,7 @@ TEST_F(SampleRunnerTest, CodegenPipelineProcWithState) {
   options.set_input_is_dslx(true);
   options.set_ir_converter_args({"--top=main"});
   options.set_codegen(true);
+  options.set_codegen_ng(true);
   options.set_codegen_args({
       "--generator=pipeline",
       "--pipeline_stages=2",
@@ -818,6 +828,8 @@ TEST_F(SampleRunnerTest, CodegenPipelineProcWithState) {
   EXPECT_THAT(GetFileContents(GetTempPath() / "sample.opt.ir.results"),
               IsOkAndHolds(HasSubstr(expected_result)));
   EXPECT_THAT(GetFileContents(GetTempPath() / "sample.sv.results"),
+              IsOkAndHolds(HasSubstr(expected_result)));
+  EXPECT_THAT(GetFileContents(GetTempPath() / "sample.ng.sv.results"),
               IsOkAndHolds(HasSubstr(expected_result)));
 }
 

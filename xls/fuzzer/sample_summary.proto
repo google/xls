@@ -49,6 +49,8 @@ message SampleTimingProto {
   optional int64 optimized_jit_ns = 9;
   optional int64 codegen_ns = 10;
   optional int64 simulate_ns = 11;
+  optional int64 codegen_ng_ns = 12;
+  optional int64 simulate_ng_ns = 13;
 }
 
 message SampleSummaryProto {

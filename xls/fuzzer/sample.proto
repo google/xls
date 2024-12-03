@@ -58,6 +58,11 @@ message SampleOptionsProto {
   // Generate Verilog from the optimized IR. Requires optimize_ir to be true.
   optional bool codegen = 7;
 
+  // Generate Verilog from the optimized IR using the 2.0 pipeline.
+  // Requires optimize_ir to be true.  Can be used simultaneously with
+  // codegen.
+  optional bool codegen_ng = 17;
+
   // Arguments to pass to codegen_main. Requires codegen to be true.
   repeated string codegen_args = 8;
 

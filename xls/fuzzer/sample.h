@@ -101,6 +101,9 @@ class SampleOptions {
   bool codegen() const { return proto_.codegen(); }
   void set_codegen(bool value) { proto_.set_codegen(value); }
 
+  bool codegen_ng() const { return proto_.codegen_ng(); }
+  void set_codegen_ng(bool value) { proto_.set_codegen_ng(value); }
+
   bool simulate() const { return proto_.simulate(); }
   void set_simulate(bool value) { proto_.set_simulate(value); }
 
