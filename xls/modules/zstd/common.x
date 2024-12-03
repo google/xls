@@ -62,6 +62,7 @@ pub struct ExtendedBlockDataPacket {
 
 pub struct SequenceExecutorPacket<DATA_W: u32> {
     msg_type: SequenceExecutorMessageType,
+    // TODO: this should be max(8, clog2(maximum match value))
     length: CopyOrMatchLength, // Literal length or match length
     content: uN[DATA_W * u32:8], // Literal data or match offset
     last: bool, // Last packet in frame
@@ -277,13 +278,6 @@ pub struct LiteralsPathCtrl {
     literals_type: LiteralType,
 }
 
-pub struct RleLiteralsData {
-    data: RleLitData,
-    repeat: RleLitRepeat,
-    last: bool,
-    id: LitID,
-}
-
 pub struct LiteralsData {
     data: LitData,
     length: LitLength,
@@ -293,9 +287,9 @@ pub struct LiteralsData {
 pub struct LiteralsDataWithSync {
     data: LitData,
     length: LitLength,
-    last: bool,
+    last: bool,          // last packet in single literals section decoding
     id: LitID,
-    literals_last: bool,
+    literals_last: bool, // last literals section in ZSTD frame
 }
 
 pub struct LiteralsBufferCtrl {

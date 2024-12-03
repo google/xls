@@ -40,6 +40,10 @@ enum HuffmanDecoderFSM: u3 {
 
 pub struct HuffmanDecoderStart {
     new_config: bool,
+    id: u32,
+    literals_last: bool,
+    last_stream: bool,    // 4'th huffman coded stream decoding for multi_stream
+                          // or single stream decoding
 }
 
 struct HuffmanDecoderState {
@@ -53,6 +57,9 @@ struct HuffmanDecoderState {
     code_length: CodeLen[BUFF_W],
     decoded_literals: uN[common::SYMBOL_WIDTH][u32:8],
     decoded_literals_len: u4,
+    id: u32,
+    literals_last: bool,
+    last_stream: bool,
 }
 
 fn extend_buff_array<N: u32, M:u32>(buff: CodeLen[N], buff_len: u32, array: CodeLen[M]) -> CodeLen[N] {
@@ -124,14 +131,14 @@ pub proc HuffmanDecoder {
     data_r: chan<Data> in;
 
     done_s: chan<()> out;
-    decoded_literals_s: chan<common::LiteralsData> out;
+    decoded_literals_s: chan<common::LiteralsDataWithSync> out;
 
     config (
         start_r: chan<Start> in,
         codes_r: chan<Codes> in,
         data_r: chan<Data> in,
         done_s: chan<()> out,
-        decoded_literals_s: chan<common::LiteralsData> out,
+        decoded_literals_s: chan<common::LiteralsDataWithSync> out,
     ) {
         (
             start_r,
@@ -154,30 +161,38 @@ pub proc HuffmanDecoder {
 
         let state = if start_valid {
             if start.new_config {
-                trace_fmt!("IDLE -> AWAITING_CONFIG");
+                trace_fmt!("{} -> AWAITING_CONFIG", state.fsm);
+                assert!(state.fsm == FSM::IDLE, "invalid_state_transition");
                 State {
                     fsm: FSM::AWAITING_CONFIG,
                     symbol_config_id: u5:0,
+                    id: start.id,
+                    literals_last: start.literals_last,
+                    last_stream: start.last_stream,
                     ..state
                 }
             } else {
-                trace_fmt!("IDLE -> READ_DATA");
+                trace_fmt!("{} -> READ_DATA", state.fsm);
+                assert!(state.fsm == FSM::IDLE, "invalid_state_transition");
                 State {
                     fsm: FSM::READ_DATA,
+                    id: start.id,
+                    literals_last: start.literals_last,
+                    last_stream: start.last_stream,
                     ..state
                 }
             }
         } else { state };
 
         // wait for config
-        let (tok, config, config_valid) = recv_if_non_blocking(
+        let (tok, config) = recv_if(
             tok,
             codes_r,
             state.fsm == FSM::AWAITING_CONFIG,
             zero!<Codes>()
         );
 
-        let state = if config_valid {
+        let state = if state.fsm == FSM::AWAITING_CONFIG {
             let (symbol_valid, symbol_code, symbol_code_len) =
                 for (i, (symbol_valid, symbol_code, symbol_code_len)):
                     (
@@ -194,8 +209,12 @@ pub proc HuffmanDecoder {
                     update(symbol_code_len, (state.symbol_config_id as u32 * u32:8) + i, config.code_length[i]),
                 )
             }((state.symbol_valid, state.symbol_code, state.symbol_code_len));
+            trace_fmt!("state.symbol_config_id+1: {:#x}", state.symbol_config_id as u32 + u32:1);
+            trace_fmt!("SYMBOLS_N: {:#x}", SYMBOLS_N);
+            trace_fmt!("hcommon::PARALLEL_ACCESS_WIDTH: {:#x}", hcommon::PARALLEL_ACCESS_WIDTH);
             let fsm = if (state.symbol_config_id as u32 + u32:1) == (SYMBOLS_N / hcommon::PARALLEL_ACCESS_WIDTH) {
-                trace_fmt!("AWAITING_CONFIG -> READ_DATA");
+                trace_fmt!("{} -> READ_DATA", state.fsm);
+                assert!(state.fsm == FSM::AWAITING_CONFIG, "invalid_state_transition");
                 trace_fmt!("Received codes:");
                 for (i, ()) in range(u32:0, SYMBOLS_N) {
                     if symbol_valid[i] {
@@ -222,7 +241,8 @@ pub proc HuffmanDecoder {
         );
 
         let state = if data_valid {
-            trace_fmt!("READ_DATA -> DECODE");
+            trace_fmt!("{} -> DECODE", state.fsm);
+            assert!(state.fsm == FSM::READ_DATA, "invalid_state_transition");
             trace_fmt!("Received data: {:#b} (len: {})", data.data, data.data_len);
             State {
                 fsm: FSM::DECODE,
@@ -289,20 +309,28 @@ pub proc HuffmanDecoder {
             zero!<common::LitData>()
         };
 
-        let done = state.data_len == uN[BUFF_W_LOG2]:0;
-        send_if(tok, decoded_literals_s, do_send_literals, common::LiteralsData{
+        let done = (state.data_len == uN[BUFF_W_LOG2]:0) && (state.fsm == FSM::DECODE);
+        let decoded_literals = common::LiteralsDataWithSync{
             data: data,
             length: state.decoded_literals_len as common::LitLength,
-            last: done,
-        });
+            last: done && state.last_stream,
+            id: state.id,
+            literals_last: state.literals_last,
+        };
+        send_if(tok, decoded_literals_s, do_send_literals, decoded_literals);
+        if (do_send_literals) {
+           trace_fmt!("Sent decoded literals: {:#x}", decoded_literals);
+        } else {};
 
         let state = if do_send_literals {
             let fsm = if state.data_len == uN[BUFF_W_LOG2]:0 {
-                trace_fmt!("DECODE -> IDLE");
+                trace_fmt!("{} -> IDLE", state.fsm);
                 FSM::IDLE
             } else {
+                trace_fmt!("{} -> DECODE", state.fsm);
                 FSM::DECODE
             };
+            assert!(state.fsm == FSM::DECODE, "invalid_state_transition");
             State {
                 fsm: fsm,
                 decoded_literals_len: u4:0,
@@ -347,9 +375,9 @@ fn generate_codes(data: SymbolData[8]) -> Codes {
 }
 
 const TEST_START = HuffmanDecoderStart[3]:[
-    HuffmanDecoderStart { new_config: true },
-    HuffmanDecoderStart { new_config: false },
-    HuffmanDecoderStart { new_config: true },
+    HuffmanDecoderStart { new_config: true, id: u32:0, literals_last: false, last_stream: true },
+    HuffmanDecoderStart { new_config: false, id: u32:1, literals_last: true, last_stream: true },
+    HuffmanDecoderStart { new_config: true, id: u32:0, literals_last: false, last_stream: true },
 ];
 
 // config #1
@@ -599,41 +627,55 @@ const TEST_DATA = huffman_data_preprocessor::HuffmanDataPreprocessorData[3]:[
     },
 ];
 
-const TEST_LITERALS = common::LiteralsData[7]:[
-    common::LiteralsData {
+const TEST_LITERALS = common::LiteralsDataWithSync[7]:[
+    common::LiteralsDataWithSync {
         data: common::LitData:0x06B5_0002_0606_B500,
         length: common::LitLength:8,
         last: false,
+        id: u32:0,
+        literals_last: false,
     },
-    common::LiteralsData {
+    common::LiteralsDataWithSync {
         data: common::LitData:0x0200,
         length: common::LitLength:2,
         last: true,
+        id: u32:0,
+        literals_last: false,
     },
-    common::LiteralsData {
+    common::LiteralsDataWithSync {
         data: common::LitData:0x06B5_0002_0606_B500,
         length: common::LitLength:8,
         last: false,
+        id: u32:1,
+        literals_last: true,
     },
-    common::LiteralsData {
+    common::LiteralsDataWithSync {
         data: common::LitData:0x0200,
         length: common::LitLength:2,
         last: true,
+        id: u32:1,
+        literals_last: true,
     },
-    common::LiteralsData {
+    common::LiteralsDataWithSync {
         data: common::LitData:0x7AD2_8947_478A_D247,
         length: common::LitLength:8,
         last: false,
+        id: u32:0,
+        literals_last: false,
     },
-    common::LiteralsData {
+    common::LiteralsDataWithSync {
         data: common::LitData:0x4141_D347_D28A_47D2,
         length: common::LitLength:8,
         last: false,
+        id: u32:0,
+        literals_last: false,
     },
-    common::LiteralsData {
+    common::LiteralsDataWithSync {
         data: common::LitData:0x47D2_418A_47D2,
         length: common::LitLength:6,
         last: true,
+        id: u32:0,
+        literals_last: false,
     },
 ];
 
@@ -649,14 +691,14 @@ proc HuffmanDecoder_test {
     data_s: chan<Data> out;
 
     done_r: chan<()> in;
-    decoded_literals_r: chan<common::LiteralsData> in;
+    decoded_literals_r: chan<common::LiteralsDataWithSync> in;
 
     config (terminator_s: chan<bool> out) {
         let (start_s, start_r) = chan<Start>("start");
         let (codes_s, codes_r) = chan<Codes>("codes");
         let (data_s, data_r) = chan<Data>("data");
         let (done_s, done_r) = chan<()>("done");
-        let (decoded_literals_s, decoded_literals_r) = chan<common::LiteralsData>("decoded_literals");
+        let (decoded_literals_s, decoded_literals_r) = chan<common::LiteralsDataWithSync>("decoded_literals");
 
         spawn HuffmanDecoder(
             start_r, codes_r, data_r,
@@ -700,7 +742,7 @@ proc HuffmanDecoder_test {
             (tok, codes_idx)
         }((tok, u32:0));
 
-        let tok = for ((i, expected_literals), tok): ((u32, common::LiteralsData), token) in enumerate(TEST_LITERALS) {
+        let tok = for ((i, expected_literals), tok): ((u32, common::LiteralsDataWithSync), token) in enumerate(TEST_LITERALS) {
             // receive literals
             let (tok, literals) = recv(tok, decoded_literals_r);
             trace_fmt!("Received #{} literals {:#x}", i + u32:1, literals);
