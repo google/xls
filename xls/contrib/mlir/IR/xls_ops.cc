@@ -257,6 +257,21 @@ OpFoldResult UmulOp::fold(FoldAdaptor adaptor) {
   return {};
 }
 
+LogicalResult UmulOp::canonicalize(UmulOp op, PatternRewriter& rewriter) {
+  // (umul $a, 2^x) -> (shll $a, x)
+  if (auto rhs = op.getRhs().getDefiningOp<ConstantScalarOp>()) {
+    int32_t x = cast<IntegerAttr>(rhs.getValue()).getValue().exactLogBase2();
+    if (x != -1) {
+      rewriter.replaceOpWithNewOp<ShllOp>(
+          op, op.getLhs(),
+          rewriter.createOrFold<ConstantScalarOp>(
+              op.getLoc(), rewriter.getIndexType(), rewriter.getIndexAttr(x)));
+      return LogicalResult::success();
+    }
+  }
+  return LogicalResult::failure();
+}
+
 LogicalResult ArrayIndexOp::canonicalize(ArrayIndexOp op,
                                          PatternRewriter& rewriter) {
   // (array_index $a, (constant_scalar $i)) -> (array_index_static $a, $s)

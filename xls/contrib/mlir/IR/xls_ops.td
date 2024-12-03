@@ -311,6 +311,7 @@ def Xls_AddOp : Xls_ArithBinaryOp<"add", "addition"> {
 def Xls_SmulOp : Xls_ArithBinaryOp<"smul", "signed multiplication">;
 def Xls_UmulOp : Xls_ArithBinaryOp<"umul", "unsigned multiplication"> {
   let hasFolder = 1;
+  let hasCanonicalizeMethod = 1;
 }
 def Xls_SdivOp : Xls_ArithBinaryOp<"sdiv", "signed division">;
 def Xls_SmodOp : Xls_ArithBinaryOp<"smod", "signed modulo">;
