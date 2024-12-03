@@ -111,6 +111,7 @@ pub proc HuffmanDataPreprocessor {
         );
 
         let state = if config_valid {
+            trace_fmt!("Received config {:#x}", config);
             State {
                 fsm: FSM::READ_DATA,
                 lookahead_config: config,
@@ -124,6 +125,7 @@ pub proc HuffmanDataPreprocessor {
 
         // process data
         let state = if data_valid {
+            trace_fmt!("Received data {:#x}", data);
             let fsm = if data.last {
                 FSM::PROCESSING
             } else {

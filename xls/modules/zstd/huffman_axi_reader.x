@@ -14,7 +14,9 @@
 
 // This file contains the implementation of Huffmann data preprocessor.
 
+import std;
 import xls.modules.zstd.memory.axi as axi;
+import xls.modules.zstd.memory.mem_reader as mem_reader;
 
 pub struct HuffmanAxiReaderCtrl<AXI_ADDR_W: u32> {
     base_addr: uN[AXI_ADDR_W],
@@ -26,28 +28,33 @@ pub struct HuffmanAxiReaderData {
     last: bool,
 }
 
-struct HuffmanAxiReaderState<AXI_DATA_W: u32, AXI_ADDR_W: u32> {
+struct HuffmanAxiReaderState<AXI_DATA_W: u32, AXI_ADDR_W: u32,
+                             AXI_DATA_DIV8: u32, // = {AXI_DATA_W / u32:8},
+                             AXI_DATA_DIV8_W: u32, // = {std::clog2({AXI_DATA_W / u32:8})}
+                             > {
     ctrl: HuffmanAxiReaderCtrl<AXI_ADDR_W>,
     bytes_requested: uN[AXI_ADDR_W],
     bytes_sent: uN[AXI_ADDR_W],
 }
 
-pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32> {
-    // FIXME: Replace hard-coded values with proc params AXI_DATA_W, AXI_ID_W
-    type AxiR = axi::AxiR<u32:32, u32:32>;
-    // FIXME: Replace hard-coded values with proc params AXI_ADDR_W, AXI_ID_W
-    type AxiAr = axi::AxiAr<u32:32, u32:32>;
+pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_DEST_W: u32,
+                          AXI_DATA_DIV8: u32 = {AXI_DATA_W / u32:8},
+                          AXI_DATA_DIV8_W: u32 = {std::clog2({AXI_DATA_W / u32:8})},
+                          > {
+    type AxiAr = axi::AxiAr<AXI_ADDR_W, AXI_ID_W>;
+    type AxiR = axi::AxiR<AXI_DATA_W, AXI_ID_W>;
 
-    // FIXME: Replace hard-coded values with proc params AXI_ADDR_W
-    type Ctrl = HuffmanAxiReaderCtrl<u32:32>;
+    type Ctrl = HuffmanAxiReaderCtrl<AXI_ADDR_W>;
     type Data = HuffmanAxiReaderData;
 
-    // FIXME: Replace hard-coded values with proc params AXI_DATA_W, AXI_ADDR_W
-    type State = HuffmanAxiReaderState<u32:32, u32:32>;
+    type MemRdReq = mem_reader::MemReaderReq<AXI_ADDR_W>;
+    type MemRdResp = mem_reader::MemReaderResp<AXI_DATA_W, AXI_ADDR_W>;
+
+    type State = HuffmanAxiReaderState<AXI_DATA_W, AXI_ADDR_W, AXI_DATA_DIV8, AXI_DATA_DIV8_W>;
 
     ctrl_r: chan<Ctrl> in;
-    axi_r_r: chan<AxiR> in;
-    axi_ar_s: chan<AxiAr> out;
+    mem_rd_req_s: chan<MemRdReq> out;
+    mem_rd_resp_r: chan<MemRdResp> in;
     data_s: chan<Data> out;
 
     config (
@@ -56,10 +63,20 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32> {
         axi_ar_s: chan<AxiAr> out,
         data_s: chan<Data> out,
     ) {
+        let (mem_rd_req_s, mem_rd_req_r) = chan<MemRdReq, u32:0>("mem_rd_req");
+        let (mem_rd_resp_s, mem_rd_resp_r) = chan<MemRdResp, u32:0>("mem_rd_resp");
+
+        spawn mem_reader::MemReader<AXI_DATA_W, AXI_ADDR_W, AXI_DEST_W, AXI_ID_W> (
+            mem_rd_req_r,
+            mem_rd_resp_s,
+            axi_ar_s,
+            axi_r_r
+        );
+
         (
             ctrl_r,
-            axi_r_r,
-            axi_ar_s,
+            mem_rd_req_s,
+            mem_rd_resp_r,
             data_s,
         )
     }
@@ -83,18 +100,17 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32> {
         // send AXI read request
         // this could be optimized to read multiple bytes per AXI transaction
         let addr = state.ctrl.base_addr + state.ctrl.len - uN[AXI_ADDR_W]:1 - state.bytes_requested;
-        let axi_ar = AxiAr {
-            id: uN[AXI_ID_W]:0,
+        let mem_rd_req = MemRdReq {
             addr: addr,
-            ..zero!<AxiAr>()
+            length: uN[AXI_ADDR_W]:1
         };
-        let do_send_axi_req = (state.bytes_requested < state.ctrl.len);
-        send_if(join(), axi_ar_s, do_send_axi_req, axi_ar);
-        if (do_send_axi_req) {
-            trace_fmt!("Sent AXI read request {:#x}", axi_ar);
+        let do_send_mem_rd_req = (state.bytes_requested < state.ctrl.len);
+        send_if(join(), mem_rd_req_s, do_send_mem_rd_req, mem_rd_req);
+        if (do_send_mem_rd_req) {
+            trace_fmt!("Sent memory read request {:#x}", mem_rd_req);
         } else {};
 
-        let state = if do_send_axi_req {
+        let state = if do_send_mem_rd_req {
             State {
                 bytes_requested: state.bytes_requested + uN[AXI_ADDR_W]:1,
                 ..state
@@ -103,20 +119,27 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32> {
             state
         };
 
-        // receive data from AXI
-        let do_read_axi_resp = (state.bytes_requested > state.bytes_sent) && (state.bytes_sent < state.bytes_requested);
-        let (tok, axi_r, axi_r_valid) = recv_if_non_blocking(join(), axi_r_r, do_read_axi_resp, zero!<AxiR>());
+        // receive data
+        let do_read_mem_rd_resp = (state.bytes_requested > state.bytes_sent) && (state.bytes_sent < state.bytes_requested);
+        let (tok, mem_rd_resp, mem_rd_resp_valid) = recv_if_non_blocking(join(), mem_rd_resp_r, do_read_mem_rd_resp, zero!<MemRdResp>());
+        if mem_rd_resp_valid {
+            trace_fmt!("Received memory read response {:#x}", mem_rd_resp);
+        } else {};
 
         // send data
-        let last = axi_r_valid && ((state.bytes_sent + uN[AXI_ADDR_W]:1) == state.ctrl.len);
-        let tok = send_if(tok, data_s, axi_r_valid, Data {
-            data: axi_r.data as u8,
+        let last = mem_rd_resp_valid && ((state.bytes_sent + uN[AXI_ADDR_W]:1) == state.ctrl.len);
+        let data = Data {
+            data: mem_rd_resp.data as u8,
             last: last,
-        });
+        };
+        let tok = send_if(tok, data_s, mem_rd_resp_valid, data);
+        if mem_rd_resp_valid {
+            trace_fmt!("Sent output data {:#x}", data);
+        } else {};
+
         let state = if last {
             zero!<State>()
-        } else if axi_r_valid {
-            trace_fmt!("Received AXI read response {:#x}", axi_r);
+        } else if mem_rd_resp_valid {
             State {
                 bytes_sent: state.bytes_sent + uN[AXI_ADDR_W]:1,
                 ..state
@@ -127,9 +150,10 @@ pub proc HuffmanAxiReader<AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32> {
     }
 }
 
-const INST_AXI_DATA_W = u32:32;
-const INST_AXI_ADDR_W = u32:32;
-const INST_AXI_ID_W = u32:32;
+const INST_AXI_DATA_W = u32:64;
+const INST_AXI_ADDR_W = u32:16;
+const INST_AXI_ID_W = u32:4;
+const INST_AXI_DEST_W = u32:4;
 
 proc HuffmanAxiReaderInst {
     type InstHuffmanAxiReaderCtrl = HuffmanAxiReaderCtrl<INST_AXI_ADDR_W>;
@@ -143,7 +167,7 @@ proc HuffmanAxiReaderInst {
         axi_ar_s: chan<InstAxiAr> out,
         data_s: chan<HuffmanAxiReaderData> out,
     ) {
-        spawn HuffmanAxiReader<INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_ID_W>(
+        spawn HuffmanAxiReader<INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_ID_W, INST_AXI_DEST_W>(
             ctrl_r,
             axi_r_r,
             axi_ar_s,
@@ -156,9 +180,12 @@ proc HuffmanAxiReaderInst {
     next (state: ()) { }
 }
 
-const TEST_AXI_DATA_W = u32:32;
-const TEST_AXI_ADDR_W = u32:32;
-const TEST_AXI_ID_W = u32:32;
+const TEST_AXI_DATA_W = u32:64;
+const TEST_AXI_ADDR_W = u32:16;
+const TEST_AXI_ID_W = u32:4;
+const TEST_AXI_DEST_W = u32:4;
+const TEST_AXI_DATA_DIV8 = TEST_AXI_DATA_W / u32:8;
+const TEST_AXI_DATA_DIV8_W = std::clog2(TEST_AXI_DATA_DIV8);
 
 type TestHuffmanAxiReaderCtrl = HuffmanAxiReaderCtrl<TEST_AXI_ADDR_W>;
 
@@ -188,23 +215,23 @@ const TEST_DATA_CTRL = TestHuffmanAxiReaderCtrl[3]:[
 ];
 
 const TEST_DATA_AXI = TestAxiData[7]:[
-    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:0, data: uN[TEST_AXI_DATA_W]:0x12, len: u8:0, last: true, },
-    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:131, data: uN[TEST_AXI_DATA_W]:0xAA, len: u8:0, last: true, },
-    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:130, data: uN[TEST_AXI_DATA_W]:0xBB, len: u8:0, last: true, },
-    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:129, data: uN[TEST_AXI_DATA_W]:0xCC, len: u8:0, last: true, },
-    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:128, data: uN[TEST_AXI_DATA_W]:0xDD, len: u8:0, last: true, },
-    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:65, data: uN[TEST_AXI_DATA_W]:0x44, len: u8:0, last: false, },
-    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:64, data: uN[TEST_AXI_DATA_W]:0x55, len: u8:0, last: true, },
+    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:0, data: uN[TEST_AXI_DATA_W]:0x0123456789ABCDF0, len: u8:0, last: true, },
+    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:131, data: uN[TEST_AXI_DATA_W]:0x8899AABBCCDDEEFF, len: u8:0, last: true, },
+    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:130, data: uN[TEST_AXI_DATA_W]:0x8899AABBCCDDEEFF, len: u8:0, last: true, },
+    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:129, data: uN[TEST_AXI_DATA_W]:0x8899AABBCCDDEEFF, len: u8:0, last: true, },
+    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:128, data: uN[TEST_AXI_DATA_W]:0x8899AABBCCDDEEFF, len: u8:0, last: true, },
+    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:65, data: uN[TEST_AXI_DATA_W]:0xDEADBEEFFEEBDAED, len: u8:0, last: false, },
+    TestAxiData { addr: uN[TEST_AXI_ADDR_W]:64, data: uN[TEST_AXI_DATA_W]:0xDEADBEEFFEEBDAED, len: u8:0, last: true, },
 ];
 
 const TEST_DATA_OUT = HuffmanAxiReaderData[7]:[
-    HuffmanAxiReaderData { data: u8:0x12, last: true, },
-    HuffmanAxiReaderData { data: u8:0xAA, last: false, },
-    HuffmanAxiReaderData { data: u8:0xBB, last: false, },
+    HuffmanAxiReaderData { data: u8:0xF0, last: true, },
     HuffmanAxiReaderData { data: u8:0xCC, last: false, },
-    HuffmanAxiReaderData { data: u8:0xDD, last: true, },
-    HuffmanAxiReaderData { data: u8:0x44, last: false, },
-    HuffmanAxiReaderData { data: u8:0x55, last: true, },
+    HuffmanAxiReaderData { data: u8:0xDD, last: false, },
+    HuffmanAxiReaderData { data: u8:0xEE, last: false, },
+    HuffmanAxiReaderData { data: u8:0xFF, last: true, },
+    HuffmanAxiReaderData { data: u8:0xDA, last: false, },
+    HuffmanAxiReaderData { data: u8:0xED, last: true, },
 ];
 
 #[test_proc]
@@ -222,7 +249,7 @@ proc HuffmanAxiReader_test {
         let (axi_ar_s, axi_ar_r) = chan<TestAxiAr>("axi_ar");
         let (data_s, data_r) = chan<HuffmanAxiReaderData>("data");
 
-        spawn HuffmanAxiReader<TEST_AXI_DATA_W, TEST_AXI_ADDR_W, TEST_AXI_ID_W> (
+        spawn HuffmanAxiReader<TEST_AXI_DATA_W, TEST_AXI_ADDR_W, TEST_AXI_ID_W, TEST_AXI_DEST_W> (
             ctrl_r,
             axi_r_r,
             axi_ar_s,
@@ -251,8 +278,9 @@ proc HuffmanAxiReader_test {
         let tok = for ((i, test_axi), tok): ((u32, TestAxiData), token) in enumerate(TEST_DATA_AXI) {
             let (tok, axi_req) = recv(tok, axi_ar_r);
             trace_fmt!("Received #{} AXI request {:#x}", i + u32:1, axi_req);
+            let aligned_addr = test_axi.addr & !(test_axi.addr % TEST_AXI_DATA_DIV8 as uN[TEST_AXI_ADDR_W]);
 
-            assert_eq(test_axi.addr, axi_req.addr);
+            assert_eq(aligned_addr, axi_req.addr);
             assert_eq(test_axi.len, axi_req.len);
 
             let axi_resp = TestAxiR {
