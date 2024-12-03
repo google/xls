@@ -288,16 +288,16 @@ pub proc WeightCodeBuilder
             update(codes, i, code)
         }(zero!<uN[MAX_WEIGHT][PARALLEL_ACCESS_WIDTH]>());
 
-        if send_codes {
-            trace_fmt!("{}\n{}\n{:#b}\n{:#b}", symbols_valid, codes_length, codes, state.huffman_codes);
-        } else {};
-
         let code_packet = DecoderOutput {
             symbol_valid: symbols_valid,
             code_length: codes_length,
             code: codes
         };
         send_if(tok, codes_s, send_codes, code_packet);
+        if send_codes {
+            trace_fmt!("Sent codes: \nsymbols_valid: {}\ncodes_length: {}\ncodes: {:#b}\nstate.huffman_codes: {:#b}", symbols_valid, codes_length, codes, state.huffman_codes);
+        } else {};
+
 
         next_state
     }
