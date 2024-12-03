@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -36,6 +37,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -53,13 +55,16 @@ class InferenceTableConverter {
   InferenceTableConverter(const InferenceTable& table, Module& module,
                           ImportData& import_data,
                           WarningCollector& warning_collector,
-                          TypeInfo* base_type_info, const FileTable& file_table)
+                          TypeInfo* base_type_info, const FileTable& file_table,
+                          const absl::flat_hash_set<const TypeAnnotation*>&
+                              auto_literal_annotations)
       : table_(table),
         module_(module),
         import_data_(import_data),
         warning_collector_(warning_collector),
         base_type_info_(base_type_info),
-        file_table_(file_table) {}
+        file_table_(file_table),
+        auto_literal_annotations_(auto_literal_annotations) {}
 
   // Generates the resulting type info for the given invocation, as a child of
   // the base type info.
@@ -126,6 +131,14 @@ class InferenceTableConverter {
       }
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                            Concretize(*annotation, parametric_invocation));
+      // A literal can have its own explicit type annotation that ultimately
+      // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
+      // something more subtly wrong, like `uN[N]:0xffff`, where N proves to be
+      // too small. This is the opportune time to check for that, since we have
+      // now concretized the type.
+      if (const auto* literal = dynamic_cast<const Number*>(node)) {
+        XLS_RETURN_IF_ERROR(CheckConcreteLiteralType(*literal, *type));
+      }
       ti->SetItem(node, *type);
     }
     return absl::OkStatus();
@@ -140,6 +153,8 @@ class InferenceTableConverter {
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricInvocation*> parametric_invocation) {
+    XLS_ASSIGN_OR_RETURN(annotation, ResolveIfVariableTypeAnnotation(
+                                         parametric_invocation, annotation));
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(annotation);
     if (!signedness_and_bit_count.ok()) {
@@ -186,9 +201,10 @@ class InferenceTableConverter {
     type_info->SetItem(scoped_expr.type_annotation(),
                        MetaType(type->CloneToUnique()));
     // TODO: https://github.com/google/xls/issues/193 - The if-statement below
-    // is here temporarily to make testing practical, but belongs in the type
-    // deduction visitor when it exists, and that visitor should of course deal
-    // with more node types.
+    // is here temporarily to enable easy testing of parametric variables in
+    // inference_table_test. The equivalent is done by `TypecheckModuleV2`, and
+    // that's where the logic belongs, but that doesn't yet deal with parametric
+    // variables.
     if (auto* number = dynamic_cast<const Number*>(scoped_expr.expr());
         number != nullptr && number->type_annotation() != nullptr) {
       type_info->SetItem(number->type_annotation(),
@@ -266,9 +282,11 @@ class InferenceTableConverter {
   // the information has unreconcilable conflicts, returns an error. The given
   // `parametric_invocation` argument is used as a context for the evaluation of
   // any expressions inside the type annotations.
-  absl::StatusOr<TypeAnnotation*> UnifyTypeAnnotations(
+  absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
       std::optional<const ParametricInvocation*> parametric_invocation,
       const NameRef* type_variable, const Span& span) {
+    VLOG(5) << "Unifying type annotations for variable "
+            << type_variable->ToString();
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations,
         table_.GetTypeAnnotationsForTypeVariable(type_variable));
@@ -278,29 +296,91 @@ class InferenceTableConverter {
                            "annotations were associated with it.",
                            type_variable->ToString()));
     }
+    if (annotations.size() == 1) {
+      // This is here mainly for preservation of shorthand annotations appearing
+      // in the source code, in case they get put in subsequent error messages.
+      // General unification would normalize the format.
+      const TypeAnnotation* annotation = annotations[0];
+      XLS_ASSIGN_OR_RETURN(annotation, ResolveIfVariableTypeAnnotation(
+                                           parametric_invocation, annotation));
+      return annotation;
+    }
     std::optional<bool> unified_signedness;
     std::optional<int64_t> unified_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
+      const TypeAnnotation* current_annotation = annotations[i];
+      VLOG(5) << "Annotation " << i << " for " << type_variable->ToString()
+              << ": " << current_annotation->ToString();
+      XLS_ASSIGN_OR_RETURN(current_annotation,
+                           ResolveIfVariableTypeAnnotation(
+                               parametric_invocation, current_annotation));
       XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
-                           GetSignednessAndBitCount(annotations[i]));
+                           GetSignednessAndBitCount(current_annotation));
       XLS_ASSIGN_OR_RETURN(
-          bool signedness,
+          bool current_annotation_signedness,
           EvaluateBoolOrExpr(parametric_invocation,
                              signedness_and_bit_count.signedness));
       XLS_ASSIGN_OR_RETURN(
-          int64_t bit_count,
+          int64_t current_annotation_bit_count,
           EvaluateS64OrExpr(parametric_invocation,
                             signedness_and_bit_count.bit_count));
-      if (unified_signedness.has_value() && signedness != *unified_signedness) {
-        return SignednessMismatchErrorStatus(annotations[i], annotations[i - 1],
-                                             file_table_);
+
+      // Unify the signedness. Currently there must be strict agreement, except
+      // for auto literals.
+      if (!unified_signedness.has_value()) {
+        unified_signedness = current_annotation_signedness;
+      } else if (current_annotation_signedness != *unified_signedness &&
+                 !auto_literal_annotations_.contains(current_annotation)) {
+        return SignednessMismatchErrorStatus(current_annotation,
+                                             annotations[i - 1], file_table_);
       }
-      unified_bit_count = std::max(
-          unified_bit_count.has_value() ? *unified_bit_count : 0, bit_count);
-      unified_signedness = signedness;
+
+      // Unify the bit count. Currently there must be strict agreement, except
+      // for auto literals whose auto size is smaller than we need.
+      if (!unified_bit_count.has_value()) {
+        unified_bit_count = current_annotation_bit_count;
+      } else if (*unified_bit_count != current_annotation_bit_count &&
+                 (!auto_literal_annotations_.contains(current_annotation) ||
+                  current_annotation_bit_count > unified_bit_count)) {
+        return BitCountMismatchErrorStatus(current_annotation,
+                                           annotations[i - 1], file_table_);
+      }
+      VLOG(5) << "Unified type for " << type_variable->ToString()
+              << " so far has signedness: " << *unified_signedness
+              << " and bit count: " << *unified_bit_count;
     }
     return CreateUnOrSnAnnotation(module_, span, *unified_signedness,
                                   *unified_bit_count);
+  }
+
+  // If `annotation` is a `TypeVariableTypeAnnotation`, then this function gets
+  // the underlying annotations for the referenced variable, unifies them, and
+  // returns the unified annotation. Otherwise, it is a no-op that returns
+  // `annotation`.
+  absl::StatusOr<const TypeAnnotation*> ResolveIfVariableTypeAnnotation(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const TypeAnnotation* annotation) {
+    if (const auto* variable_type_annotation =
+            dynamic_cast<const TypeVariableTypeAnnotation*>(annotation)) {
+      XLS_ASSIGN_OR_RETURN(
+          annotation,
+          UnifyTypeAnnotations(parametric_invocation,
+                               variable_type_annotation->type_variable(),
+                               annotation->span()));
+    }
+    return annotation;
+  }
+
+  // Ensures that the given literal value fits in the given type.
+  absl::Status CheckConcreteLiteralType(const Number& literal,
+                                        const Type& type) {
+    if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+        bits_like.has_value()) {
+      return TryEnsureFitsInType(literal, bits_like.value(), type);
+    }
+    return TypeInferenceErrorStatus(
+        literal.span(), &type,
+        "Non-bits type used to define a numeric literal.", file_table_);
   }
 
   const InferenceTable& table_;
@@ -313,18 +393,21 @@ class InferenceTableConverter {
       invocation_type_info_;
   absl::flat_hash_map<const ParametricInvocation*, ParametricEnv>
       converted_parametric_envs_;
+  const absl::flat_hash_set<const TypeAnnotation*>& auto_literal_annotations_;
 };
 
 }  // namespace
 
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
     const InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table) {
+    WarningCollector& warning_collector, const FileTable& file_table,
+    const absl::flat_hash_set<const TypeAnnotation*>&
+        auto_literal_annotations) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * base_type_info,
                        import_data.type_info_owner().New(&module));
   InferenceTableConverter converter(table, module, import_data,
                                     warning_collector, base_type_info,
-                                    file_table);
+                                    file_table, auto_literal_annotations);
   XLS_RETURN_IF_ERROR(converter.GenerateTypeInfo(
       /*parametric_invocation=*/std::nullopt));
   for (const ParametricInvocation* invocation :

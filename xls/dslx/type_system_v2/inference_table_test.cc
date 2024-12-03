@@ -18,18 +18,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/substitute.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -42,9 +38,9 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
+#include "xls/dslx/type_system_v2/type_system_test_utils.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 
@@ -69,30 +65,14 @@ class InferenceTableTest : public ::testing::Test {
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, InferenceTableToTypeInfo(
                                             *table_, *module_, *import_data_,
-                                            *warning_collector_, file_table_));
+                                            *warning_collector_, file_table_,
+                                            /*auto_literal_annotations=*/{}));
     return ti;
-  }
-
-  absl::StatusOr<std::string> TypeInfoToString(const TypeInfo& ti) {
-    if (ti.dict().empty()) {
-      return "";
-    }
-    std::vector<std::string> strings;
-    for (const auto& [node, type] : ti.dict()) {
-      Span span = node->GetSpan().has_value() ? *node->GetSpan() : Span::Fake();
-      strings.push_back(absl::Substitute("span: $0, node: `$1`, type: $2",
-                                         span.ToString(file_table_),
-                                         node->ToString(), type->ToString()));
-    }
-    absl::c_sort(strings);
-    return strings.size() == 1
-               ? strings[0]
-               : absl::Substitute("\n$0\n", absl::StrJoin(strings, "\n"));
   }
 
   absl::StatusOr<std::string> ConvertTableToTypeInfoString() {
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, ConvertTableToTypeInfo());
-    return TypeInfoToString(*ti);
+    return TypeInfoToString(*ti, file_table_);
   }
 
   void ParseAndInitModuleAndTable(std::string_view program) {
@@ -250,9 +230,9 @@ TEST_F(InferenceTableTest, ParametricVariable) {
   EXPECT_TRUE(invocation_ti1.has_value());
   EXPECT_TRUE(invocation_ti2.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1));
+                           TypeInfoToString(**invocation_ti1, file_table_));
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2));
+                           TypeInfoToString(**invocation_ti2, file_table_));
   EXPECT_THAT(invocation_ti1_string,
               HasSubstr("node: `a: uN[N]`, type: uN[4]"));
   EXPECT_THAT(invocation_ti2_string,
@@ -300,9 +280,9 @@ TEST_F(InferenceTableTest, ParametricVariableForSignedness) {
   EXPECT_TRUE(invocation_ti1.has_value());
   EXPECT_TRUE(invocation_ti2.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1));
+                           TypeInfoToString(**invocation_ti1, file_table_));
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2));
+                           TypeInfoToString(**invocation_ti2, file_table_));
   EXPECT_THAT(invocation_ti1_string,
               HasSubstr("node: `a: xN[S][N]`, type: sN[4]"));
   EXPECT_THAT(invocation_ti2_string,
@@ -355,9 +335,9 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   EXPECT_TRUE(invocation_ti1.has_value());
   EXPECT_TRUE(invocation_ti2.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1));
+                           TypeInfoToString(**invocation_ti1, file_table_));
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2));
+                           TypeInfoToString(**invocation_ti2, file_table_));
   EXPECT_THAT(invocation_ti1_string,
               AllOf(HasSubstr("node: `a: uN[M]`, type: uN[4]"),
                     HasSubstr("node: `b: uN[N]`, type: uN[16]")));
@@ -400,7 +380,7 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
       ti->GetInvocationTypeInfo(invocation, ParametricEnv());
   EXPECT_TRUE(invocation_ti.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti));
+                           TypeInfoToString(**invocation_ti, file_table_));
   EXPECT_THAT(invocation_ti1_string,
               HasSubstr("node: `a: uN[M]`, type: uN[5]"));
 }
@@ -499,9 +479,9 @@ TEST_F(InferenceTableTest, ParametricVariableAndParametricCaller) {
   EXPECT_TRUE(invocation_ti1.has_value());
   EXPECT_TRUE(invocation_ti2.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1));
+                           TypeInfoToString(**invocation_ti1, file_table_));
   XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2));
+                           TypeInfoToString(**invocation_ti2, file_table_));
   EXPECT_THAT(invocation_ti1_string,
               AllOf(HasSubstr("node: `a: uN[M]`, type: uN[5]"),
                     HasSubstr("node: `b: uN[N]`, type: uN[25]")));

@@ -16,7 +16,6 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_
 
 #include <cstdint>
-#include <utility>
 #include <variant>
 
 #include "absl/status/statusor.h"
@@ -49,6 +48,12 @@ struct SignednessAndBitCountResult {
 // a bits-like annotation; otherwise, returns an error.
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
     const TypeAnnotation* annotation);
+
+// Creates a type annotation for a literal `number`, which is sized to fit the
+// value. If the `number` is negative, then the annotation will be signed and
+// have room for a sign bit; otherwise, it will not.
+absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
+    Module& module, const Number& number);
 
 }  // namespace xls::dslx
 

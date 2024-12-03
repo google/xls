@@ -35,6 +35,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -94,8 +95,11 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   std::string_view module_name = module->name();
 
   WarningCollector warnings(import_data->enabled_warnings());
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       TypecheckModule(module.get(), import_data, &warnings));
+  XLS_ASSIGN_OR_RETURN(
+      TypeInfo * type_info,
+      module->annotations().contains(ModuleAnnotation::kTypeInferenceVersion2)
+          ? TypecheckModuleV2(module.get(), import_data, &warnings)
+          : TypecheckModule(module.get(), import_data, &warnings));
   TypecheckedModule result{module.get(), type_info, std::move(warnings)};
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));

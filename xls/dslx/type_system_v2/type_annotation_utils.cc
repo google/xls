@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 #include <cstdint>
+#include <utility>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -23,6 +24,8 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
 
@@ -97,6 +100,26 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
   return absl::InvalidArgumentError(
       absl::StrCat("Cannot extract signedness and bit count from annotation: ",
                    annotation->ToString()));
+}
+
+absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
+    Module& module, const Number& number) {
+  switch (number.number_kind()) {
+    case NumberKind::kCharacter:
+      return module.Make<BuiltinTypeAnnotation>(
+          number.span(), BuiltinType::kU8,
+          module.GetOrCreateBuiltinNameDef("u8"));
+    case NumberKind::kBool:
+      return module.Make<BuiltinTypeAnnotation>(
+          number.span(), BuiltinType::kBool,
+          module.GetOrCreateBuiltinNameDef("bool"));
+    case NumberKind::kOther:
+      std::pair<bool, Bits> sign_magnitude;
+      XLS_ASSIGN_OR_RETURN(sign_magnitude, GetSignAndMagnitude(number.text()));
+      const auto& [sign, magnitude] = sign_magnitude;
+      return CreateUnOrSnAnnotation(module, number.span(), sign,
+                                    magnitude.bit_count() + (sign ? 1 : 0));
+  }
 }
 
 }  // namespace xls::dslx

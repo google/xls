@@ -508,6 +508,7 @@ cc_library(
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck_module",
+        "//xls/dslx/type_system_v2:typecheck_module_v2",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",

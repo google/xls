@@ -67,6 +67,12 @@ absl::Status SignednessMismatchErrorStatus(const TypeAnnotation* annotation1,
                                            const TypeAnnotation* annotation2,
                                            const FileTable& file_table);
 
+// Variant of `TypeInferenceErrorStatus` for when the bit count of one type
+// annotation is expected to match another and doesn't.
+absl::Status BitCountMismatchErrorStatus(const TypeAnnotation* annotation1,
+                                         const TypeAnnotation* annotation2,
+                                         const FileTable& file_table);
+
 // Creates a TypeMissingError status value referencing the given node (which has
 // its type missing) and user (which found that its type was missing).
 absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,
