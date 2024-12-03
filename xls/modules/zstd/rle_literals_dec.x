@@ -19,390 +19,260 @@
 import std;
 
 import xls.modules.zstd.common;
-import xls.modules.rle.rle_dec;
-import xls.modules.rle.rle_common;
 
-const RLE_LITERALS_DATA_WIDTH = common::RLE_LITERALS_DATA_WIDTH;
-const RLE_LITERALS_REPEAT_WIDTH = common::RLE_LITERALS_REPEAT_WIDTH;
-const LITERALS_DATA_WIDTH = common::LITERALS_DATA_WIDTH;
-const LITERALS_LENGTH_WIDTH = common::LITERALS_LENGTH_WIDTH;
-
-type RleInput = rle_common::CompressedData<RLE_LITERALS_DATA_WIDTH, RLE_LITERALS_REPEAT_WIDTH>;
-type RleOutput = rle_common::PlainData<RLE_LITERALS_DATA_WIDTH>;
-type RleLiteralsData = common::RleLiteralsData;
 type LiteralsDataWithSync = common::LiteralsDataWithSync;
-
 type RleLitData = common::RleLitData;
 type RleLitRepeat = common::RleLitRepeat;
 type LitData = common::LitData;
 type LitID = common::LitID;
 type LitLength = common::LitLength;
 
-struct LiteralsSyncData {
-    count: RleLitRepeat,
-    id: LitID,
-    last: bool,
+pub enum RleLiteralsDecoderStatus: u1 {
+    OKAY = 0,
 }
 
-proc RleDataPacker {
-    literals_data_r: chan<RleLiteralsData> in;
-    rle_data_s: chan<RleInput> out;
-    sync_s: chan<LiteralsSyncData> out;
-
-    config(
-        literals_data_r: chan<RleLiteralsData> in,
-        rle_data_s: chan<RleInput> out,
-        sync_s: chan<LiteralsSyncData> out,
-    ) {
-        (literals_data_r, rle_data_s, sync_s)
-    }
-
-    init { }
-
-    next(state: ()) {
-        let tok = join();
-        let (tok, input) = recv(tok, literals_data_r);
-        let not_zero_repeat = (input.repeat != RleLitRepeat:0);
-        let rle_dec_data = RleInput { symbol: input.data, count: input.repeat, last: true };
-        let data_tok = send_if(tok, rle_data_s, not_zero_repeat, rle_dec_data);
-        let sync_data = LiteralsSyncData { count: input.repeat, id: input.id, last: input.last };
-        let sync_tok = send_if(data_tok, sync_s, not_zero_repeat || input.last, sync_data);
-    }
+pub struct RleLiteralsDecoderReq {
+    id: u32,
+    symbol: u8,
+    length: RleLitRepeat,
+    literals_last: bool,
 }
 
-#[test_proc]
-proc RleDataPacker_test {
-    terminator: chan<bool> out;
-    in_s: chan<RleLiteralsData> out;
-    out_r: chan<RleInput> in;
-    sync_r: chan<LiteralsSyncData> in;
-
-    config(terminator: chan<bool> out) {
-        let (in_s, in_r) = chan<RleLiteralsData>("in");
-        let (out_s, out_r) = chan<RleInput>("out");
-        let (sync_s, sync_r) = chan<LiteralsSyncData>("sync");
-
-        spawn RleDataPacker(in_r, out_s, sync_s);
-
-        (terminator, in_s, out_r, sync_r)
-    }
-
-    init {  }
-
-    next(state: ()) {
-        let tok = join();
-        let test_data: RleLiteralsData[5] = [
-            RleLiteralsData {data: RleLitData:0xAB, repeat: RleLitRepeat:11, id: LitID:0, last: bool:0},
-            RleLiteralsData {data: RleLitData:0xCD, repeat: RleLitRepeat:3, id: LitID:1, last: bool:0},
-            RleLiteralsData {data: RleLitData:0x12, repeat: RleLitRepeat:16, id: LitID:2, last: bool:0},
-            RleLiteralsData {data: RleLitData:0x34, repeat: RleLitRepeat:20, id: LitID:3, last: bool:0},
-            RleLiteralsData {data: RleLitData:0x56, repeat: RleLitRepeat:2, id: LitID:4, last: bool:1},
-        ];
-
-        let tok = for ((counter, test_data), tok): ((u32, RleLiteralsData), token) in enumerate(test_data) {
-            let expected_data_out = RleInput {
-                symbol: test_data.data,
-                count: test_data.repeat,
-                last: true,
-            };
-
-            let expected_sync_out = LiteralsSyncData {
-                count: test_data.repeat,
-                id: test_data.id,
-                last: test_data.last,
-            };
-
-            let tok = send(tok, in_s, test_data);
-            trace_fmt!("Send #{} rle literals data, {:#x}", counter + u32:1, test_data);
-
-            let (tok, data_out) = recv(tok, out_r);
-            trace_fmt!("Received #{} rle input data, {:#x}", counter + u32:1, data_out);
-            assert_eq(data_out, expected_data_out);
-
-            let (tok, sync_out) = recv(tok, sync_r);
-            trace_fmt!("Received #{} sync data, {:#x}", counter + u32:1, sync_out);
-            assert_eq(sync_out, expected_sync_out);
-
-            (tok)
-        }(tok);
-
-        send(tok, terminator, true);
-    }
+pub struct RleLiteralsDecoderResp {
+    status: RleLiteralsDecoderStatus
 }
 
-struct BatchPackerState {
-    batch: LitData,
-    data_in_batch: LitLength,
-    count_left: RleLitRepeat,
-    sync_id: LitID,
-    sync_last: bool,
+struct RleLiteralsDecoderState {
+    req: RleLiteralsDecoderReq,
+    req_valid: bool,
 }
 
-// auxiliary variable used to replace multiplication with shifts
-const_assert!(std::is_pow2(RLE_LITERALS_DATA_WIDTH));
-const RLE_LITERALS_DATA_WIDTH_SHIFT = std::clog2(RLE_LITERALS_DATA_WIDTH);
+pub proc RleLiteralsDecoder<DATA_W: u32> {
+    type Req = RleLiteralsDecoderReq;
+    type Resp = RleLiteralsDecoderResp;
+    type Output = LiteralsDataWithSync;
 
-proc BatchPacker {
-    rle_data_r: chan<RleOutput> in;
-    sync_r: chan<LiteralsSyncData> in;
-    literals_data_s: chan<LiteralsDataWithSync> out;
+    type State = RleLiteralsDecoderState;
 
-    config(
-        rle_data_r: chan<RleOutput> in,
-        sync_r: chan<LiteralsSyncData> in,
-        literals_data_s: chan<LiteralsDataWithSync> out,
-    ) {
-        (rle_data_r, sync_r, literals_data_s)
-    }
+    req_r: chan<Req> in;
+    resp_s: chan<Resp> out;
+    output_s: chan<Output> out;
 
-    init { zero!<BatchPackerState>() }
+    config( req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        output_s: chan<Output> out,
+    ) { (req_r, resp_s, output_s) }
 
-    next(state: BatchPackerState) {
-        let tok = join();
-        let no_count_left = (state.count_left == RleLitRepeat:0);
-        let (tok, sync_data) = recv_if(tok, sync_r, no_count_left, zero!<LiteralsSyncData>());
-        let (count_left, sync_id, sync_last) = if (no_count_left) {
-            (sync_data.count, sync_data.id, sync_data.last)
-        } else {
-            (state.count_left, state.sync_id, state.sync_last)
+    init { zero!<State>() }
+
+    next(state: State) {
+        const MAX_OUTPUT_SYMBOLS = (DATA_W / u32:8);
+        const MAX_LEN = MAX_OUTPUT_SYMBOLS as RleLitRepeat;
+
+        let tok0 = join();
+
+        let (tok1, req) = recv_if(tok0, req_r, !state.req_valid, state.req);
+
+        let last = req.length <= MAX_LEN;
+        let length = if last { req.length } else { MAX_LEN };
+        let data = unroll_for! (i, data): (u32, uN[DATA_W]) in range(u32:0, MAX_OUTPUT_SYMBOLS) {
+            bit_slice_update(data, i * u32:8, req.symbol)
+        }(uN[DATA_W]:0);
+
+        let output = Output {
+            last: last,
+            literals_last: req.literals_last,
+            id: req.id,
+            data: checked_cast<LitData>(data),
+            length: checked_cast<LitLength>(length),
         };
 
-        let (literals_data, do_send_batch, state) = if (count_left != RleLitRepeat:0) {
-            let (tok, decoded_data) = recv(tok, rle_data_r);
+        send_if(tok1, resp_s, last, zero!<Resp>());
+        send(tok1, output_s, output);
 
-            let data_in_batch = state.data_in_batch;
-            // shift batch and append new symbol
-            let shift = (data_in_batch as u32) << RLE_LITERALS_DATA_WIDTH_SHIFT;
-
-            let batch = state.batch | ((decoded_data.symbol as LitData) << shift);
-            let data_in_batch = data_in_batch + LitLength:1;
-            // send batch if it is the last batch or it is full
-            let do_send_batch = (
-                decoded_data.last
-                | (((data_in_batch as u32 + u32:1) << RLE_LITERALS_DATA_WIDTH_SHIFT) > LITERALS_DATA_WIDTH)
-            );
-            let literals_data = LiteralsDataWithSync {
-                data: batch,
-                length: data_in_batch,
-                last: sync_last && decoded_data.last,
-                id: sync_id,
-                literals_last: decoded_data.last,
-            };
-
-            let state = if do_send_batch {
-                BatchPackerState {
-                    count_left: count_left - RleLitRepeat:1,
-                    sync_id: sync_id,
-                    sync_last: sync_last,
-                    ..zero!<BatchPackerState>()
-                }
-            } else {
-                BatchPackerState {
-                    batch: batch,
-                    data_in_batch: data_in_batch,
-                    count_left: count_left - RleLitRepeat:1,
-                    sync_id: sync_id,
-                    sync_last: sync_last,
-                }
-            };
-
-            (literals_data, do_send_batch, state)
-        } else if (sync_data.last) {
-            // handle empty literal with last set
-            (
-                LiteralsDataWithSync {id: sync_id, last: true, literals_last: true, ..zero!<LiteralsDataWithSync>()},
-                true,
-                BatchPackerState {
-                    count_left: count_left,
-                    sync_id: sync_id,
-                    sync_last: sync_last,
-                    ..state
-                },
-            )
+        if last {
+            zero!<State>()
         } else {
-            // handle empty literal with last not set
-            (
-                zero!<LiteralsDataWithSync>(),
-                false,
-                BatchPackerState {
-                    count_left: count_left,
-                    sync_id: sync_id,
-                    sync_last: sync_last,
-                    ..state
-                },
-            )
-        };
-
-        let data_tok = send_if(tok, literals_data_s, do_send_batch, literals_data);
-
-        state
+            let length = req.length - MAX_LEN;
+            State {
+                req: Req { length, ..req },
+                req_valid: true,
+            }
+        }
     }
 }
 
-#[test_proc]
-proc BatchPacker_test {
-    terminator: chan<bool> out;
-    in_s: chan<RleOutput> out;
-    sync_s: chan<LiteralsSyncData> out;
-    out_r: chan<LiteralsDataWithSync> in;
+const INST_DATA_W = u32:64;
 
-    config(terminator: chan<bool> out) {
-        let (in_s, in_r) = chan<RleOutput>("in");
-        let (sync_s, sync_r) = chan<LiteralsSyncData>("sync");
-        let (out_s, out_r) = chan<LiteralsDataWithSync>("out");
+pub proc RleLiteralsDecoderInst {
+    type Req = RleLiteralsDecoderReq;
+    type Resp = RleLiteralsDecoderResp;
+    type Output = LiteralsDataWithSync;
 
-        spawn BatchPacker(in_r, sync_r, out_s);
-
-        (terminator, in_s, sync_s, out_r)
+    config(
+        req_r: chan<Req> in,
+        resp_s: chan<Resp> out,
+        output_s: chan<Output> out,
+    ) {
+        spawn RleLiteralsDecoder<INST_DATA_W>(
+            req_r, resp_s, output_s
+        );
     }
 
-    init {  }
+    init { () }
 
-    next(state: ()) {
-        let tok = join();
-        let test_sync_data: LiteralsSyncData[4] = [
-            LiteralsSyncData {count: RleLitRepeat:1, id: LitID:0, last: false},
-            LiteralsSyncData {count: RleLitRepeat:8, id: LitID:1, last: false},
-            LiteralsSyncData {count: RleLitRepeat:10, id: LitID:2, last: false},
-            LiteralsSyncData {count: RleLitRepeat:13, id: LitID:3, last: true},
-        ];
-        let test_rle_data: RleOutput[32] = [
-            // 1st literal
-            RleOutput {symbol: RleLitData:0x11, last: true},
-            // 2nd literal
-            RleOutput {symbol: RleLitData:0x22, last: false}, RleOutput {symbol: RleLitData:0x22, last: false},
-            RleOutput {symbol: RleLitData:0x22, last: false}, RleOutput {symbol: RleLitData:0x22, last: false},
-            RleOutput {symbol: RleLitData:0x22, last: false}, RleOutput {symbol: RleLitData:0x22, last: false},
-            RleOutput {symbol: RleLitData:0x22, last: false}, RleOutput {symbol: RleLitData:0x22, last: true},
-            // 3rd literal
-            RleOutput {symbol: RleLitData:0x33, last: false}, RleOutput {symbol: RleLitData:0x33, last: false},
-            RleOutput {symbol: RleLitData:0x33, last: false}, RleOutput {symbol: RleLitData:0x33, last: false},
-            RleOutput {symbol: RleLitData:0x33, last: false}, RleOutput {symbol: RleLitData:0x33, last: false},
-            RleOutput {symbol: RleLitData:0x33, last: false}, RleOutput {symbol: RleLitData:0x33, last: false},
-            RleOutput {symbol: RleLitData:0x33, last: false}, RleOutput {symbol: RleLitData:0x33, last: true},
-            // 4th literal
-            RleOutput {symbol: RleLitData:0x44, last: false}, RleOutput {symbol: RleLitData:0x44, last: false},
-            RleOutput {symbol: RleLitData:0x44, last: false}, RleOutput {symbol: RleLitData:0x44, last: false},
-            RleOutput {symbol: RleLitData:0x44, last: false}, RleOutput {symbol: RleLitData:0x44, last: false},
-            RleOutput {symbol: RleLitData:0x44, last: false}, RleOutput {symbol: RleLitData:0x44, last: false},
-            RleOutput {symbol: RleLitData:0x44, last: false}, RleOutput {symbol: RleLitData:0x44, last: false},
-            RleOutput {symbol: RleLitData:0x44, last: false}, RleOutput {symbol: RleLitData:0x44, last: false},
-            RleOutput {symbol: RleLitData:0x44, last: true},
-        ];
-        let test_out_data: LiteralsDataWithSync[6] = [
-            LiteralsDataWithSync {data: LitData:0x0000_0000_0000_0011, length: LitLength:1, id: LitID:0, last: false, literals_last: true},
-            LiteralsDataWithSync {data: LitData:0x2222_2222_2222_2222, length: LitLength:8, id: LitID:1, last: false, literals_last: true},
-            LiteralsDataWithSync {data: LitData:0x3333_3333_3333_3333, length: LitLength:8, id: LitID:2, last: false, literals_last: false},
-            LiteralsDataWithSync {data: LitData:0x0000_0000_0000_3333, length: LitLength:2, id: LitID:2, last: false, literals_last: true},
-            LiteralsDataWithSync {data: LitData:0x4444_4444_4444_4444, length: LitLength:8, id: LitID:3, last: false, literals_last: false},
-            LiteralsDataWithSync {data: LitData:0x0000_0044_4444_4444, length: LitLength:5, id: LitID:3, last: true, literals_last: true},
-        ];
-
-        let tok = for ((counter, sync_data), tok): ((u32, LiteralsSyncData), token) in enumerate(test_sync_data) {
-            let tok = send(tok, sync_s, sync_data);
-            trace_fmt!("Sent #{} synchronization data, {:#x}", counter + u32:1, sync_data);
-            (tok)
-        }(tok);
-
-        let tok = for ((counter, rle_data), tok): ((u32, RleOutput), token) in enumerate(test_rle_data) {
-            let tok = send(tok, in_s, rle_data);
-            trace_fmt!("Sent #{} rle data, {:#x}", counter + u32:1, rle_data);
-            (tok)
-        }(tok);
-
-        let tok = for ((counter, expected_out_data), tok): ((u32, LiteralsDataWithSync), token) in enumerate(test_out_data) {
-            let (tok, out_data) = recv(tok, out_r);
-            trace_fmt!("Received #{} batched data, {:#x}", counter + u32:1, out_data);
-            assert_eq(out_data, expected_out_data);
-            (tok)
-        }(tok);
-
-        send(tok, terminator, true);
-    }
+    next(state: ()) {}
 }
 
-pub proc RleLiteralsDecoder {
-    input_r: chan<RleLiteralsData> in;
-    output_s: chan<LiteralsDataWithSync> out;
-
-    config(input_r: chan<RleLiteralsData> in, output_s: chan<LiteralsDataWithSync> out) {
-        let (in_s, in_r) = chan<RleInput, u32:1>("in");
-        let (out_s, out_r) = chan<RleOutput, u32:1>("in");
-        let (sync_s, sync_r) = chan<LiteralsSyncData, u32:1>("sync");
-
-        spawn RleDataPacker(input_r, in_s, sync_s);
-        spawn rle_dec::RunLengthDecoder<RLE_LITERALS_DATA_WIDTH, RLE_LITERALS_REPEAT_WIDTH>(in_r, out_s);
-        spawn BatchPacker(out_r, sync_r, output_s);
-
-        (input_r, output_s)
-    }
-
-    init { }
-
-    next(state: ()) { }
-}
+const TEST_DATA_W = u32:64;
 
 #[test_proc]
 proc RleLiteralsDecoder_test {
+    type Req = RleLiteralsDecoderReq;
+    type Resp = RleLiteralsDecoderResp;
+    type Output = LiteralsDataWithSync;
+    type Status = RleLiteralsDecoderStatus;
+
     terminator: chan<bool> out;
-    in_s: chan<RleLiteralsData> out;
-    out_r: chan<LiteralsDataWithSync> in;
+    req_s: chan<Req> out;
+    resp_r: chan<Resp> in;
+    out_r: chan<Output> in;
 
     config (terminator: chan<bool> out) {
-        let (in_s, in_r) = chan<RleLiteralsData>("in");
-        let (out_s, out_r) = chan<LiteralsDataWithSync>("out");
+        let (req_s, req_r) = chan<Req>("req");
+        let (resp_s, resp_r) = chan<Resp>("resp");
+        let (out_s, out_r) = chan<Output>("output");
 
-        spawn RleLiteralsDecoder(in_r, out_s);
+        spawn RleLiteralsDecoder<TEST_DATA_W>(
+            req_r, resp_s, out_s
+        );
 
-        (terminator, in_s, out_r)
+        (terminator, req_s, resp_r, out_r)
     }
 
-    init {  }
+    init { }
 
     next(state: ()) {
         let tok = join();
-        let test_rle_data: RleLiteralsData[7] = [
-            RleLiteralsData {data: RleLitData:0x11, repeat: RleLitRepeat:11, id: LitID:0, last: false},
-            RleLiteralsData {data: RleLitData:0x22, repeat: RleLitRepeat:3, id: LitID:1, last: false},
-            RleLiteralsData {data: RleLitData:0x33, repeat: RleLitRepeat:16, id: LitID:2, last: false},
-            RleLiteralsData {data: RleLitData:0x44, repeat: RleLitRepeat:0, id: LitID:0, last: false},
-            RleLiteralsData {data: RleLitData:0x55, repeat: RleLitRepeat:2, id: LitID:3, last: false},
-            RleLiteralsData {data: RleLitData:0x66, repeat: RleLitRepeat:20, id: LitID:4, last: false},
-            RleLiteralsData {data: RleLitData:0x00, repeat: RleLitRepeat:0, id: LitID:5, last: true},
+        let test_rle_req: Req[6] = [
+            Req {symbol: RleLitData:0x11, length: RleLitRepeat:11, id: LitID:0, literals_last: false},
+            Req {symbol: RleLitData:0x22, length: RleLitRepeat:3, id: LitID:1, literals_last: false},
+            Req {symbol: RleLitData:0x33, length: RleLitRepeat:16, id: LitID:2, literals_last: false},
+            Req {symbol: RleLitData:0x55, length: RleLitRepeat:2, id: LitID:3, literals_last: false},
+            Req {symbol: RleLitData:0x66, length: RleLitRepeat:20, id: LitID:4, literals_last: false},
+            Req {symbol: RleLitData:0x00, length: RleLitRepeat:0, id: LitID:5, literals_last: true},
+        ];
+        let test_rle_resp: Resp[6] = [
+            Resp {status: Status::OKAY},
+            Resp {status: Status::OKAY},
+            Resp {status: Status::OKAY},
+            Resp {status: Status::OKAY},
+            Resp {status: Status::OKAY},
+            Resp {status: Status::OKAY},
         ];
 
         let test_out_data: LiteralsDataWithSync[10] = [
             // 1st literal
-            LiteralsDataWithSync {data: LitData:0x1111_1111_1111_1111, length: LitLength:8, last: false, id: LitID:0, literals_last: false},
-            LiteralsDataWithSync {data: LitData:0x0000_0000_0011_1111, length: LitLength:3, last: false, id: LitID:0, literals_last: true},
+            LiteralsDataWithSync {data: LitData:0x1111_1111_1111_1111, length: LitLength:8, id: LitID:0, last: false, literals_last: false},
+            LiteralsDataWithSync {data: LitData:0x1111_1111_1111_1111, length: LitLength:3, id: LitID:0, last: true, literals_last: false},
             // 2nd literal
-            LiteralsDataWithSync {data: LitData:0x0000_0000_0022_2222, length: LitLength:3, last: false, id: LitID:1, literals_last: true},
+            LiteralsDataWithSync {data: LitData:0x2222_2222_2222_2222, length: LitLength:3, id: LitID:1, last: true, literals_last: false},
             // 3rd literal
-            LiteralsDataWithSync {data: LitData:0x3333_3333_3333_3333, length: LitLength:8, last: false, id: LitID:2, literals_last: false},
-            LiteralsDataWithSync {data: LitData:0x3333_3333_3333_3333, length: LitLength:8, last: false, id: LitID:2, literals_last: true},
-            // 4th literal (empty)
+            LiteralsDataWithSync {data: LitData:0x3333_3333_3333_3333, length: LitLength:8, id: LitID:2, last: false, literals_last: false},
+            LiteralsDataWithSync {data: LitData:0x3333_3333_3333_3333, length: LitLength:8, id: LitID:2, last: true, literals_last: false},
             // 5th literal
-            LiteralsDataWithSync {data: LitData:0x0000_0000_0000_5555, length: LitLength:2, last: false, id: LitID:3, literals_last: true},
+            LiteralsDataWithSync {data: LitData:0x5555_5555_5555_5555, length: LitLength:2, id: LitID:3, last: true, literals_last: false},
             // 6th literal
-            LiteralsDataWithSync {data: LitData:0x6666_6666_6666_6666, length: LitLength:8, last: false, id: LitID:4, literals_last: false},
-            LiteralsDataWithSync {data: LitData:0x6666_6666_6666_6666, length: LitLength:8, last: false, id: LitID:4, literals_last: false},
-            LiteralsDataWithSync {data: LitData:0x0000_0000_6666_6666, length: LitLength:4, last: false, id: LitID:4, literals_last: true},
+            LiteralsDataWithSync {data: LitData:0x6666_6666_6666_6666, length: LitLength:8, id: LitID:4, last: false, literals_last: false},
+            LiteralsDataWithSync {data: LitData:0x6666_6666_6666_6666, length: LitLength:8, id: LitID:4, last: false, literals_last: false},
+            LiteralsDataWithSync {data: LitData:0x6666_6666_6666_6666, length: LitLength:4, id: LitID:4, last: true, literals_last: false},
             // 7th literal
-            LiteralsDataWithSync {data: LitData:0x0000_0000_0000_0000, length: LitLength:0, last: true, id: LitID:5, literals_last: true},
+            LiteralsDataWithSync {data: LitData:0x0000_0000_0000_0000, length: LitLength:0, id: LitID:5, last: true, literals_last: true},
         ];
 
-        let tok = for ((counter, rle_data), tok): ((u32, RleLiteralsData), token) in enumerate(test_rle_data) {
-            let tok = send(tok, in_s, rle_data);
-            trace_fmt!("Sent #{} rle data, {:#x}", counter + u32:1, rle_data);
-            (tok)
-        }(tok);
+        // Test #0
+        let req = test_rle_req[0];
+        let resp = test_rle_resp[0];
+        let tok = send(tok, req_s, req);
+        trace_fmt!("Sent req: {:#x}", req);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[0]);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[1]);
+        let (tok, rle_resp) = recv(tok, resp_r);
+        trace_fmt!("Received resp: {:#x}", rle_resp);
+        assert_eq(rle_resp, resp);
 
-        let tok = for ((counter, expected_out_data), tok): ((u32, LiteralsDataWithSync), token) in enumerate(test_out_data) {
-            let (tok, out_data) = recv(tok, out_r);
-            trace_fmt!("Received #{} batched data, {:#x}", counter + u32:1, out_data);
-            assert_eq(out_data, expected_out_data);
-            (tok)
-        }(tok);
+        // Test #1
+        let req = test_rle_req[1];
+        let resp = test_rle_resp[1];
+        let tok = send(tok, req_s, req);
+        trace_fmt!("Sent req: {:#x}", req);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[2]);
+        let (tok, rle_resp) = recv(tok, resp_r);
+        trace_fmt!("Received resp: {:#x}", rle_resp);
+        assert_eq(rle_resp, resp);
+
+        // Test #2
+        let req = test_rle_req[2];
+        let resp = test_rle_resp[2];
+        let tok = send(tok, req_s, req);
+        trace_fmt!("Sent req: {:#x}", req);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[3]);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[4]);
+        let (tok, rle_resp) = recv(tok, resp_r);
+        trace_fmt!("Received resp: {:#x}", rle_resp);
+        assert_eq(rle_resp, resp);
+
+        // Test #3
+        let req = test_rle_req[3];
+        let resp = test_rle_resp[3];
+        let tok = send(tok, req_s, req);
+        trace_fmt!("Sent req: {:#x}", req);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[5]);
+        let (tok, rle_resp) = recv(tok, resp_r);
+        trace_fmt!("Received resp: {:#x}", rle_resp);
+        assert_eq(rle_resp, resp);
+
+        // Test #4
+        let req = test_rle_req[4];
+        let resp = test_rle_resp[4];
+        let tok = send(tok, req_s, req);
+        trace_fmt!("Sent req: {:#x}", req);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[6]);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[7]);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[8]);
+        let (tok, rle_resp) = recv(tok, resp_r);
+        trace_fmt!("Received resp: {:#x}", rle_resp);
+        assert_eq(rle_resp, resp);
+
+        // Test #5
+        let req = test_rle_req[5];
+        let resp = test_rle_resp[5];
+        let tok = send(tok, req_s, req);
+        trace_fmt!("Sent req: {:#x}", req);
+        let (tok, out_data) = recv(tok, out_r);
+        trace_fmt!("Received batched data: {:#x}", out_data);
+        assert_eq(out_data, test_out_data[9]);
+        let (tok, rle_resp) = recv(tok, resp_r);
+        trace_fmt!("Received resp: {:#x}", rle_resp);
+        assert_eq(rle_resp, resp);
 
         send(tok, terminator, true);
     }

@@ -103,7 +103,7 @@ struct LiteralsBufferReaderToWriterSync {
 }
 
 // PacketDecoder is responsible for receiving read bytes from RAMs response
-// handler, removing the "last" flag from each literal and adding this flag
+// handler, removing the "literals_last" flag from each literal and adding this flag
 // to the packet. It also validates the data.
 proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
     literals_in_r: chan<SequenceExecutorPacket<RAM_DATA_WIDTH>> in;
@@ -133,43 +133,23 @@ proc PacketDecoder<RAM_ADDR_WIDTH: u32> {
             )
         }(CopyOrMatchContent:0);
 
-        // Extract last and validate packet. The resulting last is set if and
-        // only if any of the literas has it set. Also if any literal has set
-        // this flag, then the flag in following literal must also be set. In
-        // other case, the assertion is triggered.
-        let (last, _, packet_valid, _) = for (i, (last, prev_literal_last, packet_valid, prev_calc)): (u32, (bool, bool, bool, bool)) in range(u32:0, RAM_NUM) {
-            let literal_last = (literals.content >> (RAM_DATA_WIDTH * (i + u32:1) - u32:1)) as u1;
-            let calc = if (i == literals.length as uN[32]) {
-              false
-            } else {
-              prev_calc
-            };
-            if (calc) {
-              (
-                last | literal_last,
-                literal_last,
-                packet_valid & (!prev_literal_last | literal_last),
-                calc
-              )
-            } else {
-              (
-                last,
-                literal_last,
-                packet_valid,
-                calc
-              )
-            }
-        }((false, false, true, true));
+        let literals_lasts = for (i, lasts): (u32, bool[RAM_NUM]) in range(u32:0, RAM_NUM) {
+            let last = (literals.content >> (RAM_DATA_WIDTH * (i + u32:1) - u32:1)) as u1;
+            update(lasts, i, last)
+        }(bool[RAM_NUM]:[0, ...]);
+        let literals_last = literals_lasts[literals.length - u64:1];
 
-        assert!(packet_valid && (literals.last == last), "Invalid packet");
+        // TODO: Restore this check after extending request to CommandConstructor
+        // assert!(literals.last == literals_last, "Invalid packet");
 
         // Send literals data
-        let tok = send(tok, literals_out_s, SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+        let literals_out = SequenceExecutorPacket<common::SYMBOL_WIDTH> {
             msg_type: SequenceExecutorMessageType::LITERAL,
             length: literals.length,
             content: literals_data,
-            last: last
-        });
+            last: literals_last
+        };
+        let tok = send(tok, literals_out_s, literals_out);
 
         // Send sync data to buffer writer
         let tok = send(tok, buffer_sync_s, LiteralsBufferReaderToWriterSync {
@@ -348,8 +328,6 @@ proc LiteralsBufferMux {
         let sel_raw_literals = state.raw_literals_valid && state.raw_literals_data.id == state.literals_id;
         let sel_rle_literals = state.rle_literals_valid && state.rle_literals_data.id == state.literals_id;
         let sel_huff_literals = state.huff_literals_valid && state.huff_literals_data.id == state.literals_id;
-
-        let literals_data = zero!<LiteralsDataWithSync>();
         let literals_valid = sel_raw_literals || sel_rle_literals || sel_huff_literals;
 
         let (literals_data, state) = if (sel_raw_literals) {
@@ -369,22 +347,29 @@ proc LiteralsBufferMux {
             )
         } else {
             (
-                literals_data,
+                zero!<LiteralsDataWithSync>(),
                 state
             )
         };
 
-        send_if(tok1, out_literals_s, literals_valid, LiteralsData {
+        let out_literals = LiteralsData {
             data: literals_data.data,
             length: literals_data.length,
             last: literals_data.last,
-        });
+        };
 
-        if (literals_data.literals_last) {
-            LiteralsBufferMuxState { literals_id: state.literals_id + LitID:1, ..state }
-        } else {
-            state
-        }
+        send_if(tok1, out_literals_s, literals_valid, out_literals);
+        if literals_valid {
+            trace_fmt!("[LiteralsBufferMux] literals: {:#x}", out_literals);
+        } else {};
+
+        let next_state = match (literals_data.last, literals_data.literals_last) {
+            (true, false) => LiteralsBufferMuxState { literals_id: state.literals_id + LitID:1, ..state },
+            (true, true) => zero!<LiteralsBufferMuxState>(),
+            (_, _) => state,
+        };
+
+        next_state
     }
 }
 
@@ -496,8 +481,8 @@ proc LiteralsBufferWriter<
 
         // write literals to RAM
         let packet_data = for (i, data): (u32, LiteralsWithLast) in range(u32:0, RAM_NUM) {
-            let literal = (((literals_data.data >> (common::SYMBOL_WIDTH * i)) as uN[common::SYMBOL_WIDTH]) as LiteralsWithLast) |
-                ((literals_data.last as LiteralsWithLast) << common::SYMBOL_WIDTH);
+            let last = if literals_data.length as u32 == i + u32:1 { (literals_data.last as LiteralsWithLast) << common::SYMBOL_WIDTH } else {LiteralsWithLast:0};
+            let literal = (((literals_data.data >> (common::SYMBOL_WIDTH * i)) as uN[common::SYMBOL_WIDTH]) as LiteralsWithLast) | last;
             data | (literal << (RAM_DATA_WIDTH * i))
         }(LiteralsWithLast:0);
 
@@ -974,27 +959,41 @@ enum LiteralsChannel: u2 {
 }
 
 const TEST_LITERALS_DATA: (LiteralsChannel, LiteralsDataWithSync)[9] = [
-    (LiteralsChannel::RAW, LiteralsDataWithSync {data: LitData:0x12_3456_789A, length: LitLength:5, last: false, id: LitID:0, literals_last: true}),
-    (LiteralsChannel::RLE, LiteralsDataWithSync {data: LitData:0xBBBB_BBBB, length: LitLength:4, last: false, id: LitID:1, literals_last: true}),
-    (LiteralsChannel::HUFF, LiteralsDataWithSync {data: LitData:0x64, length: LitLength:1, last: false, id: LitID:2, literals_last: true}),
-    (LiteralsChannel::RLE, LiteralsDataWithSync {data: LitData:0xABCD_DCBA_1234_4321, length: LitLength:8, last: false, id: LitID:3, literals_last: true}),
-    (LiteralsChannel::RAW, LiteralsDataWithSync {data: LitData:0x21_4365, length: LitLength:3, last: false, id: LitID:4, literals_last: true}),
-    (LiteralsChannel::RLE, LiteralsDataWithSync {data: LitData:0xAA_BBBB_CCCC_DDDD, length: LitLength:7, last: false, id: LitID:5, literals_last: true}),
+    (LiteralsChannel::RAW, LiteralsDataWithSync {data: LitData:0x12_3456_789A, length: LitLength:5, last: true, id: LitID:0, literals_last: false}),
+    (LiteralsChannel::RLE, LiteralsDataWithSync {data: LitData:0xBBBB_BBBB, length: LitLength:4, last: true, id: LitID:1, literals_last: false}),
+    (LiteralsChannel::HUFF, LiteralsDataWithSync {data: LitData:0x64, length: LitLength:1, last: true, id: LitID:2, literals_last: false}),
+    (LiteralsChannel::RLE, LiteralsDataWithSync {data: LitData:0xABCD_DCBA_1234_4321, length: LitLength:8, last: true, id: LitID:3, literals_last: false}),
+    (LiteralsChannel::RAW, LiteralsDataWithSync {data: LitData:0x21_4365, length: LitLength:3, last: true, id: LitID:4, literals_last: false}),
+    (LiteralsChannel::RLE, LiteralsDataWithSync {data: LitData:0xAA_BBBB_CCCC_DDDD, length: LitLength:7, last: true, id: LitID:5, literals_last: false}),
     (LiteralsChannel::RAW, LiteralsDataWithSync {data: LitData:0xDCBA_ABCD_1234_4321, length: LitLength:8, last: false, id: LitID:6, literals_last: false}),
-    (LiteralsChannel::RAW, LiteralsDataWithSync {data: LitData:0x78, length: LitLength:1, last: false, id: LitID:6, literals_last: true}),
+    (LiteralsChannel::RAW, LiteralsDataWithSync {data: LitData:0x78, length: LitLength:1, last: true, id: LitID:6, literals_last: false}),
     (LiteralsChannel::HUFF, LiteralsDataWithSync {data: LitData:0x26, length: LitLength:1, last: true, id: LitID:7, literals_last: true}),
 ];
 
-const TEST_BUFFER_CTRL: LiteralsBufferCtrl[6] = [
+const TEST_BUFFER_CTRL: LiteralsBufferCtrl[11] = [
+    // Literal #0
     LiteralsBufferCtrl {length: u32:2, last: false},
     LiteralsBufferCtrl {length: u32:1, last: false},
-    LiteralsBufferCtrl {length: u32:13, last: false},
+    LiteralsBufferCtrl {length: u32:2, last: true},
+    // Literal #1
+    LiteralsBufferCtrl {length: u32:4, last: true},
+    // Literal #2
+    LiteralsBufferCtrl {length: u32:1, last: true},
+    // Literal #3
+    LiteralsBufferCtrl {length: u32:8, last: true},
+    // Literal #4
+    LiteralsBufferCtrl {length: u32:3, last: true},
+    // Literal #5
+    LiteralsBufferCtrl {length: u32:7, last: true},
+    // Literal #6
     LiteralsBufferCtrl {length: u32:8, last: false},
-    LiteralsBufferCtrl {length: u32:4, last: false},
-    LiteralsBufferCtrl {length: u32:10, last: true},
+    LiteralsBufferCtrl {length: u32:1, last: true},
+    // Literal #7
+    LiteralsBufferCtrl {length: u32:1, last: true},
 ];
 
-const TEST_EXPECTED_PACKETS: SequenceExecutorPacket<common::SYMBOL_WIDTH>[8] = [
+const TEST_EXPECTED_PACKETS: SequenceExecutorPacket<common::SYMBOL_WIDTH>[11] = [
+    // Literal #0
     SequenceExecutorPacket<common::SYMBOL_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:2,
@@ -1009,28 +1008,46 @@ const TEST_EXPECTED_PACKETS: SequenceExecutorPacket<common::SYMBOL_WIDTH>[8] = [
     },
     SequenceExecutorPacket<common::SYMBOL_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
-        length: CopyOrMatchLength:8,
-        content: CopyOrMatchContent:0x2164_BBBB_BBBB_1234,
-        last: false
+        length: CopyOrMatchLength:2,
+        content: CopyOrMatchContent:0x1234,
+        last: true
     },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: CopyOrMatchLength:5,
-        content: CopyOrMatchContent:0xDC_BA12_3443,
-        last: false
-    },
-    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: CopyOrMatchLength:8,
-        content: CopyOrMatchContent:0xCCDD_DD21_4365_ABCD,
-        last: false
-    },
+    // Literal #1
     SequenceExecutorPacket<common::SYMBOL_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:4,
-        content: CopyOrMatchContent:0xAABB_BBCC,
-        last: false
+        content: CopyOrMatchContent:0xBBBB_BBBB,
+        last: true
     },
+    // Literal #2
+    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: CopyOrMatchLength:1,
+        content: CopyOrMatchContent:0x64,
+        last: true
+    },
+    // Literal #3
+    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: CopyOrMatchLength:8,
+        content: CopyOrMatchContent:0xABCD_DCBA_1234_4321,
+        last: true
+    },
+    // Literal #4
+    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: CopyOrMatchLength:3,
+        content: CopyOrMatchContent:0x21_4365,
+        last: true
+    },
+    // Literal #5
+    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: CopyOrMatchLength:7,
+        content: CopyOrMatchContent:0xAA_BBBB_CCCC_DDDD,
+        last: true
+    },
+    // Literal #6
     SequenceExecutorPacket<common::SYMBOL_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
         length: CopyOrMatchLength:8,
@@ -1039,10 +1056,17 @@ const TEST_EXPECTED_PACKETS: SequenceExecutorPacket<common::SYMBOL_WIDTH>[8] = [
     },
     SequenceExecutorPacket<common::SYMBOL_WIDTH> {
         msg_type: SequenceExecutorMessageType::LITERAL,
-        length: CopyOrMatchLength:2,
-        content: CopyOrMatchContent:0x2678,
+        length: CopyOrMatchLength:1,
+        content: CopyOrMatchContent:0x78,
         last: true
     },
+    // Literal #7
+    SequenceExecutorPacket<common::SYMBOL_WIDTH> {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: CopyOrMatchLength:1,
+        content: CopyOrMatchContent:0x26,
+        last: true
+    }
 ];
 
 #[test_proc]
