@@ -47,10 +47,7 @@ proc node {
     }
 }
 
-proc matmul<ROWS: u32, COLS: u32, ROWS_PLUS_1: u32 = {ROWS + u32:1}, COLS_PLUS_1:
-u32 = {
-    COLS + u32:1}>
-{
+proc matmul<ROWS: u32, COLS: u32> {
     activations_in: chan<F32>[ROWS] in;
     results_out: chan<F32>[COLS] out;
     west_inputs: chan<F32>[COLS + u32:1][ROWS] in;
@@ -144,20 +141,22 @@ proc test_proc {
         let f32_4 = F32 { sign: false, bexp: u8:129, fraction: u23:0 };
 
         // Send the desired inputs.
-        let tok = unroll_for! (i, tok): (u32, token) in u32:0..u32:4 {
-            send(tok, activations_out[i], f32_2);
-            tok
-        }(join());
+        let activations_tok = unroll_for! (i, tok): (u32, token) in u32:0..u32:4 {
+            let activation_tok = send(token(), activations_out[i], f32_2);
+            join(activation_tok, tok)
+        }(token());
 
-        let (_, value) = recv(tok, results_in[0]);
+        let (results_0_tok, value) = recv(activations_tok, results_in[0]);
         assert_eq(value, f32_0);
-        let (_, value) = recv(tok, results_in[1]);
+        let (results_1_tok, value) = recv(activations_tok, results_in[1]);
         assert_eq(value, f32_0);
-        let (_, value) = recv(tok, results_in[2]);
+        let (results_2_tok, value) = recv(activations_tok, results_in[2]);
         assert_eq(value, f32_0);
-        let (_, value) = recv(tok, results_in[3]);
+        let (results_3_tok, value) = recv(activations_tok, results_in[3]);
         assert_eq(value, f32_4);
 
-        let tok = send(tok, terminator, true);
+        let results_tok = join(results_0_tok, results_1_tok, results_2_tok, results_3_tok);
+
+        send(results_tok, terminator, true);
     }
 }
