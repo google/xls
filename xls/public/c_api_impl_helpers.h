@@ -43,7 +43,7 @@ bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
 
 // Returns the payload of `s` as a C string allocated by libc and owned by the
 // caller.
-char* ToOwnedCString(const std::string& s);
+char* ToOwnedCString(std::string_view s);
 
 // Converts the C representation of filesystem search paths into a C++
 // representation.
