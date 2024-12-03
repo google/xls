@@ -1315,6 +1315,14 @@ const D = u32:256;
 
 TEST_F(ModuleFmtTest, ConstantDef) { DoFmt("pub const MOL = u32:42;\n"); }
 
+TEST_F(ModuleFmtTest, ConstantDefLongName) {
+  DoFmt(R"(pub
+const
+this_is_a_very_long_name_this_is_a_very_long_name_this_is_a_very_long_name_this_is_a_very_long_name
+= bool:0;
+)");
+}
+
 TEST_F(ModuleFmtTest, ConstantDefWithType) {
   DoFmt("pub const MOL: u32 = u32:42;\n");
 }
@@ -2770,6 +2778,143 @@ TEST_F(ModuleFmtTest, ExternVerilog) {
 fn divmod() {
 }
 )*");
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment) {
+  // It intentionally moves the comment so we can't test with the
+  // opportunistic_postcondition.
+  DoFmt(R"(pub // between pub and const
+const // between const and name
+foo // between name and colon
+: // between colon and type
+u32 // between type and =
+= // between = and value
+u32:42 // between value and semi
+;)",
+        R"(// between pub and const
+// between const and name
+// between name and colon
+// between colon and type
+pub const foo: u32 // between type and =
+// between = and value
+    = u32:42 // between value and semi
+    ;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+// NOTE: the numbers in the following tests are referencing the 7 possible
+// places a comment can be in a constant definition:
+// pub 1 const 2 name 3 : 4 type 5 = 6 value 7 ;
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment1) {
+  // It intentionally moves the comment so we can't test with the
+  // opportunistic_postcondition.
+  DoFmt(R"(pub // between pub and const
+const foo = u32:42;
+)",
+        R"(// between pub and const
+pub const foo = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithCommentPub2) {
+  DoFmt(R"(pub const // between const and name
+    foo = u32:42;
+)",
+        R"(// between const and name
+pub const foo = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithCommentPub1And2) {
+  DoFmt(R"(pub // between pub and const
+const // between const and name
+    foo = u32:42;
+)",
+        R"(// between pub and const
+// between const and name
+pub const foo = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment2) {
+  DoFmt(R"(const // between const and name
+    foo = u32:42;
+)",
+        R"(// between const and name
+const foo = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment3) {
+  DoFmt(R"(const foo: // between name and type
+    u32 = u32:42;
+)",
+        R"(// between name and type
+const foo: u32 = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment4) {
+  DoFmt(R"(const foo // between name and type
+    : u32 = u32:42;
+)",
+        R"(// between name and type
+const foo: u32 = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment5) {
+  DoFmt(R"(const foo: u32 // between type and =
+    = u32:42;
+)",
+        R"(const foo: u32 // between type and =
+    = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment5NoType) {
+  DoFmt(R"(const foo // between name and =
+    = u32:42;
+)",
+        R"(// between name and =
+const foo = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment6) {
+  DoFmt(R"(const foo: u32 = // after equals
+    u32:42;
+)",
+        R"(const foo: u32 // after equals
+    = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment6NoType) {
+  DoFmt(R"(const foo = // after equals
+    u32:42;
+)",
+        R"(// after equals
+const foo = u32:42;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
+TEST_F(ModuleFmtTest, ConstantDefWithComment7) {
+  DoFmt(R"(const foo: u32 = u32:42 // after value
+    ;
+)");
 }
 
 }  // namespace

@@ -1547,24 +1547,83 @@ static DocRef Fmt(const ConstantDef& n, const Comments& comments,
   leader_pieces.push_back(arena.Make(Keyword::kConst));
   leader_pieces.push_back(arena.break1());
   leader_pieces.push_back(arena.MakeText(n.identifier()));
+  DocRef mid_comment = arena.empty();
   if (n.type_annotation() != nullptr) {
     leader_pieces.push_back(arena.colon());
     leader_pieces.push_back(arena.space());
     leader_pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
-  }
-  leader_pieces.push_back(arena.break1());
-  leader_pieces.push_back(arena.equals());
-  leader_pieces.push_back(arena.space());
 
+    // Find comments between the end of the type annotation and the start of
+    // the value and put them between the type and the =
+    std::optional<DocRef> comments_doc =
+        EmitCommentsBetween(n.type_annotation()->GetSpan()->limit(),
+                            n.value()->GetSpan()->start(), comments, arena,
+                            /*last_comment_span=*/nullptr);
+    if (comments_doc.has_value()) {
+      mid_comment = ConcatN(arena, {*comments_doc, arena.hard_line()});
+      leader_pieces.push_back(arena.space());
+    }
+  }
+
+  std::vector<DocRef> rhs_pieces;
+  if (mid_comment != arena.empty()) {
+    // Make the = part of the RHS, and nest the whole RHS.
+    rhs_pieces.push_back(arena.equals());
+    rhs_pieces.push_back(arena.space());
+  } else {
+    leader_pieces.push_back(arena.break1());
+    leader_pieces.push_back(arena.equals());
+    leader_pieces.push_back(arena.space());
+  }
   DocRef lhs = ConcatNGroup(arena, leader_pieces);
-  // Reduce the width by 1 so we know we can emit the semi inline.
-  DocRef rhs_before_semi =
-      arena.MakeReduceTextWidth(Fmt(*n.value(), comments, arena), 1);
-  DocRef rhs = ConcatNGroup(arena, {
-                                       rhs_before_semi,
-                                       arena.semi(),
-                                   });
-  return arena.MakeConcat(lhs, rhs);
+
+  DocRef value_doc = Fmt(*n.value(), comments, arena);
+  std::optional<DocRef> comments_doc = EmitCommentsBetween(
+      n.value()->GetSpan()->limit(), n.span().limit(), comments, arena,
+      /*last_comment_span=*/nullptr);
+  if (comments_doc.has_value()) {
+    // There are comments between the end of the value and the semicolon.
+
+    // TODO: google/xls#1697 - check if the comment is not on the same line as
+    // the value. If so, emit a hard_line before the comment.
+    rhs_pieces.push_back(value_doc);
+    rhs_pieces.push_back(arena.space());
+    rhs_pieces.push_back(*comments_doc);
+    rhs_pieces.push_back(arena.hard_line());
+    if (mid_comment != arena.empty()) {
+      // The whole RHS will be nested.
+      rhs_pieces.push_back(arena.semi());
+    } else {
+      rhs_pieces.push_back(arena.MakeNest(arena.semi()));
+    }
+  } else {
+    // Reduce the width by 1 so we know we can emit the semi inline.
+    rhs_pieces.push_back(arena.MakeReduceTextWidth(value_doc, 1));
+    rhs_pieces.push_back(arena.semi());
+  }
+  DocRef rhs = ConcatN(arena, rhs_pieces);
+  if (mid_comment != arena.empty()) {
+    rhs = arena.MakeNest(rhs);
+  }
+
+  // Now get the comments between the *start* of the node and the start of the
+  // type annotation or the start of the value.
+  DocRef pre_comment = arena.empty();
+  Span lhs_comments_span;
+  if (n.type_annotation() != nullptr) {
+    lhs_comments_span =
+        Span(n.span().start(), n.type_annotation()->GetSpan()->start());
+  } else {
+    lhs_comments_span = Span(n.span().start(), n.value()->GetSpan()->start());
+  }
+  comments_doc = EmitCommentsBetween(lhs_comments_span.start(),
+                                     lhs_comments_span.limit(), comments, arena,
+                                     /*last_comment_span=*/nullptr);
+  if (comments_doc.has_value()) {
+    pre_comment = ConcatN(arena, {*comments_doc, arena.hard_line()});
+  }
+
+  return ConcatN(arena, {pre_comment, lhs, mid_comment, rhs});
 }
 
 DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
