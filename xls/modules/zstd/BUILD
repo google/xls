@@ -1954,96 +1954,12 @@ xls_benchmark_ir(
 )
 
 xls_dslx_library(
-    name = "literals_dispatcher_dslx",
-    srcs = [
-        "literals_dispatcher.x",
-    ],
-    deps = [
-        ":common_dslx",
-    ],
-)
-
-xls_dslx_test(
-    name = "literals_dispatcher_dslx_test",
-    library = ":literals_dispatcher_dslx",
-)
-
-xls_dslx_verilog(
-    name = "literals_dispatcher_verilog",
-    codegen_args = {
-        "module_name": "LiteralsDispatcher",
-        "delay_model": "asap7",
-        "pipeline_stages": "1",
-        "reset": "rst",
-        "worst_case_throughput": "1",
-        "use_system_verilog": "false",
-    },
-    dslx_top = "LiteralsDispatcher",
-    library = ":literals_dispatcher_dslx",
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__literals_dispatcher__LiteralsDispatcher_0_next",
-    },
-    verilog_file = "literals_dispatcher.v",
-)
-
-xls_benchmark_ir(
-    name = "literals_dispatcher_opt_ir_benchmark",
-    src = ":literals_dispatcher_verilog.opt.ir",
-    benchmark_ir_args = {
-        "pipeline_stages": "1",
-        "delay_model": "asap7",
-    },
-)
-
-xls_benchmark_verilog(
-    name = "literals_dispatcher_verilog_benchmark",
-    verilog_target = "literals_dispatcher_verilog",
-)
-
-verilog_library(
-    name = "literals_dispatcher_verilog_lib",
-    srcs = [
-        ":literals_dispatcher.v",
-    ],
-)
-
-synthesize_rtl(
-    name = "literals_dispatcher_synth_asap7",
-    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
-    top_module = "LiteralsDispatcher",
-    deps = [
-        ":literals_dispatcher_verilog_lib",
-    ],
-)
-
-benchmark_synth(
-    name = "literals_dispatcher_benchmark_synth",
-    synth_target = ":literals_dispatcher_synth_asap7",
-)
-
-place_and_route(
-    name = "literals_dispatcher_place_and_route",
-    clock_period = "750",
-    core_padding_microns = 2,
-    die_height_microns = 64,
-    die_width_microns = 64,
-    min_pin_distance = "0.5",
-    placement_density = "0.30",
-    stop_after_step = "global_routing",
-    synthesized_rtl = ":literals_dispatcher_synth_asap7",
-    target_die_utilization_percentage = "10",
-)
-
-xls_dslx_library(
     name = "rle_literals_dec_dslx",
     srcs = [
         "rle_literals_dec.x",
     ],
     deps = [
         ":common_dslx",
-        "//xls/modules/rle:rle_common_dslx",
-        "//xls/modules/rle:rle_dec_dslx",
     ],
 )
 
@@ -2062,13 +1978,14 @@ xls_dslx_verilog(
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
     },
-    dslx_top = "RleLiteralsDecoder",
+    dslx_top = "RleLiteralsDecoderInst",
     library = ":rle_literals_dec_dslx",
     opt_ir_args = {
         "inline_procs": "true",
-        "top": "__rle_literals_dec__RleLiteralsDecoder__BatchPacker_0_next",
+        "top": "__rle_literals_dec__RleLiteralsDecoderInst__RleLiteralsDecoder_0__64_next",
     },
     verilog_file = "rle_literals_dec.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -2117,6 +2034,7 @@ xls_dslx_library(
     srcs = ["raw_literals_dec.x"],
     deps = [
         ":common_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
@@ -2134,9 +2052,13 @@ xls_dslx_verilog(
         "reset": "rst",
         "use_system_verilog": "false",
     },
-    dslx_top = "RawLiteralsDecoder",
+    opt_ir_args = {
+        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next"
+    },
+    dslx_top = "RawLiteralsDecoderInst",
     library = ":raw_literals_dec_dslx",
     verilog_file = "raw_literals_dec.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -2145,12 +2067,15 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "10",
         "delay_model": "asap7",
+        "top": "__raw_literals_dec__RawLiteralsDecoderInst__RawLiteralsDecoder_0__16_64_next"
     },
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "raw_literals_dec_verilog_benchmark",
     verilog_target = "raw_literals_dec_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -2167,22 +2092,25 @@ synthesize_rtl(
     deps = [
         ":raw_literals_dec_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "raw_literals_dec_benchmark_synth",
     synth_target = ":raw_literals_dec_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
     name = "raw_literals_dec_place_and_route",
     clock_period = "750",
     core_padding_microns = 2,
-    min_pin_distance = "0.09",
+    min_pin_distance = "0.5",
     placement_density = "0.30",
     stop_after_step = "global_routing",
     synthesized_rtl = ":raw_literals_dec_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -2286,19 +2214,81 @@ xls_dslx_library(
     ],
     deps = [
         "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
         ":common_dslx",
         ":literals_buffer_dslx",
-        ":literals_dispatcher_dslx",
+        ":literals_block_header_dec_dslx",
         ":parallel_rams_dslx",
         ":ram_printer_dslx",
         ":raw_literals_dec_dslx",
         ":rle_literals_dec_dslx",
+        ":huffman_literals_dec_dslx",
     ],
 )
 
 xls_dslx_test(
     name = "literals_decoder_dslx_test",
     library = ":literals_decoder_dslx",
+)
+
+literals_decoder_ctrl_codegen_args = common_codegen_args | {
+    "module_name": "LiteralsDecoderCtrl",
+    "pipeline_stages": "10",
+}
+
+xls_dslx_verilog(
+    name = "literals_decoder_ctrl_verilog",
+    codegen_args = literals_decoder_ctrl_codegen_args,
+    opt_ir_args = {
+        "inline_procs": "false",
+    },
+    dslx_top = "LiteralsDecoderCtrlInst",
+    library = ":literals_decoder_dslx",
+    verilog_file = "literals_decoder_ctrl.v",
+    tags = ["manual"],
+)
+
+xls_benchmark_ir(
+    name = "literals_decoder_ctrl_opt_ir_benchmark",
+    src = ":literals_decoder_ctrl_verilog.opt.ir",
+    benchmark_ir_args = literals_decoder_ctrl_codegen_args | {
+		"multi_proc": "true",
+	    "inline_procs": "false",
+	},
+)
+
+verilog_library(
+    name = "literals_decoder_ctrl_verilog_lib",
+    srcs = [
+        ":literals_decoder_ctrl.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "literals_decoder_ctrl_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "LiteralsDecoderCtrl",
+    deps = [
+        ":literals_decoder_ctrl_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "literals_decoder_ctrl_benchmark_synth",
+    synth_target = ":literals_decoder_ctrl_synth_asap7",
+)
+
+place_and_route(
+    name = "literals_decoder_ctrl_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":literals_decoder_ctrl_synth_asap7",
+    target_die_utilization_percentage = "10",
 )
 
 xls_dslx_verilog(
@@ -2319,7 +2309,7 @@ xls_dslx_verilog(
         ]),
         "pipeline_stages": "8",
         "reset": "rst",
-        "worst_case_throughput": "1",
+        "worst_case_throughput": "2",
         "use_system_verilog": "false",
     },
     dslx_top = "LiteralsDecoderInst",
@@ -2336,13 +2326,18 @@ xls_benchmark_ir(
     src = ":literals_decoder_verilog.opt.ir",
     benchmark_ir_args = {
         "pipeline_stages": "10",
+        "worst_case_throughput": "2",
         "delay_model": "asap7",
+        "inline_procs": "true",
+        "top": "__xls_modules_zstd_literals_buffer__LiteralsDecoderInst__LiteralsDecoder_0__LiteralsBuffer_0__LiteralsBufferReader_0__64_0_0_0_13_8192_65536_next",
     },
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "literals_decoder_verilog_benchmark",
     verilog_target = "literals_decoder_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -2553,6 +2548,7 @@ xls_dslx_library(
     ],
     deps = [
         "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
     ],
 )
 
@@ -2566,7 +2562,7 @@ huffman_axi_reader_codegen_args = common_codegen_args | {
     "module_name": "HuffmanAxiReader",
     "pipeline_stages": "8",
     "clock_period_ps": "750",
-    "worst_case_throughput": "2",
+    "worst_case_throughput": "4",
 }
 
 xls_dslx_verilog(
@@ -2576,7 +2572,7 @@ xls_dslx_verilog(
     library = ":huffman_axi_reader_dslx",
     opt_ir_args = {
         "inline_procs": "true",
-        "top": "__huffman_axi_reader__HuffmanAxiReaderInst__HuffmanAxiReader_0__32_32_32_next",
+        "top": "__huffman_axi_reader__HuffmanAxiReaderInst__HuffmanAxiReader_0__16_8_3_64_4_4_next",
     },
     tags = ["manual"],
     verilog_file = "huffman_axi_reader.v",
@@ -2801,6 +2797,7 @@ xls_dslx_library(
         ":huffman_data_preprocessor_dslx",
         ":huffman_decoder_dslx",
         ":huffman_prescan_dslx",
+        ":huffman_weights_dec_dslx",
     ],
 )
 
@@ -2812,9 +2809,9 @@ xls_dslx_test(
 
 huffman_ctrl_codegen_args = common_codegen_args | {
     "module_name": "HuffmanCtrl",
-    "pipeline_stages": "4",
+    "pipeline_stages": "8",
     "clock_period_ps": "750",
-    "worst_case_throughput": "1",
+    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
@@ -2824,7 +2821,7 @@ xls_dslx_verilog(
     library = ":huffman_ctrl_dslx",
     opt_ir_args = {
         "inline_procs": "true",
-        "top": "__huffman_ctrl__HuffmanControlAndSequenceInst__HuffmanControlAndSequence_0__32_next",
+        "top": "__huffman_ctrl__HuffmanControlAndSequenceInst__HuffmanControlAndSequence_0__32_64_next",
     },
     tags = ["manual"],
     verilog_file = "huffman_ctrl.v",
@@ -2874,11 +2871,95 @@ place_and_route(
 )
 
 xls_dslx_library(
+    name = "huffman_weights_dec_dslx",
+    srcs = [
+        "huffman_weights_dec.x",
+    ],
+    deps = [
+        "//xls/modules/zstd:huffman_prescan_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        "//xls/examples:ram_dslx",
+        ":ram_mux_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "huffman_weights_dec_dslx_test",
+    library = ":huffman_weights_dec_dslx",
+    tags = ["manual"],
+)
+
+huffman_weights_dec_codegen_args = common_codegen_args | {
+    "module_name": "HuffmanWeightsDecoder",
+    "pipeline_stages": "25",
+    "clock_period_ps": "750",
+    "worst_case_throughput": "17",
+}
+
+xls_dslx_verilog(
+    name = "huffman_weights_dec_verilog",
+    codegen_args = huffman_weights_dec_codegen_args,
+    dslx_top = "HuffmanWeightsDecoderInst",
+    library = ":huffman_weights_dec_dslx",
+    opt_ir_args = {
+        "inline_procs": "true",
+        "top": "__huffman_weights_dec__HuffmanWeightsDecoderInst__HuffmanWeightsDecoder_0__32_64_6_32_8_next",
+    },
+    tags = ["manual"],
+    verilog_file = "huffman_weights_dec.v",
+)
+
+xls_benchmark_ir(
+    name = "huffman_weights_dec_opt_ir_benchmark",
+    src = ":huffman_weights_dec_verilog.opt.ir",
+    benchmark_ir_args = huffman_weights_dec_codegen_args,
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "huffman_weights_dec_verilog_lib",
+    srcs = [
+        ":huffman_weights_dec.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "huffman_weights_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "HuffmanWeightsDecoder",
+    deps = [
+        ":huffman_weights_dec_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "huffman_weights_dec_benchmark_synth",
+    synth_target = ":huffman_weights_dec_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "huffman_weights_dec_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":huffman_weights_dec_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
     name = "huffman_literals_dec_dslx",
     srcs = [
         "huffman_literals_dec.x",
     ],
     deps = [
+        "//xls/modules/zstd/memory:axi_ram_dslx",
         ":common_dslx",
         ":huffman_axi_reader_dslx",
         ":huffman_code_builder_dslx",
