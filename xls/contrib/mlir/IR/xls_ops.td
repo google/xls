@@ -1024,7 +1024,7 @@ def Xls_PrioritySelOp : Xls_Op<"priority_sel", [
     Xls_BitsOrTuple:$result
   );
   let assemblyFormat = [{
-    $selector `in` `[` $cases `]` `else` $default_value attr-dict `:` `(` type($selector) `,` `[` type($cases) `]` `,` type($default_value) `)` `->` type($result)
+    $selector `in` ` ` `[` $cases `]` `else` $default_value attr-dict `:` `(` type($selector) `,` `[` type($cases) `]` `,` type($default_value) `)` `->` type($result)
   }];
 }
 

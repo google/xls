@@ -175,7 +175,7 @@ func.func @single_armed_if(%addend: i32, %cond: i1) -> () attributes { "xls" = t
 // CHECK-NEXT:    %17 = "xls.constant_scalar"() <{value = 5 : index}> : () -> index
 // CHECK-NEXT:    %18 = xls.eq %arg0, %17 : (index, index) -> i1
 // CHECK-NEXT:    %19 = xls.concat %18, %16 : (i1, i1) -> i2
-// CHECK-NEXT:    %20 = xls.priority_sel %19 in[%c10_i32, %c20_i32] else %c0_i32 : (i2, [i32, i32], i32) -> i32
+// CHECK-NEXT:    %20 = xls.priority_sel %19 in [%c10_i32, %c20_i32] else %c0_i32 : (i2, [i32, i32], i32) -> i32
 // CHECK-NEXT:    return %20 : i32
 func.func @index_switch(%index: index) -> (i32) attributes { "xls" = true } {
   %sum_0 = arith.constant 0 : i32
