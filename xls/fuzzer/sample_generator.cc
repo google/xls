@@ -436,6 +436,12 @@ absl::StatusOr<Sample> GenerateSample(
                             generator_options.generate_proc &&
                                 !generator_options.emit_stateless_proc,
                             min_stages, has_nb_recv, bit_gen));
+
+    // Randomly also turn on Codegen NG pipeline.
+    bool use_codegen_ng = absl::Bernoulli(bit_gen, 0.5);
+    if (use_codegen_ng) {
+      sample_options_copy.set_codegen_ng(true);
+    }
   }
 
   // Parse and type check the DSLX input to retrieve the top entity. The top

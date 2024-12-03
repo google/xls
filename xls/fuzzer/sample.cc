@@ -132,6 +132,7 @@ bool SampleOptions::operator==(const SampleOptions& other) const {
   proto.set_optimize_ir(true);
   proto.set_use_jit(true);
   proto.set_codegen(false);
+  proto.set_codegen_ng(false);
   proto.set_simulate(false);
   proto.set_use_system_verilog(true);
   proto.set_calls_per_sample(1);

@@ -207,19 +207,20 @@ absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  if (options.codegen_options.manual_control().has_value()) {
-    return absl::UnimplementedError("Manual pipeline control not implemented");
-  }
-  if (options.codegen_options.split_outputs()) {
-    return absl::UnimplementedError("Splitting outputs not supported.");
-  }
-  if (options.codegen_options.reset().has_value() &&
-      options.codegen_options.reset()->reset_data_path()) {
-    return absl::UnimplementedError("Data path reset not supported");
-  }
-
   for (auto& [fb, block] : unit->function_base_to_block_) {
     if (fb->IsFunction()) {
+      if (options.codegen_options.manual_control().has_value()) {
+        return absl::UnimplementedError(
+            "Manual pipeline control not implemented");
+      }
+      if (options.codegen_options.split_outputs()) {
+        return absl::UnimplementedError("Splitting outputs not supported.");
+      }
+      if (options.codegen_options.reset().has_value() &&
+          options.codegen_options.reset()->reset_data_path()) {
+        return absl::UnimplementedError("Data path reset not supported");
+      }
+
       Function* f = fb->AsFunctionOrDie();
 
       VLOG(3) << "Converting function to a pipelined block:";
@@ -244,15 +245,16 @@ absl::StatusOr<bool> ConvertProcsToPipelinedBlocksPass::RunInternal(
     CodegenPassResults* results) const {
   bool changed = false;
 
-  if (options.codegen_options.manual_control().has_value()) {
-    return absl::UnimplementedError("Manual pipeline control not implemented");
-  }
-  if (options.codegen_options.split_outputs()) {
-    return absl::UnimplementedError("Splitting outputs not supported.");
-  }
-
   for (auto& [fb, block] : unit->function_base_to_block_) {
     if (fb->IsProc()) {
+      if (options.codegen_options.manual_control().has_value()) {
+        return absl::UnimplementedError(
+            "Manual pipeline control not implemented");
+      }
+      if (options.codegen_options.split_outputs()) {
+        return absl::UnimplementedError("Splitting outputs not supported.");
+      }
+
       Proc* proc = fb->AsProcOrDie();
 
       VLOG(3) << "Converting proc to a pipelined block:";
