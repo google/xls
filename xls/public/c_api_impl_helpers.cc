@@ -40,7 +40,7 @@ std::vector<std::filesystem::path> ToCpp(const char* additional_search_paths[],
   return additional_search_paths_cpp;
 }
 
-char* ToOwnedCString(const std::string& s) { return strdup(s.c_str()); }
+char* ToOwnedCString(std::string_view s) { return strndup(s.data(), s.size()); }
 
 // Helper function that we can use to adapt to the common C API pattern when
 // we're returning an `absl::StatusOr<std::string>` value.
