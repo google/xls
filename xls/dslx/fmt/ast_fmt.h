@@ -46,6 +46,7 @@ class Formatter {
   DocRef Format(const Module& n);
   // If `trailing_semi` is true, then a trailing semicolon will also be emitted.
   DocRef Format(const Statement& n, bool trailing_semi);
+  DocRef Format(const VerbatimNode& n);
   // keep-sorted end
 
  private:
@@ -68,7 +69,6 @@ class Formatter {
   DocRef Format(const TestFunction& n);
   DocRef Format(const TestProc& n);
   DocRef Format(const TypeAlias& n);
-  DocRef Format(const VerbatimNode& n);
   DocRef FormatParams(absl::Span<const Param* const> params);
   DocRef FormatStructDefBase(
       const StructDefBase& n, Keyword keyword,

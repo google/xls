@@ -298,8 +298,7 @@ DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
 }
 
 DocRef Fmt(const VerbatimNode& n, const Comments& comments, DocArena& arena) {
-  CHECK(false) << "VerbatimNode should be handled by Formatter::Format";
-  return arena.empty();
+  return Formatter(comments, arena).Format(n);
 }
 
 DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,

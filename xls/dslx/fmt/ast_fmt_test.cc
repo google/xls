@@ -1214,6 +1214,8 @@ class ModuleFmtTest : public testing::Test {
     XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                              AutoFmt(vfs, *m, comments, input, text_width));
 
+    EXPECT_EQ(got, want.value_or(input));
+
     if (opportunistic_postcondition) {
       std::optional<AutoFmtPostconditionViolation> maybe_violation =
           ObeysAutoFmtOpportunisticPostcondition(input, got);
@@ -1225,8 +1227,6 @@ class ModuleFmtTest : public testing::Test {
         FAIL() << "auto-formatter postcondition was violated";
       }
     }
-
-    EXPECT_EQ(got, want.value_or(input));
   }
 
   void DoFmtNoPostcondition(std::string input,
@@ -2915,6 +2915,26 @@ TEST_F(ModuleFmtTest, ConstantDefWithComment7) {
   DoFmt(R"(const foo: u32 = u32:42 // after value
     ;
 )");
+}
+
+TEST_F(ModuleFmtTest, DisableFormatSingleExpr) {
+  // This test flushes out a bug when disabling formatting around a single
+  // `Expr`ession.
+
+  // Unfortunately after fixing https://github.com/google/xls/issues/1697,
+  // comments in the middle of `const` statements are rearranged, so we have to
+  // contrive this example to flush out the bug.
+  DoFmt(R"(const x = // dslx-fmt::off
+ u32 :1
+    // dslx-fmt::on
+;
+)",
+        R"(// dslx-fmt::off
+const x =  u32 :1
+    // dslx-fmt::on
+;
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
 }
 
 }  // namespace
