@@ -18,31 +18,28 @@ import os
 import subprocess
 import unittest
 
+RUNFILES_DIR = os.environ['TEST_SRCDIR']
+WORKSPACE_NAME = os.environ['TEST_WORKSPACE']
+C_API_SYMBOLS_PATH = os.path.join(
+    RUNFILES_DIR, WORKSPACE_NAME, 'xls/public/c_api_symbols.txt'
+)
+STATIC_LIBS_DIR = os.path.join(
+    RUNFILES_DIR, WORKSPACE_NAME, 'xls/public'
+)
+
 
 class TestCApiSymbols(unittest.TestCase):
   """Tests for public artifacts exposing extern "C" symbols."""
 
   def test_symbols_match(self):
     """Tests c_api_symbols.txt matches extern C symbols in .a files."""
-    # Get the runfiles directory
-    runfiles_dir = os.environ['TEST_SRCDIR']
-
-    # Construct paths
-    workspace_name = os.environ['TEST_WORKSPACE']
-    c_api_symbols_path = os.path.join(
-        runfiles_dir, workspace_name, 'xls/public/c_api_symbols.txt'
-    )
-    static_libs_dir = os.path.join(
-        runfiles_dir, workspace_name, 'xls/public'
-    )
-
     # Read symbols from c_api_symbols.txt
-    with open(c_api_symbols_path, 'r') as f:
+    with open(C_API_SYMBOLS_PATH, 'r') as f:
       expected_symbols = set(line.strip() for line in f if line.strip())
 
-    # Find all .a files in the static_libs_dir
+    # Find all .a files in the STATIC_LIBS_DIR
     static_libs = []
-    for root, _, files in os.walk(static_libs_dir):
+    for root, _, files in os.walk(STATIC_LIBS_DIR):
       for file in files:
         if file.endswith('.a'):
           static_libs.append(os.path.join(root, file))
@@ -76,6 +73,13 @@ class TestCApiSymbols(unittest.TestCase):
         'Mismatch between c_api_symbols.txt and symbols extracted from .a'
         ' files.',
     )
+
+  def test_symbols_sorted_and_unique(self):
+    """Tests c_api_symbols.txt is sorted and unique-ified."""
+    with open(C_API_SYMBOLS_PATH, 'r') as f:
+      lines = f.readlines()
+    target_lines = sorted(list(set(lines)))
+    self.assertEqual(lines, target_lines)
 
 
 if __name__ == '__main__':
