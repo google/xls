@@ -151,7 +151,7 @@ xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
 
 char* xls_dslx_module_get_name(struct xls_dslx_module* module) {
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
-  std::string result = cpp_module->name();
+  const std::string& result = cpp_module->name();
   return xls::ToOwnedCString(result);
 }
 
@@ -184,7 +184,7 @@ struct xls_dslx_type_alias* xls_dslx_module_get_type_definition_as_type_alias(
 
 char* xls_dslx_struct_def_get_identifier(struct xls_dslx_struct_def* n) {
   auto* cpp_struct_def = reinterpret_cast<xls::dslx::StructDef*>(n);
-  std::string result = cpp_struct_def->identifier();
+  const std::string& result = cpp_struct_def->identifier();
   return xls::ToOwnedCString(result);
 }
 
@@ -213,7 +213,7 @@ struct xls_dslx_import* xls_dslx_colon_ref_resolve_import_subject(
 
 char* xls_dslx_colon_ref_get_attr(struct xls_dslx_colon_ref* n) {
   auto* cpp_colon_ref = reinterpret_cast<xls::dslx::ColonRef*>(n);
-  std::string result = cpp_colon_ref->attr();
+  const std::string& result = cpp_colon_ref->attr();
   return xls::ToOwnedCString(result);
 }
 
@@ -221,7 +221,7 @@ char* xls_dslx_colon_ref_get_attr(struct xls_dslx_colon_ref* n) {
 
 char* xls_dslx_type_alias_get_identifier(struct xls_dslx_type_alias* n) {
   auto* cpp = reinterpret_cast<xls::dslx::TypeAlias*>(n);
-  std::string result = cpp->identifier();
+  const std::string& result = cpp->identifier();
   return xls::ToOwnedCString(result);
 }
 
@@ -292,7 +292,7 @@ char* xls_dslx_import_get_subject(struct xls_dslx_import* n, int64_t i) {
 
 char* xls_dslx_enum_def_get_identifier(struct xls_dslx_enum_def* n) {
   auto* cpp_enum_def = reinterpret_cast<xls::dslx::EnumDef*>(n);
-  std::string result = cpp_enum_def->identifier();
+  const std::string& result = cpp_enum_def->identifier();
   return xls::ToOwnedCString(result);
 }
 
