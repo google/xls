@@ -348,5 +348,78 @@ TEST_F(UnrollProcTest, MultiProcsDifferentSizedState) {
   EXPECT_THAT(TryProveEquivalence(f1, f2), IsOkAndHolds(IsProvenTrue()));
 }
 
+TEST_F(UnrollProcTest, PredicatedReceives) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(absl::StrCat(TestName(), "_func"), p.get());
+  ProcBuilder pb(absl::StrCat(TestName(), "_proc"), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto read_ch,
+      p->CreateStreamingChannel("do_read", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto write_ch,
+      p->CreateStreamingChannel("do_write", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto bar_ch, p->CreateStreamingChannel("bar_ch", ChannelOps::kReceiveOnly,
+                                             p->GetBitsType(4)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto ret_ch, p->CreateStreamingChannel("ret_ch", ChannelOps::kSendOnly,
+                                             p->GetBitsType(4)));
+  BValue tok = pb.StateElement("tok", Value::Token());
+  BValue state = pb.StateElement("cnt", UBits(1, 4));
+  BValue cont = pb.Receive(read_ch, tok);
+  BValue recv =
+      pb.ReceiveIf(bar_ch, pb.TupleIndex(cont, 0), pb.TupleIndex(cont, 1));
+  BValue nxt_val = pb.Add(state, pb.TupleIndex(recv, 1));
+  BValue do_write = pb.Receive(write_ch, pb.TupleIndex(recv, 0));
+  BValue final_tok = pb.SendIf(ret_ch, pb.TupleIndex(do_write, 0),
+                               pb.TupleIndex(do_write, 1), nxt_val);
+  pb.Next(state, nxt_val);
+  pb.Next(tok, final_tok);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  BValue act_read_1 = fb.Param("do_read_ch_act0_read", p->GetBitsType(1));
+  BValue read_1 = fb.Param("bar_ch_act0_read", p->GetBitsType(4));
+  BValue act_write_1 = fb.Param("do_write_ch_act0_read", p->GetBitsType(1));
+  BValue act_read_2 = fb.Param("do_read_ch_act1_read", p->GetBitsType(1));
+  BValue read_2 = fb.Param("bar_ch_act1_read", p->GetBitsType(4));
+  BValue act_write_2 = fb.Param("do_write_ch_act1_read", p->GetBitsType(1));
+  BValue act_read_3 = fb.Param("do_read_ch_act2_read", p->GetBitsType(1));
+  BValue read_3 = fb.Param("bar_ch_act2_read", p->GetBitsType(4));
+  BValue act_write_3 = fb.Param("do_write_ch_act2_read", p->GetBitsType(1));
+  BValue act_read_4 = fb.Param("do_read_ch_act3_read", p->GetBitsType(1));
+  BValue read_4 = fb.Param("bar_ch_act3_read", p->GetBitsType(4));
+  BValue act_write_4 = fb.Param("do_write_ch_act3_read", p->GetBitsType(1));
+  BValue lit_zero = fb.Literal(UBits(0, 4));
+  BValue st_1 = fb.Literal(UBits(1, 4));
+  BValue st_2 = fb.Add(st_1, fb.Select(act_read_1, read_1, lit_zero));
+  BValue st_3 = fb.Add(st_2, fb.Select(act_read_2, read_2, lit_zero));
+  BValue st_4 = fb.Add(st_3, fb.Select(act_read_3, read_3, lit_zero));
+  BValue st_5 = fb.Add(st_4, fb.Select(act_read_4, read_4, lit_zero));
+
+  auto single_activation = [&](auto act_write, auto next_st) {
+    return fb.Tuple(
+        {fb.Tuple({act_write, fb.Select(act_write, next_st, lit_zero)})});
+  };
+
+  fb.Tuple({
+      single_activation(act_write_1, st_2),
+      single_activation(act_write_2, st_3),
+      single_activation(act_write_3, st_4),
+      single_activation(act_write_4, st_5),
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * converted,
+      UnrollProcToFunction(proc, 4, /*include_state=*/false));
+
+  RecordProperty("func", f->DumpIr());
+  RecordProperty("proc", proc->DumpIr());
+  RecordProperty("converted", converted->DumpIr());
+  EXPECT_THAT(TryProveEquivalence(f, converted), IsOkAndHolds(IsProvenTrue()));
+}
+
 }  // namespace
 }  // namespace xls

@@ -76,6 +76,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
         token_value_(std::move(token_value)) {}
 
   absl::Status DefaultHandler(Node* n) override {
+    XLS_RETURN_IF_ERROR(fb_.GetError());
     std::vector<Node*> new_ops;
     for (Node* old_op : n->operands()) {
       XLS_RET_CHECK(values_.contains({old_op, activation_}))
@@ -91,6 +92,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   }
 
   absl::Status HandleStateRead(StateRead* state_read) override {
+    XLS_RETURN_IF_ERROR(fb_.GetError());
     if (state_read->GetType()->IsToken()) {
       values_[{state_read, activation_}] = fb_.Literal(token_value_);
       return absl::OkStatus();
@@ -102,6 +104,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   }
 
   absl::Status HandleSend(Send* s) override {
+    XLS_RETURN_IF_ERROR(fb_.GetError());
     values_[{s, activation_}] = fb_.Literal(token_value_);
     BValue predicate_value;
     BValue data;
@@ -118,12 +121,22 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNext(Next* n) override { return absl::OkStatus(); }
+  absl::Status HandleNext(Next* n) override {
+    XLS_RETURN_IF_ERROR(fb_.GetError());
+    return absl::OkStatus();
+  }
 
   absl::Status HandleReceive(Receive* r) override {
-    BValue real_data = fb_.Param(
-        absl::StrFormat("%s_act%d_read", r->channel_name(), activation_),
-        r->GetPayloadType());
+    XLS_RETURN_IF_ERROR(fb_.GetError());
+    BValue real_data;
+    if (recv_state_.contains({r->channel_name(), activation_})) {
+      real_data = recv_state_.at({r->channel_name(), activation_});
+    } else {
+      real_data = fb_.Param(
+          absl::StrFormat("%s_act%d_read", r->channel_name(), activation_),
+          r->GetPayloadType());
+      recv_state_[{r->channel_name(), activation_}] = real_data;
+    }
     std::vector<BValue> result_values{fb_.Literal(token_value_)};
     if (r->predicate()) {
       result_values.push_back(fb_.Select(
@@ -139,9 +152,8 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
                                     activation_),
                     fb_.package()->GetBitsType(1)));
     }
-    values_[{r, activation_}] = fb_.Tuple(result_values);
-    BValue res = values_[{r, activation_}];
-    VLOG(2) << "got " << r << " -> " << res;
+    values_[{r, activation_}] = fb_.Tuple(std::move(result_values));
+    VLOG(2) << "got " << r << " -> " << values_[{r, activation_}];
     return absl::OkStatus();
   }
 
@@ -155,6 +167,7 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   }
 
   absl::Status HandleAfterAll(AfterAll* aa) override {
+    XLS_RETURN_IF_ERROR(fb_.GetError());
     // TODO: https://github.com/google/xls/issues/1375 - It would be nice to
     // record this for real. The issue is that we'd need to figure out some way
     // to flatten the tree in a consistent way.
@@ -190,6 +203,9 @@ class UnrollProcVisitor final : public DfsVisitorWithDefault {
   absl::flat_hash_map<NodeActivation, BValue>& values_;
   // A map of channel names to values sent on the most recent activation.
   absl::flat_hash_map<std::string, BValue> send_state_;
+  // A map of channel names & activation to the values received on that
+  // activation.
+  absl::flat_hash_map<std::pair<std::string, int64_t>, BValue> recv_state_;
   // Which activation are we inlining.
   int64_t activation_;
   // What value should we use for a token.
