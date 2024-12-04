@@ -151,7 +151,6 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
 DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
 DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
                bool suppress_parens);
-DocRef Fmt(const ConstantDef& n, const Comments& comments, DocArena& arena);
 
 // A parametric argument, as in parametric instantiation:
 //
@@ -1531,95 +1530,6 @@ DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
   return arena.empty();
 }
 
-static DocRef Fmt(const ConstantDef& n, const Comments& comments,
-                  DocArena& arena) {
-  std::vector<DocRef> leader_pieces;
-  if (n.is_public()) {
-    leader_pieces.push_back(arena.Make(Keyword::kPub));
-    leader_pieces.push_back(arena.break1());
-  }
-  leader_pieces.push_back(arena.Make(Keyword::kConst));
-  leader_pieces.push_back(arena.break1());
-  leader_pieces.push_back(arena.MakeText(n.identifier()));
-  DocRef mid_comment = arena.empty();
-  if (n.type_annotation() != nullptr) {
-    leader_pieces.push_back(arena.colon());
-    leader_pieces.push_back(arena.space());
-    leader_pieces.push_back(Fmt(*n.type_annotation(), comments, arena));
-
-    // Find comments between the end of the type annotation and the start of
-    // the value and put them between the type and the =
-    std::optional<DocRef> comments_doc =
-        EmitCommentsBetween(n.type_annotation()->GetSpan()->limit(),
-                            n.value()->GetSpan()->start(), comments, arena,
-                            /*last_comment_span=*/nullptr);
-    if (comments_doc.has_value()) {
-      mid_comment = ConcatN(arena, {*comments_doc, arena.hard_line()});
-      leader_pieces.push_back(arena.space());
-    }
-  }
-
-  std::vector<DocRef> rhs_pieces;
-  if (mid_comment != arena.empty()) {
-    // Make the = part of the RHS, and nest the whole RHS.
-    rhs_pieces.push_back(arena.equals());
-    rhs_pieces.push_back(arena.space());
-  } else {
-    leader_pieces.push_back(arena.break1());
-    leader_pieces.push_back(arena.equals());
-    leader_pieces.push_back(arena.space());
-  }
-  DocRef lhs = ConcatNGroup(arena, leader_pieces);
-
-  DocRef value_doc = Fmt(*n.value(), comments, arena);
-  std::optional<DocRef> comments_doc = EmitCommentsBetween(
-      n.value()->GetSpan()->limit(), n.span().limit(), comments, arena,
-      /*last_comment_span=*/nullptr);
-  if (comments_doc.has_value()) {
-    // There are comments between the end of the value and the semicolon.
-
-    // TODO: google/xls#1697 - check if the comment is not on the same line as
-    // the value. If so, emit a hard_line before the comment.
-    rhs_pieces.push_back(value_doc);
-    rhs_pieces.push_back(arena.space());
-    rhs_pieces.push_back(*comments_doc);
-    rhs_pieces.push_back(arena.hard_line());
-    if (mid_comment != arena.empty()) {
-      // The whole RHS will be nested.
-      rhs_pieces.push_back(arena.semi());
-    } else {
-      rhs_pieces.push_back(arena.MakeNest(arena.semi()));
-    }
-  } else {
-    // Reduce the width by 1 so we know we can emit the semi inline.
-    rhs_pieces.push_back(arena.MakeReduceTextWidth(value_doc, 1));
-    rhs_pieces.push_back(arena.semi());
-  }
-  DocRef rhs = ConcatN(arena, rhs_pieces);
-  if (mid_comment != arena.empty()) {
-    rhs = arena.MakeNest(rhs);
-  }
-
-  // Now get the comments between the *start* of the node and the start of the
-  // type annotation or the start of the value.
-  DocRef pre_comment = arena.empty();
-  Span lhs_comments_span;
-  if (n.type_annotation() != nullptr) {
-    lhs_comments_span =
-        Span(n.span().start(), n.type_annotation()->GetSpan()->start());
-  } else {
-    lhs_comments_span = Span(n.span().start(), n.value()->GetSpan()->start());
-  }
-  comments_doc = EmitCommentsBetween(lhs_comments_span.start(),
-                                     lhs_comments_span.limit(), comments, arena,
-                                     /*last_comment_span=*/nullptr);
-  if (comments_doc.has_value()) {
-    pre_comment = ConcatN(arena, {*comments_doc, arena.hard_line()});
-  }
-
-  return ConcatN(arena, {pre_comment, lhs, mid_comment, rhs});
-}
-
 DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   if (WeakerThan(n.lhs()->GetPrecedence(), n.GetPrecedence())) {
@@ -1822,6 +1732,94 @@ DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
 }
 
 }  // namespace
+
+DocRef Formatter::Format(const ConstantDef& n) {
+  std::vector<DocRef> leader_pieces;
+  if (n.is_public()) {
+    leader_pieces.push_back(arena_.Make(Keyword::kPub));
+    leader_pieces.push_back(arena_.break1());
+  }
+  leader_pieces.push_back(arena_.Make(Keyword::kConst));
+  leader_pieces.push_back(arena_.break1());
+  leader_pieces.push_back(arena_.MakeText(n.identifier()));
+  DocRef mid_comment = arena_.empty();
+  if (n.type_annotation() != nullptr) {
+    leader_pieces.push_back(arena_.colon());
+    leader_pieces.push_back(arena_.space());
+    leader_pieces.push_back(Fmt(*n.type_annotation(), comments_, arena_));
+
+    // Find comments between the end of the type annotation and the start of
+    // the value and put them between the type and the =
+    std::optional<DocRef> comments_doc =
+        EmitCommentsBetween(n.type_annotation()->GetSpan()->limit(),
+                            n.value()->GetSpan()->start(), comments_, arena_,
+                            /*last_comment_span=*/nullptr);
+    if (comments_doc.has_value()) {
+      mid_comment = ConcatN(arena_, {*comments_doc, arena_.hard_line()});
+      leader_pieces.push_back(arena_.space());
+    }
+  }
+
+  std::vector<DocRef> rhs_pieces;
+  if (mid_comment != arena_.empty()) {
+    // Make the = part of the RHS, and nest the whole RHS.
+    rhs_pieces.push_back(arena_.equals());
+    rhs_pieces.push_back(arena_.space());
+  } else {
+    leader_pieces.push_back(arena_.break1());
+    leader_pieces.push_back(arena_.equals());
+    leader_pieces.push_back(arena_.space());
+  }
+  DocRef lhs = ConcatNGroup(arena_, leader_pieces);
+
+  DocRef value_doc = Fmt(*n.value(), comments_, arena_);
+  std::optional<DocRef> comments_doc = EmitCommentsBetween(
+      n.value()->GetSpan()->limit(), n.span().limit(), comments_, arena_,
+      /*last_comment_span=*/nullptr);
+  if (comments_doc.has_value()) {
+    // There are comments between the end of the value and the semicolon.
+
+    // TODO: google/xls#1697 - check if the comment is not on the same line as
+    // the value. If so, emit a hard_line before the comment.
+    rhs_pieces.push_back(value_doc);
+    rhs_pieces.push_back(arena_.space());
+    rhs_pieces.push_back(*comments_doc);
+    rhs_pieces.push_back(arena_.hard_line());
+    if (mid_comment != arena_.empty()) {
+      // The whole RHS will be nested.
+      rhs_pieces.push_back(arena_.semi());
+    } else {
+      rhs_pieces.push_back(arena_.MakeNest(arena_.semi()));
+    }
+  } else {
+    // Reduce the width by 1 so we know we can emit the semi inline.
+    rhs_pieces.push_back(arena_.MakeReduceTextWidth(value_doc, 1));
+    rhs_pieces.push_back(arena_.semi());
+  }
+  DocRef rhs = ConcatN(arena_, rhs_pieces);
+  if (mid_comment != arena_.empty()) {
+    rhs = arena_.MakeNest(rhs);
+  }
+
+  // Now get the comments between the *start* of the node and the start of the
+  // type annotation or the start of the value.
+  DocRef pre_comment = arena_.empty();
+  Span lhs_comments_span;
+  if (n.type_annotation() != nullptr) {
+    lhs_comments_span =
+        Span(n.span().start(), n.type_annotation()->GetSpan()->start());
+  } else {
+    lhs_comments_span = Span(n.span().start(), n.value()->GetSpan()->start());
+  }
+  comments_doc = EmitCommentsBetween(
+      lhs_comments_span.start(), lhs_comments_span.limit(), comments_, arena_,
+      /*last_comment_span=*/nullptr);
+  if (comments_doc.has_value()) {
+    pre_comment = ConcatN(arena_, {*comments_doc, arena_.hard_line()});
+  }
+
+  return ConcatN(arena_, {pre_comment, lhs, mid_comment, rhs});
+}
 
 DocRef Formatter::Format(const ConstAssert& n) {
   return ConcatNGroup(arena_, {
@@ -2082,7 +2080,7 @@ DocRef Formatter::Format(const Proc& n) {
                 stmt_pieces.push_back(
                     arena_.MakeConcat(maybe_doc.value(), arena_.hard_line()));
               }
-              stmt_pieces.push_back(Fmt(*n, comments_, arena_));
+              stmt_pieces.push_back(Format(*n));
               stmt_pieces.push_back(arena_.hard_line());
               last_stmt_limit = n->span().limit();
             },
@@ -2353,12 +2351,11 @@ DocRef Formatter::Format(const ProcDef& n) {
 }
 
 DocRef Formatter::Format(const ImplMember& n) {
-  return absl::visit(
-      Visitor{
-          [&](const Function* n) { return Format(*n); },
-          [&](const ConstantDef* n) { return Fmt(*n, comments_, arena_); },
-      },
-      n);
+  return absl::visit(Visitor{
+                         [&](const Function* n) { return Format(*n); },
+                         [&](const ConstantDef* n) { return Format(*n); },
+                     },
+                     n);
 }
 
 DocRef Formatter::Format(const Impl& n) {
@@ -2631,28 +2628,27 @@ DocRef Formatter::Format(const TypeAlias& n) {
 }
 
 DocRef Formatter::Format(const ModuleMember& n) {
-  return absl::visit(
-      Visitor{
-          [&](const Function* n) { return Format(*n); },
-          [&](const Proc* n) { return Format(*n); },
-          [&](const TestFunction* n) { return Format(*n); },
-          [&](const TestProc* n) { return Format(*n); },
-          [&](const QuickCheck* n) { return Format(*n); },
-          [&](const TypeAlias* n) {
-            return arena_.MakeConcat(Format(*n), arena_.semi());
-          },
-          [&](const StructDef* n) { return Format(*n); },
-          [&](const ProcDef* n) { return Format(*n); },
-          [&](const Impl* n) { return Format(*n); },
-          [&](const ConstantDef* n) { return Fmt(*n, comments_, arena_); },
-          [&](const EnumDef* n) { return Format(*n); },
-          [&](const Import* n) { return Format(*n); },
-          [&](const ConstAssert* n) {
-            return arena_.MakeConcat(Format(*n), arena_.semi());
-          },
-          [&](const VerbatimNode* n) { return Format(*n); },
-      },
-      n);
+  return absl::visit(Visitor{
+                         [&](const Function* n) { return Format(*n); },
+                         [&](const Proc* n) { return Format(*n); },
+                         [&](const TestFunction* n) { return Format(*n); },
+                         [&](const TestProc* n) { return Format(*n); },
+                         [&](const QuickCheck* n) { return Format(*n); },
+                         [&](const TypeAlias* n) {
+                           return arena_.MakeConcat(Format(*n), arena_.semi());
+                         },
+                         [&](const StructDef* n) { return Format(*n); },
+                         [&](const ProcDef* n) { return Format(*n); },
+                         [&](const Impl* n) { return Format(*n); },
+                         [&](const ConstantDef* n) { return Format(*n); },
+                         [&](const EnumDef* n) { return Format(*n); },
+                         [&](const Import* n) { return Format(*n); },
+                         [&](const ConstAssert* n) {
+                           return arena_.MakeConcat(Format(*n), arena_.semi());
+                         },
+                         [&](const VerbatimNode* n) { return Format(*n); },
+                     },
+                     n);
 }
 
 DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {

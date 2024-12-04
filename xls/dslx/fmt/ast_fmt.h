@@ -51,6 +51,7 @@ class Formatter {
  private:
   // keep-sorted start
   DocRef Format(const ConstAssert& n);
+  DocRef Format(const ConstantDef& n);
   DocRef Format(const EnumDef& n);
   DocRef Format(const EnumMember& n);
   DocRef Format(const Impl& n);
