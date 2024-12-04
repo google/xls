@@ -45,6 +45,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
@@ -197,6 +198,33 @@ class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
   ProcStateLegalizationPass proc_state_sched_pass_;
 };
 
+class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
+ public:
+  AssertAndCoverRemovalPass()
+      : OptimizationFunctionBasePass("Assert and cover removal",
+                                     "assert_and_cover_removal") {}
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const OptimizationPassOptions& options,
+      PassResults* results) const override {
+    bool changes = false;
+    std::vector<Node*> orig_nodes(f->nodes().begin(), f->nodes().end());
+    for (Node* n : orig_nodes) {
+      if (n->Is<Assert>()) {
+        changes = true;
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+        XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+      } else if (n->Is<Cover>()) {
+        changes = true;
+        XLS_RET_CHECK(n->users().empty()) << n << " has users";
+        XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+      }
+    }
+    return changes;
+  }
+};
+
 absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
                               const std::string& entry,
                               std::optional<int64_t> activation_count,
@@ -229,6 +257,11 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   // Zero-len bits are hard for z3 to handle. Just turn them all into zero-bit
   // literals.
   inlining_passes.Add<LiteralizeZeroBits>();
+  inlining_passes.Add<DeadCodeEliminationPass>();
+  // Asserts/cover isn't supported by our z3.
+  // TODO(allight): We could try to assert that the two IRs assert-fail at the
+  // same points or something.
+  inlining_passes.Add<AssertAndCoverRemovalPass>();
   inlining_passes.Add<DeadCodeEliminationPass>();
   OptimizationPassOptions options;
   PassResults results;

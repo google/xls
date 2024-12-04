@@ -98,6 +98,26 @@ top proc neg_neg_proc(my_state: (), init={()}) {
 }
 """
 
+PROC_IR_WITH_ASSERT = """package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only,
+        flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only,
+        flow_control=ready_valid, metadata="")
+
+top proc proc_tst(my_state: (), init={()}) {
+  my_token: token = literal(value=token)
+  rcv: (token, bits[32]) = receive(my_token, channel=in)
+  data: bits[32] = tuple_index(rcv, index=1)
+  rcv_token: token = tuple_index(rcv, index=0)
+  send: token = send(rcv_token, data, channel=out)
+  zero: bits[32] = literal(value=0)
+  nz: bits[1] = ne(data, zero)
+  assert: token = assert(send, nz, message="foobar")
+  next (my_state)
+}
+"""
+
 _CHECK_EQUIV = runfiles.get_path("xls/dev_tools/check_ir_equivalence_main")
 
 
@@ -122,6 +142,11 @@ class CheckIrEquivalenceMainTest(absltest.TestCase):
     res, msg = self._check_equiv(ADD_IR, NOT_ADD_IR)
     self.assertFalse(res)
     self.assertIn("Verified NOT equivalent", msg)
+
+  def test_ignores_assert(self):
+    res, msg = self._check_equiv(PROC_IR_WITH_ASSERT, PROC_IR, act_count=3)
+    self.assertTrue(res)
+    self.assertIn("Verified equivalent", msg)
 
   def test_detects_equiv_functions(self):
     res, msg = self._check_equiv(ADD_IR, NOT_NOT_ADD_IR)
