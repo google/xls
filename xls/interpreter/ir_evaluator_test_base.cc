@@ -1166,6 +1166,21 @@ after_loop:
   EXPECT_TRUE(found_mismatch);
 }
 
+TEST_P(IrEvaluatorTestBase, BigDiv) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue lhs = fb.Param("lhs", p->GetBitsType(100));
+  BValue rhs = fb.Param("rhs", p->GetBitsType(100));
+  fb.Tuple({fb.UDiv(lhs, rhs), fb.SDiv(lhs, rhs), fb.UMod(lhs, rhs),
+            fb.SMod(lhs, rhs)});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(
+      RunWithNoEvents(f, {Value(UBits(12, 100)), Value(UBits(2, 100))}),
+      IsOkAndHolds(Value::Tuple({Value(UBits(6, 100)), Value(UBits(6, 100)),
+                                 Value(UBits(0, 100)), Value(UBits(0, 100))})));
+}
+
 TEST_P(IrEvaluatorTestBase, InterpretUDiv) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,

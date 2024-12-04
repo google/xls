@@ -56,6 +56,7 @@
 #include "llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/jit/jit_clang_builtins.h"
 #include "xls/jit/jit_emulated_tls.h"  // NOLINT: Used with MSAN
 #include "xls/jit/llvm_compiler.h"
 #include "xls/jit/observer.h"
@@ -209,12 +210,16 @@ class MsanHostEmuTls : public llvm::orc::DefinitionGenerator {
 }  // namespace
 
 absl::Status OrcJit::InitInternal() {
+  // Add emutls and linked symbols.
   execution_session_.runSessionLocked([this]() {
     dylib_.addGenerator(std::make_unique<MsanHostEmuTls>());
     dylib_.addGenerator(
         cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
             data_layout_.getGlobalPrefix())));
   });
+
+  // Add some selected compiler-rt symbols.
+  XLS_RETURN_IF_ERROR(AddCompilerRtSymbols(dylib_, data_layout_));
 
   auto compiler = std::make_unique<llvm::orc::SimpleCompiler>(*target_machine_);
   compile_layer_ = std::make_unique<llvm::orc::IRCompileLayer>(

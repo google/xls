@@ -708,10 +708,28 @@ cc_library(
 )
 
 cc_library(
+    name = "jit_clang_builtins",
+    srcs = ["jit_clang_builtins.cc"],
+    hdrs = ["jit_clang_builtins.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:OrcShared",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:ir_headers",
+    ],
+)
+
+cc_library(
     name = "orc_jit",
     srcs = ["orc_jit.cc"],
     hdrs = ["orc_jit.h"],
     deps = [
+        ":jit_clang_builtins",
         ":jit_emulated_tls",
         ":llvm_compiler",
         ":observer",
