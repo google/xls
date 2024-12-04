@@ -895,7 +895,6 @@ cc_library(
     deps = [
         ":predicate_state",
         ":query_engine",
-        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
