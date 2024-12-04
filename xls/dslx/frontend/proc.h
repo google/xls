@@ -155,6 +155,16 @@ class ProcLike : public AstNode {
   // a tuple expression.
   absl::Nullable<const XlsTuple*> GetConfigTuple() const;
 
+  bool IsStateless() const {
+    TypeAnnotation* return_type = init().return_type();
+    if (auto tuple_type =
+            dynamic_cast<const TupleTypeAnnotation*>(return_type)) {
+      return tuple_type->empty();
+    }
+
+    return false;
+  }
+
  private:
   Span span_;
   Span body_span_;

@@ -114,7 +114,7 @@ class RunFuzzTest : public ::testing::Test {
     };
   }
 
-  SampleOptions GetSampleOptions() {
+  static SampleOptions GetSampleOptions() {
     SampleOptions options;
     options.set_input_is_dslx(true);
     options.set_ir_converter_args({"--top=main"});
@@ -128,10 +128,12 @@ class RunFuzzTest : public ::testing::Test {
     return options;
   }
 
-  absl::StatusOr<Sample> RunFuzz(int64_t seed) {
+  absl::StatusOr<Sample> RunFuzz(
+      int64_t seed, SampleOptions sample_options = GetSampleOptions()) {
     std::mt19937_64 rng(seed);
+
     return GenerateSampleAndRun(file_table_, rng, GetAstGeneratorOptions(),
-                                GetSampleOptions(), /*run_dir=*/GetTempPath(),
+                                sample_options, /*run_dir=*/GetTempPath(),
                                 crasher_dir_);
   }
 
@@ -169,10 +171,13 @@ class RunFuzzSeededTest : public RunFuzzTest,
                           public ::testing::WithParamInterface<int64_t> {};
 
 TEST_P(RunFuzzSeededTest, TestSeed) {
+  SampleOptions sample_options = GetSampleOptions();
+  sample_options.set_codegen(true);
+
   const int64_t base_seed = GetParam();
   for (int i = 0; i < kSampleCount; ++i) {
     const int64_t sample_seed = kSampleCount * base_seed + i;
-    XLS_EXPECT_OK(RunFuzz(sample_seed)) << absl::StreamFormat(
+    XLS_EXPECT_OK(RunFuzz(sample_seed, sample_options)) << absl::StreamFormat(
         "For seed %d, sample #%d of %d failed (sample seed = %d).", base_seed,
         i, kSampleCount, sample_seed);
   }

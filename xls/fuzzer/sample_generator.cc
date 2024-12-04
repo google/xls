@@ -160,7 +160,7 @@ static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text,
 //     receive operation.
 //   rng: Random number generator state.
 static std::vector<std::string> GenerateCodegenArgs(
-    bool use_system_verilog, bool has_proc, bool has_registers,
+    bool use_system_verilog, bool has_proc, bool has_stateless_proc,
     int64_t min_stages, bool has_nb_recv, absl::BitGenRef bit_gen) {
   std::vector<std::string> args;
   if (use_system_verilog) {
@@ -168,58 +168,73 @@ static std::vector<std::string> GenerateCodegenArgs(
   } else {
     args.push_back("--nouse_system_verilog");
   }
-  bool is_pipeline = has_registers || absl::Bernoulli(bit_gen, 0.8);
-  if (is_pipeline) {
-    args.push_back("--generator=pipeline");
-    // Set the pipeline stage to one when fuzzing a proc with a non-blocking
-    // receive to ensures proper validation of the verilog output with other
-    // stages in the proc.
-    // TODO(https://github.com/google/xls/issues/798) To enhance the coverage,
-    // support pipeline stages greater than one.
-    if (has_nb_recv) {
-      args.push_back("--pipeline_stages=1");
-    } else {
-      int64_t stage_cnt =
-          absl::Uniform<int64_t>(bit_gen, min_stages, min_stages + 10);
-      args.push_back(absl::StrCat("--pipeline_stages=", stage_cnt));
-      if (stage_cnt > 1) {
-        int64_t worst_case_throughput =
-            absl::Uniform<int64_t>(bit_gen, 0, stage_cnt);
-        if (worst_case_throughput > 0) {
-          args.push_back(absl::StrFormat("--worst_case_throughput=%d",
-                                         worst_case_throughput));
-        }
+
+  args.push_back("--output_block_ir_path=sample.block.ir");
+
+  // For functions and stateless procs, randomly choose to generate either a
+  // combinational block or pipelined block.
+  bool generate_combinational_block =
+      (!has_proc || has_stateless_proc) && absl::Bernoulli(bit_gen, 0.2);
+
+  if (generate_combinational_block) {
+    args.push_back("--generator=combinational");
+
+    // A combinational circuit does not support resetting the data path.
+    args.push_back("--reset_data_path=false");
+
+    return args;
+  }
+
+  // Pipeline generator.
+  args.push_back("--generator=pipeline");
+
+  // Set the pipeline stage to one when fuzzing a proc with a non-blocking
+  // receive to ensures proper validation of the verilog output with other
+  // stages in the proc.
+
+  // TODO(https://github.com/google/xls/issues/798) To enhance the coverage,
+  // support pipeline stages greater than one.
+  if (has_nb_recv) {
+    args.push_back("--pipeline_stages=1");
+
+    // TODO(https://github.com/google/xls/issues/791).
+    args.push_back("--flop_inputs=true");
+    args.push_back("--flop_inputs_kind=zerolatency");
+  } else {
+    int64_t stage_cnt =
+        absl::Uniform<int64_t>(bit_gen, min_stages, min_stages + 10);
+    args.push_back(absl::StrCat("--pipeline_stages=", stage_cnt));
+    if (stage_cnt > 1) {
+      int64_t worst_case_throughput =
+          absl::Uniform<int64_t>(bit_gen, 0, stage_cnt);
+      if (worst_case_throughput > 0) {
+        args.push_back(absl::StrFormat("--worst_case_throughput=%d",
+                                       worst_case_throughput));
       }
     }
-  } else {
-    args.push_back("--generator=combinational");
   }
-  if (has_registers || is_pipeline) {
-    args.push_back("--reset=rst");
-    // The simulation functions with an active low reset.
-    args.push_back("--reset_active_low=false");
-    // TODO(https://github.com/google/xls/issues/795) Test the
-    // 'reset_asynchronous' flag in codegen in the fuzzer.
-    args.push_back(
-        absl::StrCat("--reset_asynchronous=",
-                     absl::Bernoulli(bit_gen, 0.5) ? "true" : "false"));
-  }
-  if (is_pipeline && has_proc) {
+
+  args.push_back("--reset=rst");
+
+  // The simulation functions with an active low reset.
+  args.push_back("--reset_active_low=false");
+
+  // TODO(https://github.com/google/xls/issues/795) Test the
+  // 'reset_asynchronous' flag in codegen in the fuzzer.
+  args.push_back(
+      absl::StrCat("--reset_asynchronous=",
+                   absl::Bernoulli(bit_gen, 0.5) ? "true" : "false"));
+
+  if (has_proc) {
     // For a pipelined proc, the data path may contain register driving control
     // (e.g. channel read). These registers need to have a defined value after
     // reset. As a result, the data path must be reset.
     args.push_back("--reset_data_path=true");
   } else {
-    // A combinational circuit and circuit derived from a function do not
-    // support resetting the data path.
+    // A pipelined function does not support resetting the data path.
     args.push_back("--reset_data_path=false");
   }
-  // TODO(https://github.com/google/xls/issues/791).
-  if (has_nb_recv) {
-    args.push_back("--flop_inputs=true");
-    args.push_back("--flop_inputs_kind=zerolatency");
-  }
-  args.push_back("--output_block_ir_path=sample.block.ir");
+
   return args;
 }
 
@@ -419,31 +434,6 @@ absl::StatusOr<Sample> GenerateSample(
     // we can't have a non-blocking recv except with 1 pipeline stage.
   } while (sample_options.codegen() && has_nb_recv && min_stages > 1);
 
-  // Generate the sample options which is how to *run* the generated
-  // sample. AstGeneratorOptions 'options' is how to *generate* the sample.
-  SampleOptions sample_options_copy = sample_options;
-  // The generated sample is DSLX so input_is_dslx must be true.
-  sample_options_copy.set_input_is_dslx(true);
-  XLS_RET_CHECK(sample_options_copy.codegen_args().empty())
-      << "Setting codegen arguments is not supported, they are randomly "
-         "generated";
-  if (sample_options_copy.codegen()) {
-    // Generate codegen args if codegen is given but no codegen args are
-    // specified.
-    sample_options_copy.set_codegen_args(
-        GenerateCodegenArgs(sample_options_copy.use_system_verilog(),
-                            generator_options.generate_proc,
-                            generator_options.generate_proc &&
-                                !generator_options.emit_stateless_proc,
-                            min_stages, has_nb_recv, bit_gen));
-
-    // Randomly also turn on Codegen NG pipeline.
-    bool use_codegen_ng = absl::Bernoulli(bit_gen, 0.5);
-    if (use_codegen_ng) {
-      sample_options_copy.set_codegen_ng(true);
-    }
-  }
-
   // Parse and type check the DSLX input to retrieve the top entity. The top
   // member must be a proc or a function.
   ImportData import_data(
@@ -463,6 +453,33 @@ absl::StatusOr<Sample> GenerateSample(
       tm->module->FindMemberWithName(top_name);
   CHECK(module_member.has_value());
   ModuleMember* member = module_member.value();
+
+  // Also determine if the top is a stateless proc.
+  bool is_proc = std::holds_alternative<dslx::Proc*>(*member);
+  bool is_stateless_proc =
+      is_proc && std::get<dslx::Proc*>(*member)->IsStateless();
+
+  // Generate the sample options which is how to *run* the generated
+  // sample. AstGeneratorOptions 'options' is how to *generate* the sample.
+  SampleOptions sample_options_copy = sample_options;
+  // The generated sample is DSLX so input_is_dslx must be true.
+  sample_options_copy.set_input_is_dslx(true);
+  XLS_RET_CHECK(sample_options_copy.codegen_args().empty())
+      << "Setting codegen arguments is not supported, they are randomly "
+         "generated";
+  if (sample_options_copy.codegen()) {
+    // Generate codegen args if codegen is given but no codegen args are
+    // specified.
+    sample_options_copy.set_codegen_args(GenerateCodegenArgs(
+        sample_options_copy.use_system_verilog(), is_proc, is_stateless_proc,
+        min_stages, has_nb_recv, bit_gen));
+
+    // Randomly also turn on Codegen NG pipeline.
+    bool use_codegen_ng = absl::Bernoulli(bit_gen, 0.5);
+    if (use_codegen_ng) {
+      sample_options_copy.set_codegen_ng(true);
+    }
+  }
 
   if (generator_options.generate_proc) {
     CHECK(std::holds_alternative<dslx::Proc*>(*member));

@@ -849,6 +849,35 @@ TEST_F(ParserTest, ParseSimpleProc) {
   }
   const Proc* p = std::get<Proc*>(*proc);
   EXPECT_EQ(p->ToString(), text);
+  EXPECT_FALSE(p->IsStateless());
+}
+
+TEST_F(ParserTest, ParseStatelessProc) {
+  const char* text = R"(proc simple {
+    config() {
+        ()
+    }
+    init {
+        ()
+    }
+    next(state: ()) {
+        ()
+    }
+})";
+
+  Scanner s{file_table_, Fileno(0), std::string{text}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  auto proc =
+      parser.ParseProc(Pos(), /*is_public=*/false, /*bindings=*/bindings);
+  if (!proc.ok()) {
+    UniformContentFilesystem vfs(text);
+    TryPrintError(proc.status(), file_table_, vfs);
+    XLS_ASSERT_OK(proc.status());
+  }
+  const Proc* p = std::get<Proc*>(*proc);
+  EXPECT_EQ(p->ToString(), text);
+  EXPECT_TRUE(p->IsStateless());
 }
 
 TEST_F(ParserTest, TraceFmtNoArgs) {
