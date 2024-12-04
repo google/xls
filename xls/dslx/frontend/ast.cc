@@ -523,6 +523,7 @@ const absl::btree_set<BinopKind>& GetBinopSameTypeKinds() {
       BinopKind::kOr,
       BinopKind::kXor,
       BinopKind::kDiv,
+      BinopKind::kMod,
   });
   return *singleton;
 }

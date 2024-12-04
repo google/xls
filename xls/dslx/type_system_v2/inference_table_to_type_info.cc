@@ -14,7 +14,6 @@
 
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -22,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -117,6 +117,26 @@ class InferenceTableConverter {
         // it.
         std::optional<Span> node_span = node->GetSpan();
         CHECK(node_span.has_value());
+        if ((node->kind() == AstNodeKind::kConstantDef ||
+             node->kind() == AstNodeKind::kNameDef) &&
+            !VariableHasAnyExplicitTypeAnnotations(*type_variable)) {
+          // The motivation for disallowing this, irrespective of its
+          // unifiability, is that otherwise a snippet like this would present
+          // a serious ambiguity:
+          //   const X = 3;
+          //   const Y = X + 1;
+          // If we auto-annotate the `3` as `u2` and the `1` becomes `u2` via
+          // normal promotion, `X + 1` surprisingly overflows. What is really
+          // desired here is probably a common type for `X` and `Y` that fits
+          // both. We want the programmer to write that type on the `X` line at
+          // a minimum, which will then predictably propagate to `Y` if they
+          // don't say otherwise.
+          return absl::InvalidArgumentError(absl::Substitute(
+              "TypeInferenceError: A variable or constant cannot be defined "
+              "with an implicit type. `$0` at $1 must have a type annotation "
+              "on at least one side of its assignment.",
+              node->ToString(), node_span->ToString(file_table_)));
+        }
         XLS_ASSIGN_OR_RETURN(annotation,
                              UnifyTypeAnnotations(parametric_invocation,
                                                   *type_variable, *node_span));
@@ -131,14 +151,7 @@ class InferenceTableConverter {
       }
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                            Concretize(*annotation, parametric_invocation));
-      // A literal can have its own explicit type annotation that ultimately
-      // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
-      // something more subtly wrong, like `uN[N]:0xffff`, where N proves to be
-      // too small. This is the opportune time to check for that, since we have
-      // now concretized the type.
-      if (const auto* literal = dynamic_cast<const Number*>(node)) {
-        XLS_RETURN_IF_ERROR(CheckConcreteLiteralType(*literal, *type));
-      }
+      XLS_RETURN_IF_ERROR(ValidateConcreteTypeForNode(node, type.get()));
       ti->SetItem(node, *type);
     }
     return absl::OkStatus();
@@ -371,16 +384,46 @@ class InferenceTableConverter {
     return annotation;
   }
 
-  // Ensures that the given literal value fits in the given type.
-  absl::Status CheckConcreteLiteralType(const Number& literal,
-                                        const Type& type) {
-    if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
-        bits_like.has_value()) {
-      return TryEnsureFitsInType(literal, bits_like.value(), type);
+  // Checks if the given concrete type ultimately makes sense for the given
+  // node, based on the intrinsic properties of the node, like being an add
+  // operation or containing an embedded literal.
+  absl::Status ValidateConcreteTypeForNode(const AstNode* node,
+                                           const Type* type) {
+    if (const auto* literal = dynamic_cast<const Number*>(node)) {
+      // A literal can have its own explicit type annotation that ultimately
+      // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
+      // something more subtly wrong, like `uN[N]:0xffff`, where N proves to be
+      // too small.
+      if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
+          bits_like.has_value()) {
+        return TryEnsureFitsInType(*literal, bits_like.value(), *type);
+      }
+      return TypeInferenceErrorStatus(
+          literal->span(), type,
+          "Non-bits type used to define a numeric literal.", file_table_);
     }
-    return TypeInferenceErrorStatus(
-        literal.span(), &type,
-        "Non-bits type used to define a numeric literal.", file_table_);
+    if (const auto* binop = dynamic_cast<const Binop*>(node);
+        binop != nullptr &&
+        GetBinopSameTypeKinds().contains(binop->binop_kind()) &&
+        !IsBitsLike(*type)) {
+      return TypeInferenceErrorStatus(
+          binop->span(), type,
+          "Binary operations can only be applied to bits-typed operands.",
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  // Determines if the given `type_variable` has any annotations in the table
+  // that were explicitly written in the DSLX source.
+  bool VariableHasAnyExplicitTypeAnnotations(const NameRef* type_variable) {
+    absl::StatusOr<std::vector<const TypeAnnotation*>> annotations =
+        table_.GetTypeAnnotationsForTypeVariable(type_variable);
+    return annotations.ok() &&
+           absl::c_any_of(
+               *annotations, [this](const TypeAnnotation* annotation) {
+                 return !auto_literal_annotations_.contains(annotation);
+               });
   }
 
   const InferenceTable& table_;

@@ -19,9 +19,11 @@
 #include <string>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
@@ -82,6 +84,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       }
     }
     return table_.SetTypeAnnotation(node, annotation);
+  }
+
+  absl::Status HandleBinop(const Binop* node) override {
+    // Any `Binop` should be a descendant of some context-setting node and
+    // should have a type that was set when its parent was visited.
+    const NameRef* type_variable = *table_.GetTypeVariable(node);
+    if (GetBinopSameTypeKinds().contains(node->binop_kind())) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), type_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), type_variable));
+    } else {
+      return absl::UnimplementedError(
+          absl::StrCat("Type inference version 2 is a work in progress and "
+                       "does not yet support the expression: ",
+                       node->ToString()));
+    }
+    return DefaultHandler(node);
   }
 
   absl::Status DefaultHandler(const AstNode* node) override {

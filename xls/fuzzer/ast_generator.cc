@@ -1054,7 +1054,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   };
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDivOrMod(
+    Context* ctx, BinopKind kind) {
   // TODO(tedhong): 2022-10-21 When https://github.com/google/xls/issues/746
   // is resolved, remove bitcount constraint.
   XLS_ASSIGN_OR_RETURN(
@@ -1065,12 +1066,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
   Bits divisor = GenerateBits(bit_gen_, bit_count);
   Number* divisor_node = GenerateNumberFromBits(divisor, lhs.type);
-  return TypedExpr{
-      .expr = module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr,
-                                   divisor_node, fake_span_),
-      .type = lhs.type,
-      .last_delaying_op = lhs.last_delaying_op,
-      .min_stage = lhs.min_stage};
+  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, kind, lhs.expr,
+                                                divisor_node, fake_span_),
+                   .type = lhs.type,
+                   .last_delaying_op = lhs.last_delaying_op,
+                   .min_stage = lhs.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
@@ -1187,8 +1187,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   BinopKind op = RandomChoice(GetBinopSameTypeKinds(), bit_gen_);
-  if (op == BinopKind::kDiv) {
-    return GenerateSynthesizableDiv(ctx);
+  if (op == BinopKind::kDiv || op == BinopKind::kMod) {
+    return GenerateSynthesizableDivOrMod(ctx, op);
   }
   if (GetBinopShifts().contains(op)) {
     return GenerateShift(ctx);

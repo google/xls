@@ -38,23 +38,13 @@ absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program) {
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithNoTypeAnnotations) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(TypecheckV2(R"(
 const X = 3;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string, HasSubstr("node: `const X = 3;`, type: uN[2]"));
-}
-
-TEST(TypecheckV2Test,
-     GlobalIntegerConstantWithNegativeValueAndNoTypeAnnotations) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
-const X = -3;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = -3;`, type: sN[3]"));
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("A variable or constant cannot be "
+                                       "defined with an implicit type."),
+                             HasSubstr("const X = 3;"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithTypeAnnotationOnLiteral) {
@@ -109,14 +99,183 @@ const X: s24 = u24:3;
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsAnotherConstant) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
-const X = 3;
+const X = u2:3;
 const Y = X;
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
                            TypeInfoToString(result.tm));
   EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = 3;`, type: uN[2]"),
+              AllOf(HasSubstr("node: `const X = u2:3;`, type: uN[2]"),
                     HasSubstr("node: `const Y = X;`, type: uN[2]")));
+}
+
+TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3 + 1 + 5;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const X = u32:3 + 1 + 5;`, type: uN[32]"));
+}
+
+TEST(TypecheckV2Test, GlobalIntegerConstantWithAutoLiteralCoercedToSigned) {
+  // Here the auto type of the `3` would be `u2`, but the context should promote
+  // it and make it signed.
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = s32:2 + 3;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const X = s32:2 + 3;`, type: sN[32]"));
+}
+
+TEST(TypecheckV2Test, GlobalIntegerConstantWithNegativeAutoLiteral) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = s32:2 + -3;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const X = s32:2 + -3;`, type: sN[32]"));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantUnsignedWithNegativeAutoLiteralFails) {
+  EXPECT_THAT(
+      TypecheckV2(R"(
+const X = u32:2 + -3;
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Number -3 invalid: can't assign a negative value to "
+                         "an unsigned type.")));
+}
+
+TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X + 1 + Y + 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X + 1 + Y + 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantEqualsDifferenceOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X - 1 - Y - 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X - 1 - Y - 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantEqualsProductOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X * 1 * Y * 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X * 1 * Y * 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantEqualsQuotientOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X / 1 / Y / 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X / 1 / Y / 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantEqualsBitwiseAndOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X & 1 & Y & 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X & 1 & Y & 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantEqualsBitwiseOrOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X | 1 | Y | 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X | 1 | Y | 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantEqualsBitwiseXorOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X ^ 1 ^ Y ^ 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X ^ 1 ^ Y ^ 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test, GlobalIntegerConstantEqualsModOfConstantsAndLiterals) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y: u32 = 4;
+const Z = X % 1 % Y % 2;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
+            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
+            HasSubstr("node: `const Z = X % 1 % Y % 2;`, type: uN[32]")));
 }
 
 TEST(TypecheckV2Test,
@@ -235,7 +394,7 @@ const Y = X;
                     HasSubstr("node: `const Y = X;`, type: uN[1]")));
 }
 
-TEST(TypecheckV2Test, GlobalBoolConstantEqualsIntegerConstantFails) {
+TEST(TypecheckV2Test, GlobalIntegerConstantEqualsBoolConstantFails) {
   EXPECT_THAT(TypecheckV2(R"(
 const X = true;
 const Y: u32 = X;
@@ -244,7 +403,17 @@ const Y: u32 = X;
                        ContainsRegex(R"(size mismatch.*bool.*vs. u32)")));
 }
 
-TEST(TypecheckV2Test, GlobalIntegerConstantEqualsBoolConstantFails) {
+TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfBoolsFails) {
+  EXPECT_THAT(TypecheckV2(R"(
+const X = true;
+const Y = true;
+const Z: u32 = X + Y;
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       ContainsRegex(R"(size mismatch.*bool.*vs. u32)")));
+}
+
+TEST(TypecheckV2Test, GlobalBoolConstantEqualsIntegerConstantFails) {
   EXPECT_THAT(TypecheckV2(R"(
 const X = u32:4;
 const Y: bool = X;

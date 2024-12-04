@@ -559,7 +559,9 @@ class AstGenerator {
   // Generates a shift operation AST node.
   absl::StatusOr<TypedExpr> GenerateShift(Context* ctx);
 
-  absl::StatusOr<TypedExpr> GenerateSynthesizableDiv(Context* ctx);
+  // Generates a div or mod AST node, depending on the `kind`.
+  absl::StatusOr<TypedExpr> GenerateSynthesizableDivOrMod(Context* ctx,
+                                                          BinopKind kind);
 
   // Generates a group of operations containing PartialProduct ops. The output
   // of the group will be deterministic (e.g. a smulp followed by an add).
