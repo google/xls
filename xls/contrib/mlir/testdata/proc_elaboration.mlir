@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -elaborate-procs %s 2>&1 | FileCheck %s
+// RUN: xls/contrib/mlir/xls_opt -elaborate-procs -split-input-file %s 2>&1 | FileCheck %s
 // CHECK:       xls.chan @req : i32
 // CHECK-NEXT:  xls.chan @resp : i32
 // CHECK-NEXT:  xls.chan @rom1_req : i32
@@ -86,6 +86,30 @@ xls.sproc @rom(%req: !xls.schan<i32, in>, %resp: !xls.schan<i32, out>) top attri
     %tok1, %address = xls.sblocking_receive %tok0, %req : (!xls.token, !xls.schan<i32, in>) -> (!xls.token, i32)
     %one = "xls.constant_scalar"() {value = 1 : i32} : () -> i32
     %tok2 = xls.ssend %tok1, %one, %resp : (!xls.token, i32, !xls.schan<i32, out>) -> !xls.token
+    xls.yield %state : i32
+  }
+}
+
+// -----
+
+// CHECK: xls.chan @req : i32
+// CHECK-NEXT: xls.chan @resp : i32
+// CHECK-NEXT: xls.instantiate_extern_eproc "external" ("req" as @req, "resp" as @resp)
+xls.extern_sproc @external(req: !xls.schan<i32, in>, resp: !xls.schan<i32, out>)
+
+// CHECK: xls.chan @main_arg0 : i32
+// CHECK-NEXT: xls.chan @main_arg1 : i32
+// CHECK: xls.instantiate_eproc @main_0 (@main_arg0 as @req, @main_arg1 as @resp)
+xls.sproc @main() top {
+  spawns {
+    %req_out, %req_in = xls.schan<i32>("req")
+    %resp_out, %resp_in = xls.schan<i32>("resp")
+    xls.spawn @external(%req_in, %resp_out) : !xls.schan<i32, in>, !xls.schan<i32, out>
+    xls.yield %req_out, %resp_in : !xls.schan<i32, out>, !xls.schan<i32, in>
+  }
+  next (%req: !xls.schan<i32, out>, %resp: !xls.schan<i32, in>, %state: i32) zeroinitializer {
+    %tok = xls.after_all : !xls.token
+    %tok2 = xls.ssend %tok, %state, %req : (!xls.token, i32, !xls.schan<i32, out>) -> !xls.token
     xls.yield %state : i32
   }
 }

@@ -150,6 +150,19 @@ class ElaborationContext
                                        builder.getArrayAttr(localSymbols));
   }
 
+  void instantiateExternEproc(ExternSprocOp externSproc,
+                              ArrayRef<value_type> globalChannels) {
+    auto flatchan = [](value_type chan) -> Attribute {
+      return FlatSymbolRefAttr::get(chan.getSymNameAttr());
+    };
+    SmallVector<Attribute> globalSymbols =
+        llvm::map_to_vector(globalChannels, flatchan);
+    StringAttr symName = externSproc.getSymNameAttr();
+    builder.create<InstantiateExternEprocOp>(
+        externSproc.getLoc(), symName, builder.getArrayAttr(globalSymbols),
+        externSproc.getBoundaryChannelNames());
+  }
+
   SymbolTable& getSymbolTable() { return symbolTable; }
 
  private:
@@ -189,6 +202,10 @@ class ElaborationInterpreter
   }
 
   absl::Status Interpret(SpawnOp op, ElaborationContext& ctx) {
+    ExternSprocOp externSproc = op.resolveExternCallee();
+    if (externSproc) {
+      return InterpretSpawnOfExtern(op, externSproc, ctx);
+    }
     SprocOp sproc = op.resolveCallee();
     if (!sproc) {
       return absl::InvalidArgumentError("failed to resolve callee");
@@ -208,6 +225,19 @@ class ElaborationInterpreter
                          Interpret(sproc.getSpawns(), arguments, ctx));
     auto eproc_channels = ctx.createEproc(sproc);
     ctx.instantiateEproc(eproc_channels, results);
+    return absl::OkStatus();
+  }
+
+  absl::Status InterpretSpawnOfExtern(SpawnOp op, ExternSprocOp externSproc,
+                                      ElaborationContext& ctx) {
+    XLS_ASSIGN_OR_RETURN(auto arguments, ctx.Get(op.getChannels()));
+    if (arguments.size() != externSproc.getChannelArgumentTypes().size()) {
+      return absl::InternalError(absl::StrFormat(
+          "Call to %s requires %d arguments but got %d",
+          op.getCallee().getLeafReference().str(),
+          externSproc.getChannelArgumentTypes().size(), arguments.size()));
+    }
+    ctx.instantiateExternEproc(externSproc, arguments);
     return absl::OkStatus();
   }
 
@@ -259,7 +289,11 @@ void ProcElaborationPass::runOnOperation() {
       sproc.emitError() << "failed to elaborate: " << result.message();
     }
   }
-  module.walk([&](SprocOp sproc) { sproc.erase(); });
+  module.walk([&](Operation* op) {
+    if (isa<SprocOp, ExternSprocOp>(op)) {
+      op->erase();
+    }
+  });
 }
 
 }  // namespace mlir::xls

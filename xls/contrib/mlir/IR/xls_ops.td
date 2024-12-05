@@ -1408,6 +1408,30 @@ def Xls_InstantiateEprocOp : Xls_Op<"instantiate_eproc", [DeclareOpInterfaceMeth
   }];
 }
 
+def Xls_InstantiateExternEprocOp : Xls_Op<"instantiate_extern_eproc", []> {
+  let summary = "Binds an externally defined eproc";
+  let description = [{
+    Binds channels to an eproc that is defined externally to this module.
+
+    This functions similarly to the `xls.instantiate_eproc` op, except that:
+      1) The eproc definition is not available in this module and so it is
+         referred to by string, not a symbol.
+      2) Instead of binding global channels to local channels, it binds global
+         channels to the boundary channel names of the target eproc.
+
+    The target eproc is referred to by an opaque string. The interpretation of
+    this string is left to the user.
+  }];
+  let arguments = (ins
+    StrAttr:$eproc_name,
+    FlatSymbolRefArrayAttr:$global_channels,
+    StrArrayAttr:$boundary_channel_names
+  );
+  let assemblyFormat = [{
+    $eproc_name custom<ZippedSymbols>($global_channels, $boundary_channel_names) attr-dict
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Structured procs
 //===----------------------------------------------------------------------===//
@@ -1584,6 +1608,10 @@ def Xls_SprocOp : Xls_Op<"sproc", [
       }
       return index;
     }
+
+    ::mlir::TypeRange getChannelArgumentTypes() {
+      return getChannelArguments().getTypes();
+    }
   }];
 }
 
@@ -1602,6 +1630,45 @@ def Xls_SpawnOp : Xls_Op<"spawn", [
   }];
   let extraClassDeclaration = [{
     SprocOp resolveCallee(::mlir::SymbolTableCollection* symbolTable = nullptr);
+    ExternSprocOp resolveExternCallee(::mlir::SymbolTableCollection* symbolTable = nullptr);
+  }];
+}
+
+def Xls_ExternSprocOp : Xls_Op<"extern_sproc", [
+  Symbol,
+  CallableOpInterface
+]> {
+  let summary = "extern sproc";
+  let description = [{
+    Declares an sproc that is external to the current module. The sproc is
+    spawnable by sprocs in the current module.
+
+    The `boundary_channel_names` attribute is used to name each argument or
+    result channel. These correspond to the `boundary_channel_names` on the
+    target sproc (wherever it is defined). The `channel_types` attribute is used
+    to specify the types of the channels.
+
+    An `spawn` of a `extern_sproc` is lowered to an `instantiate_extern_eproc`
+    op.
+  }];
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    StrArrayAttr:$boundary_channel_names,
+    TypeArrayAttr:$channel_argument_types
+  );
+  let assemblyFormat = [{
+    $sym_name custom<ChannelNamesAndTypes>($boundary_channel_names, $channel_argument_types) attr-dict
+  }];
+  let extraClassDeclaration = [{
+    ::mlir::Region* getCallableRegion() {
+      return nullptr;
+    }
+    ::llvm::ArrayRef<::mlir::Type> getArgumentTypes() {
+      return {};
+    }
+    ::llvm::ArrayRef<::mlir::Type> getResultTypes() {
+      return {};
+    }
   }];
 }
 

@@ -499,6 +499,14 @@ func.func @trace_cond(%arg0: i32, %tkn: !xls.token, %cond: i1) -> !xls.token {
   return %0 : !xls.token
 }
 
+// CHECK-LABEL: xls.instantiate_extern_eproc "external" ("arg0" as @c1, "result0" as @c2)
+xls.chan @c1 : i32
+xls.chan @c2 : i32
+xls.instantiate_extern_eproc "external" ("arg0" as @c1, "result0" as @c2)
+
+// CHECK-LABEL: xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)
+xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)
+
 // -----
 
 // expected-error@+1 {{yielded state type does not match carried state type ('tuple<i7>' vs 'tuple<i32>'}}

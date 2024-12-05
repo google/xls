@@ -15,6 +15,7 @@
 #include "xls/contrib/mlir/IR/assembly_format.h"
 
 #include <cassert>
+#include <string>
 
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
@@ -190,7 +191,7 @@ ParseResult parseZippedSymbols(mlir::AsmParser& parser, ArrayAttr& globalRefs,
   }
   if (failed(parser.parseOptionalRParen())) {
     if (failed(parser.parseCommaSeparatedList([&]() {
-          FlatSymbolRefAttr global, local;
+          Attribute global, local;
           if (parser.parseAttribute(local) || parser.parseKeyword("as") ||
               parser.parseAttribute(global)) {
             return failure();
@@ -207,6 +208,49 @@ ParseResult parseZippedSymbols(mlir::AsmParser& parser, ArrayAttr& globalRefs,
   }
   globalRefs = ArrayAttr::get(parser.getContext(), globals);
   localRefs = ArrayAttr::get(parser.getContext(), locals);
+  return success();
+}
+
+void printChannelNamesAndTypes(mlir::AsmPrinter& p, Operation*,
+                               ArrayAttr channelNames, ArrayAttr channelTypes) {
+  p << "(";
+  llvm::interleaveComma(llvm::zip(channelNames, channelTypes), p.getStream(),
+                        [&](auto nameType) {
+                          auto name = cast<StringAttr>(std::get<0>(nameType));
+                          p << name.getValue() << ": ";
+                          p.printAttribute(std::get<1>(nameType));
+                        });
+  p << ")";
+}
+ParseResult parseChannelNamesAndTypes(mlir::AsmParser& parser,
+                                      ArrayAttr& channelNames,
+                                      ArrayAttr& channelTypes) {
+  SmallVector<Attribute> names;
+  SmallVector<Attribute> types;
+
+  if (parser.parseLParen()) {
+    return failure();
+  }
+  if (failed(parser.parseOptionalRParen())) {
+    if (failed(parser.parseCommaSeparatedList([&]() {
+          std::string name;
+          TypeAttr type;
+          if (parser.parseKeywordOrString(&name) || parser.parseColon() ||
+              parser.parseAttribute(type)) {
+            return failure();
+          }
+          names.push_back(StringAttr::get(parser.getContext(), name));
+          types.push_back(type);
+          return success();
+        }))) {
+      return failure();
+    }
+    if (failed(parser.parseRParen())) {
+      return failure();
+    }
+  }
+  channelNames = ArrayAttr::get(parser.getContext(), names);
+  channelTypes = ArrayAttr::get(parser.getContext(), types);
   return success();
 }
 

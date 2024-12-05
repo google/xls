@@ -582,18 +582,41 @@ SprocOp SpawnOp::resolveCallee(SymbolTableCollection* symbolTable) {
                                                        getCallee());
 }
 
+ExternSprocOp SpawnOp::resolveExternCallee(SymbolTableCollection* symbolTable) {
+  if (symbolTable) {
+    return symbolTable->lookupNearestSymbolFrom<ExternSprocOp>(getOperation(),
+                                                               getCallee());
+  }
+  return SymbolTable::lookupNearestSymbolFrom<ExternSprocOp>(getOperation(),
+                                                             getCallee());
+}
+
+namespace {
+template <typename T>
+LogicalResult verifySpawnOpSymbolUses(SpawnOp op, T callee) {
+  if (callee.getChannelArgumentTypes().size() != op.getChannels().size()) {
+    return op.emitOpError()
+           << "callee expects " << callee.getChannelArgumentTypes().size()
+           << " channels but spawn has " << op.getChannels().size()
+           << " arguments";
+  }
+  return success();
+}
+}  // namespace
+
 LogicalResult SpawnOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
-  SprocOp callee = resolveCallee(&symbolTable);
+  Operation* callee =
+      symbolTable.lookupNearestSymbolFrom(getOperation(), getCallee());
   if (!callee) {
     return emitOpError() << "callee not found: " << getCallee();
   }
-  if (callee.getChannelArguments().size() != getChannels().size()) {
-    return emitOpError() << "callee expects "
-                         << callee.getChannelArguments().size()
-                         << " channels but spawn has " << getChannels().size()
-                         << " arguments";
+  if (auto sproc = dyn_cast<SprocOp>(callee)) {
+    return verifySpawnOpSymbolUses(*this, sproc);
   }
-  return success();
+  if (auto extern_sproc = dyn_cast<ExternSprocOp>(callee)) {
+    return verifySpawnOpSymbolUses(*this, extern_sproc);
+  }
+  return emitOpError() << "callee is not a SprocOp or ExternSprocOp";
 }
 
 namespace {

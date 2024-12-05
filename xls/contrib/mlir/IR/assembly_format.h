@@ -98,6 +98,11 @@ void printZippedSymbols(mlir::AsmPrinter& p, Operation* op,
                         ArrayAttr globalRefs, ArrayAttr localRefs);
 ParseResult parseZippedSymbols(mlir::AsmParser& parser, ArrayAttr& globalRefs,
                                ArrayAttr& localRefs);
+void printChannelNamesAndTypes(mlir::AsmPrinter& p, Operation* op,
+                               ArrayAttr channelNames, ArrayAttr channelTypes);
+ParseResult parseChannelNamesAndTypes(mlir::AsmParser& parser,
+                                      ArrayAttr& channelNames,
+                                      ArrayAttr& channelTypes);
 }  // namespace mlir::xls
 
 #endif  // GDM_HW_MLIR_XLS_IR_ASSEMBLY_FORMAT_H_
