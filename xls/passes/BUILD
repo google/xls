@@ -15,6 +15,7 @@
 # Optimization passes, pass managers.
 
 load("@rules_python//python:proto.bzl", "py_proto_library")
+# Load proto_library
 # cc_proto_library is used in this file
 
 package(
