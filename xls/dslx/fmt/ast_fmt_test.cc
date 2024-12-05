@@ -54,7 +54,7 @@ TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*lt, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*lt);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as t) < x");
 }
 
@@ -63,7 +63,7 @@ TEST(BuiltAstFmtTest, FormatIndexThatNeedsParens) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*index, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*index);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x as u32[42])[i]");
 }
 
@@ -73,7 +73,7 @@ TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*tuple_index, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*tuple_index);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x[i]).2");
 }
 
@@ -83,7 +83,7 @@ TEST(BuiltAstFmtTest, FormatSingleElementTuple) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*tuple, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0,)");
 }
 
@@ -93,7 +93,7 @@ TEST(BuiltAstFmtTest, FormatShortTupleWithoutTrailingComma) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*tuple, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
@@ -103,7 +103,7 @@ TEST(BuiltAstFmtTest, FormatShortTupleWithTrailingComma) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*tuple, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x0, x1)");
 }
 
@@ -114,7 +114,7 @@ TEST(BuiltAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
         MakeNElementTupleExpression(40, /*has_trailing_comma=*/true);
 
     DocArena arena(file_table);
-    DocRef doc = Fmt(*tuple, empty_comments, arena);
+    DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
     EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
               R"((
     x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
@@ -127,7 +127,8 @@ TEST(BuiltAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
         MakeNElementTupleExpression(40, /*has_trailing_comma=*/false);
 
     DocArena arena(file_table);
-    DocRef doc = Fmt(*tuple_without_trailing_comma, empty_comments, arena);
+    DocRef doc =
+        Formatter(empty_comments, arena).Format(*tuple_without_trailing_comma);
     EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100),
               R"((
     x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20,
@@ -141,7 +142,7 @@ TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*unop, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*unop);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "-(x as u32)");
 }
 
@@ -150,7 +151,7 @@ TEST(BuiltAstFmtTest, FormatAttrThatNeedsParensOnOperand) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(*attr, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(*attr);
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/100), "(x * y).my_attr");
 }
 
@@ -181,7 +182,7 @@ TEST(AstFmtTest, FormatVerbatimNodeTop) {
   const Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Fmt(m, empty_comments, arena);
+  DocRef doc = Formatter(empty_comments, arena).Format(m);
 
   // Intentionally small text width, should still be formatted verbatim.
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), verbatim_text);
@@ -233,7 +234,7 @@ class FunctionFmtTest : public testing::Test {
         f_, parser_->ParseFunction(Pos(), /*is_public=*/false, bindings_));
     Comments comments = Comments::Create(scanner_->comments());
 
-    DocRef doc = Fmt(*f_, comments, arena_);
+    DocRef doc = Formatter(comments, arena_).Format(*f_);
     std::string formatted = PrettyPrint(arena_, doc, kDslxDefaultTextWidth);
 
     std::optional<AutoFmtPostconditionViolation> maybe_violation =

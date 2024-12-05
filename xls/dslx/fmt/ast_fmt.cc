@@ -59,6 +59,8 @@
 namespace xls::dslx {
 namespace {
 
+// Forward decls.
+DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
 DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
                             DocArena& arena);
 
@@ -1730,7 +1732,15 @@ DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
   }
 }
 
+DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
+  return FmtExpr(n, comments, arena, /*suppress_parens=*/false);
+}
+
 }  // namespace
+
+DocRef Formatter::Format(const Expr& n) {
+  return FmtExpr(n, comments_, arena_, /*suppress_parens=*/false);
+}
 
 DocRef Formatter::Format(const ConstantDef& n) {
   std::vector<DocRef> leader_pieces;
@@ -2650,10 +2660,6 @@ DocRef Formatter::Format(const ModuleMember& n) {
                      n);
 }
 
-DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
-  return FmtExpr(n, comments, arena, /*suppress_parens=*/false);
-}
-
 // Returns whether the given members are of the given "MemberT" and "grouped" --
 // that is, one is placed directly on the line above the other. We use this as
 // an indicator they should also be grouped in the formatted output for certain
@@ -2840,16 +2846,8 @@ DocRef Formatter::Format(const Module& n) {
   return ConcatN(arena_, pieces);
 }
 
-DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena) {
-  return Formatter(comments, arena).Format(n);
-}
-
-DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena) {
-  return Formatter(comments, arena).Format(n);
-}
-
-std::string LegacyAutoFmt(const Module& m, const Comments& comments,
-                          int64_t text_width) {
+static std::string AutoFmt(const Module& m, const Comments& comments,
+                           int64_t text_width) {
   DocArena arena(*m.file_table());
   Formatter formatter(comments, arena);
   DocRef ref = formatter.Format(m);
@@ -2864,7 +2862,7 @@ absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
       CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));
-  return LegacyAutoFmt(*clone, comments, text_width);
+  return AutoFmt(*clone, comments, text_width);
 }
 
 absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
@@ -2874,7 +2872,7 @@ absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Module> clone,
       CloneModule(m, std::bind_front(&FormatDisabler::operator(), &disabler)));
-  return LegacyAutoFmt(*clone, comments, text_width);
+  return AutoFmt(*clone, comments, text_width);
 }
 
 // AutoFmt output should be the same as input after whitespace is eliminated

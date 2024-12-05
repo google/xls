@@ -42,6 +42,7 @@ class Formatter {
   // Each `Format` method creates a pretty-printable document from the given AST
   // node `n`.
   DocRef Format(const Function& n);
+  DocRef Format(const Expr& n);
   DocRef Format(const Let& n, bool trailing_semi);
   DocRef Format(const Module& n);
   // If `trailing_semi` is true, then a trailing semicolon will also be emitted.
@@ -79,28 +80,10 @@ class Formatter {
   DocArena& arena_;
 };
 
-// Functions with this signature create a pretty printable document from the AST
-// node "n".
-
-// Deprecated; use Formatter::Format instead.
-DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
-
-// Deprecated; use Formatter::Format instead.
-DocRef Fmt(const Function& n, const Comments& comments, DocArena& arena);
-
-// Deprecated; use Formatter::Format instead.
-DocRef Fmt(const Module& n, const Comments& comments, DocArena& arena);
-
 inline constexpr int64_t kDslxDefaultTextWidth = 100;
 
 // Auto-formatting entry points.
 //
-// Performs a reflow-capable formatting of module `m` with standard line width.
-// This method is deprecated and will be removed soon. Use the AutoFmt method
-// below instead.
-std::string LegacyAutoFmt(const Module& m, const Comments& comments,
-                          int64_t text_width = kDslxDefaultTextWidth);
-
 // Performs a reflow-capable formatting of module `m` with standard line width,
 // but with the ability to disable formatting for specific ranges of text.
 absl::StatusOr<std::string> AutoFmt(VirtualizableFilesystem& vfs,
