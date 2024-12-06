@@ -36,12 +36,36 @@
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
+namespace {
+
+// Returns true if the node or any of its parents is a desugared function.
+// TODO: https://github.com/google/xls/issues/1029 remove desuraged proc
+// functions.
+bool IsInDesugaredFn(const AstNode *node) {
+  if (node == nullptr) {
+    return false;
+  }
+  const Function *f = dynamic_cast<const Function *>(node);
+  // If it's a function and not a "normal" function, then it's a desugared
+  // function. If not, check its parent.
+  return (f != nullptr && f->tag() != FunctionTag::kNormal) ||
+         IsInDesugaredFn(node->parent());
+}
+}  // namespace
 
 absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
     const AstNode *node) {
   if (node == nullptr || !node->GetSpan().has_value()) {
     // If there's no node, or no span, we can't know if it's in the unformatted
     // range, so just return nullopt to indicate it should be unchanged.
+    return std::nullopt;
+  }
+
+  // If this node is part of a desugared proc function, we skip it, because it
+  // won't be formatted anyway.
+  // TODO: https://github.com/google/xls/issues/1029 remove desugared proc
+  // functions.
+  if (IsInDesugaredFn(node)) {
     return std::nullopt;
   }
 

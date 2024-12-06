@@ -356,7 +356,8 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleFunction(const Function* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    auto uncast_new_name_def = old_to_new_.at(n->name_def());
+    NameDef* new_name_def = down_cast<NameDef*>(uncast_new_name_def);
 
     std::vector<ParametricBinding*> new_parametric_bindings;
     new_parametric_bindings.reserve(n->parametric_bindings().size());

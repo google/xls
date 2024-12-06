@@ -2938,5 +2938,98 @@ const x =  u32 :1
         kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
 }
 
+TEST_F(ModuleFmtTest, SimplestProc) {
+  // There's an extra space in the blocks due to bug
+  // https://github.com/google/xls/issues/1703
+  DoFmt(R"(proc p {
+    config() {  }
+
+    init {  }
+
+    next(state: ()) { () }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, DisableFmtSimpleProc) {
+  DoFmt(R"(// dslx-fmt::off
+proc p { config() { } init { } next(state: ()) { () } }
+// dslx-fmt::on
+)");
+}
+
+TEST_F(ModuleFmtTest, DisableFmtSimpleProcNext) {
+  DoFmt(R"(proc p {
+    config() {  }
+
+    init {  }
+
+    // dslx-fmt::off
+    next(state: ()) { () }
+    // dslx-fmt::on
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, DisableFmtInProc_GH1735) {
+  // This reproduces the issue from https://github.com/google/xls/issues/1735,
+  // and is still broken, but at least doesn't delete the whole proc!
+  DoFmt(R"(struct FooType { a: u32, b: u32 }
+struct BarType { c: u32, d: u32 }
+const NUM_ELEMS = u32:8;
+const NUM_BLOCKS = u32:2;
+proc A {
+    config() {  }
+    init {  }
+    next(_: ()) {
+        // some comment
+        let _some_import_code_here = true;
+        let (_foo, _bar, _baz) =
+            for (i, (foo, bar, baz)): (
+                // dslx-fmt::off
+                u32, (FooType[NUM_ELEMS][NUM_BLOCKS], BarType[NUM_ELEMS][NUM_BLOCKS], 
+                      bool[NUM_ELEMS][NUM_BLOCKS])
+                ) in range(u32:0, 8) {
+                // dslx-fmt::on
+
+                // this is another cool comment
+                (foo, bar, baz)
+            }((zero!<FooType[8][2]>(), zero!<BarType[8][2]>(), all_ones!<bool[8][2]>()));
+
+        // the end
+        let _my_grand_finale_here = true;
+    }
+})",
+        R"(struct FooType { a: u32, b: u32 }
+struct BarType { c: u32, d: u32 }
+
+const NUM_ELEMS = u32:8;
+const NUM_BLOCKS = u32:2;
+
+proc A {
+    config() {  }
+
+    init {  }
+
+    next(_: ()) {
+        // some comment
+        let _some_import_code_here = true;
+        let (_foo, _bar, _baz) =
+            for (i, (foo, bar, baz)): (u32, (FooType[NUM_ELEMS][NUM_BLOCKS], BarType[NUM_ELEMS][NUM_BLOCKS
+            ], bool[NUM_ELEMS][NUM_BLOCKS])) in range(u32:0, 8) {
+                // dslx-fmt::on
+
+                // this is another cool comment
+                (foo, bar, baz)
+            }((zero!<FooType[8][2]>(), zero!<BarType[8][2]>(), all_ones!<bool[8][2]>()));
+
+        // the end
+        let _my_grand_finale_here = true;
+    }
+}
+)",
+        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+}
+
 }  // namespace
 }  // namespace xls::dslx

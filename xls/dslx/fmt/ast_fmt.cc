@@ -2133,6 +2133,9 @@ DocRef Formatter::Format(const Proc& n) {
   std::optional<DocRef> next_comment =
       EmitCommentsBetween(next_comment_start_pos, n.next().span().start(),
                           comments_, arena_, nullptr);
+  // Comments between the last statement and the end of the proc.
+  std::optional<DocRef> end_comment = EmitCommentsBetween(
+      last_stmt_limit, n.body_span().limit(), comments_, arena_, nullptr);
 
   std::vector<DocRef> config_pieces = {
       arena_.MakeText("config"),
@@ -2170,19 +2173,18 @@ DocRef Formatter::Format(const Proc& n) {
     if (!doc_ref.has_value()) {
       return arena_.empty();
     }
-    return arena_.MakeNest(
-        arena_.MakeConcat(doc_ref.value(), arena_.hard_line()));
+    return arena_.MakeNest(arena_.MakeConcat(*doc_ref, arena_.hard_line()));
   };
 
-  DocRef config_comment_doc_ref =
-      config_comment.has_value() ? nest_and_hardline(config_comment.value())
-                                 : arena_.empty();
-  DocRef init_comment_doc_ref = init_comment.has_value()
-                                    ? nest_and_hardline(init_comment.value())
-                                    : arena_.empty();
-  DocRef next_comment_doc_ref = next_comment.has_value()
-                                    ? nest_and_hardline(next_comment.value())
-                                    : arena_.empty();
+  DocRef config_comment_doc_ref = nest_and_hardline(config_comment);
+  DocRef init_comment_doc_ref = nest_and_hardline(init_comment);
+  DocRef next_comment_doc_ref = nest_and_hardline(next_comment);
+  // The last comment is special, because we don't want to nest the
+  // following curl.
+  DocRef end_comment_doc_ref =
+      end_comment.has_value()
+          ? arena_.MakeConcat(arena_.MakeNest(*end_comment), arena_.hard_line())
+          : arena_.empty();
 
   std::vector<DocRef> proc_pieces = {
       ConcatNGroup(arena_, signature_pieces),
@@ -2205,6 +2207,7 @@ DocRef Formatter::Format(const Proc& n) {
       next_comment_doc_ref,
       arena_.MakeNest(ConcatNGroup(arena_, next_pieces)),
       arena_.hard_line(),
+      end_comment_doc_ref,
       arena_.ccurl(),
   };
 
@@ -2757,6 +2760,8 @@ DocRef Formatter::Format(const Module& n) {
 
     // If this is a desugared proc function, we skip it, and handle formatting
     // it when we get to the proc node.
+    // TODO: https://github.com/google/xls/issues/1029 remove desugared proc
+    // functions.
     if (const Function* f = dynamic_cast<const Function*>(node);
         f != nullptr && f->tag() != FunctionTag::kNormal) {
       continue;
