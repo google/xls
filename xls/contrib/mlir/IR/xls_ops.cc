@@ -24,6 +24,7 @@
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"  // IWYU pragma: keep
+#include "llvm/include/llvm/Support/ErrorHandling.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/Shape/IR/Shape.h"
@@ -737,6 +738,26 @@ void EprocOp::addSignatureConversionPatterns(RewritePatternSet& patterns,
       [&](Operation* op) {
         return typeConverter.isLegal(op->getRegion(0).getArgumentTypes());
       });
+}
+
+Region& SprocOp::getBodyRegion() {
+  // getBodyRegion is part of the XlsRegionOpInterface, so we return the region
+  // that contains ops to be translated to XLS - the "next" region.
+  return getNext();
+}
+::llvm::StringRef SprocOp::getName() { return getSymName(); }
+Operation* SprocOp::buildTerminator(Location loc, OpBuilder& builder,
+                                    ValueRange operands) {
+  return builder.create<YieldOp>(loc, operands);
+}
+
+void SprocOp::addSignatureConversionPatterns(RewritePatternSet& patterns,
+                                             TypeConverter& typeConverter,
+                                             ConversionTarget& target) {
+  // We can't easily convert an SprocOp's signature because it has two regions,
+  // so signature conversion is non trivial. This is only needed for ArrayToBits
+  // and Scalarize which always run after proc elaboration.
+  llvm_unreachable("SprocOp::addSignatureConversionPatterns not implemented");
 }
 
 namespace {

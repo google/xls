@@ -1477,7 +1477,8 @@ def Xls_SprocOp : Xls_Op<"sproc", [
   Symbol,
   SingleBlockImplicitTerminator<"YieldOp">,
   IsolatedFromAbove,
-  CallableOpInterface
+  CallableOpInterface,
+  DeclareOpInterfaceMethods<XlsRegionOpInterface>,
 ]> {
   let summary = "Structured proc";
   let description = [{

@@ -208,3 +208,18 @@ func.func @fptosi8(%arg0: bf16) -> i8 attributes { "xls" = true } {
   %0 = arith.fptosi %arg0 : bf16 to i8
   return %0 : i8
 }
+
+// Check that we can convert an sproc's next region too.
+// CHECK-LABEL: @sproc
+// CHECK: next (
+// CHECK-NEXT: %[[X:.*]] = xls.add
+// CHECK-NEXT: xls.yield %[[X]] : i32
+xls.sproc @sproc(%arg0: !xls.schan<i32, in>) top {
+  spawns {
+    xls.yield
+  }
+  next(%state: i32) zeroinitializer {
+    %0 = arith.addi %state, %state : i32
+    xls.yield %0 : i32
+  }
+}
