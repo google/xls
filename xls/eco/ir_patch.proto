@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package xls_eco;
+
+import "xls/ir/xls_type.proto";
+import "xls/ir/xls_value.proto";
+
+enum Operation {
+  OPERATION_INVALID = 0;
+  DELETE = 1;
+  INSERT = 2;
+  UPDATE = 3;
+}
+
+message ArgumentProto {
+  oneof argument_type {
+    xls.ValueProto value = 1;
+    uint64 start = 2;
+    uint64 index = 3;
+    uint64 new_bit_count = 4;
+    bool lsb_prio = 5;
+    bool blocking = 6;
+    string channel = 7;
+    bool has_default_value = 8;
+  }
+}
+message NodeProto {
+  optional uint32 id = 1;
+  string op = 2;
+  string name = 3;
+  xls.TypeProto data_type = 4;
+  repeated xls.TypeProto operand_data_types = 5;
+  repeated ArgumentProto unique_args = 6;
+}
+
+message EdgeProto {
+  string from_node = 1;
+  string to_node = 2;
+  uint32 index = 3;
+}
+
+message NodeEditPathProto {
+  NodeProto node = 1;
+  optional NodeProto updated_node = 2;  // Only set for UPDATE operation.
+}
+
+message EdgeEditPathProto {
+  EdgeProto edge = 1;
+  EdgeProto updated_edge = 2;
+}
+
+message EditPathProto {
+  uint32 id = 1;
+  Operation operation = 2;
+  oneof edit_paths_type {
+    NodeEditPathProto node_edit_path = 3;
+    EdgeEditPathProto edge_edit_path = 4;
+  }
+}
+
+message IrPatchProto {
+  repeated EditPathProto edit_paths = 1;
+  string function_name = 2;
+  optional NodeProto return_node = 3;
+}
