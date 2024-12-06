@@ -35,6 +35,7 @@ report_units
 #
 puts "Total design"
 sta::clear_sta
+sta::clear_network
 read_verilog $netlist
 link_design  $top
 report_checks -unconstrained
@@ -43,6 +44,7 @@ report_checks -unconstrained
 # Find stage module names
 #
 sta::clear_sta
+sta::clear_network
 read_verilog $netlist
 link_design  $top
 set stagemods [get_cells "p*mod"]
@@ -60,6 +62,7 @@ puts "\n\n"
 foreach stage $snames {
     puts "\n\nTiming ${stage}"
     sta::clear_sta
+    sta::clear_network
     read_verilog $netlist
     link_design $stage
     report_checks -unconstrained -path_delay max -fields {slew cap input nets fanout} -format full_clock_expanded
