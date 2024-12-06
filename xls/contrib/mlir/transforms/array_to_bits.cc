@@ -342,6 +342,12 @@ class ArrayToBitsPass : public impl::ArrayToBitsPassBase<ArrayToBitsPass> {
       return all_of(op->getOperandTypes(), is_legal) &&
              all_of(op->getResultTypes(), is_legal);
     });
+    target.addDynamicallyLegalOp<ForOp>([&](ForOp op) {
+      auto is_legal = [&](auto type) { return typeConverter.isLegal(type); };
+      return all_of(op->getOperandTypes(), is_legal) &&
+             all_of(op->getResultTypes(), is_legal) &&
+             all_of(op.getRegion().getArgumentTypes(), is_legal);
+    });
     target.addIllegalOp<VectorizedCallOp, ArrayOp, ArrayUpdateOp, ArraySliceOp,
                         ArrayUpdateSliceOp, ArrayIndexOp, ArrayIndexStaticOp,
                         ArrayZeroOp, ArrayConcatOp>();

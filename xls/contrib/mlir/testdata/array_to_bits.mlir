@@ -168,7 +168,8 @@ func.func @tensor_extract_single_slice_1d_all(%arg0: !xls.array<3 x i32>, %arg1:
 // CHECK-LABEL:   func.func @for(
 // CHECK-SAME:                   %[[VAL_0:.*]]: i64) -> i32 attributes {xls = true} {
 // CHECK:           %[[VAL_1:.*]] = arith.constant 0 : i32
-// CHECK:           %[[VAL_2:.*]] = xls.for inits(%[[VAL_1]]) invariants(%[[VAL_0]]) {
+// CHECK:           %[[INVARIANT:.*]] = call @extern(%[[VAL_0]]) : (i64) -> i64
+// CHECK:           %[[VAL_2:.*]] = xls.for inits(%[[VAL_1]]) invariants(%[[INVARIANT]]) {
 // CHECK:           ^bb0(%[[VAL_3:.*]]: i32, %[[VAL_4:.*]]: i32, %[[VAL_5:.*]]: i64):
 // CHECK:             %[[VAL_6:.*]] = arith.constant 1 : index
 // CHECK:             %[[VAL_7:.*]] = arith.constant 0 : index
@@ -181,12 +182,17 @@ func.func @tensor_extract_single_slice_1d_all(%arg0: !xls.array<3 x i32>, %arg1:
 // CHECK:           } {trip_count = 1024 : i64} : (i32, i64) -> i32
 // CHECK:           return %[[VAL_2]] : i32
 // CHECK:         }
+func.func @extern(%arg0: !xls.array<2 x i32>) -> !xls.array<2 x i32> attributes {xls = true} {
+  return %arg0 : !xls.array<2 x i32>
+}
+
 func.func @for(%arg0: !xls.array<2 x i32>) -> i32 attributes {xls = true} {
   %c0 = arith.constant 0 : index
   %c1024 = arith.constant 1024 : index
   %c1 = arith.constant 1 : index
   %c0_i32 = arith.constant 0 : i32
-  %0 = xls.for inits(%c0_i32) invariants(%arg0) {
+  %inv = func.call @extern(%arg0) : (!xls.array<2 x i32>) -> !xls.array<2 x i32>
+  %0 = xls.for inits(%c0_i32) invariants(%inv) {
   ^bb0(%indvar: i32, %carry: i32, %invariant: !xls.array<2 x i32>):
     %1 = arith.index_cast %indvar : i32 to index
     %c0_0 = arith.constant 0 : index
