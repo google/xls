@@ -128,6 +128,28 @@ TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
   EXPECT_EQ(proc->GetStateElementCount(), 2);
 }
 
+TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableTokenStateProc) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in, p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                              p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+
+  ProcBuilder pb("p", p.get());
+  BValue recvd = pb.Receive(in, pb.StateElement("tok", Value::Token()));
+  BValue recv_tok = pb.TupleIndex(recvd, 0);
+  BValue recv_val = pb.TupleIndex(recvd, 1);
+  BValue send_tok = pb.Send(out, recv_tok, recv_val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {send_tok}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+}
+
 TEST_P(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(

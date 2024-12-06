@@ -1155,6 +1155,19 @@ xls_ir_opt_ir(
     top = "__serialized_decomposer__serialized_decomposer_0_next",
 )
 
+xls_benchmark_ir(
+    name = "serialized_decomposer_benchmark_ir",
+    src = ":serialized_decomposer_opt_ir",
+    codegen_args = {
+        "module_name": "serialized_decomposer_top",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "4",
+        "worst_case_throughput": "3",
+    },
+    tags = ["optonly"],
+)
+
 xls_ir_verilog(
     name = "serialized_decomposer_sv",
     src = ":serialized_decomposer_opt_ir",

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -54,12 +55,10 @@ class FakeQueryEngine : public QueryEngine {
 
   std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
       Node* node) const override {
-    CHECK(node->GetType()->IsBits());
-    TernaryVector ternary = ternary_ops::FromKnownBits(
-        known_bits_.at(node), known_bit_values_.at(node));
-    LeafTypeTree<TernaryVector> result(node->GetType());
-    result.Set({}, ternary);
-    return std::move(result).AsShared();
+    if (auto it = ternaries_.find(node); it != ternaries_.end()) {
+      return it->second.AsView().AsShared();
+    }
+    return std::nullopt;
   }
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
@@ -141,6 +140,15 @@ class FakeQueryEngine : public QueryEngine {
     }
   }
 
+  void AddTernary(Node* node, const LeafTypeTree<TernaryVector>& ternary) {
+    AddTracked(node);
+    ternaries_[node] = ternary;
+    if (node->GetType()->IsBits()) {
+      known_bits_[node] = ternary_ops::ToKnownBits(ternary.Get({}));
+      known_bit_values_[node] = ternary_ops::ToKnownBitsValues(ternary.Get({}));
+    }
+  }
+
   void AddIntervals(Node* node, const LeafTypeTree<IntervalSet>& intervals) {
     AddTracked(node);
     intervals_[node] = intervals;
@@ -175,6 +183,19 @@ class FakeQueryEngine : public QueryEngine {
     known_bits_[node] = known_bits_[node].UpdateWithSet(index, true);
     known_bit_values_[node] =
         known_bit_values_[node].UpdateWithSet(index, value);
+    auto ternary_it = ternaries_.find(node);
+    if (ternary_it == ternaries_.end()) {
+      bool inserted;
+      std::tie(ternary_it, inserted) = ternaries_.insert(
+          {node, *LeafTypeTree<TernaryVector>::CreateFromFunction(
+                     node->GetType(), [](Type* leaf_type) {
+                       return TernaryVector(leaf_type->GetFlatBitCount(),
+                                            TernaryValue::kUnknown);
+                     })});
+      CHECK(inserted);
+    }
+    ternary_it->second.Get({})[index] =
+        value ? TernaryValue::kKnownOne : TernaryValue::kKnownZero;
   }
 
   void AddAtMostOneTrue(absl::Span<const TreeBitLocation> span) {
@@ -233,6 +254,7 @@ class FakeQueryEngine : public QueryEngine {
   absl::flat_hash_set<Node*> tracked_;
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;
+  absl::flat_hash_map<Node*, LeafTypeTree<TernaryVector>> ternaries_;
   absl::flat_hash_map<Node*, LeafTypeTree<IntervalSet>> intervals_;
   absl::flat_hash_set<std::vector<TreeBitLocation>> at_most_one_true_;
   absl::flat_hash_set<std::vector<TreeBitLocation>> at_least_one_true_;
@@ -384,6 +406,29 @@ TEST_F(UnionQueryEngineTest, MaxMinUnsignedValue) {
   EXPECT_EQ(union_query_engine.MinUnsignedValue(y.node()), UBits(200, 8));
   EXPECT_EQ(union_query_engine.MaxUnsignedValue(x.node()), UBits(40, 8));
   EXPECT_EQ(union_query_engine.MaxUnsignedValue(y.node()), UBits(240, 8));
+}
+
+TEST_F(UnionQueryEngineTest, TokenValueUnknown) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue tok = fb.Param("tok", p->GetTokenType());
+  XLS_ASSERT_OK(fb.Build());
+
+  FakeQueryEngine query_engine_a;
+  query_engine_a.AddTernary(
+      tok.node(), *LeafTypeTree<TernaryVector>::CreateFromFunction(
+                      tok.GetType(), [](Type* leaf_type) {
+                        return TernaryVector(leaf_type->GetFlatBitCount(),
+                                             TernaryValue::kUnknown);
+                      }));
+  FakeQueryEngine query_engine_b;
+  query_engine_b.AddTracked(tok.node());
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_a));
+  engines.push_back(std::make_unique<FakeQueryEngine>(query_engine_b));
+  UnionQueryEngine union_query_engine(std::move(engines));
+
+  EXPECT_EQ(union_query_engine.KnownValue(tok.node()), std::nullopt);
 }
 
 }  // namespace

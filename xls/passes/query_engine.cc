@@ -162,7 +162,7 @@ std::optional<bool> QueryEngine::KnownValue(const TreeBitLocation& bit) const {
 }
 
 std::optional<Value> QueryEngine::KnownValue(Node* node) const {
-  if (!IsTracked(node)) {
+  if (!IsTracked(node) || TypeHasToken(node->GetType())) {
     return std::nullopt;
   }
 

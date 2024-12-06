@@ -87,6 +87,7 @@ class UnownedUnionQueryEngine : public QueryEngine {
       Node* node) const override;
 
   bool IsKnown(const TreeBitLocation& bit) const override;
+  using QueryEngine::KnownValue;
   std::optional<bool> KnownValue(const TreeBitLocation& bit) const override;
   bool IsAllZeros(Node* n) const override;
   bool IsAllOnes(Node* n) const override;
