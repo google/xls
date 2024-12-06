@@ -15,9 +15,13 @@
 #ifndef XLS_CONTRIB_MLIR_UTIL_EXTRACTION_UTILS_H_
 #define XLS_CONTRIB_MLIR_UTIL_EXTRACTION_UTILS_H_
 
+#include <functional>
+#include <string>
+
 #include "mlir/include/mlir/Analysis/CallGraph.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
+#include "mlir/include/mlir/IR/Value.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 
 namespace mlir::xls {
@@ -33,6 +37,22 @@ namespace mlir::xls {
 ModuleOp extractAsTopLevelModule(EprocOp op, mlir::CallGraph& callGraph);
 ModuleOp extractAsTopLevelModule(mlir::func::FuncOp op,
                                  mlir::CallGraph& callGraph);
+
+// Extracts the given sproc operation as a top-level module.
+//
+// The returned module contains all functions and symbols that are transitively
+// called, including other sprocs referenced by `spawn` ops.
+//
+// The input module is not modified.
+//
+// The input CallGraph is not invalidated.
+//
+// `boundaryChannelName` sets the name of the boundary channel for the sproc
+// arguments. If it is left unset, a default of "arg<N>" or "result<N>" is used
+// for in and out channels respectively.
+ModuleOp extractAsTopLevelModule(
+    SprocOp op, mlir::CallGraph& callGraph,
+    std::function<std::string(BlockArgument)> boundaryChannelName = nullptr);
 
 // Registers the test pass for extracting as a top level module.
 namespace test {

@@ -73,3 +73,45 @@ module attributes {test.name = "transitive"} {
   }
 }
 
+// -----
+
+// CHECK-LABEL: Testing : "sproc"
+module attributes {test.name = "sproc"} {
+  // CHECK-NOT: func @nope
+  // CHECK: xls.sproc @leaf
+  // CHECK-NOT: xls.sproc @unrelated
+  // CHECK: xls.sproc @sproc(%arg0: !xls.schan<i32, in>) top attributes {boundary_channel_names = ["arg0"]}
+  func.func @nope(%arg0: !xls.token, %arg1: i32, %arg2: i1) ->i32 {
+    %0 = arith.constant 1 : i32
+    return %0 : i32
+  }
+
+  xls.sproc @leaf(%arg0: !xls.schan<i32, in>) {
+    spawns {
+      xls.yield
+    }
+    next(%state: i32) zeroinitializer {
+      xls.yield %state : i32
+    }
+  }
+
+  xls.sproc @sproc(%arg0: !xls.schan<i32, in>) {
+    spawns {
+      xls.spawn @leaf(%arg0) : !xls.schan<i32, in>
+      xls.yield
+    }
+    next(%state: i32) zeroinitializer {
+      xls.yield %state : i32
+    }
+  }
+
+  xls.sproc @unrelated(%arg0: !xls.schan<i32, in>) {
+    spawns {
+      xls.spawn @leaf(%arg0) : !xls.schan<i32, in>
+      xls.yield
+    }
+    next(%state: i32) zeroinitializer {
+      xls.yield %state : i32
+    }
+  }
+}

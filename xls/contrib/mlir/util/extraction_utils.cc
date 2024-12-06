@@ -15,13 +15,19 @@
 #include "xls/contrib/mlir/util/extraction_utils.h"
 
 #include <cassert>
+#include <cstdint>
+#include <functional>
+#include <string>
 
+#include "llvm/include/llvm/Support/FormatVariadic.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Analysis/CallGraph.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
+#include "mlir/include/mlir/IR/Value.h"
+#include "mlir/include/mlir/Interfaces/CallInterfaces.h"
 #include "mlir/include/mlir/Pass/Pass.h"
 #include "mlir/include/mlir/Pass/PassRegistry.h"
 #include "mlir/include/mlir/Support/LLVM.h"
@@ -30,9 +36,10 @@
 
 namespace mlir::xls {
 namespace {
-ModuleOp extractOpAsTopLevelModule(Operation* op, mlir::CallGraph& callGraph,
+ModuleOp extractOpAsTopLevelModule(CallableOpInterface op,
+                                   mlir::CallGraph& callGraph,
                                    StringRef symName) {
-  CallGraphNode* node = callGraph.lookupNode(&op->getRegion(0));
+  CallGraphNode* node = callGraph.lookupNode(op.getCallableRegion());
   if (!node) {
     op->emitOpError("failed to find call graph node");
     return {};
@@ -113,6 +120,51 @@ ModuleOp extractAsTopLevelModule(EprocOp op, mlir::CallGraph& callGraph) {
   return newModule;
 }
 
+namespace {
+void addBoundaryChannelNames(
+    SprocOp op, std::function<std::string(BlockArgument)> boundaryChannelName) {
+  int64_t argIndex = 0;
+  int64_t resultIndex = 0;
+  if (!boundaryChannelName) {
+    boundaryChannelName = [&](BlockArgument arg) {
+      if (cast<SchanType>(arg.getType()).getIsInput()) {
+        return llvm::formatv("arg{}", argIndex++);
+      }
+      return llvm::formatv("result{}", resultIndex++);
+    };
+  }
+
+  if (op.getBoundaryChannelNames().has_value()) {
+    return;
+  }
+  ::mlir::OpBuilder builder(op.getOperation());
+  ::mlir::SmallVector<::mlir::Attribute> boundaryChannelNames;
+  for (Value value : op.getChannelArguments()) {
+    boundaryChannelNames.push_back(
+        builder.getStringAttr(boundaryChannelName(cast<BlockArgument>(value))));
+  }
+  op.setBoundaryChannelNamesAttr(builder.getArrayAttr(boundaryChannelNames));
+}
+}  // namespace
+
+ModuleOp extractAsTopLevelModule(
+    SprocOp op, mlir::CallGraph& callGraph,
+    std::function<std::string(BlockArgument)> boundaryChannelName) {
+  ModuleOp newModule =
+      extractOpAsTopLevelModule(op, callGraph, op.getSymName());
+  if (!newModule) {
+    return {};
+  }
+  newModule.walk([&](SprocOp newOp) {
+    if (newOp.getSymName() != op.getSymName()) {
+      return;
+    }
+    addBoundaryChannelNames(newOp, boundaryChannelName);
+    newOp.setIsTop(true);
+  });
+  return newModule;
+}
+
 ModuleOp extractAsTopLevelModule(mlir::func::FuncOp op,
                                  mlir::CallGraph& callGraph) {
   return extractOpAsTopLevelModule(op, callGraph, op.getSymName());
@@ -141,6 +193,8 @@ struct TestExtractAsTopLevelModulePass
     ModuleOp newModule;
     if (auto eproc = dyn_cast<EprocOp>(op)) {
       newModule = extractAsTopLevelModule(eproc, getAnalysis<CallGraph>());
+    } else if (auto sproc = dyn_cast<SprocOp>(op)) {
+      newModule = extractAsTopLevelModule(sproc, getAnalysis<CallGraph>());
     } else if (auto func = dyn_cast<mlir::func::FuncOp>(op)) {
       newModule = extractAsTopLevelModule(func, getAnalysis<CallGraph>());
     } else {

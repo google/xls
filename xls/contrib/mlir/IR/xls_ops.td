@@ -1586,7 +1586,8 @@ def Xls_SprocOp : Xls_Op<"sproc", [
     }
 
     ::mlir::Region* getCallableRegion() {
-      return &getNext();
+      // Spawns is where the calls (spawns) are.
+      return &getSpawns();
     }
     ::llvm::ArrayRef<::mlir::Type> getArgumentTypes() {
       return {};
@@ -1612,11 +1613,15 @@ def Xls_SprocOp : Xls_Op<"sproc", [
     ::mlir::TypeRange getChannelArgumentTypes() {
       return getChannelArguments().getTypes();
     }
+
+    bool canDiscardOnUseEmpty() { return !getIsTop(); }
   }];
 }
 
 def Xls_SpawnOp : Xls_Op<"spawn", [
-  HasParent<"SprocOp">, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  HasParent<"SprocOp">,
+  DeclareOpInterfaceMethods<SymbolUserOpInterface>,
+  CallOpInterface]> {
   let summary = "spawn sproc";
   let description = [{
     Spawns an sproc.
@@ -1631,6 +1636,19 @@ def Xls_SpawnOp : Xls_Op<"spawn", [
   let extraClassDeclaration = [{
     SprocOp resolveCallee(::mlir::SymbolTableCollection* symbolTable = nullptr);
     ExternSprocOp resolveExternCallee(::mlir::SymbolTableCollection* symbolTable = nullptr);
+
+    ::mlir::CallInterfaceCallable getCallableForCallee() {
+      return getCallee();
+    }
+    void setCalleeFromCallable(::mlir::CallInterfaceCallable callable) {
+      llvm_unreachable("setCalleeFromCallable is not supported");
+    }
+    ::mlir::Operation::operand_range getArgOperands() {
+      return getChannels();
+    }
+    ::mlir::MutableOperandRange getArgOperandsMutable() {
+      return getChannelsMutable();
+    }
   }];
 }
 
@@ -1669,6 +1687,7 @@ def Xls_ExternSprocOp : Xls_Op<"extern_sproc", [
     ::llvm::ArrayRef<::mlir::Type> getResultTypes() {
       return {};
     }
+    bool canDiscardOnUseEmpty() { return true; }
   }];
 }
 
