@@ -109,6 +109,15 @@ absl::Status BitCountMismatchErrorStatus(const TypeAnnotation* annotation1,
       annotation2->ToString(), annotation2->span().ToString(file_table)));
 }
 
+absl::Status TypeMismatchErrorStatus(const TypeAnnotation* annotation1,
+                                     const TypeAnnotation* annotation2,
+                                     const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::Substitute(
+      "TypeInferenceError: type mismatch: $0 at $1 vs. $2 at $3",
+      annotation1->ToString(), annotation1->span().ToString(file_table),
+      annotation2->ToString(), annotation2->span().ToString(file_table)));
+}
+
 absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,
                                     const FileTable& file_table) {
   std::string span_string = user == nullptr

@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -168,6 +169,17 @@ class InferenceTableConverter {
       std::optional<const ParametricInvocation*> parametric_invocation) {
     XLS_ASSIGN_OR_RETURN(annotation, ResolveIfVariableTypeAnnotation(
                                          parametric_invocation, annotation));
+    if (const auto* tuple =
+            dynamic_cast<const TupleTypeAnnotation*>(annotation)) {
+      std::vector<std::unique_ptr<Type>> member_types;
+      member_types.reserve(tuple->members().size());
+      for (const TypeAnnotation* member : tuple->members()) {
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
+                             Concretize(member, parametric_invocation));
+        member_types.push_back(std::move(concrete_member_type));
+      }
+      return std::make_unique<TupleType>(std::move(member_types));
+    }
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(annotation);
     if (!signedness_and_bit_count.ok()) {
@@ -303,40 +315,67 @@ class InferenceTableConverter {
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations,
         table_.GetTypeAnnotationsForTypeVariable(type_variable));
+    return UnifyTypeAnnotations(parametric_invocation, annotations, span);
+  }
+
+  // Overload that unifies specific type annotations.
+  absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::vector<const TypeAnnotation*> annotations, const Span& span) {
     if (annotations.empty()) {
       return absl::InvalidArgumentError(
-          absl::Substitute("Failed to unify type variable $0 because no type "
-                           "annotations were associated with it.",
-                           type_variable->ToString()));
+          "Failed to unify because there are no type annotations.");
+    }
+    for (int i = 0; i < annotations.size(); i++) {
+      XLS_ASSIGN_OR_RETURN(
+          annotations[i], ResolveIfVariableTypeAnnotation(parametric_invocation,
+                                                          annotations[i]));
     }
     if (annotations.size() == 1) {
       // This is here mainly for preservation of shorthand annotations appearing
       // in the source code, in case they get put in subsequent error messages.
       // General unification would normalize the format.
-      const TypeAnnotation* annotation = annotations[0];
-      XLS_ASSIGN_OR_RETURN(annotation, ResolveIfVariableTypeAnnotation(
-                                           parametric_invocation, annotation));
-      return annotation;
+      return annotations[0];
+    }
+    if (const auto* first_tuple_annotation =
+            dynamic_cast<const TupleTypeAnnotation*>(annotations[0])) {
+      std::vector<const TupleTypeAnnotation*> tuple_annotations;
+      tuple_annotations.reserve(annotations.size());
+      for (const TypeAnnotation* annotation : annotations) {
+        const auto* tuple_annotation =
+            dynamic_cast<const TupleTypeAnnotation*>(annotation);
+        // If the DSLX programmer annotates a tuple with a non-tuple annotation,
+        // it will fail before now, because we need to distribute the components
+        // of it to the RHS early on.
+        CHECK(tuple_annotation);
+        // Since all but one must have been fabricated by us, they should have
+        // the same structure.
+        CHECK_EQ(tuple_annotation->members().size(),
+                 first_tuple_annotation->members().size());
+        tuple_annotations.push_back(tuple_annotation);
+      }
+      return UnifyTupleTypeAnnotations(parametric_invocation, tuple_annotations,
+                                       span);
     }
     std::optional<bool> unified_signedness;
     std::optional<int64_t> unified_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
-      VLOG(5) << "Annotation " << i << " for " << type_variable->ToString()
-              << ": " << current_annotation->ToString();
-      XLS_ASSIGN_OR_RETURN(current_annotation,
-                           ResolveIfVariableTypeAnnotation(
-                               parametric_invocation, current_annotation));
-      XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
-                           GetSignednessAndBitCount(current_annotation));
+      VLOG(5) << "Annotation " << i << ": " << current_annotation->ToString();
+      absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
+          GetSignednessAndBitCount(current_annotation);
+      if (!signedness_and_bit_count.ok()) {
+        return TypeMismatchErrorStatus(current_annotation, annotations[0],
+                                       file_table_);
+      }
       XLS_ASSIGN_OR_RETURN(
           bool current_annotation_signedness,
           EvaluateBoolOrExpr(parametric_invocation,
-                             signedness_and_bit_count.signedness));
+                             signedness_and_bit_count->signedness));
       XLS_ASSIGN_OR_RETURN(
           int64_t current_annotation_bit_count,
           EvaluateS64OrExpr(parametric_invocation,
-                            signedness_and_bit_count.bit_count));
+                            signedness_and_bit_count->bit_count));
 
       // Unify the signedness. Currently there must be strict agreement, except
       // for auto literals.
@@ -358,12 +397,34 @@ class InferenceTableConverter {
         return BitCountMismatchErrorStatus(current_annotation,
                                            annotations[i - 1], file_table_);
       }
-      VLOG(5) << "Unified type for " << type_variable->ToString()
-              << " so far has signedness: " << *unified_signedness
+      VLOG(5) << "Unified type so far has signedness: " << *unified_signedness
               << " and bit count: " << *unified_bit_count;
     }
     return CreateUnOrSnAnnotation(module_, span, *unified_signedness,
                                   *unified_bit_count);
+  }
+
+  // Unifies multiple annotations for a tuple. This function assumes the
+  // passed-in array is nonempty and the member counts match. Unifying a tuple
+  // type amounts to unifying the annotations for each member.
+  absl::StatusOr<const TupleTypeAnnotation*> UnifyTupleTypeAnnotations(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::vector<const TupleTypeAnnotation*> annotations, const Span& span) {
+    const int member_count = annotations[0]->members().size();
+    std::vector<TypeAnnotation*> unified_member_annotations(member_count);
+    for (int i = 0; i < member_count; i++) {
+      std::vector<const TypeAnnotation*> annotations_for_member;
+      annotations_for_member.reserve(annotations.size());
+      for (const TupleTypeAnnotation* annotation : annotations) {
+        annotations_for_member.push_back(annotation->members()[i]);
+      }
+      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_member_annotation,
+                           UnifyTypeAnnotations(parametric_invocation,
+                                                annotations_for_member, span));
+      unified_member_annotations[i] =
+          const_cast<TypeAnnotation*>(unified_member_annotation);
+    }
+    return module_.Make<TupleTypeAnnotation>(span, unified_member_annotations);
   }
 
   // If `annotation` is a `TypeVariableTypeAnnotation`, then this function gets
