@@ -470,49 +470,6 @@ static absl::StatusOr<std::unique_ptr<BitsType>> GetTypeOfNodeAsBits(
   return std::make_unique<BitsType>(is_signed, bits_like->size);
 }
 
-static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
-                                              const Type* from,
-                                              const Type* to) {
-  const ArrayType* from_array = dynamic_cast<const ArrayType*>(from);
-  bool to_is_bits_like = IsBitsLike(*to);
-
-  if (from_array != nullptr && !to_is_bits_like) {
-    return absl::InternalError(absl::StrCat(
-        "The only valid array cast is to bits: ", node->ToString()));
-  }
-
-  if (from_array == nullptr || !to_is_bits_like) {
-    return absl::OkStatus();
-  }
-
-  // Bits-constructor acts as a bits type, so we don't need to perform
-  // array-oriented cast checks.
-  if (IsArrayOfBitsConstructor(*from_array)) {
-    return absl::OkStatus();
-  }
-
-  // Check casting from an array to bits.
-  if (from_array->element_type().GetAllDims().size() != 1) {
-    return absl::InternalError(
-        "Only casts to/from one-dimensional arrays are supported.");
-  }
-
-  XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from_array->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t array_bit_count, bit_count_dim.GetAsInt64());
-
-  XLS_ASSIGN_OR_RETURN(bit_count_dim, to->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
-
-  if (array_bit_count != bits_bit_count) {
-    return absl::InternalError(absl::StrFormat(
-        "Array-to-bits cast bit counts must match. "
-        "Saw %d for \"from\" type `%s` vs %d for \"to\" type `%s`.",
-        array_bit_count, from->ToString(), bits_bit_count, to->ToString()));
-  }
-
-  return absl::OkStatus();
-}
-
 static absl::Status MaybeCheckEnumToBitsCast(const AstNode* node,
                                              const Type* from, const Type* to) {
   const EnumType* from_enum = dynamic_cast<const EnumType*>(from);
@@ -521,52 +478,6 @@ static absl::Status MaybeCheckEnumToBitsCast(const AstNode* node,
   if (from_enum != nullptr && !to_is_bits_like) {
     return absl::InternalError(absl::StrCat(
         "The only valid enum cast is to bits: ", node->ToString()));
-  }
-
-  return absl::OkStatus();
-}
-
-static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
-                                              const Type* from,
-                                              const Type* to) {
-  bool from_is_bits_like = IsBitsLike(*from);
-  const ArrayType* to_array = dynamic_cast<const ArrayType*>(to);
-
-  if (to_array != nullptr && !from_is_bits_like) {
-    return absl::InternalError(absl::StrCat(
-        "The only valid array cast is from bits: ", node->ToString()));
-  }
-
-  if (!from_is_bits_like || to_array == nullptr) {
-    return absl::OkStatus();
-  }
-
-  // Bits-constructor acts as a bits type, so we don't need to perform
-  // array-oriented cast checks.
-  if (IsArrayOfBitsConstructor(*to_array)) {
-    return absl::OkStatus();
-  }
-
-  // Casting from bits to an array.
-  if (to_array->element_type().GetAllDims().size() != 1) {
-    return absl::InternalError(
-        "Only casts to/from one-dimensional arrays are supported.");
-  }
-
-  VLOG(5) << "from_bits: " << from->ToString()
-          << " to_array: " << to_array->ToString();
-
-  XLS_ASSIGN_OR_RETURN(TypeDim bit_count_dim, from->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t bits_bit_count, bit_count_dim.GetAsInt64());
-
-  XLS_ASSIGN_OR_RETURN(bit_count_dim, to_array->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t array_bit_count, bit_count_dim.GetAsInt64());
-
-  if (array_bit_count != bits_bit_count) {
-    return absl::InternalError(absl::StrFormat(
-        "Bits-to-array cast bit counts must match. "
-        "bits-type `%s` bit count: %d; array-type bit count for `%s`: %d.",
-        from->ToString(), bits_bit_count, to->ToString(), array_bit_count));
   }
 
   return absl::OkStatus();
@@ -613,9 +524,7 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
 
   XLS_RETURN_IF_ERROR(CheckSupportedCastTypes(node, from));
   XLS_RETURN_IF_ERROR(CheckSupportedCastTypes(node, to));
-  XLS_RETURN_IF_ERROR(MaybeCheckArrayToBitsCast(node, from, to));
   XLS_RETURN_IF_ERROR(MaybeCheckEnumToBitsCast(node, from, to));
-  XLS_RETURN_IF_ERROR(MaybeCheckBitsToArrayCast(node, from, to));
   XLS_RETURN_IF_ERROR(MaybeCheckBitsToEnumCast(node, from, to));
 
   bytecode_.push_back(

@@ -59,6 +59,8 @@ struct TheStruct {
   l: MyStruct,
   m: MyTuple,
   n: MyArray,
+  x: xN[bool:0x0][44],
+  y: xN[bool:0x1][44],
 }
  )";
   FileTable file_table;
@@ -76,7 +78,10 @@ struct TheStruct {
     }
   }
   ASSERT_NE(the_struct_def, nullptr);
-  auto get_type_metadata = [&](std::string_view name) {
+
+  // Helper that extracts the metadata associated with a given field name.
+  auto get_type_metadata =
+      [&](std::string_view name) -> std::optional<BitVectorMetadata> {
     for (const StructMember& member : the_struct_def->members()) {
       if (member.name == name) {
         return ExtractBitVectorMetadata(member.type);
@@ -123,6 +128,22 @@ struct TheStruct {
   EXPECT_EQ(std::get<int64_t>(get_type_metadata("i")->bit_count), 7);
   EXPECT_FALSE(get_type_metadata("i")->is_signed);
   EXPECT_EQ(get_type_metadata("i")->kind, BitVectorKind::kEnumTypeAlias);
+
+  // Note: for an `xN` we expect the bit count to be an expression.
+  ASSERT_TRUE(get_type_metadata("x").has_value());
+  ASSERT_TRUE(std::holds_alternative<Expr*>(get_type_metadata("x")->bit_count));
+  EXPECT_EQ(std::get<Expr*>(get_type_metadata("x")->bit_count)->ToString(),
+            "44");
+  EXPECT_FALSE(get_type_metadata("x")->is_signed);
+  EXPECT_EQ(get_type_metadata("x")->kind, BitVectorKind::kBitType);
+
+  // Note: for an `xN` we expect the bit count to be an expression.
+  ASSERT_TRUE(get_type_metadata("y").has_value());
+  ASSERT_TRUE(std::holds_alternative<Expr*>(get_type_metadata("y")->bit_count));
+  EXPECT_EQ(std::get<Expr*>(get_type_metadata("y")->bit_count)->ToString(),
+            "44");
+  EXPECT_TRUE(get_type_metadata("y")->is_signed);
+  EXPECT_EQ(get_type_metadata("y")->kind, BitVectorKind::kBitType);
 
   EXPECT_FALSE(get_type_metadata("j").has_value());
   EXPECT_FALSE(get_type_metadata("k").has_value());

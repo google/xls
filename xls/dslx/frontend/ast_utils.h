@@ -161,9 +161,11 @@ struct BitVectorMetadata {
 };
 
 // Returns metadata about the bit-vector type if `type_annotation` refers to a
-// type whose underlying representation is a bit-vector. Examples include u32,
-// s10, uN[42], bits[11], enums, etc, and aliases of these types. Returns
-// std::nullopt otherwise.
+// type whose underlying representation is a bit-vector. Returns std::nullopt
+// otherwise.
+//
+// Examples include `u32`, `s10`, `uN[42]`, `bits[11]`, enums, etc, and
+// aliases of these types.
 std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
     const TypeAnnotation* type_annotation);
 

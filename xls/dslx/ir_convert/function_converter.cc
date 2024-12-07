@@ -1529,8 +1529,17 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
             [&](Range* n) -> absl::StatusOr<BValue> {
               XLS_RETURN_IF_ERROR(Visit(ToAstNode(n->start())));
               XLS_RETURN_IF_ERROR(Visit(ToAstNode(n->end())));
-              bool signed_input =
-                  down_cast<const BitsType*>(&matched_type)->is_signed();
+
+              // Look at the matched-on-value's type to determine if we should
+              // use signed or unsigned comparisons.
+              std::optional<BitsLikeProperties> bits_like =
+                  GetBitsLike(matched_type);
+              XLS_RET_CHECK(bits_like.has_value())
+                  << "Range type should be bits-like; got: "
+                  << matched_type.ToString();
+              XLS_ASSIGN_OR_RETURN(bool signed_input,
+                                   bits_like->is_signed.GetAsBool());
+
               XLS_ASSIGN_OR_RETURN(BValue start, Use(n->start()));
               XLS_ASSIGN_OR_RETURN(BValue limit, Use(n->end()));
               SourceInfo loc = ToSourceInfo(n->span());

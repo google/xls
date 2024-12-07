@@ -62,6 +62,14 @@ absl::Status MakeTypeError(const TypeMismatchErrorData& data,
 
 absl::Status MaybeExplainError(const TypeMismatchErrorData& data,
                                const FileTable& file_table) {
+  VLOG(5) << "MaybeExplainError; lhs: "
+          << (data.lhs_node != nullptr ? data.lhs_node->ToString() : "null")
+          << " lhs_type: "
+          << (data.lhs != nullptr ? data.lhs->ToString() : "null") << " rhs: "
+          << (data.rhs_node != nullptr ? data.rhs_node->ToString() : "null")
+          << " rhs_type: "
+          << (data.rhs != nullptr ? data.rhs->ToString() : "null");
+
   bool lhs_is_unit = data.lhs->IsUnit();
   bool rhs_is_unit = data.rhs->IsUnit();
   VLOG(10) << "lhs is unit: " << lhs_is_unit << " rhs is unit: " << rhs_is_unit;

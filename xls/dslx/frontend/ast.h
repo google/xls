@@ -1005,8 +1005,15 @@ class NameRef : public Expr {
 };
 
 enum class NumberKind : uint8_t {
+  // This kind is used when a keyword `true` or `false` is used as a number
+  // literal.
   kBool,
+
+  // This kind is used when a character literal is used as a number literal like
+  // 'a'.
   kCharacter,
+
+  // This kind is used for all other number literals.
   kOther,
 };
 

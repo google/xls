@@ -983,8 +983,6 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceWidthSliceType(
     const Index* node, const Type& subject_type,
     const BitsLikeProperties& subject_bits_like, const WidthSlice& width_slice,
     DeduceCtx* ctx) {
-  VLOG(5) << "DeduceWidthSliceType: " << node->ToString();
-
   // Start expression; e.g. in `x[a+:u4]` this is `a`.
   Expr* start = width_slice.start();
 

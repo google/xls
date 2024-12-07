@@ -287,6 +287,21 @@ fn g() -> s1 { u1:0 as xN[true][1] }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+// Previously this would flag an internal error.
+TEST(TypecheckTest, CastToXbitsBasedBoolArray) {
+  constexpr std::string_view kProgram = R"(
+const ARRAY_SIZE = u32:44;
+type MyXn = xN[bool:0x0][1];  // equivalent to a bool
+
+fn main() -> bool[44] {
+  let x: u44 = u44:0;
+  // Equivalent to casting bits to corresponding bool array.
+  x as MyXn[ARRAY_SIZE]
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckTest, ParametricPlusGlobal) {
   constexpr std::string_view kProgram = R"(
 const GLOBAL = u32:4;
@@ -3992,6 +4007,32 @@ TEST(TypecheckErrorTest, DuplicateParametricBinding) {
   EXPECT_THAT(
       Typecheck("fn p<N: u1, N: u2>() -> u32 { u32:42 }").status(),
       IsPosError("ParseError", HasSubstr("Duplicate parametric binding: `N`")));
+}
+
+TEST(TypecheckTest, MapOfXbitsArray) {
+  constexpr std::string_view kProgram = R"(
+type MyXN = xN[bool:0x0][1];  // effectively a bool
+
+fn f(x15: MyXN) {}
+
+fn main(u: u4) {
+    let a: MyXN[4] = u as MyXN[4];
+    map(a, f);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+// This test case was creating an error because it caused us to try to
+// `deduce_ctx->Resolve()` when there were no entries on the function stack.
+TEST(TypecheckTest, ResolveInTopLevelContext) {
+  constexpr std::string_view kProgram = R"(
+type x51 = u40;
+fn x42<x46: xN[bool:0x0][38] = {xN[bool:0x0][38]:0x0}>(x43: u40) {}
+fn x36<x41: u40 = {u40:0xff_ffff_ffff}>() { x42(x41); }
+fn main() { x36() }
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 // Table-oriented test that lets us validate that *types on parameters* are

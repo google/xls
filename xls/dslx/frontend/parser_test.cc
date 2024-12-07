@@ -2114,6 +2114,43 @@ TEST_F(ParserTest, ArrayTypeAnnotation) {
   EXPECT_EQ(array_type->element_type()->ToString(), "u8");
 }
 
+// Tests parsing of a type annotation made from the `xN` bits constructor.
+TEST_F(ParserTest, xNTypeAnnotation) {
+  std::string s = "xN[false][128]";
+  scanner_.emplace(file_table_, Fileno(0), s);
+  parser_.emplace("test", &*scanner_);
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(TypeAnnotation * ta,
+                           ParseTypeAnnotation(parser_.value(), bindings));
+
+  // Outer array type gives the bit count.
+  auto* outer_array_type = dynamic_cast<ArrayTypeAnnotation*>(ta);
+  EXPECT_NE(outer_array_type, nullptr);
+  auto* element_type = outer_array_type->element_type();
+  EXPECT_NE(element_type, nullptr);
+  auto* outer_dim = outer_array_type->dim();
+  EXPECT_NE(outer_dim, nullptr);
+  auto* outer_number = dynamic_cast<Number*>(outer_dim);
+  EXPECT_NE(outer_number, nullptr);
+  EXPECT_EQ(outer_number->ToString(), "128");
+
+  // Inner array type gives the signedness.
+  auto* inner_array_type = dynamic_cast<ArrayTypeAnnotation*>(element_type);
+  EXPECT_NE(inner_array_type, nullptr);
+  auto* inner_dim = inner_array_type->dim();
+  EXPECT_NE(inner_dim, nullptr);
+  auto* inner_number = dynamic_cast<Number*>(inner_dim);
+  EXPECT_NE(inner_number, nullptr);
+  EXPECT_EQ(inner_number->ToString(), "false");
+
+  // The innermost element is an `xN` builtin type annotation.
+  auto* builtin_type =
+      dynamic_cast<BuiltinTypeAnnotation*>(inner_array_type->element_type());
+  EXPECT_NE(builtin_type, nullptr);
+  EXPECT_EQ(builtin_type->builtin_type(), BuiltinType::kXN);
+  EXPECT_EQ(builtin_type->GetBitCount(), 0);
+}
+
 TEST_F(ParserTest, TupleArrayAndInt) {
   Expr* e = RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, false, std::nullopt);
   auto* tuple = dynamic_cast<XlsTuple*>(e);
