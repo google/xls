@@ -247,9 +247,12 @@ absl::StatusOr<std::string> FormatTypeMismatch(const Type& lhs, const Type& rhs,
 
   XLS_RETURN_IF_ERROR(ZipTypes(lhs, rhs, callbacks));
 
-  CHECK(!data.mismatches.empty())
-      << "type mismatch info not constructed correctly for types "
-      << lhs.GetDebugTypeName() << " vs. " << rhs.GetDebugTypeName();
+  XLS_RET_CHECK(!data.mismatches.empty())
+      << "FormatTypeMismatch; type mismatch info not constructed correctly for "
+         "types "
+      << lhs.GetDebugTypeName() << " vs. " << rhs.GetDebugTypeName()
+      << " -- we got no mismatches when zipping the types; lhs: "
+      << lhs.ToString() << " rhs: " << rhs.ToString();
 
   std::vector<std::string> lines;
 

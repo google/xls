@@ -135,5 +135,36 @@ TEST(ParametricBindTest, SampleSignedBitsBindToXn) {
   EXPECT_EQ(parametric_env.at("N"), InterpValue::MakeU32(32));
 }
 
+// Test a sample binding of an `xN[false][6]` argument to a `u6` parameter.
+// ```dslx
+//    p<N: u32>(x: u6) -> u6 { x }
+//    fn main() -> u6 {
+//      let arg = xN[false][6]:0;
+//      p(arg)
+//    }
+// ```
+TEST(ParametricBindTest, SampleUnsignedBitsBindToXn6) {
+  absl::flat_hash_map<std::string, InterpValue> parametric_env;
+  const absl::flat_hash_map<std::string, std::unique_ptr<Type>>
+      parametric_binding_types;
+  const absl::flat_hash_map<std::string, Expr*> parametric_default_exprs;
+
+  const Span fake_span = Span::Fake();
+  auto arg_type = ArrayType(
+      std::make_unique<BitsConstructorType>(TypeDim::CreateBool(false)),
+      TypeDim::CreateU32(6));
+  auto param_type = BitsType(/*is_signed=*/false, /*size=*/6);
+  DeduceCtx deduce_ctx(
+      /*type_info=*/nullptr, /*module=*/nullptr, /*deduce_function=*/nullptr,
+      /*typecheck_function=*/nullptr, /*typecheck_module=*/nullptr,
+      /*typecheck_invocation=*/nullptr, /*import_data=*/nullptr,
+      /*warnings=*/nullptr, /*parent=*/nullptr);
+  ParametricBindContext ctx{fake_span, parametric_binding_types,
+                            parametric_default_exprs, parametric_env,
+                            deduce_ctx};
+  XLS_ASSERT_OK(ParametricBind(param_type, arg_type, ctx));
+  ASSERT_TRUE(parametric_env.empty());
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -235,6 +235,20 @@ absl::StatusOr<InterpValue> SignConvertValue(const Type& type,
     }
     return InterpValue::MakeTuple(std::move(results));
   }
+
+  // Note: we have to test for BitsLike before ArrayType because
+  // array-of-bits-constructor looks like an array but is actually bits-like.
+  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      bits_like.has_value()) {
+    XLS_RET_CHECK(value.IsBits()) << value.ToString();
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+    if (is_signed) {
+      return InterpValue::MakeBits(InterpValueTag::kSBits,
+                                   value.GetBitsOrDie());
+    }
+    return value;
+  }
+
   if (auto* array_type = dynamic_cast<const ArrayType*>(&type)) {
     XLS_RET_CHECK(value.IsArray()) << value.ToString();
     const Type& t = array_type->element_type();
@@ -250,16 +264,6 @@ absl::StatusOr<InterpValue> SignConvertValue(const Type& type,
   if (auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
     XLS_RET_CHECK(value.IsBits()) << value.ToString();
     if (enum_type->is_signed()) {
-      return InterpValue::MakeBits(InterpValueTag::kSBits,
-                                   value.GetBitsOrDie());
-    }
-    return value;
-  }
-  if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
-      bits_like.has_value()) {
-    XLS_RET_CHECK(value.IsBits()) << value.ToString();
-    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
-    if (is_signed) {
       return InterpValue::MakeBits(InterpValueTag::kSBits,
                                    value.GetBitsOrDie());
     }

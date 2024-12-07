@@ -99,6 +99,32 @@ absl::Status ParametricBindBitsToConstructor(const ArrayType& param_type,
   return absl::OkStatus();
 }
 
+absl::Status ParametricBindConstructorToBits(const BitsType& param_type,
+                                             const ArrayType& arg_type,
+                                             ParametricBindContext& ctx) {
+  // Extract the bits constructor (element type) that's being turned into a
+  // bits-like type with the array wrapper.
+  const BitsConstructorType* arg_bits_constructor =
+      down_cast<const BitsConstructorType*>(&arg_type.element_type());
+
+  // First bind the signedness.
+  bool param_signedness = param_type.is_signed();
+  XLS_RETURN_IF_ERROR(
+      ParametricBindTypeDim(param_type, TypeDim::CreateBool(param_signedness),
+                            arg_type, arg_bits_constructor->is_signed(), ctx));
+
+  // Then bind the size.
+  return ParametricBindTypeDim(param_type, param_type.size(), arg_type,
+                               arg_type.size(), ctx);
+}
+
+absl::Status ParametricBindBitsConstructors(
+    const BitsConstructorType& param_type, const BitsConstructorType& arg_type,
+    ParametricBindContext& ctx) {
+  return ParametricBindTypeDim(param_type, param_type.is_signed(), arg_type,
+                               arg_type.is_signed(), ctx);
+}
+
 }  // namespace
 
 absl::Status ParametricBindTypeDim(const Type& formal_type,
@@ -173,6 +199,7 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
                             ParametricBindContext& ctx) {
   VLOG(10) << "ParametricBind; param_type: " << param_type
            << " arg_type: " << arg_type;
+
   auto wrong_kind = [&]() {
     std::string message = absl::StrFormat(
         "expected argument kind '%s' to match parameter kind '%s'",
@@ -181,6 +208,17 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
                                             nullptr, arg_type, message);
   };
 
+  // Handle: param is bits constructor and arg is bits constructor.
+  if (IsBitsConstructor(param_type) && IsBitsConstructor(arg_type)) {
+    const BitsConstructorType* param =
+        down_cast<const BitsConstructorType*>(&param_type);
+    const BitsConstructorType* arg =
+        down_cast<const BitsConstructorType*>(&arg_type);
+    return ParametricBindBitsConstructors(*param, *arg, ctx);
+  }
+
+  // Handle: param is bits constructor and arg is bits type.
+  //
   // Note that we actually need to handle the distinction between
   // BitsConstructorType and BitsType here, because array of BitsConstructorType
   // has another dimension to bind (the signedness).
@@ -189,6 +227,15 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
     auto* param = down_cast<const ArrayType*>(&param_type);
     return ParametricBindBitsToConstructor(*param, *arg, ctx);
   }
+
+  // Handle: param is bits and arg is array-of-bits-constructor.
+  if (auto* param_bits = dynamic_cast<const BitsType*>(&param_type);
+      param_bits != nullptr && IsArrayOfBitsConstructor(arg_type)) {
+    auto* arg = down_cast<const ArrayType*>(&arg_type);
+    return ParametricBindConstructorToBits(*param_bits, *arg, ctx);
+  }
+
+  // Handle: param and arg are both bits types.
   if (auto* param_bits = dynamic_cast<const BitsType*>(&param_type)) {
     auto* arg_bits = dynamic_cast<const BitsType*>(&arg_type);
     if (arg_bits == nullptr) {
@@ -244,9 +291,10 @@ absl::Status ParametricBind(const Type& param_type, const Type& arg_type,
     return absl::OkStatus();
   }
 
-  return absl::InternalError(absl::StrFormat(
-      "Unhandled parameter type for symbolic binding: %s @ %s",
-      param_type.ToString(), ctx.span.ToString(ctx.deduce_ctx.file_table())));
+  return absl::InternalError(
+      absl::StrFormat("Unhandled for symbolic binding; param: %s, arg: %s @ %s",
+                      param_type.ToString(), arg_type.ToString(),
+                      ctx.span.ToString(ctx.deduce_ctx.file_table())));
 }
 
 }  // namespace xls::dslx

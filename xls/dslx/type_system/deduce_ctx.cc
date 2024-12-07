@@ -22,9 +22,11 @@
 #include <variant>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -93,6 +95,10 @@ absl::Status DeduceCtx::TypeMismatchError(
     const AstNode* rhs_node, const Type& rhs, std::string message) {
   XLS_RET_CHECK(!type_mismatch_error_data_.has_value())
       << "internal error: nested type mismatch error";
+  VLOG(10) << "TypeMismatchError; lhs_node: "
+           << (lhs_node != nullptr ? lhs_node->ToString() : "null")
+           << " rhs_node: "
+           << (rhs_node != nullptr ? rhs_node->ToString() : "null");
   DeduceCtx* top = this;
   while (top->parent_ != nullptr) {
     top = top->parent_;
@@ -121,7 +127,15 @@ std::unique_ptr<DeduceCtx> DeduceCtx::MakeCtx(TypeInfo* new_type_info,
                                      import_data_, warnings_, /*parent=*/this);
 }
 
+std::unique_ptr<DeduceCtx> DeduceCtx::MakeCtxWithSameFnStack(
+    TypeInfo* new_type_info, Module* new_module) {
+  auto result = MakeCtx(new_type_info, new_module);
+  result->fn_stack_ = fn_stack_;
+  return result;
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::Deduce(const AstNode* node) {
+  XLS_RET_CHECK(!fn_stack().empty());
   XLS_RET_CHECK(deduce_function_ != nullptr);
   XLS_RET_CHECK_EQ(node->owner(), type_info()->module())
       << "node: `" << node->ToString() << "` from module "
