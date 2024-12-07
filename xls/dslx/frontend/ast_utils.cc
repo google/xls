@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
 namespace {
@@ -280,6 +281,32 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
                                 [&] { return array_type->ToString(); });
 }
 
+// Attempts to evaluate an expression as a literal boolean.
+//
+// This has a few simple forms:
+// - `true` / `false`
+// - `bool:0x0` / `bool:0x1`
+static std::optional<bool> TryEvaluateAsBool(const Expr* expr) {
+  const Number* number = dynamic_cast<const Number*>(expr);
+  if (number == nullptr) {
+    return std::nullopt;
+  }
+  if (number->number_kind() == NumberKind::kBool) {
+    CHECK(number->text() == "true" || number->text() == "false");
+    return number->text() == "true";
+  }
+  if (number->number_kind() == NumberKind::kOther) {
+    absl::StatusOr<std::pair<bool, Bits>> sm =
+        GetSignAndMagnitude(number->text());
+    if (sm.ok() && sm->second.bit_count() <= 1) {
+      // Note: the zero value is given as a bit count of zero.
+      bool value = sm->second.bit_count() == 0 ? 0 : sm->second.Get(0);
+      return std::optional<bool>(value);
+    }
+  }
+  return std::nullopt;
+}
+
 std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
     const TypeAnnotation* type_annotation) {
   bool is_enum = false;
@@ -332,9 +359,36 @@ std::optional<BitVectorMetadata> ExtractBitVectorMetadata(
     return BitVectorMetadata{
         .bit_count = bit_count, .is_signed = is_signed.value(), .kind = kind};
   }
+
   if (const ArrayTypeAnnotation* array_type =
           dynamic_cast<const ArrayTypeAnnotation*>(type);
       array_type != nullptr) {
+    // xN[..] has yet another level of array that annotates the signedness.
+    if (const ArrayTypeAnnotation* inner_array_type =
+            dynamic_cast<const ArrayTypeAnnotation*>(
+                array_type->element_type());
+        inner_array_type != nullptr) {
+      const BuiltinTypeAnnotation* maybe_xn =
+          dynamic_cast<const BuiltinTypeAnnotation*>(
+              inner_array_type->element_type());
+      if (maybe_xn != nullptr && maybe_xn->builtin_type() == BuiltinType::kXN) {
+        // We can only extract the signedness from the inner array dimension if
+        // it's a bare number.
+        std::optional<bool> is_signed =
+            TryEvaluateAsBool(inner_array_type->dim());
+
+        // If we can't determine signedness we bail, as it's required metadata
+        // for us to return.
+        if (!is_signed.has_value()) {
+          return std::nullopt;
+        }
+
+        return BitVectorMetadata{.bit_count = array_type->dim(),
+                                 .is_signed = is_signed.value(),
+                                 .kind = kind};
+      }
+    }
+
     // bits[..], uN[..], and sN[..] are bit-vector types but a represented with
     // ArrayTypeAnnotations.
     const BuiltinTypeAnnotation* builtin_element_type =

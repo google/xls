@@ -145,6 +145,14 @@ class DeduceCtx {
   std::unique_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
                                      Module* new_module);
 
+  // Creates a new DeduceCtx reflecting the given type info and module.
+  // Uses the same callbacks as this current context.
+  //
+  // Note that the resulting DeduceCtx has the same fn_stack as this current
+  // context.
+  std::unique_ptr<DeduceCtx> MakeCtxWithSameFnStack(TypeInfo* new_type_info,
+                                                    Module* new_module);
+
   // Helper that calls back to the top-level deduce procedure for the given
   // node.
   absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node);

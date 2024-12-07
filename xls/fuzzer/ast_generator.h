@@ -216,7 +216,7 @@ class AstGenerator {
 
   // Helper that returns the bit count of type when converted to a builtin bits
   // type. Returns an error status if the type is not a builtin bits type.
-  absl::StatusOr<int64_t> BitsTypeGetBitCount(TypeAnnotation* type);
+  absl::StatusOr<int64_t> BitsTypeGetBitCount(const TypeAnnotation* type);
 
   static std::tuple<std::vector<Expr*>, std::vector<TypeAnnotation*>,
                     std::vector<LastDelayingOp>>
@@ -519,7 +519,19 @@ class AstGenerator {
   // Return a token builtin type.
   BuiltinTypeAnnotation* MakeTokenType();
 
-  TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64_t width);
+  // Deterministically creates a type annotation with the given signedness and
+  // width.
+  //
+  // If `use_xn` is true, the type annotation will be `xN[is_signed][width]`.
+  TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64_t width,
+                                     bool use_xn);
+
+  // Shorthand helper for making a `bool` type annotation, which is fairly
+  // common.
+  TypeAnnotation* MakeBoolTypeAnnotation() {
+    return MakeTypeAnnotation(/*is_signed=*/false, /*width=*/1,
+                              /*use_xn=*/false);
+  }
 
   // Generates a binary operation AST node in which operands and results type
   // are all the same (excluding shifts), such as: add, and, mul, etc.
@@ -617,7 +629,7 @@ class AstGenerator {
       bool value, FormatPreference format_preference = FormatPreference::kHex) {
     return MakeNumberFromBits(
         UBits(value ? 1 : 0, 1),
-        MakeTypeAnnotation(/*is_signed=*/false, /*width=*/1),
+        MakeTypeAnnotation(/*is_signed=*/false, /*width=*/1, /*use_xn=*/false),
         format_preference);
   }
 
