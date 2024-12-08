@@ -825,6 +825,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
             [](Impl*) { return absl::OkStatus(); },
             [](EnumDef*) { return absl::OkStatus(); },
             [](Import*) { return absl::OkStatus(); },
+            [](Use*) { return absl::OkStatus(); },
             [](ConstAssert*) { return absl::OkStatus(); },
             [](VerbatimNode*) {
               return absl::UnimplementedError(

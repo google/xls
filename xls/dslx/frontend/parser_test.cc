@@ -1641,6 +1641,36 @@ fn foo() -> bar::T<2>[3] {
 })");
 }
 
+TEST_F(ParserTest, UseOneItemFromModule) {
+  RoundTrip(R"(use foo::BAR;
+fn main() -> u32 {
+    BAR
+})");
+}
+
+TEST_F(ParserTest, UseTwoItemsFromModule) {
+  RoundTrip(R"(use foo::{BAR, BAZ};
+fn main() -> u32 {
+    BAR + BAZ
+})");
+}
+
+TEST_F(ParserTest, UseWithNestedLevels) {
+  RoundTrip(R"(use foo::{bar::{baz, qux}, quux};
+fn main() -> u32 {
+    baz + qux + quux
+})");
+}
+
+TEST_F(ParserTest, UseWithPeersAtTopLevelNotAllowed) {
+  constexpr std::string_view kProgram = "use {foo, bar};";
+  absl::StatusOr<std::unique_ptr<Module>> module_or = Parse(kProgram);
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError",
+                 HasSubstr("Cannot `use` multiple modules in one statement")));
+}
+
 TEST_F(ParserTest, ZeroMacroSimpleStructArray) {
   const char* text = R"(zero!<MyType[10]>())";
   Scanner s{file_table_, Fileno(0), std::string{text}};

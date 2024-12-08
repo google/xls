@@ -40,6 +40,7 @@
   X(kTrue, TRUE, "true")                   \
   X(kType, TYPE, "type")                   \
   X(kUnrollFor, UNROLL_FOR, "unroll_for!") \
+  X(kUse, USE, "use")                      \
   /* builtin types */                      \
   X(kBits, BITS, "bits")                   \
   X(kToken, TOKEN, "token")                \

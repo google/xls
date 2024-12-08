@@ -226,6 +226,10 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
                                         imported->type_info());
             return absl::OkStatus();
           },
+          [](Use* use) -> absl::Status {
+            return absl::UnimplementedError(
+                "`use` statements are not yet supported for typechecking");
+          },
           [ctx](ConstantDef* member) -> absl::Status {
             return ctx->Deduce(ToAstNode(member)).status();
           },

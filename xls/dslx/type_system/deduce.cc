@@ -2077,6 +2077,7 @@ class DeduceVisitor : public AstNodeVisitor {
   absl::Status HandleProc(const Proc* n) override { return Fatal(n); }
   absl::Status HandleSlice(const Slice* n) override { return Fatal(n); }
   absl::Status HandleImport(const Import* n) override { return Fatal(n); }
+  absl::Status HandleUse(const Use* n) override { return Fatal(n); }
   absl::Status HandleFunction(const Function* n) override { return Fatal(n); }
   absl::Status HandleQuickCheck(const QuickCheck* n) override {
     return Fatal(n);

@@ -478,6 +478,11 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_RETURN_IF_ERROR(module_->AddTop(import, make_collision_error));
         break;
       }
+      case Keyword::kUse: {
+        XLS_ASSIGN_OR_RETURN(Use * use, ParseUse(*bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(use, make_collision_error));
+        break;
+      }
       case Keyword::kType: {
         XLS_RET_CHECK(bindings != nullptr);
         XLS_ASSIGN_OR_RETURN(
@@ -1567,6 +1572,79 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
   }
   Span span(match.span().start(), GetPos());
   return module_->Make<Match>(span, matched, std::move(arms));
+}
+
+absl::StatusOr<std::unique_ptr<UseTreeEntry>> Parser::ParseUseTreeEntry(
+    Bindings& bindings) {
+  // Get the identifier for this level of the tree.
+  XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
+  std::string identifier = *tok.GetValue();
+
+  // The next level of the tree can be peer subtrees, or a single child.
+  // If the next level is present it is indicated by a `::`.
+  XLS_ASSIGN_OR_RETURN(bool saw_double_colon,
+                       TryDropToken(TokenKind::kDoubleColon));
+  if (!saw_double_colon) {
+    // Must be a leaf, as we see no subsequent `::` to indicate there is a
+    // subsequent level.
+    XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
+    bindings.Add(name_def->identifier(), name_def);
+    return UseTreeEntry::MakeLeaf(name_def, tok.span());
+  }
+
+  // If we've gotten here we know there's a next level, we're just looking to
+  // see if it's peer subtrees or a single subtree.
+  XLS_ASSIGN_OR_RETURN(bool saw_obrace, TryDropToken(TokenKind::kOBrace));
+  if (saw_obrace) {
+    // Multiple peer subtrees -- present as children (subtrees) to make this
+    // level.
+    std::vector<std::unique_ptr<UseTreeEntry>> children;
+    while (true) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<UseTreeEntry> child,
+                           ParseUseTreeEntry(bindings));
+      children.push_back(std::move(child));
+      XLS_ASSIGN_OR_RETURN(bool saw_cbrace, TryDropToken(TokenKind::kCBrace));
+      if (saw_cbrace) {
+        break;
+      }
+      XLS_RETURN_IF_ERROR(DropTokenOrError(
+          TokenKind::kComma, /*start=*/nullptr,
+          "Expect a ',' to separate multiple entries in a `use` statement"));
+    }
+    return UseTreeEntry::MakeInterior(identifier, std::move(children),
+                                      tok.span());
+  }
+
+  // Must be a single child in the subsequent level -- we recurse here to look
+  // for additional levels after it.
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<UseTreeEntry> child,
+                       ParseUseTreeEntry(bindings));
+  std::vector<std::unique_ptr<UseTreeEntry>> children;
+  children.reserve(1);
+  children.push_back(std::move(child));
+  return UseTreeEntry::MakeInterior(identifier, std::move(children),
+                                    tok.span());
+}
+
+absl::StatusOr<Use*> Parser::ParseUse(Bindings& bindings) {
+  XLS_ASSIGN_OR_RETURN(Token kw, PopKeywordOrError(Keyword::kUse));
+
+  XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
+  if (peek_is_obrace) {
+    // `use { ... }`
+    return ParseErrorStatus(
+        Span(kw.span().start(), GetPos()),
+        "Cannot `use` multiple modules in one statement; e.g. `use {foo, bar}` "
+        "is not allowed -- please break into multiple statements");
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<UseTreeEntry> root,
+                       ParseUseTreeEntry(bindings));
+  XLS_RETURN_IF_ERROR(
+      DropTokenOrError(TokenKind::kSemi, /*start=*/&kw,
+                       "Expect a ';' at end of `use` statement"));
+  Span span(kw.span().start(), GetPos());
+  return module_->Make<Use>(span, std::move(root));
 }
 
 absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
