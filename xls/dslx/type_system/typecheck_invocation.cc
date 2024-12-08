@@ -236,20 +236,22 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
   auto constexpr_eval = [&](int64_t argno) -> absl::StatusOr<InterpValue> {
     Expr* arg = invocation->args()[argno];
 
-    XLS_ASSIGN_OR_RETURN(
-        (absl::flat_hash_map<std::string, InterpValue> env),
-        MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
-                         arg, ctx->GetCurrentParametricEnv()));
+    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+        ctx->import_data(), ctx->type_info(), ctx->warnings(),
+        ctx->GetCurrentParametricEnv(), arg, nullptr))
+        << "while evaluating: " << arg->ToString();
 
-    VLOG(5) << "TypecheckParametricBuiltinInvocation.constexpr_eval; argno: "
-            << argno << " expr: `" << arg->ToString() << "`"
-            << " env: " << EnvMapToString(env);
+    if (!ctx->type_info()->IsKnownConstExpr(arg)) {
+      return TypeInferenceErrorStatus(
+          invocation->args().at(argno)->span(), nullptr,
+          absl::StrFormat(
+              "Argument to built-in function `%s` must be constexpr; "
+              "could not evaluate argument to constexpr: `%s`",
+              callee_name, arg->ToString()),
+          ctx->file_table());
+    }
 
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        InterpretExpr(ctx->import_data(), ctx->type_info(), arg, env));
-    ctx->type_info()->NoteConstExpr(arg, value);
-    return value;
+    return ctx->type_info()->GetConstExpr(arg).value();
   };
 
   std::vector<const Type*> arg_type_ptrs;

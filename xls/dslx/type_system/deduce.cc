@@ -748,13 +748,13 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstAssert(const ConstAssert* node,
                        ctx->type_info()->GetConstExpr(node->arg()));
   if (constexpr_value.IsFalse()) {
     XLS_ASSIGN_OR_RETURN(
-        auto constexpr_map,
+        ConstexprEnvData ced,
         MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
                          node->arg(), parametric_env));
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("const_assert! failure: `%s` constexpr environment: %s",
-                        node->arg()->ToString(), EnvMapToString(constexpr_map)),
+                        node->arg()->ToString(), EnvMapToString(ced.env)),
         ctx->file_table());
   }
 
@@ -1155,9 +1155,8 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
                                 *width_slice, ctx);
   }
 
-  absl::flat_hash_map<std::string, InterpValue> env;
   XLS_ASSIGN_OR_RETURN(
-      env,
+      ConstexprEnvData ced,
       MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
                        node, ctx->GetCurrentParametricEnv()));
 
@@ -1187,7 +1186,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
   }
   XLS_ASSIGN_OR_RETURN(
       std::optional<int64_t> start,
-      TryResolveBound(slice, slice->start(), "start", s32.get(), env, ctx));
+      TryResolveBound(slice, slice->start(), "start", s32.get(), ced.env, ctx));
 
   if (slice->limit() != nullptr) {
     if (should_deduce(slice->limit())) {
@@ -1202,7 +1201,7 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
   }
   XLS_ASSIGN_OR_RETURN(
       std::optional<int64_t> limit,
-      TryResolveBound(slice, slice->limit(), "limit", s32.get(), env, ctx));
+      TryResolveBound(slice, slice->limit(), "limit", s32.get(), ced.env, ctx));
 
   const ParametricEnv& fn_parametric_env = ctx->GetCurrentParametricEnv();
   XLS_ASSIGN_OR_RETURN(TypeDim lhs_bit_count_ctd, lhs_type->GetTotalBitCount());

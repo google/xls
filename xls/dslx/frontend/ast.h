@@ -165,6 +165,10 @@ Span ExprOrTypeSpan(const ExprOrType& expr_or_type);
 // have no effective position) or defined in the user AST (NameDef).
 using AnyNameDef = std::variant<const NameDef*, BuiltinNameDef*>;
 
+inline bool operator==(const AnyNameDef& lhs, const AnyNameDef& rhs) {
+  return ToAstNode(lhs) == ToAstNode(rhs);
+}
+
 // Holds a mapping {identifier: NameRefs} -- this is used for accumulating free
 // variable references (the NameRefs) in the source program; see
 // GetFreeVariables().
@@ -208,6 +212,11 @@ class FreeVariables {
   // Returns the span of the first `NameRef` that is referring to `identifier`
   // in this free variables set.
   const Span& GetFirstNameRefSpan(std::string_view identifier) const;
+
+  // Returns a string representation of this free variables set in a form like:
+  //
+  // `{identifier: [NameRef(%p), NameRef(%p)], ...}`
+  std::string ToString() const;
 
  private:
   absl::flat_hash_map<std::string, std::vector<const NameRef*>> values_;

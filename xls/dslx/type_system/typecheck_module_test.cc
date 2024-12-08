@@ -949,6 +949,30 @@ fn f() -> u32 {
 })"));
 }
 
+TEST(TypecheckErrorTest, RangeBuiltinWithNonConstexprArg) {
+  EXPECT_THAT(
+      Typecheck(R"(fn f(limit: u8) -> u32 {
+  for (_, accum) in range(u32:0, limit as u32) {
+    accum
+  }(u32:0)
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Argument to built-in function `range` must be constexpr")));
+}
+
+TEST(TypecheckTest, RangeBuiltinWithConstexprArgViaModuleCall) {
+  XLS_EXPECT_OK(Typecheck(R"(import std;
+const MOL = u32:42;
+fn f() -> u32 {
+  for (_, accum) in range(u32:0, std::clog2(MOL)) {
+    accum
+  }(u32:0)
+}
+)"));
+}
+
 TEST(TypecheckTest, ConstAssertParametricOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>() -> u32 {
