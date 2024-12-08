@@ -536,10 +536,10 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number& expr,
 
 absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
   // Numbers should always be [constexpr] evaluatable.
-  absl::flat_hash_map<std::string, InterpValue> env;
-  XLS_ASSIGN_OR_RETURN(
-      env, MakeConstexprEnv(import_data_, type_info_, warning_collector_, expr,
-                            bindings_));
+  XLS_ASSIGN_OR_RETURN(ConstexprEnvData constexpr_env_data,
+                       MakeConstexprEnv(import_data_, type_info_,
+                                        warning_collector_, expr, bindings_));
+  XLS_RET_CHECK(constexpr_env_data.non_constexpr.empty());
 
   std::unique_ptr<BitsType> temp_type;
   const Type* type_ptr;
@@ -556,7 +556,8 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
     const BitsType* bt = down_cast<const BitsType*>(type_ptr);
     XLS_RET_CHECK(bt != nullptr);
     if (bt->size().IsParametric()) {
-      XLS_ASSIGN_OR_RETURN(temp_type, InstantiateParametricNumberType(env, bt));
+      XLS_ASSIGN_OR_RETURN(temp_type, InstantiateParametricNumberType(
+                                          constexpr_env_data.env, bt));
       type_ptr = temp_type.get();
     }
   } else if (type_ != nullptr) {
@@ -680,14 +681,14 @@ absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
 }
 
 absl::Status ConstexprEvaluator::InterpretExpr(const Expr* expr) {
-  absl::flat_hash_map<std::string, InterpValue> env;
-  XLS_ASSIGN_OR_RETURN(
-      env, MakeConstexprEnv(import_data_, type_info_, warning_collector_, expr,
-                            bindings_));
+  XLS_ASSIGN_OR_RETURN(ConstexprEnvData constexpr_env_data,
+                       MakeConstexprEnv(import_data_, type_info_,
+                                        warning_collector_, expr, bindings_));
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
-                       BytecodeEmitter::EmitExpression(import_data_, type_info_,
-                                                       expr, env, bindings_));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::EmitExpression(import_data_, type_info_, expr,
+                                      constexpr_env_data.env, bindings_));
 
   std::vector<Span> rollovers;
   BytecodeInterpreterOptions options;
@@ -707,7 +708,7 @@ absl::Status ConstexprEvaluator::InterpretExpr(const Expr* expr) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
+absl::StatusOr<ConstexprEnvData> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const Expr* node,
     const ParametricEnv& parametric_env) {
@@ -717,36 +718,55 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
       << " vs type info module: " << type_info->module()->name();
   VLOG(5) << "Creating constexpr environment for node: `" << node->ToString()
           << "`";
-  absl::flat_hash_map<std::string, InterpValue> env;
-  absl::flat_hash_map<std::string, InterpValue> values;
 
+  // The constexpr environment we'll build up as we walk the free variables.
+  absl::flat_hash_map<std::string, InterpValue> env;
+
+  // Seed the constexpr environment with parametric bindings.
+  //
+  // Implementation note: we could instead have this function expect to resolve
+  // all of these via `type_info`, but being able to take the `parametric_env`
+  // and use that for initial population allows us to pass in partially built
+  // parametric results, e.g. in parametric instantiation, without needing to
+  // put everything we discover immediately into the type info.
   for (const auto& [id, value] : parametric_env.ToMap()) {
     env.insert({id, value});
   }
 
   // Collect all the freevars that are constexpr.
   FreeVariables freevars = GetFreeVariablesByPos(node);
-  VLOG(5) << "freevar count for `" << node->ToString()
-          << "`: " << freevars.GetFreeVariableCount();
+  VLOG(5) << absl::StreamFormat("free variables for `%s`: %s", node->ToString(),
+                                freevars.ToString());
   freevars = freevars.DropBuiltinDefs();
-  for (const auto& [name, name_refs] : freevars.values()) {
-    const NameRef* target_ref = nullptr;
-    for (const NameRef* name_ref : name_refs) {
-      target_ref = name_ref;
-      break;
-    }
 
-    if (target_ref == nullptr) {
-      continue;
+  // Keep track of which name references we could not resolve to be constexpr.
+  absl::flat_hash_set<const NameRef*> non_constexpr;
+
+  for (const auto& [name, name_refs] : freevars.values()) {
+#ifndef NDEBUG
+    // Verify that all the name refs are referring to the same name def -- this
+    // should be true of free variables for any lexical environment.
+    for (int64_t i = 1; i < name_refs.size(); ++i) {
+      DCHECK(name_refs[i]->name_def() == name_refs[0]->name_def());
     }
+#endif
+
+    CHECK_GE(name_refs.size(), 1);
+    // Note: we dropped all builtin defs above so this variant access should be
+    // safe/correct.
+    const NameRef* sample_ref = name_refs.front();
+    const NameDef* target_def =
+        std::get<const NameDef*>(sample_ref->name_def());
 
     XLS_RETURN_IF_ERROR(
         ConstexprEvaluator::Evaluate(import_data, type_info, warning_collector,
-                                     parametric_env, target_ref, nullptr));
+                                     parametric_env, sample_ref, nullptr));
     absl::StatusOr<InterpValue> const_expr =
-        type_info->GetConstExpr(target_ref);
+        type_info->GetConstExpr(target_def);
     if (const_expr.ok()) {
       env.insert({name, const_expr.value()});
+    } else {
+      non_constexpr.insert(sample_ref);
     }
   }
 
@@ -764,7 +784,11 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     env.insert({const_ref->identifier(), *value});
   }
 
-  return env;
+  return ConstexprEnvData{
+      .freevars = freevars,
+      .env = env,
+      .non_constexpr = non_constexpr,
+  };
 }
 
 std::string EnvMapToString(
