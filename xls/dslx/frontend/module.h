@@ -43,11 +43,16 @@ namespace xls::dslx {
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
                  TypeAlias*, StructDef*, ProcDef*, ConstantDef*, EnumDef*,
-                 Import*, ConstAssert*, Impl*, VerbatimNode*>;
+                 Import*, Use*, ConstAssert*, Impl*, VerbatimNode*>;
 
+// Returns all the NameDefs defined by the given module member.
+//
+// Note that generally there is either zero or one, but for `Use` in particular
+// there may be many.
+//
 // Note: this returns nullptr for constructs that do not define a name, e.g.
 // `ConstAssert`.
-NameDef* ModuleMemberGetNameDef(const ModuleMember& mm);
+std::vector<NameDef*> ModuleMemberGetNameDefs(const ModuleMember& mm);
 
 // Returns the starting position of the given module member.
 //

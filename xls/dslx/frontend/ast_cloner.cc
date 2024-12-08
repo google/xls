@@ -399,6 +399,10 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleUse(const Use* n) override {
+    return absl::UnimplementedError("Not implemented: clone use");
+  }
+
   absl::Status HandleIndex(const Index* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 

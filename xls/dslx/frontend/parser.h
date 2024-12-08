@@ -556,8 +556,16 @@ class Parser : public TokenParser {
                                                   bool is_public,
                                                   Bindings& outer_bindings);
 
-  // Parses an import statement into an Import AST node.
+  // Parses an import statement into an `Import` AST node.
   absl::StatusOr<Import*> ParseImport(Bindings& bindings);
+
+  // Parses a single entry in a `use` tree -- this can be a leaf or an interior
+  // entry.
+  absl::StatusOr<std::unique_ptr<UseTreeEntry>> ParseUseTreeEntry(
+      Bindings& bindings);
+
+  // Parses a use statement into a `Use` AST node.
+  absl::StatusOr<Use*> ParseUse(Bindings& bindings);
 
   // Returns TestFunction AST node by parsing new-style unit test construct.
   absl::StatusOr<TestFunction*> ParseTestFunction(Bindings& bindings,
