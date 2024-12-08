@@ -107,15 +107,14 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
     ctx = new_ctx_holder.get();
   }
 
-  absl::flat_hash_map<std::string, InterpValue> env;
-  XLS_ASSIGN_OR_RETURN(env,
+  XLS_ASSIGN_OR_RETURN(ConstexprEnvData ced,
                        MakeConstexprEnv(ctx->import_data(), ctx->type_info(),
                                         ctx->warnings(), expr, parametric_env));
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(ctx->import_data(), ctx->type_info(),
-                                      expr, env, std::nullopt));
+                                      expr, ced.env, std::nullopt));
 
   std::vector<Span> rollovers;
   BytecodeInterpreterOptions options;

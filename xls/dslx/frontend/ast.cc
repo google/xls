@@ -420,6 +420,20 @@ absl::flat_hash_set<std::string> FreeVariables::Keys() const {
   return result;
 }
 
+std::string FreeVariables::ToString() const {
+  return absl::StrFormat(
+      "{%s}",
+      absl::StrJoin(values_, ", ", [](std::string* out, const auto& item) {
+        absl::StrAppend(out, item.first, ": [",
+                        absl::StrJoin(item.second, ", ",
+                                      [](std::string* out, const NameRef* ref) {
+                                        absl::StrAppendFormat(
+                                            out, "NameRef(%p)", ref);
+                                      }),
+                        "]");
+      }));
+}
+
 FreeVariables GetFreeVariablesByLambda(
     const AstNode* node,
     const std::function<bool(const NameRef&)>& consider_free) {
