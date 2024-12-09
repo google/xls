@@ -378,24 +378,29 @@ absl::Status Translator::GenerateIR_SubBlock(GeneratedFunction* gen_func,
       int64_t, absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>>
       top_channel_injections_by_state;
 
-  // TODO: Separate function
+  // Map channels
   for (const auto& [channels, state_index] :
        gen_func->state_index_by_called_channel_order) {
-    CHECK_EQ(channels.size(), gen_func->clang_decl->getNumParams());
-
-    // Generate sub block
-    absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
-        top_channel_injections;
+    int64_t num_channel_params = 0;
     for (int pi = 0; pi < gen_func->clang_decl->getNumParams(); ++pi) {
       const clang::ParmVarDecl* p = gen_func->clang_decl->getParamDecl(pi);
+
+      XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                           StripTypeQualifiers(p->getType()));
 
       // IO returns are later
       XLS_ASSIGN_OR_RETURN(bool is_channel,
                            TypeIsChannel(p->getType(), GetLoc(*p)));
-      CHECK(is_channel);
+      if (!is_channel) {
+        CHECK(stripped.base.isConstQualified());
+        continue;
+      }
 
-      top_channel_injections_by_state[state_index][p] = channels.at(pi);
+      top_channel_injections_by_state[state_index][p] =
+          channels.at(num_channel_params);
+      ++num_channel_params;
     }
+    CHECK_EQ(channels.size(), num_channel_params);
   }
 
   if (top_channel_injections_by_state.size() != 1) {
@@ -444,8 +449,8 @@ absl::Status Translator::GenerateIR_SubBlock(GeneratedFunction* gen_func,
           absl::StrCat(gen_func->clang_decl->getNameAsString(), "_proc"),
           top_channel_injections_by_state.begin()->second,
           /*this_type=*/std::shared_ptr<CType>(), /*this_decl=*/nullptr,
-          /*top_decls=*/std::list<ExternalChannelInfo>(),
-          GetLoc(*gen_func->clang_decl), top_level_init_interval,
+          /*top_decls=*/{}, GetLoc(*gen_func->clang_decl),
+          top_level_init_interval,
           /*force_static=*/false,
           /*member_references_become_channels=*/false,
           /*caller_sub_function=*/gen_func)
@@ -501,17 +506,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       std::unique_ptr<GeneratedFunction> proc_func_generated_ownership,
       GenerateIRBlockPrepare(prepared, pb,
                              /*next_return_index=*/0, this_type, this_decl,
-                             top_decls, body_loc));
-
-  // Generate control receive
-  if (caller_sub_function != nullptr) {
-    CHECK_NE(caller_sub_function->control_in_channel, nullptr);
-    xls::BValue tup = pb.Receive(caller_sub_function->control_in_channel,
-                                 prepared.token, body_loc,
-                                 /*name=*/"control_receive");
-    prepared.token = pb.TupleIndex(tup, 0, body_loc,
-                                   /*name=*/"control_receive_token");
-  }
+                             top_decls, caller_sub_function, body_loc));
 
   XLS_ASSIGN_OR_RETURN(
       GenerateFSMInvocationReturn fsm_ret,
@@ -939,6 +934,7 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
             op.channel)) {
       continue;
     }
+
     arg_indices_ordered_by_state_elems.push_back(
         prepared.arg_index_for_op.at(&op));
     io_ops_with_args_ordered.push_back(&op);
@@ -1113,6 +1109,11 @@ Translator::GenerateFSMInvocation(PreparedBlock& prepared, xls::ProcBuilder& pb,
     //  for each read Op below.
     // Statics don't need to generate additional invokes, since they need not
     //  exchange any data with the outside world between iterations.
+    CHECK_EQ(prepared.args.size(),
+             prepared.xls_func->xls_func->params().size());
+    for (const xls::BValue& arg : prepared.args) {
+      CHECK(arg.valid());
+    }
     last_ret_val =
         pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc,
                   /*name=*/
@@ -2087,6 +2088,7 @@ Translator::GenerateIRBlockPrepare(
     const std::shared_ptr<CType>& this_type,
     const clang::CXXRecordDecl* this_decl,
     const std::list<ExternalChannelInfo>& top_decls,
+    const GeneratedFunction* caller_sub_function,
     const xls::SourceInfo& body_loc) {
   // For defaults, updates, invokes
   auto temp_sf = std::make_unique<GeneratedFunction>();
@@ -2134,6 +2136,37 @@ Translator::GenerateIRBlockPrepare(
   // This return
   if (this_decl != nullptr) {
     prepared.return_index_for_static[this_decl] = next_return_index++;
+  }
+
+  // Generate control receive (with direct-ins)
+  if (caller_sub_function != nullptr) {
+    CHECK_NE(caller_sub_function->control_in_channel, nullptr);
+    xls::BValue control_tup = pb.Receive(
+        caller_sub_function->control_in_channel, prepared.token, body_loc,
+        /*name=*/"control_receive");
+    prepared.token = pb.TupleIndex(control_tup, 0, body_loc,
+                                   /*name=*/"control_receive_token");
+
+    CHECK_NE(caller_sub_function->direct_ins_channel, nullptr);
+    xls::BValue direct_ins_tup_recvd = pb.Receive(
+        caller_sub_function->direct_ins_channel, prepared.token, body_loc,
+        /*name=*/"direct_ins_receive");
+    prepared.token = pb.TupleIndex(direct_ins_tup_recvd, 0, body_loc,
+                                   /*name=*/"direct_ins_receive_token");
+    xls::BValue direct_ins_tup =
+        pb.TupleIndex(direct_ins_tup_recvd, 1, body_loc,
+                      /*name=*/"direct_ins_tup");
+
+    for (int64_t pi = 0; pi < prepared.xls_func->clang_decl->getNumParams();
+         ++pi) {
+      XLS_ASSIGN_OR_RETURN(
+          bool is_direct_in,
+          IsSubBlockDirectInParam(prepared.xls_func->clang_decl, pi));
+      if (!is_direct_in) {
+        continue;
+      }
+      prepared.args.push_back(pb.TupleIndex(direct_ins_tup, pi));
+    }
   }
 
   // Prepare direct-ins

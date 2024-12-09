@@ -8843,11 +8843,137 @@ TEST_P(TranslatorProcTest, MultiBlockDirectIn) {
                  __xls_channel<int, __xls_channel_dir_Out>& out,
                  __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
       int b = xfer.read();
+      (void)b;
       out.write(swreg + b * 10);
     }
 
     #pragma hls_top
     void foo(const int& swreg,
+             __xls_channel<int, __xls_channel_dir_In>& in,
+             __xls_channel<int, __xls_channel_dir_Out>& out) {
+      static __xls_channel<int, __xls_channel_dir_InOut> xfer;
+      block_b(swreg, out, xfer);
+      block_a(in, xfer);
+    }
+  )";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(FIFO);
+
+    HLSChannel* swreg_in = block_spec.add_channels();
+    swreg_in->set_name("swreg");
+    swreg_in->set_is_input(true);
+    swreg_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                    xls::Value(xls::SBits(100, 32))};
+    inputs["swreg"] = {xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(5 + (80 + 1) * 10, 32)),
+                      xls::Value(xls::SBits(5 + (100 + 1) * 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+TEST_P(TranslatorProcTest, MultiBlockDirectInWithStatic) {
+  const std::string content = R"(
+    #pragma hls_design block
+    void block_a(__xls_channel<int, __xls_channel_dir_In>& in,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int a = in.read();
+      xfer.write(a + 1);
+    }
+
+    #pragma hls_design block
+    void block_b(const int& swreg,
+                 __xls_channel<int, __xls_channel_dir_Out>& out,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int b = xfer.read();
+      static int c = 10;
+      out.write(swreg + c + b * 10);
+      c += 2;
+    }
+
+    #pragma hls_top
+    void foo(const int& swreg,
+             __xls_channel<int, __xls_channel_dir_In>& in,
+             __xls_channel<int, __xls_channel_dir_Out>& out) {
+      static __xls_channel<int, __xls_channel_dir_InOut> xfer;
+      block_b(swreg, out, xfer);
+      block_a(in, xfer);
+    }
+  )";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(FIFO);
+
+    HLSChannel* swreg_in = block_spec.add_channels();
+    swreg_in->set_name("swreg");
+    swreg_in->set_is_input(true);
+    swreg_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                    xls::Value(xls::SBits(100, 32))};
+    inputs["swreg"] = {xls::Value(xls::SBits(5, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(5 + 10 + (80 + 1) * 10, 32)),
+                      xls::Value(xls::SBits(5 + 12 + (100 + 1) * 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+TEST_P(TranslatorProcTest, MultiBlockDirectInNonConst) {
+  const std::string content = R"(
+    #pragma hls_design block
+    void block_a(__xls_channel<int, __xls_channel_dir_In>& in,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int a = in.read();
+      xfer.write(a + 1);
+    }
+
+    #pragma hls_design block
+    void block_b(int& swreg,
+                 __xls_channel<int, __xls_channel_dir_Out>& out,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int b = xfer.read();
+      (void)b;
+      out.write(swreg + b * 10);
+    }
+
+    #pragma hls_top
+    void foo(int& swreg,
              __xls_channel<int, __xls_channel_dir_In>& in,
              __xls_channel<int, __xls_channel_dir_Out>& out) {
       static __xls_channel<int, __xls_channel_dir_InOut> xfer;
@@ -8883,7 +9009,7 @@ TEST_P(TranslatorProcTest, MultiBlockDirectIn) {
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
       absl_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                             testing::HasSubstr("on-channel parameters")));
+                             testing::HasSubstr("non-const parameters")));
 }
 
 TEST_P(TranslatorProcTest, MultiBlockAsClass) {

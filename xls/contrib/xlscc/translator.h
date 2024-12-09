@@ -896,7 +896,7 @@ struct GeneratedFunction {
 
   // For sub-blocks
   xls::Channel* control_in_channel = nullptr;
-  xls::Channel* control_out_channel = nullptr;
+  xls::Channel* direct_ins_channel = nullptr;
 
   template <typename ValueType>
   std::vector<const clang::NamedDecl*> DeterministicKeyNames(
@@ -1743,6 +1743,8 @@ class Translator {
       // Can be nullptr
       const clang::CXXRecordDecl* this_decl,
       const std::list<ExternalChannelInfo>& top_decls,
+      // Can be nullptr
+      const GeneratedFunction* caller_sub_function,
       const xls::SourceInfo& body_loc);
 
   // Generates a dummy no-op with condition 0 for channels in
@@ -2269,6 +2271,9 @@ class Translator {
                          xlscc_metadata::SourceLocation* location_out);
   void FillLocationRangeProto(const clang::SourceRange& range,
                               xlscc_metadata::SourceLocationRange* range_out);
+
+  absl::StatusOr<bool> IsSubBlockDirectInParam(
+      const clang::FunctionDecl* funcdecl, int64_t param_index);
 
   std::unique_ptr<CCParser> parser_;
 

@@ -1332,7 +1332,8 @@ Translator::GenerateIR_PipelinedLoopContents(
                              /*next_return_index=*/extra_return_count,
                              /*this_type=*/nullptr,
                              /*this_decl=*/nullptr,
-                             /*top_decls=*/{}, loc));
+                             /*top_decls=*/{},
+                             /*caller_sub_function=*/nullptr, loc));
 
   context().in_pipelined_for_body = true;
 

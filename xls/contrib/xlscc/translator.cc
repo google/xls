@@ -1093,13 +1093,17 @@ absl::Status Translator::GenerateIR_SubBlockStub(
   // Only IO ops are on the control channels
   auto control_in_ctype =
       std::make_shared<CIntType>(kNumSubBlockModeBits, /*is_signed=*/false);
-  xls::Type* control_in_type = control_in_ctype->GetXLSType(package_);
+
+  xls::BValue context_out_value =
+      context().fb->Literal(xls::UBits(0, kNumSubBlockModeBits), body_loc);
+
+  xls::Type* control_in_type = context_out_value.GetType();
 
   // Create control channel
   IOChannel* control_in_channel = nullptr;
   {
     std::string ch_name =
-        absl::StrFormat("%s_ctx_out", funcdecl->getNameAsString());
+        absl::StrFormat("%s_control", funcdecl->getNameAsString());
     xls::Channel* xls_channel = nullptr;
     XLS_ASSIGN_OR_RETURN(
         xls_channel,
@@ -1119,11 +1123,7 @@ absl::Status Translator::GenerateIR_SubBlockStub(
     sf.control_in_channel = xls_channel;
   }
 
-  xls::BValue context_out_value =
-      context().fb->Literal(xls::UBits(0, kNumSubBlockModeBits), body_loc);
-
-  // Send and receive context tuples
-  IOOp* ctx_out_op_ptr = nullptr;
+  // Send control
   {
     IOOp op;
     op.op = OpType::kSend;
@@ -1131,8 +1131,65 @@ absl::Status Translator::GenerateIR_SubBlockStub(
                                    context().full_condition_bval(body_loc)};
     op.ret_value =
         context().fb->Tuple(sp, body_loc, /*name=*/"context_out_send_tup");
-    XLS_ASSIGN_OR_RETURN(ctx_out_op_ptr,
-                         AddOpToChannel(op, control_in_channel, body_loc));
+    XLS_RETURN_IF_ERROR(
+        AddOpToChannel(op, control_in_channel, body_loc).status());
+  }
+
+  std::vector<xls::BValue> direct_in_tuple_values;
+  std::vector<std::shared_ptr<CType>> direct_in_tuple_types;
+
+  // Get the direct in params
+  for (int64_t pi = 0; pi < funcdecl->getNumParams(); ++pi) {
+    XLS_ASSIGN_OR_RETURN(bool is_direct_in,
+                         IsSubBlockDirectInParam(funcdecl, pi));
+    if (!is_direct_in) {
+      continue;
+    }
+
+    XLS_ASSIGN_OR_RETURN(CValue value,
+                         GetIdentifier(funcdecl->getParamDecl(pi), body_loc));
+    CHECK(value.rvalue().valid());
+    direct_in_tuple_values.push_back(value.rvalue());
+    direct_in_tuple_types.push_back(value.type());
+  }
+
+  auto direct_ins_ctype =
+      std::make_shared<CInternalTuple>(direct_in_tuple_types);
+  auto direct_ins_tuple_value =
+      context().fb->Tuple(direct_in_tuple_values, body_loc,
+                          /*name=*/"direct_in_tuple_inner");
+  xls::Type* direct_ins_type = direct_ins_tuple_value.GetType();
+
+  // Create direct-ins channel
+  IOChannel* direct_ins_channel = nullptr;
+  {
+    std::string ch_name =
+        absl::StrFormat("%s_direct_ins", funcdecl->getNameAsString());
+    xls::Channel* xls_channel = nullptr;
+
+    XLS_ASSIGN_OR_RETURN(
+        xls_channel,
+        package_->CreateSingleValueChannel(
+            ch_name, xls::ChannelOps::kSendReceive, direct_ins_type));
+
+    IOChannel new_channel;
+    new_channel.item_type = direct_ins_ctype;
+    new_channel.unique_name = ch_name;
+    new_channel.generated = xls_channel;
+    direct_ins_channel = AddChannel(new_channel, body_loc);
+    sf.direct_ins_channel = xls_channel;
+  }
+
+  // Send direct-ins tuple
+  {
+    IOOp op;
+    op.op = OpType::kSend;
+    std::vector<xls::BValue> sp = {direct_ins_tuple_value,
+                                   context().full_condition_bval(body_loc)};
+    op.ret_value =
+        context().fb->Tuple(sp, body_loc, /*name=*/"direct_ins_send_tup");
+    XLS_RETURN_IF_ERROR(
+        AddOpToChannel(op, direct_ins_channel, body_loc).status());
   }
 
   // Add a record to generate the proc later, once all channel combinations
@@ -3339,10 +3396,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(expr_args[pi], arg_loc));
     }
     XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(p->getType(), arg_loc));
-    if (sub_block_call && !is_channel) {
-      return absl::UnimplementedError(ErrorMessage(
-          arg_loc, "Non-channel parameters not supported in sub-block calls"));
-    }
+
     if (is_channel) {
       // TODO(seanhaskell): This can be further generalized to allow
       // structs with channels inside
@@ -3359,15 +3413,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
           /*callee_lval=*/callee_lvalue, &caller_channels_by_callee_channel,
           arg_loc));
 
-      if (sub_block_call) {
+      if (sub_block_call && is_channel) {
         // TODO: File bug for moving external_channels_by_internal_channel_
         // into context to trace it down
         IOChannel* caller_channel = argv.lvalue()->channel_leaf();
         if (external_channels_by_internal_channel_.count(caller_channel) != 1) {
-          return absl::UnimplementedError(ErrorMessage(
-              arg_loc,
-              "Calls to sub-blocks in functions called with multiple different "
-              "channel parameter combinations"));
+          return absl::UnimplementedError(
+              ErrorMessage(arg_loc,
+                           "Calls to sub-blocks in functions called with "
+                           "multiple different "
+                           "channel parameter combinations"));
         }
 
         external_channels_in_parameter_order.push_back(
@@ -6277,6 +6332,33 @@ bool Translator::DeclHasAnnotation(const clang::NamedDecl& decl,
     }
   }
   return false;
+}
+
+absl::StatusOr<bool> Translator::IsSubBlockDirectInParam(
+    const clang::FunctionDecl* funcdecl, int64_t param_index) {
+  bool sub_block_call = DeclHasAnnotation(*funcdecl, "hls_block");
+  if (!sub_block_call) {
+    return false;
+  }
+  const clang::ParmVarDecl* param = funcdecl->getParamDecl(param_index);
+  const xls::SourceInfo loc = GetLoc(*param);
+
+  XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(param->getType(), loc));
+  if (is_channel) {
+    return false;
+  }
+
+  XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                       StripTypeQualifiers(param->getType()));
+
+  if (!stripped.base.isConstQualified()) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "Non-channel, non-const parameters not supported "
+                     "in sub-block calls"));
+  }
+
+  return true;
 }
 
 }  // namespace xlscc
