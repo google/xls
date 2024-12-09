@@ -82,33 +82,53 @@ TEST_F(AstGeneratorTest, BitsTypeGetMetadata) {
   g_.module_ = std::make_unique<Module>("test_module", /*fs_path=*/std::nullopt,
                                         file_table_);
 
-  TypeAnnotation* u7 = g_.MakeTypeAnnotation(false, 7);
+  TypeAnnotation* u7 = g_.MakeTypeAnnotation(/*is_signed=*/false, 7,
+                                             /*use_xn=*/false);
   LOG(INFO) << "u7: " << u7->ToString();
   XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count, g_.BitsTypeGetBitCount(u7));
   XLS_ASSERT_OK_AND_ASSIGN(bool is_signed, g_.BitsTypeIsSigned(u7));
   EXPECT_EQ(bit_count, 7);
   EXPECT_EQ(is_signed, false);
 
-  TypeAnnotation* s129 = g_.MakeTypeAnnotation(true, 129);
+  TypeAnnotation* s129 = g_.MakeTypeAnnotation(/*is_signed=*/true, 129,
+                                               /*use_xn=*/false);
   LOG(INFO) << "s129: " << s129->ToString();
   XLS_ASSERT_OK_AND_ASSIGN(bit_count, g_.BitsTypeGetBitCount(s129));
   XLS_ASSERT_OK_AND_ASSIGN(is_signed, g_.BitsTypeIsSigned(s129));
   EXPECT_EQ(bit_count, 129);
+  EXPECT_EQ(is_signed, true);
+
+  TypeAnnotation* xn_true_128 =
+      g_.MakeTypeAnnotation(/*is_signed=*/true, 128, /*use_xn=*/true);
+  EXPECT_EQ(xn_true_128->ToString(), "xN[bool:0x1][128]");
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count, g_.BitsTypeGetBitCount(xn_true_128));
+  EXPECT_EQ(bit_count, 128);
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed, g_.BitsTypeIsSigned(xn_true_128));
   EXPECT_EQ(is_signed, true);
 }
 
 TEST_F(AstGeneratorTest, GeneratesParametricBindings) {
   g_.module_ =
       std::make_unique<Module>("my_mod", /*fs_path=*/std::nullopt, file_table_);
-  std::vector<ParametricBinding*> pbs = g_.GenerateParametricBindings(2);
-  EXPECT_EQ(pbs.size(), 2);
+  std::vector<ParametricBinding*> pbs = g_.GenerateParametricBindings(4);
+  EXPECT_EQ(pbs.size(), 4);
+  // Note that the fact we get an unsigned binding is probabilistic, so we
+  // generate four examples to try to find one that matches our unsigned
+  // pattern.
+  //
   // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12
   // googletest cannot currently seem to use \d in regexp patterns, which is
   // quite surprising.
   constexpr const char* kWantPattern =
       R"(x[0-9]+: u[0-9]+ = \{u[0-9]+:0[xb][0-9a-f_]+\})";
-  EXPECT_THAT(pbs[0]->ToString(), MatchesRegex(kWantPattern));
-  EXPECT_THAT(pbs[1]->ToString(), MatchesRegex(kWantPattern));
+  bool found_match = false;
+  for (ParametricBinding* pb : pbs) {
+    if (RE2::FullMatch(pb->ToString(), kWantPattern)) {
+      found_match = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_match);
 }
 
 namespace {

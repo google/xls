@@ -505,7 +505,9 @@ absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(
   ImportData* import_data = ctx->import_data();
   XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
                        import_data->GetRootTypeInfo(binding_module));
-  auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
+
+  auto binding_ctx =
+      ctx->MakeCtxWithSameFnStack(binding_type_info, binding_module);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> metatype,
                        binding_ctx->Deduce(binding.type_annotation()));
   return UnwrapMetaType(std::move(metatype), binding.type_annotation()->span(),

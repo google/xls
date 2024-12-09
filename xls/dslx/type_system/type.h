@@ -1082,6 +1082,10 @@ inline std::vector<std::unique_ptr<Type>> CloneToUnique(
 inline bool IsBitsConstructor(const Type& t) {
   return dynamic_cast<const BitsConstructorType*>(&t) != nullptr;
 }
+
+// Returns whether `t` is an array that wraps a `BitsConstructorType` as its
+// element type -- this indicates it is a value with signedness (from the
+// element type) as well as size (from the array dimension).
 inline bool IsArrayOfBitsConstructor(
     const Type& t, const BitsConstructorType** elem_type_out = nullptr) {
   if (auto* a = dynamic_cast<const ArrayType*>(&t)) {
