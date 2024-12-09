@@ -14,6 +14,9 @@
 
 # DSLX module example
 
+load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "PROC_WRAPPER_TYPE",
@@ -124,10 +127,44 @@ xls_ir_verilog(
         "use_system_verilog": "true",
         "assert_format": "\\;",
         "multi_proc": "true",
+        "materialize_internal_fifos": "true",
     },
     module_sig_file = "manual_chan_caps_streaming_configured_multiproc.sig.textproto",
     verilog_file = "manual_chan_caps_streaming_configured_multiproc.sv",
     visibility = ["//xls:xls_internal"],
+)
+
+verilog_library(
+    name = "manual_chan_caps_streaming_sv",
+    srcs = [
+        ":manual_chan_caps_streaming_configured_multiproc.sv",
+    ],
+)
+
+synthesize_rtl(
+    name = "manual_chan_caps_streaming_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    top_module = "manual_chan_caps_streaming",
+    deps = [
+        ":manual_chan_caps_streaming_sv",
+    ],
+)
+
+benchmark_synth(
+    name = "manual_chan_caps_streaming_benchmark_synth",
+    synth_target = ":manual_chan_caps_streaming_asap7",
+)
+
+place_and_route(
+    name = "manual_chan_caps_streaming_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":manual_chan_caps_streaming_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
 )
 
 cc_xls_ir_jit_wrapper(
