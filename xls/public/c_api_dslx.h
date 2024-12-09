@@ -40,6 +40,25 @@ enum {
   xls_dslx_type_definition_kind_proc_def,
 };
 
+typedef int32_t xls_dslx_module_member_kind;
+enum {
+  xls_dslx_module_member_kind_function,
+  xls_dslx_module_member_kind_proc,
+  xls_dslx_module_member_kind_test_function,
+  xls_dslx_module_member_kind_test_proc,
+  xls_dslx_module_member_kind_quick_check,
+  xls_dslx_module_member_kind_type_alias,
+  xls_dslx_module_member_kind_struct_def,
+  xls_dslx_module_member_kind_proc_def,
+  xls_dslx_module_member_kind_enum_def,
+  xls_dslx_module_member_kind_constant_def,
+  xls_dslx_module_member_kind_import,
+  xls_dslx_module_member_kind_const_assert,
+  xls_dslx_module_member_kind_impl,
+  xls_dslx_module_member_kind_verbatim_node,
+  xls_dslx_module_member_kind_use,
+};
+
 // Opaque structs.
 struct xls_dslx_typechecked_module;
 struct xls_dslx_import_data;
@@ -51,6 +70,7 @@ struct xls_dslx_type_alias;
 struct xls_dslx_type_info;
 struct xls_dslx_type;
 struct xls_dslx_type_annotation;
+struct xls_dslx_constant_def;
 
 struct xls_dslx_import_data* xls_dslx_import_data_create(
     const char* dslx_stdlib_path, const char* additional_search_paths[],
@@ -69,6 +89,23 @@ struct xls_dslx_module* xls_dslx_typechecked_module_get_module(
     struct xls_dslx_typechecked_module*);
 struct xls_dslx_type_info* xls_dslx_typechecked_module_get_type_info(
     struct xls_dslx_typechecked_module*);
+
+int64_t xls_dslx_module_get_member_count(struct xls_dslx_module*);
+
+struct xls_dslx_module_member* xls_dslx_module_get_member(
+    struct xls_dslx_module*, int64_t);
+
+struct xls_dslx_constant_def* xls_dslx_module_member_get_constant_def(
+    struct xls_dslx_module_member*);
+
+struct xls_dslx_struct_def* xls_dslx_module_member_get_struct_def(
+    struct xls_dslx_module_member*);
+
+struct xls_dslx_enum_def* xls_dslx_module_member_get_enum_def(
+    struct xls_dslx_module_member*);
+
+struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
+    struct xls_dslx_module_member*);
 
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module);
@@ -93,6 +130,14 @@ struct xls_dslx_type_alias* xls_dslx_module_get_type_definition_as_type_alias(
 struct xls_dslx_colon_ref* xls_dslx_type_defintion_get_colon_ref(
     struct xls_dslx_type_definition*);
 
+// -- constant_def
+
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_constant_def_get_name(struct xls_dslx_constant_def*);
+
+struct xls_dslx_expr* xls_dslx_constant_def_get_value(
+    struct xls_dslx_constant_def*);
+
 // -- struct_def
 
 // Note: the return value is owned by the caller and must be freed via
@@ -113,6 +158,8 @@ struct xls_dslx_type_annotation* xls_dslx_struct_member_get_type(
 
 // -- enum_def (AST node)
 
+// Note: the return value is owned by the caller and must be freed via
+// `xls_c_str_free`.
 char* xls_dslx_enum_def_get_identifier(struct xls_dslx_enum_def*);
 
 int64_t xls_dslx_enum_def_get_member_count(struct xls_dslx_enum_def*);
@@ -176,6 +223,9 @@ struct xls_dslx_type_annotation* xls_dslx_type_alias_get_type_annotation(
 
 // -- interp_value
 
+// Note: return value is owned by the caller, free via `xls_c_str_free`.
+char* xls_dslx_interp_value_to_string(struct xls_dslx_interp_value*);
+
 bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
                                          char** error_out,
                                          struct xls_value** result_out);
@@ -196,6 +246,9 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_struct_member(
 
 const struct xls_dslx_type* xls_dslx_type_info_get_type_enum_def(
     struct xls_dslx_type_info*, struct xls_dslx_enum_def*);
+
+const struct xls_dslx_type* xls_dslx_type_info_get_type_constant_def(
+    struct xls_dslx_type_info*, struct xls_dslx_constant_def*);
 
 const struct xls_dslx_type* xls_dslx_type_info_get_type_type_annotation(
     struct xls_dslx_type_info*, struct xls_dslx_type_annotation*);
