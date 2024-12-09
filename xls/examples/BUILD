@@ -14,6 +14,7 @@
 
 # Build rules for XLS examples.
 
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
@@ -1255,4 +1256,32 @@ xls_dslx_test(
     size = "small",
     srcs = ["gcd.x"],
     dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_library(
+    name = "xls_pipeline_dslx",
+    srcs = ["xls_pipeline.x"],
+)
+
+xls_dslx_fmt_test(
+    name = "xls_pipeline_dslx_fmt_test",
+    src = "xls_pipeline.x",
+)
+
+xls_dslx_test(
+    name = "xls_pipeline_test",
+    size = "small",
+    srcs = ["xls_pipeline.x"],
+    dslx_test_args = {"compare": "jit"},
+)
+
+xls_dslx_opt_ir(
+    name = "xls_pipeline",
+    srcs = ["xls_pipeline.x"],
+    dslx_top = "xls_pipeline",
+)
+
+build_test(
+    name = "xls_pipeline_build_test",
+    targets = [":xls_pipeline"],
 )
