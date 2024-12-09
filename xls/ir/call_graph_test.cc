@@ -17,9 +17,13 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 namespace {
@@ -180,6 +184,47 @@ TEST_F(CallGraphTest, CloneFunctionAndItsDependencies) {
           /*to_clone=*/c, /*new_name=*/"c_clone", p_clone.get()));
   EXPECT_THAT(c_clone->name(), "c_clone");
   EXPECT_THAT(p_clone->functions().size(), 3);
+}
+
+TEST_F(CallGraphTest, BlockInstantiation) {
+  auto p = CreatePackage();
+
+  Block* a;
+  Node* a_lit;
+  {
+    BlockBuilder bb("a", p.get());
+    BValue lit = bb.Literal(UBits(1, 8));
+    bb.OutputPort("o", lit);
+    a_lit = lit.node();
+    XLS_ASSERT_OK_AND_ASSIGN(a, bb.Build());
+  }
+  Block* b;
+  Node* b_lit;
+  {
+    BlockBuilder bb("b", p.get());
+    BValue lit = bb.Literal(UBits(1, 8));
+    bb.OutputPort("o", lit);
+    b_lit = lit.node();
+    XLS_ASSERT_OK_AND_ASSIGN(b, bb.Build());
+  }
+  Block* c;
+  {
+    BlockBuilder bb("c", p.get());
+    bb.OutputPort("o", bb.Literal(UBits(1, 8)));
+    XLS_ASSERT_OK_AND_ASSIGN(c, bb.Build());
+  }
+
+  // Rewire to have a instantiate b instantiate c
+  XLS_ASSERT_OK_AND_ASSIGN(auto* b_inst, a->AddBlockInstantiation("b_inst", b));
+  XLS_ASSERT_OK_AND_ASSIGN(auto* c_inst, b->AddBlockInstantiation("c_inst", c));
+  XLS_ASSERT_OK(
+      a_lit->ReplaceUsesWithNew<InstantiationOutput>(b_inst, "o").status());
+  XLS_ASSERT_OK(
+      b_lit->ReplaceUsesWithNew<InstantiationOutput>(c_inst, "o").status());
+
+  // Check order.
+  EXPECT_THAT(p->GetFunctionBases(), ElementsAre(a, b, c));
+  EXPECT_THAT(FunctionsInPostOrder(p.get()), ElementsAre(c, b, a));
 }
 
 }  // namespace

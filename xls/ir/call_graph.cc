@@ -28,7 +28,9 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -55,14 +57,28 @@ std::optional<Function*> CalledFunction(Node* node) {
 }
 
 // Returns the functions called directly by the nodes of the given FunctionBase.
-std::vector<Function*> CalledFunctions(FunctionBase* function_base) {
-  absl::flat_hash_set<Function*> called_set;
-  std::vector<Function*> called;
+std::vector<FunctionBase*> CalledFunctions(FunctionBase* function_base) {
+  absl::flat_hash_set<FunctionBase*> called_set;
+  std::vector<FunctionBase*> called;
   for (Node* node : function_base->nodes()) {
     if (std::optional<Function*> callee = CalledFunction(node)) {
       auto [_, inserted] = called_set.insert(callee.value());
       if (inserted) {
         called.push_back(callee.value());
+      }
+    }
+  }
+  if (function_base->IsBlock()) {
+    // Add instantiations.
+    Block* blk = function_base->AsBlockOrDie();
+    for (Instantiation* i : blk->GetInstantiations()) {
+      if (i->kind() == InstantiationKind::kBlock) {
+        Block* instantiated =
+            i->AsBlockInstantiation().value()->instantiated_block();
+        auto [_, inserted] = called_set.insert(instantiated);
+        if (inserted) {
+          called.push_back(instantiated);
+        }
       }
     }
   }

@@ -2035,6 +2035,7 @@ cc_test(
     name = "call_graph_test",
     srcs = ["call_graph_test.cc"],
     deps = [
+        ":bits",
         ":function_builder",
         ":ir",
         ":ir_test_base",

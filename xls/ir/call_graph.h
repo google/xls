@@ -26,9 +26,10 @@
 
 namespace xls {
 
-// Returns the functions called transitively by the given FunctionBase. Called
-// functions are returned before callee FunctionBases in the returned order. The
-// final element in the returned vector is `function_base`.
+// Returns the functions called and blocks instantiated transitively by the
+// given FunctionBase. Called functions/instantiated blocks are returned before
+// callee/instantiator FunctionBases in the returned order. The final element in
+// the returned vector is `function_base`.
 std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base);
 
 // Clones transitively the given function and its dependencies.
