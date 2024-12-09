@@ -123,6 +123,7 @@ CODEGEN_FIELDS = {
                                "'IdentityOnly' or 'None'",
     "emit_sv_types": "Whether or not to honor the #[sv_type(NAME)] annotations in the source DSLX.",
     "codegen_version": "Version of codegen to use (0=default).",
+    "materialize_internal_fifos": "Whether or not to materialize internal fifos directly in Verilog.",
 }
 
 SCHEDULING_FIELDS = {

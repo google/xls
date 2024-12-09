@@ -141,6 +141,9 @@ ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
 ABSL_FLAG(bool, gate_recvs, true,
           "If true, emit logic to gate the data value to zero for a receive "
           "operation in Verilog. Otherwise, the data value is not gated.");
+ABSL_FLAG(bool, materialize_internal_fifos, false,
+          "If true, emit logic implementing fifos for any channels in the IR. "
+          "If false use an externally provided fifo implementation.");
 ABSL_FLAG(bool, array_index_bounds_checking, true,
           "If true, emit bounds checking on array-index operations in Verilog. "
           "Otherwise, the bounds checking is not evaluated.");
@@ -281,6 +284,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
   // Optimizations
   POPULATE_FLAG(gate_recvs);
   POPULATE_FLAG(array_index_bounds_checking);
+  POPULATE_FLAG(materialize_internal_fifos);
   XLS_ASSIGN_OR_RETURN(
       RegisterMergeStrategyProto merge_strategy,
       MergeStrategyFromString(absl::GetFlag(FLAGS_register_merge_strategy)));

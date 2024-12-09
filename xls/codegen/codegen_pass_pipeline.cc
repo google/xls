@@ -26,6 +26,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/ffi_instantiation_pass.h"
+#include "xls/codegen/materialize_fifos_pass.h"
 #include "xls/codegen/mulp_combining_pass.h"
 #include "xls/codegen/name_legalization_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
@@ -105,6 +106,10 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   top->Add<CodegenWrapperPass>(
       std::make_unique<CsePass>(/*common_literals=*/false));
   top->Add<CodegenWrapperPass>(std::make_unique<BasicSimplificationPass>());
+
+  // Swap out fifo instantiations with materialized fifos if required by codegen
+  // options.
+  top->Add<MaybeMaterializeInternalFifoPass>();
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
   top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());

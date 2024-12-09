@@ -310,6 +310,16 @@ class CodegenOptions {
   }
   bool generate_combinational() const { return generate_combinational_; }
 
+  // Whether to generate internal fifos directly. If false internal fifos will
+  // need to be instantiated in verilog.
+  CodegenOptions& materialize_internal_fifos(bool value) {
+    materialize_internal_fifos_ = value;
+    return *this;
+  }
+  bool materialize_internal_fifos() const {
+    return materialize_internal_fifos_;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -344,6 +354,7 @@ class CodegenOptions {
   bool emit_sv_types_ = true;
   std::string simulation_macro_name_ = "SIMULATION";
   Version codegen_version_ = Version::kDefault;
+  bool materialize_internal_fifos_ = false;
 };
 
 template <typename Sink>

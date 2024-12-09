@@ -330,4 +330,14 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
   }
   return true;
 }
+
+absl::StatusOr<bool> MaybeMaterializeInternalFifoPass::RunInternal(
+    CodegenPassUnit* unit, const CodegenPassOptions& options,
+    CodegenPassResults* results) const {
+  if (options.codegen_options.materialize_internal_fifos()) {
+    return materialize_.Run(unit, options, results);
+  }
+  return false;
+}
+
 }  // namespace xls::verilog

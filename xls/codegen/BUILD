@@ -544,6 +544,7 @@ cc_library(
         ":codegen_pass",
         ":codegen_wrapper_pass",
         ":ffi_instantiation_pass",
+        ":materialize_fifos_pass",
         ":mulp_combining_pass",
         ":name_legalization_pass",
         ":port_legalization_pass",

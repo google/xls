@@ -84,4 +84,7 @@ message CodegenFlagsProto {
   optional string simulation_macro_name = 34;
 
   optional int64 codegen_version = 36;
+
+  // Should internal fifos be manually generated in verilog.
+  optional bool materialize_internal_fifos = 37;
 }

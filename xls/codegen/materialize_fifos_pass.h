@@ -35,6 +35,24 @@ class MaterializeFifosPass : public CodegenPass {
                                    CodegenPassResults* results) const final;
 };
 
+// Helper pass to materialize fifos in cases where there is no configured fifo
+// template.
+class MaybeMaterializeInternalFifoPass : public CodegenPass {
+ public:
+  MaybeMaterializeInternalFifoPass()
+      : CodegenPass("fallback_fifos",
+                    "Materialize FIFO instantiations into block-instantiation "
+                    "if no FIFO template is specified.") {}
+
+ protected:
+  absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
+                                   const CodegenPassOptions& options,
+                                   CodegenPassResults* results) const final;
+
+ private:
+  MaterializeFifosPass materialize_;
+};
+
 }  // namespace xls::verilog
 
 #endif  // XLS_CODEGEN_MATERIALIZE_FIFOS_PASS_H_

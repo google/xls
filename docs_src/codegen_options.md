@@ -363,6 +363,9 @@ string. These format strings use placeholders to fill in relevant information.
 
 -   See also [Reset Signal Configuration](#reset-signal-configuration).
 
+-   `--materialize_internal_fifos` forces internal fifos between multi-proc
+    codegen'd blocks be directly implemented in verilog in the output.
+
 # RAMs (experimental)
 
 XLS has experimental support for using proc channels to drive an external RAM.
