@@ -117,7 +117,7 @@ std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base) {
 
 // Returns the functions which are roots in the call graph, that is, the
 // functions which are not called by any other functions.
-static std::vector<FunctionBase*> GetRootFunctions(Package* p) {
+static std::vector<FunctionBase*> GetRootFunctions(const Package* p) {
   absl::flat_hash_set<FunctionBase*> called_functions;
   for (FunctionBase* f : p->GetFunctionBases()) {
     for (FunctionBase* callee : CalledFunctions(f)) {
@@ -133,7 +133,7 @@ static std::vector<FunctionBase*> GetRootFunctions(Package* p) {
   return roots;
 }
 
-std::vector<FunctionBase*> FunctionsInPostOrder(Package* p) {
+std::vector<FunctionBase*> FunctionsInPostOrder(const Package* p) {
   absl::flat_hash_set<FunctionBase*> visited;
   std::vector<FunctionBase*> post_order;
   for (FunctionBase* f : GetRootFunctions(p)) {

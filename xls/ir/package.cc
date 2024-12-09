@@ -602,14 +602,9 @@ std::string Package::DumpIr() const {
                     absl::StrJoin(attribute_strings, ", "), attribute_suffix,
                     top_prefix, fb->DumpIr(), "\n");
   };
-  for (auto& function : functions()) {
-    append_ir_with_attributes(function.get());
-  }
-  for (auto& proc : procs()) {
-    append_ir_with_attributes(proc.get());
-  }
-  for (auto& block : blocks()) {
-    append_ir_with_attributes(block.get());
+  // Our parser relies on everything being in post-order. Ensure that here.
+  for (FunctionBase* fb : FunctionsInPostOrder(this)) {
+    append_ir_with_attributes(fb);
   }
   // We don't include the trailing newline, drop it here.
   CHECK_EQ(out.back(), '\n');

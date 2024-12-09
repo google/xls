@@ -972,20 +972,20 @@ block sub_block(a: bits[32], b: bits[32], x: bits[32], y: bits[32]) {
   y: () = output_port(b, name=y, id=4)
 }
 
-block add_block(a: bits[32], b: bits[32], x: bits[32], y: bits[32]) {
-  a: bits[32] = input_port(name=a, id=5)
-  b: bits[32] = input_port(name=b, id=6)
-  add.7: bits[32] = add(a, b, id=7)
-  x: () = output_port(add.7, name=x, id=8)
-  y: () = output_port(b, name=y, id=9)
-}
-
 block add2_block(a2: bits[32], b2: bits[32], x: bits[32], y: bits[32]) {
   a2: bits[32] = input_port(name=a2, id=10)
   b2: bits[32] = input_port(name=b2, id=11)
   add.12: bits[32] = add(a2, b2, id=12)
   x: () = output_port(add.12, name=x, id=13)
   y: () = output_port(b2, name=y, id=14)
+}
+
+block add_block(a: bits[32], b: bits[32], x: bits[32], y: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  x: () = output_port(add.7, name=x, id=8)
+  y: () = output_port(b, name=y, id=9)
 }
 
 block my_block(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32]) {

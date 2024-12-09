@@ -41,7 +41,7 @@ absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
 // Returns the functions in package 'p' in a DFS post order traversal of the
 // call graph induced by function-invoking nodes. Called FunctionBases are
 // returned before callee FunctionBases in the returned order.
-std::vector<FunctionBase*> FunctionsInPostOrder(Package* p);
+std::vector<FunctionBase*> FunctionsInPostOrder(const Package* p);
 
 // Returns a list of all the nodes which reference the given function as a
 // target.
