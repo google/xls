@@ -107,7 +107,7 @@ up! Open a terminal and execute the following in the XLS checkout root
 directory:
 
 ```
-$ ./bazel-bin/xls/dslx/interpreter_main hello_xls.x
+$ ./bazel-bin/xls/dslx/interpreter_main hello_xls.x --alsologtostderr
 ```
 
 You should see the following output:
@@ -118,6 +118,9 @@ trace of hello_string @ hello.x:4:17-4:31: [72, 101, 108, 108, 111, 44, 32, 88, 
 [            OK ]
 [===============] 1 test(s) ran; 0 failed; 0 skipped.
 ```
+
+Note that the `trace!` output is treated as `INFO` level logging, which is made
+visible in stderr by adding the '--alsologtostderr' flag.
 
 Perfect! While this may not be what you initially expected, examine the output
 elements carefully: they correspond to the ASCII codes of the characters in
