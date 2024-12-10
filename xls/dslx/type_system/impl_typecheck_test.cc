@@ -130,8 +130,7 @@ fn point_dims() -> u8 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-// TODO: Support imported impl methods.
-TEST(TypecheckTest, DISABLED_ImportedImplUsingStructMembers) {
+TEST(TypecheckTest, ImportedImplUsingStructMembers) {
   constexpr std::string_view kImported = R"(
 pub struct Point { x: u32, y: u32 }
 

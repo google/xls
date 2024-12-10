@@ -782,7 +782,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAttr(const Attr* node,
     const StructDef& struct_def = struct_type->nominal_type();
     std::optional<Function*> fn = struct_def.GetImplFunction(attr_name);
     if (fn.has_value()) {
-      std::optional<Type*> fn_type = ctx->type_info()->GetItem(*fn);
+      XLS_ASSIGN_OR_RETURN(TypeInfo * fn_ti,
+                           ctx->import_data()->GetRootTypeInfo((*fn)->owner()));
+      std::optional<Type*> fn_type = fn_ti->GetItem(*fn);
       if (fn_type.has_value()) {
         return (*fn_type)->CloneToUnique();
       }
