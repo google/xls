@@ -1366,11 +1366,19 @@ std::vector<std::string> StructDefBase::GetMemberNames() const {
 }
 
 std::optional<ConstantDef*> StructDefBase::GetImplConstant(
-    std::string_view constant_name) {
+    std::string_view constant_name) const {
   if (!impl_.has_value()) {
     return std::nullopt;
   }
   return impl_.value()->GetConstant(constant_name);
+}
+
+std::optional<Function*> StructDefBase::GetImplFunction(
+    std::string_view function_name) const {
+  if (!impl_.has_value()) {
+    return std::nullopt;
+  }
+  return (*impl_)->GetFunction(function_name);
 }
 
 // -- class StructDef
@@ -1797,6 +1805,15 @@ absl::StatusOr<Param*> Function::GetParamByName(
   }
 
   return *i;
+}
+
+bool Function::IsMethod() const {
+  if (params_.empty()) {
+    return false;
+  }
+  const Param* first_arg = params_.at(0);
+  return dynamic_cast<SelfTypeAnnotation*>(first_arg->type_annotation()) !=
+         nullptr;
 }
 
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {

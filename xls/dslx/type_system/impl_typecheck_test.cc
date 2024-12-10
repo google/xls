@@ -111,9 +111,7 @@ fn point_dims() -> u32 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-// TODO: https://github.com/google/xls/issues/617) - Support using struct
-// members.
-TEST(TypecheckTest, DISABLED_ImplFunctionUsingStructMembers) {
+TEST(TypecheckTest, ImplFunctionUsingStructMembers) {
   constexpr std::string_view kProgram = R"(
 struct Point { x: u32, y: u32 }
 
@@ -123,7 +121,182 @@ impl Point {
     }
 }
 
-fn point_dims() -> u32 {
+fn point_dims() -> u8 {
+    let p = Point{x: u32:4, y:u32:2};
+    let y = p.area();
+    uN[y]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+// TODO: Support imported impl methods.
+TEST(TypecheckTest, DISABLED_ImportedImplUsingStructMembers) {
+  constexpr std::string_view kImported = R"(
+pub struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main() -> uN[8] {
+    let p = imported::Point{x: u32:4, y:u32:2};
+    uN[p.area()]:0
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_EXPECT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
+}
+
+TEST(TypecheckTest, ImplsForDifferentStructs) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+struct Line { a: Point, b: Point }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+impl Line {
+    fn height(self) -> u32 {
+        self.b.y - self.a.y
+    }
+}
+
+fn point_dims() -> u10 {
+    let p = Point{x: u32:4, y:u32:2};
+    let y = p.area(); // 8
+    let l = Line{a: p, b: Point{x: u32:4, y: u32:4}};
+    let h = l.height(); // 2
+
+    uN[y + h]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ImplFunctionUsingStructMembersOnConst) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+fn point_dims() -> u8 {
+    const p = Point{x: u32:4, y:u32:2};
+    let y = p.area();
+    uN[y]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ImplFunctionUsingStructMembersIndirect) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+fn point_dims() -> u8 {
+    const p = Point{x: u32:4, y:u32:2};
+    let y = p;
+    uN[y.area()]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ImplFunctionUsingStructMembersMultIndirect) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+fn point_dims() -> u8 {
+    const p = Point{x: u32:4, y:u32:2};
+    let y = p;
+    let x = y;
+    let w = x;
+    uN[w.area()]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckErrorTest, ImplMethodCalledStaticallyNoParams) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+fn point_dims() -> u16 {
+    let y = Point::area();
+    uN[y]:0
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected 1 parameter(s) but got 0 arguments.")));
+}
+
+TEST(TypecheckTest, ImplFunctionUsingStructMembersAndArg) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self, a: u32, b: u32) -> u32 {
+        self.x * self.y * a * b
+    }
+}
+
+fn point_dims() -> u16 {
+    let p = Point{x: u32:4, y:u32:2};
+    let y = p.area(u32:2, u32:1);
+    uN[y]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, ImplFunctionUsingStructMembersExplicitSelfType) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self: Self) -> u32 {
+        self.x * self.y
+    }
+}
+
+fn point_dims() -> u8 {
     let p = Point{x: u32:4, y:u32:2};
     let y = p.area();
     uN[y]:0

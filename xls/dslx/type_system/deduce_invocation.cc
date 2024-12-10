@@ -271,9 +271,36 @@ absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
                               {}};
 }
 
+// If the callee is a struct instance, and the function is a method, then the
+// first arg is that struct instance.
+absl::Status SeedSelfArg(const Attr* callee, DeduceCtx* ctx,
+                         std::vector<InstantiateArg>* args) {
+  // Attempt to deduce the type first since that's required to collect the impl
+  // function, if it exists. If deduction fails, it could be because the
+  // reference is not to a struct with an impl. Ignore the error at this stage,
+  // it will bubble up later if the attr is not an appropriate callee or the
+  // number of parameters isn't correct.
+  absl::StatusOr<std::unique_ptr<Type>> type = ctx->Deduce(callee->lhs());
+  if (!type.ok()) {
+    return absl::OkStatus();
+  }
+  XLS_ASSIGN_OR_RETURN(std::optional<Function*> fn,
+                       ImplFnFromCallee(callee, ctx->type_info()));
+  if (!fn.has_value() || !(*fn)->IsMethod()) {
+    return absl::OkStatus();
+  }
+  args->push_back(
+      InstantiateArg{std::move(type.value()), (callee->lhs())->span()});
+  return absl::OkStatus();
+}
+
 absl::Status AppendArgsForInstantiation(
     const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
     DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
+  if (const Attr* attr = dynamic_cast<const Attr*>(callee)) {
+    XLS_RETURN_IF_ERROR(SeedSelfArg(attr, ctx, instantiate_args));
+  }
+
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          ctx->DeduceAndResolve(arg));
@@ -324,6 +351,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
   auto resolve_fn = [](const Instantiation* node,
                        DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     Expr* callee = node->callee();
+    // Check for attr associated with an impl function.
+    if (auto* attr = dynamic_cast<Attr*>(callee); attr != nullptr) {
+      XLS_ASSIGN_OR_RETURN(std::optional<Function*> impl_fn,
+                           ImplFnFromCallee(attr, ctx->type_info()));
+      if (impl_fn.has_value()) {
+        return *impl_fn;
+      }
+    }
 
     Function* fn;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(callee);

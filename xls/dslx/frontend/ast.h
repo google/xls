@@ -1733,6 +1733,7 @@ class Function : public AstNode {
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
+  bool IsMethod() const;
 
   // Returns all of the parametric identifiers that must be bound by the caller
   // in an invocation; i.e. they have no default expression.
@@ -2412,7 +2413,11 @@ class StructDefBase : public AstNode {
 
   std::optional<Impl*> impl() const { return impl_; }
 
-  std::optional<ConstantDef*> GetImplConstant(std::string_view constant_name);
+  std::optional<ConstantDef*> GetImplConstant(
+      std::string_view constant_name) const;
+
+  std::optional<Function*> GetImplFunction(
+      std::string_view function_name) const;
 
  protected:
   // Helper for a subclass to implement `ToString()`, given the entity keyword

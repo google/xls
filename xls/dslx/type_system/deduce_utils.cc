@@ -686,4 +686,22 @@ absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
   return std::make_unique<BitsType>(signedness.value(), bit_count);
 }
 
+absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
+    const Attr* attr, const TypeInfo* type_info) {
+  auto* nr = dynamic_cast<NameRef*>(attr->lhs());
+  if (nr == nullptr) {
+    return std::nullopt;
+  }
+  if (!type_info->Contains(attr->lhs())) {
+    return std::nullopt;
+  }
+  std::optional<Type*> type = type_info->GetItem(attr->lhs());
+  if (!type.has_value()) {
+    return std::nullopt;
+  }
+  XLS_RET_CHECK((*type)->IsStruct());
+  StructDef sd = (*type)->AsStruct().nominal_type();
+  return sd.GetImplFunction(attr->attr());
+}
+
 }  // namespace xls::dslx

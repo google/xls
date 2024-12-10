@@ -272,6 +272,16 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   // Will place a struct instance on the stack.
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 
+  // If the attr references an `impl` function, then add the relevant function.
+  XLS_ASSIGN_OR_RETURN(std::optional<Function*> func,
+                       ImplFnFromCallee(node, type_info_));
+  if (func.has_value()) {
+    Add(Bytecode::MakeLiteral(
+        node->span(), InterpValue::MakeFunction(
+                          InterpValue::UserFnData{(*func)->owner(), *func})));
+    return absl::OkStatus();
+  }
+
   // Now we need the index of the attr NameRef in the struct def.
   XLS_ASSIGN_OR_RETURN(StructType * struct_type,
                        type_info_->GetItemAs<StructType>(node->lhs()));

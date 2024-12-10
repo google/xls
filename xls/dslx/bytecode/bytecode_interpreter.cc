@@ -607,9 +607,19 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   // Store the _return_ PC.
   frames_.back().IncrementPc();
 
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<InterpValue> args,
-      PopArgsRightToLeft(user_fn_data.function->params().size()));
+  // If `user_fn` is a method (first arg is `self`), then the first arg will be
+  // the most recent value pushed. Handle that case first.
+  std::optional<InterpValue> first_arg;
+  int remaining_args = user_fn_data.function->params().size();
+  if (user_fn_data.function->IsMethod()) {
+    XLS_ASSIGN_OR_RETURN(first_arg, Pop());
+    remaining_args--;
+  }
+  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
+                       PopArgsRightToLeft(remaining_args));
+  if (first_arg.has_value()) {
+    args.insert(args.begin(), *first_arg);
+  }
 
   std::vector<InterpValue> args_copy = args;
   frames_.push_back(Frame(bf, std::move(args), bf->type_info(),

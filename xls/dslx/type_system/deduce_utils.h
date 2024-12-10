@@ -186,6 +186,10 @@ absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
 absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
     const BuiltinTypeAnnotation& annotation, const FileTable& file_table);
 
+// If the attribute references an impl function, return that function.
+absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
+    const Attr* attr, const TypeInfo* type_info);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

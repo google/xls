@@ -779,6 +779,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceAttr(const Attr* node,
 
   std::string_view attr_name = node->attr();
   if (!struct_type->HasNamedMember(attr_name)) {
+    const StructDef& struct_def = struct_type->nominal_type();
+    std::optional<Function*> fn = struct_def.GetImplFunction(attr_name);
+    if (fn.has_value()) {
+      std::optional<Type*> fn_type = ctx->type_info()->GetItem(*fn);
+      if (fn_type.has_value()) {
+        return (*fn_type)->CloneToUnique();
+      }
+    }
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Struct '%s' does not have a "
@@ -1786,7 +1794,21 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRefTypeAnnotation(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceSelfTypeAnnotation(
     const SelfTypeAnnotation* node, DeduceCtx* ctx) {
-  return absl::UnimplementedError("`self` not yet supported in type system");
+  VLOG(5) << "DeduceSelfTypeAnnotation: " << node->ToString();
+
+  // Currently `self` is only supported for functions within `impl`. Identify
+  // the relevant `impl` and return the type for the associated `struct`.
+  // Lineage:
+  // impl --> function --> parameter --> type.
+  AstNode* param = node->parent();
+  XLS_RET_CHECK(param != nullptr);
+  AstNode* fn = param->parent();
+  XLS_RET_CHECK(fn != nullptr);
+  AstNode* impl_node = fn->parent();
+  Impl* impl = dynamic_cast<Impl*>(impl_node);
+  XLS_RET_CHECK(impl != nullptr);
+
+  return ctx->Deduce(ToAstNode(impl->struct_ref()));
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceMatchArm(const MatchArm* node,
