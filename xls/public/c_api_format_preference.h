@@ -30,6 +30,8 @@ enum {
   xls_format_preference_hex,
   xls_format_preference_plain_binary,
   xls_format_preference_plain_hex,
+  xls_format_preference_zero_padded_binary,
+  xls_format_preference_zero_padded_hex,
 };
 
 }  // extern "C"
