@@ -1,5 +1,5 @@
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls %s --main-function=sub -- | FileCheck %s --check-prefix=XLS
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls --optimize-ir %s --main-function=sub -- 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS-OPT
+// RUN: xls_translate --mlir-xls-to-xls %s --main-function=sub -- | FileCheck %s --check-prefix=XLS
+// RUN: xls_translate --mlir-xls-to-xls --optimize-ir %s --main-function=sub -- 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS-OPT
 
 // XLS: fn sub
 // XLS-DAG: invoke{{.*}}=__struct_type__int_to_float

@@ -1,5 +1,5 @@
-// RUN: xls/contrib/mlir/xls_opt -index-type-conversion=index-bitwidth=32 %s 2>&1 | FileCheck %s --check-prefix=INDEX32
-// RUN: xls/contrib/mlir/xls_opt -index-type-conversion=index-bitwidth=64 %s 2>&1 | FileCheck %s --check-prefix=INDEX64
+// RUN: xls_opt -index-type-conversion=index-bitwidth=32 %s 2>&1 | FileCheck %s --check-prefix=INDEX32
+// RUN: xls_opt -index-type-conversion=index-bitwidth=64 %s 2>&1 | FileCheck %s --check-prefix=INDEX64
 
 // INDEX32-LABEL: func.func @i64_to_index
 // INDEX64-LABEL: func.func @i64_to_index

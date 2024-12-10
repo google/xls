@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -test-extract-as-top-level-module -split-input-file -allow-unregistered-dialect %s | FileCheck %s
+// RUN: xls_opt -test-extract-as-top-level-module -split-input-file -allow-unregistered-dialect %s | FileCheck %s
 
 // CHECK-LABEL: Testing : "simple"
 module attributes {test.name = "simple"} {

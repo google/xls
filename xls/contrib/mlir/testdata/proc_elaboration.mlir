@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -elaborate-procs -split-input-file %s 2>&1 | FileCheck %s
+// RUN: xls_opt -elaborate-procs -split-input-file %s 2>&1 | FileCheck %s
 // CHECK:       xls.chan @req : i32
 // CHECK-NEXT:  xls.chan @resp : i32
 // CHECK-NEXT:  xls.chan @rom1_req : i32

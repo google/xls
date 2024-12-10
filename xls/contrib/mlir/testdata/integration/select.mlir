@@ -1,10 +1,10 @@
-// RUN: xls/contrib/mlir/xls_opt --xls-lower %s \
-// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-xls \
+// RUN: xls_opt --xls-lower %s \
+// RUN: | xls_translate --mlir-xls-to-xls \
 // RUN: > %t
 
-// RUN: xls/tools/eval_ir_main --input 'bits[1]:0; bits[32]:0xab; bits[32]:0xcd' %t \
+// RUN: eval_ir_main --input 'bits[1]:0; bits[32]:0xab; bits[32]:0xcd' %t \
 // RUN: | FileCheck --check-prefix=CHECK-F %s
-// RUN: xls/tools/eval_ir_main --input 'bits[1]:1; bits[32]:0xab; bits[32]:0xcd' %t \
+// RUN: eval_ir_main --input 'bits[1]:1; bits[32]:0xab; bits[32]:0xcd' %t \
 // RUN: | FileCheck --check-prefix=CHECK-T %s
 
 // CHECK-F: bits[32]:0xcd

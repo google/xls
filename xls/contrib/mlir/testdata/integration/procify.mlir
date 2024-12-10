@@ -1,17 +1,17 @@
-// RUN: xls/contrib/mlir/xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
+// RUN: xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
 // RUN: | FileCheck --check-prefix=CHECK-MLIR %s
 
-// RUN: xls/contrib/mlir/xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
-// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-xls --main-function=reduce_2_0 \
+// RUN: xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
+// RUN: | xls_translate --mlir-xls-to-xls --main-function=reduce_2_0 \
 // RUN: > %t
 
-// RUN: xls/contrib/mlir/xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
-// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-verilog \
+// RUN: xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
+// RUN: | xls_translate --mlir-xls-to-verilog \
 // RUN:   --main-function=reduce_2_0 -- --delay_model=asap7 \
 // RUN:   --generator=pipeline --pipeline_stages=2 --worst_case_throughput=2 --reset=rst \
 // RUN: | FileCheck --check-prefix=CHECK-VERILOG %s
 
-// RUN: xls/tools/codegen_main %t \
+// RUN: codegen_main %t \
 // RUN:   --output_verilog_path %t.v --generator=pipeline --pipeline_stages=2 \
 // RUN:   --worst_case_throughput=2 --reset=rst --delay_model=asap7 \
 // RUN: && FileCheck --check-prefix=CHECK-VERILOG %s < %t.v
@@ -19,7 +19,7 @@
 // CHECK-VERILOG: module {{.+}}(
 // CHECK-VERILOG: endmodule
 
-// RUN: xls/tools/eval_proc_main  %t \
+// RUN: eval_proc_main  %t \
 // RUN:   --backend=ir_interpreter --ticks=10 --show_trace --logtostderr \
 // RUN: |& FileCheck --check-prefix=CHECK-RUNTIME %s
 

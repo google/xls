@@ -1,28 +1,28 @@
-// RUN: xls/contrib/mlir/xls_opt --xls-lower %s \
-// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-xls \
+// RUN: xls_opt --xls-lower %s \
+// RUN: | xls_translate --mlir-xls-to-xls \
 // RUN: > %t
 
-// RUN: xls/contrib/mlir/xls_opt --xls-lower %s \
-// RUN: | xls/contrib/mlir/xls_translate --mlir-xls-to-verilog -- --delay_model=asap7 --generator=combinational \
+// RUN: xls_opt --xls-lower %s \
+// RUN: | xls_translate --mlir-xls-to-verilog -- --delay_model=asap7 --generator=combinational \
 // RUN: | FileCheck --check-prefix=CHECK-VERILOG %s
 
-// RUN: xls/tools/codegen_main %t \
+// RUN: codegen_main %t \
 // RUN:   --output_verilog_path %t.v --generator=combinational \
 // RUN: && FileCheck --check-prefix=CHECK-VERILOG %s < %t.v
 
 // CHECK-VERILOG: module {{.+}}(
 // CHECK-VERILOG: endmodule
 
-// RUN: xls/tools/eval_ir_main --input '[bits[1]:0, bits[1]:0]' %t \
+// RUN: eval_ir_main --input '[bits[1]:0, bits[1]:0]' %t \
 // RUN: | FileCheck --check-prefix=CHECK-FF %s
 
-// RUN: xls/tools/eval_ir_main --input '[bits[1]:1, bits[1]:0]' %t \
+// RUN: eval_ir_main --input '[bits[1]:1, bits[1]:0]' %t \
 // RUN: | FileCheck --check-prefix=CHECK-TF %s
 
-// RUN: xls/tools/eval_ir_main --input '[bits[1]:0, bits[1]:1]' %t \
+// RUN: eval_ir_main --input '[bits[1]:0, bits[1]:1]' %t \
 // RUN: | FileCheck --check-prefix=CHECK-FT %s
 
-// RUN: xls/tools/eval_ir_main --input '[bits[1]:1, bits[1]:1]' %t \
+// RUN: eval_ir_main --input '[bits[1]:1, bits[1]:1]' %t \
 // RUN: | FileCheck --check-prefix=CHECK-TT %s
 
 // CHECK-FF: [bits[1]:0x1, bits[1]:0x0, bits[1]:0x0, bits[1]:0x0]

@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -expand-macro-ops %s 2>&1 | FileCheck %s
+// RUN: xls_opt -expand-macro-ops %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: @array_update_slice
 func.func @array_update_slice(%arg0: !xls.array<4 x i32>, %arg1: !xls.array<2 x i32>, %arg2: i32) -> !xls.array<4 x i32> attributes { "xls" = true } {

@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -scf-to-xls %s 2>&1 | FileCheck %s
+// RUN: xls_opt -scf-to-xls %s 2>&1 | FileCheck %s
 
 // CHECK:       func.func @reduce(%arg0: i32) -> i32 attributes {xls = true} {
 // CHECK-NEXT:    %c0 = arith.constant 0 : index

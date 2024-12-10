@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -arith-to-xls -canonicalize %s 2>&1 | FileCheck %s
+// RUN: xls_opt -arith-to-xls -canonicalize %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: @constants
 // CHECK-DAG: arith.constant 1

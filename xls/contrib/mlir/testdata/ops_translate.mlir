@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls %s --main-function=identity
+// RUN: xls_translate --mlir-xls-to-xls %s --main-function=identity
 // This just currently verifies a successful translate. The main function
 // doesn't matter as all are exported, one just set as top.
 

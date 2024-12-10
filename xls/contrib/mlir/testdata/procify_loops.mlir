@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -procify-loops -split-input-file %s 2>&1 | FileCheck %s
+// RUN: xls_opt -procify-loops -split-input-file %s 2>&1 | FileCheck %s
 
 // The main rewrite is tested in convert_for_op_to_sproc_call.mlir and integration/procify.mlir.
 // This file just tests that we apply to xls.unroll attributes.

@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls --main-function=combinational --privatize-and-dce-functions %s -- 2>&1 | FileCheck %s
+// RUN: xls_translate --mlir-xls-to-xls --main-function=combinational --privatize-and-dce-functions %s -- 2>&1 | FileCheck %s
 
 // CHECK-NOT: unused_function
 module @pkg {

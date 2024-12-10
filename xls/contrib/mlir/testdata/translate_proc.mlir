@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls %s -- 2>&1 | FileCheck %s
+// RUN: xls_translate --mlir-xls-to-xls %s -- 2>&1 | FileCheck %s
 
 xls.chan @mychan : i32
 xls.chan @vector_chan : !xls.array<32 x i32>

@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt %s -symbol-dce -- 2>&1 | FileCheck %s
+// RUN: xls_opt %s -symbol-dce -- 2>&1 | FileCheck %s
 
 // CHECK-NOT: @mychan
 // CHECK-NOT: @dot_product

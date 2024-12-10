@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_translate --mlir-xls-to-xls %s -- 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS
+// RUN: xls_translate --mlir-xls-to-xls %s -- 2>&1 | FileCheck %s --dump-input-filter=all --check-prefix=XLS
 
 func.func private @ggenerated(%arg1: !xls.array<2 x i4>) -> !xls.array<2 x i4> {
       %1 = "xls.constant_scalar"() <{value = 3 : index}> : () -> i32

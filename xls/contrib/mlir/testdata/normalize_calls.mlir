@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -normalize-xls-calls %s 2>&1 | FileCheck %s
+// RUN: xls_opt -normalize-xls-calls %s 2>&1 | FileCheck %s
 
 // CHECK: xls.import_dslx_file_package "xls/contrib/mlir/testdata/i32/dot_product.x" as @dot_product
 // CHECK: func.func private @dot_product_dot_product_fixed_test(!xls.array<4 x i32>, !xls.array<4 x i32>) -> i32 attributes {xls.linkage = {{.*}}<@dot_product : "dot_product_fixed_test">}

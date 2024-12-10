@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -test-convert-for-op-to-sproc -split-input-file -allow-unregistered-dialect %s | FileCheck %s
+// RUN: xls_opt -test-convert-for-op-to-sproc -split-input-file -allow-unregistered-dialect %s | FileCheck %s
 
 // CHECK:module @reduce_zeroes {
 // CHECK:  xls.sproc @reduce_zeroes_for_body(%arg0: !xls.schan<index, in>, %arg1: !xls.schan<i32, in>, %arg2: !xls.schan<i32, out>) {

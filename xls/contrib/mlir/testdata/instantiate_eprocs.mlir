@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -instantiate-eprocs -symbol-dce -split-input-file %s 2>&1 | FileCheck %s
+// RUN: xls_opt -instantiate-eprocs -symbol-dce -split-input-file %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: xls.chan @InstantiateTwice : i32
 // CHECK: xls.eproc @p_1

@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt %s --split-input-file --verify-diagnostics -- 2>&1 | FileCheck %s 
+// RUN: xls_opt %s --split-input-file --verify-diagnostics -- 2>&1 | FileCheck %s
 
 // CHECK-LABEL: func @identity
 func.func @identity(%arg0: tensor<32xi8>) -> tensor<32xi8> {

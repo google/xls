@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_translate -mlir-xls-to-xls %s 2>&1
+// RUN: xls_translate -mlir-xls-to-xls %s 2>&1
 
 // Verify that importing different functions from files with the same stem get
 // resolved properly. This is a regression test for where we did not consider

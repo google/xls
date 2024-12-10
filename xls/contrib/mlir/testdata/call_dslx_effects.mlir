@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -canonicalize %s 2>&1 | FileCheck %s
+// RUN: xls_opt -canonicalize %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: simple_call
 func.func @simple_call(%arg0: !xls.array<4 x i32>, %arg1: !xls.array<4 x i32>) -> i32 {

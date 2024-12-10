@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -optimize-spawns %s 2>&1 | FileCheck %s
+// RUN: xls_opt -optimize-spawns %s 2>&1 | FileCheck %s
 
 xls.sproc @fn(%arg0: !xls.schan<tensor<8xi32>, in>) {
   spawns {

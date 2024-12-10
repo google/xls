@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -xls-lower-for-ops %s 2>&1 | FileCheck %s
+// RUN: xls_opt -xls-lower-for-ops %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL:   func.func private @for_body(
 // CHECK-SAME:         %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32, %[[VAL_2:.*]]: i32

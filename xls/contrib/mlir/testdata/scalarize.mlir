@@ -1,4 +1,4 @@
-// RUN: xls/contrib/mlir/xls_opt -scalarize -canonicalize -cse %s 2>&1 | FileCheck %s
+// RUN: xls_opt -scalarize -canonicalize -cse %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: @signature
 // CHECK-NEXT: {{constant_scalar.*value = 6}}
