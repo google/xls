@@ -102,9 +102,10 @@ std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(
   } else {
     top->Add<ConvertFuncsToPipelinedBlocksPass>();
     top->Add<ConvertProcsToPipelinedBlocksPass>();
-    top->Add<BlockConversionDeadTokenRemovalPass>();
-    top->Add<UpdateChannelMetadataPass>();
   }
+
+  top->Add<BlockConversionDeadTokenRemovalPass>();
+  top->Add<UpdateChannelMetadataPass>();
 
   return top;
 }
