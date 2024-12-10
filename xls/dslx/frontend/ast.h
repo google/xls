@@ -2513,6 +2513,8 @@ class Impl : public AstNode {
 
   const std::vector<ImplMember>& members() const { return members_; }
 
+  void set_members(std::vector<ImplMember>& members) { members_ = members; }
+
   std::vector<ConstantDef*> GetConstants() const;
 
   // Returns the member with the given name, if present.

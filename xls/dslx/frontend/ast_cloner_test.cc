@@ -570,6 +570,66 @@ fn main() -> u32 {
   XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
 }
 
+TEST(AstClonerTest, StructDefAndImplWithFunc) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct { a: u32 }
+
+impl MyStruct {
+    const MY_CONST = u32:5;
+
+    fn some_func(self: Self) -> u32 {
+        self.a
+    }
+
+    fn another() -> Self {
+        MyStruct { a: u32:0 }
+    }
+}
+
+fn main() -> u32 {
+    MyStruct::MY_CONST
+}
+)";
+
+  constexpr std::string_view kExpectedStructDef = R"(struct MyStruct {
+    a: u32,
+})";
+
+  constexpr std::string_view kExpectedImpl = R"(impl MyStruct {
+    const MY_CONST = u32:5;
+    fn some_func(self: Self) -> u32 {
+        self.a
+    }
+    fn another() -> Self {
+        MyStruct { a: u32:0 }
+    }
+})";
+
+  constexpr std::string_view kExpectedFunction = R"(fn main() -> u32 {
+    MyStruct::MY_CONST
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+
+  Impl* impl = module->GetImpls().at(0);
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * impl_clone, CloneAst(impl));
+  EXPECT_EQ(kExpectedImpl, impl_clone->ToString());
+
+  StructDef* struct_def = module->GetStructDefs().at(0);
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * struct_clone, CloneAst(struct_def));
+  EXPECT_EQ(kExpectedStructDef, struct_clone->ToString());
+  Impl* cloned_impl = dynamic_cast<StructDef*>(struct_clone)->impl().value();
+  EXPECT_EQ(kExpectedImpl, cloned_impl->ToString());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kExpectedFunction, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone, *module->file_table()));
+}
+
 TEST(AstClonerTest, ColonRefToImportedStruct) {
   constexpr std::string_view kProgram = R"(
 import my.module as foo;

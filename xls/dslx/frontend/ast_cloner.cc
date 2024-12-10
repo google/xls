@@ -762,21 +762,10 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleImpl(const Impl* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-
-    std::vector<ImplMember> new_members;
-    new_members.reserve(n->members().size());
-    for (const auto& member : n->members()) {
-      AstNode* new_node = old_to_new_.at(ToAstNode(member));
-      if (std::holds_alternative<ConstantDef*>(member)) {
-        new_members.push_back(down_cast<ConstantDef*>(new_node));
-      } else {
-        new_members.push_back(down_cast<Function*>(new_node));
-      }
-    }
-
-    Impl* new_impl =
-        module_->Make<Impl>(n->span(), nullptr, new_members, n->is_public());
+    // To avoid infinite loops between impl -> function -> struct -> impl, use a
+    // placeholder for children (members and struct def) and add afterward.
+    Impl* new_impl = module_->Make<Impl>(
+        n->span(), nullptr, std::vector<ImplMember>{}, n->is_public());
     old_to_new_[n] = new_impl;
     if (!old_to_new_.contains(n->struct_ref())) {
       XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_ref()));
@@ -784,6 +773,21 @@ class AstCloner : public AstNodeVisitor {
     TypeAnnotation* new_struct_ref =
         down_cast<TypeAnnotation*>(old_to_new_.at(n->struct_ref()));
     new_impl->set_struct_ref(new_struct_ref);
+    std::vector<ImplMember> new_members;
+    new_members.reserve(n->members().size());
+    for (const auto& member : n->members()) {
+      AstNode* member_node = ToAstNode(member);
+      if (!old_to_new_.contains(member_node)) {
+        XLS_RETURN_IF_ERROR(ReplaceOrVisit(member_node));
+      }
+      AstNode* new_node = old_to_new_.at(member_node);
+      if (std::holds_alternative<ConstantDef*>(member)) {
+        new_members.push_back(down_cast<ConstantDef*>(new_node));
+      } else {
+        new_members.push_back(down_cast<Function*>(new_node));
+      }
+    }
+    new_impl->set_members(new_members);
     return absl::OkStatus();
   }
 
