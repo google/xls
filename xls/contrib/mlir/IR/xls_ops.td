@@ -1051,7 +1051,7 @@ def Xls_MapOp : Xls_Op<"map", []> {
 def Xls_YieldOp : Xls_Op<"yield", [Pure, ReturnLike, Terminator]> {
   let summary = "for return op";
   let description = [{
-    Yields an SSA value from the enclosing ForOp region.
+    Yields an SSA value from the enclosing ForOp, EprocOp, or SprocOp region.
   }];
 
   let arguments = (ins Variadic<AnyType>:$results);
