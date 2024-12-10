@@ -356,49 +356,63 @@ absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
 absl::Status Module::AddTop(ModuleMember member,
                             const MakeCollisionError& make_collision_error) {
   // Get name
-  std::optional<std::string> member_name = absl::visit(
+  std::vector<std::string> member_names = absl::visit(
       Visitor{
-          [](Function* f) { return std::make_optional(f->identifier()); },
-          [](Proc* p) { return std::make_optional(p->identifier()); },
-          [](TestFunction* tf) { return std::make_optional(tf->identifier()); },
+          [](Function* f) { return std::vector<std::string>{f->identifier()}; },
+          [](Proc* p) { return std::vector<std::string>{p->identifier()}; },
+          [](TestFunction* tf) {
+            return std::vector<std::string>{tf->identifier()};
+          },
           [](TestProc* tp) {
-            return std::make_optional(tp->proc()->identifier());
+            return std::vector<std::string>{tp->proc()->identifier()};
           },
-          [](QuickCheck* qc) { return std::make_optional(qc->identifier()); },
-          [](TypeAlias* td) { return std::make_optional(td->identifier()); },
-          [](StructDef* sd) { return std::make_optional(sd->identifier()); },
-          [](ProcDef* pd) { return std::make_optional(pd->identifier()); },
-          [](Impl* id) -> std::optional<std::string> { return std::nullopt; },
-          [](ConstantDef* cd) { return std::make_optional(cd->identifier()); },
-          [](EnumDef* ed) { return std::make_optional(ed->identifier()); },
-          [](Import* i) { return std::make_optional(i->identifier()); },
-          [](VerbatimNode*) -> std::optional<std::string> {
-            return std::nullopt;
+          [](QuickCheck* qc) {
+            return std::vector<std::string>{qc->identifier()};
           },
-          [](ConstAssert* n) -> std::optional<std::string> {
-            return std::nullopt;
+          [](TypeAlias* td) {
+            return std::vector<std::string>{td->identifier()};
           },
+          [](StructDef* sd) {
+            return std::vector<std::string>{sd->identifier()};
+          },
+          [](ProcDef* pd) {
+            return std::vector<std::string>{pd->identifier()};
+          },
+          [](Impl* id) { return std::vector<std::string>{}; },
+          [](ConstantDef* cd) {
+            return std::vector<std::string>{cd->identifier()};
+          },
+          [](EnumDef* ed) {
+            return std::vector<std::string>{ed->identifier()};
+          },
+          [](Import* i) { return std::vector<std::string>{i->identifier()}; },
+          [](Use* u) {
+            return std::vector<std::string>{u->GetLeafIdentifiers()};
+          },
+          [](VerbatimNode*) { return std::vector<std::string>{}; },
+          [](ConstAssert* n) { return std::vector<std::string>{}; },
       },
       member);
 
-  if (member_name.has_value() && top_by_name_.contains(member_name.value())) {
-    const AstNode* node = ToAstNode(top_by_name_.at(member_name.value()));
-    const Span existing_span = node->GetSpan().value();
-    const AstNode* new_node = ToAstNode(member);
-    const Span new_span = new_node->GetSpan().value();
-    if (make_collision_error != nullptr) {
-      return make_collision_error(name_, member_name.value(), existing_span,
-                                  node, new_span, new_node);
+  for (const std::string& member_name : member_names) {
+    if (top_by_name_.contains(member_name)) {
+      const AstNode* node = ToAstNode(top_by_name_.at(member_name));
+      const Span existing_span = node->GetSpan().value();
+      const AstNode* new_node = ToAstNode(member);
+      const Span new_span = new_node->GetSpan().value();
+      if (make_collision_error != nullptr) {
+        return make_collision_error(name_, member_name, existing_span, node,
+                                    new_span, new_node);
+      }
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Module %s already contains a member named %s @ %s: %s", name_,
+          member_name, existing_span.ToString(*file_table_), node->ToString()));
     }
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Module %s already contains a member named %s @ %s: %s", name_,
-        member_name.value(), existing_span.ToString(*file_table_),
-        node->ToString()));
   }
 
   top_.push_back(member);
-  if (member_name.has_value()) {
-    top_by_name_.insert({member_name.value(), member});
+  for (const std::string& member_name : member_names) {
+    top_by_name_.insert({member_name, member});
   }
   return absl::OkStatus();
 }
@@ -417,6 +431,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](ConstantDef*) { return "constant-definition"; },
                          [](EnumDef*) { return "enum-definition"; },
                          [](Import*) { return "import"; },
+                         [](Use*) { return "use"; },
                          [](VerbatimNode*) { return "verbatim"; },
                          [](ConstAssert*) { return "const-assert"; },
                      },
@@ -425,18 +440,13 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
 
 bool IsPublic(const ModuleMember& member) {
   return absl::visit(Visitor{
-                         [](const Function* m) { return m->is_public(); },
-                         [](const Proc* m) { return m->is_public(); },
-                         [](const TypeAlias* m) { return m->is_public(); },
-                         [](const StructDef* m) { return m->is_public(); },
-                         [](const ProcDef* m) { return m->is_public(); },
-                         [](const Impl* m) { return m->is_public(); },
-                         [](const ConstantDef* m) { return m->is_public(); },
-                         [](const EnumDef* m) { return m->is_public(); },
+                         [](const auto* m) { return m->is_public(); },
                          [](const TestFunction* m) { return false; },
                          [](const TestProc* m) { return false; },
                          [](const QuickCheck* m) { return false; },
                          [](const Import* m) { return false; },
+                         // TODO(cdleary): 2024-12-07 Support `pub use`.
+                         [](const Use* m) { return false; },
                          [](const ConstAssert* m) { return false; },
                          [](const VerbatimNode*) { return false; },
                      },
@@ -450,23 +460,16 @@ Pos GetPos(const ModuleMember& module_member) {
   return span->start();
 }
 
-NameDef* ModuleMemberGetNameDef(const ModuleMember& mm) {
+std::vector<NameDef*> ModuleMemberGetNameDefs(const ModuleMember& mm) {
   return absl::visit(
       Visitor{
-          [](Function* n) -> NameDef* { return n->name_def(); },
-          [](Proc* n) -> NameDef* { return n->name_def(); },
-          [](TestFunction* n) -> NameDef* { return n->name_def(); },
-          [](TestProc* n) -> NameDef* { return n->name_def(); },
-          [](QuickCheck* n) -> NameDef* { return n->name_def(); },
-          [](TypeAlias* n) -> NameDef* { return &n->name_def(); },
-          [](StructDef* n) -> NameDef* { return n->name_def(); },
-          [](ProcDef* n) -> NameDef* { return n->name_def(); },
-          [](Impl* n) -> NameDef* { return nullptr; },
-          [](ConstantDef* n) -> NameDef* { return n->name_def(); },
-          [](EnumDef* n) -> NameDef* { return n->name_def(); },
-          [](Import* n) -> NameDef* { return &n->name_def(); },
-          [](ConstAssert* n) -> NameDef* { return nullptr; },
-          [](VerbatimNode*) -> NameDef* { return nullptr; },
+          [](auto* n) { return std::vector<NameDef*>{n->name_def()}; },
+          [](TypeAlias* n) { return std::vector<NameDef*>{&n->name_def()}; },
+          [](Impl* n) { return std::vector<NameDef*>{}; },
+          [](Import* n) { return std::vector<NameDef*>{&n->name_def()}; },
+          [](Use* n) { return n->GetLeafNameDefs(); },
+          [](ConstAssert* n) { return std::vector<NameDef*>{}; },
+          [](VerbatimNode*) { return std::vector<NameDef*>{}; },
       },
       mm);
 }

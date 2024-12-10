@@ -47,9 +47,10 @@ TEST(Float32Test, ToInt32) {
   for (uint64_t i = 0; i < num_iters; i++) {
     float input = absl::bit_cast<float>(static_cast<uint32_t>(i));
     if (!exhaustive) {
-      input = absl::Uniform<float>(absl::IntervalClosedClosed, bitgen,
-                                   std::numeric_limits<int32_t>::min(),
-                                   std::numeric_limits<int32_t>::max());
+      input = absl::Uniform<float>(
+          absl::IntervalClosedClosed, bitgen,
+          static_cast<float>(std::numeric_limits<int32_t>::min()),
+          static_cast<float>(std::numeric_limits<int32_t>::max()));
     }
 
     // Frustratingly, float-to-int casts are undefined behavior if the source
@@ -57,9 +58,9 @@ TEST(Float32Test, ToInt32) {
     // knobs to tell UBSan to ignore this, we just have to limit our test range.
     // We need >= and <= to handle precision loss when converting max\min into
     // float.
-    if (input >= std::numeric_limits<int32_t>::max() ||
-        input <= std::numeric_limits<int32_t>::min() || std::isnan(input) ||
-        std::isinf(input)) {
+    if (input >= static_cast<float>(std::numeric_limits<int32_t>::max()) ||
+        input <= static_cast<float>(std::numeric_limits<int32_t>::min()) ||
+        std::isnan(input) || std::isinf(input)) {
       continue;
     }
 

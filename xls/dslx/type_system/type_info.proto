@@ -98,6 +98,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_VERBATIM_NODE = 64;
   AST_NODE_KIND_FUNCTION_REF = 65;
   AST_NODE_KIND_PROC_DEF = 66;
+  AST_NODE_KIND_USE = 67;
 }
 
 message BitsValueProto {

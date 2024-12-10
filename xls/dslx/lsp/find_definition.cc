@@ -43,7 +43,22 @@ const NameDef* GetNameDef(
           [&](Module* m) -> const NameDef* {
             std::optional<ModuleMember*> member = m->FindMemberWithName(attr);
             CHECK(member.has_value());
-            return ModuleMemberGetNameDef(*member.value());
+            const ModuleMember& mm = *member.value();
+            std::vector<NameDef*> name_defs = ModuleMemberGetNameDefs(mm);
+            if (name_defs.empty()) {
+              return nullptr;
+            }
+            if (name_defs.size() == 1) {
+              return name_defs.at(0);
+            }
+            // Constructs like `use` statement can define multiple names at
+            // module scope, and we can only refer to one of them by colon-ref.
+            for (const NameDef* name_def : name_defs) {
+              if (name_def->identifier() == attr) {
+                return name_def;
+              }
+            }
+            return nullptr;
           },
           [&](EnumDef* e) -> const NameDef* { return e->GetNameDef(attr); },
           [](Impl* s) -> const NameDef* { return nullptr; },
