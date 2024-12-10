@@ -1406,44 +1406,58 @@ absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {
 
 absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
 BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
-  if (std::holds_alternative<BuiltinNameDef*>(node->name_def())) {
-    // Builtins don't have NameDefs, so we can't use slots to store them. It's
-    // simpler to just emit a literal InterpValue, anyway.
-    BuiltinNameDef* builtin_def = std::get<BuiltinNameDef*>(node->name_def());
-    XLS_ASSIGN_OR_RETURN(Builtin builtin,
-                         BuiltinFromString(builtin_def->identifier()));
-    return InterpValue::MakeFunction(builtin);
-  }
+  AnyNameDef any_name_def = node->name_def();
 
-  // Emit function and constant refs directly so that they can be stack elements
-  // without having to load slots with them.
-  const NameDef* name_def = std::get<const NameDef*>(node->name_def());
-  if (auto* f = dynamic_cast<Function*>(name_def->definer()); f != nullptr) {
-    return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
-  }
+  using ResultT =
+      absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>;
+  return absl::visit(
+      Visitor{[&](BuiltinNameDef* builtin_def) -> ResultT {
+                CHECK(builtin_def != nullptr);
+                // Builtins don't have NameDefs, so we can't use slots to store
+                // them. It's simpler to just emit a literal InterpValue to
+                // represent the built-in function, anyway.
+                XLS_ASSIGN_OR_RETURN(
+                    Builtin builtin,
+                    BuiltinFromString(builtin_def->identifier()));
+                return InterpValue::MakeFunction(builtin);
+              },
+              [&](const NameDef* name_def) -> ResultT {
+                CHECK(name_def != nullptr);
+                AstNode* definer = name_def->definer();
 
-  if (auto* cd = dynamic_cast<ConstantDef*>(name_def->definer());
-      cd != nullptr) {
-    return type_info_->GetConstExpr(cd->value());
-  }
+                // Emit function and constant refs directly so that they can be
+                // stack elements without having to load slots with them.
+                if (auto* f = dynamic_cast<Function*>(definer); f != nullptr) {
+                  return InterpValue::MakeFunction(
+                      InterpValue::UserFnData{f->owner(), f});
+                }
+                if (auto* cd = dynamic_cast<ConstantDef*>(name_def->definer());
+                    cd != nullptr) {
+                  return type_info_->GetConstExpr(cd->value());
+                }
 
-  // The value is either a local name or a parametric name.
-  if (namedef_to_slot_.contains(name_def)) {
-    return Bytecode::SlotIndex(namedef_to_slot_.at(name_def));
-  }
+                // The value is either a local name or a parametric name.
+                if (namedef_to_slot_.contains(name_def)) {
+                  int64_t slotno = namedef_to_slot_.at(name_def);
+                  return Bytecode::SlotIndex(slotno);
+                }
 
-  if (caller_bindings_.has_value()) {
-    absl::flat_hash_map<std::string, InterpValue> bindings_map =
-        caller_bindings_.value().ToMap();
-    if (bindings_map.contains(name_def->identifier())) {
-      return caller_bindings_.value().ToMap().at(name_def->identifier());
-    }
-  }
+                if (caller_bindings_.has_value()) {
+                  absl::flat_hash_map<std::string, InterpValue> bindings_map =
+                      caller_bindings_.value().ToMap();
+                  if (bindings_map.contains(name_def->identifier())) {
+                    return caller_bindings_.value().ToMap().at(
+                        name_def->identifier());
+                  }
+                }
 
-  return absl::InternalError(absl::StrCat(
-      "BytecodeEmitter could not find slot or binding for name: ",
-      name_def->ToString(), " @ ", name_def->span().ToString(file_table()),
-      " stack: ", GetSymbolizedStackTraceAsString()));
+                return absl::InternalError(absl::StrCat(
+                    "BytecodeEmitter could not find slot or binding for name: ",
+                    name_def->ToString(), " @ ",
+                    name_def->span().ToString(file_table()),
+                    " stack: ", GetSymbolizedStackTraceAsString()));
+              }},
+      any_name_def);
 }
 
 absl::Status BytecodeEmitter::HandleNumber(const Number* node) {

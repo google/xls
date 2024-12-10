@@ -125,14 +125,40 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   const Type* const type_;
 };
 
-// Creates a map of symbol name to value for all known symbols in the current
-// environment. This will be populated with symbolic bindings as well as
-// constexpr freevars of "node", which is useful when there are local
+// Holds the results of `MakeConstexprEnv()` -- generally users will use `env`,
+// but `freevars` and `non_constexpr` provide useful information in cases where
+// something goes wrong or needs to be reported via error messages.
+struct ConstexprEnvData {
+  // Free variables for the given expression.
+  FreeVariables freevars;
+
+  // Constexpr environment we were able to construct.
+  //
+  // Note that it seems ok for now for the keys to be std::string rather than
+  // NameDef* because we only use this map in the context of a single
+  // expression, and free variables from the expression for a given identifier
+  // will all point to the same thing, there is no partial shadowing that can
+  // occur.
+  absl::flat_hash_map<std::string, InterpValue> env;
+
+  // Free variable references that we were unable to resolve to a constexpr
+  // value.
+  //
+  // Note that this can include things like references to imported modules,
+  // as those are not themselves constexpr.
+  absl::flat_hash_set<const NameRef*> non_constexpr;
+};
+
+// Creates a map of `{symbol_name: value}` for all known symbols in the required
+// environment for `env`.
+//
+// This will be populated with parametric bindings as well as
+// constexpr freevars of `node`, which is useful when there are local
 // const bindings closed over e.g. in function scope.
 //
 // `type_info` is required to look up the value of previously computed
 // constexprs.
-absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
+absl::StatusOr<ConstexprEnvData> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const Expr* node,
     const ParametricEnv& parametric_env);
