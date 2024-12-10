@@ -2784,21 +2784,21 @@ fn divmod() {
 TEST_F(ModuleFmtTest, ConstantDefWithComment) {
   // It intentionally moves the comment so we can't test with the
   // opportunistic_postcondition.
-  DoFmt(R"(pub // between pub and const
-const // between const and name
-foo // between name and colon
-: // between colon and type
-u32 // between type and =
-= // between = and value
-u32:42 // between value and semi
+  DoFmt(R"(pub // 1 between pub and const
+const // 2 between const and name
+foo // 3 between name and colon
+: // 4 between colon and type
+u32 // 5 between type and =
+= // 6 between = and value
+u32:42 // 7 between value and semi
 ;)",
-        R"(// between pub and const
-// between const and name
-// between name and colon
-// between colon and type
-pub const foo: u32 // between type and =
-// between = and value
-    = u32:42 // between value and semi
+        R"(// 1 between pub and const
+// 2 between const and name
+pub const foo // 3 between name and colon
+// 4 between colon and type
+    : u32 // 5 between type and =
+    // 6 between = and value
+    = u32:42 // 7 between value and semi
     ;
 )",
         kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
@@ -2853,21 +2853,17 @@ const foo = u32:42;
 }
 
 TEST_F(ModuleFmtTest, ConstantDefWithComment3) {
-  DoFmt(R"(const foo: // between name and type
-    u32 = u32:42;
-)",
-        R"(// between name and type
-const foo: u32 = u32:42;
-)",
-        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+  DoFmt(R"(const foo // between name and colon
+    : u32 = u32:42;
+)");
 }
 
 TEST_F(ModuleFmtTest, ConstantDefWithComment4) {
-  DoFmt(R"(const foo // between name and type
-    : u32 = u32:42;
+  DoFmt(R"(const foo: // between colon and type
+    u32 = u32:42;
 )",
-        R"(// between name and type
-const foo: u32 = u32:42;
+        R"(const foo // between colon and type
+    : u32 = u32:42;
 )",
         kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
 }
@@ -2885,11 +2881,7 @@ TEST_F(ModuleFmtTest, ConstantDefWithComment5) {
 TEST_F(ModuleFmtTest, ConstantDefWithComment5NoType) {
   DoFmt(R"(const foo // between name and =
     = u32:42;
-)",
-        R"(// between name and =
-const foo = u32:42;
-)",
-        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+)");
 }
 
 TEST_F(ModuleFmtTest, ConstantDefWithComment6) {
@@ -2906,8 +2898,8 @@ TEST_F(ModuleFmtTest, ConstantDefWithComment6NoType) {
   DoFmt(R"(const foo = // after equals
     u32:42;
 )",
-        R"(// after equals
-const foo = u32:42;
+        R"(const foo // after equals
+    = u32:42;
 )",
         kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
 }
@@ -2930,8 +2922,8 @@ TEST_F(ModuleFmtTest, DisableFormatSingleExpr) {
     // dslx-fmt::on
 ;
 )",
-        R"(// dslx-fmt::off
-const x =  u32 :1
+        R"(const x // dslx-fmt::off
+    =  u32 :1
     // dslx-fmt::on
 ;
 )",

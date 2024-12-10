@@ -1743,6 +1743,12 @@ DocRef Formatter::Format(const Expr& n) {
 }
 
 DocRef Formatter::Format(const ConstantDef& n) {
+  // There are 7 places a comment can be in a constant definition:
+  // [pub 1] const 2 name 3 [: 4 type 5] = 6 value 7;
+
+  // leader_pieces contains docrefs from `pub` up to and including the *first
+  // comments* in categories 3-6.
+  // Note: the comments in category 1 and 2 are not included in the leader.
   std::vector<DocRef> leader_pieces;
   if (n.is_public()) {
     leader_pieces.push_back(arena_.Make(Keyword::kPub));
@@ -1751,26 +1757,66 @@ DocRef Formatter::Format(const ConstantDef& n) {
   leader_pieces.push_back(arena_.Make(Keyword::kConst));
   leader_pieces.push_back(arena_.break1());
   leader_pieces.push_back(arena_.MakeText(n.identifier()));
-  DocRef mid_comment = arena_.empty();
+
+  // The right hand side.
+  std::vector<DocRef> rhs_pieces;
+  // Destination for where we should put items from this point forward.
+  // Initially it's the leader but after the first comment it switches to the
+  // rhs, which will have to be nested.
+  std::vector<DocRef>* dest = &leader_pieces;
+  bool nest_rhs = false;
+
   if (n.type_annotation() != nullptr) {
-    leader_pieces.push_back(arena_.colon());
-    leader_pieces.push_back(arena_.space());
-    leader_pieces.push_back(Fmt(*n.type_annotation(), comments_, arena_));
+    // Comments between the name and the type (category 3 and 4). We don't know
+    // there the colon is, so we put it just before the type.
+    std::optional<DocRef> comments_doc = EmitCommentsBetween(
+        n.name_def()->GetSpan()->limit(),
+        n.type_annotation()->GetSpan()->start(), comments_, arena_,
+        /*last_comment_span=*/nullptr);
+    if (comments_doc.has_value()) {
+      dest->push_back(ConcatN(
+          arena_, {arena_.break1(), *comments_doc, arena_.hard_line()}));
+      // From now on we need to nest.
+      nest_rhs = true;
+      dest = &rhs_pieces;
+    }
+
+    dest->push_back(arena_.colon());
+    dest->push_back(arena_.break1());
+    dest->push_back(Fmt(*n.type_annotation(), comments_, arena_));
 
     // Find comments between the end of the type annotation and the start of
     // the value and put them between the type and the =
-    std::optional<DocRef> comments_doc =
+    comments_doc =
         EmitCommentsBetween(n.type_annotation()->GetSpan()->limit(),
                             n.value()->GetSpan()->start(), comments_, arena_,
                             /*last_comment_span=*/nullptr);
     if (comments_doc.has_value()) {
-      mid_comment = ConcatN(arena_, {*comments_doc, arena_.hard_line()});
-      leader_pieces.push_back(arena_.space());
+      dest->push_back(ConcatN(
+          arena_, {arena_.break1(), *comments_doc, arena_.hard_line()}));
+      // From now on we need to nest.
+      nest_rhs = true;
+      dest = &rhs_pieces;
+    } else if (nest_rhs) {
+      // No comments between the type and the value; put a space before the =
+      dest->push_back(arena_.break1());
+    }
+  } else {
+    // Comments in category 3 & 6: between the name and the value. We don't know
+    // where the = is, so we put all comments in this category before it.
+    std::optional<DocRef> comments_doc =
+        EmitCommentsBetween(n.name_def()->GetSpan()->limit(),
+                            n.value()->GetSpan()->start(), comments_, arena_,
+                            /*last_comment_span=*/nullptr);
+    if (comments_doc.has_value()) {
+      leader_pieces.push_back(ConcatN(
+          arena_, {arena_.break1(), *comments_doc, arena_.hard_line()}));
+      dest = &rhs_pieces;
+      nest_rhs = true;
     }
   }
 
-  std::vector<DocRef> rhs_pieces;
-  if (mid_comment != arena_.empty()) {
+  if (nest_rhs) {
     // Make the = part of the RHS, and nest the whole RHS.
     rhs_pieces.push_back(arena_.equals());
     rhs_pieces.push_back(arena_.space());
@@ -1779,7 +1825,15 @@ DocRef Formatter::Format(const ConstantDef& n) {
     leader_pieces.push_back(arena_.equals());
     leader_pieces.push_back(arena_.space());
   }
-  DocRef lhs = ConcatNGroup(arena_, leader_pieces);
+
+  DocRef lhs;
+  if (nest_rhs) {
+    // If we're nesting the rhs, the lhs can't be grouped, because we know
+    // there's at least one hardline in it.
+    lhs = ConcatN(arena_, leader_pieces);
+  } else {
+    lhs = ConcatNGroup(arena_, leader_pieces);
+  }
 
   DocRef value_doc = Fmt(*n.value(), comments_, arena_);
   std::optional<DocRef> comments_doc = EmitCommentsBetween(
@@ -1794,7 +1848,7 @@ DocRef Formatter::Format(const ConstantDef& n) {
     rhs_pieces.push_back(arena_.space());
     rhs_pieces.push_back(*comments_doc);
     rhs_pieces.push_back(arena_.hard_line());
-    if (mid_comment != arena_.empty()) {
+    if (nest_rhs) {
       // The whole RHS will be nested.
       rhs_pieces.push_back(arena_.semi());
     } else {
@@ -1806,20 +1860,14 @@ DocRef Formatter::Format(const ConstantDef& n) {
     rhs_pieces.push_back(arena_.semi());
   }
   DocRef rhs = ConcatN(arena_, rhs_pieces);
-  if (mid_comment != arena_.empty()) {
+  if (nest_rhs) {
     rhs = arena_.MakeNest(rhs);
   }
 
   // Now get the comments between the *start* of the node and the start of the
-  // type annotation or the start of the value.
+  // name (category 1 & 2)
   DocRef pre_comment = arena_.empty();
-  Span lhs_comments_span;
-  if (n.type_annotation() != nullptr) {
-    lhs_comments_span =
-        Span(n.span().start(), n.type_annotation()->GetSpan()->start());
-  } else {
-    lhs_comments_span = Span(n.span().start(), n.value()->GetSpan()->start());
-  }
+  Span lhs_comments_span(n.span().start(), n.name_def()->GetSpan()->start());
   comments_doc = EmitCommentsBetween(
       lhs_comments_span.start(), lhs_comments_span.limit(), comments_, arena_,
       /*last_comment_span=*/nullptr);
@@ -1827,7 +1875,7 @@ DocRef Formatter::Format(const ConstantDef& n) {
     pre_comment = ConcatN(arena_, {*comments_doc, arena_.hard_line()});
   }
 
-  return ConcatN(arena_, {pre_comment, lhs, mid_comment, rhs});
+  return ConcatN(arena_, {pre_comment, lhs, rhs});
 }
 
 DocRef Formatter::Format(const ConstAssert& n) {
