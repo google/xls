@@ -316,7 +316,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArray(const Array* node,
   // until we reach the array size.
   if (node->has_ellipsis()) {
     XLS_ASSIGN_OR_RETURN(int64_t array_size, type->size().GetAsInt64());
-    XLS_RET_CHECK(constexpr_values.size() > 0)
+    XLS_RET_CHECK(!constexpr_values.empty())
         << "Cannot have an array with ellipsis but no given member to repeat";
     InterpValue last_value = constexpr_values.back();
     while (constexpr_values.size() < array_size) {
