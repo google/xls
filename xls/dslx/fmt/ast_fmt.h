@@ -59,6 +59,7 @@ class Formatter {
   DocRef Format(const Impl& n);
   DocRef Format(const ImplMember& n);
   DocRef Format(const Import& n);
+  DocRef Format(const Use& n);
   DocRef Format(const ModuleMember& n);
   DocRef Format(const ParametricBinding& n);
   DocRef Format(const ParametricBinding* n);

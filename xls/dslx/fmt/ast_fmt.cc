@@ -2596,6 +2596,12 @@ DocRef Formatter::Format(const Import& n) {
   return ConcatNGroup(arena_, pieces);
 }
 
+DocRef Formatter::Format(const Use& n) {
+  // TODO(cdleary): 2024-12-07 This is just a stopgap, we should add reflow
+  // capability.
+  return arena_.MakeText(n.ToString());
+}
+
 DocRef Formatter::Format(const Let& n, bool trailing_semi) {
   std::vector<DocRef> leader_pieces = {
       arena_.Make(n.is_const() ? Keyword::kConst : Keyword::kLet),
@@ -2703,6 +2709,7 @@ DocRef Formatter::Format(const ModuleMember& n) {
                          [&](const ConstantDef* n) { return Format(*n); },
                          [&](const EnumDef* n) { return Format(*n); },
                          [&](const Import* n) { return Format(*n); },
+                         [&](const Use* n) { return Format(*n); },
                          [&](const ConstAssert* n) {
                            return arena_.MakeConcat(Format(*n), arena_.semi());
                          },

@@ -107,6 +107,7 @@
   X(TestProc)                     \
   X(TypeAlias)                    \
   X(TypeRef)                      \
+  X(Use)                          \
   X(WidthSlice)                   \
   X(WildcardPattern)              \
   /* type annotations */          \
@@ -1311,6 +1312,115 @@ class Import : public AstNode {
   std::vector<std::string> subject_;
   NameDef& name_def_;
   std::optional<std::string> alias_;
+};
+
+// -- Use
+
+class UseTreeEntry;  // forward decl
+
+// Interior node in the `use` construct tree.
+//
+//              v--v identifier
+// e.g. in `use foo::{bar, baz}`
+//                   ^--------^ subtrees
+//
+// For a node to be considered "interior" there must be subtrees.
+class UseInteriorEntry {
+ public:
+  UseInteriorEntry(std::string identifier,
+                   std::vector<std::unique_ptr<UseTreeEntry>> subtrees);
+
+  // Move-only.
+  UseInteriorEntry(UseInteriorEntry&&) = default;
+  UseInteriorEntry& operator=(UseInteriorEntry&&) = default;
+
+  std::vector<NameDef*> GetLeafNameDefs() const;
+
+  absl::Span<const std::unique_ptr<UseTreeEntry>> subtrees() const {
+    return subtrees_;
+  }
+
+  std::string ToString() const;
+
+ private:
+  std::string identifier_;
+  std::vector<std::unique_ptr<UseTreeEntry>> subtrees_;
+};
+
+// Leaf node in the `use` construct tree.
+struct UseLeafEntry {
+  NameDef* name_def;
+};
+
+// Arbitrary entry (interior or leaf) in the `use` construct tree.
+class UseTreeEntry {
+ public:
+  static std::unique_ptr<UseTreeEntry> MakeInterior(
+      std::string identifier,
+      std::vector<std::unique_ptr<UseTreeEntry>> subtrees, Span span);
+  static std::unique_ptr<UseTreeEntry> MakeLeaf(NameDef* name_def, Span span);
+
+  UseTreeEntry(std::variant<UseInteriorEntry, UseLeafEntry> entry, Span span)
+      : entry_(std::move(entry)), span_(std::move(span)) {}
+
+  std::string ToString() const;
+
+  std::vector<std::string> GetLeafIdentifiers() const;
+  std::vector<NameDef*> GetLeafNameDefs() const;
+
+ private:
+  std::variant<UseInteriorEntry, UseLeafEntry> entry_;
+  Span span_;
+};
+
+// Represents a use statement; e.g.
+//  use foo::bar::{baz::{bat, qux}, ipsum};
+//
+// In that case there are 3 leafs that create name definitions for the module:
+// `bat`, `qux`, and `ipsum`.
+//
+// You can also use a module directly instead of an item within it; e.g.
+//  use foo;
+//
+// And then subsequently refer to `foo::STUFF`.
+//
+// Note we DO NOT support multiple use at the "root" level; e.g.
+// ```
+//  use {bar, baz};
+// ```
+// is invalid.
+//
+// Attributes:
+//  span: Span of the overall `use` statement in the text.
+class Use : public AstNode {
+ public:
+  Use(Module* owner, Span span, std::unique_ptr<UseTreeEntry> root);
+
+  ~Use() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kUse; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleUse(this);
+  }
+  std::string_view GetNodeTypeName() const override { return "Use"; }
+  std::string ToString() const override;
+  std::optional<Span> GetSpan() const override { return span_; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::vector<std::string> GetLeafIdentifiers() const {
+    return root_->GetLeafIdentifiers();
+  }
+  std::vector<NameDef*> GetLeafNameDefs() const {
+    return root_->GetLeafNameDefs();
+  }
+
+  const Span& span() const { return span_; }
+
+ private:
+  Span span_;
+  std::unique_ptr<UseTreeEntry> root_;
 };
 
 // Represents a module-value or enum-value style reference when the LHS
