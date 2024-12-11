@@ -21,21 +21,24 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
+#include "llvm/include/llvm/ADT/SmallVectorExtras.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/Operation.h"
 #include "mlir/include/mlir/IR/SymbolTable.h"
+#include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/type.h"
 
 namespace mlir::xls {
+
 namespace {
 namespace vast = ::xls::verilog;
 using ::llvm::any_of;
+using ::llvm::map_to_vector;
 using ::xls::SourceInfo;
 
 struct ChannelPortNames {
@@ -44,13 +47,17 @@ struct ChannelPortNames {
   std::string valid;
 };
 
-ChannelPortNames getChannelPortNames(ChanOp chan,
+ChannelPortNames getChannelPortNames(StringRef chan,
                                      const XlsStitchOptions& options) {
   ChannelPortNames result;
-  result.data = absl::StrCat(chan.getName().str(), options.data_port_suffix);
-  result.ready = absl::StrCat(chan.getName().str(), options.ready_port_suffix);
-  result.valid = absl::StrCat(chan.getName().str(), options.valid_port_suffix);
+  result.data = absl::StrCat(chan.str(), options.data_port_suffix);
+  result.ready = absl::StrCat(chan.str(), options.ready_port_suffix);
+  result.valid = absl::StrCat(chan.str(), options.valid_port_suffix);
   return result;
+}
+ChannelPortNames getChannelPortNames(ChanOp chan,
+                                     const XlsStitchOptions& options) {
+  return getChannelPortNames(chan.getName(), options);
 }
 
 struct ChannelLogicRefs {
@@ -58,6 +65,42 @@ struct ChannelLogicRefs {
   vast::LogicRef* ready;
   vast::LogicRef* valid;
 };
+
+void AddInstantiation(ArrayRef<StringRef> localChannels,
+                      ArrayRef<ChanOp> globalChannels, vast::LogicRef* clk,
+                      vast::LogicRef* rst, vast::Module* top,
+                      std::string eprocName, std::string instanceName,
+                      DenseMap<ChanOp, ChannelLogicRefs>& channelRefs,
+                      const XlsStitchOptions& options) {
+  std::vector<vast::Connection> connections;
+  for (auto [local, global] : llvm::zip(localChannels, globalChannels)) {
+    ChanOp globalChan = cast<ChanOp>(global);
+    ChannelPortNames localNames = getChannelPortNames(local, options);
+    connections.push_back(vast::Connection{
+        .port_name = localNames.data,
+        .expression = channelRefs[globalChan].data,
+    });
+    connections.push_back(vast::Connection{
+        .port_name = localNames.ready,
+        .expression = channelRefs[globalChan].ready,
+    });
+    connections.push_back(vast::Connection{
+        .port_name = localNames.valid,
+        .expression = channelRefs[globalChan].valid,
+    });
+  }
+  connections.push_back(vast::Connection{
+      .port_name = options.clock_signal_name,
+      .expression = clk,
+  });
+  connections.push_back(vast::Connection{
+      .port_name = options.reset_signal_name,
+      .expression = rst,
+  });
+  top->Add<vast::Instantiation>(
+      SourceInfo(), eprocName, instanceName,
+      /*parameters=*/absl::Span<const vast::Connection>(), connections);
+}
 }  // namespace
 
 LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
@@ -126,41 +169,44 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
   }
 
   DenseMap<StringRef, int> instantiationCount;
-  op->walk([&](InstantiateEprocOp op) {
-    std::vector<vast::Connection> connections;
-    for (auto [local, global] :
-         llvm::zip(op.getLocalChannels(), op.getGlobalChannels())) {
-      ChanOp localChan = symbolTable.lookupNearestSymbolFrom<ChanOp>(
-          op, cast<FlatSymbolRefAttr>(local));
-      ChanOp globalChan = symbolTable.lookupNearestSymbolFrom<ChanOp>(
-          op, cast<FlatSymbolRefAttr>(global));
-      ChannelPortNames localNames = getChannelPortNames(localChan, options);
-      connections.push_back(vast::Connection{
-          .port_name = localNames.data,
-          .expression = channelRefs[globalChan].data,
-      });
-      connections.push_back(vast::Connection{
-          .port_name = localNames.ready,
-          .expression = channelRefs[globalChan].ready,
-      });
-      connections.push_back(vast::Connection{
-          .port_name = localNames.valid,
-          .expression = channelRefs[globalChan].valid,
-      });
+  op->walk([&](Operation* op) {
+    if (!isa<InstantiateEprocOp, InstantiateExternEprocOp>(op)) {
+      return;
     }
-    connections.push_back(vast::Connection{
-        .port_name = options.clock_signal_name,
-        .expression = clk,
-    });
-    connections.push_back(vast::Connection{
-        .port_name = options.reset_signal_name,
-        .expression = rst,
-    });
-    std::string instanceName = absl::StrCat(
-        op.getEproc().str(), "_", instantiationCount[op.getEproc()]++);
-    top->Add<vast::Instantiation>(
-        SourceInfo(), op.getEproc().str(), instanceName,
-        /*parameters=*/absl::Span<const vast::Connection>(), connections);
+
+    if (auto instantiate = dyn_cast<InstantiateEprocOp>(op)) {
+      auto localChannels = map_to_vector(
+          instantiate.getLocalChannels().getAsRange<FlatSymbolRefAttr>(),
+          [](FlatSymbolRefAttr ref) { return ref.getValue(); });
+      auto globalChannels = map_to_vector(
+          instantiate.getGlobalChannels().getAsRange<FlatSymbolRefAttr>(),
+          [&](FlatSymbolRefAttr ref) {
+            return symbolTable.lookupNearestSymbolFrom<ChanOp>(op, ref);
+          });
+      std::string instanceName =
+          absl::StrCat(instantiate.getEproc().str(), "_",
+                       instantiationCount[instantiate.getEproc()]++);
+      AddInstantiation(localChannels, globalChannels, clk, rst, top,
+                       instantiate.getEproc().str(), instanceName, channelRefs,
+                       options);
+      return;
+    }
+
+    InstantiateExternEprocOp instantiate = cast<InstantiateExternEprocOp>(op);
+    auto localChannels = map_to_vector(
+        instantiate.getBoundaryChannelNames().getAsRange<StringAttr>(),
+        [](StringAttr ref) { return ref.getValue(); });
+    auto globalChannels = map_to_vector(
+        instantiate.getGlobalChannels().getAsRange<FlatSymbolRefAttr>(),
+        [&](FlatSymbolRefAttr ref) {
+          return symbolTable.lookupNearestSymbolFrom<ChanOp>(op, ref);
+        });
+    std::string instanceName =
+        absl::StrCat(instantiate.getEprocName().str(), "_",
+                     instantiationCount[instantiate.getEprocName()]++);
+    AddInstantiation(localChannels, globalChannels, clk, rst, top,
+                     instantiate.getEprocName().str(), instanceName,
+                     channelRefs, options);
   });
 
   output << f.Emit();
