@@ -23,6 +23,9 @@ build --copt "-D_HAS_AUTO_PTR_ETC=0"   --host_copt "-D_HAS_AUTO_PTR_ETC=0"
 build --copt "-Wall"                   --host_copt "-Wall"
 build --copt "-Wextra"                 --host_copt "-Wextra"
 
+# Turn some specific warnings into errors.
+build --copt "-Werror=switch" --host_copt "-Werror=switch"
+
 # ... and disable the warnings we're not interested in.
 build --copt "-Wno-sign-compare"       --host_copt "-Wno-sign-compare"
 build --copt "-Wno-comment"            --host_copt "-Wno-comment"

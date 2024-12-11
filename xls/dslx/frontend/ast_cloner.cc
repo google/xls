@@ -400,7 +400,38 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleUse(const Use* n) override {
-    return absl::UnimplementedError("Not implemented: clone use");
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    const UseTreeEntry* old_root = &n->root();
+    UseTreeEntry& new_root =
+        *down_cast<UseTreeEntry*>(old_to_new_.at(old_root));
+    old_to_new_[n] = module_->Make<Use>(n->span(), new_root);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleUseTreeEntry(const UseTreeEntry* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    using PayloadT = std::variant<UseInteriorEntry, NameDef*>;
+    PayloadT new_payload = absl::visit(
+        Visitor{[&](const NameDef* name_def) -> PayloadT {
+                  return down_cast<NameDef*>(old_to_new_.at(name_def));
+                },
+                [&](const UseInteriorEntry& interior) -> PayloadT {
+                  std::vector<UseTreeEntry*> new_subtrees;
+                  new_subtrees.reserve(interior.subtrees().size());
+                  for (UseTreeEntry* subtree : interior.subtrees()) {
+                    new_subtrees.push_back(
+                        down_cast<UseTreeEntry*>(old_to_new_.at(subtree)));
+                  }
+                  return UseInteriorEntry{std::string{interior.identifier()},
+                                          std::move(new_subtrees)};
+                }},
+        n->payload());
+
+    old_to_new_[n] =
+        module_->Make<UseTreeEntry>(std::move(new_payload), n->span());
+    return absl::OkStatus();
   }
 
   absl::Status HandleIndex(const Index* n) override {

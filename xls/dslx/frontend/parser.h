@@ -561,8 +561,7 @@ class Parser : public TokenParser {
 
   // Parses a single entry in a `use` tree -- this can be a leaf or an interior
   // entry.
-  absl::StatusOr<std::unique_ptr<UseTreeEntry>> ParseUseTreeEntry(
-      Bindings& bindings);
+  absl::StatusOr<UseTreeEntry*> ParseUseTreeEntry(Bindings& bindings);
 
   // Parses a use statement into a `Use` AST node.
   absl::StatusOr<Use*> ParseUse(Bindings& bindings);

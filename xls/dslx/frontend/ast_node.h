@@ -95,6 +95,7 @@ enum class AstNodeKind : uint8_t {
   kUnop,
   kUnrollFor,
   kUse,
+  kUseTreeEntry,
   kVerbatimNode,
   kWidthSlice,
   kWildcardPattern,
