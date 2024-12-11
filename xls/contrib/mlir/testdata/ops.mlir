@@ -575,3 +575,15 @@ xls.eproc @eproc(%arg: i32) zeroinitializer {
 
 // expected-error@+1 {{'xls.instantiate_eproc' op '@unknown' does not reference a valid channel}}
 xls.instantiate_eproc @eproc (@unknown as @unknown)
+
+
+// -----
+
+xls.eproc @eproc(%pred: i1, %arg: i32) zeroinitializer {
+// CHECK-LABEL: xls.eproc @eproc(
+// CHECK-SAME:   %[[VAL_0:.*]]: i1,
+// CHECK-SAME:   %[[VAL_1:.*]]: i32
+// CHECK: xls.next_value {{\[}}%[[VAL_0]], %[[VAL_1]]], {{\[}}%[[VAL_0]], %[[VAL_1]]] : (i32, i32) -> i32
+  %0 = xls.next_value [%pred, %arg], [%pred, %arg] : (i32, i32) -> i32
+  xls.yield %pred, %0 : i1, i32
+}

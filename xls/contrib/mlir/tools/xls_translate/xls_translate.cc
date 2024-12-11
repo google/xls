@@ -76,6 +76,8 @@
 namespace mlir::xls {
 namespace {
 
+using ::llvm::dyn_cast_if_present;
+using ::llvm::zip;
 using ::mlir::func::FuncOp;
 using ::xls::BuilderBase;
 using ::xls::BValue;
@@ -1067,6 +1069,11 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
           }
           return out = fb.Tuple(operands);
         })
+        .Case<NextValueOp>([&](NextValueOp next) {
+          // We just skip the next value op here as its handled in the eproc
+          // conversion.
+          return value_map[next.getValues()[0]];
+        })
         .Case<CallDslxOp>([&](CallDslxOp call) {
           llvm::errs() << "Call remaining, call pass normalize-xls-calls "
                           "before translation\n";
@@ -1273,11 +1280,20 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       if (failed(out)) {
         return eproc->emitOpError() << "unable to convert eproc";
       }
-      std::vector<BValue> next_state;
-      for (Value arg : eproc.getYieldedArguments()) {
-        next_state.push_back(valueMap[arg]);
+      for (auto [arg, yield] :
+           zip(eproc.getStateArguments(), eproc.getYieldedArguments())) {
+        if (auto def =
+                dyn_cast_if_present<NextValueOp>(yield.getDefiningOp())) {
+          auto next_value = cast<NextValueOp>(def);
+          for (auto [pred, value] :
+               llvm::zip(next_value.getPredicates(), next_value.getValues())) {
+            fb.Next(valueMap[arg], valueMap[yield], /*pred=*/valueMap[pred]);
+          }
+        } else {
+          fb.Next(valueMap[arg], valueMap[yield]);
+        }
       }
-      if (absl::StatusOr<::xls::Proc*> s = fb.Build(next_state); !s.ok()) {
+      if (absl::StatusOr<::xls::Proc*> s = fb.Build(); !s.ok()) {
         llvm::errs() << "Failed to build proc: " << s.status().message()
                      << "\n";
         return failure();

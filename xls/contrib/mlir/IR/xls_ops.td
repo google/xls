@@ -1432,6 +1432,32 @@ def Xls_InstantiateExternEprocOp : Xls_Op<"instantiate_extern_eproc", []> {
   }];
 }
 
+def Xls_NextValueOp : Xls_Op<"next_value", [Pure, SameVariadicOperandSize]> {
+  let summary = "Selects the next value to yield for eproc";
+  let description = [{
+    The next_value op represents, if feeding into a yield of a elaborated proc,
+    the selected next value to yield. It consists of pairs of values, where the
+    first value is the predicate and the second value is the value to yield if
+    the predicate is true. The operation assumes that the predicates are
+    disjoint at runtime (only one may be true).
+
+    This opereation has no semantics and can be deleted if it does not feed
+    directly into a xls.yield op.
+  }];
+  let arguments = (ins
+    Variadic<I1>:$predicates,
+    Variadic<Xls_Bits>:$values
+  );
+  let results = (outs
+    Xls_Bits:$result
+  );
+  // TODO(jpienaar): The verifier should be made stricter (check element type
+  // matches).
+  let assemblyFormat = [{
+    custom<NextValuePair>($predicates, $values) attr-dict `:` functional-type($values, results)
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Structured procs
 //===----------------------------------------------------------------------===//

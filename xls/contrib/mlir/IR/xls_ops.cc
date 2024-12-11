@@ -110,6 +110,36 @@ ShapeOrBad getShapeSplat(Operation::operand_type_range range) {
 }
 }  // namespace
 
+ParseResult parseNextValuePair(
+    OpAsmParser& parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand>& predicates,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand>& values) {
+  do {
+    if (parser.parseLSquare() ||
+        parser.parseOperand(predicates.emplace_back()) || parser.parseComma() ||
+        parser.parseOperand(values.emplace_back()) || parser.parseRSquare()) {
+      return failure();
+    }
+  } while (!parser.parseOptionalComma());
+  return success();
+}
+
+void printNextValuePair(OpAsmPrinter& printer, NextValueOp /*op*/,
+                        OperandRange predicates, OperandRange values) {
+  bool first = true;
+  for (auto [predicate, value] : llvm::zip(predicates, values)) {
+    if (!first) {
+      printer << ", ";
+    }
+    first = false;
+    printer << '[';
+    printer.printOperand(predicate);
+    printer << ", ";
+    printer.printOperand(value);
+    printer << ']';
+  }
+}
+
 void CallDslxOp::getEffects(
     llvm::SmallVectorImpl<mlir::MemoryEffects::EffectInstance>& effects) {
   if (getIsPure()) {

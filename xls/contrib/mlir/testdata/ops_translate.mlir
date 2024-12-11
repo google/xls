@@ -284,11 +284,14 @@ xls.chan @mychan : i32
 
 // XLS-LABEL: proc eproc({{.*}: bits[32], {{.*}}: (bits[32], bits[1]), {{.*}}: bits[32]}, {{.*}}: bits[16])
 // XLS:  next
-xls.eproc @eproc(%arg0: i32, %arg1: tuple<i32, i1>, %arg2: i1, %arg3: bf16) zeroinitializer {
+xls.eproc @eproc(%arg0: i32 loc("a"), %arg1: tuple<i32, i1> loc("b"),
+    %arg2: i1 loc("pred"), %arg3: bf16 loc("fp")) zeroinitializer {
   %0 = "xls.constant_scalar"() { value = 6 : i32 } : () -> i32
   %tkn1 = "xls.after_all"() : () -> !xls.token
   %tkn_out, %result = xls.blocking_receive %tkn1, @mychan : i32
   %tkn2 = xls.send %tkn_out, %0, @mychan : i32
   %tkn_out2, %result2, %done = xls.nonblocking_receive %tkn2, %arg2, @mychan : i32
-  xls.yield %arg0, %arg1, %arg2, %arg3 : i32, tuple<i32, i1>, i1, bf16
+  // CHECK: next_value(param=a, value=a, predicate=pred
+  %2 = xls.next_value [%arg2, %arg0] : (i32) -> i32
+  xls.yield %2, %arg1, %arg2, %arg3 : i32, tuple<i32, i1>, i1, bf16
 }
