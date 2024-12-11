@@ -156,6 +156,22 @@ fn main() -> uN[8] {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
+TEST(TypecheckTest, ImplFunctionReturnsSelf) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn unit() -> Self { Point { x: u32:1, y: u32:1 } }
+}
+
+fn point_dims() -> u1 {
+    let p = Point::unit();
+    uN[p.x]:0
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckTest, ImplsForDifferentStructs) {
   constexpr std::string_view kProgram = R"(
 struct Point { x: u32, y: u32 }

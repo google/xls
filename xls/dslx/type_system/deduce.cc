@@ -1798,16 +1798,24 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceSelfTypeAnnotation(
     const SelfTypeAnnotation* node, DeduceCtx* ctx) {
   VLOG(5) << "DeduceSelfTypeAnnotation: " << node->ToString();
 
-  // Currently `self` is only supported for functions within `impl`. Identify
-  // the relevant `impl` and return the type for the associated `struct`.
-  // Lineage:
-  // impl --> function --> parameter --> type.
-  AstNode* param = node->parent();
-  XLS_RET_CHECK(param != nullptr);
-  AstNode* fn = param->parent();
+  // Currently `self` is only supported for functions within `impl` either as a
+  // parameter or a return type.
+  //  * Lineage for a parameter:
+  //    impl --> function --> parameter --> type.
+  //  * Lineage for a function return:
+  //    impl --> function --> type.
+  //
+  // Identify the relevant `impl` and return the type for the associated
+  // `struct`.
+
+  Function* fn;
+  if (auto* param = dynamic_cast<Param*>(node->parent())) {
+    fn = dynamic_cast<Function*>(param->parent());
+  } else {
+    fn = dynamic_cast<Function*>(node->parent());
+  }
   XLS_RET_CHECK(fn != nullptr);
-  AstNode* impl_node = fn->parent();
-  Impl* impl = dynamic_cast<Impl*>(impl_node);
+  Impl* impl = dynamic_cast<Impl*>(fn->parent());
   XLS_RET_CHECK(impl != nullptr);
 
   return ctx->Deduce(ToAstNode(impl->struct_ref()));
