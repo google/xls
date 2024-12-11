@@ -69,10 +69,11 @@ absl::StatusOr<InterpValue> GenerateBitValue(absl::BitGenRef bit_gen,
   return InterpValue::MakeBits(tag, GenerateBits(bit_gen, bit_count));
 }
 
-absl::StatusOr<InterpValue> GenerateBitValue(absl::BitGenRef bit_gen,
-                                             const dslx::BitsType& bits_type) {
-  XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type.size().GetAsInt64());
-  return GenerateBitValue(bit_gen, bit_count, bits_type.is_signed());
+absl::StatusOr<InterpValue> GenerateBitValue(
+    absl::BitGenRef bit_gen, const dslx::BitsLikeProperties& bits_like) {
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_like.size.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like.is_signed.GetAsBool());
+  return GenerateBitValue(bit_gen, bit_count, is_signed);
 }
 
 // Evaluates the given Expr* (holding the declaration of an
@@ -293,51 +294,23 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
       typeref->type_definition());
 }
 
-absl::StatusOr<InterpValue> GenerateInterpValue(
-    absl::BitGenRef bit_gen, const dslx::Type& arg_type,
+static absl::StatusOr<InterpValue> GenerateBitsLikeInterpValue(
+    absl::BitGenRef bit_gen, const dslx::BitsLikeProperties& bits_like,
     absl::Span<const InterpValue> prior) {
-  XLS_RET_CHECK(!arg_type.IsMeta()) << arg_type.ToString();
-  if (auto* channel_type = dynamic_cast<const dslx::ChannelType*>(&arg_type)) {
-    // For channels, the argument must be of its payload type.
-    return GenerateInterpValue(bit_gen, channel_type->payload_type(), prior);
-  }
-  if (auto* tuple_type = dynamic_cast<const dslx::TupleType*>(&arg_type)) {
-    std::vector<InterpValue> members;
-    for (const std::unique_ptr<dslx::Type>& t : tuple_type->members()) {
-      XLS_ASSIGN_OR_RETURN(InterpValue member,
-                           GenerateInterpValue(bit_gen, *t, prior));
-      members.push_back(member);
-    }
-    return InterpValue::MakeTuple(members);
-  }
-  if (auto* array_type = dynamic_cast<const dslx::ArrayType*>(&arg_type)) {
-    std::vector<InterpValue> elements;
-    const dslx::Type& element_type = array_type->element_type();
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
-    for (int64_t i = 0; i < array_size; ++i) {
-      XLS_ASSIGN_OR_RETURN(InterpValue element,
-                           GenerateInterpValue(bit_gen, element_type, prior));
-      elements.push_back(element);
-    }
-    return InterpValue::MakeArray(std::move(elements));
-  }
-  auto* bits_type = dynamic_cast<const dslx::BitsType*>(&arg_type);
-  XLS_RET_CHECK(bits_type != nullptr);
   if (prior.empty() || absl::Bernoulli(bit_gen, 0.5)) {
-    return GenerateBitValue(bit_gen, *bits_type);
+    return GenerateBitValue(bit_gen, bits_like);
   }
 
   // Try to mutate a prior argument. If it happens to not be a bits type that we
   // look at, then just generate an unbiased argument.
   int64_t index = absl::Uniform(bit_gen, size_t{0}, prior.size());
   if (!prior[index].IsBits()) {
-    return GenerateBitValue(bit_gen, *bits_type);
+    return GenerateBitValue(bit_gen, bits_like);
   }
 
   Bits to_mutate = prior[index].GetBitsOrDie();
 
-  XLS_ASSIGN_OR_RETURN(const int64_t target_bit_count,
-                       bits_type->size().GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t target_bit_count, bits_like.size.GetAsInt64());
   if (target_bit_count > to_mutate.bit_count()) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue addendum,
@@ -358,9 +331,53 @@ absl::StatusOr<InterpValue> GenerateInterpValue(
       bitmap.Set(bitno, !bitmap.Get(bitno));
     }
   }
-  bool is_signed = bits_type->is_signed();
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like.is_signed.GetAsBool());
   auto tag = is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   return InterpValue::MakeBits(tag, Bits::FromBitmap(std::move(bitmap)));
+}
+
+absl::StatusOr<InterpValue> GenerateInterpValue(
+    absl::BitGenRef bit_gen, const dslx::Type& arg_type,
+    absl::Span<const InterpValue> prior) {
+  XLS_RET_CHECK(!arg_type.IsMeta()) << arg_type.ToString();
+  XLS_RET_CHECK(dynamic_cast<const dslx::BitsConstructorType*>(&arg_type) ==
+                nullptr)
+      << "`BitsConstructorType`s are not valid InterpValue types.";
+
+  if (auto* channel_type = dynamic_cast<const dslx::ChannelType*>(&arg_type)) {
+    // For channels, the argument must be of its payload type.
+    return GenerateInterpValue(bit_gen, channel_type->payload_type(), prior);
+  }
+  if (auto* tuple_type = dynamic_cast<const dslx::TupleType*>(&arg_type)) {
+    std::vector<InterpValue> members;
+    for (const std::unique_ptr<dslx::Type>& t : tuple_type->members()) {
+      XLS_ASSIGN_OR_RETURN(InterpValue member,
+                           GenerateInterpValue(bit_gen, *t, prior));
+      members.push_back(member);
+    }
+    return InterpValue::MakeTuple(members);
+  }
+
+  // Note: we have to test for BitsLike before ArrayType because
+  // array-of-bits-constructor looks like an array but is actually bits-like.
+  std::optional<dslx::BitsLikeProperties> bits_like = GetBitsLike(arg_type);
+  if (bits_like.has_value()) {
+    return GenerateBitsLikeInterpValue(bit_gen, bits_like.value(), prior);
+  }
+
+  if (auto* array_type = dynamic_cast<const dslx::ArrayType*>(&arg_type)) {
+    std::vector<InterpValue> elements;
+    const dslx::Type& element_type = array_type->element_type();
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    for (int64_t i = 0; i < array_size; ++i) {
+      XLS_ASSIGN_OR_RETURN(InterpValue element,
+                           GenerateInterpValue(bit_gen, element_type, prior));
+      elements.push_back(element);
+    }
+    return InterpValue::MakeArray(std::move(elements));
+  }
+
+  return absl::UnimplementedError("Unsupported type for GenerateInterpValue");
 }
 
 absl::StatusOr<std::vector<InterpValue>> GenerateInterpValues(
@@ -369,6 +386,9 @@ absl::StatusOr<std::vector<InterpValue>> GenerateInterpValues(
   for (const dslx::Type* arg_type : arg_types) {
     XLS_RET_CHECK(arg_type != nullptr);
     XLS_RET_CHECK(!arg_type->IsMeta());
+    XLS_RET_CHECK(dynamic_cast<const dslx::BitsConstructorType*>(arg_type) ==
+                  nullptr)
+        << "`BitsConstructorType`s are not valid parameter types.";
     XLS_ASSIGN_OR_RETURN(InterpValue arg,
                          GenerateInterpValue(bit_gen, *arg_type, args));
     args.push_back(std::move(arg));

@@ -250,18 +250,15 @@ static absl::StatusOr<std::pair<std::string, int64_t>> Generate(
   return std::make_pair(module.module->ToString(), module.min_stages);
 }
 
-// The function translates a list of Type unique_ptrs to a list of
-// pointers to Type. The latter is used as a parameter to the
-// GenerateArguments.
-static std::vector<const dslx::Type*> TranslateTypeList(
-    absl::Span<const std::unique_ptr<dslx::Type>> list) {
-  std::vector<const dslx::Type*> translation(list.size());
-  auto translation_iter = translation.begin();
-  for (const auto& element : list) {
-    *translation_iter = element.get();
-    translation_iter++;
+// Unwraps unique_ptr elements to a vector of pointers.
+static std::vector<const dslx::Type*> UnwrapUniquePtrs(
+    absl::Span<const std::unique_ptr<dslx::Type>> wrapped) {
+  std::vector<const dslx::Type*> unwrapped;
+  unwrapped.reserve(wrapped.size());
+  for (const auto& unique : wrapped) {
+    unwrapped.push_back(unique.get());
   }
-  return translation;
+  return unwrapped;
 }
 
 // Returns the parameter types of a Function.
@@ -270,7 +267,12 @@ GetParamTypesOfFunction(dslx::Function* function, const TypecheckedModule& tm) {
   std::vector<std::unique_ptr<dslx::Type>> params;
   XLS_ASSIGN_OR_RETURN(dslx::FunctionType * fn_type,
                        tm.type_info->GetItemAs<dslx::FunctionType>(function));
-  for (const auto& param : fn_type->params()) {
+  for (const std::unique_ptr<dslx::Type>& param : fn_type->params()) {
+    XLS_RET_CHECK(!param->IsMeta());
+    XLS_RET_CHECK(dynamic_cast<const dslx::BitsConstructorType*>(param.get()) ==
+                  nullptr)
+        << "`BitsConstructorType`s are not valid parameter types.";
+
     params.push_back(param->CloneToUnique());
   }
   return params;
@@ -340,7 +342,7 @@ static absl::StatusOr<Sample> GenerateFunctionSample(
     const std::string& dslx_text) {
   XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<dslx::Type>> top_params,
                        GetParamTypesOfFunction(function, tm));
-  std::vector<const dslx::Type*> params = TranslateTypeList(top_params);
+  std::vector<const dslx::Type*> params = UnwrapUniquePtrs(top_params);
 
   testvector::SampleInputsProto testvector;
   testvector::FunctionArgsProto* fun_args = testvector.mutable_function_args();
@@ -362,7 +364,7 @@ static absl::StatusOr<Sample> GenerateProcSample(
       std::vector<std::unique_ptr<dslx::Type>> input_channel_payload_types,
       GetInputChannelPayloadTypesOfProc(proc, tm));
   std::vector<const dslx::Type*> input_channel_payload_types_ptr =
-      TranslateTypeList(input_channel_payload_types);
+      UnwrapUniquePtrs(input_channel_payload_types);
 
   // Create number of values needed for the proc_ticks.
   // Actual proc-tics the execution needs might be longer depending on
@@ -444,7 +446,8 @@ absl::StatusOr<Sample> GenerateSample(
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data);
   if (!tm.ok()) {
-    LOG(ERROR) << "Generated sample failed to parse.";
+    LOG(ERROR) << "Generated sample failed to parse-and-typecheck ("
+               << dslx_text.size() << " bytes):";
     XLS_LOG_LINES(ERROR, dslx_text);
     return tm.status();
   }

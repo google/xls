@@ -62,30 +62,6 @@
 #include "xls/ir/bits.h"
 
 namespace xls::dslx {
-namespace {
-
-// Fully instantiate the given parametric BitsType using the symbol mappings in
-// `env`.
-absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
-    const absl::flat_hash_map<std::string, InterpValue>& env,
-    const BitsType* bits_type) {
-  ParametricExpression::Env parametric_env;
-  for (const auto& [k, v] : env) {
-    parametric_env[k] = v;
-  }
-  ParametricExpression::Evaluated e =
-      bits_type->size().parametric().Evaluate(parametric_env);
-  if (!std::holds_alternative<InterpValue>(e)) {
-    return absl::InternalError(
-        absl::StrCat("Parametric number size did not evaluate to a constant: ",
-                     bits_type->size().ToString()));
-  }
-  return std::make_unique<BitsType>(
-      bits_type->is_signed(),
-      std::get<InterpValue>(e).GetBitValueViaSign().value());
-}
-
-}  // namespace
 
 /* static */ absl::Status ConstexprEvaluator::Evaluate(
     ImportData* import_data, TypeInfo* type_info,
@@ -553,13 +529,15 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
     XLS_RET_CHECK(tt != nullptr);
     type_ptr = tt->wrapped().get();
 
-    const BitsType* bt = down_cast<const BitsType*>(type_ptr);
-    XLS_RET_CHECK(bt != nullptr);
-    if (bt->size().IsParametric()) {
-      XLS_ASSIGN_OR_RETURN(temp_type, InstantiateParametricNumberType(
-                                          constexpr_env_data.env, bt));
-      type_ptr = temp_type.get();
-    }
+    std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type_ptr);
+    XLS_RET_CHECK(bits_like.has_value())
+        << "Type for number should be bits-like; got: " << type_ptr->ToString();
+
+    // Materialize the bits type.
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_like->size.GetAsInt64());
+    temp_type = std::make_unique<BitsType>(is_signed, bit_count);
+    type_ptr = temp_type.get();
   } else if (type_ != nullptr) {
     type_ptr = type_;
   } else if (expr->number_kind() == NumberKind::kBool) {

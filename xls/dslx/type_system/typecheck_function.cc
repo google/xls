@@ -137,6 +137,8 @@ absl::Status TypecheckStructParametrics(
 
 absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
   VLOG(2) << "Typechecking fn: " << f.identifier();
+  VLOG(2) << absl::StreamFormat("Fn stack (%d entries):",
+                                ctx->fn_stack().size());
   XLS_VLOG_LINES(2, ctx->GetFnStackDebugString());
 
   WarnIfConfusinglyNamedLikeTest(f, ctx);

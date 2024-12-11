@@ -202,7 +202,7 @@ std::string AstGenerator::GenSym() {
 }
 
 absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
-    TypeAnnotation* type) {
+    const TypeAnnotation* type) {
   std::optional<BitVectorMetadata> metadata = ExtractBitVectorMetadata(type);
   if (!metadata.has_value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -326,9 +326,22 @@ BuiltinTypeAnnotation* AstGenerator::MakeTokenType() {
       module_->GetOrCreateBuiltinNameDef(BuiltinType::kToken));
 }
 
-TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
-                                                 int64_t width) {
+TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed, int64_t width,
+                                                 bool use_xn) {
   CHECK_GE(width, 0);
+
+  if (use_xn) {
+    auto* element_type = module_->Make<BuiltinTypeAnnotation>(
+        fake_span_, BuiltinType::kXN,
+        module_->GetOrCreateBuiltinNameDef(BuiltinType::kXN));
+    Number* signedness = MakeBool(is_signed);
+    auto* signedness_array = module_->Make<ArrayTypeAnnotation>(
+        fake_span_, element_type, signedness);
+    Number* bit_count = MakeNumber(width);
+    return module_->Make<ArrayTypeAnnotation>(fake_span_, signedness_array,
+                                              bit_count);
+  }
+
   if (width > 0 && width <= 64) {
     BuiltinType type = GetBuiltinType(is_signed, width).value();
     return module_->Make<BuiltinTypeAnnotation>(
@@ -356,7 +369,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Context* ctx) {
   Binop* binop =
       module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr, fake_span_);
   return TypedExpr{.expr = binop,
-                   .type = MakeTypeAnnotation(false, 1),
+                   .type = MakeBoolTypeAnnotation(),
                    .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
                                                           rhs.last_delaying_op),
                    .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
@@ -562,7 +575,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
                            std::vector<Expr*>{token_ref, chan_expr,
                                               default_value.value().expr}),
                        .type = MakeTupleType({token_type, channel_type,
-                                              MakeTypeAnnotation(false, 1)}),
+                                              MakeBoolTypeAnnotation()}),
                        .last_delaying_op = LastDelayingOp::kRecv,
                        .min_stage = min_stage};
     case ChannelOpType::kRecvIf:
@@ -629,7 +642,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
   BinopKind op = RandomBool(0.5) ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{.expr = module_->Make<Binop>(fake_span_, op, lhs.expr,
                                                 rhs.expr, fake_span_),
-                   .type = MakeTypeAnnotation(false, 1),
+                   .type = MakeBoolTypeAnnotation(),
                    .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
                                                           rhs.last_delaying_op),
                    .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
@@ -791,7 +804,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
   BinopKind op = RandomBool(0.5) ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{.expr = module_->Make<Binop>(fake_span_, op, lhs.expr,
                                                 rhs.expr, fake_span_),
-                   .type = MakeTypeAnnotation(false, 1),
+                   .type = MakeBoolTypeAnnotation(),
                    .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
                                                           rhs.last_delaying_op),
                    .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
@@ -1126,7 +1139,9 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   if (is_signed != IsUBits(lhs.type)) {
     lhs_cast = lhs;
   } else {
-    lhs_cast.type = MakeTypeAnnotation(is_signed, GetTypeBitCount(lhs.type));
+    bool use_xn = RandomBool(0.05);
+    lhs_cast.type =
+        MakeTypeAnnotation(is_signed, GetTypeBitCount(lhs.type), use_xn);
     lhs_cast.expr = module_->Make<Cast>(fake_span_, lhs.expr, lhs_cast.type);
     lhs_cast.last_delaying_op = lhs.last_delaying_op;
     lhs_cast.min_stage = lhs.min_stage;
@@ -1135,16 +1150,19 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   if (is_signed != IsUBits(rhs.type)) {
     rhs_cast = rhs;
   } else {
-    rhs_cast.type = MakeTypeAnnotation(is_signed, GetTypeBitCount(rhs.type));
+    bool use_xn = RandomBool(0.05);
+    rhs_cast.type =
+        MakeTypeAnnotation(is_signed, GetTypeBitCount(rhs.type), use_xn);
     rhs_cast.expr = module_->Make<Cast>(fake_span_, rhs.expr, rhs_cast.type);
     rhs_cast.last_delaying_op = rhs.last_delaying_op;
     rhs_cast.min_stage = rhs.min_stage;
   }
 
-  TypeAnnotation* unsigned_type =
-      MakeTypeAnnotation(false, GetTypeBitCount(lhs.type));
+  bool use_xn = RandomBool(0.05);
+  TypeAnnotation* unsigned_type = MakeTypeAnnotation(
+      /*is_signed=*/false, GetTypeBitCount(lhs.type), use_xn);
   TypeAnnotation* signed_type =
-      MakeTypeAnnotation(true, GetTypeBitCount(lhs.type));
+      MakeTypeAnnotation(true, GetTypeBitCount(lhs.type), use_xn);
   auto mulp = TypedExpr{.expr = module_->Make<Invocation>(
                             fake_span_, MakeBuiltinNameRef(op),
                             std::vector<Expr*>{lhs_cast.expr, rhs_cast.expr}),
@@ -1286,11 +1304,9 @@ Number* AstGenerator::GenerateNumberFromBits(const Bits& value,
 }
 
 int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
-  std::string type_str = type->ToString();
-  if (type_str == "uN" || type_str == "sN" || type_str == "bits") {
-    // These types are not valid alone, but as the element type of an array
-    // (e.g. uN[42]) where they effectively have a width of one bit.
-    return 1;
+  absl::StatusOr<int64_t> bit_count = BitsTypeGetBitCount(type);
+  if (bit_count.ok()) {
+    return bit_count.value();
   }
 
   if (auto* builtin = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
@@ -1310,7 +1326,9 @@ int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
     return GetTypeBitCount(&type_alias->type_annotation());
   }
 
-  return type_bit_counts_.at(type_str);
+  DCHECK(type_bit_counts_.contains(type->ToString()))
+      << "Unknown type for determining bit count: " << type->ToString();
+  return type_bit_counts_.at(type->ToString());
 }
 
 absl::StatusOr<uint64_t> AstGenerator::GetExprAsUint64(Expr* expr) {
@@ -1348,7 +1366,9 @@ ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,
   if (auto it = constants_.find(identifier); it != constants_.end()) {
     constant_def = it->second;
   } else {
-    TypeAnnotation* size_type = MakeTypeAnnotation(false, width);
+    bool use_xn = RandomBool(0.05);
+    TypeAnnotation* size_type =
+        MakeTypeAnnotation(/*is_signed=*/false, width, use_xn);
 
     NameDef* name_def =
         module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
@@ -1534,8 +1554,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
   if (byte_count > 0 && RandomBool(0.05)) {
     int64_t length =
         absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, byte_count);
-    return TypedExpr{GenerateString(length),
-                     MakeArrayType(MakeTypeAnnotation(false, 8), length)};
+    bool use_xn = RandomBool(0.05);
+    return TypedExpr{
+        GenerateString(length),
+        MakeArrayType(MakeTypeAnnotation(/*is_signed=*/false, 8, use_xn),
+                      length)};
   }
   // Choose an arbitrary non-token value from the environment, then gather all
   // elements from the environment of that type.
@@ -1687,7 +1710,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
                                   operands[i].expr, fake_span_);
   }
 
-  TypeAnnotation* return_type = MakeTypeAnnotation(false, total_width);
+  bool use_xn = RandomBool(0.05);
+  TypeAnnotation* return_type =
+      MakeTypeAnnotation(/*is_signed=*/false, total_width, use_xn);
   return TypedExpr{.expr = result,
                    .type = return_type,
                    .last_delaying_op = last_delaying_op,
@@ -1711,7 +1736,8 @@ TypedExpr AstGenerator::GenerateNumberWithType(
     std::optional<BitsAndSignedness> bas, Bits* out) {
   TypeAnnotation* type;
   if (bas.has_value()) {
-    type = MakeTypeAnnotation(bas->signedness, bas->bits);
+    bool use_xn = RandomBool(0.05);
+    type = MakeTypeAnnotation(bas->signedness, bas->bits, use_xn);
   } else {
     BuiltinTypeAnnotation* builtin_type = GeneratePrimitiveType();
     type = builtin_type;
@@ -1812,7 +1838,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
   // Right now just generates the 'identity' for loop.
   // TODO(meheff): Generate more interesting loop bodies.
-  TypeAnnotation* ivar_type = MakeTypeAnnotation(false, 4);
+  bool use_xn = RandomBool(0.05);
+  TypeAnnotation* ivar_type =
+      MakeTypeAnnotation(/*is_signed=*/false, 4, use_xn);
   Number* zero = GenerateNumber(0, ivar_type);
   Number* trips = GenerateNumber(
       absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 1, 8), ivar_type);
@@ -1980,7 +2008,9 @@ TypeAnnotation* AstGenerator::GenerateBitsType(
   if (max_width <= 64 || RandomBool(0.9)) {
     // Once in a while generate a zero-width bits type.
     if (options_.emit_zero_width_bits_types && RandomBool(1. / 63)) {
-      return MakeTypeAnnotation(/*is_signed=*/RandomBool(0.5), 0);
+      bool is_signed = RandomBool(0.5);
+      bool use_xn = RandomBool(0.05);
+      return MakeTypeAnnotation(is_signed, /*width=*/0, use_xn);
     }
     return GeneratePrimitiveType(max_width_bits_types);
   }
@@ -1990,10 +2020,12 @@ TypeAnnotation* AstGenerator::GenerateBitsType(
   if (max_width > 128 && RandomBool(1. / 9)) {
     max_width = 128;
   }
+  bool use_xn = RandomBool(0.05);
   return MakeTypeAnnotation(
       /*is_signed=*/RandomBool(0.5),
-      /*width=*/absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 65,
-                                       max_width));
+      /*width=*/
+      absl::Uniform<int64_t>(absl::IntervalClosed, bit_gen_, 65, max_width),
+      /*use_xn=*/use_xn);
 }
 
 TypeAnnotation* AstGenerator::GenerateType(
@@ -2136,20 +2168,26 @@ static std::pair<int64_t, int64_t> ResolveBitSliceIndices(
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(&ctx->env));
   int64_t bit_count = GetTypeBitCount(arg.type);
-  // Slice LHS must be UBits.
+
+  // Slice LHS must be UBits -- if it's not, generate a cast to the unsigned of
+  // the appropriate bit count.
   if (!IsUBits(arg.type)) {
-    arg.expr = module_->Make<Cast>(fake_span_, arg.expr,
-                                   MakeTypeAnnotation(false, bit_count));
+    bool use_xn = RandomBool(0.05);
+    arg.expr = module_->Make<Cast>(
+        fake_span_, arg.expr,
+        MakeTypeAnnotation(/*is_signed=*/false, bit_count, use_xn));
   }
+
   enum class SliceType : std::uint8_t {
     kBitSlice,
     kWidthSlice,
     kDynamicSlice,
   };
-  SliceType which = RandomChoice(
-      absl::MakeConstSpan({SliceType::kBitSlice, SliceType::kWidthSlice,
-                           SliceType::kDynamicSlice}),
-      bit_gen_);
+  constexpr std::array<SliceType, 3> kAllSliceTypes = {
+      SliceType::kBitSlice, SliceType::kWidthSlice, SliceType::kDynamicSlice};
+
+  SliceType which = RandomChoice(absl::MakeConstSpan(kAllSliceTypes), bit_gen_);
+
   std::optional<int64_t> start;
   std::optional<int64_t> limit;
   int64_t width = -1;
@@ -2185,21 +2223,25 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
     }
     case SliceType::kWidthSlice: {
       int64_t start_int = start.has_value() ? *start : 0;
-      rhs = module_->Make<WidthSlice>(fake_span_, MakeNumber(start_int),
-                                      MakeTypeAnnotation(false, width));
+      bool use_xn = RandomBool(0.05);
+      rhs = module_->Make<WidthSlice>(
+          fake_span_, MakeNumber(start_int),
+          MakeTypeAnnotation(/*is_signed=*/false, width, use_xn));
       break;
     }
     case SliceType::kDynamicSlice: {
       XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(&ctx->env));
+      bool use_xn = RandomBool(0.05);
       rhs = module_->Make<WidthSlice>(fake_span_, start.expr,
-                                      MakeTypeAnnotation(false, width));
+                                      MakeTypeAnnotation(false, width, use_xn));
       last_delaying_op =
           ComposeDelayingOps(last_delaying_op, start.last_delaying_op);
       min_stage = std::max(min_stage, start.min_stage);
       break;
     }
   }
-  TypeAnnotation* type = MakeTypeAnnotation(false, width);
+  bool use_xn = RandomBool(0.05);
+  TypeAnnotation* type = MakeTypeAnnotation(/*is_signed=*/false, width, use_xn);
   auto* expr = module_->Make<Index>(fake_span_, arg.expr, rhs);
   return TypedExpr{.expr = expr,
                    .type = type,
@@ -2212,7 +2254,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Context* ctx) {
   std::string_view op = RandomChoice(
       absl::MakeConstSpan({"and_reduce", "or_reduce", "xor_reduce"}), bit_gen_);
   NameRef* callee = MakeBuiltinNameRef(std::string(op));
-  TypeAnnotation* type = MakeTypeAnnotation(false, 1);
+  TypeAnnotation* type = MakeBoolTypeAnnotation();
   return TypedExpr{.expr = module_->Make<Invocation>(
                        fake_span_, callee, std::vector<Expr*>{arg.expr}),
                    .type = type,
@@ -2244,7 +2286,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Context* ctx) {
   }
 
   auto [element_size, array_size] = RandomChoice(factors, bit_gen_);
-  TypeAnnotation* element_type = MakeTypeAnnotation(false, element_size);
+  bool use_xn = RandomBool(0.05);
+  TypeAnnotation* element_type =
+      MakeTypeAnnotation(/*is_signed=*/false, element_size, use_xn);
   ArrayTypeAnnotation* outer_array_type =
       MakeArrayType(element_type, array_size);
   Cast* expr = module_->Make<Cast>(fake_span_, arg.expr, outer_array_type);
@@ -2298,8 +2342,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(
       slice_width * GetTypeBitCount(arg_type->element_type())));
 
+  bool use_xn = RandomBool(0.05);
   std::vector<Expr*> width_array_elements = {module_->Make<Index>(
-      fake_span_, arg.expr, GenerateNumber(0, MakeTypeAnnotation(false, 32)))};
+      fake_span_, arg.expr,
+      GenerateNumber(0, MakeTypeAnnotation(
+                            /*is_signed=*/false, 32, use_xn)))};
   Array* width_expr = module_->Make<Array>(fake_span_, width_array_elements,
                                            /*has_ellipsis=*/true);
   TypeAnnotation* width_type = module_->Make<ArrayTypeAnnotation>(
@@ -2652,9 +2699,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
       result_bits = std::min(
           max_decode_width,
           RandomIntWithExpectedValue(max_decode_width, /*lower_limit=*/1));
+      bool use_xn = RandomBool(0.05);
       invocation = module_->Make<Invocation>(
           fake_span_, name_ref, std::vector<Expr*>{arg.expr},
-          std::vector<ExprOrType>{MakeTypeAnnotation(false, result_bits)});
+          std::vector<ExprOrType>{
+              MakeTypeAnnotation(/*is_signed=*/false, result_bits, use_xn)});
       break;
     }
     case kEncode:
@@ -2672,7 +2721,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
     }
   }
 
-  TypeAnnotation* result_type = MakeTypeAnnotation(false, result_bits);
+  bool use_xn = RandomBool(0.05);
+  TypeAnnotation* result_type =
+      MakeTypeAnnotation(/*is_signed=*/false, result_bits, use_xn);
   return TypedExpr{.expr = invocation,
                    .type = result_type,
                    .last_delaying_op = arg.last_delaying_op,

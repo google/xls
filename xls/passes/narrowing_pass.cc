@@ -1854,7 +1854,6 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     // transform the node-specific handler did.
     XLS_RETURN_IF_ERROR(narrower.MaybeReplacePreciseInputEdgeWithLiteral(node));
   }
-  // LOG(ERROR) << "Unable to analyze " << narrower.err_cnt() << " times!";
   return narrower.changed();
 }
 AnalysisType NarrowingPass::RealAnalysis(

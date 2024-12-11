@@ -1406,6 +1406,8 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(const Type* type, bytecode.type_data());
   XLS_ASSIGN_OR_RETURN(const Type* unwrapped_type, UnwrapMetaType(*type));
+
+  // Width slice only works on bits-like types.
   std::optional<BitsLikeProperties> bits_like = GetBitsLike(*unwrapped_type);
   XLS_RET_CHECK(bits_like.has_value())
       << "Wide slice type is not bits-like: " << type->ToString();
