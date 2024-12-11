@@ -1574,8 +1574,7 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
   return module_->Make<Match>(span, matched, std::move(arms));
 }
 
-absl::StatusOr<std::unique_ptr<UseTreeEntry>> Parser::ParseUseTreeEntry(
-    Bindings& bindings) {
+absl::StatusOr<UseTreeEntry*> Parser::ParseUseTreeEntry(Bindings& bindings) {
   // Get the identifier for this level of the tree.
   XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
   std::string identifier = *tok.GetValue();
@@ -1589,7 +1588,7 @@ absl::StatusOr<std::unique_ptr<UseTreeEntry>> Parser::ParseUseTreeEntry(
     // subsequent level.
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
     bindings.Add(name_def->identifier(), name_def);
-    return UseTreeEntry::MakeLeaf(name_def, tok.span());
+    return module_->Make<UseTreeEntry>(name_def, tok.span());
   }
 
   // If we've gotten here we know there's a next level, we're just looking to
@@ -1598,11 +1597,10 @@ absl::StatusOr<std::unique_ptr<UseTreeEntry>> Parser::ParseUseTreeEntry(
   if (saw_obrace) {
     // Multiple peer subtrees -- present as children (subtrees) to make this
     // level.
-    std::vector<std::unique_ptr<UseTreeEntry>> children;
+    std::vector<UseTreeEntry*> children;
     while (true) {
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<UseTreeEntry> child,
-                           ParseUseTreeEntry(bindings));
-      children.push_back(std::move(child));
+      XLS_ASSIGN_OR_RETURN(UseTreeEntry * child, ParseUseTreeEntry(bindings));
+      children.push_back(child);
       XLS_ASSIGN_OR_RETURN(bool saw_cbrace, TryDropToken(TokenKind::kCBrace));
       if (saw_cbrace) {
         break;
@@ -1611,19 +1609,18 @@ absl::StatusOr<std::unique_ptr<UseTreeEntry>> Parser::ParseUseTreeEntry(
           TokenKind::kComma, /*start=*/nullptr,
           "Expect a ',' to separate multiple entries in a `use` statement"));
     }
-    return UseTreeEntry::MakeInterior(identifier, std::move(children),
-                                      tok.span());
+    return module_->Make<UseTreeEntry>(
+        UseInteriorEntry{identifier, std::move(children)}, tok.span());
   }
 
   // Must be a single child in the subsequent level -- we recurse here to look
   // for additional levels after it.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<UseTreeEntry> child,
-                       ParseUseTreeEntry(bindings));
-  std::vector<std::unique_ptr<UseTreeEntry>> children;
+  XLS_ASSIGN_OR_RETURN(UseTreeEntry * child, ParseUseTreeEntry(bindings));
+  std::vector<UseTreeEntry*> children;
   children.reserve(1);
   children.push_back(std::move(child));
-  return UseTreeEntry::MakeInterior(identifier, std::move(children),
-                                    tok.span());
+  return module_->Make<UseTreeEntry>(
+      UseInteriorEntry{identifier, std::move(children)}, tok.span());
 }
 
 absl::StatusOr<Use*> Parser::ParseUse(Bindings& bindings) {
@@ -1638,13 +1635,12 @@ absl::StatusOr<Use*> Parser::ParseUse(Bindings& bindings) {
         "is not allowed -- please break into multiple statements");
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<UseTreeEntry> root,
-                       ParseUseTreeEntry(bindings));
+  XLS_ASSIGN_OR_RETURN(UseTreeEntry * root, ParseUseTreeEntry(bindings));
   XLS_RETURN_IF_ERROR(
       DropTokenOrError(TokenKind::kSemi, /*start=*/&kw,
                        "Expect a ';' at end of `use` statement"));
   Span span(kw.span().start(), GetPos());
-  return module_->Make<Use>(span, std::move(root));
+  return module_->Make<Use>(span, *root);
 }
 
 absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
