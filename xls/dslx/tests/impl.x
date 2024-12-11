@@ -16,6 +16,10 @@ struct Point { x: u32, y: u32 }
 
 impl Point {
     const MY_CONST = u32:5;
+
+    fn zero() -> Self { Point { x: u32:0, y: u32:0 } }
+
+    fn area(self: Self) -> u32 { self.x * self.y }
 }
 
 fn main() -> u32 { Point::MY_CONST }
@@ -24,4 +28,16 @@ fn main() -> u32 { Point::MY_CONST }
 fn use_impl_const() {
     type PointAlias = Point;
     assert_eq(PointAlias::MY_CONST, u32:5);
+}
+
+#[test]
+fn test_area() {
+    let p = Point { x: u32:2, y: u32:4 };
+    assert_eq(p.area(), u32:8);
+}
+
+#[test]
+fn test_zero() {
+    let p = Point::zero();
+    assert_eq(p.x, u32:0);
 }
