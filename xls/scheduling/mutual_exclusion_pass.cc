@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -36,6 +37,7 @@
 #include "absl/log/vlog_is_on.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -95,6 +97,20 @@ bool HasIntersection(const absl::flat_hash_set<T>& lhs,
   const absl::flat_hash_set<T>& bigger = lhs.size() > rhs.size() ? lhs : rhs;
   return std::any_of(smaller.begin(), smaller.end(),
                      [&bigger](T element) { return bigger.contains(element); });
+}
+
+template <typename T>
+absl::flat_hash_set<T> Intersection(const absl::flat_hash_set<T>& lhs,
+                                    const absl::flat_hash_set<T>& rhs) {
+  absl::flat_hash_set<T> result;
+  const absl::flat_hash_set<T>& smaller = lhs.size() > rhs.size() ? rhs : lhs;
+  const absl::flat_hash_set<T>& bigger = lhs.size() > rhs.size() ? lhs : rhs;
+  for (const T& element : smaller) {
+    if (bigger.contains(element)) {
+      result.insert(element);
+    }
+  }
+  return result;
 }
 
 Z3_lbool RunSolver(Z3_context c, Z3_ast asserted) {
@@ -427,12 +443,110 @@ absl::StatusOr<std::vector<Node*>> ComputeTokenInputs(
   return SetToSortedVector(token_inputs_unsorted);
 }
 
+// Returns whether there is a path from any of the nodes in `sources` to any of
+// the nodes in `sinks`.
+bool HasPath(const absl::flat_hash_set<Node*>& sources,
+             const absl::flat_hash_set<Node*>& sinks) {
+  if (HasIntersection(sources, sinks)) {
+    return true;
+  }
+
+  std::vector<Node*> to_visit(sources.begin(), sources.end());
+  absl::flat_hash_set<Node*> visited;
+  while (!to_visit.empty()) {
+    Node* node = to_visit.back();
+    to_visit.pop_back();
+    auto [_, inserted] = visited.insert(node);
+    if (!inserted) {
+      continue;
+    }
+    if (sinks.contains(node)) {
+      return true;
+    }
+    absl::c_copy_if(node->users(), std::back_inserter(to_visit),
+                    [&](Node* user) { return !visited.contains(user); });
+  }
+
+  return false;
+}
+
+bool IsProvenMutuallyExclusiveChannel(ChannelRef channel_ref) {
+  if (std::holds_alternative<Channel*>(channel_ref)) {
+    Channel* channel = std::get<Channel*>(channel_ref);
+    return channel->kind() == ChannelKind::kStreaming &&
+           down_cast<StreamingChannel*>(channel)->GetStrictness() ==
+               ChannelStrictness::kProvenMutuallyExclusive;
+  }
+
+  CHECK(std::holds_alternative<ChannelReference*>(channel_ref));
+  ChannelReference* channel_reference =
+      std::get<ChannelReference*>(channel_ref);
+  return channel_reference->kind() == ChannelKind::kStreaming &&
+         channel_reference->strictness() ==
+             ChannelStrictness::kProvenMutuallyExclusive;
+}
+
+std::string_view GetChannelName(ChannelRef channel_ref) {
+  if (std::holds_alternative<Channel*>(channel_ref)) {
+    return std::get<Channel*>(channel_ref)->name();
+  }
+
+  CHECK(std::holds_alternative<ChannelReference*>(channel_ref));
+  return std::get<ChannelReference*>(channel_ref)->name();
+}
+
 absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
                                 absl::Span<Node* const> to_merge) {
-  std::string_view channel_name = to_merge.front()->As<Send>()->channel_name();
+  if (to_merge.size() <= 1) {
+    return false;
+  }
+  XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
+                       to_merge.front()->As<Send>()->GetChannelRef());
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
+                       ComputeTokenInputs(f, to_merge));
+
+  // Collect all inputs to & users of the merged send, so we can check whether
+  // we can do this merge without creating a cycle.
+  absl::flat_hash_set<Node*> inputs;
+  absl::flat_hash_set<Node*> users;
+  inputs.reserve(token_inputs.size() + 2 * to_merge.size());
+  inputs.insert(token_inputs.begin(), token_inputs.end());
+  for (Node* node : to_merge) {
+    if (std::optional<Node*> predicate = p->GetPredicate(node);
+        predicate.has_value()) {
+      inputs.insert(*predicate);
+    }
+    inputs.insert(node->As<Send>()->data());
+  }
+  users.reserve(to_merge.size());
+  for (Node* node : to_merge) {
+    absl::c_copy(node->users(), std::inserter(users, users.end()));
+  }
+
+  if (HasPath(users, inputs)) {
+    // Check if this was a required merge due to channel strictness.
+    if (IsProvenMutuallyExclusiveChannel(channel_ref)) {
+      return absl::FailedPreconditionError(absl::StrFormat(
+          "Unable to merge operations on proven-mutually-exclusive channel "
+          "%s in proc %s without creating a cycle.",
+          GetChannelName(channel_ref), f->name()));
+    }
+
+    // We can't merge these sends without forming a cycle.
+    VLOG(1) << "Unable to merge nodes without creating a cycle: "
+            << absl::StrJoin(to_merge, ", ", [](std::string* out, Node* node) {
+                 absl::StrAppend(out, node->GetName());
+               });
+    return false;
+  }
+
   absl::btree_set<SourceLocation> source_locations_set;
   for (Node* send : to_merge) {
-    CHECK_EQ(channel_name, send->As<Send>()->channel_name());
+    CHECK(channel_ref == *send->As<Send>()->GetChannelRef())
+        << "Channel mismatch; attempted to merge sends on channels "
+        << GetChannelName(channel_ref) << " and "
+        << GetChannelName(*send->As<Send>()->GetChannelRef());
     absl::c_copy(
         send->loc().locations,
         std::inserter(source_locations_set, source_locations_set.end()));
@@ -440,21 +554,8 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
   SourceInfo merged_source_info(std::vector<SourceLocation>(
       source_locations_set.begin(), source_locations_set.end()));
 
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
-                       ComputeTokenInputs(f, to_merge));
-
-  XLS_ASSIGN_OR_RETURN(Node * token,
-                       f->MakeNode<AfterAll>(merged_source_info, token_inputs));
-
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
                        PredicateVectorFromNodes(p, f, to_merge));
-
-  XLS_ASSIGN_OR_RETURN(Node * selector,
-                       f->MakeNode<Concat>(merged_source_info, predicates));
-
-  XLS_ASSIGN_OR_RETURN(Node * predicate,
-                       f->MakeNode<BitwiseReductionOp>(
-                           merged_source_info, selector, Op::kOrReduce));
 
   std::vector<Node*> args;
   args.reserve(to_merge.size());
@@ -464,12 +565,22 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
   // OneHotSelect takes the cases in reverse order (LSB-to-MSB).
   std::reverse(args.begin(), args.end());
 
+  XLS_ASSIGN_OR_RETURN(Node * token,
+                       f->MakeNode<AfterAll>(merged_source_info, token_inputs));
+
+  XLS_ASSIGN_OR_RETURN(Node * selector,
+                       f->MakeNode<Concat>(merged_source_info, predicates));
+
+  XLS_ASSIGN_OR_RETURN(Node * predicate,
+                       f->MakeNode<BitwiseReductionOp>(
+                           merged_source_info, selector, Op::kOrReduce));
+
   XLS_ASSIGN_OR_RETURN(Node * data, f->MakeNode<OneHotSelect>(
                                         merged_source_info, selector, args));
 
   XLS_ASSIGN_OR_RETURN(
       Node * send, f->MakeNode<Send>(merged_source_info, token, data, predicate,
-                                     channel_name));
+                                     GetChannelName(channel_ref)));
 
   for (Node* node : to_merge) {
     XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(send));
@@ -481,13 +592,56 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
 
 absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
                                    absl::Span<Node* const> to_merge) {
-  std::string_view channel_name =
-      to_merge.front()->As<Receive>()->channel_name();
+  if (to_merge.size() <= 1) {
+    return false;
+  }
+  XLS_ASSIGN_OR_RETURN(ChannelRef channel_ref,
+                       to_merge.front()->As<Receive>()->GetChannelRef());
   bool is_blocking = to_merge.front()->As<Receive>()->is_blocking();
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
+                       ComputeTokenInputs(f, to_merge));
+
+  // Collect all inputs to & users of the merged send, so we can check whether
+  // we can do this merge without creating a cycle.
+  absl::flat_hash_set<Node*> inputs;
+  absl::flat_hash_set<Node*> users;
+  inputs.reserve(token_inputs.size() + to_merge.size());
+  inputs.insert(token_inputs.begin(), token_inputs.end());
+  for (Node* node : to_merge) {
+    if (std::optional<Node*> predicate = p->GetPredicate(node);
+        predicate.has_value()) {
+      inputs.insert(*predicate);
+    }
+  }
+  users.reserve(to_merge.size());
+  for (Node* node : to_merge) {
+    absl::c_copy(node->users(), std::inserter(users, users.end()));
+  }
+
+  if (HasPath(users, inputs)) {
+    // Check if this was a required merge due to channel strictness.
+    if (IsProvenMutuallyExclusiveChannel(channel_ref)) {
+      return absl::FailedPreconditionError(absl::StrFormat(
+          "Unable to merge operations on proven-mutually-exclusive channel "
+          "%s in proc %s without creating a cycle.",
+          GetChannelName(channel_ref), f->name()));
+    }
+
+    // We can't merge these sends without forming a cycle.
+    VLOG(1) << "Unable to merge nodes without creating a cycle: "
+            << absl::StrJoin(to_merge, ", ", [](std::string* out, Node* node) {
+                 absl::StrAppend(out, node->GetName());
+               });
+    return false;
+  }
 
   absl::btree_set<SourceLocation> source_locations_set;
   for (Node* receive : to_merge) {
-    CHECK_EQ(channel_name, receive->As<Receive>()->channel_name());
+    CHECK(channel_ref == *receive->As<Receive>()->GetChannelRef())
+        << "Channel mismatch; attempted to merge receives on channels "
+        << GetChannelName(channel_ref) << " and "
+        << GetChannelName(*receive->As<Receive>()->GetChannelRef());
     CHECK_EQ(is_blocking, receive->As<Receive>()->is_blocking());
     absl::c_copy(
         receive->loc().locations,
@@ -496,22 +650,20 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
   SourceInfo merged_source_info(std::vector<SourceLocation>(
       source_locations_set.begin(), source_locations_set.end()));
 
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
-                       ComputeTokenInputs(f, to_merge));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
+                       PredicateVectorFromNodes(p, f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * token,
                        f->MakeNode<AfterAll>(merged_source_info, token_inputs));
-
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
-                       PredicateVectorFromNodes(p, f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(
       Node * predicate,
       f->MakeNode<NaryOp>(merged_source_info, predicates, Op::kOr));
 
   XLS_ASSIGN_OR_RETURN(
-      Node * receive, f->MakeNode<Receive>(merged_source_info, token, predicate,
-                                           channel_name, is_blocking));
+      Node * receive,
+      f->MakeNode<Receive>(merged_source_info, token, predicate,
+                           GetChannelName(channel_ref), is_blocking));
 
   XLS_ASSIGN_OR_RETURN(Node * token_output,
                        f->MakeNode<TupleIndex>(SourceInfo(), receive, 0));
@@ -1094,10 +1246,32 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
       } else if (satisfiable == Z3_L_TRUE) {
         known_false += 1;
         XLS_RETURN_IF_ERROR(p->MarkNotMutuallyExclusive(node_a, node_b));
+        if (required_for_compilation) {
+          return absl::FailedPreconditionError(absl::StrFormat(
+              "Proved that %s and %s, which control operations on "
+              "proven-mutually-exclusive channels (%s), are not mutually "
+              "exclusive.",
+              node_a->GetName(), node_b->GetName(),
+              absl::StrJoin(Intersection(channels_a, channels_b), ", ",
+                            [](std::string* out, Channel* channel) {
+                              absl::StrAppend(out, channel->name());
+                            })));
+        }
       } else {
         unknown += 1;
         VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
                 << node_a->GetName() << " and " << node_b->GetName();
+        if (required_for_compilation) {
+          return absl::FailedPreconditionError(absl::StrFormat(
+              "Z3 failed to prove that %s and %s, which control operations on "
+              "proven-mutually-exclusive channels (%s), are mutually "
+              "exclusive.",
+              node_a->GetName(), node_b->GetName(),
+              absl::StrJoin(Intersection(channels_a, channels_b), ", ",
+                            [](std::string* out, Channel* channel) {
+                              absl::StrAppend(out, channel->name());
+                            })));
+        }
       }
     }
   }
