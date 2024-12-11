@@ -64,12 +64,8 @@ def : FCmpPat<"ole", (Xls_CallDslxOp (FloatLib $lhs), CS<"lte_2">,
                                      (variadic $lhs, $rhs), ConstUnitAttr)>;
 
 // Define unordered(x, y) = is_nan(x + y)
-def createDenormalIEEE : NativeCodeCall<
-    "::mlir::arith::DenormalModeAttr::get("
-      "$_builder.getContext(), ::mlir::arith::DenormalMode::ieee"
-    ")">;
 def : FCmpPat<"uno", (Xls_CallDslxOp (FloatLib $lhs), CS<"is_nan">,
-                                     (variadic (Arith_AddFOp $lhs, $rhs, $fmf, (createDenormalIEEE))),
+                                     (variadic (Arith_AddFOp $lhs, $rhs, $fmf)),
                                      ConstUnitAttr)>;
 
 def : BinaryOpOverflowPat<Arith_ShLIOp, Xls_ShllOp>;
@@ -123,7 +119,7 @@ defvar ExtLib = CS<"xls/contrib/mlir/stdlib/fp_ext_trunc.x">;
 
 // Emits a binary float library call.
 class FloatLibcall<Op Op, string Name> :
-    Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_, /*denormal=*/$_),
+    Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_),
         (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr)>;
 
 def : FloatLibcall<Arith_AddFOp, "add">;
@@ -181,7 +177,7 @@ class MinMaxPatBase<dag Matcher, dag Predicate> : Pat<
   (createSelOp2Cases Predicate, $a, $b)>;
 
 class FPMinMaxPat<Op Op, string Name> : MinMaxPatBase<
-  (Op:$op $a, $b, /*FastMathFlags=*/$_, /*denormal=*/$_),
+  (Op:$op $a, $b, /*FastMathFlags=*/$_),
   (Xls_CallDslxOp (FloatLib $a), CS<Name>, (variadic $a, $b), ConstUnitAttr,
      (returnType "boolLike(op)"))>;
 
