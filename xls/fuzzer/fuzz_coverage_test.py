@@ -214,6 +214,7 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_SIGN_EXT,
         ir_op_pb2.OP_SLE,
         ir_op_pb2.OP_SLT,
+        ir_op_pb2.OP_SMOD,
         ir_op_pb2.OP_SMUL,
         ir_op_pb2.OP_SMULP,
         ir_op_pb2.OP_SUB,
@@ -229,6 +230,7 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_XOR,
         ir_op_pb2.OP_XOR_REDUCE,
         ir_op_pb2.OP_ZERO_EXT,
+        ir_op_pb2.OP_UMOD,
     ]
     expect_not_seen = [
         ir_op_pb2.OP_AFTER_ALL,
@@ -249,10 +251,8 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_REGISTER_READ,
         ir_op_pb2.OP_REGISTER_WRITE,
         ir_op_pb2.OP_SEND,
-        ir_op_pb2.OP_SMOD,
         ir_op_pb2.OP_STATE_READ,
         ir_op_pb2.OP_TRACE,
-        ir_op_pb2.OP_UMOD,
     ]
     # The set of expected to be seen and expected to be not seen should cover
     # all ops.
@@ -358,6 +358,7 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_SIGN_EXT,
         ir_op_pb2.OP_SLE,
         ir_op_pb2.OP_SLT,
+        ir_op_pb2.OP_SMOD,
         ir_op_pb2.OP_SMUL,
         ir_op_pb2.OP_SMULP,
         ir_op_pb2.OP_STATE_READ,
@@ -369,6 +370,7 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_UGT,
         ir_op_pb2.OP_ULE,
         ir_op_pb2.OP_ULT,
+        ir_op_pb2.OP_UMOD,
         ir_op_pb2.OP_UMUL,
         ir_op_pb2.OP_UMULP,
         ir_op_pb2.OP_XOR,
@@ -391,9 +393,7 @@ class FuzzCoverageTest(test_base.TestCase):
         ir_op_pb2.OP_OUTPUT_PORT,
         ir_op_pb2.OP_REGISTER_READ,
         ir_op_pb2.OP_REGISTER_WRITE,
-        ir_op_pb2.OP_SMOD,
         ir_op_pb2.OP_TRACE,
-        ir_op_pb2.OP_UMOD,
     ]
     # The set of expected to be seen and expected to be not seen should cover
     # all ops.
