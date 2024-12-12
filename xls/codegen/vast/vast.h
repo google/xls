@@ -1063,10 +1063,23 @@ class NegEdge final : public Expression {
 };
 
 // Represents a connection of either a module parameter or a port to its
-// surrounding environment.
+// surrounding environment. That is, these are emitted in an instantiation like:
+//
+// ```verilog
+//   .port_name(expression)
+// ```
+//
+// Note that expression can be null, in which case we emit an empty port
+// connection like so:
+//
+// ```verilog
+//   .port_name()
+// ```
+//
+// This can be useful in cases like stitching.
 struct Connection {
   std::string port_name;
-  Expression* expression;
+  absl::Nullable<Expression*> expression;
 };
 
 // Represents a module instantiation.
