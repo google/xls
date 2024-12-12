@@ -1064,6 +1064,11 @@ absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
   if (dynamic_cast<const Module*>(root) != nullptr) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
   }
+  XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> root_replacement,
+                       replacer(root));
+  if (root_replacement.has_value()) {
+    return *root_replacement;
+  }
   AstCloner cloner(root->owner(), std::move(replacer));
   XLS_RETURN_IF_ERROR(root->Accept(&cloner));
   return cloner.old_to_new().at(root);

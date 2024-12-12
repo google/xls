@@ -55,6 +55,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",

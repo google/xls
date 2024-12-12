@@ -34,6 +34,7 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -167,7 +168,7 @@ class InferenceTableConverter {
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricInvocation*> parametric_invocation) {
-    XLS_ASSIGN_OR_RETURN(annotation, ResolveIfVariableTypeAnnotation(
+    XLS_ASSIGN_OR_RETURN(annotation, ResolveVariableTypeAnnotations(
                                          parametric_invocation, annotation));
     if (const auto* tuple =
             dynamic_cast<const TupleTypeAnnotation*>(annotation)) {
@@ -327,8 +328,8 @@ class InferenceTableConverter {
           "Failed to unify because there are no type annotations.");
     }
     for (int i = 0; i < annotations.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(
-          annotations[i], ResolveIfVariableTypeAnnotation(parametric_invocation,
+      XLS_ASSIGN_OR_RETURN(annotations[i],
+                           ResolveVariableTypeAnnotations(parametric_invocation,
                                                           annotations[i]));
     }
     if (annotations.size() == 1) {
@@ -359,11 +360,15 @@ class InferenceTableConverter {
     }
     std::optional<bool> unified_signedness;
     std::optional<int64_t> unified_bit_count;
+    bool unified_bit_count_is_auto = true;
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
       VLOG(5) << "Annotation " << i << ": " << current_annotation->ToString();
       absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
           GetSignednessAndBitCount(current_annotation);
+      bool current_annotation_is_auto =
+          auto_literal_annotations_.contains(current_annotation);
+
       if (!signedness_and_bit_count.ok()) {
         return TypeMismatchErrorStatus(current_annotation, annotations[0],
                                        file_table_);
@@ -378,24 +383,29 @@ class InferenceTableConverter {
                             signedness_and_bit_count->bit_count));
 
       // Unify the signedness. Currently there must be strict agreement, except
-      // for auto literals.
+      // for auto literals. Auto literals can be coerced to signed but can't be
+      // coerced to unsigned.
       if (!unified_signedness.has_value()) {
         unified_signedness = current_annotation_signedness;
       } else if (current_annotation_signedness != *unified_signedness &&
-                 !auto_literal_annotations_.contains(current_annotation)) {
+                 (!current_annotation_is_auto ||
+                  current_annotation_signedness)) {
         return SignednessMismatchErrorStatus(current_annotation,
                                              annotations[i - 1], file_table_);
       }
 
-      // Unify the bit count. Currently there must be strict agreement, except
-      // for auto literals whose auto size is smaller than we need.
-      if (!unified_bit_count.has_value()) {
+      if (!unified_bit_count.has_value() ||
+          (unified_bit_count_is_auto &&
+           current_annotation_bit_count > *unified_bit_count)) {
         unified_bit_count = current_annotation_bit_count;
-      } else if (*unified_bit_count != current_annotation_bit_count &&
-                 (!auto_literal_annotations_.contains(current_annotation) ||
-                  current_annotation_bit_count > unified_bit_count)) {
+      } else if (current_annotation_bit_count != *unified_bit_count &&
+                 !(current_annotation_is_auto &&
+                   current_annotation_bit_count < *unified_bit_count)) {
         return BitCountMismatchErrorStatus(current_annotation,
                                            annotations[i - 1], file_table_);
+      }
+      if (!current_annotation_is_auto) {
+        unified_bit_count_is_auto = false;
       }
       VLOG(5) << "Unified type so far has signedness: " << *unified_signedness
               << " and bit count: " << *unified_bit_count;
@@ -427,22 +437,39 @@ class InferenceTableConverter {
     return module_.Make<TupleTypeAnnotation>(span, unified_member_annotations);
   }
 
-  // If `annotation` is a `TypeVariableTypeAnnotation`, then this function gets
-  // the underlying annotations for the referenced variable, unifies them, and
-  // returns the unified annotation. Otherwise, it is a no-op that returns
-  // `annotation`.
-  absl::StatusOr<const TypeAnnotation*> ResolveIfVariableTypeAnnotation(
+  // Returns `annotation` with any `TypeVariableTypeAnnotation`s replaced with
+  // the unifications of the corresponding variables. The original `annotation`
+  // is returned if there is nothing to replace, preserving the ability to look
+  // it up in `auto_literal_annotations_`.
+  absl::StatusOr<const TypeAnnotation*> ResolveVariableTypeAnnotations(
       std::optional<const ParametricInvocation*> parametric_invocation,
       const TypeAnnotation* annotation) {
-    if (const auto* variable_type_annotation =
-            dynamic_cast<const TypeVariableTypeAnnotation*>(annotation)) {
-      XLS_ASSIGN_OR_RETURN(
-          annotation,
-          UnifyTypeAnnotations(parametric_invocation,
-                               variable_type_annotation->type_variable(),
-                               annotation->span()));
+    bool replaced_anything = false;
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * clone,
+        CloneAst(
+            annotation,
+            [&](const AstNode* node)
+                -> absl::StatusOr<std::optional<AstNode*>> {
+              if (const auto* variable_type_annotation =
+                      dynamic_cast<const TypeVariableTypeAnnotation*>(node)) {
+                XLS_ASSIGN_OR_RETURN(
+                    const TypeAnnotation* unified,
+                    UnifyTypeAnnotations(
+                        parametric_invocation,
+                        variable_type_annotation->type_variable(),
+                        annotation->span()));
+                replaced_anything = true;
+                return const_cast<TypeAnnotation*>(unified);
+              }
+              return std::nullopt;
+            }));
+    if (!replaced_anything) {
+      return annotation;
     }
-    return annotation;
+    const auto* result = dynamic_cast<const TypeAnnotation*>(clone);
+    CHECK(result != nullptr);
+    return result;
   }
 
   // Checks if the given concrete type ultimately makes sense for the given

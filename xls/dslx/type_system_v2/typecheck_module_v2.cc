@@ -119,20 +119,15 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     //   -----------------------------------------------
     //   FOO                (u32, (s8, u32))    T0
     //   (4, (-2, 5))       (var:M0, var:M1)    T0
-    //   4                  u32                 M0
-    //   (-2, 5)            (s8, u32)           M1
+    //   4                                      M0
+    //   (-2, 5)                                M1
     //
-    // The first step is to get the (u32, (s8, u32)) annotation by querying the
-    // variable that was applied to the tuple before descent (T0 in the
-    // example). While the example has one, there may not have been any
-    // programmer-specified annotation for the whole tuple, in which case this
-    // will be `nullopt`.
-    XLS_ASSIGN_OR_RETURN(
-        std::optional<const TupleTypeAnnotation*> tuple_annotation,
-        GetDeclarationTypeAnnotationForTuple(node));
+    // Recursive descent will ultimately put auto annotations for the literals
+    // in the table. Upon conversion of the table to type info, unification of
+    // the LHS annotation with the variable-based RHS annotation will be
+    // attempted.
 
-    // Now, create the M0, M1, ... variables, and apply the parts of the tuple
-    // annotation (if it exists) to the member exprs.
+    // Create the M0, M1, ... variables and apply them to the members.
     std::vector<TypeAnnotation*> member_types;
     member_types.reserve(node->members().size());
     for (int i = 0; i < node->members().size(); ++i) {
@@ -142,15 +137,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                InferenceVariableKind::kType, member,
                                GenerateInternalTypeVariableName(member)));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(member, member_variable));
-      if (tuple_annotation.has_value()) {
-        // Note that this gets the traversal of the children at the end to do
-        // the right thing, whether the member is a sub-tuple or something else.
-        // If it's a sub-tuple, then that iteration of `HandleXlsTuple` will see
-        // the piece of the overall tuple annotation as the declaration
-        // annotation.
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            member, (*tuple_annotation)->members()[i]));
-      }
       member_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(member_variable));
     }
@@ -212,33 +198,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       return table_.SetTypeAnnotation(ref, *annotation);
     }
     return absl::OkStatus();
-  }
-
-  // Gets the type annotation for a tuple, by querying the type variable that it
-  // shares with a declaration, if any. This must be done before imposing any
-  // synthetic type annotation on the tuple value.
-  absl::StatusOr<std::optional<const TupleTypeAnnotation*>>
-  GetDeclarationTypeAnnotationForTuple(const XlsTuple* node) {
-    std::optional<const NameRef*> type_variable = table_.GetTypeVariable(node);
-    if (!type_variable.has_value()) {
-      return std::nullopt;
-    }
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<const TypeAnnotation*> annotations,
-        table_.GetTypeAnnotationsForTypeVariable(*type_variable));
-    if (annotations.empty()) {
-      return std::nullopt;
-    }
-    // If > 1, the caller is ignoring the "before imposing an annotation on the
-    // RHS" precondition.
-    CHECK_EQ(annotations.size(), 1);
-    if (const auto* tuple_type =
-            dynamic_cast<const TupleTypeAnnotation*>(annotations[0])) {
-      return tuple_type;
-    }
-    return TypeInferenceErrorStatusForAnnotation(
-        annotations[0]->span(), annotations[0],
-        "type annotation for tuple is not a tuple type.", file_table_);
   }
 
   Module& module_;

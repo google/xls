@@ -1081,6 +1081,28 @@ fn foo(a: u32) -> u32 {
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST(AstClonerTest, ReplaceRoot) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto module, ParseModule("fn foo() -> u32 { u32:0 }", "fake_path.x",
+                               "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      AstNode * clone,
+      CloneAst(
+          foo,
+          // Replace the root with "3".
+          [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+            if (node == foo) {
+              return module->Make<Number>(Span::Fake(), "3", NumberKind::kOther,
+                                          /*type_annotation=*/nullptr);
+            }
+            return std::nullopt;
+          }));
+  EXPECT_EQ(clone->ToString(), "3");
+}
+
 TEST(AstClonerTest, ZeroMacro) {
   constexpr std::string_view kProgram = R"(const ZEROS = zero!<u32>();
 const MORE_ZEROS = (zero!<u64>());)";

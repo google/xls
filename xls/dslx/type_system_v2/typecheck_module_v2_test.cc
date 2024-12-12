@@ -132,9 +132,8 @@ TEST(TypecheckV2Test, GlobalIntegerConstantWithNegativeAutoLiteral) {
 TEST(TypecheckV2Test,
      GlobalIntegerConstantUnsignedWithNegativeAutoLiteralFails) {
   EXPECT_THAT("const X = u32:2 + -3;",
-              TypecheckFails(HasSubstr(
-                  "Number -3 invalid: can't assign a negative value to "
-                  "an unsigned type.")));
+              TypecheckFails(ContainsRegex(
+                  R"(signed vs. unsigned mismatch.*sN\[3\].*vs. u32)")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantsAndLiterals) {
@@ -150,6 +149,19 @@ const Z = X + 1 + Y + 2;
       AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
             HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
             HasSubstr("node: `const Z = X + 1 + Y + 2;`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfAscendingAutoSizes) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:1;
+const Z = 1 + 2 + 3 + 4 + X;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = u32:1;`, type: uN[32]"),
+            HasSubstr("node: `const Z = 1 + 2 + 3 + 4 + X;`, type: uN[32]")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantAndTupleFails) {
@@ -396,8 +408,8 @@ TEST(TypecheckV2Test, GlobalTupleConstantAnnotatedWithBareIntegerLiterals) {
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithIntegerAnnotationFails) {
   EXPECT_THAT("const X: u32 = (1, 2);",
-              TypecheckFails(HasSubstr(
-                  "u32 type annotation for tuple is not a tuple type.")));
+              TypecheckFails(ContainsRegex(
+                  R"(type mismatch.*\(uN\[1\], uN\[2\]\).* vs. u32)")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTuple) {
@@ -405,10 +417,10 @@ TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTuple) {
               TopNodeHasType("(uN[32], (sN[24], uN[32])"));
 }
 
-TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeViolation) {
+TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeViolationFails) {
   EXPECT_THAT("const X: (u32, (u24, u32)) = (1, (-3, 2));",
-              TypecheckFails(HasSubstr("Number -3 invalid: can't assign a "
-                                       "negative value to an unsigned type.")));
+              TypecheckFails(ContainsRegex(
+                  R"(signed vs. unsigned mismatch: sN\[3\] .*vs. u24)")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeConflict) {
