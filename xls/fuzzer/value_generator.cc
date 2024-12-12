@@ -199,7 +199,7 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
   if (std::optional<dslx::BitVectorMetadata> metadata =
           dslx::ExtractBitVectorMetadata(type);
       metadata.has_value()) {
-    auto bit_count_or = absl::visit(
+    absl::StatusOr<int64_t> bit_count = absl::visit(
         xls::Visitor{
             [&](int64_t bit_count) -> absl::StatusOr<int64_t> {
               return bit_count;
@@ -216,10 +216,10 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
             },
         },
         metadata->bit_count);
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bit_count_or);
+    XLS_RETURN_IF_ERROR(bit_count.status());
     XLS_ASSIGN_OR_RETURN(
         dslx::InterpValue num_value,
-        GenerateBitValue(bit_gen, bit_count, metadata->is_signed));
+        GenerateBitValue(bit_gen, bit_count.value(), metadata->is_signed));
     return module->Make<Number>(fake_span, num_value.ToHumanString(),
                                 dslx::NumberKind::kOther, type);
   }
