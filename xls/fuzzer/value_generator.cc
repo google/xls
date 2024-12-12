@@ -35,6 +35,7 @@
 #include "xls/common/visitor.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -76,12 +77,13 @@ absl::StatusOr<InterpValue> GenerateBitValue(
   return GenerateBitValue(bit_gen, bit_count, is_signed);
 }
 
-// Evaluates the given Expr* (holding the declaration of an
-// ArrayTypeAnnotation's size) and returns its resolved integer value. This
-// relies on current behavior of AstGenerator, namely that array dims are pure
-// Number nodes or are references to ConstantDefs (potentially via a series of
-// NameRefs) whose values are Numbers.
-absl::StatusOr<int64_t> GetArraySize(const dslx::Expr* dim) {
+// Evaluates the given `Expr*` (holding the declaration of e.g. an
+// `ArrayTypeAnnotation`'s size) and returns its resolved integer value.
+//
+// This relies on current behavior of `AstGenerator`, namely that array dims are
+// pure `Number` nodes or are references to `ConstantDefs` (potentially via a
+// series of `NameRefs`) whose values are `Number` nodes.
+absl::StatusOr<int64_t> EvaluateDimExpr(const dslx::Expr* dim) {
   if (const auto* number = dynamic_cast<const dslx::Number*>(dim);
       number != nullptr) {
     return ParseNumberAsInt64(number->text());
@@ -94,12 +96,12 @@ absl::StatusOr<int64_t> GetArraySize(const dslx::Expr* dim) {
     const dslx::AstNode* definer = name_def->definer();
     if (const auto* const_def = dynamic_cast<const dslx::ConstantDef*>(definer);
         const_def != nullptr) {
-      return GetArraySize(const_def->value());
+      return EvaluateDimExpr(const_def->value());
     }
 
     const Expr* expr = dynamic_cast<const Expr*>(definer);
     XLS_RET_CHECK_NE(expr, nullptr);
-    return GetArraySize(expr);
+    return EvaluateDimExpr(expr);
   }
 
   auto* constant_def = dynamic_cast<const ConstantDef*>(dim);
@@ -193,12 +195,34 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
                                            Module* module,
                                            TypeAnnotation* type) {
   dslx::Span fake_span = dslx::FakeSpan();
-  if (auto* builtin_type = dynamic_cast<dslx::BuiltinTypeAnnotation*>(type);
-      builtin_type != nullptr) {
+
+  if (std::optional<dslx::BitVectorMetadata> metadata =
+          dslx::ExtractBitVectorMetadata(type);
+      metadata.has_value()) {
+    absl::StatusOr<int64_t> bit_count = absl::visit(
+        xls::Visitor{
+            [&](int64_t bit_count) -> absl::StatusOr<int64_t> {
+              return bit_count;
+            },
+            [&](Expr* expr) -> absl::StatusOr<int64_t> {
+              absl::StatusOr<int64_t> bit_count = EvaluateDimExpr(expr);
+              // If we were able to opportunistically evaluate the dim
+              // expression to an `int64_t`, then we're good and we just return
+              // that.
+              if (bit_count.ok()) {
+                return bit_count.value();
+              }
+              return absl::InvalidArgumentError(
+                  absl::StrFormat("Cannot generate constants via parameterized "
+                                  "bit counts; got: `%s` in `%s`",
+                                  expr->ToString(), type->ToString()));
+            },
+        },
+        metadata->bit_count);
+    XLS_RETURN_IF_ERROR(bit_count.status());
     XLS_ASSIGN_OR_RETURN(
         dslx::InterpValue num_value,
-        GenerateBitValue(bit_gen, builtin_type->GetBitCount(),
-                         builtin_type->GetSignedness().value()));
+        GenerateBitValue(bit_gen, bit_count.value(), metadata->is_signed));
     return module->Make<Number>(fake_span, num_value.ToHumanString(),
                                 dslx::NumberKind::kOther, type);
   }
@@ -206,7 +230,8 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
   if (auto* array_type = dynamic_cast<dslx::ArrayTypeAnnotation*>(type);
       array_type != nullptr) {
     dslx::TypeAnnotation* element_type = array_type->element_type();
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, GetArraySize(array_type->dim()));
+    XLS_ASSIGN_OR_RETURN(int64_t array_size,
+                         EvaluateDimExpr(array_type->dim()));
     // Handle the array-type-is-actually-a-bits-type case.
     if (auto* builtin_type_annot =
             dynamic_cast<dslx::BuiltinTypeAnnotation*>(element_type);
