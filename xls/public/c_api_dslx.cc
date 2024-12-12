@@ -118,6 +118,103 @@ bool xls_dslx_parse_and_typecheck(
   return false;
 }
 
+int64_t xls_dslx_module_get_member_count(struct xls_dslx_module* module) {
+  CHECK(module != nullptr);
+  auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
+  return cpp_module->top().size();
+}
+
+xls_dslx_module_member_kind xls_dslx_module_member_get_kind(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  xls::dslx::ModuleMember& cpp_member_ref = *cpp_member;
+  xls_dslx_module_member_kind result = absl::visit(
+      xls::Visitor{
+          [](xls::dslx::Function*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_function;
+          },
+          [](xls::dslx::Proc*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_proc;
+          },
+          [](xls::dslx::TestFunction*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_test_function;
+          },
+          [](xls::dslx::TestProc*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_test_proc;
+          },
+          [](xls::dslx::QuickCheck*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_quick_check;
+          },
+          [](xls::dslx::TypeAlias*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_type_alias;
+          },
+          [](xls::dslx::StructDef*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_struct_def;
+          },
+          [](xls::dslx::ProcDef*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_proc_def;
+          },
+          [](xls::dslx::ConstantDef*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_constant_def;
+          },
+          [](xls::dslx::EnumDef*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_enum_def;
+          },
+          [](xls::dslx::Import*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_import;
+          },
+          [](xls::dslx::Use*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_use;
+          },
+          [](xls::dslx::ConstAssert*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_const_assert;
+          },
+          [](xls::dslx::Impl*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_impl;
+          },
+          [](xls::dslx::VerbatimNode*&) -> xls_dslx_module_member_kind {
+            return xls_dslx_module_member_kind_verbatim_node;
+          },
+      },
+      cpp_member_ref);
+  return result;
+}
+
+struct xls_dslx_module_member* xls_dslx_module_get_member(
+    struct xls_dslx_module* module, int64_t i) {
+  auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
+  xls::dslx::ModuleMember& cpp_member = cpp_module->top().at(i);
+  return reinterpret_cast<xls_dslx_module_member*>(&cpp_member);
+}
+
+struct xls_dslx_constant_def* xls_dslx_module_member_get_constant_def(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  auto* cpp_constant_def = std::get<xls::dslx::ConstantDef*>(*cpp_member);
+  return reinterpret_cast<xls_dslx_constant_def*>(cpp_constant_def);
+}
+
+struct xls_dslx_struct_def* xls_dslx_module_member_get_struct_def(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  auto* cpp_struct_def = std::get<xls::dslx::StructDef*>(*cpp_member);
+  return reinterpret_cast<xls_dslx_struct_def*>(cpp_struct_def);
+}
+
+struct xls_dslx_enum_def* xls_dslx_module_member_get_enum_def(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  auto* cpp_enum_def = std::get<xls::dslx::EnumDef*>(*cpp_member);
+  return reinterpret_cast<xls_dslx_enum_def*>(cpp_enum_def);
+}
+
+struct xls_dslx_type_alias* xls_dslx_module_member_get_type_alias(
+    struct xls_dslx_module_member* member) {
+  auto* cpp_member = reinterpret_cast<xls::dslx::ModuleMember*>(member);
+  auto* cpp_type_alias = std::get<xls::dslx::TypeAlias*>(*cpp_member);
+  return reinterpret_cast<xls_dslx_type_alias*>(cpp_type_alias);
+}
+
 int64_t xls_dslx_module_get_type_definition_count(
     struct xls_dslx_module* module) {
   auto* cpp_module = reinterpret_cast<xls::dslx::Module*>(module);
@@ -288,6 +385,21 @@ char* xls_dslx_import_get_subject(struct xls_dslx_import* n, int64_t i) {
   return xls::ToOwnedCString(result);
 }
 
+// -- constant_def
+
+char* xls_dslx_constant_def_get_name(struct xls_dslx_constant_def* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::ConstantDef*>(n);
+  const std::string& result = cpp->name_def()->identifier();
+  return xls::ToOwnedCString(result);
+}
+
+struct xls_dslx_expr* xls_dslx_constant_def_get_value(
+    struct xls_dslx_constant_def* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::ConstantDef*>(n);
+  xls::dslx::Expr* cpp_value = cpp->value();
+  return reinterpret_cast<xls_dslx_expr*>(cpp_value);
+}
+
 // -- enum_def
 
 char* xls_dslx_enum_def_get_identifier(struct xls_dslx_enum_def* n) {
@@ -351,6 +463,20 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_enum_def(
     struct xls_dslx_type_info* type_info, struct xls_dslx_enum_def* enum_def) {
   auto* node = reinterpret_cast<xls::dslx::AstNode*>(enum_def);
   return GetMetaTypeHelper(type_info, node);
+}
+
+const struct xls_dslx_type* xls_dslx_type_info_get_type_constant_def(
+    struct xls_dslx_type_info* type_info,
+    struct xls_dslx_constant_def* constant_def) {
+  auto* cpp_node = reinterpret_cast<xls::dslx::AstNode*>(constant_def);
+  auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
+  std::optional<xls::dslx::Type*> maybe_type = cpp_type_info->GetItem(cpp_node);
+  if (!maybe_type.has_value()) {
+    return nullptr;
+  }
+  CHECK(maybe_type.value() != nullptr);
+  xls::dslx::Type* cpp_type = maybe_type.value();
+  return reinterpret_cast<const struct xls_dslx_type*>(cpp_type);
 }
 
 const struct xls_dslx_type* xls_dslx_type_info_get_type_type_annotation(
@@ -423,6 +549,11 @@ bool xls_dslx_type_info_get_const_expr(
 }
 
 // -- interp_value
+
+char* xls_dslx_interp_value_to_string(struct xls_dslx_interp_value* v) {
+  auto* cpp_interp_value = reinterpret_cast<xls::dslx::InterpValue*>(v);
+  return xls::ToOwnedCString(cpp_interp_value->ToString());
+}
 
 void xls_dslx_interp_value_free(struct xls_dslx_interp_value* v) {
   auto* cpp_interp_value = reinterpret_cast<xls::dslx::InterpValue*>(v);
