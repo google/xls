@@ -3232,6 +3232,11 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
                          "Expect type annotation on parameters"));
     XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
   }
+  if (dynamic_cast<SelfTypeAnnotation*>(type) &&
+      name->identifier() != KeywordToString(Keyword::kSelf)) {
+    return ParseErrorStatus(name->span(),
+                            "Parameter with type `Self` must be named `self`");
+  }
   auto* param = module_->Make<Param>(name, type);
   name->set_definer(param);
   return param;

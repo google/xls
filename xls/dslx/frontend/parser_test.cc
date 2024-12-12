@@ -364,6 +364,23 @@ fn main() -> u9 {
                  HasSubstr("Cannot find a definition for name: \"self\"")));
 }
 
+TEST(ParserErrorTest, ImplUsingMisnamedSelf) {
+  constexpr std::string_view kProgram = R"(struct foo { }
+impl foo {
+    fn my_func(me: Self) -> Self {
+        me
+    }
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError("ParseError",
+                 HasSubstr("Parameter with type `Self` must be named `self`")));
+}
+
 TEST(ParserErrorTest, ImplUsingSelfInFunction) {
   constexpr std::string_view kProgram = R"(struct foo {
     a: bits[9],
