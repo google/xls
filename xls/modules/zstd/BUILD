@@ -1932,6 +1932,93 @@ place_and_route(
 )
 
 xls_dslx_library(
+    name = "ram_demux3_dslx",
+    srcs = ["ram_demux3.x"],
+    deps = [":ram_demux_dslx"],
+)
+
+xls_dslx_test(
+    name = "ram_demux3_dslx_test",
+    library = ":ram_demux3_dslx",
+)
+
+xls_dslx_verilog(
+    name = "ram_demux3_verilog",
+    codegen_args = {
+        "module_name": "RamDemux3",
+        "generator": "pipeline",
+        "delay_model": "asap7",
+        "ram_configurations": ",".join([
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "ram{}".format(num),
+                rd_req = "ram_demux3__rd_req{}_s".format(num),
+                rd_resp = "ram_demux3__rd_resp{}_r".format(num),
+                wr_req = "ram_demux3__wr_req{}_s".format(num),
+                wr_resp = "ram_demux3__wr_resp{}_r".format(num),
+            )
+            for num in range(3)
+        ]),
+        "pipeline_stages": "6",
+        "reset": "rst",
+        "use_system_verilog": "false",
+        "multi_proc": "true",
+    },
+    dslx_top = "RamDemux3Inst",
+    library = ":ram_demux3_dslx",
+    verilog_file = "ram_demux3.v",
+)
+
+xls_benchmark_ir(
+    name = "ram_demux3_opt_ir_benchmark",
+    src = ":ram_demux3_verilog.opt.ir",
+    benchmark_ir_args = {
+        "delay_model": "asap7",
+        "pipeline_stages": "3",
+        "inline_procs": "false"
+    },
+    tags = ["manual"],
+)
+
+verilog_library(
+    name = "ram_demux3_verilog_lib",
+    srcs = [
+        ":ram_demux3.v",
+        ":xls_fifo_wrapper.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "ram_demux3_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_28//:asap7-sc7p5t_rev28_rvt",
+    tags = ["manual"],
+    top_module = "RamDemux3",
+    deps = [
+        ":ram_demux3_verilog_lib",
+    ],
+)
+
+benchmark_synth(
+    name = "ram_demux3_benchmark_synth",
+    synth_target = ":ram_demux3_synth_asap7",
+    tags = ["manual"],
+)
+
+place_and_route(
+    name = "ram_demux3_place_and_route",
+    clock_period = "750",
+    core_padding_microns = 2,
+    die_height_microns = 100,
+    die_width_microns = 100,
+    min_pin_distance = "0.5",
+    placement_density = "0.30",
+    stop_after_step = "global_routing",
+    synthesized_rtl = ":ram_demux3_synth_asap7",
+    tags = ["manual"],
+    target_die_utilization_percentage = "10",
+)
+xls_dslx_library(
     name = "literals_dispatcher_dslx",
     srcs = [
         "literals_dispatcher.x",
