@@ -606,7 +606,8 @@ pub proc FseDecoder<
                             ..state
                         }
                     } else {
-                        fail!("too_many_literals", zero!<FseDecoderState>())
+                        trace_fmt!("Fails state: {:#x}", state);
+                        fail!("too_many_literals", state)
                     }
                 } else {
                     FseDecoderState {
