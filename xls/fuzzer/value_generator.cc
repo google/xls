@@ -205,9 +205,12 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
               return bit_count;
             },
             [&](Expr* expr) -> absl::StatusOr<int64_t> {
-              absl::StatusOr<int64_t> bit_count_or = EvaluateDimExpr(expr);
-              if (bit_count_or.ok()) {
-                return bit_count_or.value();
+              absl::StatusOr<int64_t> bit_count = EvaluateDimExpr(expr);
+              // If we were able to opportunistically evaluate the dim
+              // expression to an `int64_t`, then we're good and we just return
+              // that.
+              if (bit_count.ok()) {
+                return bit_count.value();
               }
               return absl::InvalidArgumentError(
                   absl::StrFormat("Cannot generate constants via parameterized "
