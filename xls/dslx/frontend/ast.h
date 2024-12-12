@@ -2611,7 +2611,7 @@ inline std::optional<StructDefBase*> TypeDefinitionToStructDefBase(
   return result == nullptr ? std::nullopt : std::make_optional(result);
 }
 
-using ImplMember = std::variant<ConstantDef*, Function*>;
+using ImplMember = std::variant<ConstantDef*, Function*, VerbatimNode*>;
 
 // Represents an impl for a struct.
 class Impl : public AstNode {

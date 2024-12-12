@@ -785,10 +785,12 @@ class AstCloner : public AstNodeVisitor {
         XLS_RETURN_IF_ERROR(ReplaceOrVisit(member_node));
       }
       AstNode* new_node = old_to_new_.at(member_node);
-      if (std::holds_alternative<ConstantDef*>(member)) {
-        new_members.push_back(down_cast<ConstantDef*>(new_node));
+      if (auto* new_constant_def = dynamic_cast<ConstantDef*>(new_node)) {
+        new_members.push_back(new_constant_def);
+      } else if (auto* new_function = dynamic_cast<Function*>(new_node)) {
+        new_members.push_back(new_function);
       } else {
-        new_members.push_back(down_cast<Function*>(new_node));
+        new_members.push_back(down_cast<VerbatimNode*>(new_node));
       }
     }
     new_impl->set_members(new_members);

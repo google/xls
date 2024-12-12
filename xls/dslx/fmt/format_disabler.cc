@@ -55,33 +55,44 @@ bool IsInDesugaredFn(const AstNode *node) {
 
 absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
     const AstNode *node) {
+  if (seen_nodes_.contains(node)) {
+    return std::nullopt;
+  }
+  seen_nodes_.insert(node);
+
   if (node == nullptr || !node->GetSpan().has_value()) {
     // If there's no node, or no span, we can't know if it's in the unformatted
     // range, so just return nullopt to indicate it should be unchanged.
     return std::nullopt;
   }
+  VLOG(5) << "FormatDisabler looking at " << node->ToString() << " @ "
+          << (*node->GetSpan()).ToString(node->owner()->file_name());
 
   // If this node is part of a desugared proc function, we skip it, because it
   // won't be formatted anyway.
   // TODO: https://github.com/google/xls/issues/1029 remove desugared proc
   // functions.
   if (IsInDesugaredFn(node)) {
+    VLOG(5) << "In desugared function, stopping";
     return std::nullopt;
   }
 
   if (unformatted_end_.has_value()) {
+    VLOG(6) << "In format disabled mode";
     // We are in "format disabled" mode.
 
     if (node->GetSpan()->start() < *unformatted_end_) {
       // This node is within the unformatted range; delete it by returning
       // an empty VerbatimNode. This is safe because its text has already been
       // extracted in a VerbatimNode.
+      VLOG(5) << "Setting previous node to " << node->ToString();
       previous_node_ = node;
 
       return node->owner()->Make<VerbatimNode>(*node->GetSpan());
     }
 
     // We're past the end of the unformatted range; clear the setting.
+    VLOG(5) << "Past end of unformatted range";
     unformatted_end_ = std::nullopt;
 
     // Note: continue and process this node normally now.
@@ -91,6 +102,8 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   std::vector<const CommentData *> disable_comments =
       FindDisablesBetween(previous_node_, node);
   if (disable_comments.empty()) {
+    VLOG(5) << "No comments between previous node and this node";
+    VLOG(5) << "Setting previous node to " << node->ToString();
     previous_node_ = node;
     // Node should be unchanged.
     return std::nullopt;
@@ -105,6 +118,7 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
         absl::StrCat("Multiple dslx-fmt::off commands between ",
                      previous_node_->ToString(), " and ", node->ToString()));
   }
+  VLOG(5) << "Found disable comment between previous node and this node.";
   const CommentData *disable_comment = disable_comments[0];
 
   // If there's a disable comment between the previous node and this node:
@@ -134,11 +148,14 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
 
   // d. Set a field that indicates the ending position of the last node that
   // should be unformatted.
+  VLOG(6) << "Setting unformatted end to " << limit;
   unformatted_end_ = limit;
 
   previous_node_ = node;
 
   // e. Replace the current node with the verbatim node from step c
+  VLOG(5) << "Setting previous node to, and replacing " << node->ToString()
+          << " with VerbatimNode";
   return verbatim_node;
 }
 

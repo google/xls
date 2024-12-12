@@ -21,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/fmt/comments.h"
@@ -87,6 +88,7 @@ class FormatDisabler {
 
   // Parsed lines of the module.
   std::vector<std::string> lines_;
+  absl::flat_hash_set<const AstNode *> seen_nodes_;
 };
 
 }  // namespace xls::dslx

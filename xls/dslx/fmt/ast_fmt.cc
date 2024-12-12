@@ -2414,6 +2414,7 @@ DocRef Formatter::Format(const ImplMember& n) {
   return absl::visit(Visitor{
                          [&](const Function* n) { return Format(*n); },
                          [&](const ConstantDef* n) { return Format(*n); },
+                         [&](const VerbatimNode* n) { return Format(*n); },
                      },
                      n);
 }

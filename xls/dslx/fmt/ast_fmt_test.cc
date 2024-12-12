@@ -1603,6 +1603,54 @@ impl MyStruct {
 )");
 }
 
+TEST_F(ModuleFmtTest, ImplWithDisabledFmtFn) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    // dslx-fmt::off
+fn my_function() -> u32 {
+// Do something important.
+u32:3
+}
+// dslx-fmt::on
+
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, ImplWithDisabledFmtExpr) {
+  DoFmt(
+      R"(struct MyStruct {}
+
+impl MyStruct {
+    fn my_function() -> u32 {
+        // dslx-fmt::off
+// Do something important.
+u32:3
+// dslx-fmt::on
+
+    }
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, DISABLED_ImplWithDisabledFmtImpl) {
+  // This test is disabled because the impl becomes a VerbatimNode. Then the
+  // cloner tries to set it into the struct as its impl, but structs cannot
+  // take VerbatimNodes as their impl yet.
+  DoFmt(
+      R"(struct MyStruct {}
+
+// dslx-fmt::off
+impl MyStruct { fn my_function() -> u32 {
+// Do something important.
+u32:3
+}}
+// dslx-fmt::on
+)");
+}
+
 TEST_F(ModuleFmtTest, ImplMethodWithVars) {
   DoFmt(R"(struct MyStruct { x: u32 }
 

@@ -1538,7 +1538,12 @@ std::vector<ConstantDef*> Impl::GetConstants() const {
 
 static std::string ImplMemberIdentifier(const ImplMember member) {
   return absl::visit(
-      Visitor{[](auto* n) { return n->name_def()->identifier(); }}, member);
+      Visitor{
+          [](const ConstantDef* n) { return n->name_def()->identifier(); },
+          [](const Function* n) { return n->name_def()->identifier(); },
+          [](const VerbatimNode* n) { return std::string("Verbatim"); },
+      },
+      member);
 }
 
 std::optional<ImplMember> Impl::GetMember(std::string_view name) const {
