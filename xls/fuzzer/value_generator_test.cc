@@ -191,6 +191,35 @@ TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
   EXPECT_THAT(expr->ToString(), HasSubstr("sN[u32:65]:"));
 }
 
+TEST(ValueGeneratorTest, GenerateDslxConstantArrayOfBitsConstructor) {
+  dslx::FileTable file_table;
+  dslx::Module module("test", /*fs_path=*/std::nullopt, file_table);
+  std::mt19937_64 rng;
+
+  // The type annotation for a bits constructor is:
+  // `x: xN[false][7]`
+  // i.e. a nested array type annotation.
+  auto* element_type = module.Make<dslx::BuiltinTypeAnnotation>(
+      dslx::FakeSpan(), dslx::BuiltinType::kXN,
+      module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kXN));
+
+  // Wrap that in an array of dimension `false`.
+  auto* expr_false = module.Make<dslx::Number>(
+      dslx::FakeSpan(), "0", dslx::NumberKind::kOther, /*type=*/nullptr);
+  auto* xn_false = module.Make<dslx::ArrayTypeAnnotation>(
+      dslx::FakeSpan(), element_type, expr_false);
+
+  // Wrap that in an array of dimension `7`.
+  auto* expr_7 = module.Make<dslx::Number>(
+      dslx::FakeSpan(), "7", dslx::NumberKind::kOther, /*type=*/nullptr);
+  auto* xn_false_7 = module.Make<dslx::ArrayTypeAnnotation>(dslx::FakeSpan(),
+                                                            xn_false, expr_7);
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
+                           GenerateDslxConstant(rng, &module, xn_false_7));
+  ASSERT_NE(expr, nullptr);
+  EXPECT_THAT(expr->ToString(), HasSubstr("xN[0][7]:"));
+}
+
 TEST(ValueGeneratorTest, GenerateDslxConstantTuple) {
   dslx::FileTable file_table;
   dslx::Module module("test", /*fs_path=*/std::nullopt, file_table);
