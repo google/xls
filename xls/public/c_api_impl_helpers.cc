@@ -84,6 +84,12 @@ bool FormatPreferenceFromC(xls_format_preference c_pref,
     case xls_format_preference_plain_hex:
       *cpp_pref = xls::FormatPreference::kPlainHex;
       break;
+    case xls_format_preference_zero_padded_binary:
+      *cpp_pref = xls::FormatPreference::kZeroPaddedBinary;
+      break;
+    case xls_format_preference_zero_padded_hex:
+      *cpp_pref = xls::FormatPreference::kZeroPaddedHex;
+      break;
     default:
       *error_out = ToOwnedCString(
           absl::StrFormat("Invalid format preference value: %d", c_pref));
