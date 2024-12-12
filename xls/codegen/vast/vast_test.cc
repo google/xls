@@ -1288,6 +1288,24 @@ TEST_P(VastTest, InstantiationTest) {
 );)");
 }
 
+TEST_P(VastTest, InstantiationWithEmptyPort) {
+  VerilogFile f(GetFileType());
+  auto* instantiation =
+      f.Make<Instantiation>(SourceInfo(),
+                            /*module_name=*/"uart_transmitter",
+                            /*instance_name=*/"tx",
+                            /*parameters=*/std::vector<Connection>{},
+                            /*connections=*/
+                            std::vector<Connection>{
+                                {.port_name = "clk", .expression = nullptr},
+                            });
+
+  EXPECT_EQ(instantiation->Emit(nullptr),
+            R"(uart_transmitter tx (
+  .clk()
+);)");
+}
+
 TEST_P(VastTest, TemplateInstantiationTest) {
   VerilogFile f(GetFileType());
   auto* a_def =

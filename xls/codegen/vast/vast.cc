@@ -1963,8 +1963,10 @@ std::string Instantiation::Emit(LineInfo* line_info) const {
   std::string result = absl::StrCat(module_name_, " ");
   LineInfoIncrease(line_info, NumberOfNewlines(module_name_));
   auto append_connection = [=](std::string* out, const Connection& parameter) {
-    absl::StrAppendFormat(out, ".%s(%s)", parameter.port_name,
-                          parameter.expression->Emit(line_info));
+    std::string expression_str = parameter.expression == nullptr
+                                     ? ""
+                                     : parameter.expression->Emit(line_info);
+    absl::StrAppendFormat(out, ".%s(%s)", parameter.port_name, expression_str);
     LineInfoIncrease(line_info, 1);
   };
   if (!parameters_.empty()) {

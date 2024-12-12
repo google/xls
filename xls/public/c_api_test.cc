@@ -368,15 +368,17 @@ TEST(XlsCApiTest, VastInstantiate) {
   xls_vast_expression* zero_expr = xls_vast_literal_as_expression(zero);
 
   // Within the module we'll instantiate `mod_def_name` with `mod_inst_name`.
-  const char* connection_port_names[] = {"portA", "portB"};
-  xls_vast_expression* connection_expressions[] = {zero_expr, zero_expr};
+  const char* connection_port_names[] = {"portA", "portB",
+                                         "portEmptyConnection"};
+  xls_vast_expression* connection_expressions[] = {zero_expr, zero_expr,
+                                                   nullptr};
   xls_vast_instantiation* instantiation =
       xls_vast_verilog_file_make_instantiation(
           f, "mod_def_name", "mod_inst_name",
           /*parameter_port_names=*/{},
           /*parameter_expressions=*/{},
           /*parameter_count=*/0, connection_port_names, connection_expressions,
-          /*connection_count=*/2);
+          /*connection_count=*/3);
 
   xls_vast_verilog_module_add_member_instantiation(m, instantiation);
 
@@ -386,7 +388,8 @@ TEST(XlsCApiTest, VastInstantiate) {
   const std::string_view kWant = R"(module my_module;
   mod_def_name mod_inst_name (
     .portA(0),
-    .portB(0)
+    .portB(0),
+    .portEmptyConnection()
   );
 endmodule
 )";
