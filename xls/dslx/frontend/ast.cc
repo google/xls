@@ -315,6 +315,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "unroll-for";
     case AstNodeKind::kUse:
       return "use";
+    case AstNodeKind::kUseTreeEntry:
+      return "use-tree-entry";
     case AstNodeKind::kVerbatimNode:
       return "verbatim-node";
   }
@@ -787,8 +789,8 @@ std::string Import::ToString() const {
 
 // -- class Use
 
-UseInteriorEntry::UseInteriorEntry(
-    std::string identifier, std::vector<std::unique_ptr<UseTreeEntry>> subtrees)
+UseInteriorEntry::UseInteriorEntry(std::string identifier,
+                                   std::vector<UseTreeEntry*> subtrees)
     : identifier_(std::move(identifier)), subtrees_(std::move(subtrees)) {
   CHECK(!subtrees_.empty());
   for (const auto& subtree : subtrees_) {
@@ -822,34 +824,35 @@ std::string UseInteriorEntry::ToString() const {
   return absl::StrCat(identifier_, "::", subtrees_str);
 }
 
-/* static */ std::unique_ptr<UseTreeEntry> UseTreeEntry::MakeLeaf(
-    NameDef* name_def, Span span) {
-  return std::make_unique<UseTreeEntry>(UseLeafEntry{name_def}, span);
-}
-
-/* static */ std::unique_ptr<UseTreeEntry> UseTreeEntry::MakeInterior(
-    std::string identifier, std::vector<std::unique_ptr<UseTreeEntry>> subtrees,
-    Span span) {
-  return std::make_unique<UseTreeEntry>(
-      UseInteriorEntry{std::move(identifier), std::move(subtrees)}, span);
-}
-
 std::string UseTreeEntry::ToString() const {
   return absl::visit(
       Visitor{
-          [](const UseLeafEntry& leaf) { return leaf.name_def->identifier(); },
+          [](const NameDef* leaf) { return leaf->identifier(); },
           [](const UseInteriorEntry& interior) { return interior.ToString(); }},
-      entry_);
+      payload_);
+}
+
+std::vector<AstNode*> UseTreeEntry::GetChildren(bool want_types) const {
+  return absl::visit(
+      Visitor{[](NameDef* leaf) { return std::vector<AstNode*>{leaf}; },
+              [](const UseInteriorEntry& interior) {
+                std::vector<AstNode*> results;
+                results.reserve(interior.subtrees().size());
+                for (UseTreeEntry* subtree : interior.subtrees()) {
+                  results.push_back(subtree);
+                }
+                return results;
+              }},
+      payload_);
 }
 
 std::vector<NameDef*> UseTreeEntry::GetLeafNameDefs() const {
-  return absl::visit(Visitor{[](const UseLeafEntry& leaf) {
-                               return std::vector<NameDef*>{leaf.name_def};
-                             },
-                             [](const UseInteriorEntry& interior) {
-                               return interior.GetLeafNameDefs();
-                             }},
-                     entry_);
+  return absl::visit(
+      Visitor{[](NameDef* leaf) { return std::vector<NameDef*>{leaf}; },
+              [](const UseInteriorEntry& interior) {
+                return interior.GetLeafNameDefs();
+              }},
+      payload_);
 }
 
 std::vector<std::string> UseTreeEntry::GetLeafIdentifiers() const {
@@ -862,8 +865,12 @@ std::vector<std::string> UseTreeEntry::GetLeafIdentifiers() const {
   return result;
 }
 
-Use::Use(Module* owner, Span span, std::unique_ptr<UseTreeEntry> root)
-    : AstNode(owner), span_(std::move(span)), root_(std::move(root)) {}
+absl::Status UseTreeEntry::Accept(AstNodeVisitor* v) const {
+  return v->HandleUseTreeEntry(this);
+}
+
+Use::Use(Module* owner, Span span, UseTreeEntry& root)
+    : AstNode(owner), span_(std::move(span)), root_(&root) {}
 
 Use::~Use() = default;
 
@@ -872,13 +879,7 @@ std::string Use::ToString() const {
 }
 
 std::vector<AstNode*> Use::GetChildren(bool want_types) const {
-  std::vector<NameDef*> name_defs = root_->GetLeafNameDefs();
-  std::vector<AstNode*> results;
-  results.reserve(name_defs.size());
-  for (NameDef* name_def : name_defs) {
-    results.push_back(name_def);
-  }
-  return results;
+  return {root_};
 }
 
 // -- class ColonRef

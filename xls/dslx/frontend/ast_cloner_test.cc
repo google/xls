@@ -1736,5 +1736,17 @@ fn divmod() {})*";
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, Use) {
+  constexpr std::string_view kProgram =
+      R"(use foo::bar::{baz::{bat, qux}, ipsum};)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx

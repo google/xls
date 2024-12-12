@@ -108,6 +108,7 @@
   X(TypeAlias)                    \
   X(TypeRef)                      \
   X(Use)                          \
+  X(UseTreeEntry)                 \
   X(WidthSlice)                   \
   X(WildcardPattern)              \
   /* type annotations */          \
@@ -1325,7 +1326,8 @@ class Import : public AstNode {
 
 class UseTreeEntry;  // forward decl
 
-// Interior node in the `use` construct tree.
+// Data structure that holds the payload for an interior node in the `use`
+// construct tree.
 //
 //              v--v identifier
 // e.g. in `use foo::{bar, baz}`
@@ -1334,49 +1336,53 @@ class UseTreeEntry;  // forward decl
 // For a node to be considered "interior" there must be subtrees.
 class UseInteriorEntry {
  public:
-  UseInteriorEntry(std::string identifier,
-                   std::vector<std::unique_ptr<UseTreeEntry>> subtrees);
+  UseInteriorEntry(std::string identifier, std::vector<UseTreeEntry*> subtrees);
 
   // Move-only.
   UseInteriorEntry(UseInteriorEntry&&) = default;
   UseInteriorEntry& operator=(UseInteriorEntry&&) = default;
 
+  // Transitively retrieves a vector of all the name defs at the leaf positions
+  // underneath this interior node.
   std::vector<NameDef*> GetLeafNameDefs() const;
 
-  absl::Span<const std::unique_ptr<UseTreeEntry>> subtrees() const {
-    return subtrees_;
-  }
+  absl::Span<UseTreeEntry* const> subtrees() const { return subtrees_; }
 
   std::string ToString() const;
+  std::string_view identifier() const { return identifier_; }
 
  private:
   std::string identifier_;
-  std::vector<std::unique_ptr<UseTreeEntry>> subtrees_;
-};
-
-// Leaf node in the `use` construct tree.
-struct UseLeafEntry {
-  NameDef* name_def;
+  std::vector<UseTreeEntry*> subtrees_;
 };
 
 // Arbitrary entry (interior or leaf) in the `use` construct tree.
-class UseTreeEntry {
+class UseTreeEntry : public AstNode {
  public:
-  static std::unique_ptr<UseTreeEntry> MakeInterior(
-      std::string identifier,
-      std::vector<std::unique_ptr<UseTreeEntry>> subtrees, Span span);
-  static std::unique_ptr<UseTreeEntry> MakeLeaf(NameDef* name_def, Span span);
+  UseTreeEntry(Module* owner, std::variant<UseInteriorEntry, NameDef*> payload,
+               Span span)
+      : AstNode(owner), payload_(std::move(payload)), span_(std::move(span)) {}
 
-  UseTreeEntry(std::variant<UseInteriorEntry, UseLeafEntry> entry, Span span)
-      : entry_(std::move(entry)), span_(std::move(span)) {}
-
-  std::string ToString() const;
+  std::string ToString() const override;
 
   std::vector<std::string> GetLeafIdentifiers() const;
   std::vector<NameDef*> GetLeafNameDefs() const;
 
+  AstNodeKind kind() const override { return AstNodeKind::kUseTreeEntry; }
+  std::string_view GetNodeTypeName() const override { return "UseTreeEntry"; }
+  std::optional<Span> GetSpan() const override { return span_; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+  absl::Status Accept(AstNodeVisitor* v) const override;
+
+  // The payload of this tree node -- it is either an interior node or a leaf
+  // node.
+  const std::variant<UseInteriorEntry, NameDef*>& payload() const {
+    return payload_;
+  }
+  const Span& span() const { return span_; }
+
  private:
-  std::variant<UseInteriorEntry, UseLeafEntry> entry_;
+  std::variant<UseInteriorEntry, NameDef*> payload_;
   Span span_;
 };
 
@@ -1401,7 +1407,7 @@ class UseTreeEntry {
 //  span: Span of the overall `use` statement in the text.
 class Use : public AstNode {
  public:
-  Use(Module* owner, Span span, std::unique_ptr<UseTreeEntry> root);
+  Use(Module* owner, Span span, UseTreeEntry& root);
 
   ~Use() override;
 
@@ -1423,11 +1429,13 @@ class Use : public AstNode {
     return root_->GetLeafNameDefs();
   }
 
+  UseTreeEntry& root() { return *root_; }
+  const UseTreeEntry& root() const { return *root_; }
   const Span& span() const { return span_; }
 
  private:
   Span span_;
-  std::unique_ptr<UseTreeEntry> root_;
+  UseTreeEntry* root_;
 };
 
 // Represents a module-value or enum-value style reference when the LHS

@@ -373,6 +373,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Impl)
   INVALID(Import)
   INVALID(Use)
+  INVALID(UseTreeEntry)
   INVALID(Module)
   INVALID(Proc)
   INVALID(ProcMember)
