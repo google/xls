@@ -39,15 +39,17 @@ in the XLS project, with the relevant Google style guides
     statement blocks.
 
 *   Prefer using `XLS_ASSIGN_OR_RETURN` / `XLS_RETURN_IF_ERROR` when
-    appropriate, but when binding a `StatusOr` wrapped value prefer to name it
-    `thing_or` so that it can be referenced without the wrapper as `thing`; e.g.
+    appropriate. When binding a `StatusOr` wrapped value, prefer to name the
+    variable after its underlying value (just as we do with pointers). Avoid
+    names like `maybe_foo` or `foo_or`, which can lead to multiple variables
+    that represent the same value.
 
     ```
-    absl::StatusOr<Thing> thing_or = f();
-    if (!thing_or.ok()) {
-      // ... handling of the status via thing_or.status() and returning ...
+    absl::StatusOr<Thing> thing = f();
+    if (thing.ok()) {
+      MakeUseOf(*thing);
+      thing->DoSomething();
     }
-    const Thing& thing = thing_or.value();
     ```
 
 *   Prefer `CHECK` to `DCHECK`, except that `DCHECK` can be used to verify
