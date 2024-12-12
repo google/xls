@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
@@ -60,7 +61,9 @@ struct CriticalPathEntry {
 // the front of the returned vector.
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     FunctionBase* f, std::optional<int64_t> clock_period_ps,
-    const DelayEstimator& delay_estimator);
+    const DelayEstimator& delay_estimator,
+    absl::AnyInvocable<bool(Node*)> source_filter = [](Node*) { return true; },
+    absl::AnyInvocable<bool(Node*)> sink_filter = [](Node*) { return true; });
 
 // Returns a string representation of the critical-path. Includes delay
 // information for each node as well as cumulative delay.

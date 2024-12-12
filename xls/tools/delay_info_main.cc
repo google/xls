@@ -43,8 +43,10 @@
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -201,6 +203,37 @@ absl::Status RealMain(std::string_view input_path) {
             ->emplace(i, CriticalPathToProto(real_critical_path));
       }
       std::cout << "\n";
+    }
+    if (top->IsProc()) {
+      Proc* proc = top->AsProcOrDie();
+      for (StateElement* state_element : proc->StateElements()) {
+        std::cout << absl::StrFormat("# Critical path for state element %s:\n",
+                                     state_element->name());
+        XLS_ASSIGN_OR_RETURN(
+            std::vector<CriticalPathEntry> state_critical_path,
+            AnalyzeCriticalPath(
+                top, /*clock_period_ps=*/std::nullopt, *delay_estimator,
+                [&](Node* node) {
+                  return node->Is<StateRead>() &&
+                         node->As<StateRead>()->state_element() ==
+                             state_element;
+                },
+                /*sink_filter=*/
+                [&](Node* node) {
+                  if (node->Is<StateRead>() &&
+                      node->As<StateRead>()->state_element() == state_element) {
+                    return true;
+                  }
+                  if (node->Is<Next>()) {
+                    return node->As<Next>()->state_read() ==
+                           proc->GetStateRead(state_element);
+                  }
+                  return node ==
+                         proc->GetNextStateElement(
+                             *proc->GetStateElementIndex(state_element));
+                }));
+        std::cout << CriticalPathToString(state_critical_path) << "\n";
+      }
     }
   }
 

@@ -21,7 +21,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -40,7 +42,9 @@ namespace xls {
 
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     FunctionBase* f, std::optional<int64_t> clock_period_ps,
-    const DelayEstimator& delay_estimator) {
+    const DelayEstimator& delay_estimator,
+    absl::AnyInvocable<bool(Node*)> source_filter,
+    absl::AnyInvocable<bool(Node*)> sink_filter) {
   struct NodeEntry {
     Node* node;
 
@@ -65,15 +69,27 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
   std::optional<NodeEntry> latest_entry;
 
   for (Node* node : TopoSort(f)) {
+    if (!source_filter(node) &&
+        !absl::c_any_of(node->operands(), [&](Node* operand) {
+          return node_entries.contains(operand);
+        })) {
+      // This node is neither a source nor on a path from a source.
+      continue;
+    }
     NodeEntry& entry = node_entries[node];
     entry.node = node;
 
     // The maximum delay from any path up to but not including `node`.
     int64_t max_path_delay = 0;
     for (Node* operand : node->operands()) {
-      int64_t operand_path_delay = node_entries.at(operand).critical_path_delay;
+      auto it = node_entries.find(operand);
+      if (it == node_entries.end()) {
+        // This operand is neither a source nor on a path from a source.
+        continue;
+      }
+      int64_t operand_path_delay = it->second.critical_path_delay;
       if (operand_path_delay >= max_path_delay) {
-        max_path_delay = node_entries.at(operand).critical_path_delay;
+        max_path_delay = operand_path_delay;
         entry.critical_path_predecessor = operand;
       }
     }
@@ -94,13 +110,17 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     }
     entry.critical_path_delay = max_path_delay + entry.node_delay;
 
+    if (!sink_filter(node)) {
+      continue;
+    }
     if (!latest_entry.has_value() ||
         latest_entry->critical_path_delay <= entry.critical_path_delay) {
       latest_entry = entry;
     }
   }
 
-  // `latest_entry` has no value for empty FunctionBases.
+  // `latest_entry` has no value for empty FunctionBases or if the source & sink
+  // filters removed all nodes.
   if (!latest_entry.has_value()) {
     return std::vector<CriticalPathEntry>();
   }

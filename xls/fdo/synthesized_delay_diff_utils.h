@@ -37,6 +37,7 @@ namespace synthesis {
 // synthesis tool reports.
 struct SynthesizedDelayDiff {
   std::vector<CriticalPathEntry> critical_path;
+  std::vector<CriticalPathEntry> state_critical_path;
   int64_t xls_delay_ps = 0;
   int64_t synthesized_delay_ps = 0;
 };
