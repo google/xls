@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/comment_data.h"
 #include "xls/dslx/frontend/pos.h"
@@ -47,6 +48,14 @@ class Comments {
   // Returns whether there are any comments contained in the given span.
   bool HasComments(const Span& in_span) const;
 
+  // Indicate that this comment was "placed" in the formatted output.
+  void PlaceComment(const CommentData* comment) {
+    placed_comments_.insert(comment);
+  }
+  bool WasPlaced(const CommentData* comment) const {
+    return placed_comments_.contains(comment);
+  }
+
   const std::optional<Pos>& last_data_limit() const { return last_data_limit_; }
 
  private:
@@ -57,6 +66,7 @@ class Comments {
 
   absl::flat_hash_map<int64_t, CommentData> line_to_comment_;
   std::optional<Pos> last_data_limit_;
+  absl::flat_hash_set<const CommentData*> placed_comments_;
 };
 
 }  // namespace xls::dslx

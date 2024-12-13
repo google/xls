@@ -48,10 +48,12 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 
 TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
   auto [file_table, module, lt] = MakeCastWithinLtComparison();
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*lt);
@@ -60,7 +62,7 @@ TEST(BuiltAstFmtTest, FormatCastThatNeedsParens) {
 
 TEST(BuiltAstFmtTest, FormatIndexThatNeedsParens) {
   auto [file_table, module, index] = MakeCastWithinIndexExpression();
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*index);
@@ -70,7 +72,7 @@ TEST(BuiltAstFmtTest, FormatIndexThatNeedsParens) {
 TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
   auto [file_table, module, tuple_index] =
       MakeIndexWithinTupleIndexExpression();
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*tuple_index);
@@ -80,7 +82,7 @@ TEST(BuiltAstFmtTest, FormatTupleIndexThatNeedsParens) {
 TEST(BuiltAstFmtTest, FormatSingleElementTuple) {
   auto [file_table, module, tuple] =
       MakeNElementTupleExpression(1, /*has_trailing_comma=*/true);
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
@@ -90,7 +92,7 @@ TEST(BuiltAstFmtTest, FormatSingleElementTuple) {
 TEST(BuiltAstFmtTest, FormatShortTupleWithoutTrailingComma) {
   auto [file_table, module, tuple] =
       MakeNElementTupleExpression(2, /*has_trailing_comma=*/false);
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
@@ -100,7 +102,7 @@ TEST(BuiltAstFmtTest, FormatShortTupleWithoutTrailingComma) {
 TEST(BuiltAstFmtTest, FormatShortTupleWithTrailingComma) {
   auto [file_table, module, tuple] =
       MakeNElementTupleExpression(2, /*has_trailing_comma=*/true);
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*tuple);
@@ -108,7 +110,7 @@ TEST(BuiltAstFmtTest, FormatShortTupleWithTrailingComma) {
 }
 
 TEST(BuiltAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
   {
     auto [file_table, module, tuple] =
         MakeNElementTupleExpression(40, /*has_trailing_comma=*/true);
@@ -139,7 +141,7 @@ TEST(BuiltAstFmtTest, FormatLongTupleShouldAddTrailingComma) {
 
 TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
   auto [file_table, module, unop] = MakeCastWithinNegateExpression();
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*unop);
@@ -148,7 +150,7 @@ TEST(BuiltAstFmtTest, FormatUnopThatNeedsParensOnOperand) {
 
 TEST(BuiltAstFmtTest, FormatAttrThatNeedsParensOnOperand) {
   auto [file_table, module, attr] = MakeArithWithinAttrExpression();
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena).Format(*attr);
@@ -179,10 +181,11 @@ TEST(AstFmtTest, FormatVerbatimNodeTop) {
   const std::string verbatim_text = "anything // goes\n  even here";
   VerbatimNode verbatim(&m, Span(), verbatim_text);
   XLS_ASSERT_OK(m.AddTop(&verbatim, /*make_collision_error=*/nullptr));
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
-  DocRef doc = Formatter(empty_comments, arena).Format(m);
+  XLS_ASSERT_OK_AND_ASSIGN(DocRef doc,
+                           Formatter(empty_comments, arena).Format(m));
 
   // Intentionally small text width, should still be formatted verbatim.
   EXPECT_EQ(PrettyPrint(arena, doc, /*text_width=*/10), verbatim_text);
@@ -195,7 +198,7 @@ TEST(AstFmtTest, FormatVerbatimNodeStatement) {
   const std::string verbatim_text = "anything // goes\n  even here";
   VerbatimNode verbatim(&m, Span(), verbatim_text);
   Statement statement(&m, &verbatim);
-  const Comments empty_comments = Comments::Create({});
+  Comments empty_comments = Comments::Create({});
 
   DocArena arena(file_table);
   DocRef doc = Formatter(empty_comments, arena)
@@ -1234,6 +1237,17 @@ class ModuleFmtTest : public testing::Test {
                             std::optional<std::string_view> want) {
     DoFmt(input, want, kDslxDefaultTextWidth,
           /*opportunistic_postcondition=*/false);
+  }
+
+  void AutoFmtExpectsError(std::string input, std::string_view error_substr) {
+    std::vector<CommentData> comments_vec;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Module> m,
+        ParseModule(input, "fake.x", "fake", file_table_, &comments_vec));
+    Comments comments = Comments::Create(comments_vec);
+    AllErrorsFilesystem vfs;
+    EXPECT_THAT(AutoFmt(vfs, *m, comments, input, kDslxDefaultTextWidth),
+                StatusIs(absl::StatusCode::kInternal, HasSubstr(error_substr)));
   }
 
  private:
@@ -3014,7 +3028,7 @@ TEST_F(ModuleFmtTest, DisableFmtSimpleProcNext) {
 TEST_F(ModuleFmtTest, DisableFmtInProc_GH1735) {
   // This reproduces the issue from https://github.com/google/xls/issues/1735,
   // and is still broken, but at least doesn't delete the whole proc!
-  DoFmt(R"(struct FooType { a: u32, b: u32 }
+  AutoFmtExpectsError(R"(struct FooType { a: u32, b: u32 }
 struct BarType { c: u32, d: u32 }
 const NUM_ELEMS = u32:8;
 const NUM_BLOCKS = u32:2;
@@ -3040,35 +3054,7 @@ proc A {
         let _my_grand_finale_here = true;
     }
 })",
-        R"(struct FooType { a: u32, b: u32 }
-struct BarType { c: u32, d: u32 }
-
-const NUM_ELEMS = u32:8;
-const NUM_BLOCKS = u32:2;
-
-proc A {
-    config() {  }
-
-    init {  }
-
-    next(_: ()) {
-        // some comment
-        let _some_import_code_here = true;
-        let (_foo, _bar, _baz) =
-            for (i, (foo, bar, baz)): (u32, (FooType[NUM_ELEMS][NUM_BLOCKS], BarType[NUM_ELEMS][NUM_BLOCKS
-            ], bool[NUM_ELEMS][NUM_BLOCKS])) in range(u32:0, 8) {
-                // dslx-fmt::on
-
-                // this is another cool comment
-                (foo, bar, baz)
-            }((zero!<FooType[8][2]>(), zero!<BarType[8][2]>(), all_ones!<bool[8][2]>()));
-
-        // the end
-        let _my_grand_finale_here = true;
-    }
-}
-)",
-        kDslxDefaultTextWidth, /*opportunistic_postcondition=*/false);
+                      "was deleted");
 }
 
 }  // namespace

@@ -35,7 +35,7 @@ namespace xls::dslx {
 // Expr-descendants are migrated to it.
 class Formatter {
  public:
-  Formatter(const Comments& comments, DocArena& arena)
+  Formatter(Comments& comments, DocArena& arena)
       : comments_(comments), arena_(arena) {}
 
   // keep-sorted start
@@ -44,7 +44,7 @@ class Formatter {
   DocRef Format(const Function& n);
   DocRef Format(const Expr& n);
   DocRef Format(const Let& n, bool trailing_semi);
-  DocRef Format(const Module& n);
+  absl::StatusOr<DocRef> Format(const Module& n);
   // If `trailing_semi` is true, then a trailing semicolon will also be emitted.
   DocRef Format(const Statement& n, bool trailing_semi);
   DocRef Format(const VerbatimNode& n);
@@ -77,7 +77,7 @@ class Formatter {
       const std::optional<std::string>& extern_type_name);
   // keep-sorted end
 
-  const Comments& comments_;
+  Comments& comments_;
   DocArena& arena_;
 };
 

@@ -64,9 +64,8 @@ namespace {
 // routines which generally don't emit any whitespace afterwards, just their
 // doc.
 std::optional<DocRef> EmitCommentsBetween(
-    std::optional<Pos> start_pos, const Pos& limit_pos,
-    const Comments& comments, DocArena& arena,
-    std::optional<Span>* last_comment_span) {
+    std::optional<Pos> start_pos, const Pos& limit_pos, Comments& comments,
+    DocArena& arena, std::optional<Span>* last_comment_span) {
   if (!start_pos.has_value()) {
     start_pos = Pos(limit_pos.fileno(), 0, 0);
   }
@@ -88,6 +87,7 @@ std::optional<DocRef> EmitCommentsBetween(
   std::optional<Span> previous_comment_span;
   for (size_t i = 0; i < items.size(); ++i) {
     const CommentData* comment_data = items[i];
+    comments.PlaceComment(comment_data);
 
     // If the previous comment line and this comment line are abutted (i.e.
     // contiguous lines with comments), we don't put a newline between them.
@@ -142,23 +142,21 @@ std::string StripAnyDotModifier(std::string_view s) {
 
 // Forward decls.
 // keep-sorted start
-DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena);
-DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena);
-DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena);
-DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena);
-DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
-                            DocArena& arena);
-DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
+DocRef Fmt(const ColonRef& n, Comments& comments, DocArena& arena);
+DocRef Fmt(const Expr& n, Comments& comments, DocArena& arena);
+DocRef Fmt(const NameDefTree& n, Comments& comments, DocArena& arena);
+DocRef Fmt(const TypeAnnotation& n, Comments& comments, DocArena& arena);
+DocRef FmtBlockedExprLeader(const Expr& e, Comments& comments, DocArena& arena);
+DocRef FmtExpr(const Expr& n, Comments& comments, DocArena& arena,
                bool suppress_parens);
-DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
-                     DocArena& arena);
+DocRef FmtExprOrType(const ExprOrType& n, Comments& comments, DocArena& arena);
 // keep-sorted end
 
 // A parametric argument, as in parametric instantiation:
 //
 //    f<FOO as u32>()
 //      ^^^^^^^^^^~~~ parametric argument, expr or types can go here generally
-DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
+DocRef FmtParametricArg(const ExprOrType& n, Comments& comments,
                         DocArena& arena) {
   return absl::visit(
       Visitor{
@@ -176,7 +174,7 @@ DocRef FmtParametricArg(const ExprOrType& n, const Comments& comments,
       n);
 }
 
-DocRef FmtExprPtr(const Expr* n, const Comments& comments, DocArena& arena) {
+DocRef FmtExprPtr(const Expr* n, Comments& comments, DocArena& arena) {
   CHECK(n != nullptr);
   return Fmt(*n, comments, arena);
 }
@@ -205,10 +203,9 @@ enum class Joiner : uint8_t {
 //
 // This elides the "joiner" being present after the last item.
 template <typename T>
-DocRef FmtJoin(
-    absl::Span<const T> items, Joiner joiner,
-    const std::function<DocRef(const T&, const Comments&, DocArena&)>& fmt,
-    const Comments& comments, DocArena& arena) {
+DocRef FmtJoin(absl::Span<const T> items, Joiner joiner,
+               const std::function<DocRef(const T&, Comments&, DocArena&)>& fmt,
+               Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   for (size_t i = 0; i < items.size(); ++i) {
     const T& item = items[i];
@@ -293,17 +290,16 @@ DocRef FmtJoin(
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const BuiltinTypeAnnotation& n, const Comments& comments,
+DocRef Fmt(const BuiltinTypeAnnotation& n, Comments& comments,
            DocArena& arena) {
   return arena.MakeText(BuiltinTypeToString(n.builtin_type()));
 }
 
-DocRef Fmt(const VerbatimNode& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const VerbatimNode& n, Comments& comments, DocArena& arena) {
   return Formatter(comments, arena).Format(n);
 }
 
-DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
-           DocArena& arena) {
+DocRef Fmt(const ArrayTypeAnnotation& n, Comments& comments, DocArena& arena) {
   DocRef elem = Fmt(*n.element_type(), comments, arena);
   DocRef dim = Fmt(*n.dim(), comments, arena);
 
@@ -314,14 +310,13 @@ DocRef Fmt(const ArrayTypeAnnotation& n, const Comments& comments,
                       {elem, arena.obracket(), arena.MakeAlign(dim), closer});
 }
 
-DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n, const Comments& comments,
+DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n, Comments& comments,
                             DocArena& arena) {
   CHECK(n != nullptr);
   return Fmt(*n, comments, arena);
 }
 
-DocRef Fmt(const TupleTypeAnnotation& n, const Comments& comments,
-           DocArena& arena) {
+DocRef Fmt(const TupleTypeAnnotation& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {arena.oparen()};
   pieces.push_back(FmtJoin<const TypeAnnotation*>(
       n.members(), Joiner::kCommaSpace, FmtTypeAnnotationPtr, comments, arena));
@@ -329,7 +324,7 @@ DocRef Fmt(const TupleTypeAnnotation& n, const Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const TypeRef& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const TypeRef& n, Comments& comments, DocArena& arena) {
   return absl::visit(
       Visitor{
           [&](const ColonRef* n) { return Fmt(*n, comments, arena); },
@@ -338,7 +333,7 @@ DocRef Fmt(const TypeRef& n, const Comments& comments, DocArena& arena) {
       n.type_definition());
 }
 
-DocRef Fmt(const TypeRefTypeAnnotation& n, const Comments& comments,
+DocRef Fmt(const TypeRefTypeAnnotation& n, Comments& comments,
            DocArena& arena) {
   std::vector<DocRef> pieces = {Fmt(*n.type_ref(), comments, arena)};
   if (!n.parametrics().empty()) {
@@ -352,7 +347,7 @@ DocRef Fmt(const TypeRefTypeAnnotation& n, const Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const ChannelTypeAnnotation& n, const Comments& comments,
+DocRef Fmt(const ChannelTypeAnnotation& n, Comments& comments,
            DocArena& arena) {
   std::vector<DocRef> pieces = {
       arena.Make(Keyword::kChan),
@@ -374,7 +369,7 @@ DocRef Fmt(const ChannelTypeAnnotation& n, const Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const TypeAnnotation& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const TypeAnnotation& n, Comments& comments, DocArena& arena) {
   if (auto* t = dynamic_cast<const BuiltinTypeAnnotation*>(&n)) {
     return Fmt(*t, comments, arena);
   }
@@ -418,15 +413,15 @@ DocRef FmtSvTypeAttribute(std::string_view name, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const NameDef& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const NameDef& n, Comments& comments, DocArena& arena) {
   return arena.MakeText(n.identifier());
 }
 
-DocRef Fmt(const NameRef& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const NameRef& n, Comments& comments, DocArena& arena) {
   return arena.MakeText(StripAnyDotModifier(n.identifier()));
 }
 
-DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Number& n, Comments& comments, DocArena& arena) {
   DocRef num_text;
   if (n.number_kind() == NumberKind::kCharacter) {
     // Note: we don't need to escape double quote because this is going to end
@@ -448,17 +443,15 @@ DocRef Fmt(const Number& n, const Comments& comments, DocArena& arena) {
   return num_text;
 }
 
-DocRef Fmt(const WildcardPattern& n, const Comments& comments,
-           DocArena& arena) {
+DocRef Fmt(const WildcardPattern& n, Comments& comments, DocArena& arena) {
   return arena.underscore();
 }
 
-DocRef Fmt(const RestOfTuple& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const RestOfTuple& n, Comments& comments, DocArena& arena) {
   return arena.dot_dot();
 }
 
-DocRef MakeArrayLeader(const Array& n, const Comments& comments,
-                       DocArena& arena) {
+DocRef MakeArrayLeader(const Array& n, Comments& comments, DocArena& arena) {
   const TypeAnnotation* t = n.type_annotation();
   if (t == nullptr) {
     return arena.obracket();
@@ -470,7 +463,7 @@ DocRef MakeArrayLeader(const Array& n, const Comments& comments,
   return ConcatN(arena, pieces);
 }
 
-DocRef FmtFlatBody(const Array& n, const Comments& comments, DocArena& arena) {
+DocRef FmtFlatBody(const Array& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> flat_pieces;
   flat_pieces.push_back(FmtJoin<const Expr*>(n.members(), Joiner::kCommaSpace,
                                              FmtExprPtr, comments, arena));
@@ -489,7 +482,7 @@ DocRef FmtFlatBody(const Array& n, const Comments& comments, DocArena& arena) {
   return ConcatN(arena, flat_pieces);
 }
 
-DocRef FmtBreakBody(const Array& n, const Comments& comments, DocArena& arena) {
+DocRef FmtBreakBody(const Array& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> rest;
   rest.push_back(arena.break0());
 
@@ -511,7 +504,7 @@ DocRef FmtBreakBody(const Array& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, rest);
 }
 
-DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Array& n, Comments& comments, DocArena& arena) {
   DocRef on_break_body = FmtBreakBody(n, comments, arena);
   DocRef on_flat_body = FmtFlatBody(n, comments, arena);
 
@@ -520,7 +513,7 @@ DocRef Fmt(const Array& n, const Comments& comments, DocArena& arena) {
   return arena.MakeConcat(MakeArrayLeader(n, comments, arena), body);
 }
 
-DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Attr& n, Comments& comments, DocArena& arena) {
   Precedence op_precedence = n.GetPrecedenceWithoutParens();
   const Expr& lhs = *n.lhs();
   Precedence lhs_precedence = lhs.GetPrecedence();
@@ -537,7 +530,7 @@ DocRef Fmt(const Attr& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const Binop& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Binop& n, Comments& comments, DocArena& arena) {
   Precedence op_precedence = n.GetPrecedenceWithoutParens();
   const Expr& lhs = *n.lhs();
   const Expr& rhs = *n.rhs();
@@ -617,7 +610,7 @@ Pos AdjustCommentLimit(const Span& comment_span, DocArena& arena,
 // Looks for inline comments after the `prev_limit` and adds relevant `DocRef`
 // to `pieces`. Returns `last_entity_pos`, updated if comments were found.
 Pos CollectInlineComments(const Pos& prev_limit, const Pos& last_entity_pos,
-                          const Comments& comments, DocArena& arena,
+                          Comments& comments, DocArena& arena,
                           std::vector<DocRef>& pieces,
                           std::optional<Span> last_comment_span) {
   const Pos next_line(prev_limit.fileno(), prev_limit.lineno() + 1, 0);
@@ -637,13 +630,13 @@ Pos CollectInlineComments(const Pos& prev_limit, const Pos& last_entity_pos,
   return last_entity_pos;
 }
 
-DocRef Fmt(const Statement& n, const Comments& comments, DocArena& arena,
+DocRef Fmt(const Statement& n, Comments& comments, DocArena& arena,
            bool trailing_semi) {
   return Formatter(comments, arena).Format(n, trailing_semi);
 }
 
 DocRef FmtSingleStatementBlockInline(const StatementBlock& n,
-                                     const Comments& comments, bool add_curls,
+                                     Comments& comments, bool add_curls,
                                      DocArena& arena) {
   std::vector<DocRef> pieces;
   if (add_curls) {
@@ -662,8 +655,8 @@ DocRef FmtSingleStatementBlockInline(const StatementBlock& n,
 }
 
 // Note: we only add leading/trailing spaces in the block if add_curls is true.
-DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
-                DocArena& arena, bool add_curls, bool force_multiline = false) {
+DocRef FmtBlock(const StatementBlock& n, Comments& comments, DocArena& arena,
+                bool add_curls, bool force_multiline = false) {
   bool has_comments = comments.HasComments(n.span());
 
   if (n.statements().empty() && !has_comments) {
@@ -815,11 +808,11 @@ DocRef FmtBlock(const StatementBlock& n, const Comments& comments,
   return ConcatNGroup(arena, top);
 }
 
-DocRef Fmt(const StatementBlock& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const StatementBlock& n, Comments& comments, DocArena& arena) {
   return FmtBlock(n, comments, arena, /*add_curls=*/true);
 }
 
-DocRef Fmt(const Cast& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Cast& n, Comments& comments, DocArena& arena) {
   DocRef lhs = Fmt(*n.expr(), comments, arena);
 
   Precedence arg_precedence = n.expr()->GetPrecedence();
@@ -832,7 +825,7 @@ DocRef Fmt(const Cast& n, const Comments& comments, DocArena& arena) {
               Fmt(*n.type_annotation(), comments, arena)});
 }
 
-DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const ChannelDecl& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces{
       arena.Make(Keyword::kChan),
       arena.oangle(),
@@ -857,7 +850,7 @@ DocRef Fmt(const ChannelDecl& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const ColonRef& n, Comments& comments, DocArena& arena) {
   DocRef subject = absl::visit(
       Visitor{[&](const NameRef* n) { return Fmt(*n, comments, arena); },
               [&](const ColonRef* n) { return Fmt(*n, comments, arena); }},
@@ -868,7 +861,7 @@ DocRef Fmt(const ColonRef& n, const Comments& comments, DocArena& arena) {
 }
 
 DocRef FmtForLoopBaseLeader(Keyword keyword, DocRef names_ref,
-                            const ForLoopBase& n, const Comments& comments,
+                            const ForLoopBase& n, Comments& comments,
                             DocArena& arena) {
   std::vector<DocRef> pieces = {
       arena.Make(keyword),
@@ -895,8 +888,8 @@ DocRef FmtForLoopBaseLeader(Keyword keyword, DocRef names_ref,
   return ConcatN(arena, pieces);
 }
 
-DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n,
-                      const Comments& comments, DocArena& arena) {
+DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n, Comments& comments,
+                      DocArena& arena) {
   CHECK(keyword == Keyword::kFor || keyword == Keyword::kUnrollFor)
       << static_cast<std::underlying_type_t<Keyword>>(keyword);
   DocRef names_ref = Fmt(*n.names(), comments, arena);
@@ -916,15 +909,15 @@ DocRef FmtForLoopBase(Keyword keyword, const ForLoopBase& n,
   return arena.MakeConcat(leader, ConcatN(arena, body_pieces));
 }
 
-DocRef Fmt(const UnrollFor& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const UnrollFor& n, Comments& comments, DocArena& arena) {
   return FmtForLoopBase(Keyword::kUnrollFor, n, comments, arena);
 }
 
-DocRef Fmt(const For& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const For& n, Comments& comments, DocArena& arena) {
   return FmtForLoopBase(Keyword::kFor, n, comments, arena);
 }
 
-DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const FormatMacro& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {
       arena.MakeText(n.macro()),
       arena.oparen(),
@@ -943,7 +936,7 @@ DocRef Fmt(const FormatMacro& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const Slice& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Slice& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
 
   if (n.start() != nullptr) {
@@ -957,7 +950,7 @@ DocRef Fmt(const Slice& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const WidthSlice& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const WidthSlice& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, {
                                  Fmt(*n.start(), comments, arena),
                                  arena.break0(),
@@ -967,7 +960,7 @@ DocRef Fmt(const WidthSlice& n, const Comments& comments, DocArena& arena) {
                              });
 }
 
-DocRef Fmt(const IndexRhs& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const IndexRhs& n, Comments& comments, DocArena& arena) {
   return absl::visit(
       Visitor{
           [&](const Expr* n) { return Fmt(*n, comments, arena); },
@@ -977,7 +970,7 @@ DocRef Fmt(const IndexRhs& n, const Comments& comments, DocArena& arena) {
       n);
 }
 
-DocRef Fmt(const Index& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Index& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   if (WeakerThan(n.lhs()->GetPrecedence(), n.GetPrecedence())) {
     pieces.push_back(arena.oparen());
@@ -992,8 +985,7 @@ DocRef Fmt(const Index& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
-                     DocArena& arena) {
+DocRef FmtExprOrType(const ExprOrType& n, Comments& comments, DocArena& arena) {
   return absl::visit(
       Visitor{
           [&](const Expr* n) { return Fmt(*n, comments, arena); },
@@ -1003,7 +995,7 @@ DocRef FmtExprOrType(const ExprOrType& n, const Comments& comments,
 }
 
 std::optional<DocRef> FmtExplicitParametrics(const Instantiation& n,
-                                             const Comments& comments,
+                                             Comments& comments,
                                              DocArena& arena) {
   if (n.explicit_parametrics().empty()) {
     return std::nullopt;
@@ -1016,7 +1008,7 @@ std::optional<DocRef> FmtExplicitParametrics(const Instantiation& n,
               arena.cangle()});
 }
 
-DocRef Fmt(const FunctionRef& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const FunctionRef& n, Comments& comments, DocArena& arena) {
   DocRef callee_doc = Fmt(*n.callee(), comments, arena);
   std::optional<DocRef> parametrics_doc =
       FmtExplicitParametrics(n, comments, arena);
@@ -1025,7 +1017,7 @@ DocRef Fmt(const FunctionRef& n, const Comments& comments, DocArena& arena) {
              : callee_doc;
 }
 
-DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Invocation& n, Comments& comments, DocArena& arena) {
   DocRef callee_doc = Fmt(*n.callee(), comments, arena);
   std::optional<DocRef> parametrics_doc =
       FmtExplicitParametrics(n, comments, arena);
@@ -1068,13 +1060,12 @@ DocRef Fmt(const Invocation& n, const Comments& comments, DocArena& arena) {
   return result;
 }
 
-DocRef FmtNameDefTreePtr(const NameDefTree* n, const Comments& comments,
+DocRef FmtNameDefTreePtr(const NameDefTree* n, Comments& comments,
                          DocArena& arena) {
   return Fmt(*n, comments, arena);
 }
 
-DocRef FmtMatchArm(const MatchArm& n, const Comments& comments,
-                   DocArena& arena) {
+DocRef FmtMatchArm(const MatchArm& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   pieces.push_back(
       FmtJoin<const NameDefTree*>(n.patterns(), Joiner::kSpaceBarBreak,
@@ -1115,7 +1106,7 @@ DocRef FmtMatchArm(const MatchArm& n, const Comments& comments,
   return ConcatN(arena, pieces);
 }
 
-DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Match& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   pieces.push_back(ConcatNGroup(
       arena,
@@ -1172,14 +1163,14 @@ DocRef Fmt(const Match& n, const Comments& comments, DocArena& arena) {
   return ConcatN(arena, pieces);
 }
 
-DocRef Fmt(const Spawn& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Spawn& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, {arena.Make(Keyword::kSpawn), arena.space(),
                               Fmt(*n.config(), comments, arena)}
 
   );
 }
 
-DocRef FmtTupleWithoutComments(const XlsTuple& n, const Comments& comments,
+DocRef FmtTupleWithoutComments(const XlsTuple& n, Comments& comments,
                                DocArena& arena) {
   // 1-element tuples are a special case- we always want a trailing comma and
   // never want it to be broken up. Handle separately here.
@@ -1211,12 +1202,12 @@ DocRef FmtTupleWithoutComments(const XlsTuple& n, const Comments& comments,
              });
 }
 
-bool CommentsWithin(const Span& span, const Comments& comments) {
+bool CommentsWithin(const Span& span, Comments& comments) {
   std::vector<const CommentData*> items = comments.GetComments(span);
   return !items.empty();
 }
 
-DocRef FmtTuple(const XlsTuple& n, const Comments& comments, DocArena& arena) {
+DocRef FmtTuple(const XlsTuple& n, Comments& comments, DocArena& arena) {
   Span tuple_span = n.span();
   // Detect if there are any comments in the span of the tuple.
   bool any_comments = CommentsWithin(tuple_span, comments);
@@ -1286,15 +1277,15 @@ DocRef FmtTuple(const XlsTuple& n, const Comments& comments, DocArena& arena) {
                         });
 }
 
-DocRef Fmt(const XlsTuple& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const XlsTuple& n, Comments& comments, DocArena& arena) {
   return FmtTuple(n, comments, arena);
 }
 
 // Note: this does not put any spacing characters after the '{' so we can
 // appropriately handle the case of an empty struct having no spacing in its
 // `S {}` style construct.
-DocRef FmtStructLeader(const TypeAnnotation* struct_ref,
-                       const Comments& comments, DocArena& arena) {
+DocRef FmtStructLeader(const TypeAnnotation* struct_ref, Comments& comments,
+                       DocArena& arena) {
   return ConcatNGroup(arena, {
                                  Fmt(*struct_ref, comments, arena),
                                  arena.break1(),
@@ -1303,11 +1294,11 @@ DocRef FmtStructLeader(const TypeAnnotation* struct_ref,
 }
 
 DocRef FmtStructMembersFlat(
-    absl::Span<const std::pair<std::string, Expr*>> members,
-    const Comments& comments, DocArena& arena) {
+    absl::Span<const std::pair<std::string, Expr*>> members, Comments& comments,
+    DocArena& arena) {
   return FmtJoin<std::pair<std::string, Expr*>>(
       members, Joiner::kCommaSpace,
-      [](const auto& member, const Comments& comments, DocArena& arena) {
+      [](const auto& member, Comments& comments, DocArena& arena) {
         const auto& [name, expr] = member;
         // If the expression is an identifier that matches its corresponding
         // struct member name, we canonically use the shorthand notation of just
@@ -1325,11 +1316,11 @@ DocRef FmtStructMembersFlat(
 }
 
 DocRef FmtStructMembersBreak(
-    absl::Span<const std::pair<std::string, Expr*>> members,
-    const Comments& comments, DocArena& arena) {
+    absl::Span<const std::pair<std::string, Expr*>> members, Comments& comments,
+    DocArena& arena) {
   return FmtJoin<std::pair<std::string, Expr*>>(
       members, Joiner::kCommaHardlineTrailingCommaAlways,
-      [](const auto& member, const Comments& comments, DocArena& arena) {
+      [](const auto& member, Comments& comments, DocArena& arena) {
         const auto& [field_name, expr] = member;
         // If the expression is an identifier that matches its corresponding
         // struct member name, we canonically use the shorthand notation of just
@@ -1373,7 +1364,7 @@ DocRef FmtStructMembersBreak(
       comments, arena);
 }
 
-DocRef FmtFlatRest(const StructInstance& n, const Comments& comments,
+DocRef FmtFlatRest(const StructInstance& n, Comments& comments,
                    DocArena& arena) {
   return ConcatN(
       arena, {arena.space(),
@@ -1381,7 +1372,7 @@ DocRef FmtFlatRest(const StructInstance& n, const Comments& comments,
               arena.space(), arena.ccurl()});
 }
 
-DocRef FmtBreakRest(const StructInstance& n, const Comments& comments,
+DocRef FmtBreakRest(const StructInstance& n, Comments& comments,
                     DocArena& arena) {
   return ConcatN(arena, {arena.hard_line(),
                          arena.MakeNest(FmtStructMembersBreak(
@@ -1389,7 +1380,7 @@ DocRef FmtBreakRest(const StructInstance& n, const Comments& comments,
                          arena.hard_line(), arena.ccurl()});
 }
 
-DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const StructInstance& n, Comments& comments, DocArena& arena) {
   DocRef leader = FmtStructLeader(n.struct_ref(), comments, arena);
 
   if (n.GetUnorderedMembers().empty()) {  // empty struct instance
@@ -1407,8 +1398,7 @@ DocRef Fmt(const StructInstance& n, const Comments& comments, DocArena& arena) {
       leader, arena.MakeGroup(arena.MakeFlatChoice(on_flat, on_break)));
 }
 
-DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
-           DocArena& arena) {
+DocRef Fmt(const SplatStructInstance& n, Comments& comments, DocArena& arena) {
   DocRef leader = FmtStructLeader(n.struct_ref(), comments, arena);
   DocRef splatted = Fmt(n.splatted(), comments, arena);
   if (n.members().empty()) {
@@ -1430,14 +1420,14 @@ DocRef Fmt(const SplatStructInstance& n, const Comments& comments,
       leader, arena.MakeGroup(arena.MakeFlatChoice(on_flat, on_break)));
 }
 
-DocRef Fmt(const String& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const String& n, Comments& comments, DocArena& arena) {
   return arena.MakeText(n.ToString());
 }
 
 // Creates a doc that has the "test portion" of the conditional; i.e.
 //
 //  if <break1> $test_expr <break1> {
-DocRef MakeConditionalTest(const Conditional& n, const Comments& comments,
+DocRef MakeConditionalTest(const Conditional& n, Comments& comments,
                            DocArena& arena) {
   return ConcatN(
       arena, {
@@ -1451,7 +1441,7 @@ DocRef MakeConditionalTest(const Conditional& n, const Comments& comments,
 
 // When there's an else-if, or multiple statements inside of the blocks, we
 // force the formatting to be multi-line.
-DocRef FmtConditionalMultiline(const Conditional& n, const Comments& comments,
+DocRef FmtConditionalMultiline(const Conditional& n, Comments& comments,
                                DocArena& arena) {
   std::vector<DocRef> pieces = {
       MakeConditionalTest(n, comments, arena), arena.hard_line(),
@@ -1489,7 +1479,7 @@ DocRef FmtConditionalMultiline(const Conditional& n, const Comments& comments,
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Conditional& n, Comments& comments, DocArena& arena) {
   // If there's an else-if clause or multi-statement blocks we force it to be
   // multi-line.
   if (n.HasElseIf() || n.HasMultiStatementBlocks()) {
@@ -1518,12 +1508,12 @@ DocRef Fmt(const Conditional& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const ConstAssert& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const ConstAssert& n, Comments& comments, DocArena& arena) {
   CHECK(false) << "ConstAssert should be handled by Formatter::Format.";
   return arena.empty();
 }
 
-DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const TupleIndex& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces;
   if (WeakerThan(n.lhs()->GetPrecedence(), n.GetPrecedence())) {
     pieces.push_back(arena.oparen());
@@ -1538,7 +1528,7 @@ DocRef Fmt(const TupleIndex& n, const Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
-DocRef Fmt(const ZeroMacro& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const ZeroMacro& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, {
                                  arena.MakeText("zero!"),
                                  arena.oangle(),
@@ -1549,7 +1539,7 @@ DocRef Fmt(const ZeroMacro& n, const Comments& comments, DocArena& arena) {
                              });
 }
 
-DocRef Fmt(const AllOnesMacro& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const AllOnesMacro& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, {
                                  arena.MakeText("all_ones!"),
                                  arena.oangle(),
@@ -1560,7 +1550,7 @@ DocRef Fmt(const AllOnesMacro& n, const Comments& comments, DocArena& arena) {
                              });
 }
 
-DocRef Fmt(const Unop& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Unop& n, Comments& comments, DocArena& arena) {
   std::vector<DocRef> pieces = {
       arena.MakeText(UnopKindToString(n.unop_kind()))};
   if (WeakerThan(n.operand()->GetPrecedence(), n.GetPrecedence())) {
@@ -1575,18 +1565,17 @@ DocRef Fmt(const Unop& n, const Comments& comments, DocArena& arena) {
 
 // Default formatting for let-as-expression is to not emit the RHS with a
 // semicolon on it.
-DocRef Fmt(const Let& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Let& n, Comments& comments, DocArena& arena) {
   return Formatter(comments, arena).Format(n, /*trailing_semi=*/false);
 }
 
-DocRef Fmt(const Range& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Range& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(
       arena, {Fmt(*n.start(), comments, arena), arena.break0(), arena.dot_dot(),
               arena.break0(), Fmt(*n.end(), comments, arena)});
 }
 
-DocRef Fmt(const NameDefTree::Leaf& n, const Comments& comments,
-           DocArena& arena) {
+DocRef Fmt(const NameDefTree::Leaf& n, Comments& comments, DocArena& arena) {
   return absl::visit(
       Visitor{
           [&](const NameDef* n) { return Fmt(*n, comments, arena); },
@@ -1600,7 +1589,7 @@ DocRef Fmt(const NameDefTree::Leaf& n, const Comments& comments,
       n);
 }
 
-DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const NameDefTree& n, Comments& comments, DocArena& arena) {
   if (n.is_leaf()) {
     return Fmt(n.leaf(), comments, arena);
   }
@@ -1629,7 +1618,7 @@ DocRef Fmt(const NameDefTree& n, const Comments& comments, DocArena& arena) {
 
 class FmtExprVisitor : public ExprVisitor {
  public:
-  FmtExprVisitor(DocArena& arena, const Comments& comments)
+  FmtExprVisitor(DocArena& arena, Comments& comments)
       : arena_(arena), comments_(comments) {}
 
   ~FmtExprVisitor() override = default;
@@ -1648,13 +1637,13 @@ class FmtExprVisitor : public ExprVisitor {
 
  private:
   DocArena& arena_;
-  const Comments& comments_;
+  Comments& comments_;
   std::optional<DocRef> result_;
 };
 
 // Note: suppress_parens just suppresses parentheses for the outermost
 // expression "n", not transitively.
-DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
+DocRef FmtExpr(const Expr& n, Comments& comments, DocArena& arena,
                bool suppress_parens) {
   FmtExprVisitor v(arena, comments);
   CHECK_OK(n.AcceptExpr(&v));
@@ -1669,7 +1658,7 @@ DocRef FmtExpr(const Expr& n, const Comments& comments, DocArena& arena,
 //
 // Precondition: `e` must be a blocked expression with a leader component; e.g.
 // invocation (leader is callee), conditional (leader is test), etc.
-DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
+DocRef FmtBlockedExprLeader(const Expr& e, Comments& comments,
                             DocArena& arena) {
   CHECK(e.IsBlockedExprWithLeader());
   switch (e.kind()) {
@@ -1721,7 +1710,7 @@ DocRef FmtBlockedExprLeader(const Expr& e, const Comments& comments,
   }
 }
 
-DocRef Fmt(const Expr& n, const Comments& comments, DocArena& arena) {
+DocRef Fmt(const Expr& n, Comments& comments, DocArena& arena) {
   return FmtExpr(n, comments, arena, /*suppress_parens=*/false);
 }
 
@@ -1908,7 +1897,7 @@ DocRef Formatter::Format(const Statement& n, bool trailing_semi) {
 DocRef Formatter::FormatParams(absl::Span<const Param* const> params) {
   DocRef guts = FmtJoin<const Param*>(
       params, Joiner::kCommaBreak1AsGroupNoTrailingComma,
-      [](const Param* param, const Comments& comments, DocArena& arena) {
+      [](const Param* param, Comments& comments, DocArena& arena) {
         DocRef id = arena.MakeText(param->identifier());
         if (auto* st =
                 dynamic_cast<SelfTypeAnnotation*>(param->type_annotation());
@@ -1964,20 +1953,20 @@ DocRef Formatter::Format(const Function& n) {
         arena_, {arena_.oangle(),
                  FmtJoin<const ParametricBinding*>(
                      n.parametric_bindings(), Joiner::kCommaSpace,
-                     [&](const ParametricBinding* n, const Comments& comments,
+                     [&](const ParametricBinding* n, Comments& comments,
                          DocArena& arena) { return Format(n); },
                      comments_, arena_),
                  arena_.cangle()});
 
-    DocRef parametric_guts = ConcatN(
-        arena_, {arena_.oangle(),
-                 arena_.MakeAlign(FmtJoin<const ParametricBinding*>(
-                     n.parametric_bindings(),
-                     Joiner::kCommaBreak1AsGroupNoTrailingComma,
-                     [&](const ParametricBinding* n, const Comments& comments,
-                         DocArena& arena) { return Format(n); },
-                     comments_, arena_)),
-                 arena_.cangle()});
+    DocRef parametric_guts =
+        ConcatN(arena_, {arena_.oangle(),
+                         arena_.MakeAlign(FmtJoin<const ParametricBinding*>(
+                             n.parametric_bindings(),
+                             Joiner::kCommaBreak1AsGroupNoTrailingComma,
+                             [&](const ParametricBinding* n, Comments& comments,
+                                 DocArena& arena) { return Format(n); },
+                             comments_, arena_)),
+                         arena_.cangle()});
     DocRef break_parametrics = ConcatNGroup(
         arena_, {
                     arena_.break0(),
@@ -2067,7 +2056,7 @@ DocRef Formatter::Format(const Proc& n) {
         arena_, {arena_.oangle(),
                  FmtJoin<const ParametricBinding*>(
                      n.parametric_bindings(), Joiner::kCommaSpace,
-                     [&](const ParametricBinding* n, const Comments& comments,
+                     [&](const ParametricBinding* n, Comments& comments,
                          DocArena& arena) { return Format(n); },
                      comments_, arena_),
                  arena_.cangle()}));
@@ -2280,7 +2269,7 @@ DocRef Formatter::Format(const QuickCheck& n) {
   return ConcatN(arena_, pieces);
 }
 
-static void FmtStructMembers(const StructDefBase& n, const Comments& comments,
+static void FmtStructMembers(const StructDefBase& n, Comments& comments,
                              DocArena& arena, std::vector<DocRef>& pieces) {
   if (!n.members().empty()) {
     pieces.push_back(arena.break1());
@@ -2375,8 +2364,9 @@ DocRef Formatter::FormatStructDefBase(
     pieces.push_back(arena_.oangle());
     pieces.push_back(FmtJoin<const ParametricBinding*>(
         n.parametric_bindings(), Joiner::kCommaSpace,
-        [&](const ParametricBinding* n, const Comments& comments,
-            DocArena& arena) { return Format(n); },
+        [&](const ParametricBinding* n, Comments& comments, DocArena& arena) {
+          return Format(n);
+        },
         comments_, arena_));
     pieces.push_back(arena_.cangle());
   }
@@ -2772,7 +2762,7 @@ static int NumHardLinesAfter(const AstNode* node, const ModuleMember& member,
   return num_hard_lines;
 }
 
-DocRef Formatter::Format(const Module& n) {
+absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
   std::vector<DocRef> pieces;
 
   if (!n.annotations().empty()) {
@@ -2893,14 +2883,33 @@ DocRef Formatter::Format(const Module& n) {
     }
   }
 
+  // Check if there are any comments that were within the span of the
+  // module, but not placed.
+  if (comments_.last_data_limit().has_value()) {
+    Pos last_data_limit = comments_.last_data_limit().value();
+
+    Span span = Span(Pos(last_data_limit.fileno(), 0, 0), last_data_limit);
+    if (n.GetSpan().has_value()) {
+      span = *n.GetSpan();
+    }
+    for (const CommentData* comment : comments_.GetComments(span)) {
+      if (!comments_.WasPlaced(comment)) {
+        return absl::InternalError(absl::StrFormat(
+            "Comment at %s was deleted by the formatter: //%sThis is "
+            "probably due to a bug.",
+            comment->span.ToString(arena_.file_table()), comment->text));
+      }
+    }
+  }
+
   return ConcatN(arena_, pieces);
 }
 
-static std::string AutoFmt(const Module& m, const Comments& comments,
-                           int64_t text_width) {
+static absl::StatusOr<std::string> AutoFmt(const Module& m, Comments& comments,
+                                           int64_t text_width) {
   DocArena arena(*m.file_table());
   Formatter formatter(comments, arena);
-  DocRef ref = formatter.Format(m);
+  XLS_ASSIGN_OR_RETURN(DocRef ref, formatter.Format(m));
   return PrettyPrint(arena, ref, text_width);
 }
 
