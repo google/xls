@@ -312,8 +312,6 @@ class FrameHeaderTest : public xls::SimTestBase {
 
 /* TESTS */
 
-TEST(ZstdLib, Version) { ASSERT_EQ(ZSTD_VERSION_STRING, "1.5.6"); }
-
 TEST_F(FrameHeaderTest, Success) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto header,

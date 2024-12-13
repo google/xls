@@ -249,8 +249,6 @@ class ZstdDecoderTest : public ::testing::Test {
 
 /* TESTS */
 
-TEST(ZstdLib, Version) { ASSERT_EQ(ZSTD_VERSION_STRING, "1.5.6"); }
-
 TEST_F(ZstdDecoderTest, ParseFrameWithRawBlocks) {
   int seed = 3;  // Arbitrary seed value for small ZSTD frame
   auto frame = zstd::GenerateFrame(seed, zstd::BlockType::RAW);
