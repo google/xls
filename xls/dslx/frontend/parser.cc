@@ -2097,9 +2097,9 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
           //                  this colon ----------^
           if (peek->kind() == TokenKind::kColon) {
             DropTokenOrDie();
-            absl::StatusOr<TypeDefinition> type_definition_or =
+            absl::StatusOr<TypeDefinition> type_definition =
                 ToTypeDefinition(lhs);
-            if (!type_definition_or.ok()) {
+            if (!type_definition.ok()) {
               const Span error_span(lhs->span().start(), index->span().limit());
               return ParseErrorStatus(
                   error_span,
@@ -2110,8 +2110,7 @@ absl::StatusOr<Expr*> Parser::ParseTermRhs(Expr* lhs, Bindings& outer_bindings,
             }
             // TODO(rspringer): We can't currently support parameterized
             // ColonRef-to-types with this function structure.
-            auto* type_ref =
-                module_->Make<TypeRef>(span, type_definition_or.value());
+            auto* type_ref = module_->Make<TypeRef>(span, *type_definition);
             auto* type_ref_type = module_->Make<TypeRefTypeAnnotation>(
                 span, type_ref, /*parametrics=*/std::vector<ExprOrType>());
             auto* array_type =
@@ -2714,33 +2713,35 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
     } else if (peek->IsIdentifier("config")) {
       XLS_RETURN_IF_ERROR(check_not_yet_specified(proc_like_body.config, peek));
 
+      // We make a more specific/helpful error message when you try to refer to
+      // a name that the config function is supposed to define from within the
+      // config function.
+      auto specialize_config_name_error =
+          [proc_like_body](const absl::Status& status) {
+            xabsl::StatusBuilder builder(status);
+            std::optional<std::string_view> bad_name =
+                MaybeExtractParseNameError(status);
+            if (bad_name.has_value() &&
+                HasMemberNamed(proc_like_body, bad_name.value())) {
+              builder << absl::StreamFormat(
+                  "\"%s\" is a proc member, but those cannot be referenced "
+                  "from within a proc config function.",
+                  bad_name.value());
+            }
+            return builder;
+          };
+
       // Note: the config function does not have access to the proc members,
       // because that's what it is defining. It does, however, have access to
       // type aliases and similar. As a result, we use `proc_bindings` instead
       // of `member_bindings` as the base bindings here.
       Bindings this_bindings(&proc_bindings);
-      absl::StatusOr<Function*> config_or = ParseProcConfig(
-          this_bindings, parametric_bindings, proc_like_body.members,
-          name_def->identifier(), is_public);
+      XLS_ASSIGN_OR_RETURN(Function * config,
+                           ParseProcConfig(this_bindings, parametric_bindings,
+                                           proc_like_body.members,
+                                           name_def->identifier(), is_public),
+                           _.With(specialize_config_name_error));
 
-      // We make a more specific/helpful error message when you try to refer to
-      // a name that the config function is supposed to define from within the
-      // config function.
-      if (std::optional<std::string_view> bad_name =
-              MaybeExtractParseNameError(config_or.status());
-          bad_name.has_value() &&
-          HasMemberNamed(proc_like_body, bad_name.value())) {
-        xabsl::StatusBuilder builder(config_or.status());
-        builder << absl::StreamFormat(
-            "\"%s\" is a proc member, "
-            "but those cannot be referenced "
-            "from within a proc config function.",
-            bad_name.value());
-        return builder;
-      }
-
-      XLS_RETURN_IF_ERROR(config_or.status());
-      Function* config = config_or.value();
       proc_like_body.config = config;
 
       // TODO(https://github.com/google/xls/issues/1029): 2024-03-25 this is a

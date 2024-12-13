@@ -233,12 +233,12 @@ BytecodeEmitter::EmitExpression(
 
 absl::Status BytecodeEmitter::HandleArray(const Array* node) {
   if (type_info_->IsKnownConstExpr(node)) {
-    auto const_expr_or = type_info_->GetConstExpr(node);
-    XLS_RET_CHECK_OK(const_expr_or.status());
+    absl::StatusOr<InterpValue> const_expr = type_info_->GetConstExpr(node);
+    XLS_RET_CHECK_OK(const_expr.status());
     VLOG(5) << absl::StreamFormat(
         "BytecodeEmitter::HandleArray; node %s is known constexpr: %s",
-        node->ToString(), const_expr_or.value().ToString());
-    Add(Bytecode::MakeLiteral(node->span(), const_expr_or.value()));
+        node->ToString(), const_expr->ToString());
+    Add(Bytecode::MakeLiteral(node->span(), *const_expr));
     return absl::OkStatus();
   }
 
@@ -998,8 +998,10 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
       }
       Type* type = maybe_type.value();
       // These will never fail.
-      absl::StatusOr<TypeDim> dim_or = type->GetTotalBitCount();
-      absl::StatusOr<int64_t> width_or = dim_or.value().GetAsInt64();
+      absl::StatusOr<TypeDim> dim = type->GetTotalBitCount();
+      CHECK_OK(dim);
+      absl::StatusOr<int64_t> width = dim->GetAsInt64();
+      CHECK_OK(width);
 
       int64_t limit_width;
       if (slice->start() == nullptr) {
@@ -1013,7 +1015,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
       }
       bytecode_.push_back(
           Bytecode(node->span(), Bytecode::Op::kLiteral,
-                   InterpValue::MakeSBits(limit_width, width_or.value())));
+                   InterpValue::MakeSBits(limit_width, *width)));
     } else {
       XLS_RETURN_IF_ERROR(slice->limit()->AcceptExpr(this));
     }

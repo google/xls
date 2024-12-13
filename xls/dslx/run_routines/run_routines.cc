@@ -94,17 +94,16 @@ void HandleError(TestResultData& result, const absl::Status& status,
                  VirtualizableFilesystem& vfs) {
   VLOG(1) << "Handling error; status: " << status
           << " test_name: " << test_name;
-  absl::StatusOr<PositionalErrorData> data_or =
+  absl::StatusOr<PositionalErrorData> data =
       GetPositionalErrorData(status, std::nullopt, file_table);
 
   std::string one_liner;
   std::string suffix;
-  if (data_or.ok()) {
-    const auto& data = data_or.value();
-    CHECK_OK(PrintPositionalError(data.span, data.GetMessageWithType(),
+  if (data.ok()) {
+    CHECK_OK(PrintPositionalError(data->span, data->GetMessageWithType(),
                                   std::cerr, PositionalErrorColor::kErrorColor,
                                   file_table, vfs));
-    one_liner = data.GetMessageWithType();
+    one_liner = data->GetMessageWithType();
   } else {
     // If we can't extract positional data we log the error and put the error
     // status into the "failed" prompted.
@@ -488,14 +487,14 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
                        options.warnings, std::make_unique<RealFilesystem>());
   FileTable& file_table = import_data.file_table();
-  absl::StatusOr<TypecheckedModule> tm_or =
+  absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(program, filename, module_name, &import_data);
-  if (!tm_or.ok()) {
-    if (TryPrintError(tm_or.status(), file_table, import_data.vfs())) {
+  if (!tm.ok()) {
+    if (TryPrintError(tm.status(), file_table, import_data.vfs())) {
       result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
       return ParseAndProveResult{.test_result_data = result};
     }
-    return tm_or.status();
+    return tm.status();
   }
 
   // If we're not executing, then we're just scanning for errors -- if warnings
@@ -503,15 +502,15 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
   if (options.warnings_as_errors) {
-    PrintWarnings(tm_or->warnings, file_table, import_data.vfs());
+    PrintWarnings(tm->warnings, file_table, import_data.vfs());
   }
 
-  if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
+  if (options.warnings_as_errors && !tm->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
     return ParseAndProveResult{.test_result_data = result};
   }
 
-  Module* entry_module = tm_or.value().module;
+  Module* entry_module = tm->module;
 
   // We need to IR-convert the quickcheck property and then try to prove that
   // the return value is always true.
@@ -569,31 +568,31 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       continue;
     }
 
-    absl::StatusOr<std::string> ir_function_name_or = MangleDslxName(
+    absl::StatusOr<std::string> ir_function_name = MangleDslxName(
         entry_module->name(), f->identifier(), CallingConvention::kTypical);
-    if (!ir_function_name_or.ok()) {
+    if (!ir_function_name.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
                   absl::Now() - start, /*is_quickcheck=*/true, file_table,
                   import_data.vfs());
       continue;
     }
 
-    absl::StatusOr<xls::Function*> ir_function_or =
-        package.GetFunction(ir_function_name_or.value());
-    if (!ir_function_or.ok()) {
+    absl::StatusOr<xls::Function*> ir_function =
+        package.GetFunction(*ir_function_name);
+    if (!ir_function.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
                   absl::Now() - start, /*is_quickcheck=*/true, file_table,
                   import_data.vfs());
       continue;
     }
 
-    VLOG(1) << "Found IR function: " << ir_function_or.value()->name();
+    VLOG(1) << "Found IR function: " << (*ir_function)->name();
 
-    absl::StatusOr<solvers::z3::ProverResult> proven_or = solvers::z3::TryProve(
-        ir_function_or.value(), ir_function_or.value()->return_value(),
+    absl::StatusOr<solvers::z3::ProverResult> proven = solvers::z3::TryProve(
+        *ir_function, (*ir_function)->return_value(),
         solvers::z3::Predicate::NotEqualToZero(), absl::InfiniteDuration());
 
-    if (!proven_or.ok()) {
+    if (!proven.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
                   absl::Now() - start, /*is_quickcheck=*/true, file_table,
                   import_data.vfs());
@@ -601,12 +600,11 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     }
 
     VLOG(1) << "Proven? "
-            << (std::holds_alternative<solvers::z3::ProvenTrue>(
-                    proven_or.value())
+            << (std::holds_alternative<solvers::z3::ProvenTrue>(*proven)
                     ? "true"
                     : "false");
 
-    if (std::holds_alternative<solvers::z3::ProvenTrue>(proven_or.value())) {
+    if (std::holds_alternative<solvers::z3::ProvenTrue>(*proven)) {
       absl::Time test_case_end = absl::Now();
       absl::Duration duration = test_case_end - test_case_start;
       result.AddTestCase(test_xml::TestCase{
@@ -622,15 +620,14 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       continue;
     }
 
-    const auto& proven_false =
-        std::get<solvers::z3::ProvenFalse>(proven_or.value());
+    const auto& proven_false = std::get<solvers::z3::ProvenFalse>(*proven);
 
     // Extract the counterexample, and collapse it back into sequential order.
     std::vector<Value> counterexample;
     using ParamValues = absl::flat_hash_map<const xls::Param*, Value>;
     XLS_ASSIGN_OR_RETURN(ParamValues counterexample_map,
                          proven_false.counterexample);
-    for (const xls::Param* param : ir_function_or.value()->params()) {
+    for (const xls::Param* param : (*ir_function)->params()) {
       counterexample.push_back(counterexample_map[param]);
     }
     std::string one_liner =
@@ -670,15 +667,15 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
                        options.warnings, std::make_unique<RealFilesystem>());
   FileTable& file_table = import_data.file_table();
 
-  absl::StatusOr<TypecheckedModule> tm_or =
+  absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(program, filename, module_name, &import_data);
-  if (!tm_or.ok()) {
-    if (TryPrintError(tm_or.status(), import_data.file_table(),
+  if (!tm.ok()) {
+    if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
       result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
       return result;
     }
-    return tm_or.status();
+    return tm.status();
   }
 
   // If we're not executing, then we're just scanning for errors -- if warnings
@@ -686,10 +683,10 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   // files that had warnings suppressed at build time, which would gunk up build
   // logs unnecessarily.).
   if (options.execute || options.warnings_as_errors) {
-    PrintWarnings(tm_or->warnings, import_data.file_table(), import_data.vfs());
+    PrintWarnings(tm->warnings, import_data.file_table(), import_data.vfs());
   }
 
-  if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
+  if (options.warnings_as_errors && !tm->warnings.warnings().empty()) {
     result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
     return result;
   }
@@ -700,7 +697,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
     return result;
   }
 
-  Module* entry_module = tm_or.value().module;
+  Module* entry_module = tm->module;
 
   // If JIT comparisons are "on", we register a post-evaluation hook to compare
   // with the interpreter.
@@ -740,7 +737,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<AbstractParsedTestRunner> runner,
-      CreateTestRunner(&import_data, tm_or.value().type_info, entry_module));
+      CreateTestRunner(&import_data, tm->type_info, entry_module));
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {
     auto test_case_start = absl::Now();
@@ -804,7 +801,7 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
-        options.test_filter, entry_module, tm_or.value().type_info,
+        options.test_filter, entry_module, tm->type_info,
         options.run_comparator, ir_package.get(), options.seed, result,
         import_data.vfs()));
   }

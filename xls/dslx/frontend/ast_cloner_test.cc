@@ -1522,15 +1522,15 @@ proc MyProc {
 })";
 
   FileTable file_table;
-  absl::StatusOr<std::unique_ptr<Module>> module_or =
+  absl::StatusOr<std::unique_ptr<Module>> module =
       ParseModule(kProgram, "fake_path.x", "the_module", file_table);
-  if (!module_or.ok()) {
+  if (!module.ok()) {
     UniformContentFilesystem vfs(kProgram);
-    TryPrintError(module_or.status(), file_table, vfs);
+    TryPrintError(module.status(), file_table, vfs);
   }
-  XLS_ASSERT_OK(module_or.status());
-  Module* module = module_or.value().get();
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone, CloneModule(*module));
+  XLS_ASSERT_OK(module.status());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(*module->get()));
   EXPECT_EQ(kExpected, clone->ToString());
 }
 

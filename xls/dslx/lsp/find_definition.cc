@@ -93,12 +93,12 @@ std::optional<const NameDef*> FindDefinition(const Module& m,
     if (auto* colon_ref = dynamic_cast<const ColonRef*>(node);
         colon_ref != nullptr) {
       VLOG(3) << "Intercepting colon ref: `" << colon_ref->ToString() << "`";
-      auto node_or = ResolveColonRefSubjectAfterTypeChecking(
+      auto node = ResolveColonRefSubjectAfterTypeChecking(
           &import_data, &type_info, colon_ref);
-      if (!node_or.ok()) {
+      if (!node.ok()) {
         return std::nullopt;
       }
-      const NameDef* name_def = GetNameDef(node_or.value(), colon_ref->attr());
+      const NameDef* name_def = GetNameDef(*node, colon_ref->attr());
       if (name_def != nullptr) {
         defs.push_back(Reference{colon_ref->span(), name_def});
       }

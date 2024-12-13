@@ -108,32 +108,28 @@ class ParserTest : public ::testing::Test {
     for (const std::string& s : predefine) {
       b.Add(s, mod.GetOrCreateBuiltinNameDef(s));
     }
-    auto expr_or = parser_->ParseExpression(/*bindings=*/b);
-    if (!expr_or.ok()) {
+    absl::StatusOr<Expr*> expr = parser_->ParseExpression(/*bindings=*/b);
+    if (!expr.ok()) {
       UniformContentFilesystem vfs(expr_text);
-      TryPrintError(expr_or.status(), file_table_, vfs);
+      TryPrintError(expr.status(), file_table_, vfs);
     }
-    return expr_or;
+    return expr;
   }
 
   Expr* RoundTripExpr(std::string_view expr_text,
                       absl::Span<const std::string> predefine = {},
                       bool populate_dslx_builtins = false,
                       std::optional<std::string> target = std::nullopt) {
-    absl::StatusOr<Expr*> e_or =
+    absl::StatusOr<Expr*> expr =
         ParseExpr(expr_text, predefine, populate_dslx_builtins);
-    if (!e_or.ok()) {
-      XLS_EXPECT_OK(e_or.status());
+    if (!expr.ok()) {
+      XLS_EXPECT_OK(expr.status());
       return nullptr;
     }
-    Expr* e = e_or.value();
-    if (target.has_value()) {
-      EXPECT_EQ(e->ToString(), *target);
-    } else {
-      EXPECT_EQ(e->ToString(), expr_text);
-    }
 
-    return e;
+    EXPECT_EQ((*expr)->ToString(), target.has_value() ? *target : expr_text);
+
+    return *expr;
   }
 
   // Allows the private ParseTypeAnnotation method to be used by subtypes (test
@@ -335,8 +331,8 @@ fn main() -> u9 {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or.status(),
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
               IsPosError("ParseError",
                          HasSubstr("`self` must be the first parameter")));
 }
@@ -357,9 +353,9 @@ fn main() -> u9 {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError",
                  HasSubstr("Cannot find a definition for name: \"self\"")));
 }
@@ -374,9 +370,9 @@ impl foo {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError",
                  HasSubstr("Parameter with type `Self` must be named `self`")));
 }
@@ -398,9 +394,9 @@ impl foo {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError",
                  HasSubstr("Cannot find a definition for name: \"self\"")));
 }
@@ -459,9 +455,9 @@ impl Foo {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Impl-style procs must use commas to separate members.")));
@@ -501,8 +497,8 @@ TEST_F(ParserTest, ProcWithNoImplAndCommaSeparator) {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or.status(),
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Non-impl-style procs must use semicolons to "
                                  "separate members.")));
@@ -602,8 +598,8 @@ impl foo {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or.status(),
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
               IsPosError("ParseError", HasSubstr("can only be defined once")));
 }
 
@@ -622,9 +618,9 @@ const MY_FOO = FOO_VAL;
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError", HasSubstr("Cannot find a definition for name")));
 }
 
@@ -635,9 +631,9 @@ TEST(ParserErrorTest, ParseErrorForImplOnBuiltin) {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError",
                  HasSubstr("'impl' can only be defined for a 'struct'")));
 }
@@ -651,9 +647,9 @@ impl foo {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError",
                  HasSubstr("'impl' can only be defined for a 'struct'")));
 }
@@ -666,9 +662,9 @@ TEST(ParserErrorTest, ParseErrorForImplWithoutStructDef) {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError", HasSubstr("Cannot find a definition for name")));
 }
 
@@ -683,20 +679,19 @@ TEST_F(ParserTest, ParseErrorSpan) {
   Scanner scanner(file_table_, Fileno(0), "+");
   Parser parser("test_module", &scanner);
   Bindings b;
-  absl::StatusOr<Expr*> expr_or = parser.ParseExpression(b);
-  ASSERT_THAT(expr_or,
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       "ParseError: <no-file>:1:1-1:2 Expected start of "
-                       "an expression; got: +"));
+  absl::StatusOr<Expr*> expr = parser.ParseExpression(b);
+  ASSERT_THAT(expr, StatusIs(absl::StatusCode::kInvalidArgument,
+                             "ParseError: <no-file>:1:1-1:2 Expected start of "
+                             "an expression; got: +"));
 }
 
 TEST_F(ParserTest, EmptyTupleWithComma) {
   Scanner scanner(file_table_, Fileno(0), "(,)");
   Parser parser("test_module", &scanner);
   Bindings b;
-  absl::StatusOr<Expr*> expr_or = parser.ParseExpression(b);
+  absl::StatusOr<Expr*> expr = parser.ParseExpression(b);
   ASSERT_THAT(
-      expr_or,
+      expr,
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           testing::HasSubstr(
@@ -759,9 +754,10 @@ TEST_F(ParserTest, ParseLetWildcardBindingTwice) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings b;
-  auto block_or = p.ParseBlockExpression(/*bindings=*/b);
-  ASSERT_FALSE(block_or.ok());
-  EXPECT_THAT(block_or,
+  absl::StatusOr<StatementBlock*> block =
+      p.ParseBlockExpression(/*bindings=*/b);
+  ASSERT_FALSE(block.ok());
+  EXPECT_THAT(block,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr(
                            "Name 'y' is defined twice in this pattern")));
@@ -1236,8 +1232,8 @@ TEST_F(ParserTest, ChannelsNotAsNextArgs) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser parser{"test", &s};
   Bindings bindings;
-  auto status_or_module = parser.ParseModule();
-  EXPECT_THAT(status_or_module,
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Channels cannot be Proc next params.")));
 }
@@ -1681,9 +1677,9 @@ fn main() -> u32 {
 
 TEST_F(ParserTest, UseWithPeersAtTopLevelNotAllowed) {
   constexpr std::string_view kProgram = "use {foo, bar};";
-  absl::StatusOr<std::unique_ptr<Module>> module_or = Parse(kProgram);
+  absl::StatusOr<std::unique_ptr<Module>> module = Parse(kProgram);
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError",
                  HasSubstr("Cannot `use` multiple modules in one statement")));
 }
@@ -1709,12 +1705,12 @@ TEST_F(ParserTest, ZeroMacroSimpleStructArray) {
                                          std::vector<StructMember>{}, false);
   b.Add(name_def->identifier(), struct_def);
 
-  auto expr_or = p.ParseExpression(/*bindings=*/b);
-  if (!expr_or.ok()) {
+  absl::StatusOr<Expr*> expr = p.ParseExpression(/*bindings=*/b);
+  if (!expr.ok()) {
     UniformContentFilesystem vfs(text);
-    TryPrintError(expr_or.status(), file_table_, vfs);
+    TryPrintError(expr.status(), file_table_, vfs);
   }
-  ASSERT_TRUE(expr_or.ok());
+  ASSERT_TRUE(expr.ok());
 }
 
 TEST_F(ParserTest, ZeroMacroParametricStruct) {
@@ -1753,12 +1749,12 @@ TEST_F(ParserTest, ZeroMacroParametricStruct) {
                                          std::vector<StructMember>{}, false);
   b.Add(name_def->identifier(), struct_def);
 
-  auto expr_or = p.ParseExpression(/*bindings=*/b);
-  if (!expr_or.ok()) {
+  absl::StatusOr<Expr*> expr = p.ParseExpression(/*bindings=*/b);
+  if (!expr.ok()) {
     UniformContentFilesystem vfs(text);
-    TryPrintError(expr_or.status(), file_table_, vfs);
+    TryPrintError(expr.status(), file_table_, vfs);
   }
-  ASSERT_TRUE(expr_or.ok());
+  ASSERT_TRUE(expr.ok());
 }
 
 TEST_F(ParserTest, ZeroMacroParametricStructArray) {
@@ -1797,12 +1793,12 @@ TEST_F(ParserTest, ZeroMacroParametricStructArray) {
                                          std::vector<StructMember>{}, false);
   b.Add(name_def->identifier(), struct_def);
 
-  auto expr_or = p.ParseExpression(/*bindings=*/b);
-  if (!expr_or.ok()) {
+  absl::StatusOr<Expr*> expr = p.ParseExpression(/*bindings=*/b);
+  if (!expr.ok()) {
     UniformContentFilesystem vfs(text);
-    TryPrintError(expr_or.status(), file_table_, vfs);
+    TryPrintError(expr.status(), file_table_, vfs);
   }
-  ASSERT_TRUE(expr_or.ok());
+  ASSERT_TRUE(expr.ok());
 }
 
 TEST_F(ParserTest, AllonesMacroSimple) {
@@ -1857,8 +1853,8 @@ const lib_struct = lib::my_lib_struct<{ my_field: u5:10 };)";
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or,
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected start of an expression; got: {")));
 }
@@ -1869,8 +1865,8 @@ const lib_struct = lib::my_lib_struct<,>{ my_field: u5:10 };)";
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or,
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected start of an expression; got: ,")));
 }
@@ -2343,9 +2339,9 @@ TEST_F(ParserTest, EllipsisNotInTrailingMiddle) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings b;
-  auto block_or = p.ParseBlockExpression(/*bindings=*/b);
-  ASSERT_FALSE(block_or.ok());
-  EXPECT_THAT(block_or,
+  absl::StatusOr<Expr*> block = p.ParseBlockExpression(/*bindings=*/b);
+  ASSERT_FALSE(block.ok());
+  EXPECT_THAT(block,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr(
                            "Ellipsis may only be in trailing position.")));
@@ -2358,9 +2354,9 @@ TEST_F(ParserTest, EllipsisNotInTrailingLeading) {
   Scanner s{file_table_, Fileno(0), std::string{text}};
   Parser p{"test", &s};
   Bindings b;
-  auto block_or = p.ParseBlockExpression(/*bindings=*/b);
-  ASSERT_FALSE(block_or.ok());
-  EXPECT_THAT(block_or,
+  absl::StatusOr<Expr*> block = p.ParseBlockExpression(/*bindings=*/b);
+  ASSERT_FALSE(block.ok());
+  EXPECT_THAT(block,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr(
                            "Ellipsis may only be in trailing position.")));
@@ -2674,9 +2670,9 @@ fn f() -> u8 {
   Scanner s(file_table_, Fileno(0), std::string(text));
   Parser p("test", &s);
   Bindings bindings;
-  auto function_or =
+  absl::StatusOr<Function*> function =
       p.ParseFunction(Pos(), /*is_public=*/false, /*bindings=*/bindings);
-  EXPECT_THAT(function_or.status(),
+  EXPECT_THAT(function.status(),
               IsPosError("ParseError",
                          HasSubstr("Expected ':', got ',': Expect colon after "
                                    "type annotation in cast")));
@@ -2913,10 +2909,10 @@ fn main(x: u32) -> u32 {
 
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
-  ASSERT_FALSE(module_or.ok()) << module_or.status();
-  LOG(INFO) << "status: " << module_or.status();
-  EXPECT_THAT(module_or.status(),
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  ASSERT_FALSE(module.ok()) << module.status();
+  LOG(INFO) << "status: " << module.status();
+  EXPECT_THAT(module.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("A fail label must be unique")));
 }
@@ -2928,10 +2924,10 @@ TEST_F(ParserTest, ParseAllowNonstandardConstantNamingAnnotation) {
 
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
-  ASSERT_TRUE(module_or.ok()) << module_or.status();
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
   EXPECT_THAT(
-      module_or.value()->annotations(),
+      module->annotations(),
       testing::ElementsAre(ModuleAnnotation::kAllowNonstandardConstantNaming));
 }
 
@@ -3102,9 +3098,9 @@ TEST_F(ParserTest, UnterminatedEscapedUnicodeChar) {
   constexpr std::string_view kProgram = R"(const A="\u)";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or,
+      module,
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Unexpected EOF in escaped unicode character")));
 }
@@ -3113,9 +3109,9 @@ TEST_F(ParserTest, UnterminatedEscapedHexChar) {
   constexpr std::string_view kProgram = "const A='\\x";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or,
+      module,
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Unexpected EOF in escaped hexadecimal character")));
 }
@@ -3136,8 +3132,8 @@ TEST_F(ParserTest, ZeroLengthStringAtEof) {
   constexpr std::string_view kProgram = "const A=\"\"";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or,
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module,
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Zero-length strings are not supported.")));
 }
@@ -3147,9 +3143,9 @@ TEST_F(ParserTest, RepetitiveImport) {
 import repetitively;)";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or,
+      module,
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Import of `repetitively` is shadowing an existing "
                          "definition at <no-file>:1:1-1:21")));
@@ -3162,19 +3158,18 @@ TEST_F(ParserTest, UnreasonablyDeepExpr) {
 ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((()";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or,
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expression is too deeply nested")));
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Expression is too deeply nested")));
 }
 
 TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
   constexpr std::string_view kProgram = "const A=4[5]:[";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or,
+      module,
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Type before ':' for presumed array literal was not a "
                          "type definition; got `4` (kind: number)")));
@@ -3192,9 +3187,9 @@ fn test_f() {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError(
           "ParseError",
           HasSubstr("Wildcard pattern `_` cannot be used as a reference")));
@@ -3205,8 +3200,8 @@ TEST(ParserErrorTest, BadTestTarget) {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or.status(),
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
               IsPosError("ParseError", HasSubstr("Invalid test type: let")));
 }
 
@@ -3215,9 +3210,9 @@ TEST(ParserErrorTest, BadDirectiveTokenType) {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError("ParseError", HasSubstr("Expected attribute identifier")));
 }
 
@@ -3226,8 +3221,8 @@ TEST(ParserErrorTest, BadDirective) {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
-  EXPECT_THAT(module_or.status(),
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module.status(),
               IsPosError("ParseError", HasSubstr("Unknown directive: 'foo'")));
 }
 
@@ -3240,18 +3235,18 @@ fn will_fail(x:u32) -> u32 {
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
 
   // Check expected message
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError(
           "ParseError",
           HasSubstr("The label parameter to fail!() must be a valid Verilog")));
 
   // Highlight span of the label parameter
-  EXPECT_THAT(module_or.status(), StatusIs(absl::StatusCode::kInvalidArgument,
-                                           HasSubstr("<no-file>:3:10-3:30")));
+  EXPECT_THAT(module.status(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                        HasSubstr("<no-file>:3:10-3:30")));
 }
 
 TEST(ParserErrorTest, FailLabelAtTopLevel) {
@@ -3261,11 +3256,11 @@ const ZERO_FAIL = fail!("always_fails", u32:0);
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
-  auto module_or = parser.ParseModule();
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
 
   // Check expected message
   EXPECT_THAT(
-      module_or.status(),
+      module.status(),
       IsPosError(
           "ParseError",
           HasSubstr("Cannot use the `fail!` builtin at module top-level.")));

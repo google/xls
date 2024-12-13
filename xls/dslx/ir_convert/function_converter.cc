@@ -1277,7 +1277,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   // Add the induction value (the "ranged" counter).
   auto ivar = std::get<NameDefTree::Leaf>(flat[0]);
-  absl::StatusOr<BValue> loop_index_or = absl::visit(
+  absl::StatusOr<BValue> loop_index = absl::visit(
       Visitor{
           [&](NameDef* name_def) -> absl::StatusOr<BValue> {
             XLS_RET_CHECK(name_def != nullptr);
@@ -1309,7 +1309,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
           },
       },
       ivar);
-  XLS_ASSIGN_OR_RETURN(auto loop_index, loop_index_or);
+  XLS_RETURN_IF_ERROR(loop_index.status());
 
   // IR `counted_for` ops only support a trip count, not a set of iterables, so
   // we need to add an offset to that trip count/index to support nonzero loop
@@ -1321,7 +1321,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   BValue offset_literal =
       body_converter.function_builder_->Literal(index_offset);
   BValue offset_sum =
-      body_converter.function_builder_->Add(loop_index, offset_literal);
+      body_converter.function_builder_->Add(*loop_index, offset_literal);
   body_converter.SetNodeToIr(ToAstNode(ivar), offset_sum);
 
   // Add the loop carry value.
@@ -3017,9 +3017,9 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
         GetBitsLike(*lhs_type.value());
     CHECK(lhs_bits_like_properties.has_value());
     const TypeDim& is_signed = lhs_bits_like_properties->is_signed;
-    absl::StatusOr<bool> result_or = is_signed.GetAsBool();
-    CHECK_OK(result_or.status());
-    return result_or.value();
+    absl::StatusOr<bool> result = is_signed.GetAsBool();
+    CHECK_OK(result);
+    return *result;
   };
 
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));

@@ -1100,9 +1100,9 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
     return std::nullopt;
   }
 
-  absl::StatusOr<InterpValue> bound_or = InterpretExpr(ctx, bound, env);
-  if (!bound_or.ok()) {
-    const absl::Status& status = bound_or.status();
+  absl::StatusOr<InterpValue> bound_value = InterpretExpr(ctx, bound, env);
+  if (!bound_value.ok()) {
+    const absl::Status& status = bound_value.status();
     if (absl::StrContains(status.message(), "could not find slot or binding")) {
       return TypeInferenceErrorStatus(
           bound->span(), nullptr,
@@ -1112,11 +1112,10 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
           ctx->file_table());
     }
   }
-
-  const InterpValue& value = bound_or.value();
-  if (value.tag() != InterpValueTag::kSBits) {  // Error if bound is not signed.
+  // Return error if the slice bound is not signed.
+  if (bound_value->tag() != InterpValueTag::kSBits) {
     std::string error_suffix = ".";
-    if (value.tag() == InterpValueTag::kUBits) {
+    if (bound_value->tag() == InterpValueTag::kUBits) {
       error_suffix = " -- consider casting to a signed value?";
     }
     return TypeInferenceErrorStatus(
@@ -1127,7 +1126,7 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
         ctx->file_table());
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t as_64b, value.GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t as_64b, bound_value->GetBitValueViaSign());
   VLOG(3) << absl::StreamFormat("Slice %s bound @ %s has value: %d", bound_name,
                                 bound->span().ToString(ctx->file_table()),
                                 as_64b);
@@ -1564,14 +1563,14 @@ static absl::StatusOr<TypeDim> DimToConcreteBool(const Expr* dim_expr,
 
   // If there wasn't a known constexpr we could evaluate it to at this point, we
   // attempt to turn it into a parametric expression.
-  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr_or =
+  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr =
       ExprToParametric(dim_expr, ctx);
-  if (parametric_expr_or.ok()) {
-    return TypeDim(std::move(parametric_expr_or).value());
+  if (parametric_expr.ok()) {
+    return TypeDim(*std::move(parametric_expr));
   }
 
   VLOG(3) << "Could not convert dim expr to parametric expr; status: "
-          << parametric_expr_or.status();
+          << parametric_expr.status();
 
   // If we can't evaluate it to a parametric expression we give an error.
   return TypeInferenceErrorStatus(
@@ -1765,21 +1764,20 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeRefTypeAnnotation(
   TypeDefinition type_definition = type_ref->type_definition();
 
   // If it's a (potentially parametric) struct, we concretize it.
-  absl::StatusOr<StructDef*> struct_def_or = DerefToStruct(
+  absl::StatusOr<StructDef*> struct_def = DerefToStruct(
       node->span(), type_ref->ToString(), type_definition, ctx->type_info());
-  if (struct_def_or.ok()) {
-    auto* struct_def = struct_def_or.value();
+  if (struct_def.ok()) {
     VLOG(5) << "DeduceTypeRefTypeAnnotation struct_def "
-            << struct_def->ToString()
-            << " IsParametric: " << struct_def->IsParametric();
+            << (*struct_def)->ToString()
+            << " IsParametric: " << (*struct_def)->IsParametric();
     VLOG(5) << "DeduceTypeRefTypeAnnotation node " << node->ToString()
             << " parametrics.empty: " << node->parametrics().empty();
     VLOG(5) << "DeduceTypeRefTypeAnnotation base type "
             << base_type->ToString();
 
-    if (struct_def->IsParametric() && !node->parametrics().empty()) {
+    if ((*struct_def)->IsParametric() && !node->parametrics().empty()) {
       XLS_ASSIGN_OR_RETURN(base_type, ConcretizeStructAnnotation(
-                                          node, struct_def, *base_type, ctx));
+                                          node, *struct_def, *base_type, ctx));
       VLOG(5)
           << "DeduceTypeRefTypeAnnotation after concretize, base type is now "
           << base_type->ToString();

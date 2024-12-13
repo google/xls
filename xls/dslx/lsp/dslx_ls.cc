@@ -230,25 +230,25 @@ absl::Status RealMain() {
   dispatcher.AddRequestHandler(
       "textDocument/definition",
       [&](const verible::lsp::DefinitionParams& params) {
-        auto values_or = language_server_adapter.FindDefinitions(
+        auto values = language_server_adapter.FindDefinitions(
             LspUri(std::string{params.textDocument.uri}), params.position);
-        if (values_or.ok()) {
-          return values_or.value();
+        if (values.ok()) {
+          return *values;
         }
-        LspLog() << "could not find definition(s); status: "
-                 << values_or.status() << "\n";
+        LspLog() << "could not find definition(s); status: " << values.status()
+                 << "\n";
         return std::vector<verible::lsp::Location>{};
       });
 
   dispatcher.AddRequestHandler(
       "textDocument/formatting",
       [&](const verible::lsp::DocumentFormattingParams& params) {
-        auto values_or = language_server_adapter.FormatDocument(
+        auto values = language_server_adapter.FormatDocument(
             LspUri(std::string{params.textDocument.uri}));
-        if (values_or.ok()) {
-          return values_or.value();
+        if (values.ok()) {
+          return *values;
         }
-        LspLog() << "could not format document; status: " << values_or.status()
+        LspLog() << "could not format document; status: " << values.status()
                  << "\n";
         return std::vector<verible::lsp::TextEdit>{};
       });
@@ -262,19 +262,17 @@ absl::Status RealMain() {
 
   dispatcher.AddRequestHandler(
       "textDocument/rename", [&](const verible::lsp::RenameParams& params) {
-        auto edit_or = language_server_adapter.Rename(
+        auto edit = language_server_adapter.Rename(
             LspUri(std::string{params.textDocument.uri}), params.position,
             params.newName);
-        if (!edit_or.ok()) {
+        if (!edit.ok()) {
           LspLog() << "could not determine rename edit; status: "
-                   << edit_or.status() << "\n";
+                   << edit.status() << "\n";
           return nlohmann::json();
         }
-        std::optional<verible::lsp::WorkspaceEdit> edit =
-            std::move(edit_or).value();
-        if (edit.has_value()) {
+        if (edit->has_value()) {
           nlohmann::json o;
-          verible::lsp::to_json(o, edit.value());
+          verible::lsp::to_json(o, edit->value());
           return o;
         }
         return nlohmann::json();
@@ -283,26 +281,26 @@ absl::Status RealMain() {
   dispatcher.AddRequestHandler(
       "textDocument/inlayHint",
       [&](const verible::lsp::InlayHintParams& params) {
-        auto inlay_hints_or = language_server_adapter.InlayHint(
+        auto inlay_hints = language_server_adapter.InlayHint(
             LspUri(std::string{params.textDocument.uri}), params.range);
-        if (inlay_hints_or.ok()) {
-          return std::move(inlay_hints_or).value();
+        if (inlay_hints.ok()) {
+          return *std::move(inlay_hints);
         }
         LspLog() << "could not determine inlay hints; status: "
-                 << inlay_hints_or.status() << "\n";
+                 << inlay_hints.status() << "\n";
         return std::vector<verible::lsp::InlayHint>{};
       });
 
   dispatcher.AddRequestHandler(
       "textDocument/documentHighlight",
       [&](const verible::lsp::DocumentHighlightParams& params) {
-        auto highlights_or = language_server_adapter.DocumentHighlight(
+        auto highlights = language_server_adapter.DocumentHighlight(
             LspUri(std::string{params.textDocument.uri}), params.position);
-        if (highlights_or.ok()) {
-          return highlights_or.value();
+        if (highlights.ok()) {
+          return *highlights;
         }
         LspLog() << "could not perform document highlight(s); status: "
-                 << highlights_or.status() << "\n";
+                 << highlights.status() << "\n";
         return std::vector<verible::lsp::DocumentHighlight>{};
       });
 

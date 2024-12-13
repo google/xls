@@ -350,16 +350,15 @@ class Checker {
       return *this;
     }
 
-    absl::StatusOr<bool> is_signed_or = bits_like->is_signed.GetAsBool();
-    if (!is_signed_or.ok()) {
+    absl::StatusOr<bool> is_signed = bits_like->is_signed.GetAsBool();
+    if (!is_signed.ok()) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrCat("Could not determine signedness of argument ", argno,
                        "; got ", t.ToString()));
       return *this;
     }
-    bool is_signed = is_signed_or.value();
-    if (!is_signed) {
+    if (!*is_signed) {
       status_ = TypeInferenceErrorStatus(
           span_, &t,
           absl::StrFormat("Want argument %d to be signed bits; got %s", argno,

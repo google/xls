@@ -70,17 +70,17 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
   XLS_ASSIGN_OR_RETURN(std::string input_contents,
                        import_data.vfs().GetFileContents(input_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(input_path.c_str()));
-  absl::StatusOr<TypecheckedModule> tm_or = ParseAndTypecheck(
+  absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
       input_contents, input_path.c_str(), module_name, &import_data);
-  if (!tm_or.ok()) {
-    if (TryPrintError(tm_or.status(), import_data.file_table(),
+  if (!tm.ok()) {
+    if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
       return absl::InvalidArgumentError(
           "An error occurred during parsing / typechecking.");
     }
-    return tm_or.status();
+    return tm.status();
   }
-  XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm_or->type_info));
+  XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm->type_info));
   if (output_path.has_value()) {
     std::string output;
     QCHECK(tip.SerializeToString(&output));

@@ -123,14 +123,17 @@ absl::StatusOr<xls::Function*> GetEntryFunction(xls::Package* package) {
 absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
                                       ImportData* import_data,
                                       const ConvertOptions& options) {
-  absl::StatusOr<xls::Function*> entry_or =
-      GetEntryFunction(package_data.conversion_info->package.get());
-  if (!entry_or.ok()) {  // Entry point not found.
-    XLS_RET_CHECK_EQ(entry_or.status().code(), absl::StatusCode::kNotFound);
+  auto entry_point_not_found_handler =
+      [](const absl::Status& status) -> absl::Status {
+    XLS_RET_CHECK_EQ(status.code(), absl::StatusCode::kNotFound);
     return absl::OkStatus();
-  }
+  };
 
-  xls::Function* entry = entry_or.value();
+  XLS_ASSIGN_OR_RETURN(
+      xls::Function * entry,
+      GetEntryFunction(package_data.conversion_info->package.get()),
+      _.With(entry_point_not_found_handler));
+
   if (package_data.wrappers.contains(entry)) {
     // Already created!
     return absl::OkStatus();
@@ -406,25 +409,27 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
         module, fn_or.value(), import_data, parametric_env, options, conv);
   }
 
-  auto proc_or = module->GetMemberOrError<Proc>(entry_function_name);
-  if (proc_or.ok()) {
-    return ConvertOneFunctionIntoPackageInternal(
-        module, proc_or.value(), import_data, parametric_env, options, conv);
+  absl::StatusOr<Proc*> proc =
+      module->GetMemberOrError<Proc>(entry_function_name);
+  if (proc.ok()) {
+    return ConvertOneFunctionIntoPackageInternal(module, *proc, import_data,
+                                                 parametric_env, options, conv);
   }
 
   if (options.convert_tests) {
-    absl::StatusOr<TestFunction*> test_fn_or =
+    absl::StatusOr<TestFunction*> test_fn =
         module->GetTest(entry_function_name);
-    if (test_fn_or.ok()) {
-      return ConvertOneFunctionIntoPackageInternal(
-          module, &test_fn_or.value()->fn(), import_data, parametric_env,
-          options, conv);
+    if (test_fn.ok()) {
+      return ConvertOneFunctionIntoPackageInternal(module, &(*test_fn)->fn(),
+                                                   import_data, parametric_env,
+                                                   options, conv);
     }
-    auto test_proc_or = module->GetTestProc(entry_function_name);
-    if (test_proc_or.ok()) {
-      return ConvertOneFunctionIntoPackageInternal(
-          module, test_proc_or.value()->proc(), import_data, parametric_env,
-          options, conv);
+    absl::StatusOr<TestProc*> test_proc =
+        module->GetTestProc(entry_function_name);
+    if (test_proc.ok()) {
+      return ConvertOneFunctionIntoPackageInternal(module, (*test_proc)->proc(),
+                                                   import_data, parametric_env,
+                                                   options, conv);
     }
   }
 
@@ -454,9 +459,9 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(
   Fileno fileno = file_table.GetOrCreate(filename);
   Scanner scanner{file_table, fileno, std::string(text)};
   Parser parser(std::string(module_name), &scanner);
-  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
-  *printed_error = TryPrintError(module_or.status(), file_table, vfs);
-  return module_or;
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  *printed_error = TryPrintError(module.status(), file_table, vfs);
+  return module;
 }
 
 absl::Status CheckPackageName(std::string_view name) {
@@ -491,12 +496,12 @@ absl::Status AddContentsToPackage(
                 /*print_on_error=*/true,
                 /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
   WarningCollector warnings(import_data->enabled_warnings());
-  absl::StatusOr<TypeInfo*> type_info_or =
+  absl::StatusOr<TypeInfo*> type_info =
       TypecheckModule(module.get(), import_data, &warnings);
-  if (!type_info_or.ok()) {
+  if (!type_info.ok()) {
     *printed_error = TryPrintError(
-        type_info_or.status(), import_data->file_table(), import_data->vfs());
-    return type_info_or.status();
+        type_info.status(), import_data->file_table(), import_data->vfs());
+    return type_info.status();
   }
 
   if (convert_options.warnings_as_errors && !warnings.warnings().empty()) {
