@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
@@ -106,6 +107,63 @@ bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
   return xls::ReturnStringHelper(result, error_out, mangled_out);
 }
 
+bool xls_schedule_and_codegen_package(
+    xls_package* p, const char* scheduling_options_flags_proto,
+    const char* codegen_flags_proto, bool with_delay_model, char** error_out,
+    struct xls_schedule_and_codegen_result** result_out) {
+  CHECK(p != nullptr);
+  CHECK(scheduling_options_flags_proto != nullptr);
+  CHECK(codegen_flags_proto != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+
+  xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
+
+  // Get the proto objects by parsing the textprotos given.
+  xls::SchedulingOptionsFlagsProto scheduling_options_flags;
+  xls::CodegenFlagsProto codegen_flags;
+
+  if (absl::Status parse_status =
+          xls::ParseTextProto(scheduling_options_flags_proto, /*file_name=*/"",
+                              &scheduling_options_flags);
+      !parse_status.ok()) {
+    *error_out = xls::ToOwnedCString(parse_status.ToString());
+    return false;
+  }
+  if (absl::Status parse_status = xls::ParseTextProto(
+          codegen_flags_proto, /*file_name=*/"", &codegen_flags);
+      !parse_status.ok()) {
+    *error_out = xls::ToOwnedCString(parse_status.ToString());
+    return false;
+  }
+
+  absl::StatusOr<xls::ScheduleAndCodegenResult> result =
+      xls::ScheduleAndCodegenPackage(cpp_package, scheduling_options_flags,
+                                     codegen_flags, with_delay_model);
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+
+  *result_out = reinterpret_cast<xls_schedule_and_codegen_result*>(
+      new xls::ScheduleAndCodegenResult(std::move(result.value())));
+  *error_out = nullptr;
+  return true;
+}
+
+char* xls_schedule_and_codegen_result_get_verilog_text(
+    const struct xls_schedule_and_codegen_result* result) {
+  CHECK(result != nullptr);
+  auto* cpp_result =
+      reinterpret_cast<const xls::ScheduleAndCodegenResult*>(result);
+  return xls::ToOwnedCString(cpp_result->module_generator_result.verilog_text);
+}
+
+void xls_schedule_and_codegen_result_free(
+    struct xls_schedule_and_codegen_result* result) {
+  delete reinterpret_cast<xls::ScheduleAndCodegenResult*>(result);
+}
+
 bool xls_parse_typed_value(const char* input, char** error_out,
                            xls_value** xls_value_out) {
   CHECK(input != nullptr);
@@ -168,6 +226,29 @@ void xls_bits_free(xls_bits* b) { delete reinterpret_cast<xls::Bits*>(b); }
 
 void xls_value_free(xls_value* v) {
   delete reinterpret_cast<xls::Value*>(v);
+}
+
+struct xls_function_base* xls_package_get_top(struct xls_package* p) {
+  CHECK(p != nullptr);
+  xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
+  std::optional<xls::FunctionBase*> top = cpp_package->GetTop();
+  if (!top.has_value()) {
+    return nullptr;
+  }
+  return reinterpret_cast<xls_function_base*>(top.value());
+}
+
+bool xls_package_set_top_by_name(struct xls_package* p, const char* name,
+                                 char** error_out) {
+  CHECK(p != nullptr);
+  xls::Package* cpp_package = reinterpret_cast<xls::Package*>(p);
+  absl::Status status = cpp_package->SetTopByName(name);
+  if (!status.ok()) {
+    *error_out = xls::ToOwnedCString(status.ToString());
+    return false;
+  }
+  *error_out = nullptr;
+  return true;
 }
 
 void xls_package_free(struct xls_package* p) {

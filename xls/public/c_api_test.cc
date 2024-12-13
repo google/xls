@@ -21,10 +21,13 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
+#include "absl/log/log.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/public/c_api_dslx.h"
@@ -114,6 +117,44 @@ TEST(XlsCApiTest, ConvertDslxPathToIr) {
   ASSERT_NE(ir_out, nullptr);
 
   EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
+
+  // Now we take the IR and schedule/codegen it.
+  struct xls_package* package = nullptr;
+  ASSERT_TRUE(
+      xls_parse_ir_package(ir_out, "my_module.ir", &error_out, &package));
+  absl::Cleanup free_package([package] { xls_package_free(package); });
+
+  EXPECT_EQ(xls_package_get_top(package), nullptr);
+  ASSERT_TRUE(
+      xls_package_set_top_by_name(package, "__my_module__id", &error_out));
+  EXPECT_NE(xls_package_get_top(package), nullptr);
+
+  const char* kSchedulingOptionsFlagsProto = R"(
+pipeline_stages: 1
+delay_model: "unit"
+)";
+  const char* kCodegenFlagsProto = R"(
+register_merge_strategy: STRATEGY_DONT_MERGE
+generator: GENERATOR_KIND_PIPELINE
+)";
+
+  struct xls_schedule_and_codegen_result* result = nullptr;
+  ASSERT_TRUE(xls_schedule_and_codegen_package(
+      package, /*scheduling_options_flags_proto=*/kSchedulingOptionsFlagsProto,
+      /*codegen_flags_proto=*/kCodegenFlagsProto, /*with_delay_model=*/false,
+      &error_out, &result))
+      << "xls_schedule_and_codegen_package error: " << error_out;
+  absl::Cleanup free_result(
+      [result] { xls_schedule_and_codegen_result_free(result); });
+
+  char* verilog_out = xls_schedule_and_codegen_result_get_verilog_text(result);
+  ASSERT_NE(verilog_out, nullptr);
+  absl::Cleanup free_verilog([verilog_out] { xls_c_str_free(verilog_out); });
+
+  LOG(INFO) << "== Verilog";
+  XLS_LOG_LINES(INFO, verilog_out);
+
+  EXPECT_THAT(verilog_out, HasSubstr("module __my_module__id"));
 }
 
 TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {

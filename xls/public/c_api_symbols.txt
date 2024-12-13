@@ -80,10 +80,15 @@ xls_mangle_dslx_name
 xls_optimize_ir
 xls_package_free
 xls_package_get_function
+xls_package_get_top
 xls_package_get_type_for_value
+xls_package_set_top_by_name
 xls_package_to_string
 xls_parse_ir_package
 xls_parse_typed_value
+xls_schedule_and_codegen_package
+xls_schedule_and_codegen_result_free
+xls_schedule_and_codegen_result_get_verilog_text
 xls_type_to_string
 xls_value_eq
 xls_value_free
