@@ -233,6 +233,10 @@ bool xls_format_preference_from_string(const char* s, char** error_out,
     *result_out = xls_format_preference_plain_binary;
   } else if (got == "plain_hex") {
     *result_out = xls_format_preference_plain_hex;
+  } else if (got == "zero_padded_binary") {
+    *result_out = xls_format_preference_zero_padded_binary;
+  } else if (got == "zero_padded_hex") {
+    *result_out = xls_format_preference_zero_padded_hex;
   } else {
     absl::Status error = absl::InvalidArgumentError(absl::StrFormat(
         "Invalid value for conversion to XLS format preference: `%s`", s));
