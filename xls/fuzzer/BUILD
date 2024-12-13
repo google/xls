@@ -387,8 +387,6 @@ generate_crasher_regression_tests(
     failing = [
         # TODO(https://github.com/google/xls/issues/746): Remove when fixed.
         "crashers/crasher_2022-10-19_a3a3.x",
-        # TODO(https://github.com/google/xls/issues/746): Remove when fixed.
-        "crashers/crasher_2022-10-19_5531.x",
         # TODO(https://github.com/google/xls/issues/1140): Remove when fixed.
         "crashers/crasher_2023-10-01_eb60.x",
         # TODO(https://github.com/google/xls/issues/1141): Remove when fixed.
