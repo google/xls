@@ -454,5 +454,107 @@ const Y = (X, u32:4);
           "node: `const Y = (X, u32:4);`, type: ((uN[32], sN[24]), uN[32])"));
 }
 
+TEST(TypecheckV2Test, GlobalTupleConstantWithArrays) {
+  EXPECT_THAT("const X = ([u32:1, u32:2], [u32:3, u32:4, u32:5]);",
+              TopNodeHasType("(uN[32][2], uN[32][3])"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithAnnotatedIntegerLiterals) {
+  EXPECT_THAT("const X = [u32:1, u32:2];", TopNodeHasType("uN[32][2]"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithBareIntegerLiterals) {
+  EXPECT_THAT("const X: u32[2] = [1, 2];", TopNodeHasType("uN[32][2]"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithTuples) {
+  EXPECT_THAT("const X = [(u32:1, u32:2), (u32:3, u32:4)];",
+              TopNodeHasType("(uN[32], uN[32])[2]"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithTooSmallSizeFails) {
+  EXPECT_THAT("const X: u32[2] = [1, 2, 3];",
+              TypecheckFails(ContainsRegex(
+                  R"(type mismatch.*uN\[2\]\[3\].* vs. u32\[2\])")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithIntegerAnnotationFails) {
+  EXPECT_THAT("const X: u32 = [1, 2];",
+              TypecheckFails(
+                  ContainsRegex(R"(type mismatch.*uN\[2\]\[2\].* vs. u32)")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithTypeViolation) {
+  EXPECT_THAT("const X: u32[2] = [-3, -2];",
+              TypecheckFails(ContainsRegex(
+                  R"(signed vs. unsigned mismatch: sN\[3\] .*vs. u32)")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithTypeConflict) {
+  EXPECT_THAT("const X: u32[2] = [s24:1, s24:2];",
+              TypecheckFails(ContainsRegex(
+                  R"(signed vs. unsigned mismatch: sN\[24\] .*vs. u32)")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantReferencingIntegerConstant) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X: u32 = 3;
+const Y = [X, X];
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const Y = [X, X];`, type: uN[32][2]"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantReferencingArrayConstant) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = [u32:3, u32:4];
+const Y = [X, X];
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const Y = [X, X];`, type: uN[32][2][2]"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantCombiningArrayAndIntegerFails) {
+  EXPECT_THAT("const X = [u32:3, [u32:4, u32:5]];",
+              TypecheckFails(
+                  ContainsRegex(R"(type mismatch.*uN\[32\]\[2\].* vs. u32)")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsis) {
+  EXPECT_THAT("const X: u32[5] = [3, 4, ...];", TopNodeHasType("uN[32][5]"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithNestedEllipsis) {
+  EXPECT_THAT("const X: u32[5][2] = [[5, ...], ...];",
+              TopNodeHasType("uN[32][5][2]"));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsisAndTooSmallSizeFails) {
+  EXPECT_THAT("const X: u32[2] = [3, 4, 5, ...];",
+              TypecheckFails(HasSubstr("Annotated array size is too small for "
+                                       "explicit element count")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsisAndNoElementsFails) {
+  EXPECT_THAT("const X: u32[2] = [...];",
+              TypecheckFails(HasSubstr("Array cannot have an ellipsis (`...`) "
+                                       "without an element to repeat")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantEmptyWithoutAnnotationFails) {
+  EXPECT_THAT(
+      "const X = [];",
+      TypecheckFails(HasSubstr(
+          "A variable or constant cannot be defined with an implicit type.")));
+}
+
+TEST(TypecheckV2Test, GlobalArrayConstantEmptyWithAnnotation) {
+  EXPECT_THAT("const X: u32[0] = [];", TopNodeHasType("uN[32][0]"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

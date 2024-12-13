@@ -146,6 +146,70 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleArray(const Array* node) override {
+    // When we come in here with an example like:
+    //   const FOO = [u32:4, u32:5];
+    //
+    // the table will look like this before descent into this function:
+    //   Node               Annotation          Variable
+    //   -----------------------------------------------
+    //   FOO                                    T0
+    //   [u32:4, u32:5]                         T0
+    //
+    // and this function will make it look like this:
+    //   Node               Annotation          Variable
+    //   -----------------------------------------------
+    //   FOO                                    T0
+    //   [u32:4, u32:5]     var:T1[2]           T0
+    //   u32:4                                  T1
+    //   u32:5                                  T1
+    //
+    // Recursive descent will ultimately put annotations on the elements in the
+    // table. Upon conversion of the table to type info, unification of any LHS
+    // annotation with the variable-based RHS annotation will be attempted, and
+    // this unification will fail if the array is inadequately annotated (e.g.
+    // no explicit annotation on a zero-size or elliptical array).
+
+    // An empty array can't end with an ellipsis, even if unification is
+    // possible.
+    if (node->has_ellipsis() && node->members().empty()) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          "Array cannot have an ellipsis (`...`) without an element to repeat.",
+          file_table_);
+    }
+
+    // If the array has no members, we can't infer an RHS element type and
+    // therefore can't annotate the RHS. The success of the later unification
+    // will depend on whether the LHS is annotated.
+    if (node->members().empty()) {
+      return absl::OkStatus();
+    }
+
+    // Create a variable for the element type, and assign it to all the
+    // elements.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* element_type_variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<Array*>(node),
+                                      GenerateInternalTypeVariableName(node)));
+    for (Expr* member : node->members()) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(member, element_type_variable));
+    }
+    Expr* element_count = module_.Make<Number>(
+        node->span(), absl::StrCat(node->members().size()), NumberKind::kOther,
+        /*type_annotation=*/nullptr);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node,
+        module_.Make<ArrayTypeAnnotation>(
+            node->span(),
+            module_.Make<TypeVariableTypeAnnotation>(element_type_variable),
+            element_count,
+            /*dim_is_min=*/node->has_ellipsis())));
+    return DefaultHandler(node);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
@@ -170,6 +234,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   template <>
   std::string GenerateInternalTypeVariableName(const Expr* node) {
     return absl::StrCat("internal_type_expr_at_",
+                        node->span().ToString(file_table_));
+  }
+  // Specialization for `Array` nodes.
+  template <>
+  std::string GenerateInternalTypeVariableName(const Array* node) {
+    return absl::StrCat("internal_type_array_element_at_",
                         node->span().ToString(file_table_));
   }
 

@@ -998,10 +998,11 @@ std::string TypeVariableTypeAnnotation::ToString() const {
 
 ArrayTypeAnnotation::ArrayTypeAnnotation(Module* owner, Span span,
                                          TypeAnnotation* element_type,
-                                         Expr* dim)
+                                         Expr* dim, bool dim_is_min)
     : TypeAnnotation(owner, std::move(span)),
       element_type_(element_type),
-      dim_(dim) {}
+      dim_(dim),
+      dim_is_min_(dim_is_min) {}
 
 ArrayTypeAnnotation::~ArrayTypeAnnotation() = default;
 
@@ -1010,7 +1011,10 @@ std::vector<AstNode*> ArrayTypeAnnotation::GetChildren(bool want_types) const {
 }
 
 std::string ArrayTypeAnnotation::ToString() const {
-  return absl::StrFormat("%s[%s]", element_type_->ToString(), dim_->ToString());
+  return dim_is_min_ ? absl::StrFormat("%s[>= %s]", element_type_->ToString(),
+                                       dim_->ToString())
+                     : absl::StrFormat("%s[%s]", element_type_->ToString(),
+                                       dim_->ToString());
 }
 
 // -- class SelfTypeAnnotation

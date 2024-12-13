@@ -449,7 +449,7 @@ class TypeVariableTypeAnnotation : public TypeAnnotation {
 class ArrayTypeAnnotation : public TypeAnnotation {
  public:
   ArrayTypeAnnotation(Module* owner, Span span, TypeAnnotation* element_type,
-                      Expr* dim);
+                      Expr* dim, bool dim_is_min = false);
 
   ~ArrayTypeAnnotation() override;
 
@@ -463,6 +463,13 @@ class ArrayTypeAnnotation : public TypeAnnotation {
   TypeAnnotation* element_type() const { return element_type_; }
   Expr* dim() const { return dim_; }
 
+  // Returns whether the `dim()` expression indicates the minimum element count
+  // of the array, or the exact count. It is only the minimum count in
+  // annotations that are internally generated for elliptical array
+  // instantiations like `[u32:3, u32:4, ...]`. For annotations explicitly in
+  // DSLX source code, it is the exact count.
+  bool dim_is_min() const { return dim_is_min_; }
+
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override;
@@ -470,6 +477,7 @@ class ArrayTypeAnnotation : public TypeAnnotation {
  private:
   TypeAnnotation* element_type_;
   Expr* dim_;
+  bool dim_is_min_;
 };
 
 // Represents the type for the `self` keyword (e.g., used in impl methods). In

@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -63,6 +64,7 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
   if (const auto* array_annotation =
           dynamic_cast<const ArrayTypeAnnotation*>(annotation)) {
     SignednessAndBitCountResult result;
+    bool multi_dimensional = false;
     if (const auto* inner_array_annotation =
             dynamic_cast<const ArrayTypeAnnotation*>(
                 array_annotation->element_type())) {
@@ -73,6 +75,7 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
       // have a signedness and bit count, we will fail below.
       result.bit_count = array_annotation->dim();
       array_annotation = inner_array_annotation;
+      multi_dimensional = true;
     }
     // If the element type has a zero bit count, that means the bit count is
     // captured by a wrapping array dim. If it has a nonzero bit count, then
@@ -82,11 +85,17 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
     if (const auto* builtin_element_annotation =
             dynamic_cast<const BuiltinTypeAnnotation*>(
                 array_annotation->element_type());
+        builtin_element_annotation != nullptr &&
         builtin_element_annotation->GetBitCount() == 0) {
       if (builtin_element_annotation->builtin_type() == BuiltinType::kXN) {
         // `xN` has an expression for the signedness, which appears as the inner
         // array dim.
         result.signedness = array_annotation->dim();
+      } else if (multi_dimensional) {
+        // This is something like uN[32][2].
+        return absl::InvalidArgumentError(absl::Substitute(
+            "Type annotation $0 does not have a signedness and bit count.",
+            annotation->ToString()));
       } else {
         // All other types, e.g. `uN`, `sN`, and `bits`, have an implied
         // signedness that we can just get as a bool.
@@ -120,6 +129,20 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
       return CreateUnOrSnAnnotation(module, number.span(), sign,
                                     magnitude.bit_count() + (sign ? 1 : 0));
   }
+}
+
+const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
+    const TypeAnnotation* annotation) {
+  const auto* array_annotation =
+      dynamic_cast<const ArrayTypeAnnotation*>(annotation);
+  if (array_annotation == nullptr) {
+    return nullptr;
+  }
+  // If the signedness and bit count can be retrieved, then it's some flavor of
+  // xN, uN, sN, etc. and not what this function is looking for.
+  absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
+      GetSignednessAndBitCount(annotation);
+  return !signedness_and_bit_count.ok() ? array_annotation : nullptr;
 }
 
 }  // namespace xls::dslx

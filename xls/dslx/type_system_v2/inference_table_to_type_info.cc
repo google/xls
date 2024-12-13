@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -29,6 +30,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -43,12 +45,63 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 namespace {
+
+// A size value that may be a minimum or an exact size. This is useful as an
+// intermediate object during unification of type annotations.
+struct SizeValue {
+  int64_t size;
+  bool size_is_min;
+};
+
+// Helper for `UnifySizeValues` for when a min value is unified with an exact
+// value.
+absl::StatusOr<SizeValue> UnifyMinAndExactSize(const SizeValue& min,
+                                               const SizeValue& exact) {
+  CHECK(min.size_is_min);
+  CHECK(!exact.size_is_min);
+  if (exact.size >= min.size) {
+    return exact;
+  }
+  return absl::OutOfRangeError(absl::Substitute(
+      "Min size $0 is greater than exact size $1", min.size, exact.size));
+}
+
+// Returns a `SizeValue` that agrees with the two given `SizeValue` objects if
+// possible. `x` is optional for convenience of invoking this in a loop where
+// the first call has no preceding value. The possible errors are:
+// - Invalid argument, if neither `x` nor `y` has the `size_is_min` flag, and
+//   their sizes don't agree.
+// - Out of range, if a min size value is contradicted by an exact value lower
+//   than that.
+// The errors are expected to be wrapped or replaced with contextual info by the
+// caller before being shown to a user.
+absl::StatusOr<SizeValue> UnifySizeValues(const std::optional<SizeValue>& x,
+                                          const SizeValue& y) {
+  if (!x.has_value()) {
+    return y;
+  }
+  if (x->size_is_min && y.size_is_min) {
+    return SizeValue{.size = std::max(x->size, y.size), .size_is_min = true};
+  }
+  if (x->size_is_min) {
+    return UnifyMinAndExactSize(*x, y);
+  }
+  if (y.size_is_min) {
+    return UnifyMinAndExactSize(y, *x);
+  }
+  if (x->size != y.size) {
+    return absl::InvalidArgumentError(
+        absl::Substitute("Cannot unify sizes: $0 and $1", x->size, y.size));
+  }
+  return *x;
+}
 
 // An object that facilitates the conversion of an `InferenceTable` to
 // `TypeInfo`.
@@ -180,6 +233,15 @@ class InferenceTableConverter {
         member_types.push_back(std::move(concrete_member_type));
       }
       return std::make_unique<TupleType>(std::move(member_types));
+    }
+    if (const auto* array = CastToNonBitsArrayTypeAnnotation(annotation)) {
+      XLS_ASSIGN_OR_RETURN(
+          int64_t size, EvaluateS64OrExpr(parametric_invocation, array->dim()));
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Type> element_type,
+          Concretize(array->element_type(), parametric_invocation));
+      return std::make_unique<ArrayType>(std::move(element_type),
+                                         TypeDim(InterpValue::MakeS64(size)));
     }
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(annotation);
@@ -316,7 +378,12 @@ class InferenceTableConverter {
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations,
         table_.GetTypeAnnotationsForTypeVariable(type_variable));
-    return UnifyTypeAnnotations(parametric_invocation, annotations, span);
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* result,
+        UnifyTypeAnnotations(parametric_invocation, annotations, span));
+    VLOG(5) << "Unified type for variable " << type_variable->ToString() << ": "
+            << result->ToString();
+    return result;
   }
 
   // Overload that unifies specific type annotations.
@@ -358,9 +425,22 @@ class InferenceTableConverter {
       return UnifyTupleTypeAnnotations(parametric_invocation, tuple_annotations,
                                        span);
     }
+    if (const auto* first_array_annotation =
+            CastToNonBitsArrayTypeAnnotation(annotations[0])) {
+      std::vector<const ArrayTypeAnnotation*> array_annotations;
+      for (int i = 0; i < annotations.size(); i++) {
+        const auto* array_annotation =
+            dynamic_cast<const ArrayTypeAnnotation*>(annotations[i]);
+        // If the DSLX programmer puts the wrong kind of annotation on an array,
+        // it will error before now.
+        CHECK(array_annotation);
+        array_annotations.push_back(array_annotation);
+      }
+      return UnifyArrayTypeAnnotations(parametric_invocation, array_annotations,
+                                       span);
+    }
     std::optional<bool> unified_signedness;
-    std::optional<int64_t> unified_bit_count;
-    bool unified_bit_count_is_auto = true;
+    std::optional<SizeValue> unified_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
       VLOG(5) << "Annotation " << i << ": " << current_annotation->ToString();
@@ -378,9 +458,12 @@ class InferenceTableConverter {
           EvaluateBoolOrExpr(parametric_invocation,
                              signedness_and_bit_count->signedness));
       XLS_ASSIGN_OR_RETURN(
-          int64_t current_annotation_bit_count,
+          int64_t current_annotation_raw_bit_count,
           EvaluateS64OrExpr(parametric_invocation,
                             signedness_and_bit_count->bit_count));
+      SizeValue current_annotation_bit_count{
+          .size = current_annotation_raw_bit_count,
+          .size_is_min = current_annotation_is_auto};
 
       // Unify the signedness. Currently there must be strict agreement, except
       // for auto literals. Auto literals can be coerced to signed but can't be
@@ -394,24 +477,24 @@ class InferenceTableConverter {
                                              annotations[i - 1], file_table_);
       }
 
-      if (!unified_bit_count.has_value() ||
-          (unified_bit_count_is_auto &&
-           current_annotation_bit_count > *unified_bit_count)) {
-        unified_bit_count = current_annotation_bit_count;
-      } else if (current_annotation_bit_count != *unified_bit_count &&
-                 !(current_annotation_is_auto &&
-                   current_annotation_bit_count < *unified_bit_count)) {
+      absl::StatusOr<SizeValue> new_unified_bit_count =
+          UnifySizeValues(unified_bit_count, current_annotation_bit_count);
+      if (!new_unified_bit_count.ok()) {
         return BitCountMismatchErrorStatus(current_annotation,
                                            annotations[i - 1], file_table_);
       }
-      if (!current_annotation_is_auto) {
-        unified_bit_count_is_auto = false;
-      }
+      unified_bit_count = *new_unified_bit_count;
       VLOG(5) << "Unified type so far has signedness: " << *unified_signedness
-              << " and bit count: " << *unified_bit_count;
+              << " and bit count: " << unified_bit_count->size;
     }
-    return CreateUnOrSnAnnotation(module_, span, *unified_signedness,
-                                  *unified_bit_count);
+    const TypeAnnotation* result = CreateUnOrSnAnnotation(
+        module_, span, *unified_signedness, unified_bit_count->size);
+    // An annotation we fabricate as a unification of a bunch of auto
+    // annotations, is also considered an auto annotation itself.
+    if (unified_bit_count->size_is_min) {
+      auto_literal_annotations_.insert(result);
+    }
+    return result;
   }
 
   // Unifies multiple annotations for a tuple. This function assumes the
@@ -435,6 +518,57 @@ class InferenceTableConverter {
           const_cast<TypeAnnotation*>(unified_member_annotation);
     }
     return module_.Make<TupleTypeAnnotation>(span, unified_member_annotations);
+  }
+
+  // Unifies multiple annotations for an array. This function assumes the
+  // passed-in array is nonempty. Unifying an array type amounts to unifying the
+  // element types and dims.
+  absl::StatusOr<const ArrayTypeAnnotation*> UnifyArrayTypeAnnotations(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::vector<const ArrayTypeAnnotation*> annotations, const Span& span) {
+    std::vector<const TypeAnnotation*> element_type_annotations;
+    std::optional<SizeValue> unified_dim;
+    for (int i = 0; i < annotations.size(); i++) {
+      const ArrayTypeAnnotation* annotation = annotations[i];
+      element_type_annotations.push_back(annotation->element_type());
+      XLS_ASSIGN_OR_RETURN(
+          int64_t current_dim,
+          EvaluateS64OrExpr(parametric_invocation, annotation->dim()));
+      absl::StatusOr<SizeValue> new_unified_dim = UnifySizeValues(
+          unified_dim, SizeValue{.size = current_dim,
+                                 .size_is_min = annotation->dim_is_min()});
+      if (!new_unified_dim.ok()) {
+        // We can only get here when i >= 1, because the 0th annotation can't be
+        // a contradiction of preceding info.
+        CHECK_GE(i, 1);
+        if (new_unified_dim.status().code() == absl::StatusCode::kOutOfRange) {
+          return TypeInferenceErrorStatus(
+              span, /*type=*/nullptr,
+              "Annotated array size is too small for explicit element count.",
+              file_table_);
+        }
+        return TypeMismatchErrorStatus(annotations[i], annotations[i - 1],
+                                       file_table_);
+      }
+      unified_dim = *new_unified_dim;
+    }
+    if (unified_dim->size_is_min) {
+      // This means the only type annotation for the array was fabricated
+      // based on an elliptical RHS.
+      return TypeInferenceErrorStatus(
+          span, /*type=*/nullptr,
+          "Array has ellipsis (`...`) but does not have a type annotation.",
+          file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_element_type,
+                         UnifyTypeAnnotations(parametric_invocation,
+                                              element_type_annotations, span));
+    return module_.Make<ArrayTypeAnnotation>(
+        span, const_cast<TypeAnnotation*>(unified_element_type),
+        module_.Make<Number>(annotations[0]->span(),
+                             absl::StrCat(unified_dim->size),
+                             NumberKind::kOther,
+                             /*type_annotation=*/nullptr));
   }
 
   // Returns `annotation` with any `TypeVariableTypeAnnotation`s replaced with
@@ -477,6 +611,9 @@ class InferenceTableConverter {
   // operation or containing an embedded literal.
   absl::Status ValidateConcreteTypeForNode(const AstNode* node,
                                            const Type* type) {
+    if (type->IsMeta()) {
+      XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
+    }
     if (const auto* literal = dynamic_cast<const Number*>(node)) {
       // A literal can have its own explicit type annotation that ultimately
       // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
@@ -524,7 +661,7 @@ class InferenceTableConverter {
       invocation_type_info_;
   absl::flat_hash_map<const ParametricInvocation*, ParametricEnv>
       converted_parametric_envs_;
-  const absl::flat_hash_set<const TypeAnnotation*>& auto_literal_annotations_;
+  absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
 };
 
 }  // namespace

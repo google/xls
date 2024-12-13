@@ -73,7 +73,7 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module_->Make<ArrayTypeAnnotation>(
         n->span(),
         down_cast<TypeAnnotation*>(old_to_new_.at(n->element_type())),
-        down_cast<Expr*>(old_to_new_.at(n->dim())));
+        down_cast<Expr*>(old_to_new_.at(n->dim())), n->dim_is_min());
     return absl::OkStatus();
   }
 

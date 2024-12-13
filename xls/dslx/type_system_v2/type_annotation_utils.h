@@ -55,6 +55,12 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
 absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
     Module& module, const Number& number);
 
+// Acts like `dynamic_cast<const ArrayTypeAnnotation*>(annotation)` but only
+// succeeds if the annotation is for a true array, as opposed to a bits-like
+// type expressed as an array (e.g. `uN` or `xN`).
+const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
+    const TypeAnnotation* annotation);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_
