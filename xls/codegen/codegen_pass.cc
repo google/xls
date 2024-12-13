@@ -22,6 +22,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -93,6 +94,14 @@ void CodegenPassUnit::GcMetadata() {
         }
       }
     }
+    std::erase_if(block_metadata.streaming_io_and_pipeline.single_value_inputs,
+                  [&nodes](const SingleValueInput& input) {
+                    return !nodes.contains(input.port);
+                  });
+    std::erase_if(block_metadata.streaming_io_and_pipeline.single_value_outputs,
+                  [&nodes](const SingleValueOutput& output) {
+                    return !nodes.contains(output.port);
+                  });
     for (std::optional<Node*>& valid :
          block_metadata.streaming_io_and_pipeline.pipeline_valid) {
       if (valid.has_value() && !nodes.contains(*valid)) {
