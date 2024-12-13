@@ -30,6 +30,7 @@
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/file/temp_file.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
@@ -3127,6 +3128,29 @@ fn main() -> (u5[3], u6[3]) {
       std::string converted,
       ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
   ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ConvertFilesToPackageFailsTypeCheck) {
+  constexpr std::string_view program =
+      R"(
+fn main() -> u8 {
+  u32:0
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
+                           xls::TempFile::CreateWithContent(program, ".x"));
+  const std::string dslx_str_path = temp.path().string();
+  bool printed_error = false;
+  EXPECT_THAT(
+      ConvertFilesToPackage({dslx_str_path},
+                            /*stdlib_path=*/"", {temp.path()}, ConvertOptions{},
+                            /*top=*/"main",
+                            /*package_name=*/std::nullopt, &printed_error),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Return type of function body for 'main' did not match")));
+  EXPECT_TRUE(printed_error);
 }
 
 }  // namespace

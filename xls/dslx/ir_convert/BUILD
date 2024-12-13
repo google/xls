@@ -217,6 +217,7 @@ cc_test(
         ":ir_converter",
         "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
