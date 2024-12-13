@@ -896,4 +896,98 @@ endmodule
   EXPECT_EQ(std::string_view{emitted}, kWantEmitted);
 }
 
+TEST(XlsCApiTest, DslxModuleMembers) {
+  const std::string_view kProgram = R"(
+    struct MyStruct {}
+    enum MyEnum: u32 {}
+    type MyTypeAlias = ();
+    const MY_CONSTANT: u32 = u32:42;
+  )";
+
+  const char* additional_search_paths[] = {};
+  xls_dslx_import_data* import_data = xls_dslx_import_data_create(
+      std::string{xls::kDefaultDslxStdlibPath}.c_str(), additional_search_paths,
+      0);
+  ASSERT_NE(import_data, nullptr);
+  absl::Cleanup free_import_data(
+      [=] { xls_dslx_import_data_free(import_data); });
+
+  char* error = nullptr;
+  xls_dslx_typechecked_module* tm = nullptr;
+  bool ok = xls_dslx_parse_and_typecheck(kProgram.data(), "<test>", "top",
+                                         import_data, &error, &tm);
+  ASSERT_TRUE(ok) << "error: " << error;
+  absl::Cleanup free_tm([=] { xls_dslx_typechecked_module_free(tm); });
+
+  xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
+  xls_dslx_type_info* type_info = xls_dslx_typechecked_module_get_type_info(tm);
+
+  int64_t member_count = xls_dslx_module_get_member_count(module);
+  EXPECT_EQ(member_count, 4);
+
+  // module member 0: `MyStruct`
+  {
+    xls_dslx_module_member* struct_def_member =
+        xls_dslx_module_get_member(module, 0);
+    xls_dslx_struct_def* struct_def =
+        xls_dslx_module_member_get_struct_def(struct_def_member);
+    char* struct_def_identifier =
+        xls_dslx_struct_def_get_identifier(struct_def);
+    absl::Cleanup free_struct_def_identifier(
+        [&] { xls_c_str_free(struct_def_identifier); });
+    EXPECT_EQ(std::string_view{struct_def_identifier}, "MyStruct");
+  }
+
+  // module member 1: `MyEnum`
+  {
+    xls_dslx_module_member* enum_def_member =
+        xls_dslx_module_get_member(module, 1);
+    xls_dslx_enum_def* enum_def =
+        xls_dslx_module_member_get_enum_def(enum_def_member);
+    char* enum_def_identifier = xls_dslx_enum_def_get_identifier(enum_def);
+    absl::Cleanup free_enum_def_identifier(
+        [&] { xls_c_str_free(enum_def_identifier); });
+    EXPECT_EQ(std::string_view{enum_def_identifier}, "MyEnum");
+  }
+
+  // module member 2: `MyTypeAlias`
+  {
+    xls_dslx_module_member* type_alias_member =
+        xls_dslx_module_get_member(module, 2);
+    xls_dslx_type_alias* type_alias =
+        xls_dslx_module_member_get_type_alias(type_alias_member);
+    char* type_alias_identifier =
+        xls_dslx_type_alias_get_identifier(type_alias);
+    absl::Cleanup free_type_alias_identifier(
+        [&] { xls_c_str_free(type_alias_identifier); });
+    EXPECT_EQ(std::string_view{type_alias_identifier}, "MyTypeAlias");
+  }
+
+  // module member 3: `MY_CONSTANT`
+  {
+    xls_dslx_module_member* constant_def_member =
+        xls_dslx_module_get_member(module, 3);
+    xls_dslx_constant_def* constant_def =
+        xls_dslx_module_member_get_constant_def(constant_def_member);
+    char* constant_def_name = xls_dslx_constant_def_get_name(constant_def);
+    absl::Cleanup free_constant_def_name(
+        [&] { xls_c_str_free(constant_def_name); });
+    EXPECT_EQ(std::string_view{constant_def_name}, "MY_CONSTANT");
+
+    xls_dslx_expr* interp_value = xls_dslx_constant_def_get_value(constant_def);
+    // Get the constexpr value via the type information.
+    char* error = nullptr;
+    xls_dslx_interp_value* result = nullptr;
+    ASSERT_TRUE(xls_dslx_type_info_get_const_expr(type_info, interp_value,
+                                                  &error, &result));
+    absl::Cleanup free_result([&] { xls_dslx_interp_value_free(result); });
+
+    // Spot check the interpreter value we got from constexpr evaluation.
+    char* interp_value_str = xls_dslx_interp_value_to_string(result);
+    absl::Cleanup free_interp_value_str(
+        [&] { xls_c_str_free(interp_value_str); });
+    EXPECT_EQ(std::string_view{interp_value_str}, "u32:42");
+  }
+}
+
 }  // namespace

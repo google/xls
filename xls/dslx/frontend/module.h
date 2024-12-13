@@ -181,6 +181,7 @@ class Module : public AstNode {
   absl::StatusOr<TestProc*> GetTestProc(std::string_view target_name);
 
   absl::Span<ModuleMember const> top() const { return top_; }
+  absl::Span<ModuleMember> top() { return absl::MakeSpan(top_); }
 
   // Finds the first top-level member in top() with the given "target" name as
   // an identifier.
