@@ -46,8 +46,10 @@ extern "C" {
 struct xls_value;
 struct xls_package;
 struct xls_function;
+struct xls_function_base;
 struct xls_type;
 struct xls_function_type;
+struct xls_schedule_and_codegen_result;
 
 void xls_init_xls(const char* usage, int argc, char* argv[]);
 
@@ -68,6 +70,27 @@ bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
 
 bool xls_mangle_dslx_name(const char* module_name, const char* function_name,
                           char** error_out, char** mangled_out);
+
+// Args:
+//   p: The package to schedule and codegen.
+//   scheduling_options_flags_proto: The scheduling options flags proto in
+//   textproto form. codegen_flags_proto: The codegen options flags proto in
+//   textproto form. error_out: Populated with a string message on error
+//   (outparam). result_out: The result output (outparam).
+//
+// Returns `true` on success, `false` on error.
+bool xls_schedule_and_codegen_package(
+    struct xls_package* p, const char* scheduling_options_flags_proto,
+    const char* codegen_flags_proto, bool with_delay_model, char** error_out,
+    struct xls_schedule_and_codegen_result** result_out);
+
+// Note: the returned string is owned by the caller and must be freed via
+// `xls_c_str_free`.
+char* xls_schedule_and_codegen_result_get_verilog_text(
+    const struct xls_schedule_and_codegen_result* result);
+
+void xls_schedule_and_codegen_result_free(
+    struct xls_schedule_and_codegen_result* result);
 
 // Parses a string that represents a typed XLS value; e.g. `bits[32]:0x42`.
 bool xls_parse_typed_value(const char* input, char** error_out,
@@ -131,6 +154,15 @@ void xls_c_str_free(char* c_str);
 
 // Returns a string representation of the given IR package `p`.
 bool xls_package_to_string(const struct xls_package* p, char** string_out);
+
+// Returns the "top" (i.e. entry point) function base (i.e. function or proc) of
+// the given package.
+struct xls_function_base* xls_package_get_top(struct xls_package* p);
+
+// Sets the top function base of the given package to the function base with the
+// given name.
+bool xls_package_set_top_by_name(struct xls_package* p, const char* name,
+                                 char** error_out);
 
 // Parses IR text to a package.
 //
