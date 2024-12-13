@@ -213,11 +213,10 @@ class ProcInliningPassTest : public IrTestBase {
 
     b.SendIf(out, b.TupleIndex(rcv, 0), cnt_last, data);
 
-    BValue next_cnt = b.Select(cnt_last, b.Literal(UBits(0, 32)),
-                               b.Add(cnt, b.Literal(UBits(1, 32))));
-    BValue next_data = b.Select(cnt_eq_0, b.TupleIndex(rcv, 1), data);
-
-    return b.Build({next_cnt, next_data});
+    b.Next(cnt, b.Select(cnt_last, b.Literal(UBits(0, 32)),
+                         b.Add(cnt, b.Literal(UBits(1, 32)))));
+    b.Next(data, b.Select(cnt_eq_0, b.TupleIndex(rcv, 1), data));
+    return b.Build();
   }
 
   // Make a proc which receives data on channel `in` and sends back twice the
@@ -297,16 +296,15 @@ class ProcInliningPassTest : public IrTestBase {
     BValue rcv_token = b.TupleIndex(rcv, 0);
     BValue data = b.TupleIndex(rcv, 1, loc, "data");
 
-    BValue next_i =
-        b.Select(is_last_iteration, zero, b.Add(i, one), loc, "next_i");
+    b.Next(i, b.Select(is_last_iteration, zero, b.Add(i, one), loc, "next_i"));
     BValue updated_accum = b.Select(is_first_iteration, data, b.Add(accum, i),
                                     loc, "updated_accum");
-    BValue next_accum =
-        b.Select(is_last_iteration, zero, updated_accum, loc, "next_accum");
+    b.Next(accum,
+           b.Select(is_last_iteration, zero, updated_accum, loc, "next_accum"));
 
     b.SendIf(output_ch, rcv_token, is_last_iteration, updated_accum);
 
-    return b.Build({next_i, next_accum});
+    return b.Build();
   }
 
   // Make a proc which receives data values `x` and `y` and sends the sum and
@@ -384,7 +382,10 @@ class ProcInliningPassTest : public IrTestBase {
     b.SendIf(out, b.TupleIndex(rcv_x_y, 0), cnt,
              b.Tuple({x_plus_x_accum, y_plus_y_accum}));
 
-    return b.Build({b.Not(cnt), x_plus_x_accum, y_plus_y_accum});
+    b.Next(cnt, b.Not(cnt));
+    b.Next(x_accum, x_plus_x_accum);
+    b.Next(y_accum, y_plus_y_accum);
+    return b.Build();
   }
 
   // Simple proc that arbitrates between inputs, with lower-index inputs being
@@ -890,7 +891,8 @@ TEST_F(ProcInliningPassTest, NestedProcsTrivialInnerLoop) {
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), bb.Not(st),
               bb.Literal(UBits(42, 32)));
-    XLS_ASSERT_OK(bb.Build({bb.Not(st)}));
+    bb.Next(st, bb.Not(st));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -933,7 +935,8 @@ TEST_F(ProcInliningPassTest, NestedProcsIota) {
     ProcBuilder bb("B", p.get());
     BValue st = bb.StateElement("st", Value(UBits(42, 32)));
     bb.Send(b_to_a, bb.Literal(Value::Token()), bb.GetStateParam(0));
-    XLS_ASSERT_OK(bb.Build({bb.Add(st, bb.Literal(UBits(1, 32)))}));
+    bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -973,7 +976,8 @@ TEST_F(ProcInliningPassTest, NestedProcsOddIota) {
     bb.SendIf(b_to_a, bb.Literal(Value::Token()),
               bb.BitSlice(bb.GetStateParam(0), /*start=*/0, /*width=*/1),
               bb.GetStateParam(0));
-    XLS_ASSERT_OK(bb.Build({bb.Add(st, bb.Literal(UBits(1, 32)))}));
+    bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -1031,7 +1035,8 @@ TEST_F(ProcInliningPassTest, SynchronizedNestedProcs) {
     BValue rcv_from_b = ab.ReceiveIf(b_to_a, send_to_b, ab.GetStateParam(0));
     ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.GetStateParam(0),
               ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build({ab.Not(st)}));
+    ab.Next(st, ab.Not(st));
+    XLS_ASSERT_OK(ab.Build());
   }
 
   {
@@ -1048,7 +1053,8 @@ TEST_F(ProcInliningPassTest, SynchronizedNestedProcs) {
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), st,
               bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
-    XLS_ASSERT_OK(bb.Build({bb.Not(st)}));
+    bb.Next(st, bb.Not(st));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -1472,7 +1478,9 @@ TEST_F(ProcInliningPassTest, DoubleNestedLoops) {
     BValue rcv_from_c = bb.ReceiveIf(c_to_b, send_to_c, bb.Not(cnt));
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_c, 0), bb.Not(cnt),
               bb.TupleIndex(rcv_from_c, 1));
-    XLS_ASSERT_OK(bb.Build({bb.Not(cnt), next_accum}));
+    bb.Next(cnt, bb.Not(cnt));
+    bb.Next(accum, next_accum);
+    XLS_ASSERT_OK(bb.Build());
   }
 
   {
@@ -1504,9 +1512,9 @@ TEST_F(ProcInliningPassTest, DoubleNestedLoops) {
 
     cb.SendIf(c_to_b, cb.TupleIndex(rcv_from_b, 0), cnt_eq_3, next_accum);
 
-    BValue next_cnt = cb.Add(cnt, cb.Literal(UBits(1, 2)));
-
-    XLS_ASSERT_OK(cb.Build({next_cnt, next_accum}));
+    cb.Next(cnt, cb.Add(cnt, cb.Literal(UBits(1, 2))));
+    cb.Next(accum, next_accum);
+    XLS_ASSERT_OK(cb.Build());
   }
 
   // Output is sum of all inputs so far plus 15.
@@ -1921,7 +1929,8 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth0) {
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), st,
               bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
-    XLS_ASSERT_OK(bb.Build({bb.Literal(UBits(1, 1))}));
+    bb.Next(st, bb.Literal(UBits(1, 1)));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -1981,7 +1990,8 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.Literal(Value::Token()), st);
     bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0), st,
               bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
-    XLS_ASSERT_OK(bb.Build({bb.Literal(UBits(1, 1))}));
+    bb.Next(st, bb.Literal(UBits(1, 1)));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -2040,7 +2050,8 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
                                      bb.UGe(st, bb.Literal(UBits(1, 32))));
     bb.Send(b_to_a, bb.TupleIndex(rcv_from_a, 0),
             bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
-    XLS_ASSERT_OK(bb.Build({bb.Add(st, bb.Literal(UBits(1, 32)))}));
+    bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -2097,7 +2108,8 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
                                      bb.UGe(st, bb.Literal(UBits(2, 32))));
     bb.Send(b_to_a, bb.TupleIndex(rcv_from_a, 0),
             bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
-    XLS_ASSERT_OK(bb.Build({bb.Add(st, bb.Literal(UBits(1, 32)))}));
+    bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -2157,7 +2169,8 @@ TEST_F(ProcInliningPassTest, DataLoss) {
   BValue rcv_from_b = ab.ReceiveIf(b_to_a, send_to_b, st);
   ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0), st,
             ab.TupleIndex(rcv_from_b, 1));
-  XLS_ASSERT_OK(ab.Build({ab.Not(st)}));
+  ab.Next(st, ab.Not(st));
+  XLS_ASSERT_OK(ab.Build());
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, b_to_a, p.get()).status());
 
@@ -2212,7 +2225,8 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
     BValue send0 =
         ab.SendIf(a_to_b0, ab.TupleIndex(rcv, 0), st, ab.Literal(UBits(0, 32)));
     ab.Send(a_to_b1, send0, ab.Literal(UBits(0, 32)));
-    XLS_ASSERT_OK(ab.Build({ab.Literal(UBits(1, 1))}).status());
+    ab.Next(st, ab.Literal(UBits(1, 1)));
+    XLS_ASSERT_OK(ab.Build().status());
   }
 
   {
@@ -2979,7 +2993,8 @@ TEST_F(ProcInliningPassTest, ReceivedValueSentAndNext) {
 
     ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
             ab.Add(ab.TupleIndex(rcv_from_b, 1), st));
-    XLS_ASSERT_OK(ab.Build({ab.Identity(rcv_data)}).status());
+    ab.Next(st, ab.Identity(rcv_data));
+    XLS_ASSERT_OK(ab.Build().status());
   }
 
   XLS_ASSERT_OK(
@@ -3025,7 +3040,8 @@ TEST_F(ProcInliningPassTest, OffsetSendAndReceive) {
     BValue send_cond =
         ab.Eq(ab.And(st, ab.Literal(UBits(0xf, 32))), ab.Literal(UBits(0, 32)));
     ab.SendIf(a_to_b, ab.Literal(Value::Token()), send_cond, st);
-    XLS_ASSERT_OK(ab.Build({ab.Add(st, ab.Literal(UBits(1, 32)))}));
+    ab.Next(st, ab.Add(st, ab.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK(ab.Build());
   }
 
   {
@@ -3045,7 +3061,8 @@ TEST_F(ProcInliningPassTest, OffsetSendAndReceive) {
     BValue rcv_token = bb.TupleIndex(rcv, 0);
     BValue rcv_data = bb.TupleIndex(rcv, 1);
     bb.SendIf(ch_out, rcv_token, cond, rcv_data);
-    XLS_ASSERT_OK(bb.Build({bb.Add(st, bb.Literal(UBits(1, 32)))}));
+    bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -3101,7 +3118,8 @@ TEST_F(ProcInliningPassTest, DISABLED_InliningProducesCycle) {
     BValue rcv_data = ab.TupleIndex(rcv, 1);
     BValue send_to_b = ab.Send(a_to_b, rcv_token, rcv_data);
     ab.Send(ch_out, send_to_b, rcv_data);
-    XLS_ASSERT_OK(ab.Build({ab.Literal(UBits(1, 1))}));
+    ab.Next(st, ab.Literal(UBits(1, 1)));
+    XLS_ASSERT_OK(ab.Build());
   }
 
   {
@@ -3158,7 +3176,8 @@ TEST_F(ProcInliningPassTest, MultipleSends) {
     BValue input = ab.Receive(ch_in);
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
     ab.SendIf(a_to_b, ab.Not(st), input);
-    XLS_ASSERT_OK(ab.Build({ab.Not(st)}));
+    ab.Next(st, ab.Not(st));
+    XLS_ASSERT_OK(ab.Build());
   }
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, ch_out, p.get()).status());
@@ -3206,7 +3225,8 @@ TEST_F(ProcInliningPassTest, MultipleSendsInDifferentOrder) {
     BValue input = ab.Receive(ch_in);
     ab.SendIf(a_to_b, ab.Not(st), input);
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
-    XLS_ASSERT_OK(ab.Build({ab.Not(st)}));
+    ab.Next(st, ab.Not(st));
+    XLS_ASSERT_OK(ab.Build());
   }
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, ch_out, p.get()).status());
@@ -3257,7 +3277,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
     BValue tmp1 = bb.ReceiveIf(a_to_b, bb.Not(st));
     BValue x = bb.Select(st, tmp0, tmp1);
     bb.Send(ch_out, x);
-    XLS_ASSERT_OK(bb.Build({bb.Not(st)}));
+    bb.Next(st, bb.Not(st));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -3306,7 +3327,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth1) {
     BValue tmp1 = bb.ReceiveIf(a_to_b, bb.Not(st));
     BValue x = bb.Select(st, tmp0, tmp1);
     bb.Send(ch_out, x);
-    XLS_ASSERT_OK(bb.Build({bb.Not(st)}));
+    bb.Next(st, bb.Not(st));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -3363,7 +3385,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTick) {
         bb.Add(bb.ReceiveIf(a_to_b, st_eq_2), bb.Literal(UBits(2, 32)));
     BValue x = bb.Select(st, {tmp0, tmp1, tmp2, bb.Literal(UBits(0, 32))});
     bb.Send(ch_out, x);
-    XLS_ASSERT_OK(bb.Build({bb.Add(st, bb.Literal(UBits(1, 2)))}));
+    bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 2))));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -3420,7 +3443,8 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
         bb.Add(bb.ReceiveIf(a_to_b, st_eq_2), bb.Literal(UBits(2, 32)));
     BValue x = bb.Select(st, {tmp0, tmp1, tmp2, bb.Literal(UBits(0, 32))});
     bb.Send(ch_out, x);
-    XLS_ASSERT_OK(bb.Build({bb.Add(st, bb.Literal(UBits(1, 2)))}));
+    bb.Next(st, bb.Add(st, bb.Literal(UBits(1, 2))));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -3475,7 +3499,8 @@ TEST_F(ProcInliningPassTest, MultipleSendsAndReceives) {
     BValue input = ab.Receive(ch_in);
     ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
     ab.SendIf(a_to_b, ab.Not(st), input);
-    XLS_ASSERT_OK(ab.Build({ab.Not(st)}));
+    ab.Next(st, ab.Not(st));
+    XLS_ASSERT_OK(ab.Build());
   }
 
   {
@@ -3493,7 +3518,8 @@ TEST_F(ProcInliningPassTest, MultipleSendsAndReceives) {
     BValue tmp1 = bb.ReceiveIf(a_to_b, bb.Not(st));
     BValue x = bb.Select(st, tmp0, tmp1);
     bb.Send(ch_out, x);
-    XLS_ASSERT_OK(bb.Build({bb.Not(st)}));
+    bb.Next(st, bb.Not(st));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -3548,7 +3574,8 @@ TEST_F(ProcInliningPassTest, ReceiveIfsWithFalseCondition) {
     BValue y = bb.ReceiveIf(a_to_b, bb.Not(st));
     bb.Send(ch_out0, x);
     bb.Send(ch_out1, y);
-    XLS_ASSERT_OK(bb.Build({bb.Not(st)}));
+    bb.Next(st, bb.Not(st));
+    XLS_ASSERT_OK(bb.Build());
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -3627,7 +3654,8 @@ TEST_F(ProcInliningPassTest, ProcsWithNonblockingReceivesWithDroppingProc) {
     BValue data = b.TupleIndex(recv, 1);
     b.SendIf(drop_to_arb, recv_token, b.Not(done), data);
 
-    XLS_ASSERT_OK(b.Build({b.Literal(UBits(1, /*bit_count=*/1))}));
+    b.Next(done, b.Literal(UBits(1, 1)));
+    XLS_ASSERT_OK(b.Build());
   }
 
   XLS_ASSERT_OK(

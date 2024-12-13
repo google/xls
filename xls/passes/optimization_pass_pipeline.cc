@@ -157,6 +157,8 @@ PreInliningPassGroup::PreInliningPassGroup()
                                "pre-inlining passes") {
   Add<DeadFunctionEliminationPass>();
   Add<DeadCodeEliminationPass>();
+  // TODO: google/xls#1795 - Remove once full transition to next-op is complete.
+  Add<NextNodeModernizePass>();
   // At this stage in the pipeline only optimizations up to level 2 should
   // run. 'opt_level' is the maximum level of optimization which should be run
   // in the entire pipeline so set the level of the simplification pass to the
@@ -225,6 +227,7 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     Add<TokenDependencyPass>();
     // Simplify the adapter procs before inlining.
     Add<CapOptLevel<2, FixedPointSimplificationPass>>();
+
     // TODO(allight): It might be worthwhile to split the pipeline here as well.
     // Since proc-inlining is being phased out in favor of multi-proc codegen
     // however this seems unnecessary.
@@ -236,8 +239,6 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     Add<ProcStateFlatteningFixedPointPass>();
     Add<IdentityRemovalPass>();
     Add<DataflowSimplificationPass>();
-    // TODO(allight): Remove once full transition to next-op is complete.
-    Add<NextNodeModernizePass>();
     Add<CapOptLevel<3, NextValueOptimizationPass>>();
 
     Add<ProcStateNarrowingPass>();

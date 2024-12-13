@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -49,6 +50,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -1782,6 +1784,95 @@ absl::Status SetProcState(Proc* proc,
   return absl::OkStatus();
 }
 
+absl::Status ConvertToNextStateElements(Proc* proc) {
+  for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
+    StateElement* state_element = proc->GetStateElement(index);
+    StateRead* state_read = proc->GetStateRead(index);
+    const absl::btree_set<Next*, Node::NodeIdLessThan>& nexts =
+        proc->next_values(state_read);
+    if (nexts.empty()) {
+      continue;
+    }
+
+    // Check that either all or none of the next_value nodes are predicated.
+    XLS_RET_CHECK(absl::c_all_of(nexts, [&](Next* next) {
+      return next->predicate().has_value() ==
+             (*nexts.begin())->predicate().has_value();
+    }));
+    const bool predicated =
+        !nexts.empty() && (*nexts.begin())->predicate().has_value();
+    if (!predicated) {
+      XLS_RET_CHECK_EQ(nexts.size(), 1);
+    }
+
+    std::vector<Node*> values;
+    std::optional<std::vector<Node*>> predicates;
+    values.reserve(nexts.size());
+    if (predicated) {
+      predicates.emplace();
+      predicates->reserve(nexts.size());
+    }
+    for (Next* next : nexts) {
+      values.push_back(next->value());
+      if (predicated) {
+        XLS_RET_CHECK(next->predicate().has_value());
+        predicates->push_back(*next->predicate());
+      }
+    }
+
+    Node* next_state;
+    if (predicated) {
+      SourceInfo loc = state_read->loc();
+      absl::c_reverse(*predicates);
+      XLS_ASSIGN_OR_RETURN(
+          Node * selector,
+          proc->MakeNodeWithName<Concat>(
+              loc, *predicates,
+              absl::StrCat(state_element->name(), "_next_selector")));
+      XLS_ASSIGN_OR_RETURN(
+          next_state,
+          proc->MakeNodeWithName<PrioritySelect>(
+              loc, selector, /*cases=*/values, /*default_value=*/state_read,
+              absl::StrCat(state_element->name(), "_next_state")));
+    } else {
+      next_state = values.front();
+    }
+
+    std::vector<Next*> nexts_to_remove(nexts.begin(), nexts.end());
+    for (Next* next : nexts_to_remove) {
+      XLS_RETURN_IF_ERROR(
+          next->ReplaceUsesWithNew<Tuple>(absl::Span<Node* const>{}).status());
+      XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
+    }
+    XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, next_state));
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status ConvertToNextValueNodes(Proc* proc) {
+  for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
+    StateRead* state_read = proc->GetStateRead(index);
+    if (proc->GetNextStateElement(index) == state_read) {
+      continue;
+    }
+
+    // Nontrivial next-state element; switch it to a next-value node, then
+    // remove it so we pass verification.
+    CHECK(proc->next_values(state_read).empty());
+    Node* next_value = proc->GetNextStateElement(index);
+    XLS_RETURN_IF_ERROR(
+        proc->MakeNodeWithName<Next>(
+                state_read->loc(), state_read,
+                /*value=*/next_value,
+                /*predicate=*/std::nullopt,
+                absl::StrCat(state_read->state_element()->name(), "_next"))
+            .status());
+    XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, state_read));
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ProcInliningPass::RunInternal(
@@ -1809,6 +1900,12 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
   for (const std::unique_ptr<Proc>& proc : p->procs()) {
     procs_to_inline.push_back(proc.get());
   }
+
+  for (Proc* proc : procs_to_inline) {
+    XLS_RETURN_IF_ERROR(ConvertToNextStateElements(proc));
+  }
+
+  VLOG(3) << "After switching to next-state elements:\n" << p->DumpIr();
 
   {
     int64_t top_ii = 1;
@@ -1951,6 +2048,10 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(
   }
 
   VLOG(3) << "After deleting inlined I/O:\n" << p->DumpIr();
+
+  XLS_RETURN_IF_ERROR(ConvertToNextValueNodes(container_proc));
+
+  VLOG(3) << "After switching back to next-value nodes:\n" << p->DumpIr();
 
   return true;
 }
