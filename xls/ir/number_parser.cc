@@ -94,14 +94,14 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
   for (int64_t i = 0; i < numeric_string.size(); i = i + step_size) {
     int64_t chunk_length =
         std::min<int64_t>(step_size, numeric_string.size() - i);
-    absl::StatusOr<uint64_t> chunk_value_or =
+    absl::StatusOr<uint64_t> chunk_value =
         StrTo64Base(numeric_string.substr(i, chunk_length), base);
-    if (!chunk_value_or.ok()) {
+    if (!chunk_value.ok()) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Could not convert %s to %s number: %s", orig_string,
-                          base_name, chunk_value_or.status().message()));
+                          base_name, chunk_value.status().message()));
     }
-    chunks.push_back(UBits(*chunk_value_or, chunk_length * base_bits));
+    chunks.push_back(UBits(*chunk_value, chunk_length * base_bits));
   }
 
   Bits unnarrowed = bits_ops::Concat(chunks);

@@ -938,11 +938,11 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
     for (Node* node : block->nodes()) {
       ++node_count;
       ElaboratedNode elaborated_node{.node = node, .instance = inst};
-      absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users_or =
+      absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users =
           InterInstanceSuccessors(elaborated_node);
-      CHECK_OK(inter_instance_users_or.status());
+      CHECK_OK(inter_instance_users);
 
-      if (inter_instance_users_or.value().empty() && node->users().empty()) {
+      if (inter_instance_users->empty() && node->users().empty()) {
         VLOG(5) << "At start node was ready: " << node;
         seed_ready(elaborated_node);
       }
@@ -952,11 +952,10 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
   ordered.reserve(node_count);
 
   auto all_successors_scheduled = [&](const ElaboratedNode& n) {
-    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users_or =
+    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users =
         InterInstanceSuccessors(n);
-    CHECK_OK(inter_instance_users_or.status());
-    for (const ElaboratedNode& inter_instance_user :
-         inter_instance_users_or.value()) {
+    CHECK_OK(inter_instance_users);
+    for (const ElaboratedNode& inter_instance_user : *inter_instance_users) {
       auto it = pending_to_remaining_successors.find(inter_instance_user);
       if (it == pending_to_remaining_successors.end() || it->second >= 0) {
         return false;
@@ -972,16 +971,16 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
     });
   };
   auto bump_down_remaining_successors = [&](const ElaboratedNode& n) {
-    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users_or =
+    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_users =
         InterInstanceSuccessors(n);
-    CHECK_OK(inter_instance_users_or.status());
-    CHECK(!n.node->users().empty() || !inter_instance_users_or.value().empty());
+    CHECK_OK(inter_instance_users);
+    CHECK(!n.node->users().empty() || !inter_instance_users->empty());
     auto [it, inserted] =
         pending_to_remaining_successors.insert({n, n.node->users().size()});
     int64_t& remaining_successors = it->second;
     // If we inserted, add inter-instance users.
     if (inserted) {
-      remaining_successors += inter_instance_users_or.value().size();
+      remaining_successors += inter_instance_users->size();
     }
     CHECK_GT(remaining_successors, 0);
     remaining_successors -= 1;
@@ -999,12 +998,12 @@ std::vector<ElaboratedNode> ElaboratedReverseTopoSort(
     DCHECK(all_successors_scheduled(r)) << r;
     ordered.push_back(r);
 
-    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_predecessors_or =
+    absl::StatusOr<std::vector<ElaboratedNode>> inter_instance_predecessors =
         InterInstancePredecessors(r);
-    CHECK_OK(inter_instance_predecessors_or.status());
+    CHECK_OK(inter_instance_predecessors);
     // No need to put in seen_operands, we won't see this again.
     for (const ElaboratedNode& inter_instance_predecessor :
-         *inter_instance_predecessors_or) {
+         *inter_instance_predecessors) {
       bump_down_remaining_successors(inter_instance_predecessor);
     }
     // We want to be careful to only bump down our operands once, since we're a

@@ -141,10 +141,10 @@ TEST(ValueConversionUtils, ConvertCppToXlsValueTupleWithArray) {
   Package p("package");
   TupleType tuple_type(
       {p.GetBitsType(10), p.GetArrayType(2, p.GetBitsType(10))});
-  absl::StatusOr<Value> result_or = xls::ConvertToXlsValue(
+  absl::StatusOr<Value> result = xls::ConvertToXlsValue(
       &tuple_type, std::make_tuple<uint64_t, absl::Span<const uint64_t>>(
                        64, std::vector<uint64_t>{42, 64}));
-  EXPECT_THAT(result_or,
+  EXPECT_THAT(result,
               IsOkAndHolds(Value::Tuple({Value(UBits(64, 10)), element1})));
 }
 
@@ -155,9 +155,9 @@ TEST(ValueConversionUtils, ConvertCppToXlsValueTupleWithValueAsElement) {
   Package p("package");
   TupleType tuple_type(
       {p.GetBitsType(10), p.GetArrayType(2, p.GetBitsType(10))});
-  absl::StatusOr<Value> result_or =
+  absl::StatusOr<Value> result =
       xls::ConvertToXlsValue(&tuple_type, std::make_tuple(64, element1));
-  EXPECT_THAT(result_or,
+  EXPECT_THAT(result,
               IsOkAndHolds(Value::Tuple({Value(UBits(64, 10)), element1})));
 }
 
