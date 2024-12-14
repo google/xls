@@ -385,8 +385,6 @@ generate_crasher_regression_tests(
     name = "regression_tests",
     srcs = glob(["crashers/*"]),
     failing = [
-        # TODO(https://github.com/google/xls/issues/1794): Remove when fixed.
-        "crashers/crasher_2024-12-13_1b21.x",
         # TODO(https://github.com/google/xls/issues/746): Remove when fixed.
         "crashers/crasher_2022-10-19_a3a3.x",
         # TODO(https://github.com/google/xls/issues/1140): Remove when fixed.

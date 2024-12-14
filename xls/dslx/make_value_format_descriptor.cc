@@ -97,6 +97,10 @@ absl::StatusOr<ValueFormatDescriptor> MakeValueFormatDescriptor(
         : field_preference_(field_preference) {}
 
     absl::Status HandleArray(const ArrayType& t) override {
+      if (IsBitsLike(t)) {
+        result_ = ValueFormatDescriptor::MakeLeafValue(field_preference_);
+        return absl::OkStatus();
+      }
       XLS_ASSIGN_OR_RETURN(result_,
                            MakeArrayFormatDescriptor(t, field_preference_));
       return absl::OkStatus();

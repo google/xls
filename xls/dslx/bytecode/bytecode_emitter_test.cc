@@ -1764,5 +1764,39 @@ fn main() -> u32 {
   }
 }
 
+TEST(BytecodeEmitterTest, ProcNextWithxNChannels) {
+  constexpr std::string_view kProgram = R"(
+proc Foo {
+  x: chan<xN[true][32]> in;
+  y: chan<xN[false][32]> out;
+
+  init { () }
+
+  config() {
+    let (x_s, x_r) = chan<xN[true][32]>("x");
+    let (y_s, y_r) = chan<xN[false][32]>("y");
+    (x_r, y_s)
+  }
+
+  next(state: ()) {
+    let (tok, data) = recv(join(), x);
+    let tok = send(tok, y, data as xN[false][32]);
+  }
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetMemberOrError<Proc>("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti,
+                           tm.type_info->GetTopLevelProcTypeInfo(p));
+  std::vector<NameDef*> members = {p->members().at(0)->name_def(),
+                                   p->members().at(1)->name_def()};
+  XLS_EXPECT_OK(BytecodeEmitter::EmitProcNext(&import_data, ti, p->next(),
+                                              ParametricEnv(), members));
+}
+
 }  // namespace
 }  // namespace xls::dslx
