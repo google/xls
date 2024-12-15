@@ -26,7 +26,9 @@
 #include "mlir/include/mlir/IR/Location.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/proc.h"
 #include "xls/public/ir_parser.h"
 
 namespace mlir::xls {
@@ -103,7 +105,26 @@ class TranslationState {
     }
   }
 
-  void newFunctionBaseContext() { this->ssa_map_ = {}; }
+  void newFunctionBaseContext(bool is_proc) {
+    ssa_map_ = {};
+    is_proc_ = is_proc;
+    state_element_map = {};
+  }
+
+  void setStateElement(const std::string& name, Value elem) {
+    assert(is_proc_ && "Only proc functions contain state elements");
+    state_element_map[name] = elem;
+  }
+
+  absl::StatusOr<Value> getStateElement(const std::string id) {
+    assert(is_proc_ && "Only proc functions contain state elements");
+    if (auto elem = state_element_map.find(id);
+        elem == state_element_map.end()) {
+      return absl::InternalError(absl::StrCat("Unknown state element ", id));
+    } else {
+      return elem->second;
+    }
+  }
 
  private:
   // --- package/module state ----
@@ -117,9 +138,16 @@ class TranslationState {
   absl::flat_hash_map<::xls::Fileno, StringAttr> fileno_map_;
 
   // --- function base (func/proc) state ----
+  // Track if current function base is a proc or plain function. At the moment
+  // this is for assertions/diagnostics only.
+  [[maybe_unused]] bool is_proc_;
+
   // Maps id -> MLIR value for all SSA values inside the current
   // function base (function or proc body).
   absl::flat_hash_map<int64_t, Value> ssa_map_;
+
+  // Maps name -> MLIR value for all state elements of this proc.
+  absl::flat_hash_map<std::string, Value> state_element_map;
 };
 
 //===----------------------------------------------------------------------===//
@@ -1114,25 +1142,28 @@ absl::StatusOr<Operation*> translateOp(::xls::ChannelNode& node,
   if (node.Is<::xls::Receive>()) {
     auto recv = node.As<::xls::Receive>();
 
-    SmallVector<Value> result_tuple_elems;
+    SmallVector<Value> result_elems;
 
     if (recv->is_blocking()) {
       auto receive_op = builder.create<xls::BlockingReceiveOp>(
           *loc, token_type, data_type, *inp_token, predicate, *chn);
 
-      result_tuple_elems.push_back(receive_op.getTknOut());
-      result_tuple_elems.push_back(receive_op.getResult());
+      result_elems.push_back(receive_op.getTknOut());
+      result_elems.push_back(receive_op.getResult());
 
     } else {
       auto receive_op = builder.create<xls::NonblockingReceiveOp>(
           *loc, token_type, data_type, valid_type, *inp_token, predicate, *chn);
 
-      result_tuple_elems.push_back(receive_op.getTknOut());
-      result_tuple_elems.push_back(receive_op.getResult());
-      result_tuple_elems.push_back(receive_op.getValid());
+      result_elems.push_back(receive_op.getTknOut());
+      result_elems.push_back(receive_op.getResult());
+      result_elems.push_back(receive_op.getValid());
     }
 
-    ValueRange operands(result_tuple_elems);
+    // In XLS, receive returns a tuple. In MLIR, receive returns separate return
+    // values. We add a TupleOp that fuses the elements together, because
+    // the operation using the result expects a tuple.
+    ValueRange operands(result_elems);
     return builder.create<xls::TupleOp>(*loc, operands);
 
   } else {
@@ -1347,7 +1378,7 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
   auto* body = func.addEntryBlock();
 
   // New function base scope
-  state.newFunctionBaseContext();
+  state.newFunctionBaseContext(/*is_proc=*/false);
 
   // Add parameters to function context:
   for (uint64_t arg_idx = 0; arg_idx < xls_func.params().length(); arg_idx++) {
@@ -1401,6 +1432,178 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 }
 
 //===----------------------------------------------------------------------===//
+// Proc Translation
+//===----------------------------------------------------------------------===//
+
+absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
+                                         OpBuilder& builder, MLIRContext* ctx,
+                                         TranslationState& state) {
+  // Detect legacy procs with marked `next` node instead of `next_value` nodes.
+  // TODO: google/xls#1520 - remove this once fully transitioned over to
+  // `next_value` nodes.
+  bool is_legacy_proc =
+      (xls_proc.next_values().empty() && xls_proc.GetStateElementCount());
+
+  // New function base scope
+  state.newFunctionBaseContext(/*is_proc=*/true);
+
+  // Create Eproc:
+  EprocOp eproc =
+      builder.create<EprocOp>(builder.getUnknownLoc(),
+                              /*name=*/builder.getStringAttr(xls_proc.name()),
+                              /*discardable=*/false);
+
+  auto* body = &eproc.getRegion().emplaceBlock();
+
+  // State types and initial value:
+  for (int64_t i = 0; i < xls_proc.StateElements().size(); i++) {
+    auto xls_elem = xls_proc.StateElements()[i];
+    auto elem_type = translateType(xls_elem->type(), builder, ctx);
+    // TODO(schilkp): Initial state!
+    body->addArgument(elem_type, builder.getUnknownLoc());
+    auto mlir_elem = body->getArgument(i);
+    state.setStateElement(xls_elem->name(), mlir_elem);
+  }
+
+  // For each state element, track the SSA value that defines its next value.
+  absl::flat_hash_map<std::string, Value> state_elem_next_value{};
+
+  // For each state element, track all `next_value` nodes that contribute
+  // to it. They will be jointly converted in one NextValueOp per state element.
+  absl::flat_hash_map<std::string, std::vector<::xls::Next*>> next_value_ops{};
+
+  // Proc next:
+  for (auto n : xls_proc.nodes()) {
+    builder.setInsertionPointToEnd(body);
+
+    // StateRead nodes give state elements an SSA identifier:
+    if (auto state_read = dynamic_cast<::xls::StateRead*>(n)) {
+      auto state_value =
+          state.getStateElement(state_read->state_element()->name());
+      if (!state_value.ok()) {
+        return state_value.status();
+      }
+      auto err = state.setMlirValue(state_read->id(), *state_value);
+      if (!err.ok()) {
+        return err;
+      }
+
+      if (is_legacy_proc) {
+        // Track all state elements for which this node defines their next
+        // value.
+        // TODO: google/xls#1520 - remove this once fully transitioned over to
+        // `next_value` nodes.
+        for (auto state_elem_idx : xls_proc.GetNextStateIndices(n)) {
+          state_elem_next_value[xls_proc.GetStateElement(state_elem_idx)
+                                    ->name()] = *state_value;
+        }
+      }
+
+      continue;  // StateRead get directly added to the ssa context and don't
+                 // otherwise map to a MLIR operation.
+    }
+
+    if (n->Is<::xls::Next>()) {
+      assert(!is_legacy_proc && "Legacy procs don't use next_value nodes");
+      auto xls_next = n->As<::xls::Next>();
+      auto state_elem_name = xls_next->state_read()
+                                 ->As<::xls::StateRead>()
+                                 ->state_element()
+                                 ->name();
+      next_value_ops[state_elem_name].push_back(xls_next);
+      continue;
+    }
+    auto op = translateAnyOp(*n, builder, ctx, state);
+    if (!op.ok()) {
+      return op;
+    }
+
+    if (is_legacy_proc) {
+      // Track all state elements for which this node defines their next
+      // value:
+      // TODO: google/xls#1520 - remove this once fully transitioned over to
+      // `next_value` nodes.
+      for (auto state_elem_idx : xls_proc.GetNextStateIndices(n)) {
+        state_elem_next_value[xls_proc.GetStateElement(state_elem_idx)
+                                  ->name()] = (*op)->getResult(0);
+      }
+    }
+  }
+
+  // Generate NextValueOps:
+  if (!is_legacy_proc) {
+    for (auto* state_elem : xls_proc.StateElements()) {
+      // All Next nodes that contribue to this state element:
+      std::vector<::xls::Next*> elem_next_value_ops =
+          next_value_ops[state_elem->name()];
+
+      if (elem_next_value_ops.size() == 0) {
+        return absl::InternalError(absl::StrCat(
+            "No `next_value` nodes for state element ", state_elem->name()));
+      }
+
+      if (elem_next_value_ops.size() == 1 &&
+          !elem_next_value_ops[0]->predicate().has_value()) {
+        // State element defined by single Next node without predicate. No MLIR
+        // NextValueOp needed - directly feed YieldOp from value:
+        auto redundant_next_node = elem_next_value_ops[0];
+        auto next_value =
+            state.getMlirValue(redundant_next_node->value()->id());
+        if (!next_value.ok()) {
+          return next_value.status();
+        }
+        state_elem_next_value[state_elem->name()] = *next_value;
+      } else {
+        // Generate new NextValueOp:
+        SmallVector<Value> values_vec{};
+        SmallVector<Value> predicates_vec{};
+
+        for (auto* next_value_op : elem_next_value_ops) {
+          if (!next_value_op->predicate().has_value()) {
+            return absl::InternalError(absl::StrCat(
+                "`next_value` nodes for state element ", state_elem->name(),
+                " lacks predicate but there are multiple `next_value` nodes."));
+          }
+
+          auto val = state.getMlirValue(next_value_op->value()->id());
+          if (!val.ok()) {
+            return val.status();
+          }
+          values_vec.push_back(*val);
+
+          auto predicate =
+              state.getMlirValue(next_value_op->predicate().value()->id());
+          if (!predicate.ok()) {
+            return val.status();
+          }
+          predicates_vec.push_back(*predicate);
+        }
+
+        auto elem_type = translateType(state_elem->type(), builder, ctx);
+
+        builder.setInsertionPointToEnd(body);
+        auto next = builder.create<NextValueOp>(
+            builder.getUnknownLoc(), elem_type, ValueRange(predicates_vec),
+            ValueRange(values_vec));
+
+        state_elem_next_value[state_elem->name()] = next;
+      }
+    }
+  }
+
+  // Generate terminating yield op:
+  SmallVector<Value> next_value_elems{};
+  for (auto* state_elem : xls_proc.StateElements()) {
+    next_value_elems.push_back(state_elem_next_value[state_elem->name()]);
+  }
+  builder.setInsertionPointToEnd(body);
+  builder.create<YieldOp>(builder.getUnknownLoc(),
+                          ValueRange(next_value_elems));
+
+  return eproc;
+}
+
+//===----------------------------------------------------------------------===//
 // Channel Translation
 //===----------------------------------------------------------------------===//
 
@@ -1448,6 +1651,15 @@ absl::Status translatePackage(::xls::Package& xls_pkg, OpBuilder& builder,
     auto func = translateFunction(*f, builder, ctx, state);
     if (!func.ok()) {
       return func.status();
+    }
+  }
+
+  // Translate all procs:
+  for (const auto& p : xls_pkg.procs()) {
+    builder.setInsertionPointToEnd(module.getBody());
+    auto proc = translateProc(*p, builder, ctx, state);
+    if (!proc.ok()) {
+      return proc.status();
     }
   }
 
