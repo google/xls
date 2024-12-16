@@ -62,7 +62,11 @@ absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
 
 // For all free variables of "node", adds them transitively for any required
 // constant dependencies to the converter.
-absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(AstNode* node);
+//
+// Warning: the `ConstantDef`s may be owned by different modules, e.g. if we had
+// to traverse a name that was `use`d into the current module.
+absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
+    AstNode* node, TypeInfo& type_info);
 
 // Wrapper around the type information query for whether DSL function "f"
 // requires an implicit token calling convention.
@@ -317,6 +321,10 @@ class FunctionConverter {
   // AstNode handlers.
   absl::Status HandleBinop(const Binop* node);
   absl::Status HandleNameRef(const NameRef* node);
+
+  absl::Status HandleExternNameRef(const NameRef* node,
+                                   const UseTreeEntry* use_tree_entry);
+
   absl::Status HandleNumber(const Number* node);
   absl::Status HandleParam(const Param* node);
   absl::Status HandleString(const String* node);

@@ -829,6 +829,27 @@ std::string UseInteriorEntry::ToString() const {
   return absl::StrCat(identifier_, "::", subtrees_str);
 }
 
+void UseTreeEntry::LinearizeToSubjects(std::vector<std::string>& prefix,
+                                       std::vector<UseSubject>& results) {
+  return absl::visit(
+      Visitor{
+          [&](const UseInteriorEntry& interior) {
+            prefix.push_back(std::string{interior.identifier()});
+            for (UseTreeEntry* subtree : interior.subtrees()) {
+              subtree->LinearizeToSubjects(prefix, results);
+            }
+            prefix.pop_back();
+          },
+          [&](NameDef* name_def) {
+            CHECK(name_def != nullptr);
+            UseSubject result(prefix, *name_def, *this);
+            result.mutable_identifiers().push_back(name_def->identifier());
+            results.push_back(std::move(result));
+          },
+      },
+      payload_);
+}
+
 std::string UseTreeEntry::ToString() const {
   return absl::visit(
       Visitor{
@@ -868,6 +889,16 @@ std::vector<std::string> UseTreeEntry::GetLeafIdentifiers() const {
     result.push_back(name_def->identifier());
   }
   return result;
+}
+
+UseSubject::UseSubject(std::vector<std::string> identifiers, NameDef& name_def,
+                       UseTreeEntry& use_tree_entry)
+    : identifiers_(std::move(identifiers)),
+      name_def_(&name_def),
+      use_tree_entry_(&use_tree_entry) {}
+
+std::string UseSubject::ToErrorString() const {
+  return absl::StrCat("`", absl::StrJoin(identifiers_, "::"), "`");
 }
 
 absl::Status UseTreeEntry::Accept(AstNodeVisitor* v) const {

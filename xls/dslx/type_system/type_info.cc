@@ -582,8 +582,9 @@ std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
   return it2->second;
 }
 
-void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
-  CHECK_EQ(import->owner(), module_);
+void TypeInfo::AddImport(std::variant<UseTreeEntry*, Import*> import,
+                         Module* module, TypeInfo* type_info) {
+  CHECK_EQ(ToAstNode(import)->owner(), module_);
   GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 
@@ -608,6 +609,22 @@ absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
 
   return absl::NotFoundError(
       absl::StrCat("Could not find import for \"", import->ToString(), "\"."));
+}
+
+absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(
+    UseTreeEntry* use_tree_entry) {
+  if (auto it = imports_.find(use_tree_entry); it != imports_.end()) {
+    return &it->second;
+  }
+
+  return absl::NotFoundError(absl::StrCat("Could not find import for \"",
+                                          use_tree_entry->ToString(), "\"."));
+}
+
+absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
+    const UseTreeEntry* use_tree_entry) const {
+  return const_cast<TypeInfo*>(this)->GetImportedOrError(
+      const_cast<UseTreeEntry*>(use_tree_entry));
 }
 
 std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {

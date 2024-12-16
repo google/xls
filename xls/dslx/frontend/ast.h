@@ -1360,6 +1360,41 @@ class UseInteriorEntry {
   std::vector<UseTreeEntry*> subtrees_;
 };
 
+// Represents a record of a "leaf" imported by a `use` statement into the module
+// scope -- note the `name_def`, this is the name definition that will be bound
+// in the module scope.
+//
+// A `use` like `use foo::{bar, baz}` will result in two `UseSubject`s.
+class UseSubject {
+ public:
+  UseSubject(std::vector<std::string> identifiers, NameDef& name_def,
+             UseTreeEntry& use_tree_entry);
+
+  absl::Span<std::string const> identifiers() const { return identifiers_; }
+  const NameDef& name_def() const { return *name_def_; }
+  const UseTreeEntry& use_tree_entry() const { return *use_tree_entry_; }
+  UseTreeEntry& use_tree_entry() { return *use_tree_entry_; }
+
+  std::vector<std::string>& mutable_identifiers() { return identifiers_; }
+
+  // Returns a string that represents the subject of the `use` statement in
+  // the form of a colon-ref; e.g. `foo::bar::baz`.
+  //
+  // Note that the returned value is surrounded in backticks.
+  std::string ToErrorString() const;
+
+ private:
+  // The identifier in the subject path; e.g. in `use foo::bar::baz` the
+  // identifiers are {`foo`, `bar`, `baz`}.
+  std::vector<std::string> identifiers_;
+
+  // The name definition that will be bound in the module scope.
+  const NameDef* name_def_;
+
+  // Use tree entry that wraps the `name_def`.
+  UseTreeEntry* use_tree_entry_;
+};
+
 // Arbitrary entry (interior or leaf) in the `use` construct tree.
 class UseTreeEntry : public AstNode {
  public:
@@ -1384,6 +1419,11 @@ class UseTreeEntry : public AstNode {
     return payload_;
   }
   const Span& span() const { return span_; }
+
+  // Note: this is non-const because we capture a mutable AST node pointer in
+  // the results.
+  void LinearizeToSubjects(std::vector<std::string>& prefix,
+                           std::vector<UseSubject>& results);
 
  private:
   std::variant<UseInteriorEntry, NameDef*> payload_;
@@ -1426,11 +1466,25 @@ class Use : public AstNode {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
+  // Returns all the identifiers of the `NameDef`s at the leaves of the tree.
   std::vector<std::string> GetLeafIdentifiers() const {
     return root_->GetLeafIdentifiers();
   }
   std::vector<NameDef*> GetLeafNameDefs() const {
     return root_->GetLeafNameDefs();
+  }
+
+  // Returns a vector of `UseSubject`s that represent the "subjects" (i.e.
+  // individual imported entities that get a name binding in the module) of
+  // the `use` statement.
+  //
+  // Note: this is non-const because we capture a mutable AST node pointer in
+  // the results.
+  std::vector<UseSubject> LinearizeToSubjects() {
+    std::vector<std::string> prefix;
+    std::vector<UseSubject> results;
+    root_->LinearizeToSubjects(prefix, results);
+    return results;
   }
 
   UseTreeEntry& root() { return *root_; }

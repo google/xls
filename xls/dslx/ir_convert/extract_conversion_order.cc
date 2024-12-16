@@ -518,6 +518,22 @@ class InvocationVisitor : public ExprVisitor {
       return std::nullopt;
     }
 
+    if (std::optional<const UseTreeEntry*> tree_entry =
+            IsExternNameRef(*name_ref);
+        tree_entry.has_value()) {
+      XLS_RET_CHECK(tree_entry.value() != nullptr);
+      XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                           type_info_->GetImportedOrError(tree_entry.value()));
+      XLS_RET_CHECK(imported_info != nullptr);
+      XLS_ASSIGN_OR_RETURN(Function * f,
+                           imported_info->module->GetMemberOrError<Function>(
+                               name_ref->identifier()));
+      XLS_RET_CHECK(f != nullptr);
+      return CalleeInfo{.module = imported_info->module,
+                        .callee = f,
+                        .type_info = imported_info->type_info};
+    }
+
     Module* this_m = name_ref->owner();
     XLS_ASSIGN_OR_RETURN(Function * f, this_m->GetMemberOrError<Function>(
                                            name_ref->identifier()));

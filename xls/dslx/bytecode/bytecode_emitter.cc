@@ -1329,6 +1329,49 @@ absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<InterpValue> BytecodeEmitter::HandleExternRef(
+    const NameRef& name_ref, const NameDef& name_def,
+    UseTreeEntry& use_tree_entry) {
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                       type_info_->GetImportedOrError(&use_tree_entry));
+  Module* referenced_module = imported_info->module;
+  std::optional<ModuleMember*> member =
+      referenced_module->FindMemberWithName(name_def.identifier());
+  XLS_RET_CHECK(member.has_value());
+
+  // Note: we currently do not support re-exporting a `use` binding, when we do,
+  // this will need to potentially walk transitively to the definition.
+  std::optional<InterpValue> value = absl::visit(
+      Visitor{[&](Function* f) -> std::optional<InterpValue> {
+                // Type checking should have validated we refer to public
+                // members.
+                CHECK(f->is_public()) << f->ToString();
+                return InterpValue::MakeFunction(
+                    InterpValue::UserFnData{f->owner(), f});
+              },
+              [&](ConstantDef* cd) -> std::optional<InterpValue> {
+                // Type checking should have validated we refer to public
+                // members.
+                CHECK(cd->is_public()) << cd->ToString();
+                std::optional<InterpValue> value =
+                    imported_info->type_info->GetConstExprOption(cd->value());
+                // ConstantDef should always have a ConstExpr value associated
+                // with it.
+                CHECK(value.has_value());
+                return value;
+              },
+              [&](auto) -> std::optional<InterpValue> { return std::nullopt; }},
+      *member.value());
+  if (value.has_value()) {
+    return value.value();
+  }
+  return absl::InternalError(absl::StrFormat(
+      "Unhandled external reference to `%s` kind `%s` via `%s` @ %s",
+      name_def.identifier(), GetModuleMemberTypeName(*member.value()),
+      use_tree_entry.parent()->ToString(),
+      name_def.span().ToString(file_table())));
+}
+
 absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
 BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
   AnyNameDef any_name_def = node->name_def();
@@ -1349,6 +1392,11 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
               [&](const NameDef* name_def) -> ResultT {
                 CHECK(name_def != nullptr);
                 AstNode* definer = name_def->definer();
+
+                if (auto* use_tree_entry = dynamic_cast<UseTreeEntry*>(definer);
+                    use_tree_entry != nullptr) {
+                  return HandleExternRef(*node, *name_def, *use_tree_entry);
+                }
 
                 // Emit function and constant refs directly so that they can be
                 // stack elements without having to load slots with them.

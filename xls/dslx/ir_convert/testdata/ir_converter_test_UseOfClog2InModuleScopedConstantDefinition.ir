@@ -1,0 +1,24 @@
+package test_module
+
+file_number 0 "xls/dslx/stdlib/std.x"
+file_number 1 "test_module.x"
+
+fn __std__clog2__32(x: bits[32] id=1) -> bits[32] {
+  literal.6: bits[32] = literal(value=1, id=6)
+  sub.7: bits[32] = sub(x, literal.6, id=7)
+  reverse.8: bits[32] = reverse(sub.7, id=8)
+  one_hot.9: bits[33] = one_hot(reverse.8, lsb_prio=true, id=9)
+  N: bits[32] = literal(value=32, id=2)
+  encode.10: bits[6] = encode(one_hot.9, id=10)
+  literal.3: bits[32] = literal(value=1, id=3)
+  zero_ext.5: bits[32] = zero_ext(N, new_bit_count=32, id=5)
+  zero_ext.11: bits[32] = zero_ext(encode.10, new_bit_count=32, id=11)
+  uge.4: bits[1] = uge(x, literal.3, id=4)
+  literal.13: bits[32] = literal(value=0, id=13)
+  sub.12: bits[32] = sub(zero_ext.5, zero_ext.11, id=12)
+  ret sel.14: bits[32] = sel(uge.4, cases=[literal.13, sub.12], id=14)
+}
+
+fn __test_module__main() -> bits[32] {
+  ret MAX_BITS: bits[32] = literal(value=8, id=15)
+}

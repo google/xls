@@ -442,7 +442,24 @@ absl::Status ConstexprEvaluator::HandleMatch(const Match* expr) {
   return InterpretExpr(expr);
 }
 
+absl::Status ConstexprEvaluator::HandleExternRef(const NameRef* name_ref,
+                                                 const NameDef* name_def,
+                                                 UseTreeEntry* use_tree_entry) {
+  const FileTable& file_table = *name_ref->owner()->file_table();
+  LOG(ERROR) << "HandleExternRef: " << name_ref->ToString() << " @ "
+             << name_ref->span().ToString(file_table);
+  return absl::OkStatus();
+}
+
 absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
+  if (std::holds_alternative<const NameDef*>(expr->name_def())) {
+    auto* name_def = std::get<const NameDef*>(expr->name_def());
+    if (auto* use_tree_entry = dynamic_cast<UseTreeEntry*>(name_def->definer());
+        use_tree_entry != nullptr) {
+      return HandleExternRef(expr, name_def, use_tree_entry);
+    }
+  }
+
   AstNode* name_def = ToAstNode(expr->name_def());
 
   if (type_info_->IsKnownNonConstExpr(name_def) ||
