@@ -582,8 +582,9 @@ std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
   return it2->second;
 }
 
-void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
-  CHECK_EQ(import->owner(), module_);
+void TypeInfo::AddImport(std::variant<Use*, Import*> import, Module* module,
+                         TypeInfo* type_info) {
+  CHECK_EQ(ToAstNode(import)->owner(), module_);
   GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 

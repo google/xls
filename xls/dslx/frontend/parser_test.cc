@@ -1666,10 +1666,20 @@ fn foo() -> bar::T<2>[3] {
 }
 
 TEST_F(ParserTest, UseOneItemFromModule) {
-  RoundTrip(R"(use foo::BAR;
+  std::unique_ptr<Module> m = RoundTrip(R"(use foo::BAR;
 fn main() -> u32 {
     BAR
 })");
+  std::optional<ModuleMember*> member = m->FindMemberWithName("BAR");
+  ASSERT_TRUE(member.has_value());
+  ASSERT_TRUE(std::holds_alternative<Use*>(*member.value()));
+  Use* use = std::get<Use*>(*member.value());
+  std::vector<UseSubject> subjects = use->LinearizeToSubjects();
+  ASSERT_EQ(subjects.size(), 1);
+  EXPECT_EQ(subjects.at(0).identifiers,
+            std::vector<std::string>({"foo", "BAR"}));
+  EXPECT_EQ(subjects.at(0).name_def->identifier(), "BAR");
+  EXPECT_EQ(subjects.at(0).ToErrorString(), "`foo::BAR`");
 }
 
 TEST_F(ParserTest, UseTwoItemsFromModule) {

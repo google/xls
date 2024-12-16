@@ -1365,6 +1365,26 @@ class UseInteriorEntry {
   std::vector<UseTreeEntry*> subtrees_;
 };
 
+// Represents a record of a "leaf" imported by a `use` statement into the module
+// scope -- note the `name_def`, this is the name definition that will be bound
+// in the module scope.
+//
+// A `use` like `use foo::{bar, baz}` will result in two `UseSubject`s.
+struct UseSubject {
+  // The identifier in the subject path; e.g. in `use foo::bar::baz` the
+  // identifiers are {`foo`, `bar`, `baz`}.
+  std::vector<std::string> identifiers;
+
+  // The name definition that will be bound in the module scope.
+  const NameDef* name_def;
+
+  // Returns a string that represents the subject of the `use` statement in
+  // the form of a colon-ref; e.g. `foo::bar::baz`.
+  //
+  // Note that the returned value is surrounded in backticks.
+  std::string ToErrorString() const;
+};
+
 // Arbitrary entry (interior or leaf) in the `use` construct tree.
 class UseTreeEntry : public AstNode {
  public:
@@ -1389,6 +1409,9 @@ class UseTreeEntry : public AstNode {
     return payload_;
   }
   const Span& span() const { return span_; }
+
+  void LinearizeToSubjects(std::vector<std::string>& prefix,
+                           std::vector<UseSubject>& results) const;
 
  private:
   std::variant<UseInteriorEntry, NameDef*> payload_;
@@ -1431,11 +1454,22 @@ class Use : public AstNode {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
+  // Returns all the identifiers of the `NameDef`s at the leaves of the tree.
   std::vector<std::string> GetLeafIdentifiers() const {
     return root_->GetLeafIdentifiers();
   }
   std::vector<NameDef*> GetLeafNameDefs() const {
     return root_->GetLeafNameDefs();
+  }
+
+  // Returns a vector of `UseSubject`s that represent the "subjects" (i.e.
+  // individual imported entities that get a name binding in the module) of
+  // the `use` statement.
+  std::vector<UseSubject> LinearizeToSubjects() const {
+    std::vector<std::string> prefix;
+    std::vector<UseSubject> results;
+    root_->LinearizeToSubjects(prefix, results);
+    return results;
   }
 
   UseTreeEntry& root() { return *root_; }

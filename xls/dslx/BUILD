@@ -39,6 +39,8 @@ cc_library(
     hdrs = ["virtualizable_file_system.h"],
     deps = [
         "//xls/common/file:filesystem",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",

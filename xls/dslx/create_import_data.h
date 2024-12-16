@@ -36,7 +36,8 @@ ImportData CreateImportData(
 
 // Creates an ImportData with reasonable defaults (standard path to the stdlib
 // and no additional search paths).
-ImportData CreateImportDataForTest();
+ImportData CreateImportDataForTest(
+    std::unique_ptr<VirtualizableFilesystem> vfs = nullptr);
 
 std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 

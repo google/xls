@@ -54,6 +54,27 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
                                      const Span& import_span,
                                      VirtualizableFilesystem& vfs);
 
+struct UseImportResult {
+  // The `ModuleInfo`s that were imported as we traversed. Note that there can
+  // be more that one if there is a chain of `pub use` statements.
+  ModuleInfo* imported_module;
+
+  // If the `use` statement was referring to an entity inside of the enclosing
+  // module, it is given here.
+  //
+  // If this is nullptr, then it is implied that the module was the entity being
+  // referred to.
+  ModuleMember* imported_member;
+};
+
+// Imports a subject of a `use` statement -- note that this imports a single
+// `subject` -- generally we linearize a `use` tree into elements and import
+// each one via this routine in sequence.
+absl::StatusOr<UseImportResult> DoImportViaUse(
+    const TypecheckModuleFn& ftypecheck, const UseSubject& subject,
+    ImportData* import_data, const Span& name_def_span, FileTable& file_table,
+    VirtualizableFilesystem& vfs);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_IMPORT_ROUTINES_H_

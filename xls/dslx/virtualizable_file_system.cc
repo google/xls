@@ -17,6 +17,7 @@
 #include <filesystem>  // NOLINT
 #include <string>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
@@ -34,6 +35,32 @@ absl::StatusOr<std::string> RealFilesystem::GetFileContents(
 
 absl::StatusOr<std::filesystem::path> RealFilesystem::GetCurrentDirectory() {
   return xls::GetCurrentDirectory();
+}
+
+// -- FakeFilesystem
+
+FakeFilesystem::FakeFilesystem(
+    absl::flat_hash_map<std::filesystem::path, std::string> files,
+    std::filesystem::path cwd)
+    : files_(std::move(files)), cwd_(std::move(cwd)) {}
+
+absl::Status FakeFilesystem::FileExists(const std::filesystem::path& path) {
+  std::filesystem::path full_path = path.is_absolute() ? path : cwd_ / path;
+  if (files_.contains(full_path)) {
+    return absl::OkStatus();
+  }
+  return absl::NotFoundError("FakeFilesystem does not have file: " +
+                             full_path.string());
+}
+
+absl::StatusOr<std::string> FakeFilesystem::GetFileContents(
+    const std::filesystem::path& path) {
+  std::filesystem::path full_path = path.is_absolute() ? path : cwd_ / path;
+  if (files_.contains(full_path)) {
+    return files_.at(full_path);
+  }
+  return absl::NotFoundError("FakeFilesystem does not have file: " +
+                             full_path.string());
 }
 
 }  // namespace xls::dslx

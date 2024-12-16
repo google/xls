@@ -362,5 +362,6 @@ TEST(AstTest, IsConstantEmptyArray) {
 
   EXPECT_TRUE(IsConstant(array));
 }
+
 }  // namespace
 }  // namespace xls::dslx

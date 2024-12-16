@@ -690,6 +690,22 @@ xls_dslx_library(
     srcs = ["mod_imported.x"],
 )
 
+xls_dslx_library(
+    name = "mod_imported_multi_const_dslx",
+    srcs = ["mod_imported_multi_const.x"],
+)
+
+xls_dslx_library(
+    name = "mod_use_multi_lib",
+    srcs = ["mod_use_multi.x"],
+    deps = [":mod_imported_multi_const_dslx"],
+)
+
+dslx_lang_test(
+    name = "mod_use_multi",
+    dslx_deps = [":mod_use_multi_lib"],
+)
+
 dslx_lang_test(
     name = "mod_importer",
     dslx_deps = [":mod_imported_dslx"],

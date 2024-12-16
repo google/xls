@@ -246,13 +246,15 @@ class TypeInfo {
   //
   // Note that added type information and such will generally be owned by the
   // import cache.
-  void AddImport(Import* import, Module* module, TypeInfo* type_info);
+  void AddImport(std::variant<Use*, Import*> import, Module* module,
+                 TypeInfo* type_info);
 
   // Returns information on the imported module (its module AST node and
   // top-level type information).
   std::optional<const ImportedInfo*> GetImported(Import* import) const;
   absl::StatusOr<const ImportedInfo*> GetImportedOrError(Import* import) const;
-  const absl::flat_hash_map<Import*, ImportedInfo>& imports() const {
+  const absl::flat_hash_map<std::variant<Use*, Import*>, ImportedInfo>&
+  imports() const {
     return imports_;
   }
 
@@ -388,7 +390,7 @@ class TypeInfo {
       unrolled_loops_;
 
   // The following are only present on the root type info.
-  absl::flat_hash_map<Import*, ImportedInfo> imports_;
+  absl::flat_hash_map<std::variant<Use*, Import*>, ImportedInfo> imports_;
   absl::flat_hash_map<const Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
