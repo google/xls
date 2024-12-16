@@ -704,20 +704,20 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   std::unique_ptr<Package> ir_package;
   PostFnEvalHook post_fn_eval_hook;
   if (options.run_comparator != nullptr) {
-    absl::StatusOr<dslx::PackageConversionData> ir_package_or =
+    absl::StatusOr<dslx::PackageConversionData> ir_package_conversion_data =
         ConvertModuleToPackage(entry_module, &import_data,
                                options.convert_options);
-    if (!ir_package_or.ok()) {
-      if (TryPrintError(ir_package_or.status(), import_data.file_table(),
-                        import_data.vfs())) {
+    if (!ir_package_conversion_data.ok()) {
+      if (TryPrintError(ir_package_conversion_data.status(),
+                        import_data.file_table(), import_data.vfs())) {
         result.Finish(TestResult::kSomeFailed, absl::Now() - start);
         return result;
       }
-      return xabsl::StatusBuilder(ir_package_or.status())
+      return xabsl::StatusBuilder(ir_package_conversion_data.status())
              << "Failed to convert input to IR for comparison. Consider "
                 "turning off comparison with `--compare=none`: ";
     }
-    ir_package = std::move(ir_package_or).value().package;
+    ir_package = (*std::move(ir_package_conversion_data)).package;
     post_fn_eval_hook = [&ir_package, &import_data, &options](
                             const Function* f,
                             absl::Span<const InterpValue> args,

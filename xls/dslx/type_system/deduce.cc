@@ -2279,14 +2279,14 @@ absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
 
   // If there wasn't a known constexpr we could evaluate it to at this point, we
   // attempt to turn it into a parametric expression.
-  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr_or =
+  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr =
       ExprToParametric(dim_expr, ctx);
-  if (parametric_expr_or.ok()) {
-    return TypeDim(std::move(parametric_expr_or).value());
+  if (parametric_expr.ok()) {
+    return TypeDim(*std::move(parametric_expr));
   }
 
   VLOG(3) << "Could not convert dim expr to parametric expr; status: "
-          << parametric_expr_or.status();
+          << parametric_expr.status();
 
   // If we can't evaluate it to a parametric expression we give an error.
   return TypeInferenceErrorStatus(

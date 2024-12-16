@@ -71,13 +71,13 @@ void AppendDiagnosticFromStatus(
     const absl::Status& status,
     std::vector<verible::lsp::Diagnostic>* diagnostic_sink,
     FileTable& file_table) {
-  absl::StatusOr<PositionalErrorData> extracted_error_or =
+  absl::StatusOr<PositionalErrorData> extracted_error =
       GetPositionalErrorData(status, std::nullopt, file_table);
-  if (!extracted_error_or.ok()) {
-    LspLog() << extracted_error_or.status() << "\n";
+  if (!extracted_error.ok()) {
+    LspLog() << extracted_error.status() << "\n";
     return;  // best effort. Ignore.
   }
-  const PositionalErrorData& err = *extracted_error_or;
+  const PositionalErrorData& err = *extracted_error;
   diagnostic_sink->push_back(verible::lsp::Diagnostic{
       .range = ConvertSpanToLspRange(err.span),
       .severity = verible::lsp::DiagnosticSeverity::kError,
@@ -182,11 +182,11 @@ absl::Status LanguageServerAdapter::Update(
   XLS_RET_CHECK(dslx_code.has_value());
 
   const absl::Time start = absl::Now();
-  absl::StatusOr<std::string> module_name_or =
+  absl::StatusOr<std::string> module_name =
       ExtractModuleName(file_uri.GetFilesystemPath());
-  if (!module_name_or.ok()) {
+  if (!module_name.ok()) {
     LspLog() << "Could not determine module name from file URI: " << file_uri
-             << " status: " << module_name_or.status() << "\n";
+             << " status: " << module_name.status() << "\n";
     return absl::OkStatus();
   }
 
@@ -216,12 +216,10 @@ absl::Status LanguageServerAdapter::Update(
         import_sensitivity_.NoteImportAttempt(importer_uri, imported_uri);
       });
 
-  const std::string& module_name = module_name_or.value();
-
   std::vector<CommentData> comments;
   absl::StatusOr<TypecheckedModule> typechecked_module = ParseAndTypecheck(
       dslx_code.value(), /*path=*/file_uri.GetFilesystemPath().c_str(),
-      /*module_name=*/module_name, &import_data, &comments);
+      /*module_name=*/*module_name, &import_data, &comments);
 
   if (typechecked_module.ok()) {
     insert_value = std::make_unique<ParseData>(

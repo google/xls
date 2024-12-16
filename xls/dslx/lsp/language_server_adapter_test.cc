@@ -419,10 +419,9 @@ const BAR: u32 = FOO + FOO;
 
 fn f() -> u32 { FOO })"));
   const auto kTargetPos = verible::lsp::Position{4, 16};
-  absl::StatusOr<std::vector<verible::lsp::DocumentHighlight>> highlights_or =
-      adapter.DocumentHighlight(kUri, kTargetPos);
-  XLS_EXPECT_OK(highlights_or.status());
-  const auto& highlights = highlights_or.value();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::DocumentHighlight> highlights,
+      adapter.DocumentHighlight(kUri, kTargetPos));
 
   // There are four instances in the document including the definition.
   EXPECT_EQ(highlights.size(), 4);

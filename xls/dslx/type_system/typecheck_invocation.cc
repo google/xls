@@ -345,17 +345,16 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     return TypecheckParametricBuiltinInvocation(ctx, invocation, caller);
   }
 
-  absl::StatusOr<Function*> callee_fn_or =
-      ResolveFunction(callee, ctx->type_info());
-  if (!callee_fn_or.ok()) {
-    return TypeInferenceErrorStatus(
-        callee->span(), nullptr,
-        absl::StrFormat("Cannot resolve callee `%s` to a function; %s",
-                        callee->ToString(), callee_fn_or.status().message()),
-        ctx->file_table());
-  }
-  XLS_RET_CHECK(callee_fn_or.value() != nullptr);
-  Function& callee_fn = *callee_fn_or.value();
+  XLS_ASSIGN_OR_RETURN(
+      Function * callee_fn, ResolveFunction(callee, ctx->type_info()),
+      _.With([callee, ctx](const absl::Status& s) {
+        return TypeInferenceErrorStatus(
+            callee->span(), nullptr,
+            absl::StrFormat("Cannot resolve callee `%s` to a function; %s",
+                            callee->ToString(), s.message()),
+            ctx->file_table());
+      }));
+  XLS_RET_CHECK(callee_fn != nullptr);
 
   const absl::Span<Expr* const> args = invocation->args();
   std::vector<InstantiateArg> instantiate_args;
@@ -385,16 +384,16 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   }
 
   XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<Type>> param_types,
-                       TypecheckFunctionParams(callee_fn, ctx));
+                       TypecheckFunctionParams(*callee_fn, ctx));
 
   std::unique_ptr<Type> return_type;
-  if (callee_fn.return_type() == nullptr) {
+  if (callee_fn->return_type() == nullptr) {
     return_type = TupleType::MakeUnit();
   } else {
-    XLS_ASSIGN_OR_RETURN(return_type, ctx->Deduce(callee_fn.return_type()));
+    XLS_ASSIGN_OR_RETURN(return_type, ctx->Deduce(callee_fn->return_type()));
     XLS_ASSIGN_OR_RETURN(
         return_type,
-        UnwrapMetaType(std::move(return_type), callee_fn.return_type()->span(),
+        UnwrapMetaType(std::move(return_type), callee_fn->return_type()->span(),
                        "function return type", ctx->file_table()));
   }
 
@@ -402,18 +401,18 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
   XLS_ASSIGN_OR_RETURN(
       TypeAndParametricEnv callee_tab,
-      InstantiateParametricFunction(ctx, parent_ctx, invocation, callee_fn,
+      InstantiateParametricFunction(ctx, parent_ctx, invocation, *callee_fn,
                                     fn_type, instantiate_args));
 
   // Now that we have the necessary bindings, check for recursion.
   std::vector<FnStackEntry> fn_stack = parent_ctx->fn_stack();
   while (!fn_stack.empty()) {
-    if (fn_stack.back().f() == &callee_fn &&
+    if (fn_stack.back().f() == callee_fn &&
         fn_stack.back().parametric_env() == callee_tab.parametric_env) {
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,
           absl::StrFormat("Recursion detected while typechecking; name: '%s'",
-                          callee_fn.identifier()),
+                          callee_fn->identifier()),
           ctx->file_table());
     }
     fn_stack.pop_back();
@@ -422,14 +421,14 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   FunctionType instantiated_ft{std::move(arg_types),
                                callee_tab.type->CloneToUnique()};
   parent_ctx->type_info()->SetItem(invocation->callee(), instantiated_ft);
-  ctx->type_info()->SetItem(callee_fn.name_def(), instantiated_ft);
+  ctx->type_info()->SetItem(callee_fn->name_def(), instantiated_ft);
 
   // We need to deduce fn body, so we're going to call Deduce, which means we'll
   // need a new stack entry w/the new symbolic bindings.
   TypeInfo* const original_ti = parent_ctx->type_info();
   ctx->AddFnStackEntry(FnStackEntry::Make(
-      callee_fn, callee_tab.parametric_env, invocation,
-      callee_fn.proc().has_value() ? WithinProc::kYes : WithinProc::kNo));
+      *callee_fn, callee_tab.parametric_env, invocation,
+      callee_fn->proc().has_value() ? WithinProc::kYes : WithinProc::kNo));
   TypeInfo* const derived_type_info = ctx->AddDerivedTypeInfo();
 
   // We execute this function if we're parametric or a proc. In either case, we
@@ -442,8 +441,8 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
       *invocation, caller, caller_parametric_env, callee_tab.parametric_env,
       derived_type_info));
 
-  if (callee_fn.proc().has_value()) {
-    Proc* p = callee_fn.proc().value();
+  if (callee_fn->proc().has_value()) {
+    Proc* p = callee_fn->proc().value();
     for (auto* member : p->members()) {
       XLS_ASSIGN_OR_RETURN(auto type, ctx->DeduceAndResolve(member));
       ctx->type_info()->SetItem(member, *type);
@@ -460,7 +459,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
 
   // Add the new parametric bindings to the constexpr set.
   const auto& bindings_map = callee_tab.parametric_env.ToMap();
-  for (ParametricBinding* parametric : callee_fn.parametric_bindings()) {
+  for (ParametricBinding* parametric : callee_fn->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
     XLS_ASSIGN_OR_RETURN(
@@ -474,7 +473,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     }
   }
 
-  for (auto* param : callee_fn.params()) {
+  for (auto* param : callee_fn->params()) {
     std::optional<const Type*> param_type = ctx->type_info()->GetItem(param);
     XLS_RET_CHECK(param_type.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_type,
@@ -484,7 +483,7 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> body_type,
-                       ctx->Deduce(callee_fn.body()));
+                       ctx->Deduce(callee_fn->body()));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_body_type,
                        ctx->Resolve(*body_type));
   XLS_RET_CHECK(!resolved_body_type->IsMeta());
@@ -496,26 +495,26 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
     VLOG(5) << "annotated_return_type: " << annotated_return_type
             << " resolved_body_type: " << resolved_body_type->ToString();
 
-    if (callee_fn.tag() == FunctionTag::kProcInit) {
+    if (callee_fn->tag() == FunctionTag::kProcInit) {
       return ctx->TypeMismatchError(
-          callee_fn.body()->span(), nullptr, annotated_return_type,
-          callee_fn.body(), *resolved_body_type,
+          callee_fn->body()->span(), nullptr, annotated_return_type,
+          callee_fn->body(), *resolved_body_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
-    if (callee_fn.tag() == FunctionTag::kProcNext) {
+    if (callee_fn->tag() == FunctionTag::kProcNext) {
       return ctx->TypeMismatchError(
-          callee_fn.body()->span(), nullptr, annotated_return_type,
-          callee_fn.body(), *resolved_body_type,
+          callee_fn->body()->span(), nullptr, annotated_return_type,
+          callee_fn->body(), *resolved_body_type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
-        callee_fn.body()->span(), nullptr, annotated_return_type,
-        callee_fn.body(), *resolved_body_type,
+        callee_fn->body()->span(), nullptr, annotated_return_type,
+        callee_fn->body(), *resolved_body_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
-                        callee_fn.identifier()));
+                        callee_fn->identifier()));
   }
 
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo(derived_type_info));
@@ -526,9 +525,9 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   // guarantee we did consider and make a note for every function -- the code
   // is generally complex enough it's nice to have this soundness check.
   if (std::optional<bool> requires_token =
-          ctx->type_info()->GetRequiresImplicitToken(callee_fn);
+          ctx->type_info()->GetRequiresImplicitToken(*callee_fn);
       !requires_token.has_value()) {
-    ctx->type_info()->NoteRequiresImplicitToken(callee_fn, false);
+    ctx->type_info()->NoteRequiresImplicitToken(*callee_fn, false);
   }
 
   return callee_tab;

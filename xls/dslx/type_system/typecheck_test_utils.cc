@@ -29,19 +29,18 @@ namespace xls::dslx {
 
 absl::StatusOr<TypecheckResult> Typecheck(std::string_view text) {
   auto import_data = CreateImportDataPtrForTest();
-  absl::StatusOr<TypecheckedModule> tm_or =
+  absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(text, "fake.x", "fake", import_data.get());
-  if (!tm_or.ok()) {
+  if (!tm.ok()) {
     UniformContentFilesystem vfs(text);
-    TryPrintError(tm_or.status(), import_data->file_table(), vfs);
-    return tm_or.status();
+    TryPrintError(tm.status(), import_data->file_table(), vfs);
+    return tm.status();
   }
-  TypecheckedModule& tm = tm_or.value();
   // Ensure that we can convert all the type information in the unit tests into
   // its protobuf form.
-  XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm.type_info).status());
+  XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm->type_info).status());
 
-  return TypecheckResult{std::move(import_data), std::move(tm)};
+  return TypecheckResult{std::move(import_data), std::move(*tm)};
 }
 
 }  // namespace xls::dslx

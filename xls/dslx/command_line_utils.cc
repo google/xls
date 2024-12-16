@@ -41,17 +41,16 @@ bool TryPrintError(const absl::Status& status, FileTable& file_table,
   if (status.ok()) {
     return false;
   }
-  absl::StatusOr<PositionalErrorData> data_or =
+  absl::StatusOr<PositionalErrorData> data =
       GetPositionalErrorData(status, std::nullopt, file_table);
-  if (!data_or.ok()) {
+  if (!data.ok()) {
     LOG(ERROR) << "Could not extract a textual position from error message: "
-               << status << ": " << data_or.status();
+               << status << ": " << data.status();
     return false;
   }
-  auto& data = data_or.value();
   bool is_tty = isatty(fileno(stderr)) != 0;
   absl::Status print_status = PrintPositionalError(
-      data.span, absl::StrFormat("%s: %s", data.error_type, data.message),
+      data->span, absl::StrFormat("%s: %s", data->error_type, data->message),
       std::cerr,
       is_tty ? PositionalErrorColor::kErrorColor
              : PositionalErrorColor::kNoColor,

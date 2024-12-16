@@ -66,13 +66,13 @@ absl::StatusOr<TestResultData> ParseAndTest(
 absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
     std::string_view program, ImportData* import_data) {
   // Parse/typecheck and print a helpful error.
-  absl::StatusOr<TypecheckedModule> tm_or =
+  absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(program, "test.x", "test", import_data);
-  if (!tm_or.ok()) {
+  if (!tm.ok()) {
     UniformContentFilesystem vfs(program);
-    TryPrintError(tm_or.status(), import_data->file_table(), vfs);
+    TryPrintError(tm.status(), import_data->file_table(), vfs);
   }
-  return tm_or;
+  return tm;
 }
 
 using ::absl_testing::IsOkAndHolds;
@@ -2933,17 +2933,15 @@ fn main(x: s32) -> s4 {
 )";
 
   for (int64_t x = -32; x <= 32; ++x) {
-    absl::StatusOr<InterpValue> value_or =
+    absl::StatusOr<InterpValue> value =
         Interpret(kProgram, "main", {InterpValue::MakeSBits(32, x)});
 
     if (x >= -8 && x < 8) {
-      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value->GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
-      EXPECT_THAT(value_or.status(),
-                  StatusIs(absl::StatusCode::kInvalidArgument,
-                           HasSubstr("unable to cast")));
+      EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           HasSubstr("unable to cast")));
     }
   }
 }
@@ -2956,17 +2954,15 @@ fn main(x: s32) -> u4 {
 )";
 
   for (int64_t x = -32; x <= 32; ++x) {
-    absl::StatusOr<InterpValue> value_or =
+    absl::StatusOr<InterpValue> value =
         Interpret(kProgram, "main", {InterpValue::MakeSBits(32, x)});
 
     if (x >= 0 && x < 16) {
-      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value->GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
-      EXPECT_THAT(value_or.status(),
-                  StatusIs(absl::StatusCode::kInvalidArgument,
-                           HasSubstr("unable to cast")));
+      EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           HasSubstr("unable to cast")));
     }
   }
 }
@@ -2979,17 +2975,15 @@ fn main(x: u32) -> s4 {
 )";
 
   for (int64_t x = 0; x <= 32; ++x) {
-    absl::StatusOr<InterpValue> value_or =
+    absl::StatusOr<InterpValue> value =
         Interpret(kProgram, "main", {InterpValue::MakeUBits(32, x)});
 
     if (x < 8) {
-      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value->GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
-      EXPECT_THAT(value_or.status(),
-                  StatusIs(absl::StatusCode::kInvalidArgument,
-                           HasSubstr("unable to cast")));
+      EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           HasSubstr("unable to cast")));
     }
   }
 }
@@ -3002,17 +2996,15 @@ fn main(x: u32) -> u4 {
 )";
 
   for (int64_t x = 0; x < 32; ++x) {
-    absl::StatusOr<InterpValue> value_or =
+    absl::StatusOr<InterpValue> value =
         Interpret(kProgram, "main", {InterpValue::MakeUBits(32, x)});
 
     if (x < 16) {
-      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
-      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueViaSign());
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value->GetBitValueViaSign());
       EXPECT_EQ(x, bit_value);
     } else {
-      EXPECT_THAT(value_or.status(),
-                  StatusIs(absl::StatusCode::kInvalidArgument,
-                           HasSubstr("unable to cast")));
+      EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInvalidArgument,
+                                           HasSubstr("unable to cast")));
     }
   }
 }
