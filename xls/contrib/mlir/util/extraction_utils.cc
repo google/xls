@@ -63,8 +63,11 @@ ModuleOp extractOpAsTopLevelModule(CallableOpInterface op,
   SetVector<Operation*> needed;
   SymbolTableCollection symbolTable;
   for (CallGraphNode* node : visited) {
-    needed.insert(node->getCallableRegion()->getParentOp());
-    node->getCallableRegion()->walk([&](CallOpInterface op) {
+    Operation* parent = node->getCallableRegion()->getParentOp();
+    needed.insert(parent);
+    // Walk all regions of the parent op to find the callables, so that if
+    // parent is an SprocOp we find callables in spawns and next.
+    parent->walk([&](CallOpInterface op) {
       Operation* callee = op.resolveCallableInTable(&symbolTable);
       if (!callee) {
         return;
