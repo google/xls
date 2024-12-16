@@ -530,6 +530,34 @@ DocRef Fmt(const Attr& n, Comments& comments, DocArena& arena) {
   return ConcatNGroup(arena, pieces);
 }
 
+std::optional<DocRef> EmitCommentsNested(const Pos start, const Pos limit,
+                                         Comments& comments, DocArena& arena) {
+  std::vector<const CommentData*> items =
+      comments.GetComments(Span(start, limit));
+  if (items.empty()) {
+    return std::nullopt;
+  }
+
+  std::vector<DocRef> pieces;
+  // Add the first comment "in line"
+  auto first =
+      EmitCommentsBetween(start, items[0]->span.limit(), comments, arena,
+                          /*last_comment_span=*/nullptr);
+  pieces.push_back(*first);
+  pieces.push_back(arena.hard_line());
+  if (items.size() > 1) {
+    // Add the nth through last comment as a new nested document.
+    auto nested_comments =
+        EmitCommentsBetween(items[1]->span.start(), limit, comments, arena,
+                            /*last_comment_span=*/nullptr);
+    // EmitCommentsBetween doesn't indent (or nest) the 2nd through Nth
+    // comments, so we have to do it manually here.
+    pieces.push_back(arena.MakeNest(*nested_comments));
+    pieces.push_back(arena.hard_line());
+  }
+  return ConcatN(arena, pieces);
+}
+
 DocRef Fmt(const Binop& n, Comments& comments, DocArena& arena) {
   Precedence op_precedence = n.GetPrecedenceWithoutParens();
   const Expr& lhs = *n.lhs();
@@ -568,6 +596,40 @@ DocRef Fmt(const Binop& n, Comments& comments, DocArena& arena) {
   }
 
   DocRef lhs_ref = ConcatN(arena, lhs_pieces);
+  bool nest_rhs = false;
+
+  // If there are comments between the LHS and the operator, we want to emit
+  // them before the operator.
+  if (std::optional<DocRef> comments_doc = EmitCommentsNested(
+          lhs.span().limit(), n.op_span().start(), comments, arena)) {
+    lhs_ref = ConcatN(arena, {lhs_ref, arena.space(), *comments_doc});
+    nest_rhs = true;
+  }
+
+  bool emitted_op = false;
+  // If there are comments between the operator and the RHS, emit them now.
+  if (nest_rhs) {
+    if (std::optional<DocRef> comments_doc = EmitCommentsBetween(
+            n.op_span().limit(), rhs.span().start(), comments, arena,
+            /*last_comment_span=*/nullptr)) {
+      // If the RHS is already being nested, don't nest the comments. probably.
+      lhs_ref = ConcatN(
+          arena,
+          {lhs_ref,
+           arena.MakeNest(ConcatN(
+               arena, {arena.MakeText(BinopKindFormat(n.binop_kind())),
+                       arena.space(), *comments_doc, arena.hard_line()}))});
+      emitted_op = true;
+    }
+  } else if (std::optional<DocRef> comments_doc = EmitCommentsNested(
+                 n.op_span().limit(), rhs.span().start(), comments, arena)) {
+    // The space is needed since we didn't nest the RHS yet
+    lhs_ref = ConcatN(arena, {lhs_ref, arena.space(),
+                              arena.MakeText(BinopKindFormat(n.binop_kind())),
+                              arena.space(), *comments_doc});
+    emitted_op = true;
+    nest_rhs = true;
+  }
 
   std::vector<DocRef> rhs_pieces;
   if (WeakerThan(rhs.GetPrecedence(), op_precedence)) {
@@ -582,9 +644,22 @@ DocRef Fmt(const Binop& n, Comments& comments, DocArena& arena) {
   // end up on their own lines. See `ModuleFmtTest.NestedBinopLogicalOr` for a
   // case study.
   DocRef rhs_ref = ConcatN(arena, rhs_pieces);
-  rhs_ref = ConcatNGroup(
-      arena, {arena.space(), arena.MakeText(BinopKindFormat(n.binop_kind())),
-              arena.break1(), rhs_ref});
+  std::vector<DocRef> more_rhs_pieces;
+  if (!nest_rhs) {
+    // If we didn't nest the RHS, we need to add a space to separate it from the
+    // operator.
+    more_rhs_pieces.push_back(arena.space());
+  }
+  if (!emitted_op) {
+    // If we didn't emit the operator, we need to add it now.
+    more_rhs_pieces.push_back(arena.MakeText(BinopKindFormat(n.binop_kind())));
+    more_rhs_pieces.push_back(arena.break1());
+  }
+  more_rhs_pieces.push_back(rhs_ref);
+  rhs_ref = ConcatNGroup(arena, more_rhs_pieces);
+  if (nest_rhs) {
+    rhs_ref = arena.MakeNest(rhs_ref);
+  }
 
   return ConcatN(arena, {
                             lhs_ref,

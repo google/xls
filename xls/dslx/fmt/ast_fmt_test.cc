@@ -1218,7 +1218,7 @@ class ModuleFmtTest : public testing::Test {
     XLS_ASSERT_OK_AND_ASSIGN(std::string got,
                              AutoFmt(vfs, *m, comments, input, text_width));
 
-    EXPECT_EQ(got, want.value_or(input));
+    ASSERT_EQ(got, want.value_or(input));
 
     if (opportunistic_postcondition) {
       std::optional<AutoFmtPostconditionViolation> maybe_violation =
@@ -3055,6 +3055,105 @@ proc A {
     }
 })",
                       "was deleted");
+}
+
+TEST_F(ModuleFmtTest, BinopWithCommentBeforeOpNoNewline) {
+  DoFmt(R"(const val = u32:1 // before op
+    + u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithCommentBeforeOp) {
+  DoFmt(R"(const val = u32:1
+    // before op
+    + u32:2;
+)",
+        R"(const val = u32:1 // before op
+    + u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithMultipleCommentsBeforeOp) {
+  DoFmt(R"(const val = u32:1 // before op
+    // second line before op
+    + u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithCommentAfterOpNoNewline) {
+  DoFmt(R"(const val = u32:1 + // after op
+    u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithCommentAfterOp) {
+  DoFmt(R"(const val = u32:1 +
+    // after op
+    u32:2;
+)",
+        R"(const val = u32:1 + // after op
+    u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithMultipleCommentsAfterOp) {
+  DoFmt(R"(const val = u32:1 + // after op
+    // second line after op
+    // third line after op
+    u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithCommentsBeforeAndAfterOp) {
+  DoFmt(R"(const val = u32:1 // before op
+    + // after op
+    u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithCommentsBeforeAndAfterOpWithNewlines) {
+  DoFmt(R"(const val = u32:1
+    // before op
+    +
+    // after op
+    u32:2;
+)",
+        R"(const val = u32:1 // before op
+    + // after op
+    u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithMultipleCommentsBeforeAndAfterOp) {
+  DoFmt(R"(const val = u32:1
+    // before op
+    // before op second line
+    // before op third line
+    +
+    // after op
+    // after op second line
+    // after op third line
+    u32:2;
+)",
+        R"(const val = u32:1 // before op
+    // before op second line
+    // before op third line
+    + // after op
+    // after op second line
+    // after op third line
+    u32:2;
+)");
+}
+
+TEST_F(ModuleFmtTest, BinopWithMultipleCommentsBeforeAndAfterOpWithNewlines) {
+  DoFmt(R"(const val = u32:1 // before op
+    // before op second line
+    // before op third line
+    + // after op
+    // after op second line
+    // after op third line
+    u32:2;
+)");
 }
 
 }  // namespace
