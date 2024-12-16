@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/casts.h"
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
@@ -70,6 +71,7 @@
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/FloatingPointMode.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
+#include "llvm/include/llvm/Support/Casting.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -709,12 +711,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
   // Pragma at class or method level
   XLS_ASSIGN_OR_RETURN(sf.in_synthetic_int, FunctionIsInSyntheticInt(funcdecl));
-  for (const clang::AnnotateAttr* attr :
-       funcdecl->specific_attrs<clang::AnnotateAttr>()) {
-    if (attr->getAnnotation() == "hls_synthetic_int") {
-      sf.in_synthetic_int = true;
-    }
-  }
+  sf.in_synthetic_int = DeclHasAnnotation(*funcdecl, "hls_synthetic_int");
 
   // Functions need a clean context
   context() = TranslationContext();
@@ -1090,6 +1087,16 @@ absl::Status Translator::GenerateIR_SubBlockStub(
     const FunctionInProgress& header) {
   const xls::SourceInfo body_loc = GetLoc(*funcdecl);
 
+  XLS_ASSIGN_OR_RETURN(std::optional<int64_t> depth_specified,
+                       GetAnnotationWithNonNegativeIntegerParam(
+                           *funcdecl, "hls_control_channel_depth", body_loc));
+
+  int64_t depth = 0;
+
+  if (depth_specified.has_value()) {
+    depth = depth_specified.value();
+  }
+
   // Only IO ops are on the control channels
   auto control_in_ctype =
       std::make_shared<CIntType>(kNumSubBlockModeBits, /*is_signed=*/false);
@@ -1110,8 +1117,9 @@ absl::Status Translator::GenerateIR_SubBlockStub(
         package_->CreateStreamingChannel(
             ch_name, xls::ChannelOps::kSendReceive, control_in_type,
             /*initial_values=*/{},
-            /*fifo_config=*/
-            xls::FifoConfig(/*depth=*/0, /*bypass=*/true,
+            // Control channel is 0 to a few bits wide, and depth=1
+            // avoids common deadlocks.
+            xls::FifoConfig(/*depth=*/depth, /*bypass=*/true,
                             /*register_push_outputs=*/false,
                             /*register_pop_outputs=*/false),
             xls::FlowControl::kReadyValid));
@@ -1399,16 +1407,9 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
         signature->base()->getNameAsString());
   }
 
-  bool no_tuple_attribute = false;
-  bool synthetic_int_attribute = false;
-  for (const clang::AnnotateAttr* attr :
-       sd->specific_attrs<clang::AnnotateAttr>()) {
-    if (attr->getAnnotation() == "hls_no_tuple") {
-      no_tuple_attribute = true;
-    } else if (attr->getAnnotation() == "hls_synthetic_int") {
-      synthetic_int_attribute = true;
-    }
-  }
+  bool no_tuple_attribute = DeclHasAnnotation(*sd, "hls_no_tuple");
+  bool synthetic_int_attribute = DeclHasAnnotation(*sd, "hls_synthetic_int");
+
   new_type = std::make_shared<CStructType>(
       fields, synthetic_int_attribute || no_tuple_attribute,
       synthetic_int_attribute);
@@ -1532,17 +1533,10 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                        TranslateTypeFromClang(decl->getType(), loc));
 
-  const clang::AnnotateAttr* attr = decl->getAttr<clang::AnnotateAttr>();
-
-  std::string annotation;
-
-  if (attr != nullptr) {
-    annotation = attr->getAnnotation().str();
-  }
-
   bool allow_default_pad_before = context().allow_default_pad;
 
-  context().allow_default_pad = (annotation == "hls_array_allow_default_pad");
+  context().allow_default_pad =
+      DeclHasAnnotation(*decl, "hls_array_allow_default_pad");
 
   const clang::Expr* initializer = decl->getAnyInitializer();
 
@@ -5208,39 +5202,15 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                                          clang::ASTContext& ctx) {
   const xls::SourceInfo loc = GetLoc(*stmt);
 
-  std::vector<const clang::Attr*> attrs;
-  bool label_with_loop_attributes = false;
-  while (clang::isa<clang::AttributedStmt>(stmt) ||
-         clang::isa<clang::LabelStmt>(stmt)) {
-    if (const clang::AttributedStmt* attributed =
-            clang::dyn_cast<clang::AttributedStmt>(stmt);
-        attributed != nullptr) {
-      attrs.insert(attrs.end(), attributed->getAttrs().begin(),
-                   attributed->getAttrs().end());
-      stmt = attributed->getSubStmt();
-      continue;
-    }
+  std::vector<const clang::AnnotateAttr*> annotate_attrs =
+      GetClangAnnotations(stmt);
 
-    // Just ignore labels for now - but fetch any relevant attributes!
-    const clang::LabelStmt* lblstmt = clang::dyn_cast<clang::LabelStmt>(stmt);
-    CHECK_NE(lblstmt, nullptr);
-    const clang::LabelDecl* lbl = lblstmt->getDecl();
-    for (const clang::Attr* attr : lbl->attrs()) {
-      const clang::AnnotateAttr* annotate =
-          clang::dyn_cast<clang::AnnotateAttr>(attr);
-      if (annotate == nullptr) {
-        continue;
-      }
-      if (annotate->getAnnotation() != "xlscc_asap" &&
-          annotate->getAnnotation() != "hls_unroll" &&
-          annotate->getAnnotation() != "hls_pipeline_init_interval") {
-        continue;
-      }
-      label_with_loop_attributes = true;
-      attrs.push_back(attr);
-    }
-    stmt = lblstmt->getSubStmt();
-  }
+  bool label_with_loop_attributes = absl::c_any_of(
+      annotate_attrs, [](const clang::AnnotateAttr* annotate) -> bool {
+        return annotate->getAnnotation() == "xlscc_asap" ||
+               annotate->getAnnotation() == "hls_unroll" ||
+               annotate->getAnnotation() == "hls_pipeline_init_interval";
+      });
 
   if (label_with_loop_attributes && !clang::isa<clang::ForStmt>(stmt) &&
       !clang::isa<clang::WhileStmt>(stmt) && !clang::isa<clang::DoStmt>(stmt)) {
@@ -5355,21 +5325,22 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     }
   } else if (auto forst = clang::dyn_cast<const clang::ForStmt>(stmt)) {
     XLS_RETURN_IF_ERROR(GenerateIR_Loop(
-        /*always_first_iter=*/false, /*loop_stmt=*/forst, /*attrs=*/attrs,
+        /*always_first_iter=*/false, /*loop_stmt=*/forst,
+        /*attrs=*/annotate_attrs,
         /*init=*/forst->getInit(), /*cond_expr=*/forst->getCond(),
         /*inc=*/forst->getInc(), /*body=*/forst->getBody(),
         GetPresumedLoc(*forst), loc, ctx));
   } else if (auto forst = clang::dyn_cast<const clang::WhileStmt>(stmt)) {
     XLS_RETURN_IF_ERROR(
         GenerateIR_Loop(/*always_first_iter=*/false,
-                        /*loop_stmt=*/forst, /*attrs=*/attrs,
+                        /*loop_stmt=*/forst, /*attrs=*/annotate_attrs,
                         /*init=*/nullptr, /*cond_expr=*/forst->getCond(),
                         /*inc=*/nullptr, /*body=*/forst->getBody(),
                         GetPresumedLoc(*forst), loc, ctx));
   } else if (auto dost = clang::dyn_cast<const clang::DoStmt>(stmt)) {
     XLS_RETURN_IF_ERROR(
         GenerateIR_Loop(/*always_first_iter=*/true,
-                        /*loop_stmt=*/dost, /*attrs=*/attrs,
+                        /*loop_stmt=*/dost, /*attrs=*/annotate_attrs,
                         /*init=*/nullptr, /*cond_expr=*/dost->getCond(),
                         /*inc=*/nullptr, /*body=*/dost->getBody(),
                         GetPresumedLoc(*dost), loc, ctx));
@@ -6325,13 +6296,102 @@ absl::StatusOr<xls::solvers::z3::IrTranslator*> Translator::GetZ3Translator(
 
 bool Translator::DeclHasAnnotation(const clang::NamedDecl& decl,
                                    std::string_view name) {
-  for (const clang::AnnotateAttr* attr :
-       decl.specific_attrs<clang::AnnotateAttr>()) {
-    if (std::string_view(attr->getAnnotation()) == name) {
+  return HasAnnotation(GetClangAnnotations(decl), name);
+}
+
+bool Translator::HasAnnotation(
+    clang::ArrayRef<const clang::AnnotateAttr*> attrs, std::string_view name) {
+  for (const clang::AnnotateAttr* annotate : attrs) {
+    if (std::string_view(annotate->getAnnotation()) == name) {
       return true;
     }
   }
   return false;
+}
+
+std::vector<const clang::AnnotateAttr*> Translator::GetClangAnnotations(
+    const clang::Decl& decl) {
+  std::vector<const clang::AnnotateAttr*> ret;
+  for (const clang::AnnotateAttr* attr :
+       decl.specific_attrs<clang::AnnotateAttr>()) {
+    ret.push_back(attr);
+  }
+  return ret;
+}
+
+std::vector<const clang::AnnotateAttr*> Translator::GetClangAnnotations(
+    const clang::Stmt*& stmt) {
+  std::vector<const clang::Attr*> attrs;
+  while (clang::isa<clang::AttributedStmt>(stmt) ||
+         clang::isa<clang::LabelStmt>(stmt)) {
+    if (const clang::AttributedStmt* attributed =
+            clang::dyn_cast<clang::AttributedStmt>(stmt);
+        attributed != nullptr) {
+      attrs.insert(attrs.end(), attributed->getAttrs().begin(),
+                   attributed->getAttrs().end());
+      stmt = attributed->getSubStmt();
+      continue;
+    }
+
+    // Just ignore labels for now - but fetch any relevant attributes!
+    const clang::LabelStmt* lblstmt = clang::dyn_cast<clang::LabelStmt>(stmt);
+    CHECK_NE(lblstmt, nullptr);
+    const clang::LabelDecl* lbl = lblstmt->getDecl();
+    attrs.insert(attrs.end(), lbl->attrs().begin(), lbl->attrs().end());
+    stmt = lblstmt->getSubStmt();
+  }
+
+  std::vector<const clang::AnnotateAttr*> annotate_attrs;
+  for (const clang::Attr* attr : attrs) {
+    const clang::AnnotateAttr* annotate =
+        llvm::dyn_cast<clang::AnnotateAttr>(attr);
+    if (annotate == nullptr) {
+      continue;
+    }
+    annotate_attrs.push_back(annotate);
+  }
+
+  return annotate_attrs;
+}
+
+absl::StatusOr<std::optional<int64_t>>
+Translator::GetAnnotationWithNonNegativeIntegerParam(
+    const clang::Decl& decl, std::string_view name, const xls::SourceInfo& loc,
+    std::optional<int64_t> default_value) {
+  return GetAnnotationWithNonNegativeIntegerParam(
+      GetClangAnnotations(decl), name, loc, decl.getASTContext(),
+      default_value);
+}
+
+absl::StatusOr<std::optional<int64_t>>
+Translator::GetAnnotationWithNonNegativeIntegerParam(
+    clang::ArrayRef<const clang::AnnotateAttr*> attrs, std::string_view name,
+    const xls::SourceInfo& loc, clang::ASTContext& ctx,
+    std::optional<int64_t> default_value) {
+  for (const clang::AnnotateAttr* annotate : attrs) {
+    if (std::string_view(annotate->getAnnotation()) != name) {
+      continue;
+    }
+    if (default_value.has_value() && annotate->args_size() == 0) {
+      return default_value;
+    }
+    if (annotate->args_size() != 1) {
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc, "%s must have exactly one argument", name));
+    }
+    clang::Expr::EvalResult result;
+    if (!(*annotate->args().begin())->EvaluateAsInt(result, ctx) ||
+        !result.Val.getInt().isStrictlyPositive() ||
+        !result.Val.getInt().isRepresentableByInt64()) {
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc,
+                       "the argument to the '%s' attribute must "
+                       "be an integer >= 0",
+                       name));
+    }
+    return result.Val.getInt().getExtValue();
+  }
+  return std::nullopt;
 }
 
 absl::StatusOr<bool> Translator::IsSubBlockDirectInParam(

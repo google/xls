@@ -67,7 +67,7 @@ namespace xlscc {
 
 absl::Status Translator::GenerateIR_Loop(
     bool always_first_iter, const clang::Stmt* loop_stmt,
-    clang::ArrayRef<const clang::Attr*> attrs, const clang::Stmt* init,
+    clang::ArrayRef<const clang::AnnotateAttr*> attrs, const clang::Stmt* init,
     const clang::Expr* cond_expr, const clang::Stmt* inc,
     const clang::Stmt* body, const clang::PresumedLoc& presumed_loc,
     const xls::SourceInfo& loc, clang::ASTContext& ctx) {
@@ -79,54 +79,33 @@ absl::Status Translator::GenerateIR_Loop(
     }
   }
 
+  bool is_asap = HasAnnotation(attrs, "xlscc_asap");
+
   int64_t init_interval = -1;
+  XLS_ASSIGN_OR_RETURN(std::optional<int64_t> init_interval_optional,
+                       GetAnnotationWithNonNegativeIntegerParam(
+                           attrs, "hls_pipeline_init_interval", loc, ctx));
+
+  if (init_interval_optional.has_value()) {
+    init_interval = init_interval_optional.value();
+  } else {
+    // Pipelined loops can inherit their initiation interval from enclosing
+    // loops, so they can be allowed not to have a #pragma.
+    CHECK(!context().in_pipelined_for_body ||
+          (context().outer_pipelined_loop_init_interval > 0));
+    init_interval = context().outer_pipelined_loop_init_interval;
+  }
+
   int64_t unroll_factor = context().for_loops_default_unroll
                               ? std::numeric_limits<int64_t>::max()
                               : 0;
-  bool is_asap = false;
-  for (const clang::Attr* attr : attrs) {
-    if (const clang::AnnotateAttr* annotate =
-            llvm::dyn_cast<clang::AnnotateAttr>(attr);
-        annotate != nullptr) {
-      if (annotate->getAnnotation() == "hls_unroll") {
-        if (annotate->args_size() == 0) {
-          unroll_factor = std::numeric_limits<int64_t>::max();
-        } else if (annotate->args_size() > 1) {
-          return absl::InvalidArgumentError(
-              "hls_unroll must have at most one argument");
-        } else if (clang::Expr::EvalResult result;
-                   (*annotate->args().begin())->EvaluateAsInt(result, ctx) &&
-                   result.Val.getInt().isStrictlyPositive() &&
-                   result.Val.getInt().isRepresentableByInt64()) {
-          unroll_factor = result.Val.getInt().getExtValue();
-        } else {
-          return absl::InvalidArgumentError(
-              "hls_unroll argument (if provided) must be a positive integer");
-        }
-        continue;
-      }
+  XLS_ASSIGN_OR_RETURN(
+      std::optional<int64_t> unroll_factor_optional,
+      GetAnnotationWithNonNegativeIntegerParam(attrs, "hls_unroll", loc, ctx,
+                                               /*default_value=*/1));
 
-      if (annotate->getAnnotation() == "hls_pipeline_init_interval") {
-        if (annotate->args_size() != 1) {
-          return absl::InvalidArgumentError(
-              "hls_pipeline_init_interval must have exactly one argument");
-        }
-        clang::Expr::EvalResult result;
-        if (!(*annotate->args().begin())->EvaluateAsInt(result, ctx) ||
-            !result.Val.getInt().isStrictlyPositive() ||
-            !result.Val.getInt().isRepresentableByInt64()) {
-          return absl::InvalidArgumentError(
-              "the argument to the 'hls_pipeline_init_interval' attribute must "
-              "be an integer >= 1");
-        }
-        init_interval = result.Val.getInt().getExtValue();
-        continue;
-      }
-
-      if (annotate->getAnnotation() == "xlscc_asap") {
-        is_asap = true;
-      }
-    }
+  if (unroll_factor_optional.has_value()) {
+    unroll_factor = unroll_factor_optional.value();
   }
 
   if (unroll_factor > 0) {
@@ -139,14 +118,6 @@ absl::Status Translator::GenerateIR_Loop(
     }
     return GenerateIR_UnrolledLoop(always_first_iter, init, cond_expr, inc,
                                    body, ctx, loc);
-  }
-
-  // Pipelined loops can inherit their initiation interval from enclosing
-  // loops, so they can be allowed not to have a #pragma.
-  if (init_interval < 0) {
-    CHECK(!context().in_pipelined_for_body ||
-          (context().outer_pipelined_loop_init_interval > 0));
-    init_interval = context().outer_pipelined_loop_init_interval;
   }
 
   if (init_interval <= 0) {

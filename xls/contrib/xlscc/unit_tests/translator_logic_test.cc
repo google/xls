@@ -1928,7 +1928,7 @@ TEST_F(TranslatorLogicTest, ForUnrollBadNumber) {
   EXPECT_THAT(
       SourceToIr(content).status(),
       absl_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                             testing::HasSubstr("must be a positive integer")));
+                             testing::HasSubstr("must be an integer >= 0")));
 }
 
 TEST_F(TranslatorLogicTest, ForNestedUnroll) {

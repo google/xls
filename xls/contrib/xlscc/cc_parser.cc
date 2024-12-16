@@ -720,6 +720,75 @@ static clang::ParsedAttrInfoRegistry::Add<XlsBlockAttrInfo> hls_block(
     "hls_block",
     "Marks a function its own HLS block, below the top in the hierarchy.");
 
+struct XlsControlChannelDepthAttrInfo : public clang::ParsedAttrInfo {
+  XlsControlChannelDepthAttrInfo() {
+    // GNU-style __attribute__(("hls_control_channel_depth")) and C++/C23-style
+    // [[hls_control_channel_depth]] and [[xlscc::hls_control_channel_depth]]
+    // supported.
+    static constexpr Spelling S[] = {
+        {clang::ParsedAttr::AS_GNU, "hls_control_channel_depth"},
+        {clang::ParsedAttr::AS_C23, "hls_control_channel_depth"},
+        {clang::ParsedAttr::AS_CXX11, "hls_control_channel_depth"},
+        {clang::ParsedAttr::AS_CXX11, "xlscc::hls_control_channel_depth"}};
+    Spellings = S;
+    NumArgs = 1;
+  }
+
+  bool diagAppertainsToDecl(clang::Sema& S, const clang::ParsedAttr& Attr,
+                            const clang::Decl* D) const override {
+    // This attribute appertains to functions only.
+    if (!isa<clang::FunctionDecl>(D)) {
+      S.Diag(Attr.getLoc(), clang::diag::warn_attribute_wrong_decl_type_str)
+          << Attr << Attr.isRegularKeywordAttribute() << "functions";
+      return false;
+    }
+    return true;
+  }
+
+  AttrHandling handleDeclAttribute(
+      clang::Sema& S, clang::Decl* D,
+      const clang::ParsedAttr& Attr) const override {
+    clang::Attr* Result;
+    if (!CreateAttr(S, Attr, Result)) {
+      return AttributeNotApplied;
+    }
+    D->addAttr(Result);
+    return AttributeApplied;
+  }
+
+ private:
+  bool CreateAttr(clang::Sema& S, const clang::ParsedAttr& Attr,
+                  clang::Attr*& Result) const {
+    CHECK_EQ(Attr.getNumArgs(), 1);
+
+    auto invalid_argument = [&]() {
+      unsigned ID = S.getDiagnostics().getCustomDiagID(
+          clang::DiagnosticsEngine::Error,
+          "the argument to the 'hls_control_channel_depth' attribute must be "
+          "an integer >= 1");
+      S.Diag(Attr.getLoc(), ID);
+      return false;
+    };
+
+    clang::Expr* args[1];
+    if (!Attr.isArgExpr(0)) {
+      return invalid_argument();
+    }
+    args[0] = Attr.getArgAsExpr(0);
+    if (!args[0]->isIntegerConstantExpr(S.Context) ||
+        !args[0]->EvaluateKnownConstInt(S.Context).isStrictlyPositive()) {
+      return invalid_argument();
+    }
+    Result = clang::AnnotateAttr::Create(S.Context, "hls_control_channel_depth",
+                                         args, /*ArgsSize=*/1, Attr.getRange());
+    return true;
+  }
+};
+static clang::ParsedAttrInfoRegistry::Add<XlsControlChannelDepthAttrInfo>
+    hls_control_channel_depth("hls_control_channel_depth",
+                              "Sets the depth of the control channel FIFO for "
+                              "a sub-block. Default is 0.");
+
 class HlsArgsPragmaHandler : public clang::PragmaHandler {
  public:
   explicit HlsArgsPragmaHandler(const std::string& pragma_name,

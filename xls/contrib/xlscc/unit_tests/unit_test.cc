@@ -57,10 +57,14 @@
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
+#include "xls/interpreter/block_evaluator.h"
+#include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/events.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -71,6 +75,9 @@
 #include "xls/ir/state_element.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/tools/codegen.h"
+#include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/opt.h"
 
 using ::testing::Optional;
 
@@ -375,16 +382,10 @@ static absl::Status LogInterpreterEvents(std::string_view entity_name,
   return absl::OkStatus();
 }
 
-void XlsccTestBase::ProcTest(
+void XlsccTestBase::BuildTestIR(
     std::string_view content, std::optional<xlscc::HLSBlock> block_spec,
-    const absl::flat_hash_map<std::string, std::list<xls::Value>>&
-        inputs_by_channel,
-    const absl::flat_hash_map<std::string, std::list<xls::Value>>&
-        outputs_by_channel,
-    const int min_ticks, const int max_ticks, int top_level_init_interval,
-    const char* top_class_name, absl::Status expected_tick_status,
-    const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
-        expected_events_by_proc_name) {
+    int top_level_init_interval, const char* top_class_name,
+    absl::flat_hash_set<std::string>& direct_in_channels_by_name) {
   std::list<std::string> ir_texts;
   std::string package_text;
 
@@ -430,12 +431,156 @@ void XlsccTestBase::ProcTest(
   LOG(INFO) << "Package IR: ";
   LOG(INFO) << package_text;
 
-  absl::flat_hash_set<std::string> direct_in_channels_by_name;
   for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
     if (ch.type() == xlscc::DIRECT_IN) {
       direct_in_channels_by_name.insert(ch.name());
     }
   }
+}
+
+void XlsccTestBase::BlockTest(
+    std::string_view content, std::string top_proc_name, const int64_t n_cycles,
+    std::optional<xlscc::HLSBlock> block_spec,
+    const absl::flat_hash_map<std::string, std::list<xls::Value>>&
+        inputs_by_channel,
+    const absl::flat_hash_map<std::string, std::list<xls::Value>>&
+        outputs_by_channel,
+    int min_clocks, int max_blocks, int top_level_init_interval,
+    const char* top_class_name, absl::Status expected_tick_status,
+    const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
+        expected_events_by_proc_name) {
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, block_spec, top_level_init_interval, top_class_name,
+              direct_in_channels_by_name);
+
+  // Find direct-ins
+  absl::flat_hash_set<std::string> direct_in_channel_names;
+  for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
+    if (ch.type() != xlscc::DIRECT_IN) {
+      continue;
+    }
+    direct_in_channel_names.insert(ch.name());
+  }
+
+  XLS_ASSERT_OK(
+      xls::tools::OptimizeIrForTop(package_.get(), xls::tools::OptOptions{
+                                                       .top = top_proc_name,
+                                                   }));
+
+  xls::SchedulingOptionsFlagsProto scheduling_options_flags_proto;
+  scheduling_options_flags_proto.set_pipeline_stages(4);
+  scheduling_options_flags_proto.set_delay_model("unit");
+  scheduling_options_flags_proto.set_multi_proc(true);
+
+  const std::string reset_port_name = "rst";
+  const std::string_view channel_ready_suffix = "_rdy";
+  const std::string_view channel_valid_suffix = "_vld";
+
+  xls::CodegenFlagsProto codegen_flags_proto;
+  codegen_flags_proto.set_top(top_proc_name);
+  codegen_flags_proto.set_reset(reset_port_name);
+  codegen_flags_proto.set_register_merge_strategy(
+      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
+  codegen_flags_proto.set_generator(xls::GENERATOR_KIND_PIPELINE);
+  codegen_flags_proto.set_streaming_channel_ready_suffix(channel_ready_suffix);
+  codegen_flags_proto.set_streaming_channel_valid_suffix(channel_valid_suffix);
+
+  XLS_ASSERT_OK(xls::ScheduleAndCodegen(package_.get(),
+                                        scheduling_options_flags_proto,
+                                        codegen_flags_proto,
+                                        /*with_delay_model=*/false)
+                    .status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Block * block,
+                           package_->GetBlock(top_proc_name));
+
+  xls::verilog::ResetProto reset_proto;
+  reset_proto.set_name(reset_port_name);
+
+  absl::flat_hash_map<std::string, xls::Value> default_inputs = {
+      {reset_port_name, xls::Value(xls::UBits(0, 1))}};
+
+  // Set direct-ins
+  for (const std::string& ch_name : direct_in_channel_names) {
+    EXPECT_EQ(inputs_by_channel.at(ch_name).size(), 1);
+    default_inputs[ch_name] = inputs_by_channel.at(ch_name).front();
+  }
+
+  std::vector<absl::flat_hash_map<std::string, xls::Value>> inputs(
+      n_cycles, default_inputs);
+
+  inputs[0][reset_port_name] = xls::Value(xls::UBits(1, 1));
+
+  std::vector<xls::ChannelSource> channel_sources;
+  std::vector<xls::ChannelSink> channel_sinks;
+
+  // Order doesn't matter
+  for (const auto& [ch_name, values] : inputs_by_channel) {
+    if (direct_in_channel_names.contains(ch_name)) {
+      continue;
+    }
+    channel_sources.push_back(xls::ChannelSource(
+        /*data_name=*/ch_name,
+        /*valid_name=*/absl::StrCat(ch_name, channel_valid_suffix),
+        /*ready_name=*/absl::StrCat(ch_name, channel_ready_suffix),
+        /*lambda=*/1.0,
+        /*block=*/block));
+    std::vector<xls::Value> values_vector;
+    for (const xls::Value& value : values) {
+      values_vector.push_back(value);
+    }
+    XLS_ASSERT_OK(
+        channel_sources.back().SetDataSequence(std::move(values_vector)));
+  }
+
+  // Save sink pointers for output check
+  absl::flat_hash_map<std::string, xls::ChannelSink*> channel_sinks_by_name;
+
+  // Order doesn't matter
+  for (const auto& [ch_name, values] : outputs_by_channel) {
+    channel_sinks.push_back(xls::ChannelSink(
+        /*data_name=*/ch_name,
+        /*valid_name=*/absl::StrCat(ch_name, channel_valid_suffix),
+        /*ready_name=*/absl::StrCat(ch_name, channel_ready_suffix),
+        /*lambda=*/1.0,
+        /*block=*/block));
+    channel_sinks_by_name[ch_name] = &channel_sinks.back();
+  }
+
+  XLS_ASSERT_OK(InterpretChannelizedSequentialBlock(
+                    block, absl::MakeSpan(channel_sources),
+                    absl::MakeSpan(channel_sinks), inputs, reset_proto,
+                    /*seed=*/55)
+                    .status());
+
+  for (const auto& [ch_name, ref_values] : outputs_by_channel) {
+    xls::ChannelSink* sink = channel_sinks_by_name.at(ch_name);
+    const absl::Span<const xls::Value>& output_sequence =
+        sink->GetOutputSequence();
+    EXPECT_EQ(output_sequence.size(), ref_values.size());
+    if (output_sequence.size() != ref_values.size()) {
+      continue;
+    }
+    auto ref_value_it = ref_values.begin();
+    for (int i = 0; i < ref_values.size(); ++i, ++ref_value_it) {
+      EXPECT_EQ(output_sequence[i], *ref_value_it);
+    }
+  }
+}
+
+void XlsccTestBase::ProcTest(
+    std::string_view content, std::optional<xlscc::HLSBlock> block_spec,
+    const absl::flat_hash_map<std::string, std::list<xls::Value>>&
+        inputs_by_channel,
+    const absl::flat_hash_map<std::string, std::list<xls::Value>>&
+        outputs_by_channel,
+    const int min_ticks, const int max_ticks, int top_level_init_interval,
+    const char* top_class_name, absl::Status expected_tick_status,
+    const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
+        expected_events_by_proc_name) {
+  absl::flat_hash_set<std::string> direct_in_channels_by_name;
+  BuildTestIR(content, block_spec, top_level_init_interval, top_class_name,
+              direct_in_channels_by_name);
 
   std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 

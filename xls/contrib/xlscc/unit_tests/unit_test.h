@@ -158,6 +158,11 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
     std::string label;
   };
 
+  void BuildTestIR(
+      std::string_view content, std::optional<xlscc::HLSBlock> block_spec,
+      int top_level_init_interval, const char* top_class_name,
+      absl::flat_hash_set<std::string>& direct_in_channels_by_name);
+
   void ProcTest(std::string_view content,
                 std::optional<xlscc::HLSBlock> block_spec,
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
@@ -170,6 +175,19 @@ class XlsccTestBase : public xls::SimTestBase, public ::absl::LogSink {
                 absl::Status expected_tick_status = absl::OkStatus(),
                 const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
                     expected_events_by_proc_name = {});
+
+  void BlockTest(std::string_view content, std::string top_proc_name,
+                 int64_t n_cycles, std::optional<xlscc::HLSBlock> block_spec,
+                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
+                     inputs_by_channel,
+                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
+                     outputs_by_channel,
+                 int min_clocks = 1, int max_blocks = 100,
+                 int top_level_init_interval = 0,
+                 const char* top_class_name = "",
+                 absl::Status expected_tick_status = absl::OkStatus(),
+                 const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
+                     expected_events_by_proc_name = {});
 
   void IOTest(std::string_view content, std::list<IOOpTest> inputs,
               std::list<IOOpTest> outputs,

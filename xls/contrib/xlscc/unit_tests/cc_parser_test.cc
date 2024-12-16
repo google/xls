@@ -1087,4 +1087,28 @@ TEST_F(CCParserTest, DesignTooManyArgs) {
                                      testing::HasSubstr("1 argument")));
 }
 
+TEST_F(CCParserTest, SubBlockChannelDepthWorks) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_design block
+    [[hls_control_channel_depth(33)]]
+    void block_b(__xls_channel<int, __xls_channel_dir_Out>& out,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int b = xfer.read();
+      out.write(b * 10);
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"block_b"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  ExpectAnnotateWithoutArgs(top_ptr->getAttrs(), "hls_block");
+
+  ExpectAnnotateWithIntegerArg(top_ptr->getAttrs(), "hls_control_channel_depth",
+                               /*arg_expected=*/33);
+}
+
 }  // namespace

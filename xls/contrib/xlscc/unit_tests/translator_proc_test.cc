@@ -9110,6 +9110,73 @@ TEST_P(TranslatorProcTest, MultiBlockMultipleChannelCombos) {
                              testing::HasSubstr("only 1 supported")));
 }
 
+TEST_P(TranslatorProcTest, MultiBlockIRSim) {
+  const std::string content = R"(
+    #pragma hls_design block
+    [[hls_control_channel_depth(1)]]
+    void block_a(const int& swreg,
+                 __xls_channel<int, __xls_channel_dir_In>& in,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int a = in.read();
+      xfer.write(swreg + a + 1);
+    }
+
+    #pragma hls_design block
+    [[hls_control_channel_depth(1)]]
+    void block_b(const int& swreg,
+                 __xls_channel<int, __xls_channel_dir_Out>& out,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int b = xfer.read();
+      out.write(swreg + b * 10);
+    }
+
+    #pragma hls_top
+    void foo(int& swreg,
+             __xls_channel<int, __xls_channel_dir_In>& in,
+             __xls_channel<int, __xls_channel_dir_Out>& out) {
+      static __xls_channel<int, __xls_channel_dir_InOut> xfer;
+      block_b(swreg, out, xfer);
+      block_a(swreg, in, xfer);
+    }
+  )";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(FIFO);
+
+    HLSChannel* swreg_in = block_spec.add_channels();
+    swreg_in->set_name("swreg");
+    swreg_in->set_is_input(true);
+    swreg_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                    xls::Value(xls::SBits(100, 32))};
+
+    inputs["swreg"] = {xls::Value(xls::SBits(0, 32))};
+
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits((80 + 1) * 10, 32)),
+                      xls::Value(xls::SBits((100 + 1) * 10, 32))};
+
+    BlockTest(content,
+              /*top_proc_name=*/"foo_proc",
+              /*n_cycles=*/10, block_spec, inputs, outputs);
+  }
+}
+
 }  // namespace
 
 }  // namespace xlscc

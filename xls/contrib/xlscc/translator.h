@@ -41,6 +41,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/ASTContext.h"
+#include "clang/include/clang/AST/Attr.h"
+#include "clang/include/clang/AST/Attrs.inc"
 #include "clang/include/clang/AST/ComputeDependence.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
@@ -1929,10 +1931,11 @@ class Translator {
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_Loop(
       bool always_first_iter, const clang::Stmt* loop_stmt,
-      clang::ArrayRef<const clang::Attr*> attrs, const clang::Stmt* init,
-      const clang::Expr* cond_expr, const clang::Stmt* inc,
-      const clang::Stmt* body, const clang::PresumedLoc& presumed_loc,
-      const xls::SourceInfo& loc, clang::ASTContext& ctx);
+      clang::ArrayRef<const clang::AnnotateAttr*> attrs,
+      const clang::Stmt* init, const clang::Expr* cond_expr,
+      const clang::Stmt* inc, const clang::Stmt* body,
+      const clang::PresumedLoc& presumed_loc, const xls::SourceInfo& loc,
+      clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_UnrolledLoop(bool always_first_iter,
@@ -2290,7 +2293,30 @@ class Translator {
   clang::PresumedLoc GetPresumedLoc(const clang::Stmt& stmt);
   clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
 
+  std::vector<const clang::AnnotateAttr*> GetClangAnnotations(
+      const clang::Decl& decl);
+
+  // May update stmt pointer to un-annotated statement
+  std::vector<const clang::AnnotateAttr*> GetClangAnnotations(
+      const clang::Stmt*& stmt);
+
   bool DeclHasAnnotation(const clang::NamedDecl& decl, std::string_view name);
+  bool HasAnnotation(clang::ArrayRef<const clang::AnnotateAttr*> attrs,
+                     std::string_view name);
+
+  // Returns std::nullopt if the annotation is not found
+  // If default_value is specified, then the parameter is optional
+  absl::StatusOr<std::optional<int64_t>>
+  GetAnnotationWithNonNegativeIntegerParam(
+      const clang::Decl& decl, std::string_view name,
+      const xls::SourceInfo& loc,
+      std::optional<int64_t> default_value = std::nullopt);
+
+  absl::StatusOr<std::optional<int64_t>>
+  GetAnnotationWithNonNegativeIntegerParam(
+      clang::ArrayRef<const clang::AnnotateAttr*> attrs, std::string_view name,
+      const xls::SourceInfo& loc, clang::ASTContext& ctx,
+      std::optional<int64_t> default_value = std::nullopt);
 
   absl::StatusOr<xls::solvers::z3::IrTranslator*> GetZ3Translator(
       xls::FunctionBase* func) ABSL_ATTRIBUTE_LIFETIME_BOUND;

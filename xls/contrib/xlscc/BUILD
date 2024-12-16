@@ -139,6 +139,7 @@ cc_library(
         "//xls/ir:value_utils",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:btree",
