@@ -379,9 +379,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
     } else {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
-          absl::StrCat("An invocation callee must be either a name reference "
-                       "or a colon reference; instead got: ",
-                       AstNodeKindToString(callee->kind())),
+          "An invocation callee must be a function, with a possible scope "
+          "indicated using `::` or `.` in the case of an instance method",
           ctx->file_table());
     }
     return fn;

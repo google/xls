@@ -282,6 +282,58 @@ fn point_dims() -> u16 {
                HasSubstr("Expected 1 parameter(s) but got 0 arguments.")));
 }
 
+TEST(TypecheckErrorTest, ImplFunctionCalledOnSelf) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(p: Point) -> u32 {
+        p.x * p.y
+    }
+}
+
+fn point_dims() -> u16 {
+    let y = Point { x: u32:1, y: u32:4 };
+    uN[y.area()]:0
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected 1 parameter(s) but got 0 arguments.")));
+}
+
+TEST(TypecheckErrorTest, ImplMethodNotDefined) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point { }
+
+fn point_dims() -> u16 {
+    let y = Point { x: u32:1, y: u32:4 };
+    uN[y.area()]:0
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("An invocation callee must be a function, "
+                                 "with a possible scope")));
+}
+
+TEST(TypecheckErrorTest, ImplMethodCalledOnInt) {
+  constexpr std::string_view kProgram = R"(
+fn point_dims() -> u16 {
+    let y = u32:1;
+    uN[y.area()]:0
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr(
+                   "Cannot invoke method `area` on non-struct type `uN[32]`")));
+}
+
 TEST(TypecheckTest, ImplFunctionUsingStructMembersAndArg) {
   constexpr std::string_view kProgram = R"(
 struct Point { x: u32, y: u32 }

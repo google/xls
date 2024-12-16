@@ -840,8 +840,8 @@ fn f(x: u8) -> u8 { 42(x) }
   EXPECT_THAT(
       Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("invocation callee must be either a name reference or "
-                         "a colon reference; instead got: number")));
+               HasSubstr("invocation callee must be a function, with a "
+                         "possible scope indicated using `::` or `.`")));
 }
 
 // Since the parametric is not instantiated we don't detect this type error.
@@ -3160,8 +3160,8 @@ fn main() -> u32 {
   EXPECT_THAT(
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("An invocation callee must be either a name reference "
-                         "or a colon reference")));
+               HasSubstr("An invocation callee must be a function, with a "
+                         "possible scope")));
 }
 
 // See https://github.com/google/xls/issues/1540#issuecomment-2297711953

@@ -701,7 +701,13 @@ absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
   if (!type.has_value()) {
     return std::nullopt;
   }
-  XLS_RET_CHECK((*type)->IsStruct());
+  if (!(*type)->IsStruct()) {
+    return TypeInferenceErrorStatus(
+        attr->span(), nullptr,
+        absl::StrFormat("Cannot invoke method `%s` on non-struct type `%s`",
+                        attr->attr(), (*type)->ToString()),
+        type_info->file_table());
+  }
   StructDef sd = (*type)->AsStruct().nominal_type();
   return sd.GetImplFunction(attr->attr());
 }
