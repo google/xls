@@ -55,6 +55,9 @@ absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
 absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
     Module& module, const Number& number);
 
+// Creates a type annotation for the unit tuple, `()`.
+TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span);
+
 // Acts like `dynamic_cast<const ArrayTypeAnnotation*>(annotation)` but only
 // succeeds if the annotation is for a true array, as opposed to a bits-like
 // type expressed as an array (e.g. `uN` or `xN`).

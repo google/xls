@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -129,6 +130,11 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
       return CreateUnOrSnAnnotation(module, number.span(), sign,
                                     magnitude.bit_count() + (sign ? 1 : 0));
   }
+}
+
+TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span) {
+  return module.Make<TupleTypeAnnotation>(
+      span, /*members=*/std::vector<TypeAnnotation*>{});
 }
 
 const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(

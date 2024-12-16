@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
@@ -25,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -210,6 +212,74 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleFunction(const Function* node) {
+    // Create a variable for the function return type, and use it to unify the
+    // formal and actual return type. Eventually, we should create the notion of
+    // "function type" annotations, and use them here instead of annotating the
+    // function with just the return type. However, until we have constructs
+    // like lambdas, that would be overkill.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* type_variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<Function*>(node),
+                                      GenerateInternalTypeVariableName(node)));
+    const TypeAnnotation* return_type = GetReturnType(*node);
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->body(), type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, return_type));
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleStatementBlock(const StatementBlock* node) {
+    // A statement block may have a type variable imposed at a higher level of
+    // the tree. For example, in
+    //     `const X = { statement0; ...; statementN }`
+    // or
+    //     `fn foo() -> u32 { statement0; ...; statementN }`
+    //
+    // we will have imposed a type variable on the statement block upon hitting
+    // the `ConstantDef` or `Function`. In such cases, we need to propagate the
+    // statement block's type variable to `statementN`, if it is an `Expr`, in
+    // order for unification to ensure that it's producing the expected type.
+    std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
+    if (!node->trailing_semi() && !node->statements().empty() &&
+        variable.has_value()) {
+      const Statement* last_statement =
+          node->statements()[node->statements().size() - 1];
+      if (std::holds_alternative<Expr*>(last_statement->wrapped())) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(
+            std::get<Expr*>(last_statement->wrapped()), *variable));
+      }
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleInvocation(const Invocation* node) {
+    if (const auto& name_ref = dynamic_cast<const NameRef*>(node->callee());
+        name_ref != nullptr &&
+        std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+      const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
+      if (const auto* fn = dynamic_cast<Function*>(def->definer())) {
+        if (fn->IsParametric()) {
+          return absl::UnimplementedError(
+              "Type inference version 2 is a work in progress and does not yet "
+              "support parametric functions.");
+        } else {
+          return HandleNonParametricInvocation(node, *fn);
+        }
+      } else {
+        return TypeInferenceErrorStatus(
+            node->callee()->span(), nullptr,
+            absl::Substitute("Invocation callee `$0` is not a function",
+                             node->callee()->ToString()),
+            file_table_);
+      }
+    }
+    return absl::UnimplementedError(
+        "Type inference version 2 is a work in progress and only supports "
+        "invoking free functions in the same module so far.");
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
@@ -223,6 +293,59 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
+  // Helper that handles invocation nodes calling non-parametric functions.
+  absl::Status HandleNonParametricInvocation(const Invocation* node,
+                                             const Function& fn) {
+    // When we come in here with an example like:
+    //   let x: u32 = foo(a, b);
+    //
+    // the table will look like this before descent into this function:
+    //   Node               Annotation             Variable
+    //   --------------------------------------------------
+    //   x                  u32                    T0
+    //   foo(a, b)                                 T0
+    //
+    // and this function will make it look like this:
+    //   Node               Annotation             Variable
+    //   --------------------------------------------------
+    //   x                  u32                    T0
+    //   foo(a, b)          formal ret type        T0
+    //   a                  formal arg0 type       T1
+    //   b                  formal arg1 type       T2
+    //
+    // Recursive descent will attach the types of the actual arg exprs to `T1`
+    // and `T2`. Unification at the end will ensure that the LHS (`x` in this
+    // example) agrees with the formal return type, and that each actual
+    // argument type matches the formal argument type.
+
+    // The argument count must be correct in order to do anything else.
+    if (node->args().size() != fn.params().size()) {
+      return ArgCountMismatchErrorStatus(
+          node->span(),
+          absl::Substitute("Expected $0 argument(s) but got $1.",
+                           fn.params().size(), node->args().size()),
+          file_table_);
+    }
+
+    const TypeAnnotation* return_type = GetReturnType(fn);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, return_type));
+    for (int i = 0; i < node->args().size(); i++) {
+      const Expr* actual_param = node->args()[i];
+      const Param* formal_param = fn.params()[i];
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* arg_type_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(actual_param),
+              GenerateInternalTypeVariableName(formal_param, actual_param)));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(actual_param, arg_type_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          actual_param, formal_param->type_annotation()));
+      XLS_RETURN_IF_ERROR(actual_param->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
   // Generates a name for an internal inference variable that will be used as
   // the type for the given node. The name is only relevant for traceability.
   template <typename T>
@@ -242,13 +365,19 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return absl::StrCat("internal_type_array_element_at_",
                         node->span().ToString(file_table_));
   }
+  // Variant for an actual function argument.
+  std::string GenerateInternalTypeVariableName(const Param* formal_param,
+                                               const Expr* actual_arg) {
+    return absl::StrCat("internal_type_actual_arg_", formal_param->identifier(),
+                        "_at_", actual_arg->span().ToString(file_table_));
+  }
 
   // Propagates the type from the def for `ref`, to `ref` itself in the
   // inference table. This may result in a `TypeAnnotation` being added to the
   // table, but never a variable. If the type of the def is governed by a
   // variable, then `ref` will get a `TypeVariableTypeAnnotation`. This allows
-  // the caller to assign a variable to `ref` which unifies it with its context,
-  // while also carrying the type information over from its def.
+  // the caller to assign a variable to `ref` which unifies it with its
+  // context, while also carrying the type information over from its def.
   template <typename T>
   absl::Status PropagateDefToRef(const T* ref) {
     const AstNode* def;
@@ -268,6 +397,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       return table_.SetTypeAnnotation(ref, *annotation);
     }
     return absl::OkStatus();
+  }
+
+  // Returns the explicit or implied return type of `fn`.
+  const TypeAnnotation* GetReturnType(const Function& fn) {
+    return fn.return_type() != nullptr
+               ? fn.return_type()
+               : CreateUnitTupleAnnotation(module_, fn.span());
   }
 
   Module& module_;

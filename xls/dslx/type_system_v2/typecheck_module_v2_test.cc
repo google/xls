@@ -25,6 +25,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -59,6 +60,46 @@ MATCHER_P(TopNodeHasType, expected, "") {
       *type_info_string, result_listener);
   if (!matched) {
     *result_listener << "Type info: " << *type_info_string;
+  }
+  return matched;
+}
+
+// Verifies that a failed `TypecheckV2` status message indicates a type mismatch
+// between the given two types in string format.
+MATCHER_P2(HasTypeMismatch, type1, type2, "") {
+  return ExplainMatchResult(ContainsRegex(absl::Substitute(
+                                "type mismatch.*$0.* vs. $1",
+                                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
+                            arg, result_listener);
+}
+
+// Verifies that a failed `TypecheckV2` status message indicates a size mismatch
+// between the given two types in string format.
+MATCHER_P2(HasSizeMismatch, type1, type2, "") {
+  return ExplainMatchResult(ContainsRegex(absl::Substitute(
+                                "size mismatch.*$0.* vs. $1",
+                                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
+                            arg, result_listener);
+}
+
+// Verifies that a failed `TypecheckV2` status message indicates a signedness
+// mismatch between the given two types in string format.
+MATCHER_P2(HasSignednessMismatch, type1, type2, "") {
+  return ExplainMatchResult(ContainsRegex(absl::Substitute(
+                                "signed vs. unsigned mismatch.*$0.* vs. $1",
+                                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
+                            arg, result_listener);
+}
+
+// Verifies that the `TypecheckV2` output contains a one-line statement block
+// with the given type.
+MATCHER_P2(HasOneLineBlockWithType, expected_line, expected_type, "") {
+  bool matched = ExplainMatchResult(
+      HasSubstr(absl::Substitute("node: `{\n    $0\n}`, type: $1",
+                                 expected_line, expected_type)),
+      arg, result_listener);
+  if (!matched) {
+    *result_listener << "Type info: " << arg;
   }
   return matched;
 }
@@ -99,8 +140,7 @@ TEST(TypecheckV2Test, GlobalIntegerConstantWithSameTypeAnnotationOnBothSides) {
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithSignednessConflictFails) {
   EXPECT_THAT("const X: s24 = u24:3;",
-              TypecheckFails(
-                  ContainsRegex("signed vs. unsigned mismatch.*u24.*vs. s24")));
+              TypecheckFails(HasSignednessMismatch("u24", "s24")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsAnotherConstant) {
@@ -132,8 +172,7 @@ TEST(TypecheckV2Test, GlobalIntegerConstantWithNegativeAutoLiteral) {
 TEST(TypecheckV2Test,
      GlobalIntegerConstantUnsignedWithNegativeAutoLiteralFails) {
   EXPECT_THAT("const X = u32:2 + -3;",
-              TypecheckFails(ContainsRegex(
-                  R"(signed vs. unsigned mismatch.*sN\[3\].*vs. u32)")));
+              TypecheckFails(HasSignednessMismatch("sN[3]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantsAndLiterals) {
@@ -308,8 +347,7 @@ TEST(TypecheckV2Test, GlobalIntegerConstantRefWithSignednessConflictFails) {
 const X:u32 = 3;
 const Y:s32 = X;
 )",
-              TypecheckFails(ContainsRegex(
-                  R"(signed vs. unsigned mismatch.*uN\[32\].*vs. s32)")));
+              TypecheckFails(HasSignednessMismatch("uN[32]", "s32")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithTwoLevelsOfReferences) {
@@ -343,21 +381,19 @@ TEST(TypecheckV2Test, GlobalBoolConstantWithSameTypeAnnotationOnBothSides) {
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantAssignedToIntegerFails) {
-  EXPECT_THAT(
-      "const X: bool = 50;",
-      TypecheckFails(ContainsRegex(R"(size mismatch.*uN\[6\].*vs. bool)")));
+  EXPECT_THAT("const X: bool = 50;",
+              TypecheckFails(HasSizeMismatch("uN[6]", "bool")));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantWithSignednessConflictFails) {
   EXPECT_THAT("const X: s2 = bool:false;",
-              TypecheckFails(
-                  ContainsRegex("signed vs. unsigned mismatch.*bool.*vs. s2")));
+              TypecheckFails(HasSignednessMismatch("bool", "s2")));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantWithBitCountConflictFails) {
   // We don't allow this with bool literals, even though it fits.
   EXPECT_THAT("const X: u2 = true;",
-              TypecheckFails(ContainsRegex("size mismatch.*bool.*vs. u2")));
+              TypecheckFails(HasSizeMismatch("bool", "u2")));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsAnotherConstant) {
@@ -377,7 +413,7 @@ TEST(TypecheckV2Test, GlobalIntegerConstantEqualsBoolConstantFails) {
 const X = true;
 const Y: u32 = X;
 )",
-              TypecheckFails(ContainsRegex(R"(size mismatch.*bool.*vs. u32)")));
+              TypecheckFails(HasSizeMismatch("bool", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfBoolsFails) {
@@ -386,7 +422,7 @@ const X = true;
 const Y = true;
 const Z: u32 = X + Y;
 )",
-              TypecheckFails(ContainsRegex(R"(size mismatch.*bool.*vs. u32)")));
+              TypecheckFails(HasSizeMismatch("bool", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsIntegerConstantFails) {
@@ -394,7 +430,7 @@ TEST(TypecheckV2Test, GlobalBoolConstantEqualsIntegerConstantFails) {
 const X = u32:4;
 const Y: bool = X;
 )",
-              TypecheckFails(ContainsRegex(R"(size mismatch.*u32.*vs. bool)")));
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithAnnotatedIntegerLiterals) {
@@ -408,8 +444,7 @@ TEST(TypecheckV2Test, GlobalTupleConstantAnnotatedWithBareIntegerLiterals) {
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithIntegerAnnotationFails) {
   EXPECT_THAT("const X: u32 = (1, 2);",
-              TypecheckFails(ContainsRegex(
-                  R"(type mismatch.*\(uN\[1\], uN\[2\]\).* vs. u32)")));
+              TypecheckFails(HasTypeMismatch("(uN[1], uN[2])", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTuple) {
@@ -419,14 +454,12 @@ TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTuple) {
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeViolationFails) {
   EXPECT_THAT("const X: (u32, (u24, u32)) = (1, (-3, 2));",
-              TypecheckFails(ContainsRegex(
-                  R"(signed vs. unsigned mismatch: sN\[3\] .*vs. u24)")));
+              TypecheckFails(HasSignednessMismatch("sN[3]", "u24")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeConflict) {
   EXPECT_THAT("const X: (u32, (u24, u32)) = (1, (s24:3, 2));",
-              TypecheckFails(ContainsRegex(
-                  "signed vs. unsigned mismatch: s24 .*vs. u24")));
+              TypecheckFails(HasSignednessMismatch("s24", "u24")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantReferencingIntegerConstant) {
@@ -474,26 +507,22 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithTuples) {
 
 TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithTooSmallSizeFails) {
   EXPECT_THAT("const X: u32[2] = [1, 2, 3];",
-              TypecheckFails(ContainsRegex(
-                  R"(type mismatch.*uN\[2\]\[3\].* vs. u32\[2\])")));
+              TypecheckFails(HasTypeMismatch("uN[2][3]", "u32[2]")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithIntegerAnnotationFails) {
   EXPECT_THAT("const X: u32 = [1, 2];",
-              TypecheckFails(
-                  ContainsRegex(R"(type mismatch.*uN\[2\]\[2\].* vs. u32)")));
+              TypecheckFails(HasTypeMismatch("uN[2][2]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithTypeViolation) {
   EXPECT_THAT("const X: u32[2] = [-3, -2];",
-              TypecheckFails(ContainsRegex(
-                  R"(signed vs. unsigned mismatch: sN\[3\] .*vs. u32)")));
+              TypecheckFails(HasSignednessMismatch("sN[3]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithTypeConflict) {
   EXPECT_THAT("const X: u32[2] = [s24:1, s24:2];",
-              TypecheckFails(ContainsRegex(
-                  R"(signed vs. unsigned mismatch: sN\[24\] .*vs. u32)")));
+              TypecheckFails(HasSignednessMismatch("sN[24]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantReferencingIntegerConstant) {
@@ -520,8 +549,7 @@ const Y = [X, X];
 
 TEST(TypecheckV2Test, GlobalArrayConstantCombiningArrayAndIntegerFails) {
   EXPECT_THAT("const X = [u32:3, [u32:4, u32:5]];",
-              TypecheckFails(
-                  ContainsRegex(R"(type mismatch.*uN\[32\]\[2\].* vs. u32)")));
+              TypecheckFails(HasTypeMismatch("uN[32][2]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsis) {
@@ -554,6 +582,274 @@ TEST(TypecheckV2Test, GlobalArrayConstantEmptyWithoutAnnotationFails) {
 
 TEST(TypecheckV2Test, GlobalArrayConstantEmptyWithAnnotation) {
   EXPECT_THAT("const X: u32[0] = [];", TopNodeHasType("uN[32][0]"));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningNothing) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo() { () }
+const Y = foo();
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("()", "()"),
+                    HasSubstr("node: `const Y = foo();`, type: ()")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningUnitTupleExplicitly) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo() -> () { () }
+const Y = foo();
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("()", "()"),
+                    HasSubstr("node: `const Y = foo();`, type: ()")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningInteger) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo() -> u32 { 3 }
+const Y = foo();
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("3", "uN[32]"),
+                    HasSubstr("node: `const Y = foo();`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningBool) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo() -> bool { true }
+const Y = foo();
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("true", "uN[1]"),
+                    HasSubstr("node: `const Y = foo();`, type: uN[1]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo() -> s8[3] { [1, 2, 3] }
+const Y = foo();
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("[1, 2, 3]", "sN[8][3]"),
+                    HasSubstr("node: `const Y = foo();`, type: sN[8][3]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningTuple) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo() -> (s8, (u32, u24)) { (1, (2, 3)) }
+const Y = foo();
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasOneLineBlockWithType("(1, (2, 3))", "(sN[8], (uN[32], uN[24]))"),
+            HasSubstr(
+                "node: `const Y = foo();`, type: (sN[8], (uN[32], uN[24]))")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningFunctionCall) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn bar() -> s32 { 123 }
+fn foo() -> s32 { bar() }
+const Y = foo();
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("123", "sN[32]"),
+                    HasOneLineBlockWithType("bar()", "sN[32]"),
+                    HasSubstr("node: `const Y = foo();`, type: sN[32]")));
+}
+
+TEST(TypecheckV2Test, FunctionReturningMismatchingIntegerAutoTypeFails) {
+  EXPECT_THAT(R"(
+fn foo() -> u4 { 65536 }
+const Y = foo();
+)",
+              TypecheckFails(HasSizeMismatch("uN[17]", "u4")));
+}
+
+TEST(TypecheckV2Test, FunctionReturningTooLargeExplicitTypeFails) {
+  EXPECT_THAT(R"(
+const X = u32:65536;
+fn foo() -> u4 { X }
+const Y = foo();
+)",
+              TypecheckFails(HasSizeMismatch("u32", "u4")));
+}
+
+TEST(TypecheckV2Test, FunctionReturningIntegerWithWrongSignednessFails) {
+  EXPECT_THAT(R"(
+const X = s32:65536;
+fn foo() -> u32 { X }
+const Y = foo();
+)",
+              TypecheckFails(HasSignednessMismatch("s32", "u32")));
+}
+
+TEST(TypecheckV2Test, FunctionReturningArrayWithIntegerReturnTypeFails) {
+  EXPECT_THAT(R"(
+const X = [s32:1, s32:2, s32:3];
+fn foo() -> s32 { X }
+const Y = foo();
+)",
+              TypecheckFails(HasTypeMismatch("sN[32][3]", "s32")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningPassedInInteger) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo(a: u32) -> u32 { a }
+const Y = foo(4);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("a", "uN[32]"),
+                    HasSubstr("node: `const Y = foo(4);`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningPassedInTuple) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo(a: (u32, s4)) -> (u32, s4) { a }
+const Y = foo((4, -1));
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(
+          HasOneLineBlockWithType("a", "(uN[32], sN[4])"),
+          HasSubstr("node: `const Y = foo((4, -1));`, type: (uN[32], sN[4])")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningPassedInArray) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo(a: u32[2]) -> u32[2] { a }
+const Y = foo([4, 5]);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasOneLineBlockWithType("a", "uN[32][2]"),
+            HasSubstr("node: `const Y = foo([4, 5]);`, type: uN[32][2]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallReturningSumOfPassedInIntegers) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo(a: u32, b: u32) -> u32 { a + b }
+const Y = foo(4, 5);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("a + b", "uN[32]"),
+                    HasSubstr("node: `const Y = foo(4, 5);`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInFunctionCalls) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo(a: u32, b: u32) -> u32 { a + b }
+const Y = foo(foo(3, 2), foo(4, 5));
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasOneLineBlockWithType("a + b", "uN[32]"),
+            HasSubstr(
+                "node: `const Y = foo(foo(3, 2), foo(4, 5));`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInSum) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X: u32 = 4;
+const Z: u32 = 5;
+fn foo(a: u32) -> u32 { a }
+const Y = foo(X + Z);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasOneLineBlockWithType("a", "uN[32]"),
+                    HasSubstr("node: `const Y = foo(X + Z);`, type: uN[32]")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInTooManyArgumentsFails) {
+  EXPECT_THAT(R"(
+fn foo(a: u4) -> u4 { a }
+const Y:u32 = foo(1, 2);
+)",
+              TypecheckFails(HasSubstr("Expected 1 argument(s) but got 2.")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInTooFewArgumentsFails) {
+  EXPECT_THAT(R"(
+fn foo(a: u4, b: u4) -> u4 { a + b }
+const Y:u32 = foo(1);
+)",
+              TypecheckFails(HasSubstr("Expected 2 argument(s) but got 1.")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInTooLargeAutoSizeFails) {
+  EXPECT_THAT(R"(
+fn foo(a: u4) -> u32 { a }
+const Y = foo(32767);
+)",
+              TypecheckFails(HasSizeMismatch("uN[15]", "u4")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInTooLargeExplicitIntegerSizeFails) {
+  EXPECT_THAT(R"(
+const X:u32 = 1;
+fn foo(a: u4) -> u32 { a }
+const Y = foo(X);
+)",
+              TypecheckFails(HasSizeMismatch("uN[32]", "u4")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInWrongSignednessFails) {
+  EXPECT_THAT(R"(
+const X:u32 = 1;
+fn foo(a: s32) -> s32 { a }
+const Y = foo(X);
+)",
+              TypecheckFails(HasSignednessMismatch("uN[32]", "s32")));
+}
+
+TEST(TypecheckV2Test, FunctionCallPassingInArrayForIntegerFails) {
+  EXPECT_THAT(R"(
+fn foo(a: u4) -> u32 { a }
+const Y = foo([u32:1, u32:2]);
+)",
+              TypecheckFails(HasTypeMismatch("uN[32][2]", "u4")));
+}
+
+TEST(TypecheckV2Test, FunctionCallMismatchingLhsTypeFails) {
+  EXPECT_THAT(R"(
+fn foo(a: u4) -> u4 { a }
+const Y:u32 = foo(1);
+)",
+              TypecheckFails(HasSizeMismatch("u4", "u32")));
+}
+
+TEST(TypecheckV2Test, FunctionCallToNonFunctionFails) {
+  EXPECT_THAT(R"(
+const X = u32:4;
+const Y = X(1);
+)",
+              TypecheckFails(HasSubstr("callee `X` is not a function")));
 }
 
 }  // namespace
