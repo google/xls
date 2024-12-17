@@ -1,4 +1,4 @@
-// RUN: xls_translate --mlir-xls-to-xls %s --main-function=identity
+// RUN: xls_translate --mlir-xls-to-xls %s --main-function=identity | FileCheck --check-prefix=XLS %s
 // This just currently verifies a successful translate. The main function
 // doesn't matter as all are exported, one just set as top.
 
@@ -282,16 +282,19 @@ func.func @constant_scalar() -> i7 {
 
 xls.chan @mychan : i32
 
-// XLS-LABEL: proc eproc({{.*}: bits[32], {{.*}}: (bits[32], bits[1]), {{.*}}: bits[32]}, {{.*}}: bits[16])
-// XLS:  next
+// XLS-LABEL: proc eproc({{.*}}: bits[32], {{.*}}: (bits[32], bits[1]), {{.*}}: bits[1], {{.*}}: (bits[1], bits[8], bits[7]), init={
 xls.eproc @eproc(%arg0: i32 loc("a"), %arg1: tuple<i32, i1> loc("b"),
     %arg2: i1 loc("pred"), %arg3: bf16 loc("fp")) zeroinitializer {
+  // XLS: [[literal:[^ ]*]]: bits[32] = literal(value=6
   %0 = "xls.constant_scalar"() { value = 6 : i32 } : () -> i32
   %tkn1 = "xls.after_all"() : () -> !xls.token
   %tkn_out, %result = xls.blocking_receive %tkn1, @mychan : i32
   %tkn2 = xls.send %tkn_out, %0, @mychan : i32
   %tkn_out2, %result2, %done = xls.nonblocking_receive %tkn2, %arg2, @mychan : i32
-  // CHECK: next_value(param=a, value=a, predicate=pred
-  %2 = xls.next_value [%arg2, %arg0] : (i32) -> i32
+  // XLS: [[not_pred:[^ ]*]]: bits[1] = not(
+  %not_pred = xls.not %arg2 : i1
+  // XLS: next_value(param=a, value=a, predicate=pred
+  // XLS: next_value(param=a, value=[[literal]], predicate=[[not_pred]]
+  %2 = xls.next_value [%arg2, %arg0], [%not_pred, %0] : (i32, i32) -> i32
   xls.yield %2, %arg1, %arg2, %arg3 : i32, tuple<i32, i1>, i1, bf16
 }
