@@ -927,8 +927,7 @@ DocRef Fmt(const ChannelDecl& n, Comments& comments, DocArena& arena) {
 
 DocRef Fmt(const ColonRef& n, Comments& comments, DocArena& arena) {
   DocRef subject = absl::visit(
-      Visitor{[&](const NameRef* n) { return Fmt(*n, comments, arena); },
-              [&](const ColonRef* n) { return Fmt(*n, comments, arena); }},
+      Visitor{[&](const auto* n) { return Fmt(*n, comments, arena); }},
       n.subject());
 
   return ConcatNGroup(arena, {subject, arena.colon_colon(),

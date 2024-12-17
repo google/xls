@@ -303,6 +303,17 @@ fn main() -> u9 {
 })");
 }
 
+TEST_F(ParserTest, ImplFunctionOnTypeRefAnnotation) {
+  RoundTrip(R"(struct foo<N: u32> {
+}
+impl foo {
+    const CONST = u32:2;
+}
+fn main() -> u32 {
+    foo<u32:2>::CONST
+})");
+}
+
 TEST_F(ParserTest, ImplWithMethodMultipleParams) {
   RoundTrip(R"(struct foo {
     a: bits[9],

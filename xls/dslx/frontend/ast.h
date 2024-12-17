@@ -1454,7 +1454,7 @@ class Use : public AstNode {
 // Then the ColonRef `some_mod::SomeEnum` is the LHS.
 class ColonRef : public Expr {
  public:
-  using Subject = std::variant<NameRef*, ColonRef*>;
+  using Subject = std::variant<NameRef*, ColonRef*, TypeRefTypeAnnotation*>;
 
   ColonRef(Module* owner, Span span, Subject subject, std::string attr,
            bool in_parens = false);

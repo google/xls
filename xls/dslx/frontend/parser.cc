@@ -1018,6 +1018,16 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstanceOrToken(
 
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
                        ParseTypeAnnotation(bindings, tok));
+
+  // After parsing the type, check again for `peek_is_double_colon` to catch
+  // accessing impl members of parametric structs (e.g.,
+  // `MyStruct<u32:5>::SOME_CONSTANT`).
+  XLS_ASSIGN_OR_RETURN(peek_is_double_colon,
+                       PeekTokenIs(TokenKind::kDoubleColon));
+  auto* type_ref = dynamic_cast<TypeRefTypeAnnotation*>(type);
+  if (type_ref != nullptr && peek_is_double_colon) {
+    return ParseColonRef(bindings, type_ref, type->span());
+  }
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
   if (peek_is_obrace) {
     return ParseStructInstance(bindings, type);

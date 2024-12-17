@@ -84,10 +84,12 @@ class DfsIteratorNoTypes {
 
 static AnyNameDef GetSubjectNameDef(const ColonRef::Subject& subject) {
   return absl::visit(
-      Visitor{
-          [](NameRef* n) { return n->name_def(); },
-          [](ColonRef* n) { return GetSubjectNameDef(n->subject()); },
-      },
+      Visitor{[](NameRef* n) { return n->name_def(); },
+              [](ColonRef* n) { return GetSubjectNameDef(n->subject()); },
+              [](TypeRefTypeAnnotation* n) {
+                return TypeDefinitionGetNameDef(
+                    n->type_ref()->type_definition());
+              }},
       subject);
 }
 

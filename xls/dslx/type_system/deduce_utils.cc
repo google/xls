@@ -366,12 +366,15 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
   VLOG(5) << absl::StreamFormat("ResolveColonRefSubject for `%s`",
                                 colon_ref->ToString());
 
+  if (std::holds_alternative<TypeRefTypeAnnotation*>(colon_ref->subject())) {
+    return std::get<TypeRefTypeAnnotation*>(colon_ref->subject());
+  }
+
   // If the subject is a name reference we use a helper routine.
   if (std::holds_alternative<NameRef*>(colon_ref->subject())) {
     NameRef* name_ref = std::get<NameRef*>(colon_ref->subject());
     return ResolveColonRefNameRefSubject(name_ref, import_data, type_info);
   }
-
   XLS_RET_CHECK(std::holds_alternative<ColonRef*>(colon_ref->subject()));
   ColonRef* subject = std::get<ColonRef*>(colon_ref->subject());
   XLS_ASSIGN_OR_RETURN(
