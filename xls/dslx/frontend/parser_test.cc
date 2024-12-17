@@ -1675,6 +1675,16 @@ fn main() -> u32 {
 })");
 }
 
+TEST_F(ParserTest, UseCollidesWithImport) {
+  constexpr std::string_view kProgram = "use foo; import foo;";
+  absl::StatusOr<std::unique_ptr<Module>> module = Parse(kProgram);
+  EXPECT_THAT(
+      module.status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Import of `foo` is shadowing an existing definition")));
+}
+
 TEST_F(ParserTest, UseWithPeersAtTopLevelNotAllowed) {
   constexpr std::string_view kProgram = "use {foo, bar};";
   absl::StatusOr<std::unique_ptr<Module>> module = Parse(kProgram);
