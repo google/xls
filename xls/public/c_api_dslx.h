@@ -129,6 +129,8 @@ struct xls_dslx_type_alias* xls_dslx_module_get_type_definition_as_type_alias(
 
 struct xls_dslx_colon_ref* xls_dslx_type_defintion_get_colon_ref(
     struct xls_dslx_type_definition*);
+struct xls_dslx_type_alias* xls_dslx_type_definition_get_type_alias(
+    struct xls_dslx_type_definition*);
 
 // -- constant_def
 

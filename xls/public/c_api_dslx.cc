@@ -372,6 +372,16 @@ struct xls_dslx_colon_ref* xls_dslx_type_definition_get_colon_ref(
   return nullptr;
 }
 
+struct xls_dslx_type_alias* xls_dslx_type_definition_get_type_alias(
+    struct xls_dslx_type_definition* n) {
+  auto* cpp = reinterpret_cast<xls::dslx::TypeDefinition*>(n);
+  if (std::holds_alternative<xls::dslx::TypeAlias*>(*cpp)) {
+    auto* type_alias = std::get<xls::dslx::TypeAlias*>(*cpp);
+    return reinterpret_cast<xls_dslx_type_alias*>(type_alias);
+  }
+  return nullptr;
+}
+
 // -- import
 
 int64_t xls_dslx_import_get_subject_count(struct xls_dslx_import* n) {
