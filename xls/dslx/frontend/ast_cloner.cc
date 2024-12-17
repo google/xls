@@ -23,6 +23,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -356,8 +357,9 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleFunction(const Function* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    auto uncast_new_name_def = old_to_new_.at(n->name_def());
-    NameDef* new_name_def = down_cast<NameDef*>(uncast_new_name_def);
+    XLS_ASSIGN_OR_RETURN(
+        NameDef * new_name_def,
+        CastIfNotVerbatim<NameDef*>(old_to_new_.at(n->name_def())));
 
     std::vector<ParametricBinding*> new_parametric_bindings;
     new_parametric_bindings.reserve(n->parametric_bindings().size());
@@ -378,10 +380,12 @@ class AstCloner : public AstNodeVisitor {
       new_return_type =
           down_cast<TypeAnnotation*>(old_to_new_.at(n->return_type()));
     }
+    XLS_ASSIGN_OR_RETURN(
+        StatementBlock * new_body,
+        CastIfNotVerbatim<StatementBlock*>(old_to_new_.at(n->body())));
     auto new_function = module_->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
-        new_return_type, down_cast<StatementBlock*>(old_to_new_.at(n->body())),
-        n->tag(), n->is_public());
+        new_return_type, new_body, n->tag(), n->is_public());
     if (n->extern_verilog_module().has_value()) {
       new_function->set_extern_verilog_module(*n->extern_verilog_module());
     }
@@ -631,6 +635,10 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleProc(const Proc* n) override {
+    if (old_to_new_.contains(n)) {
+      // If we've already cloned this proc, just return it.
+      return absl::OkStatus();
+    }
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     std::vector<ParametricBinding*> new_parametric_bindings;
@@ -742,6 +750,17 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  // If the node is a VerbatimNode, returns an error; otherwise, casts to the
+  // template type.
+  template <typename T>
+  static absl::StatusOr<T> CastIfNotVerbatim(AstNode* node) {
+    if (auto* verbatim_node = dynamic_cast<VerbatimNode*>(node)) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Cannot disable formatting here yet: ", verbatim_node->text()));
+    }
+    return down_cast<T>(node);
+  }
+
   // Helper function to clone a node of type `T` where `T` is a concrete
   // subclass of `StructDefBase`.
   template <typename T>
@@ -751,16 +770,20 @@ class AstCloner : public AstNodeVisitor {
     std::vector<ParametricBinding*> new_parametric_bindings;
     new_parametric_bindings.reserve(n->parametric_bindings().size());
     for (const auto* pb : n->parametric_bindings()) {
-      new_parametric_bindings.push_back(
-          down_cast<ParametricBinding*>(old_to_new_.at(pb)));
+      XLS_ASSIGN_OR_RETURN(
+          ParametricBinding * new_pb,
+          CastIfNotVerbatim<ParametricBinding*>(old_to_new_.at(pb)));
+      new_parametric_bindings.push_back(new_pb);
     }
 
     std::vector<StructMember> new_members;
     for (const StructMember& member : n->members()) {
-      new_members.push_back(StructMember{
-          .name_span = member.name_span,
-          .name = member.name,
-          .type = down_cast<TypeAnnotation*>(old_to_new_.at(member.type))});
+      XLS_ASSIGN_OR_RETURN(
+          TypeAnnotation * new_type,
+          CastIfNotVerbatim<TypeAnnotation*>(old_to_new_.at(member.type)));
+      new_members.push_back(StructMember{.name_span = member.name_span,
+                                         .name = member.name,
+                                         .type = new_type});
     }
 
     auto* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));

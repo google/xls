@@ -1239,7 +1239,9 @@ class ModuleFmtTest : public testing::Test {
           /*opportunistic_postcondition=*/false);
   }
 
-  void AutoFmtExpectsError(std::string input, std::string_view error_substr) {
+  void AutoFmtExpectsError(
+      std::string input, std::string_view error_substr,
+      absl::StatusCode code = absl::StatusCode::kInternal) {
     std::vector<CommentData> comments_vec;
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Module> m,
@@ -1247,7 +1249,7 @@ class ModuleFmtTest : public testing::Test {
     Comments comments = Comments::Create(comments_vec);
     AllErrorsFilesystem vfs;
     EXPECT_THAT(AutoFmt(vfs, *m, comments, input, kDslxDefaultTextWidth),
-                StatusIs(absl::StatusCode::kInternal, HasSubstr(error_substr)));
+                StatusIs(code, HasSubstr(error_substr)));
   }
 
  private:
@@ -3153,6 +3155,51 @@ TEST_F(ModuleFmtTest, BinopWithMultipleCommentsBeforeAndAfterOpWithNewlines) {
     // after op second line
     // after op third line
     u32:2;
+)");
+}
+
+// TODO: https://github.com/google/xls/issues/1756 - we don't support disabling
+// formatting in the middle of a struct definition yet, but at least it doesn't
+// crash.
+TEST_F(ModuleFmtTest, DisableFmtInStructDefDisallowed_GH1756) {
+  AutoFmtExpectsError(R"(
+  struct Point {
+    // dslx-fmt::off
+x  :   u32,
+    // dslx-fmt::on
+    y: u32,
+    }
+    )",
+                      "Cannot disable", absl::StatusCode::kInvalidArgument);
+}
+
+// TODO: https://github.com/google/xls/issues/1760 - we don't support disabling
+// formatting in this situation yet, but at least it doesn't crash.
+TEST_F(ModuleFmtTest, DisableFmtAroundTestFnDisallowed_GH1760) {
+  AutoFmtExpectsError(R"(#[test]
+// dslx-fmt::off
+fn test() {
+}
+// dslx-fmt::on
+)",
+                      "Cannot disable", absl::StatusCode::kInvalidArgument);
+}
+
+TEST_F(ModuleFmtTest, DisableFmtAroundStatementBlockDisallowed_GH1760) {
+  // Cannot disable just the statement block of a function.
+  AutoFmtExpectsError(R"(fn test()
+// dslx-fmt::off
+{}
+// dslx-fmt::on
+)",
+                      "Cannot disable", absl::StatusCode::kInvalidArgument);
+}
+
+// You *can* completely disable formatting around a test function.
+TEST_F(ModuleFmtTest, DisableFmtAroundTestFn) {
+  DoFmt(R"(// dslx-fmt::off
+#[test] fn test() { }
+// dslx-fmt::on
 )");
 }
 
