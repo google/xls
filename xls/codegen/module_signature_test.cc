@@ -23,6 +23,7 @@
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/proto_test_utils.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -41,6 +42,8 @@ using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Property;
+using ::xls::proto_testing::EqualsProto;
+using ::xls::proto_testing::Partially;
 
 namespace m = ::xls::op_matchers;
 
@@ -202,9 +205,10 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetTupleType({p.GetBitsType(32)}),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      /*channel_config=*/
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       streaming_in_metadata);
 
   ChannelMetadataProto streaming_out_metadata;
@@ -212,8 +216,8 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   block_port_mapping->set_block_name(TestName());
   block_port_mapping->set_data_port_name("streaming_out_data");
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
-                        FlowControl::kNone, p.GetBitsType(32),
-                        /*fifo_config=*/std::nullopt, streaming_out_metadata);
+                        FlowControl::kNone, p.GetBitsType(32), ChannelConfig(),
+                        streaming_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -229,7 +233,8 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
             CHANNEL_FLOW_CONTROL_READY_VALID);
   EXPECT_THAT(p.GetTypeFromProto(signature.streaming_channels().at(0).type()),
               IsOkAndHolds(p.GetTupleType({p.GetBitsType(32)})));
-  EXPECT_EQ(signature.streaming_channels().at(0).fifo_config().depth(), 42);
+  EXPECT_EQ(
+      signature.streaming_channels().at(0).channel_config().fifo().depth(), 42);
   EXPECT_THAT(
       signature.streaming_channels().at(0).metadata().block_ports(),
       ElementsAre(AllOf(
@@ -248,7 +253,8 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
             CHANNEL_FLOW_CONTROL_NONE);
   EXPECT_THAT(p.GetTypeFromProto(signature.streaming_channels().at(1).type()),
               IsOkAndHolds(p.GetBitsType(32)));
-  EXPECT_FALSE(signature.streaming_channels().at(1).has_fifo_config());
+  EXPECT_FALSE(
+      signature.streaming_channels().at(1).channel_config().has_fifo());
   EXPECT_THAT(
       signature.streaming_channels().at(1).metadata().block_ports(),
       ElementsAre(
@@ -277,9 +283,10 @@ TEST(ModuleSignatureTest, GetByName) {
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      /*channel_config=*/
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       streaming_in_metadata);
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
@@ -344,9 +351,10 @@ TEST(ModuleSignatureTest, GetChannels) {
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      /*channel_config=*/
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       streaming_in_metadata);
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
@@ -389,9 +397,10 @@ TEST(ModuleSignatureTest, GetChannelNameWith) {
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      /*channel_config=*/
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       streaming_in_metadata);
 
   b.AddDataOutputAsBits("single_val_out_port", 64);
@@ -442,9 +451,10 @@ TEST(ModuleSignatureTest, RemoveChannel) {
   b.AddStreamingChannel(
       "streaming_in", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(24),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      /*channel_config=*/
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       streaming_in_metadata);
 
   ChannelMetadataProto streaming_out_metadata;
@@ -452,8 +462,8 @@ TEST(ModuleSignatureTest, RemoveChannel) {
   block_port_mapping->set_block_name(TestName());
   block_port_mapping->set_data_port_name("streaming_out_data");
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
-                        FlowControl::kNone, p.GetBitsType(24),
-                        /*fifo_config=*/std::nullopt, streaming_out_metadata);
+                        FlowControl::kNone, p.GetBitsType(24), ChannelConfig(),
+                        streaming_out_metadata);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -655,20 +665,21 @@ TEST(ModuleSignatureTest, FifoInstantiation) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       StreamingChannel * loopback_channel,
-      p.CreateStreamingChannel("loopback_channel", ChannelOps::kSendReceive,
-                               p.GetTupleType({p.GetBitsType(32)}),
-                               /*initial_values=*/{},
-                               /*fifo_config=*/
-                               FifoConfig(/*depth=*/10, /*bypass=*/false,
-                                          /*register_push_outputs=*/true,
-                                          /*register_pop_outputs=*/false),
-                               /*flow_control=*/FlowControl::kReadyValid));
+      p.CreateStreamingChannel(
+          "loopback_channel", ChannelOps::kSendReceive,
+          p.GetTupleType({p.GetBitsType(32)}),
+          /*initial_values=*/{},
+          /*channel_config=*/
+          ChannelConfig(FifoConfig(/*depth=*/10, /*bypass=*/false,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false)),
+          /*flow_control=*/FlowControl::kReadyValid));
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
   b.AddFifoInstantiation(&p, "fifo_inst", "loopback_channel",
                          loopback_channel->type(),
-                         *loopback_channel->fifo_config());
+                         *loopback_channel->channel_config().fifo_config());
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -683,6 +694,80 @@ TEST(ModuleSignatureTest, FifoInstantiation) {
   EXPECT_EQ(inst.fifo_config().bypass(), false);
   EXPECT_THAT(p.GetTypeFromProto(inst.type()),
               IsOkAndHolds(m::Type("(bits[32])")));
+}
+
+TEST(ModuleSignatureTest, CustomChannelConfig) {
+  Package p(TestName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * loopback_channel,
+      p.CreateStreamingChannel(
+          "loopback_channel", ChannelOps::kSendReceive,
+          p.GetTupleType({p.GetBitsType(32)}),
+          /*initial_values=*/{},
+          /*channel_config=*/
+          ChannelConfig(FifoConfig(/*depth=*/10, /*bypass=*/false,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false),
+                        /*input_flop_kind=*/FlopKind::kFlop,
+                        /*output_flop_kind=*/FlopKind::kSkid),
+          /*flow_control=*/FlowControl::kReadyValid));
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddFifoInstantiation(&p, "fifo_inst", "loopback_channel",
+                         loopback_channel->type(),
+                         *loopback_channel->channel_config().fifo_config());
+
+  ChannelMetadataProto metadata;
+  auto ports = metadata.add_block_ports();
+  ports->set_block_name(TestName());
+  ports->set_data_port_name("loopback_channel_data");
+  ports->set_ready_port_name("loopback_channel_rdy");
+  ports->set_valid_port_name("loopback_channel_vld");
+  b.AddStreamingChannel(
+      loopback_channel->name(), loopback_channel->supported_ops(),
+      loopback_channel->GetFlowControl(), loopback_channel->type(),
+      loopback_channel->channel_config(), metadata);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  RecordProperty("sig", signature.AsTextProto());
+  EXPECT_THAT(signature.proto(), Partially(EqualsProto(R"pb(
+                data_channels {
+                  name: "loopback_channel"
+                  kind: CHANNEL_KIND_STREAMING
+                  supported_ops: CHANNEL_OPS_SEND_RECEIVE
+                  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+                  type {}
+                  metadata {}
+                  channel_config {
+                    fifo {
+                      width: 32
+                      depth: 10
+                      bypass: false
+                      register_push_outputs: true
+                      register_pop_outputs: false
+                    }
+                    flop_inputs: FLOP_KIND_FLOP
+                    flop_outputs: FLOP_KIND_SKID
+                  }
+                }
+                instantiations {
+                  fifo_instantiation {
+                    instance_name: "fifo_inst"
+                    channel_name: "loopback_channel"
+                    fifo_config {
+                      width: 32
+                      depth: 10
+                      bypass: false
+                      register_push_outputs: true
+                      register_pop_outputs: false
+                    }
+                    type {}
+                  }
+                }
+              )pb")));
 }
 
 }  // namespace

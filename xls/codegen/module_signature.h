@@ -103,7 +103,7 @@ class ModuleSignatureBuilder {
   // Add a streaming channel to the interface.
   ModuleSignatureBuilder& AddStreamingChannel(
       std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-      Type* type, std::optional<FifoConfig> fifo_config,
+      Type* type, ChannelConfig channel_config,
       const ChannelMetadataProto& metadata);
 
   struct NameAndType {

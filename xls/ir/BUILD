@@ -1615,6 +1615,7 @@ cc_library(
         ":value",
         ":value_utils",
         "//xls/common:casts",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

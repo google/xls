@@ -2381,6 +2381,8 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
   std::optional<bool> bypass;
   std::optional<bool> register_push_outputs;
   std::optional<bool> register_pop_outputs;
+  std::optional<FlopKind> input_flop_kind;
+  std::optional<FlopKind> output_flop_kind;
 
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
@@ -2511,6 +2513,18 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
     XLS_ASSIGN_OR_RETURN(register_push_outputs, token_to_bool(token));
     return absl::OkStatus();
   };
+  handlers["input_flop_kind"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    XLS_ASSIGN_OR_RETURN(input_flop_kind, StringToFlopKind(token.value()));
+    return absl::OkStatus();
+  };
+  handlers["output_flop_kind"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    XLS_ASSIGN_OR_RETURN(output_flop_kind, StringToFlopKind(token.value()));
+    return absl::OkStatus();
+  };
   handlers["register_pop_outputs"] = [&]() -> absl::Status {
     XLS_ASSIGN_OR_RETURN(Token token,
                          scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
@@ -2552,16 +2566,18 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
             /*register_push_outputs=*/register_push_outputs.value_or(false),
             /*register_pop_outputs=*/register_pop_outputs.value_or(false));
       }
+      ChannelConfig channel_config(fifo_config, input_flop_kind,
+                                   output_flop_kind);
       if (proc == nullptr) {
         return package->CreateStreamingChannel(
             channel_name.value(), *supported_ops, type, initial_values,
-            fifo_config, flow_control.value_or(FlowControl::kNone),
+            channel_config, flow_control.value_or(FlowControl::kNone),
             strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
             *metadata, id);
       }
       return package->CreateStreamingChannelInProc(
           channel_name.value(), *supported_ops, type, proc, initial_values,
-          fifo_config, flow_control.value_or(FlowControl::kNone),
+          channel_config, flow_control.value_or(FlowControl::kNone),
           strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
           *metadata, id);
     }

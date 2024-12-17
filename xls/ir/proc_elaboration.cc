@@ -263,7 +263,7 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
           std::make_unique<StreamingChannel>(
               channel_ref->name(), channel_id, ops, channel_ref->type(),
               /*intial_values=*/absl::Span<const Value>(),
-              /*fifo_config=*/std::nullopt,
+              /*channel_config=*/ChannelConfig(),
               /*flow_control=*/FlowControl::kReadyValid,
               /*strictness=*/
               channel_ref->strictness().value_or(kDefaultChannelStrictness),

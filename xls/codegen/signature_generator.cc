@@ -116,7 +116,8 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
         b.AddStreamingChannel(
             ch->name(), ch->supported_ops(),
             down_cast<const StreamingChannel*>(ch)->GetFlowControl(),
-            ch->type(), down_cast<const StreamingChannel*>(ch)->fifo_config(),
+            ch->type(),
+            down_cast<const StreamingChannel*>(ch)->channel_config(),
             ch->metadata());
         break;
       case ChannelKind::kSingleValue:

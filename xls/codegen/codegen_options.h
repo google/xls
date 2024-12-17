@@ -29,6 +29,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/ram_configuration.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
 #include "xls/ir/xls_ir_interface.pb.h"
@@ -70,6 +71,18 @@ class CodegenOptions {
         return 0;
       default:
         return 9999;
+    }
+  }
+
+  // TODO(allight): Merge these two enums.
+  static FlopKind IOKindToFlopKind(IOKind k) {
+    switch (k) {
+      case IOKind::kFlop:
+        return FlopKind::kFlop;
+      case IOKind::kSkidBuffer:
+        return FlopKind::kSkid;
+      case IOKind::kZeroLatencyBuffer:
+        return FlopKind::kZeroLatency;
     }
   }
 

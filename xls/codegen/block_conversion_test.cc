@@ -46,6 +46,7 @@
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
@@ -58,6 +59,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/clone_package.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
@@ -65,6 +67,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
@@ -2561,6 +2564,339 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kSkidBuffer,
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiInputPipelinedProcTestSweepFixture::PrintToStringParamName);
+
+class SpecificIoKindsTest : public ProcConversionTestFixture,
+                            public testing::WithParamInterface<FlopKind> {};
+TEST_P(SpecificIoKindsTest, InputChannelSpecificFlopKindsRespected) {
+  // Compile once with a specific override for the channel and once with the
+  // default set and compare outputs.
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan, p->CreateStreamingChannel(
+                     "input_chan", ChannelOps::kReceiveOnly, p->GetBitsType(32),
+                     /*initial_values=*/{},
+                     ChannelConfig(/*fifo_config=*/std::nullopt,
+                                   /*input_flop_kind=*/GetParam(),
+                                   /*output_flop_kind=*/std::nullopt)));
+  BValue recv =
+      pb.Receive(chan, pb.Literal(Value::Token()), SourceInfo(), "recv");
+  pb.Trace(pb.TupleIndex(recv, 0), pb.Literal(UBits(1, 1)),
+           {pb.TupleIndex(recv, 1)}, "val {}");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  // Make a copy without any channel config.
+  XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
+  down_cast<StreamingChannel*>(p2->channels().front())
+      ->channel_config(ChannelConfig());
+
+  CodegenOptions test_options;
+  test_options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  test_options.valid_control("input_valid", "output_valid");
+  test_options.reset("rst_n", false, /*active_low=*/false, false);
+  test_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  CodegenOptions oracle_options;
+  oracle_options.flop_outputs(false).clock_name("clk");
+  oracle_options.valid_control("input_valid", "output_valid");
+  oracle_options.reset("rst_n", false, /*active_low=*/false, false);
+  switch (GetParam()) {
+    case FlopKind::kNone:
+      oracle_options.flop_inputs(false);
+      break;
+    case FlopKind::kFlop:
+      oracle_options.flop_inputs(true).flop_inputs_kind(
+          CodegenOptions::IOKind::kFlop);
+      break;
+    case FlopKind::kSkid:
+      oracle_options.flop_inputs(true).flop_inputs_kind(
+          CodegenOptions::IOKind::kSkidBuffer);
+      break;
+    case FlopKind::kZeroLatency:
+      oracle_options.flop_inputs(true).flop_inputs_kind(
+          CodegenOptions::IOKind::kZeroLatencyBuffer);
+      break;
+  }
+  oracle_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule test_schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(
+      FunctionBaseToPipelinedBlock(test_schedule, test_options, proc));
+
+  Proc* oracle_proc = p2->procs().front().get();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule oracle_schedule,
+      RunPipelineSchedule(oracle_proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(FunctionBaseToPipelinedBlock(oracle_schedule, oracle_options,
+                                             oracle_proc));
+
+  EXPECT_EQ(p->blocks().front()->DumpIr(), p2->blocks().front()->DumpIr());
+}
+TEST_P(SpecificIoKindsTest, InputChannelDefaultFlopKindsChange) {
+  // Compile once with a specific override for the channel and once with the
+  // default set and compare outputs.
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan, p->CreateStreamingChannel(
+                     "input_chan", ChannelOps::kReceiveOnly, p->GetBitsType(32),
+                     /*initial_values=*/{},
+                     ChannelConfig(/*fifo_config=*/std::nullopt,
+                                   /*input_flop_kind=*/GetParam(),
+                                   /*output_flop_kind=*/std::nullopt)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan2,
+      p->CreateStreamingChannel(
+          "input_chan2", ChannelOps::kReceiveOnly, p->GetBitsType(32),
+          /*initial_values=*/{},
+          ChannelConfig(/*fifo_config=*/std::nullopt,
+                        /*input_flop_kind=*/std::nullopt,
+                        /*output_flop_kind=*/std::nullopt)));
+  BValue recv =
+      pb.Receive(chan, pb.Literal(Value::Token()), SourceInfo(), "recv");
+  BValue recv2 =
+      pb.Receive(chan2, pb.Literal(Value::Token()), SourceInfo(), "recv2");
+  pb.Trace(pb.TupleIndex(recv, 0), pb.Literal(UBits(1, 1)),
+           {pb.TupleIndex(recv, 1)}, "val {}");
+  pb.Trace(pb.TupleIndex(recv2, 0), pb.Literal(UBits(1, 1)),
+           {pb.TupleIndex(recv2, 1)}, "val2 {}");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  // Make a copy without any channel config.
+  XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
+  down_cast<StreamingChannel*>(p2->channels().front())
+      ->channel_config(ChannelConfig());
+
+  CodegenOptions test_options;
+  test_options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  test_options.valid_control("input_valid", "output_valid");
+  test_options.reset("rst_n", false, /*active_low=*/false, false);
+  test_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  CodegenOptions oracle_options;
+  oracle_options.flop_outputs(false).clock_name("clk");
+  oracle_options.valid_control("input_valid", "output_valid");
+  oracle_options.reset("rst_n", false, /*active_low=*/false, false);
+  switch (GetParam()) {
+    case FlopKind::kNone:
+      oracle_options.flop_inputs(false);
+      test_options.flop_inputs(true).flop_inputs_kind(
+          CodegenOptions::IOKind::kSkidBuffer);
+      break;
+    case FlopKind::kFlop:
+      oracle_options.flop_inputs(true).flop_inputs_kind(
+          CodegenOptions::IOKind::kFlop);
+      break;
+    case FlopKind::kSkid:
+      oracle_options.flop_inputs(true).flop_inputs_kind(
+          CodegenOptions::IOKind::kSkidBuffer);
+      break;
+    case FlopKind::kZeroLatency:
+      oracle_options.flop_inputs(true).flop_inputs_kind(
+          CodegenOptions::IOKind::kZeroLatencyBuffer);
+      break;
+  }
+  oracle_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule test_schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(
+      FunctionBaseToPipelinedBlock(test_schedule, test_options, proc));
+
+  Proc* oracle_proc = p2->procs().front().get();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule oracle_schedule,
+      RunPipelineSchedule(oracle_proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(FunctionBaseToPipelinedBlock(oracle_schedule, oracle_options,
+                                             oracle_proc));
+
+  // Make sure that only the single block is changed.
+  EXPECT_NE(p->blocks().front()->DumpIr(), p2->blocks().front()->DumpIr());
+}
+TEST_P(SpecificIoKindsTest, OutputChannelSpecificFlopKindsRespected) {
+  // Compile once with a specific override for the channel and once with the
+  // default set and compare outputs.
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto in_chan,
+      p->CreateStreamingChannel("input_chan", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan, p->CreateStreamingChannel(
+                     "output_chan", ChannelOps::kSendOnly, p->GetBitsType(32),
+                     /*initial_values=*/{},
+                     ChannelConfig(/*fifo_config=*/std::nullopt,
+                                   /*input_flop_kind=*/std::nullopt,
+                                   /*output_flop_kind=*/GetParam())));
+  BValue recv =
+      pb.Receive(in_chan, pb.Literal(Value::Token()), SourceInfo(), "recv");
+  pb.Send(chan, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1), SourceInfo(),
+          "snd");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  // Make a copy without any channel config.
+  XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
+  for (auto* chan : p2->channels()) {
+    down_cast<StreamingChannel*>(chan)->channel_config(ChannelConfig());
+  }
+
+  CodegenOptions test_options;
+  test_options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  test_options.valid_control("input_valid", "output_valid");
+  test_options.reset("rst_n", false, /*active_low=*/false, false);
+  test_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  CodegenOptions oracle_options;
+  oracle_options.flop_inputs(false).clock_name("clk");
+  oracle_options.valid_control("input_valid", "output_valid");
+  oracle_options.reset("rst_n", false, /*active_low=*/false, false);
+  switch (GetParam()) {
+    case FlopKind::kNone:
+      oracle_options.flop_outputs(false);
+      break;
+    case FlopKind::kFlop:
+      oracle_options.flop_outputs(true).flop_outputs_kind(
+          CodegenOptions::IOKind::kFlop);
+      break;
+    case FlopKind::kSkid:
+      oracle_options.flop_outputs(true).flop_outputs_kind(
+          CodegenOptions::IOKind::kSkidBuffer);
+      break;
+    case FlopKind::kZeroLatency:
+      oracle_options.flop_outputs(true).flop_outputs_kind(
+          CodegenOptions::IOKind::kZeroLatencyBuffer);
+      break;
+  }
+  oracle_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule test_schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(
+      FunctionBaseToPipelinedBlock(test_schedule, test_options, proc));
+
+  Proc* oracle_proc = p2->procs().front().get();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule oracle_schedule,
+      RunPipelineSchedule(oracle_proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(FunctionBaseToPipelinedBlock(oracle_schedule, oracle_options,
+                                             oracle_proc));
+
+  EXPECT_EQ(p->blocks().front()->DumpIr(), p2->blocks().front()->DumpIr());
+}
+TEST_P(SpecificIoKindsTest, OutputChannelDefaultFlopKindsChange) {
+  // Compile once with a specific override for the channel and once with the
+  // default set and compare outputs.
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto in_chan,
+      p->CreateStreamingChannel("input_chan", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan, p->CreateStreamingChannel(
+                     "output_chan", ChannelOps::kSendOnly, p->GetBitsType(32),
+                     /*initial_values=*/{},
+                     ChannelConfig(/*fifo_config=*/std::nullopt,
+                                   /*input_flop_kind=*/std::nullopt,
+                                   /*output_flop_kind=*/GetParam())));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto chan2, p->CreateStreamingChannel(
+                      "output_chan2", ChannelOps::kSendOnly, p->GetBitsType(32),
+                      /*initial_values=*/{},
+                      ChannelConfig(/*fifo_config=*/std::nullopt,
+                                    /*input_flop_kind=*/std::nullopt,
+                                    /*output_flop_kind=*/std::nullopt)));
+  BValue recv =
+      pb.Receive(in_chan, pb.Literal(Value::Token()), SourceInfo(), "recv");
+  pb.Send(chan, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1), SourceInfo(),
+          "snd");
+  pb.Send(chan2, pb.TupleIndex(recv, 0), pb.TupleIndex(recv, 1), SourceInfo(),
+          "snd2");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  // Make a copy without any channel config.
+  XLS_ASSERT_OK_AND_ASSIGN(auto p2, ClonePackage(p.get()));
+  for (auto* chan : p2->channels()) {
+    down_cast<StreamingChannel*>(chan)->channel_config(ChannelConfig());
+  }
+
+  CodegenOptions test_options;
+  test_options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  test_options.valid_control("input_valid", "output_valid");
+  test_options.reset("rst_n", false, /*active_low=*/false, false);
+  test_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  CodegenOptions oracle_options;
+  oracle_options.flop_inputs(false).clock_name("clk");
+  oracle_options.valid_control("input_valid", "output_valid");
+  oracle_options.reset("rst_n", false, /*active_low=*/false, false);
+  switch (GetParam()) {
+    case FlopKind::kNone:
+      oracle_options.flop_outputs(false);
+      test_options.flop_outputs(true).flop_outputs_kind(
+          CodegenOptions::IOKind::kFlop);
+      break;
+    case FlopKind::kFlop:
+      oracle_options.flop_outputs(true).flop_outputs_kind(
+          CodegenOptions::IOKind::kFlop);
+      break;
+    case FlopKind::kSkid:
+      oracle_options.flop_outputs(true).flop_outputs_kind(
+          CodegenOptions::IOKind::kSkidBuffer);
+      break;
+    case FlopKind::kZeroLatency:
+      oracle_options.flop_outputs(true).flop_outputs_kind(
+          CodegenOptions::IOKind::kZeroLatencyBuffer);
+      break;
+  }
+  oracle_options.module_name(absl::StrCat(TestName(), "_block"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule test_schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(
+      FunctionBaseToPipelinedBlock(test_schedule, test_options, proc));
+
+  Proc* oracle_proc = p2->procs().front().get();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule oracle_schedule,
+      RunPipelineSchedule(oracle_proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(1).add_constraint(
+                              RecvsFirstSendsLastConstraint())));
+
+  XLS_ASSERT_OK(FunctionBaseToPipelinedBlock(oracle_schedule, oracle_options,
+                                             oracle_proc));
+
+  EXPECT_NE(p->blocks().front()->DumpIr(), p2->blocks().front()->DumpIr());
+}
+
+INSTANTIATE_TEST_SUITE_P(SpecificIoKindsTest, SpecificIoKindsTest,
+                         testing::Values(FlopKind::kFlop, FlopKind::kSkid,
+                                         FlopKind::kZeroLatency,
+                                         FlopKind::kNone),
+                         testing::PrintToStringParamName());
 
 TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
   int64_t stage_count = 4;

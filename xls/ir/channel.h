@@ -29,6 +29,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.pb.h"
@@ -49,6 +50,7 @@ enum class ChannelKind : uint8_t {
   kSingleValue,
 };
 
+// Configuration of the actual fifo underlying a streaming channel.
 class FifoConfig {
  public:
   constexpr FifoConfig(int64_t depth, bool bypass, bool register_push_outputs,
@@ -67,6 +69,8 @@ class FifoConfig {
   bool operator<=>(const FifoConfig& other) const = default;
 
   static absl::StatusOr<FifoConfig> FromProto(const FifoConfigProto& proto);
+  // Serialize this config as a proto. Width is the actual bit-size of the
+  // values held in this fifo.
   FifoConfigProto ToProto(int64_t width) const;
 
   std::string ToString() const;
@@ -83,6 +87,95 @@ class FifoConfig {
   bool bypass_;
   bool register_push_outputs_;
   bool register_pop_outputs_;
+};
+
+enum class FlopKind : int8_t {
+  // The input/output is not flopped and is directly connected by wires.
+  kNone,
+  // Adds a pipeline stage at the beginning or end of the channel to hold
+  // inputs or outputs. This is essentially a single-element FIFO.
+  kFlop,
+  // Adds a skid buffer at the inputs or outputs of the channel. The skid
+  // buffer can hold 2 entries
+  kSkid,
+  // Adds a zero-latency buffer at the beginning or end of the block. This is
+  // essentially a single-element FIFO with bypass
+  kZeroLatency,
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, FlopKind value) {
+  switch (value) {
+    case FlopKind::kNone:
+      absl::Format(&sink, "none");
+      break;
+    case FlopKind::kFlop:
+      absl::Format(&sink, "flop");
+      break;
+    case FlopKind::kSkid:
+      absl::Format(&sink, "skid");
+      break;
+    case FlopKind::kZeroLatency:
+      absl::Format(&sink, "zero_latency");
+      break;
+  }
+}
+inline std::string FlopKindToString(FlopKind kind) {
+  return absl::StrCat(kind);
+}
+absl::StatusOr<FlopKind> StringToFlopKind(std::string_view str);
+
+// A configuration set for a single channel.
+class ChannelConfig {
+ public:
+  explicit constexpr ChannelConfig(
+      std::optional<FifoConfig> fifo_config = std::nullopt,
+      std::optional<FlopKind> input_flop_kind = std::nullopt,
+      std::optional<FlopKind> output_flop_kind = std::nullopt)
+      : fifo_config_(fifo_config),
+        input_flop_kind_(input_flop_kind),
+        output_flop_kind_(output_flop_kind) {}
+
+  ChannelConfig WithFifoConfig(std::optional<FifoConfig> f) const {
+    return ChannelConfig(f, input_flop_kind_, output_flop_kind_);
+  }
+  const std::optional<FifoConfig>& fifo_config() const { return fifo_config_; }
+
+  ChannelConfig WithInputFlopKind(std::optional<FlopKind> f) const {
+    return ChannelConfig(fifo_config_, f, output_flop_kind_);
+  }
+  std::optional<FlopKind> input_flop_kind() const { return input_flop_kind_; }
+
+  ChannelConfig WithOutputFlopKind(std::optional<FlopKind> f) const {
+    return ChannelConfig(fifo_config_, input_flop_kind_, f);
+  }
+  std::optional<FlopKind> output_flop_kind() const { return output_flop_kind_; }
+
+  bool operator==(const ChannelConfig& other) const = default;
+
+  static absl::StatusOr<ChannelConfig> FromProto(
+      const ChannelConfigProto& proto);
+  // Serialize this config as a proto. Width is the actual bit-size of the
+  // values held in this channel.
+  ChannelConfigProto ToProto(int64_t width) const;
+
+  std::string ToString() const;
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const ChannelConfig& value) {
+    absl::Format(&sink, "%s", value.ToString());
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const ChannelConfig& config) {
+    return H::combine(std::move(h), config.fifo_config_,
+                      config.input_flop_kind_, config.output_flop_kind_);
+  }
+
+ private:
+  std::optional<FifoConfig> fifo_config_;
+  std::optional<FlopKind> input_flop_kind_;
+  std::optional<FlopKind> output_flop_kind_;
 };
 
 std::string ChannelKindToString(ChannelKind kind);
@@ -282,12 +375,12 @@ class StreamingChannel final : public Channel {
  public:
   StreamingChannel(std::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
-                   std::optional<FifoConfig> fifo_config,
-                   FlowControl flow_control, ChannelStrictness strictness,
+                   ChannelConfig channel_config, FlowControl flow_control,
+                   ChannelStrictness strictness,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
                 initial_values, metadata),
-        fifo_config_(fifo_config),
+        channel_config_(std::move(channel_config)),
         flow_control_(flow_control),
         strictness_(strictness) {}
 
@@ -303,14 +396,14 @@ class StreamingChannel final : public Channel {
   }
 
   std::optional<int64_t> GetFifoDepth() const {
-    if (fifo_config_.has_value()) {
-      return fifo_config_->depth();
+    if (channel_config_.fifo_config()) {
+      return channel_config_.fifo_config()->depth();
     }
     return std::nullopt;
   }
 
-  const std::optional<FifoConfig>& fifo_config() const { return fifo_config_; }
-  void fifo_config(FifoConfig value) { fifo_config_ = value; }
+  const ChannelConfig& channel_config() const { return channel_config_; }
+  void channel_config(ChannelConfig value) { channel_config_ = value; }
 
   FlowControl GetFlowControl() const { return flow_control_; }
   void SetFlowControl(FlowControl value) { flow_control_ = value; }
@@ -319,7 +412,7 @@ class StreamingChannel final : public Channel {
   void SetStrictness(ChannelStrictness value) { strictness_ = value; }
 
  private:
-  std::optional<FifoConfig> fifo_config_;
+  ChannelConfig channel_config_;
   FlowControl flow_control_;
   ChannelStrictness strictness_;
 };

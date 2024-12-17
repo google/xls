@@ -24,6 +24,37 @@ message FifoConfigProto {
   optional bool register_pop_outputs = 5;
 }
 
+// Configuration for a single channel.
+message ChannelConfigProto {
+  // Configuration passed to the materialize_fifos_pass or the xls_fifo_wrapper
+  // instantiation to set up the actual verilog fifo backing the channel.
+  //
+  // It is an error to include this for non-streaming channels.
+  optional FifoConfigProto fifo = 1;
+
+  // The kinds of flops a channels input/output may have.
+  enum FlopKind {
+    // Use the default passed by codegen options
+    FLOP_KIND_DEFAULT = 0;
+    // The input/output is not flopped and is directly connected by wires.
+    FLOP_KIND_NONE = 1;
+    // Adds a pipeline stage at the beginning or end of the channel to hold
+    // inputs or outputs. This is essentially a single-element FIFO.
+    FLOP_KIND_FLOP = 2;
+    // Adds a skid buffer at the inputs or outputs of the channel. The skid
+    // buffer can hold 2 entries
+    FLOP_KIND_SKID = 3;
+    // Adds a zero-latency buffer at the beginning or end of the block. This is
+    // essentially a single-element FIFO with bypass
+    FLOP_KIND_ZERO_LATENCY = 4;
+  }
+
+  // Flop to put before all inputs associated with this channel.
+  FlopKind flop_inputs = 2;
+  // Flop to put before all outputs associated with this channel.
+  FlopKind flop_outputs = 3;
+}
+
 // Metadata for a channel which describes ports on a Verilog module.
 message ModulePortProto {
   // Whether the port is flopped on entry (exit) to (from) the module.

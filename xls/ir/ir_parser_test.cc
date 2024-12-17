@@ -687,7 +687,7 @@ TEST(IrParserTest, ParseStreamingChannelWithStrictness) {
             ChannelStrictness::kArbitraryStaticOrder);
 }
 
-TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadata) {
+TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadataNoFlops) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
                            Parser::ParseChannel(
@@ -700,10 +700,48 @@ TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadata) {
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
   ASSERT_EQ(ch->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
-  ASSERT_THAT(down_cast<StreamingChannel*>(ch)->fifo_config(),
+  ASSERT_THAT(down_cast<StreamingChannel*>(ch)->channel_config().fifo_config(),
               Not(Eq(std::nullopt)));
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->depth(), 3);
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->bypass(), false);
+  EXPECT_EQ(
+      down_cast<StreamingChannel*>(ch)->channel_config().fifo_config()->depth(),
+      3);
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)
+                ->channel_config()
+                .fifo_config()
+                ->bypass(),
+            false);
+}
+
+TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadata) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
+                           Parser::ParseChannel(
+                               R"(chan foo(bits[32], id=42, kind=streaming,
+                         flow_control=none, ops=send_receive, fifo_depth=3,
+                         input_flop_kind=skid, output_flop_kind=zero_latency,
+                         bypass=false, metadata=""""""))",
+                               &p));
+  EXPECT_EQ(ch->name(), "foo");
+  EXPECT_EQ(ch->id(), 42);
+  EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
+  ASSERT_EQ(ch->kind(), ChannelKind::kStreaming);
+  EXPECT_EQ(ch->type(), p.GetBitsType(32));
+  ASSERT_THAT(down_cast<StreamingChannel*>(ch)->channel_config().fifo_config(),
+              Not(Eq(std::nullopt)));
+  EXPECT_EQ(
+      down_cast<StreamingChannel*>(ch)->channel_config().fifo_config()->depth(),
+      3);
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)
+                ->channel_config()
+                .fifo_config()
+                ->bypass(),
+            false);
+  EXPECT_EQ(
+      down_cast<StreamingChannel*>(ch)->channel_config().input_flop_kind(),
+      FlopKind::kSkid);
+  EXPECT_EQ(
+      down_cast<StreamingChannel*>(ch)->channel_config().output_flop_kind(),
+      FlopKind::kZeroLatency);
 }
 
 TEST(IrParserTest, ParseStreamingValueChannelWithBlockPortMapping) {

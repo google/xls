@@ -142,7 +142,7 @@ class AdapterBuilder {
 
   // Create a channel for sending to the adapter.
   absl::StatusOr<AdapterInputChannel> AddAdapterInputChannel(
-      std::string_view name, Type* type, const FifoConfig& fifo_config,
+      std::string_view name, Type* type, const ChannelConfig& channel_config,
       std::optional<ChannelStrictness> strictness = std::nullopt) {
     AdapterInputChannel result;
     if (ChannelsAreProcScoped()) {
@@ -152,7 +152,7 @@ class AdapterBuilder {
                            package()->CreateStreamingChannelInProc(
                                uniquified_name, ChannelOps::kSendReceive, type,
                                parent_proc().value(),
-                               /*initial_values=*/{}, fifo_config));
+                               /*initial_values=*/{}, channel_config));
       XLS_ASSIGN_OR_RETURN(result.parent_send_channel_ref,
                            parent_proc().value()->GetSendChannelReference(
                                result.channel->name()));
@@ -170,7 +170,7 @@ class AdapterBuilder {
       XLS_ASSIGN_OR_RETURN(result.channel,
                            package()->CreateStreamingChannel(
                                uniquified_name, ChannelOps::kSendReceive, type,
-                               /*initial_values=*/{}, fifo_config));
+                               /*initial_values=*/{}, channel_config));
       result.parent_send_channel_ref = result.channel;
       result.adapter_receive_channel_ref = result.channel;
     }
@@ -179,7 +179,7 @@ class AdapterBuilder {
 
   // Create a channel for receiving from the adapter.
   absl::StatusOr<AdapterOutputChannel> AddAdapterOutputChannel(
-      std::string_view name, Type* type, const FifoConfig& fifo_config,
+      std::string_view name, Type* type, const ChannelConfig& channel_config,
       std::optional<ChannelStrictness> strictness = std::nullopt) {
     AdapterOutputChannel result;
     if (ChannelsAreProcScoped()) {
@@ -189,7 +189,7 @@ class AdapterBuilder {
                            package()->CreateStreamingChannelInProc(
                                uniquified_name, ChannelOps::kSendReceive, type,
                                parent_proc().value(),
-                               /*initial_values=*/{}, fifo_config));
+                               /*initial_values=*/{}, channel_config));
       XLS_ASSIGN_OR_RETURN(result.parent_receive_channel_ref,
                            parent_proc().value()->GetReceiveChannelReference(
                                result.channel->name()));
@@ -207,7 +207,7 @@ class AdapterBuilder {
       XLS_ASSIGN_OR_RETURN(result.channel,
                            package()->CreateStreamingChannel(
                                uniquified_name, ChannelOps::kSendReceive, type,
-                               /*initial_values=*/{}, fifo_config));
+                               /*initial_values=*/{}, channel_config));
       result.parent_receive_channel_ref = result.channel;
       result.adapter_send_channel_ref = result.channel;
     }
@@ -652,9 +652,9 @@ absl::StatusOr<AdapterInputChannel> MakePredicateChannel(
           // outputs.
           // TODO: github/xls#1509 - revisit this if we have better ways of
           // avoiding cycles in adapters.
-          FifoConfig(/*depth=*/1, /*bypass=*/false,
-                     /*register_push_outputs=*/true,
-                     /*register_pop_outputs=*/false)));
+          ChannelConfig(FifoConfig(/*depth=*/1, /*bypass=*/false,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false))));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
   std::optional<Node*> predicate = operation->predicate();
@@ -711,10 +711,10 @@ absl::StatusOr<AdapterOutputChannel> MakeCompletionChannel(
           // cause cycles when they have timing paths between push and pop.
           // TODO: github/xls#1509 - revisit this if we have better ways of
           // avoiding cycles in adapters.
-          /*fifo_config=*/
-          FifoConfig(/*depth=*/0, /*bypass=*/true,
-                     /*register_push_outputs=*/false,
-                     /*register_pop_outputs=*/false)));
+          /*channel_config=*/
+          ChannelConfig(FifoConfig(/*depth=*/0, /*bypass=*/true,
+                                   /*register_push_outputs=*/false,
+                                   /*register_pop_outputs=*/false))));
 
   XLS_RETURN_IF_ERROR(CheckIsBlocking(operation));
   std::optional<Node*> predicate = operation->predicate();
@@ -1198,9 +1198,9 @@ absl::Status AddAdapterForMultipleReceives(absl::Span<Receive* const> ops,
             // outputs.
             // TODO: github/xls#1509 - revisit this if we have better ways of
             // avoiding cycles in adapters.
-            FifoConfig(/*depth=*/1, /*bypass=*/false,
-                       /*register_push_outputs=*/true,
-                       /*register_pop_outputs=*/false)));
+            ChannelConfig(FifoConfig(/*depth=*/1, /*bypass=*/false,
+                                     /*register_push_outputs=*/true,
+                                     /*register_pop_outputs=*/false))));
     XLS_RETURN_IF_ERROR(node->As<ChannelNode>()->ReplaceChannel(ChannelRefName(
         AsChannelRef(output_data_channel.parent_receive_channel_ref))));
     BValue send_token =
@@ -1253,9 +1253,9 @@ absl::Status AddAdapterForMultipleSends(absl::Span<Send* const> ops,
               // outputs.
               // TODO: github/xls#1509 - revisit this if we have better ways of
               // avoiding cycles in adapters.
-              FifoConfig(/*depth=*/1, /*bypass=*/false,
-                         /*register_push_outputs=*/true,
-                         /*register_pop_outputs=*/false)));
+              ChannelConfig(FifoConfig(/*depth=*/1, /*bypass=*/false,
+                                       /*register_push_outputs=*/true,
+                                       /*register_pop_outputs=*/false))));
       XLS_RETURN_IF_ERROR(
           node->As<ChannelNode>()->ReplaceChannel(ChannelRefName(
               AsChannelRef(input_data_channel.parent_send_channel_ref))));

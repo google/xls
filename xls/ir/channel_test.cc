@@ -94,9 +94,8 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   Package p("my_package");
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kReceiveOnly, p.GetBitsType(32),
-      /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
-      FlowControl::kReadyValid, ChannelStrictness::kProvenMutuallyExclusive,
-      ChannelMetadataProto());
+      /*initial_values=*/{}, ChannelConfig(), FlowControl::kReadyValid,
+      ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.kind(), ChannelKind::kStreaming);
@@ -122,9 +121,9 @@ TEST(ChannelTest, StreamingChannelWithInitialValues) {
   Package p("my_package");
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
-      {Value(UBits(11, 32)), Value(UBits(22, 32))},
-      /*fifo_config=*/std::nullopt, FlowControl::kNone,
-      ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
+      {Value(UBits(11, 32)), Value(UBits(22, 32))}, ChannelConfig(),
+      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive,
+      ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);
@@ -140,9 +139,9 @@ TEST(ChannelTest, StreamingChannelWithFifoDepth) {
   Package p("my_package");
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/123, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      ChannelConfig(FifoConfig(/*depth=*/123, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive,
       ChannelMetadataProto());
 
@@ -162,7 +161,7 @@ TEST(ChannelTest, StreamingChannelWithFifoConfigSerializesFifoConfigCorrectly) {
   auto ch_with_fifo_config = [&](FifoConfig fifo_config) {
     return StreamingChannel(
         "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
-        /*fifo_config=*/fifo_config, FlowControl::kNone,
+        /*channel_config=*/ChannelConfig(fifo_config), FlowControl::kNone,
         ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
   };
   EXPECT_THAT(ch_with_fifo_config(FifoConfig(/*depth=*/123, /*bypass=*/false,
@@ -202,7 +201,7 @@ TEST(ChannelTest, StreamingToStringParses) {
       Value::Tuple({Value(UBits(2222, 32)), Value(UBits(444, 23))})};
   StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetTypeForValue(initial_values.front()), initial_values,
-                      /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
+                      ChannelConfig(), FlowControl::kReadyValid,
                       ChannelStrictness::kProvenMutuallyExclusive,
                       ChannelMetadataProto());
   std::string channel_str = ch.ToString();
@@ -264,7 +263,7 @@ TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
   {
     StreamingChannel ch(
         "my_channel_2", 45, ChannelOps::kSendOnly, p.GetBitsType(32),
-        /*initial_values=*/{}, /*fifo_config=*/std::nullopt, FlowControl::kNone,
+        /*initial_values=*/{}, ChannelConfig(), FlowControl::kNone,
         ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
     EXPECT_THAT(ch.metadata_block_ports(), IsEmpty());

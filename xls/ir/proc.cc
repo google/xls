@@ -453,7 +453,7 @@ absl::StatusOr<Proc*> Proc::Clone(
         new_channel = std::make_unique<StreamingChannel>(
             new_chan_name(channel->name()), channel->id(),
             channel->supported_ops(), chan_type, channel->initial_values(),
-            streaming_channel->fifo_config(),
+            streaming_channel->channel_config(),
             streaming_channel->GetFlowControl(),
             streaming_channel->GetStrictness(), channel->metadata());
       } else {

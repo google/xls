@@ -19,6 +19,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -31,6 +32,7 @@
 #include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/casts.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/type.h"
@@ -61,6 +63,74 @@ std::string FifoConfig::ToString() const {
       "FifoConfig{ depth: %d, bypass: %d, register_push_outputs: %d, "
       "register_pop_outputs: %d }",
       depth_, bypass_, register_push_outputs_, register_pop_outputs_);
+}
+
+namespace {
+absl::StatusOr<std::optional<FlopKind>> FromProtoFlop(
+    ChannelConfigProto::FlopKind f) {
+  switch (f) {
+    case ChannelConfigProto::FLOP_KIND_DEFAULT:
+      return std::nullopt;
+    case ChannelConfigProto::FLOP_KIND_NONE:
+      return FlopKind::kNone;
+    case ChannelConfigProto::FLOP_KIND_FLOP:
+      return FlopKind::kFlop;
+    case ChannelConfigProto::FLOP_KIND_SKID:
+      return FlopKind::kSkid;
+    case ChannelConfigProto::FLOP_KIND_ZERO_LATENCY:
+      return FlopKind::kZeroLatency;
+    default:
+      return absl::InternalError(absl::StrFormat("Unknown flop kind: %d", f));
+  }
+}
+ChannelConfigProto::FlopKind ToProtoFlop(std::optional<FlopKind> f) {
+  if (!f) {
+    return ChannelConfigProto::FLOP_KIND_DEFAULT;
+  }
+  switch (*f) {
+    case FlopKind::kNone:
+      return ChannelConfigProto::FLOP_KIND_NONE;
+    case FlopKind::kFlop:
+      return ChannelConfigProto::FLOP_KIND_FLOP;
+    case FlopKind::kSkid:
+      return ChannelConfigProto::FLOP_KIND_SKID;
+    case FlopKind::kZeroLatency:
+      return ChannelConfigProto::FLOP_KIND_ZERO_LATENCY;
+  }
+}
+}  // namespace
+
+absl::StatusOr<FlopKind> StringToFlopKind(std::string_view str) {
+  for (FlopKind f : {FlopKind::kNone, FlopKind::kFlop, FlopKind::kSkid,
+                     FlopKind::kZeroLatency}) {
+    if (str == FlopKindToString(f)) {
+      return f;
+    }
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("'%s' is not a valid flop kind", str));
+}
+/* static */ absl::StatusOr<ChannelConfig> ChannelConfig::FromProto(
+    const ChannelConfigProto& proto) {
+  std::optional<FifoConfig> fc;
+  if (proto.has_fifo()) {
+    XLS_ASSIGN_OR_RETURN(fc, FifoConfig::FromProto(proto.fifo()));
+  }
+  XLS_ASSIGN_OR_RETURN(std::optional<FlopKind> input,
+                       FromProtoFlop(proto.flop_inputs()));
+  XLS_ASSIGN_OR_RETURN(std::optional<FlopKind> output,
+                       FromProtoFlop(proto.flop_outputs()));
+  return ChannelConfig(std::move(fc), input, output);
+}
+
+ChannelConfigProto ChannelConfig::ToProto(int64_t width) const {
+  ChannelConfigProto proto;
+  if (fifo_config()) {
+    *proto.mutable_fifo() = fifo_config()->ToProto(width);
+  }
+  proto.set_flop_inputs(ToProtoFlop(input_flop_kind()));
+  proto.set_flop_outputs(ToProtoFlop(output_flop_kind()));
+  return proto;
 }
 
 std::string ChannelKindToString(ChannelKind kind) {
@@ -108,16 +178,29 @@ std::string Channel::ToString() const {
         &result, "flow_control=%s, strictness=%s, ",
         FlowControlToString(streaming_channel->GetFlowControl()),
         ChannelStrictnessToString(streaming_channel->GetStrictness()));
-    const std::optional<FifoConfig>& fifo_config =
-        streaming_channel->fifo_config();
-    if (fifo_config.has_value()) {
-      absl::StrAppendFormat(
-          &result,
-          "fifo_depth=%d, bypass=%s, "
-          "register_push_outputs=%s, register_pop_outputs=%s, ",
-          fifo_config->depth(), fifo_config->bypass() ? "true" : "false",
-          fifo_config->register_push_outputs() ? "true" : "false",
-          fifo_config->register_pop_outputs() ? "true" : "false");
+    const std::optional<ChannelConfig>& channel_config =
+        streaming_channel->channel_config();
+    if (channel_config.has_value()) {
+      if (channel_config->fifo_config()) {
+        absl::StrAppendFormat(
+            &result,
+            "fifo_depth=%d, bypass=%s, "
+            "register_push_outputs=%s, register_pop_outputs=%s, ",
+            channel_config->fifo_config()->depth(),
+            channel_config->fifo_config()->bypass() ? "true" : "false",
+            channel_config->fifo_config()->register_push_outputs() ? "true"
+                                                                   : "false",
+            channel_config->fifo_config()->register_pop_outputs() ? "true"
+                                                                  : "false");
+      }
+      if (channel_config->input_flop_kind()) {
+        absl::StrAppendFormat(&result, "input_flop_kind=%v, ",
+                              *channel_config->input_flop_kind());
+      }
+      if (channel_config->output_flop_kind()) {
+        absl::StrAppendFormat(&result, "output_flop_kind=%v, ",
+                              *channel_config->output_flop_kind());
+      }
     }
   }
 

@@ -823,8 +823,6 @@ absl::StatusOr<std::string> StreamingIOName(Node* node) {
   }
 }
 
-
-
 // For each output streaming channel add a corresponding ready port (input
 // port). Combinationally combine those ready signals with their predicates to
 // generate an  all_active_outputs_ready signal.
@@ -1366,41 +1364,42 @@ static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
 }
 
 // Adds a register after the input streaming channel's data and valid.
-static absl::StatusOr<Node*> AddRegisterAfterStreamingInput(
-    StreamingInput& input, const CodegenOptions& options, Block* block,
+static absl::Status AddRegisterAfterStreamingInput(
+    StreamingInput& input, FlopKind flop,
+    const std::optional<xls::Reset>& reset_behavior, Block* block,
     std::vector<std::optional<Node*>>& valid_nodes) {
-  const std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
-
   XLS_ASSIGN_OR_RETURN(std::string port_name, StreamingIOName(*input.port));
-  if (options.flop_inputs_kind() ==
-      CodegenOptions::IOKind::kZeroLatencyBuffer) {
-    return AddZeroLatencyBufferToRDVNodes(*input.port, input.port_valid,
-                                          input.port_ready, port_name,
-                                          reset_behavior, block, valid_nodes);
-  }
-
-  if (options.flop_inputs_kind() == CodegenOptions::IOKind::kSkidBuffer) {
-    return AddSkidBufferToRDVNodes(*input.port, input.port_valid,
+  switch (flop) {
+    case FlopKind::kZeroLatency:
+      return AddZeroLatencyBufferToRDVNodes(*input.port, input.port_valid,
+                                            input.port_ready, port_name,
+                                            reset_behavior, block, valid_nodes)
+          .status();
+    case FlopKind::kSkid:
+      return AddSkidBufferToRDVNodes(*input.port, input.port_valid,
+                                     input.port_ready, port_name,
+                                     reset_behavior, block, valid_nodes)
+          .status();
+    case FlopKind::kFlop:
+      return AddRegisterToRDVNodes(*input.port, input.port_valid,
                                    input.port_ready, port_name, reset_behavior,
-                                   block, valid_nodes);
+                                   block, valid_nodes)
+          .status();
+    case FlopKind::kNone:
+      return absl::OkStatus();
   }
-
-  if (options.flop_inputs_kind() == CodegenOptions::IOKind::kFlop) {
-    return AddRegisterToRDVNodes(*input.port, input.port_valid,
-                                 input.port_ready, port_name, reset_behavior,
-                                 block, valid_nodes);
-  }
-
-  return absl::UnimplementedError(absl::StrFormat(
-      "Block conversion does not support registering input with kind %d",
-      options.flop_inputs_kind()));
 }
 
 // Adds a register after the input streaming channel's data and valid.
 // Returns the node for the register_read of the data.
-static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
-    StreamingOutput& output, const CodegenOptions& options, Block* block,
+static absl::Status AddRegisterBeforeStreamingOutput(
+    StreamingOutput& output, FlopKind flop,
+    const std::optional<xls::Reset>& reset_behavior, Block* block,
     std::vector<std::optional<Node*>>& valid_nodes) {
+  if (flop == FlopKind::kNone) {
+    // Non-flopped outputs need no additional buffers/logic
+    return absl::OkStatus();
+  }
   // Add buffers before the data/valid output ports and after
   // the ready input port to serve as points where the
   // additional logic from AddRegisterToRDVNodes() can be inserted.
@@ -1435,30 +1434,28 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
   XLS_RETURN_IF_ERROR(
       output.port_ready->ReplaceUsesWith(output_port_ready_buf));
 
-  const std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
-
-  if (options.flop_outputs_kind() ==
-      CodegenOptions::IOKind::kZeroLatencyBuffer) {
-    return AddZeroLatencyBufferToRDVNodes(
-        output_port_data_buf, output_port_valid_buf, output_port_ready_buf,
-        port_name, reset_behavior, block, valid_nodes);
-  }
-
-  if (options.flop_outputs_kind() == CodegenOptions::IOKind::kSkidBuffer) {
-    return AddSkidBufferToRDVNodes(output_port_data_buf, output_port_valid_buf,
+  switch (flop) {
+    case FlopKind::kZeroLatency:
+      return AddZeroLatencyBufferToRDVNodes(output_port_data_buf,
+                                            output_port_valid_buf,
+                                            output_port_ready_buf, port_name,
+                                            reset_behavior, block, valid_nodes)
+          .status();
+    case FlopKind::kSkid:
+      return AddSkidBufferToRDVNodes(output_port_data_buf,
+                                     output_port_valid_buf,
+                                     output_port_ready_buf, port_name,
+                                     reset_behavior, block, valid_nodes)
+          .status();
+    case FlopKind::kFlop:
+      return AddRegisterToRDVNodes(output_port_data_buf, output_port_valid_buf,
                                    output_port_ready_buf, port_name,
-                                   reset_behavior, block, valid_nodes);
+                                   reset_behavior, block, valid_nodes)
+          .status();
+    case FlopKind::kNone:
+      LOG(FATAL)
+          << "Unreachable condition. Non-flopped should have short circuited.";
   }
-
-  if (options.flop_outputs_kind() == CodegenOptions::IOKind::kFlop) {
-    return AddRegisterToRDVNodes(output_port_data_buf, output_port_valid_buf,
-                                 output_port_ready_buf, port_name,
-                                 reset_behavior, block, valid_nodes);
-  }
-
-  return absl::UnimplementedError(absl::StrFormat(
-      "Block conversion does not support registering output with kind %d",
-      options.flop_outputs_kind()));
 }
 
 // Adds an input and/or output flop and related signals.
@@ -1476,10 +1473,14 @@ static absl::Status AddInputOutputFlops(
   // Flop streaming inputs.
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
-      if (options.flop_inputs()) {
-        XLS_RETURN_IF_ERROR(
-            AddRegisterAfterStreamingInput(input, options, block, valid_nodes)
-                .status());
+      StreamingChannel* channel = down_cast<StreamingChannel*>(input.channel);
+      FlopKind kind = channel->channel_config().input_flop_kind().value_or(
+          options.flop_inputs()
+              ? CodegenOptions::IOKindToFlopKind(options.flop_inputs_kind())
+              : FlopKind::kNone);
+      if (kind != FlopKind::kNone) {
+        XLS_RETURN_IF_ERROR(AddRegisterAfterStreamingInput(
+            input, kind, options.ResetBehavior(), block, valid_nodes));
 
         handled_io_nodes.insert(*input.port);
         handled_io_nodes.insert(input.port_valid);
@@ -1494,10 +1495,14 @@ static absl::Status AddInputOutputFlops(
   // Flop streaming outputs.
   for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
-      if (options.flop_outputs()) {
-        XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(output, options,
-                                                             block, valid_nodes)
-                                .status());
+      StreamingChannel* channel = down_cast<StreamingChannel*>(output.channel);
+      FlopKind kind = channel->channel_config().output_flop_kind().value_or(
+          options.flop_outputs()
+              ? CodegenOptions::IOKindToFlopKind(options.flop_outputs_kind())
+              : FlopKind::kNone);
+      if (kind != FlopKind::kNone) {
+        XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(
+            output, kind, options.ResetBehavior(), block, valid_nodes));
 
         handled_io_nodes.insert(*output.port);
         handled_io_nodes.insert(output.port_valid);
@@ -1884,7 +1889,6 @@ static absl::Status AddBubbleFlowControl(
   return absl::OkStatus();
 }
 
-
 // Send/receive nodes are not cloned from the proc into the block, but the
 // network of tokens connecting these send/receive nodes *is* cloned. This
 // function removes the token operations.
@@ -2088,7 +2092,8 @@ class CloneNodesIntoBlockHandler {
             channel->kind() == ChannelKind::kStreaming) {
           StreamingChannel* streaming_channel =
               down_cast<StreamingChannel*>(channel);
-          XLS_RET_CHECK(streaming_channel->fifo_config().has_value())
+          XLS_RET_CHECK(
+              streaming_channel->channel_config().fifo_config().has_value())
               << absl::StreamFormat("Channel %s has no fifo config.",
                                     channel->name());
 
@@ -2102,7 +2107,8 @@ class CloneNodesIntoBlockHandler {
                 block()->AddInstantiation(
                     inst_name,
                     std::make_unique<xls::FifoInstantiation>(
-                        inst_name, *streaming_channel->fifo_config(),
+                        inst_name,
+                        *streaming_channel->channel_config().fifo_config(),
                         streaming_channel->type(), streaming_channel->name(),
                         block()->package())));
             itr->second = instantiation;
@@ -3092,10 +3098,8 @@ absl::Status SingleProcToPipelinedBlock(const PipelineSchedule& schedule,
   VLOG(3) << absl::StrFormat("After Output Triggers");
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  if (options.flop_inputs() || options.flop_outputs()) {
-    XLS_RETURN_IF_ERROR(AddInputOutputFlops(options, streaming_io_and_pipeline,
-                                            block, proc_metadata.valid_flops));
-  }
+  XLS_RETURN_IF_ERROR(AddInputOutputFlops(options, streaming_io_and_pipeline,
+                                          block, proc_metadata.valid_flops));
   VLOG(3) << "After Input or Output Flops";
   XLS_VLOG_LINES(3, block->DumpIr());
 

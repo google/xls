@@ -292,11 +292,33 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
-      std::optional<FifoConfig> fifo_config = std::nullopt,
+      ChannelConfig channel_config = ChannelConfig(),
       FlowControl flow_control = FlowControl::kReadyValid,
       ChannelStrictness strictness = kDefaultChannelStrictness,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
+
+  // Create a channel without special flop control. Channels are used with
+  // send/receive nodes in communicate between procs or between procs and
+  // external (to XLS) components. If no channel ID is specified, a unique
+  // channel ID will be automatically allocated.
+  // TODO(meheff): Consider using a builder for constructing a channel.
+  absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
+      std::string_view name, ChannelOps supported_ops, Type* type,
+      absl::Span<const Value> initial_values,
+      std::optional<FifoConfig> fifo_config,
+      FlowControl flow_control = FlowControl::kReadyValid,
+      ChannelStrictness strictness = kDefaultChannelStrictness,
+      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
+      std::optional<int64_t> id = std::nullopt) {
+    return CreateStreamingChannel(
+        /*name=*/name, /*supported_ops=*/supported_ops, /*type=*/type,
+        /*initial_values=*/initial_values,
+        /*channel_config=*/
+        ChannelConfig(fifo_config, std::nullopt, std::nullopt),
+        /*flow_control=*/flow_control, /*strictness=*/strictness,
+        /*metadata=*/metadata, /*id=*/id);
+  }
 
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
@@ -309,7 +331,7 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannelInProc(
       std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
       absl::Span<const Value> initial_values = {},
-      std::optional<FifoConfig> fifo_config = std::nullopt,
+      ChannelConfig channel_config = ChannelConfig(),
       FlowControl flow_control = FlowControl::kReadyValid,
       ChannelStrictness strictness = kDefaultChannelStrictness,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
@@ -367,9 +389,8 @@ class Package {
       return *this;
     }
 
-    CloneChannelOverrides& OverrideFifoConfig(
-        std::optional<FifoConfig> fifo_config) {
-      fifo_config_ = fifo_config;
+    CloneChannelOverrides& OverrideChannelConfig(ChannelConfig channel_config) {
+      channel_config_ = channel_config;
       return *this;
     }
 
@@ -392,8 +413,8 @@ class Package {
     std::optional<absl::Span<const Value>> initial_values() const {
       return initial_values_;
     }
-    std::optional<std::optional<FifoConfig>> fifo_config() const {
-      return fifo_config_;
+    std::optional<ChannelConfig> channel_config() const {
+      return channel_config_;
     }
     std::optional<FlowControl> flow_control() const { return flow_control_; }
     std::optional<ChannelStrictness> strictness() const { return strictness_; }
@@ -402,9 +423,7 @@ class Package {
    private:
     std::optional<ChannelOps> supported_ops_;
     std::optional<absl::Span<const Value>> initial_values_;
-    // Nested optionals are strange, but used here to differentiate between "use
-    // the original channel's FIFO config" and "do not set FIFO config".
-    std::optional<std::optional<FifoConfig>> fifo_config_;
+    std::optional<ChannelConfig> channel_config_;
     std::optional<FlowControl> flow_control_;
     std::optional<ChannelStrictness> strictness_;
     std::optional<ChannelMetadataProto> metadata_;

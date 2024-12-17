@@ -172,7 +172,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-    Type* type, std::optional<FifoConfig> fifo_config,
+    Type* type, ChannelConfig channel_config,
     const ChannelMetadataProto& metadata) {
   ChannelProto* channel = proto_.add_data_channels();
   channel->set_name(ToProtoString(name));
@@ -194,10 +194,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     channel->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
   }
 
-  if (fifo_config.has_value()) {
-    *channel->mutable_fifo_config() =
-        fifo_config->ToProto(type->GetFlatBitCount());
-  }
+  *channel->mutable_channel_config() =
+      channel_config.ToProto(type->GetFlatBitCount());
 
   return *this;
 }
@@ -452,8 +450,9 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
     // connected without a FIFO instantiation, so they won't be populated in
     // fifo_channels.
     if (fifo_channels.contains(channel.name()) ||
-        (channel.has_fifo_config() && channel.fifo_config().has_depth() &&
-         channel.fifo_config().depth() == 0)) {
+        (channel.channel_config().has_fifo() &&
+         channel.channel_config().fifo().has_depth() &&
+         channel.channel_config().fifo().depth() == 0)) {
       continue;
     }
 

@@ -333,7 +333,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+          /*initial_values=*/{}, /*channel_config=*/std::nullopt,
           FlowControl::kReadyValid, ChannelStrictness::kProvenMutuallyExclusive,
           ChannelMetadataProto(), 42));
   EXPECT_EQ(ch42->id(), 42);
@@ -348,7 +348,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   // Creating a channel with a duplicate ID is an error.
   EXPECT_THAT(p.CreateStreamingChannel(
                    "ch1_dup", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-                   /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+                   /*initial_values=*/{}, /*channel_config=*/std::nullopt,
                    FlowControl::kReadyValid,
                    ChannelStrictness::kProvenMutuallyExclusive,
                    ChannelMetadataProto(), 1)
@@ -429,9 +429,9 @@ TEST_F(PackageTest, CloneSingleValueChannelSetParams) {
                HasSubstr("Cannot clone single value channel with "
                          "streaming channel parameter overrides")));
   EXPECT_THAT(
-      p.CloneChannel(
-          ch0, "ch2",
-          Package::CloneChannelOverrides().OverrideFifoConfig(std::nullopt)),
+      p.CloneChannel(ch0, "ch2",
+                     Package::CloneChannelOverrides().OverrideChannelConfig(
+                         ChannelConfig())),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Cannot clone single value channel with "
                          "streaming channel parameter overrides")));
@@ -503,12 +503,15 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackage) {
                                        Value(UBits(2, 32))};
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0,
-      p.CreateStreamingChannel("ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
-                               /*initial_values=*/initial_values,
-                               /*fifo_config=*/
-                               FifoConfig(/*depth=*/3, /*bypass=*/true,
-                                          /*register_push_outputs=*/true,
-                                          /*register_pop_outputs=*/false)));
+      p.CreateStreamingChannel(
+          "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
+          /*initial_values=*/initial_values,
+          /*channel_config=*/
+          ChannelConfig(FifoConfig(/*depth=*/3, /*bypass=*/true,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false),
+                        /*input_flop_kind=*/std::nullopt,
+                        /*output_flop_kind=*/std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch1, p.CloneChannel(ch0, "ch1"));
 
   EXPECT_EQ(p.channels().size(), 2);
@@ -535,10 +538,12 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
       p.CreateStreamingChannel(
           "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
           /*initial_values*/ std::vector<Value>{Value(UBits(0, 32))},
-          /*fifo_config=*/
-          FifoConfig(/*depth=*/3, /*bypass=*/true,
-                     /*register_push_outputs=*/true,
-                     /*register_pop_outputs=*/false),
+          /*channel_config=*/
+          ChannelConfig(FifoConfig(/*depth=*/3, /*bypass=*/true,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false),
+                        /*input_flop_kind=*/std::nullopt,
+                        /*output_flop_kind=*/std::nullopt),
           /*flow_control=*/FlowControl::kNone,
           /*strictness=*/ChannelStrictness::kProvenMutuallyExclusive,
           /*metadata=*/original_metadata));
@@ -569,9 +574,9 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_TRUE(fifo_depth_override.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch2_base,
-      p.CloneChannel(
-          ch0, "ch2",
-          Package::CloneChannelOverrides().OverrideFifoConfig(std::nullopt)));
+      p.CloneChannel(ch0, "ch2",
+                     Package::CloneChannelOverrides().OverrideChannelConfig(
+                         ChannelConfig())));
   StreamingChannel* ch2 = down_cast<StreamingChannel*>(ch2_base);
   ASSERT_NE(ch2, nullptr);
 
@@ -654,12 +659,15 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {
                                        Value(UBits(2, 32))};
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0,
-      p.CreateStreamingChannel("ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
-                               /*initial_values=*/initial_values,
-                               /*fifo_config=*/
-                               FifoConfig(/*depth=*/3, /*bypass=*/true,
-                                          /*register_push_outputs=*/true,
-                                          /*register_pop_outputs=*/false)));
+      p.CreateStreamingChannel(
+          "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
+          /*initial_values=*/initial_values,
+          /*channel_config=*/
+          ChannelConfig(FifoConfig(/*depth=*/3, /*bypass=*/true,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false),
+                        /*input_flop_kind=*/std::nullopt,
+                        /*output_flop_kind=*/std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1,
       p.CloneChannel(ch0, "ch1",
@@ -687,14 +695,17 @@ TEST_F(PackageTest, CloneStreamingChannelDifferentPackage) {
 
   std::vector<Value> initial_values = {Value(UBits(1, 32)),
                                        Value(UBits(2, 32))};
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch0,
-                           p0.CreateStreamingChannel(
-                               "ch0", ChannelOps::kSendOnly, p0.GetBitsType(32),
-                               /*initial_values=*/initial_values,
-                               /*fifo_config=*/
-                               FifoConfig(/*depth=*/3, /*bypass=*/true,
-                                          /*register_push_outputs=*/true,
-                                          /*register_pop_outputs=*/false)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0,
+      p0.CreateStreamingChannel(
+          "ch0", ChannelOps::kSendOnly, p0.GetBitsType(32),
+          /*initial_values=*/initial_values,
+          /*channel_config=*/
+          ChannelConfig(FifoConfig(/*depth=*/3, /*bypass=*/true,
+                                   /*register_push_outputs=*/true,
+                                   /*register_pop_outputs=*/false),
+                        /*input_flop_kind=*/std::nullopt,
+                        /*output_flop_kind*/ std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch0_clone,
                            p1.CloneChannel(ch0, "ch0_clone"));
 

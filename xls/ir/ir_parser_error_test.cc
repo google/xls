@@ -1645,10 +1645,16 @@ TEST(IrParserErrorTest, ParseStreamingChannelWithExtraFifoMetadata) {
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
   ASSERT_EQ(ch->kind(), ChannelKind::kStreaming);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
-  ASSERT_THAT(down_cast<StreamingChannel*>(ch)->fifo_config(),
+  ASSERT_THAT(down_cast<StreamingChannel*>(ch)->channel_config().fifo_config(),
               Not(Eq(std::nullopt)));
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->depth(), 3);
-  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->fifo_config()->bypass(), false);
+  EXPECT_EQ(
+      down_cast<StreamingChannel*>(ch)->channel_config().fifo_config()->depth(),
+      3);
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)
+                ->channel_config()
+                .fifo_config()
+                ->bypass(),
+            false);
 }
 
 TEST(IrParserErrorTest, ParseStreamingValueChannelWithBlockPortMapping) {

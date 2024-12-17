@@ -652,25 +652,23 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     std::string_view name, ChannelOps supported_ops, Type* type,
-    absl::Span<const Value> initial_values,
-    std::optional<FifoConfig> fifo_config, FlowControl flow_control,
-    ChannelStrictness strictness, const ChannelMetadataProto& metadata,
-    std::optional<int64_t> id) {
+    absl::Span<const Value> initial_values, ChannelConfig channel_config,
+    FlowControl flow_control, ChannelStrictness strictness,
+    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
   return CreateStreamingChannelInProc(
-      name, supported_ops, type, /*proc=*/nullptr, initial_values, fifo_config,
-      flow_control, strictness, metadata, id);
+      name, supported_ops, type, /*proc=*/nullptr, initial_values,
+      channel_config, flow_control, strictness, metadata, id);
 }
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannelInProc(
     std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
-    absl::Span<const Value> initial_values,
-    std::optional<FifoConfig> fifo_config, FlowControl flow_control,
-    ChannelStrictness strictness, const ChannelMetadataProto& metadata,
-    std::optional<int64_t> id) {
+    absl::Span<const Value> initial_values, ChannelConfig channel_config,
+    FlowControl flow_control, ChannelStrictness strictness,
+    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<StreamingChannel>(
-      name, actual_id, supported_ops, type, initial_values, fifo_config,
+      name, actual_id, supported_ops, type, initial_values, channel_config,
       flow_control, strictness, metadata);
   StreamingChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel), proc));
@@ -817,7 +815,7 @@ absl::StatusOr<Channel*> Package::CloneChannel(
   switch (channel->kind()) {
     case ChannelKind::kSingleValue: {
       if (overrides.initial_values().has_value() ||
-          overrides.fifo_config().has_value() ||
+          overrides.channel_config().has_value() ||
           overrides.flow_control().has_value()) {
         return absl::InvalidArgumentError(
             "Cannot clone single value channel with streaming channel "
@@ -840,11 +838,11 @@ absl::StatusOr<Channel*> Package::CloneChannel(
                             "be cast to StreamingChannel",
                             channel->name()));
       }
-      std::optional<FifoConfig> fifo_config;
-      if (overrides.fifo_config().has_value()) {
-        fifo_config = *overrides.fifo_config();
+      ChannelConfig channel_config;
+      if (overrides.channel_config().has_value()) {
+        channel_config = *overrides.channel_config();
       } else {
-        fifo_config = streaming_channel->fifo_config();
+        channel_config = streaming_channel->channel_config();
       }
       XLS_ASSIGN_OR_RETURN(
           auto new_channel,
@@ -853,7 +851,7 @@ absl::StatusOr<Channel*> Package::CloneChannel(
               overrides.supported_ops().value_or(channel->supported_ops()),
               new_channel_type,
               overrides.initial_values().value_or(channel->initial_values()),
-              fifo_config,
+              channel_config,
               overrides.flow_control().value_or(
                   streaming_channel->GetFlowControl()),
               overrides.strictness().value_or(

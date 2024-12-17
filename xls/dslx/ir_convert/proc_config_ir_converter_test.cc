@@ -111,11 +111,10 @@ proc main {
 
   ChannelMetadataProto metadata;
   PackageConversionData conv = MakeConversionData("the_package");
-  StreamingChannel channel("the_channel", /*id=*/0, ChannelOps::kSendReceive,
-                           conv.package->GetBitsType(32), {},
-                           /*fifo_config=*/std::nullopt, FlowControl::kNone,
-                           ChannelStrictness::kProvenMutuallyExclusive,
-                           metadata);
+  StreamingChannel channel(
+      "the_channel", /*id=*/0, ChannelOps::kSendReceive,
+      conv.package->GetBitsType(32), {}, ChannelConfig(), FlowControl::kNone,
+      ChannelStrictness::kProvenMutuallyExclusive, metadata);
   ProcConversionData proc_data;
   ProcId proc_id;
   proc_data.id_to_config_args[proc_id].push_back(&channel);

@@ -84,7 +84,7 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
   b.AddDataInputAsBits("input_valid", 1);
   b.AddStreamingChannel("input", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(8),
-                        /*fifo_config=*/std::nullopt, input_metadata);
+                        ChannelConfig(), input_metadata);
 
   b.AddDataOutputAsBits("monitor_data", 9);
   b.AddDataInputAsBits("monitor_ready", 1);
@@ -100,7 +100,7 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
   }
   b.AddStreamingChannel("monitor", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, p.GetBitsType(9),
-                        /*fifo_config=*/std::nullopt, output_metadata);
+                        ChannelConfig(), output_metadata);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = verilog_text,
                                .verilog_line_map = VerilogLineMap(),
@@ -223,9 +223,9 @@ endmodule
   b.AddStreamingChannel(
       "operand_0", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       channel0_metadata);
   ChannelMetadataProto channel1_metadata;
   {
@@ -239,9 +239,9 @@ endmodule
   b.AddStreamingChannel(
       "operand_1", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       channel1_metadata);
   ChannelMetadataProto channel2_metadata;
   {
@@ -255,9 +255,9 @@ endmodule
   b.AddStreamingChannel(
       "result", ChannelOps::kSendOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       channel2_metadata);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = std::string(text),
@@ -565,9 +565,9 @@ endmodule
   b.AddStreamingChannel(
       "operand_0", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       channel0_metadata);
   ChannelMetadataProto channel1_metadata;
   BlockPortMappingProto& block_port_proto1 =
@@ -579,9 +579,9 @@ endmodule
   b.AddStreamingChannel(
       "operand_1", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       channel1_metadata);
   ChannelMetadataProto channel2_metadata;
   BlockPortMappingProto& block_port_proto2 =
@@ -593,9 +593,9 @@ endmodule
   b.AddStreamingChannel(
       "result", ChannelOps::kSendOnly, FlowControl::kReadyValid,
       p.GetBitsType(32),
-      /*fifo_config=*/
-      FifoConfig(/*depth=*/42, /*bypass=*/true, /*register_push_outputs=*/true,
-                 /*register_pop_outputs=*/false),
+      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false)),
       channel2_metadata);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 

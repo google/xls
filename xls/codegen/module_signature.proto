@@ -65,8 +65,10 @@ message ChannelProto {
   optional ChannelOpsProto supported_ops = 3;
   optional ChannelFlowControlProto flow_control = 4;
   optional TypeProto type = 9;
-  optional FifoConfigProto fifo_config = 8;
+  optional ChannelConfigProto channel_config = 11;
   optional ChannelMetadataProto metadata = 10;
+
+  reserved 8;  // former fifo_config
 }
 
 // A RW RAM port has a request side with a single address field, as well as

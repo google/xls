@@ -927,19 +927,20 @@ static absl::Status VerifyFifoInstantiation(Package* package,
                           ChannelKindToString(channel->kind())));
     }
     StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
-    if (!streaming_channel->fifo_config().has_value()) {
+    if (!streaming_channel->channel_config().fifo_config().has_value()) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected channel %s with fifo instantiation %s to "
                           "have a fifo config",
                           channel->name(), instantiation->name()));
     }
     // TODO(google/xls#1173): don't replicate fifo configs in the signature.
-    if (streaming_channel->fifo_config() != instantiation->fifo_config()) {
+    if (streaming_channel->channel_config().fifo_config() !=
+        instantiation->fifo_config()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Expected channel %s with fifo instantiation %s to have the same "
           "fifo config (%s != %s)",
           channel->name(), instantiation->name(),
-          streaming_channel->fifo_config()->ToString(),
+          streaming_channel->channel_config().fifo_config()->ToString(),
           instantiation->fifo_config().ToString()));
     }
   }
