@@ -1287,7 +1287,7 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
           auto next_value = cast<NextValueOp>(def);
           for (auto [pred, value] :
                llvm::zip(next_value.getPredicates(), next_value.getValues())) {
-            fb.Next(valueMap[arg], valueMap[yield], /*pred=*/valueMap[pred]);
+            fb.Next(valueMap[arg], valueMap[value], /*pred=*/valueMap[pred]);
           }
         } else {
           fb.Next(valueMap[arg], valueMap[yield]);
