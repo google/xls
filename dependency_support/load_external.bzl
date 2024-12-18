@@ -300,18 +300,24 @@ def load_external_repositories():
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
 
-    # Tagged 2024-11-23, current as of 2024-11-25
-    VERIBLE_TAG = "v0.0-3858-g660d1664"
+    # Tagged 2024-12-16, current as of 2024-12-17
+    VERIBLE_TAG = "v0.0-3874-g4f3b8408"
     http_archive(
         name = "verible",
-        sha256 = "89bba2f840bacc9cb9145e7e40ae70d30657cd874425ecee589bc04e623803f3",
+        sha256 = "90cd9f3670ef001397524b33adc3bf6c0225a577916aaff085df030c661f058a",
         strip_prefix = "verible-" + VERIBLE_TAG.lstrip("v"),
         urls = ["https://github.com/chipsalliance/verible/archive/refs/tags/" + VERIBLE_TAG + ".tar.gz"],
+        # Verible already uses the canonical repository names
+        # used in the Bazel Central Registry
+        repo_mapping = {
+            "@abseil-cpp": "@com_google_absl",
+            "@re2": "@com_googlesource_code_re2",
+        },
     )
 
-    # Used by Verible; current as of 2024-11-25
+    # Used by Verible; current as of 2024-12-17
     http_archive(
-        name = "jsonhpp",
+        name = "nlohmann_json",
         build_file = "@verible//bazel:jsonhpp.BUILD",
         sha256 = "0d8ef5af7f9794e3263480193c491549b2ba6cc74bb018906202ada498a79406",
         strip_prefix = "json-3.11.3",
