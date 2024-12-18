@@ -738,6 +738,7 @@ cc_binary(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
         "//xls/dslx:warning_kind",
+        "//xls/dslx/frontend:bindings",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

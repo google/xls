@@ -35,6 +35,7 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/type_info.pb.h"
@@ -50,6 +51,9 @@ ABSL_FLAG(std::string, dslx_stdlib_path,
 ABSL_FLAG(std::string, output_path, "",
           "Path to dump the type information to as a protobin -- if not "
           "provided textual proto is given on stdout.");
+ABSL_FLAG(bool, fatal_on_internal_error, false,
+          "If true, internal errors will be fatal; this is useful for fuzzing "
+          "without using a wrapper to check reported error invariants.");
 
 namespace xls::dslx {
 namespace {
@@ -73,6 +77,12 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
   absl::StatusOr<TypecheckedModule> tm = ParseAndTypecheck(
       input_contents, input_path.c_str(), module_name, &import_data);
   if (!tm.ok()) {
+    if (absl::GetFlag(FLAGS_fatal_on_internal_error) &&
+        !GetPositionalErrorData(tm.status(), std::nullopt,
+                                import_data.file_table())
+             .ok()) {
+      LOG(QFATAL) << "Internal error: " << tm.status();
+    }
     if (TryPrintError(tm.status(), import_data.file_table(),
                       import_data.vfs())) {
       return absl::InvalidArgumentError(
