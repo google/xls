@@ -45,7 +45,6 @@ namespace xls::dslx {
 namespace {
 
 using ::testing::ContainsRegex;
-using ::testing::MatchesRegex;
 
 // Parses and typechecks the given text to ensure it's valid -- prints errors to
 // the screen in a useful way for debugging if they fail parsing / typechecking.
