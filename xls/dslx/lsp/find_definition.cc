@@ -45,6 +45,13 @@ const NameDef* GetNameDef(
             CHECK(member.has_value());
             const ModuleMember& mm = *member.value();
             std::vector<NameDef*> name_defs = ModuleMemberGetNameDefs(mm);
+            VLOG(5) << absl::StreamFormat(
+                "module: `%s` attr: `%s` name_defs: [%s]", m->name(), attr,
+                absl::StrJoin(name_defs, ", ",
+                              [](std::string* out, const NameDef* name_def) {
+                                absl::StrAppendFormat(out, "`%s`",
+                                                      name_def->identifier());
+                              }));
             if (name_defs.empty()) {
               return nullptr;
             }
@@ -90,20 +97,33 @@ std::optional<const NameDef*> FindDefinition(const Module& m,
     VLOG(5) << "Intercepting node kind: " << node->kind() << " @ "
             << node->GetSpan().value().ToString(import_data.file_table())
             << " :: `" << node->ToString() << "`";
+
     if (auto* colon_ref = dynamic_cast<const ColonRef*>(node);
         colon_ref != nullptr) {
-      VLOG(3) << "Intercepting colon ref: `" << colon_ref->ToString() << "`";
-      auto node = ResolveColonRefSubjectAfterTypeChecking(
+      VLOG(3) << "Intercepting node is ColonRef: `" << colon_ref->ToString()
+              << "`";
+
+      using Resolved = std::variant<Module*, EnumDef*, BuiltinNameDef*,
+                                    ArrayTypeAnnotation*, Impl*>;
+      absl::StatusOr<Resolved> node = ResolveColonRefSubjectAfterTypeChecking(
           &import_data, &type_info, colon_ref);
       if (!node.ok()) {
+        VLOG(3) << "Could not resolve ColonRef subject; status: "
+                << node.status();
         return std::nullopt;
       }
-      const NameDef* name_def = GetNameDef(*node, colon_ref->attr());
-      if (name_def != nullptr) {
-        defs.push_back(Reference{colon_ref->span(), name_def});
-      }
-    } else if (auto* name_ref = dynamic_cast<const NameRef*>(node);
-               name_ref != nullptr) {
+
+      VLOG(3) << absl::StreamFormat("Resolving NameDef for attribute: `%s`",
+                                    colon_ref->attr());
+      const NameDef* name_def = GetNameDef(node.value(), colon_ref->attr());
+
+      // Since this is another file, we cannot do an enclosure test, and we
+      // return immediately.
+      return name_def;
+    }
+
+    if (auto* name_ref = dynamic_cast<const NameRef*>(node);
+        name_ref != nullptr) {
       VLOG(3) << "Intercepting name ref: `" << name_ref->ToString() << "`";
       std::variant<const NameDef*, BuiltinNameDef*> name_def =
           name_ref->name_def();
