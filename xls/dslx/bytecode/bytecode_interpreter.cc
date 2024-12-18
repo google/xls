@@ -895,7 +895,8 @@ absl::Status BytecodeInterpreter::EvalIndex(const Bytecode& bytecode) {
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue result, basis.Index(index),
-      _ << " while processing " << bytecode.ToString(file_table()));
+      _ << " while processing "
+        << bytecode.ToString(file_table(), /*source_locs=*/true));
   stack_.Push(result);
   return absl::OkStatus();
 }
