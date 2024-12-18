@@ -110,7 +110,8 @@ class ProcRuntime {
   void ResetState();
 
   // Returns the events for each proc in the network.
-  const InterpreterEvents& GetInterpreterEvents(ProcInstance* instance) const {
+  const InterpreterEvents& GetInterpreterEvents(
+      const ProcInstance* instance) const {
     return continuations_.at(instance)->GetEvents();
   }
   const InterpreterEvents& GetInterpreterEvents(Proc* proc) const {
