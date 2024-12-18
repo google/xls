@@ -44,9 +44,12 @@
 #include "xls/fdo/delay_manager.h"
 #include "xls/fdo/iterative_sdc_scheduler.h"
 #include "xls/fdo/synthesizer.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
@@ -344,6 +347,18 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
   DecoratingDelayEstimator io_delay_added(
       "io_delay_added", delay_estimator, [&](Node* node, int64_t base_delay) {
         if (node->Is<ChannelNode>()) {
+          if (options.schedule_all_procs()) {
+            // If we are scheduling all procs, don't add any delay to internal
+            // send/receive operations.
+            // TODO: google/xls#1804 - ideally, we'd constrain (send,recv) pairs
+            // on internal channels such that the scheduler can trade off delay
+            // across procs.
+            absl::StatusOr<Channel*> chan = GetChannelUsedByNode(node);
+            CHECK_OK(chan.status());
+            if ((*chan)->supported_ops() == ChannelOps::kSendReceive) {
+              return base_delay;
+            }
+          }
           return base_delay + max_io_delay;
         }
         if (node->function_base()->IsFunction()) {
