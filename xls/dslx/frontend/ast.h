@@ -103,6 +103,7 @@
   X(Slice)                        \
   X(Statement)                    \
   X(StructDef)                    \
+  X(StructMemberNode)             \
   X(TestFunction)                 \
   X(TestProc)                     \
   X(TypeAlias)                    \
@@ -2494,6 +2495,53 @@ struct StructMember {
   TypeAnnotation* type;
 
   Span GetSpan() const { return Span(name_span.start(), type->span().limit()); }
+};
+
+// Represents a member of a DSLX struct. (Basically, the AstNode version of
+// StructMember.)
+class StructMemberNode : public AstNode {
+ public:
+  StructMemberNode(Module* owner, Span span, NameDef* name_def, Span colon_span,
+                   TypeAnnotation* type)
+      : AstNode(owner),
+        span_(std::move(span)),
+        name_def_(name_def),
+        colon_span_(std::move(colon_span)),
+        type_(type) {}
+
+  ~StructMemberNode() override = default;
+
+  AstNodeKind kind() const override { return AstNodeKind::kStructMember; }
+  std::string_view GetNodeTypeName() const override { return "StructMember"; }
+  std::string ToString() const override {
+    return absl::StrFormat("%s: %s", name_def_->ToString(), type_->ToString());
+  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {name_def_, type_};
+  }
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleStructMemberNode(this);
+  }
+
+  std::optional<Span> GetSpan() const override { return span_; }
+  const Span& span() const { return span_; }
+  const Span& colon_span() const { return colon_span_; }
+  NameDef* name_def() const { return name_def_; }
+  const std::string& name() const { return name_def_->identifier(); }
+  TypeAnnotation* type() const { return type_; }
+
+  StructMember ToStructMemberStruct() const {
+    return StructMember{.name_span = name_def_->span(),
+                        .name = name_def_->identifier(),
+                        .type = type_};
+  }
+
+ private:
+  Span span_;
+  NameDef* name_def_;
+  // The span of the colon between the name and the type.
+  Span colon_span_;
+  TypeAnnotation* type_;
 };
 
 // Base class for a struct-like entity, which has a name and members, along with

@@ -99,6 +99,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_STRING;
     case AstNodeKind::kStructInstance:
       return AST_NODE_KIND_STRUCT_INSTANCE;
+    case AstNodeKind::kStructMember:
+      return AST_NODE_KIND_STRUCT_MEMBER;
     case AstNodeKind::kNameDefTree:
       return AST_NODE_KIND_NAME_DEF_TREE;
     case AstNodeKind::kSplatStructInstance:
@@ -729,6 +731,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kString;
     case AST_NODE_KIND_STRUCT_INSTANCE:
       return AstNodeKind::kStructInstance;
+    case AST_NODE_KIND_STRUCT_MEMBER:
+      return AstNodeKind::kStructMember;
     case AST_NODE_KIND_NAME_DEF_TREE:
       return AstNodeKind::kNameDefTree;
     case AST_NODE_KIND_SPLAT_STRUCT_INSTANCE:

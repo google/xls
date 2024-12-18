@@ -851,6 +851,15 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleStructMemberNode(const StructMemberNode* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    StructMemberNode* new_struct_member = module_->Make<StructMemberNode>(
+        n->span(), down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+        n->colon_span(), down_cast<TypeAnnotation*>(old_to_new_.at(n->type())));
+    old_to_new_[n] = new_struct_member;
+    return absl::OkStatus();
+  }
+
   absl::Status HandleStructInstance(const StructInstance* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 

@@ -86,6 +86,7 @@ enum class AstNodeKind : uint8_t {
   kString,
   kStructDef,
   kStructInstance,
+  kStructMember,
   kTestFunction,
   kTestProc,
   kTupleIndex,

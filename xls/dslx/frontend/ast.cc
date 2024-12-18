@@ -287,6 +287,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "enum definition";
     case AstNodeKind::kStructDef:
       return "struct definition";
+    case AstNodeKind::kStructMember:
+      return "struct member";
     case AstNodeKind::kProcDef:
       return "proc definition";
     case AstNodeKind::kQuickCheck:

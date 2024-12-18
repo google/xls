@@ -380,6 +380,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(Spawn)
   INVALID(StructDef)
+  INVALID(StructMemberNode)
   INVALID(ProcDef)
   INVALID(TypeAlias)
   // keep-sorted end

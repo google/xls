@@ -2125,6 +2125,9 @@ class DeduceVisitor : public AstNodeVisitor {
     return Fatal(n);
   }
   absl::Status HandleNameDef(const NameDef* n) override { return Fatal(n); }
+  absl::Status HandleStructMemberNode(const StructMemberNode* n) override {
+    return Fatal(n);
+  }
   absl::Status HandleBuiltinNameDef(const BuiltinNameDef* n) override {
     return Fatal(n);
   }
