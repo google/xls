@@ -1474,21 +1474,21 @@ static absl::Status AddInputOutputFlops(
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
       StreamingChannel* channel = down_cast<StreamingChannel*>(input.channel);
+      // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
+      // We really should have a different pass that configures all the channels
+      // in a separate lowering step.
       FlopKind kind = channel->channel_config().input_flop_kind().value_or(
           options.flop_inputs()
               ? CodegenOptions::IOKindToFlopKind(options.flop_inputs_kind())
               : FlopKind::kNone);
-      if (kind != FlopKind::kNone) {
-        XLS_RETURN_IF_ERROR(AddRegisterAfterStreamingInput(
-            input, kind, options.ResetBehavior(), block, valid_nodes));
-
-        handled_io_nodes.insert(*input.port);
-        handled_io_nodes.insert(input.port_valid);
-      }
+      XLS_RETURN_IF_ERROR(AddRegisterAfterStreamingInput(
+          input, kind, options.ResetBehavior(), block, valid_nodes));
 
       // ready for an output port is an output for the block,
       // record that we should not separately add a flop these inputs.
       handled_io_nodes.insert(input.port_ready);
+      handled_io_nodes.insert(*input.port);
+      handled_io_nodes.insert(input.port_valid);
     }
   }
 
@@ -1496,21 +1496,21 @@ static absl::Status AddInputOutputFlops(
   for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
       StreamingChannel* channel = down_cast<StreamingChannel*>(output.channel);
+      // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
+      // We really should have a different pass that configures all the channels
+      // in a separate lowering step.
       FlopKind kind = channel->channel_config().output_flop_kind().value_or(
           options.flop_outputs()
               ? CodegenOptions::IOKindToFlopKind(options.flop_outputs_kind())
               : FlopKind::kNone);
-      if (kind != FlopKind::kNone) {
-        XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(
-            output, kind, options.ResetBehavior(), block, valid_nodes));
-
-        handled_io_nodes.insert(*output.port);
-        handled_io_nodes.insert(output.port_valid);
-      }
+      XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(
+          output, kind, options.ResetBehavior(), block, valid_nodes));
 
       // ready for an output port is an input for the block,
       // record that we should not separately add a flop these inputs.
       handled_io_nodes.insert(output.port_ready);
+      handled_io_nodes.insert(*output.port);
+      handled_io_nodes.insert(output.port_valid);
     }
   }
 

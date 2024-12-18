@@ -1042,6 +1042,38 @@ proc my_proc(st: (), init={()}) {
                                               m::Literal(1), m::Literal(1))));
 }
 
+TEST_F(BlockConversionTest, NoRegsIfChannelsHaveNoFlopsSet) {
+  constexpr std::string_view kIrText = R"(
+package my_package
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, input_flop_kind=none, output_flop_kind=none, metadata="""""")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, input_flop_kind=none, output_flop_kind=none, metadata="""""")
+
+top proc my_proc() {
+  literal.16: token = literal(value=token, id=16)
+  Test__in_recv: (token, bits[32]) = receive(literal.16, channel=in, id=99)
+  Test__in_recv_value: bits[32] = tuple_index(Test__in_recv, index=1, id=36)
+  bit_slice.110: bits[30] = bit_slice(Test__in_recv_value, start=2, width=30, id=110)
+  bit_slice.97: bits[30] = bit_slice(Test__in_recv_value, start=0, width=30, id=97)
+  add.112: bits[30] = add(bit_slice.110, bit_slice.97, id=112)
+  bit_slice.113: bits[2] = bit_slice(Test__in_recv_value, start=0, width=2, id=113)
+  tuple_index.101: token = tuple_index(Test__in_recv, index=0, id=101)
+  Test__out_send_value: bits[32] = concat(add.112, bit_slice.113, id=114)
+  Test__out_send: token = send(tuple_index.101, Test__out_send_value, channel=out, id=100)
+}
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(kIrText));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenPassUnit unit,
+      ProcToCombinationalBlock(
+          proc, codegen_options().flop_inputs(true).flop_outputs(true)));
+  RecordProperty("res", unit.top_block->DumpIr());
+  EXPECT_THAT(unit.top_block->GetRegisters(), testing::IsEmpty());
+}
+
 TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsTrue) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
