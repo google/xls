@@ -754,23 +754,23 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
   return SimplificationResult::kDidNotChange;
 }
 
-// Replace all uses of 'target' with a literal 'v' except for the 'param'
-// argument of next nodes (which need to stay as params).
+// Replace all uses of 'target' with a literal 'v' except for the 'state_read'
+// argument of next nodes (which need to stay as StateReads).
 template <typename NodeT, typename... Args>
 absl::StatusOr<Node*> SafeReplaceUsesWithNew(Node* target, Args... v) {
   auto is_state_read_of_next = [&](Node* n) {
     return n->Is<Next>() && n->As<Next>()->state_read() == target;
   };
-  if (!target->Is<Param>() ||
+  if (!target->Is<StateRead>() ||
       !absl::c_any_of(target->users(), is_state_read_of_next)) {
     return target->ReplaceUsesWithNew<NodeT>(std::forward<Args>(v)...);
   }
-  std::vector<Node*> param_users;
-  absl::c_copy_if(target->users(), std::back_inserter(param_users),
+  std::vector<Node*> state_read_users;
+  absl::c_copy_if(target->users(), std::back_inserter(state_read_users),
                   is_state_read_of_next);
   XLS_ASSIGN_OR_RETURN(
       auto result, target->ReplaceUsesWithNew<NodeT>(std::forward<Args>(v)...));
-  for (Node* n : param_users) {
+  for (Node* n : state_read_users) {
     XLS_RETURN_IF_ERROR(
         n->As<Next>()->ReplaceOperandNumber(Next::kStateReadOperand, target));
   }

@@ -173,14 +173,14 @@ top proc __multi_proc__proc_ten_0_next(__state: (), init={()}) {
   tuple_index.21: token = tuple_index(receive.20, index=0, id=21)
   send.25: token = send(tok__5, add.24, channel=multi_proc__bytes_result, id=25)
   tuple.26: () = tuple(id=26, pos=[(0,72,15)])
-  next (tuple.26)
+  next_state: () = next_value(param=__state, value=tuple.26, id=33)
 }
 
 proc __multi_proc__proc_ten__proc_double_0_next(__state: (), init={()}) {
   tok: token = after_all(id=30)
   receive.31: (token, bits[32]) = receive(tok, channel=multi_proc__send_double_pipe, id=31)
   v: bits[32] = tuple_index(receive.31, index=1, id=34, pos=[(0,29,18)])
-  tok__1: token = tuple_index(receive.31, index=0, id=33, pos=[(0,29,13)])
+  tok__1: token = tuple_index(receive.31, index=0, id=62, pos=[(0,29,13)])
   invoke.35: bits[32] = invoke(v, to_apply=__multi_proc__double_it, id=35, pos=[(0,30,41)])
   __token: token = literal(value=token, id=27)
   literal.29: bits[1] = literal(value=1, id=29)
