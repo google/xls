@@ -712,6 +712,7 @@ TEST(XlsCApiTest, DslxInspectTypeRefTypeAnnotation) {
   const char kProgram[] = R"(import my_imported_module;
 
 type MyTypeAlias = my_imported_module::SomeType;
+type MyOtherTypeAlias = MyTypeAlias;
 )";
   const char* additional_search_paths[] = {tempdir_path.c_str()};
 
@@ -733,12 +734,12 @@ type MyTypeAlias = my_imported_module::SomeType;
   ASSERT_NE(tm, nullptr);
 
   xls_dslx_module* module = xls_dslx_typechecked_module_get_module(tm);
-  xls_dslx_type_alias* type_alias =
+  xls_dslx_type_alias* my_type_alias =
       xls_dslx_module_get_type_definition_as_type_alias(module, 0);
 
   // Validate that the name is "MyTypeAlias".
   {
-    char* identifier = xls_dslx_type_alias_get_identifier(type_alias);
+    char* identifier = xls_dslx_type_alias_get_identifier(my_type_alias);
     absl::Cleanup free_identifier([=] { xls_c_str_free(identifier); });
     EXPECT_EQ(std::string_view{identifier}, std::string_view{"MyTypeAlias"});
   }
@@ -748,7 +749,7 @@ type MyTypeAlias = my_imported_module::SomeType;
   // its subject as an import.
   {
     xls_dslx_type_annotation* type =
-        xls_dslx_type_alias_get_type_annotation(type_alias);
+        xls_dslx_type_alias_get_type_annotation(my_type_alias);
     xls_dslx_type_ref_type_annotation* type_ref_type_annotation =
         xls_dslx_type_annotation_get_type_ref_type_annotation(type);
     xls_dslx_type_ref* type_ref =
@@ -765,6 +766,34 @@ type MyTypeAlias = my_imported_module::SomeType;
     char* attr = xls_dslx_colon_ref_get_attr(colon_ref);
     absl::Cleanup free_attr([=] { xls_c_str_free(attr); });
     EXPECT_EQ(std::string_view{attr}, std::string_view{"SomeType"});
+  }
+
+  // Validate that we can get the type definition for `MyOtherTypeAlias`.
+  {
+    xls_dslx_type_alias* other_type_alias =
+        xls_dslx_module_get_type_definition_as_type_alias(module, 1);
+    // Check it's the alias we were expecting via its identifier.
+    char* other_type_alias_identifier =
+        xls_dslx_type_alias_get_identifier(other_type_alias);
+    absl::Cleanup free_other_type_alias_identifier(
+        [=] { xls_c_str_free(other_type_alias_identifier); });
+    EXPECT_EQ(std::string_view{other_type_alias_identifier},
+              std::string_view{"MyOtherTypeAlias"});
+
+    // Get the right hand side and understand it is referencing the other type
+    // alias.
+    xls_dslx_type_annotation* rhs =
+        xls_dslx_type_alias_get_type_annotation(other_type_alias);
+    xls_dslx_type_ref_type_annotation* rhs_type_ref_type_annotation =
+        xls_dslx_type_annotation_get_type_ref_type_annotation(rhs);
+    xls_dslx_type_ref* rhs_type_ref =
+        xls_dslx_type_ref_type_annotation_get_type_ref(
+            rhs_type_ref_type_annotation);
+    xls_dslx_type_definition* rhs_type_definition =
+        xls_dslx_type_ref_get_type_definition(rhs_type_ref);
+    xls_dslx_type_alias* rhs_type_alias =
+        xls_dslx_type_definition_get_type_alias(rhs_type_definition);
+    EXPECT_EQ(rhs_type_alias, my_type_alias);
   }
 }
 
