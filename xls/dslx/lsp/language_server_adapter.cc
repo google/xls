@@ -272,6 +272,7 @@ LanguageServerAdapter::FindDefinitions(
     FileTable& file_table = parsed->file_table();
     const Pos pos = ConvertLspPositionToPos(uri, position, file_table);
     VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
+
     std::optional<const NameDef*> maybe_definition = xls::dslx::FindDefinition(
         parsed->module(), pos, parsed->type_info(), parsed->import_data());
     if (maybe_definition.has_value()) {

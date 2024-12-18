@@ -157,6 +157,34 @@ fn f() -> T { () }
   EXPECT_TRUE(definition_location.range.end == want_end);
 }
 
+// Demonstrates that we can resolve the RHS of a type alias that is a colon-ref
+// to a definition in another module.
+TEST(LanguageServerAdapterTest, TestFindDefinitionsTypeAliasColonRef) {
+  std::vector<LspUri> dslx_paths = {LspUri("file:///fake/path")};
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), dslx_paths);
+
+  const LspUri kSomeModuleUri("file:///fake/path/some_module.x");
+  XLS_ASSERT_OK(adapter.Update(kSomeModuleUri, "pub type SomeType = u32;"));
+
+  const LspUri kUri("file:///fake/path/test.x");
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(import some_module;
+type MyTypeAlias = some_module::SomeType;
+)"));
+
+  verible::lsp::Position position{1, 32};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<verible::lsp::Location> definition_locations,
+      adapter.FindDefinitions(kUri, position));
+  ASSERT_EQ(definition_locations.size(), 1);
+
+  verible::lsp::Location definition_location = definition_locations.at(0);
+  EXPECT_EQ(definition_location.uri, kSomeModuleUri.GetStringView());
+  const auto want_start = verible::lsp::Position{0, 9};
+  const auto want_end = verible::lsp::Position{0, 17};
+  EXPECT_TRUE(definition_location.range.start == want_start);
+  EXPECT_TRUE(definition_location.range.end == want_end);
+}
+
 // After we parse an invalid file the language server can still get requests,
 // check that works reasonably.
 TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
