@@ -52,6 +52,7 @@
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
+#include "xls/jit/llvm_compiler.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/observer.h"
 #include "xls/jit/type_layout.pb.h"
@@ -75,6 +76,9 @@ ABSL_FLAG(std::optional<std::string>, output_llvm_opt_ir, std::nullopt,
           "Path at which to write the output optimized llvm file.");
 ABSL_FLAG(std::optional<std::string>, output_asm, std::nullopt,
           "Path at which to write the output optimized llvm file.");
+ABSL_FLAG(int64_t, llvm_opt_level, xls::LlvmCompiler::kDefaultOptLevel,
+          "The optimization level to use for the LLVM optimizer.");
+
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 static constexpr bool kHasMsan = true;
 #else
@@ -227,7 +231,7 @@ absl::Status RealMain(const std::string& input_ir_path,
                       const std::optional<std::string>& top,
                       const std::optional<std::string>& output_object_path,
                       const std::optional<std::string>& output_proto_path,
-                      bool include_msan,
+                      bool include_msan, int64_t llvm_opt_level,
                       const std::optional<std::string>& output_textproto_path,
                       const std::optional<std::string>& output_llvm_ir_path,
                       const std::optional<std::string>& output_llvm_opt_ir_path,
@@ -258,26 +262,26 @@ absl::Status RealMain(const std::string& input_ir_path,
 
   std::optional<JitObjectCode> object_code;
   if (f->IsFunction()) {
-    XLS_ASSIGN_OR_RETURN(
-        object_code,
-        FunctionJit::CreateObjectCode(f->AsFunctionOrDie(),
-                                      /*opt_level = */ 3, include_msan, &obs));
+    XLS_ASSIGN_OR_RETURN(object_code, FunctionJit::CreateObjectCode(
+                                          f->AsFunctionOrDie(), llvm_opt_level,
+                                          include_msan, &obs));
   } else if (f->IsProc()) {
     if (f->AsProcOrDie()->is_new_style_proc()) {
       XLS_ASSIGN_OR_RETURN(
-          object_code,
-          CreateProcAotObjectCode(f->AsProcOrDie(), include_msan, &obs));
+          object_code, CreateProcAotObjectCode(f->AsProcOrDie(), llvm_opt_level,
+                                               include_msan, &obs));
     } else {
       // all procs
-      XLS_ASSIGN_OR_RETURN(object_code, CreateProcAotObjectCode(
-                                            package.get(), include_msan, &obs));
+      XLS_ASSIGN_OR_RETURN(
+          object_code, CreateProcAotObjectCode(package.get(), llvm_opt_level,
+                                               include_msan, &obs));
     }
   } else {
     XLS_ASSIGN_OR_RETURN(BlockElaboration elab,
                          BlockElaboration::Elaborate(f->AsBlockOrDie()));
     XLS_ASSIGN_OR_RETURN(
         object_code,
-        BlockJit::CreateObjectCode(elab, /*opt_level=*/3, include_msan, &obs));
+        BlockJit::CreateObjectCode(elab, llvm_opt_level, include_msan, &obs));
   }
   AotPackageEntrypointsProto all_entrypoints;
   if (output_object_path) {
@@ -340,6 +344,7 @@ int main(int argc, char** argv) {
   bool include_msan = absl::GetFlag(FLAGS_include_msan);
   absl::Status status = xls::RealMain(
       input_ir_path, top, output_object_path, output_proto_path, include_msan,
+      absl::GetFlag(FLAGS_llvm_opt_level),
       absl::GetFlag(FLAGS_output_textproto),
       absl::GetFlag(FLAGS_output_llvm_ir),
       absl::GetFlag(FLAGS_output_llvm_opt_ir), absl::GetFlag(FLAGS_output_asm));

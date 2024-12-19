@@ -15,6 +15,7 @@
 #ifndef XLS_JIT_JIT_PROC_RUNTIME_H_
 #define XLS_JIT_JIT_PROC_RUNTIME_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 
@@ -71,10 +72,12 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateAotSerialProcRuntime(
 
 // Generate AOT code for the given proc elaboration.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
-    Package* package, bool with_msan, JitObserver* observer = nullptr);
+    Package* package, int64_t opt_level, bool with_msan,
+    JitObserver* observer = nullptr);
 // Generate AOT code for the given proc elaboration.
 absl::StatusOr<JitObjectCode> CreateProcAotObjectCode(
-    Proc* top, bool with_msan, JitObserver* observer = nullptr);
+    Proc* top, int64_t opt_level, bool with_msan,
+    JitObserver* observer = nullptr);
 
 }  // namespace xls
 

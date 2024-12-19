@@ -99,6 +99,7 @@ cc_binary(
         ":function_base_jit",
         ":function_jit",
         ":jit_proc_runtime",
+        ":llvm_compiler",
         ":llvm_type_converter",
         ":observer",
         ":type_layout_cc_proto",
