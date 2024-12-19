@@ -376,6 +376,19 @@ bool Proc::HasImplicitUse(Node* node) const {
   // `next_value` nodes.
   if (auto it = next_state_indices_.find(node);
       it != next_state_indices_.end() && !it->second.empty()) {
+    if (node->Is<StateRead>() && it->second.size() == 1) {
+      // This is a state read that's used to define the next value of a single
+      // state element. If that state element is the same one being read, then
+      // this shouldn't count as an implicit use, because it just marks that
+      // this state element is never implicitly changed.
+      int64_t state_index = *it->second.begin();
+      if (node == GetStateRead(state_index) &&
+          absl::c_any_of(next_values(node->As<StateRead>()), [](Next* next) {
+            return !next->predicate().has_value();
+          })) {
+        return false;
+      }
+    }
     return true;
   }
 

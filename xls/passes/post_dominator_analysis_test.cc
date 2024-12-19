@@ -230,16 +230,17 @@ TEST_F(PostDominatorAnalysisTest, MultipleOutputs) {
   BValue x = pb.StateElement("x", Value(UBits(0, 1)));
   BValue y = pb.StateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, z}));
+  BValue next_y = pb.Next(y, z);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<PostDominatorAnalysis> analysis,
                            PostDominatorAnalysis::Run(proc));
 
   EXPECT_THAT(analysis->GetPostDominatorsOfNode(x.node()),
               ElementsAre(x.node()));
   EXPECT_THAT(analysis->GetPostDominatorsOfNode(y.node()),
-              ElementsAre(y.node(), z.node()));
+              ElementsAre(y.node(), z.node(), next_y.node()));
   EXPECT_THAT(analysis->GetPostDominatorsOfNode(z.node()),
-              ElementsAre(z.node()));
+              ElementsAre(z.node(), next_y.node()));
 
   EXPECT_THAT(analysis->GetNodesPostDominatedByNode(x.node()),
               ElementsAre(x.node()));

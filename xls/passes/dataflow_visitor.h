@@ -228,6 +228,13 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     return SetValue(sel, std::move(result));
   }
 
+  absl::Status HandleNext(Next* next) override {
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
+                         leaf_type_tree::CreateTuple<LeafT>(
+                             next->GetType()->AsTupleOrDie(), {}));
+    return SetValue(next, std::move(result));
+  }
+
   absl::Status HandleTuple(Tuple* tuple) override {
     std::vector<LeafTypeTreeView<LeafT>> elements;
     for (Node* operand : tuple->operands()) {

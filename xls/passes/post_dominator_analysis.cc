@@ -26,6 +26,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/topo_sort.h"
 
 namespace xls {
@@ -99,6 +100,12 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
     Node* node = reverse_toposort[i];
     std::vector<absl::Span<const NodeIndex>> user_postdominators;
     for (Node* user : node->users()) {
+      // If the use is only through the `state_read` parameter, then it's only
+      // being used to refer to the state element; the value is irrelevant.
+      if (user->Is<Next>() && user->As<Next>()->value() != node &&
+          user->As<Next>()->predicate() != node) {
+        continue;
+      }
       user_postdominators.push_back(postdominators.at(user));
     }
     // The postdominators of a node is the intersection of the lists of
