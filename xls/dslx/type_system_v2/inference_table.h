@@ -20,8 +20,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
@@ -41,7 +43,7 @@ class ParametricInvocation {
  public:
   ParametricInvocation(
       uint64_t id, const Invocation& node, const Function& callee,
-      const Function& caller,
+      std::optional<const Function*> caller,
       std::optional<const ParametricInvocation*> caller_invocation)
       : id_(id),
         node_(node),
@@ -51,7 +53,7 @@ class ParametricInvocation {
 
   const Invocation& node() const { return node_; }
   const Function& callee() const { return callee_; }
-  const Function& caller() const { return caller_; }
+  const std::optional<const Function*>& caller() const { return caller_; }
 
   // Note: this is `nullopt` if the caller is not parametric.
   const std::optional<const ParametricInvocation*>& caller_invocation() const {
@@ -67,7 +69,8 @@ class ParametricInvocation {
   std::string ToString() const {
     return absl::Substitute(
         "ParametricInvocation(id=$0, node=$1, caller=$2, caller_id=$3)", id_,
-        node_.ToString(), caller_.identifier(),
+        node_.ToString(),
+        caller_.has_value() ? (*caller_)->identifier() : "<standalone context>",
         caller_invocation_.has_value()
             ? std::to_string((*caller_invocation_)->id_)
             : "none");
@@ -77,9 +80,15 @@ class ParametricInvocation {
   const uint64_t id_;  // Just for logging.
   const Invocation& node_;
   const Function& callee_;
-  const Function& caller_;
+  const std::optional<const Function*> caller_;
   const std::optional<const ParametricInvocation*> caller_invocation_;
 };
+
+inline std::string ToString(
+    std::optional<const ParametricInvocation*> invocation) {
+  return invocation.has_value() ? (*invocation)->ToString()
+                                : "<standalone context>";
+}
 
 // An `Expr` paired with the `ParametricInvocation` in whose context any
 // parametrics in it should be evaluated. This is useful for capturing the
@@ -166,10 +175,12 @@ class InferenceTable {
 
   // Defines an invocation context for a parametric function, giving its
   // associated parametric variables distinct value expression storage for that
-  // context.
+  // context. Note that the `caller` must only be `nullopt` if the invocation is
+  // not in a function (e.g. it may be in the RHS of a free constant
+  // declaration).
   virtual absl::StatusOr<const ParametricInvocation*> AddParametricInvocation(
       const Invocation& invocation, const Function& callee,
-      const Function& caller,
+      std::optional<const Function*> caller,
       std::optional<const ParametricInvocation*> caller_invocation) = 0;
 
   // Retrieves all the parametric invocations that have been defined for all
@@ -197,17 +208,15 @@ class InferenceTable {
   virtual absl::Status SetTypeAnnotation(const AstNode* node,
                                          const TypeAnnotation* type) = 0;
 
-  // Returns all the nodes that have information in the table and are not
-  // dependent on parametric variables (i.e. their types, if any, should have
-  // single concretizations). The nodes are returned in the order added to the
-  // table.
-  virtual std::vector<const AstNode*> GetStaticNodes() const = 0;
+  using NodesByParametricInvocation =
+      std::vector<std::pair<std::optional<const ParametricInvocation*>,
+                            std::vector<const AstNode*>>>;
 
-  // Returns all the nodes that have information in the table and whose types
-  // may have distinct concretizations in the context of the given `invocation`.
-  // The nodes are returned in the order added to the table.
-  virtual std::vector<const AstNode*> GetNodesWithInvocationSpecificTypes(
-      const ParametricInvocation* invocation) const = 0;
+  // Returns a table of parametric invocation to the nodes in the callee
+  // function, plus an element at the end for all nodes not in a parametric
+  // context.
+  virtual NodesByParametricInvocation GetNodesByParametricInvocation()
+      const = 0;
 
   // Returns the type annotation for `node` in the table, if any.
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(

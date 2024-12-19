@@ -63,10 +63,12 @@ class InferenceTableTest : public ::testing::Test {
   }
 
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, InferenceTableToTypeInfo(
-                                            *table_, *module_, *import_data_,
-                                            *warning_collector_, file_table_,
-                                            /*auto_literal_annotations=*/{}));
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * ti,
+        InferenceTableToTypeInfo(*table_, *module_, *import_data_,
+                                 *warning_collector_, file_table_,
+                                 /*auto_literal_annotations=*/{},
+                                 /*invocation_scoped_type_annotations=*/{}));
     return ti;
   }
 
@@ -216,10 +218,10 @@ TEST_F(InferenceTableTest, ParametricVariable) {
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation1, *foo, *bar,
+      table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
   XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation2, *foo, *bar,
+      table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
@@ -266,10 +268,10 @@ TEST_F(InferenceTableTest, ParametricVariableForSignedness) {
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation1, *foo, *bar,
+      table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
   XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation2, *foo, *bar,
+      table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
@@ -321,10 +323,10 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation1, *foo, *bar,
+      table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
   XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation2, *foo, *bar,
+      table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
@@ -372,7 +374,7 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
   const Invocation* invocation = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation, *foo, *bar,
+      table_->AddParametricInvocation(*invocation, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
@@ -455,16 +457,16 @@ TEST_F(InferenceTableTest, ParametricVariableAndParametricCaller) {
   // Add the 4 parametric invocations to the table.
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricInvocation* bar_invocation1,
-      table_->AddParametricInvocation(*bar_invocation_node1, *bar, *baz,
+      table_->AddParametricInvocation(*bar_invocation_node1, *bar, baz,
                                       /*caller_invocation=*/std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricInvocation* bar_invocation2,
-      table_->AddParametricInvocation(*bar_invocation_node2, *bar, *baz,
+      table_->AddParametricInvocation(*bar_invocation_node2, *bar, baz,
                                       /*caller_invocation=*/std::nullopt));
-  XLS_ASSERT_OK(table_->AddParametricInvocation(*foo_invocation_node, *foo,
-                                                *bar, bar_invocation1));
-  XLS_ASSERT_OK(table_->AddParametricInvocation(*foo_invocation_node, *foo,
-                                                *bar, bar_invocation2));
+  XLS_ASSERT_OK(table_->AddParametricInvocation(*foo_invocation_node, *foo, bar,
+                                                bar_invocation1));
+  XLS_ASSERT_OK(table_->AddParametricInvocation(*foo_invocation_node, *foo, bar,
+                                                bar_invocation2));
 
   // Check what we get for the 2 invocations of `foo`.
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
@@ -513,7 +515,7 @@ TEST_F(InferenceTableTest, TooManyParametricsInInvocation) {
   const Invocation* invocation = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   EXPECT_THAT(
-      table_->AddParametricInvocation(*invocation, *foo, *bar,
+      table_->AddParametricInvocation(*invocation, *foo, bar,
                                       /*caller_invocation=*/std::nullopt),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Too many parametric values supplied")));

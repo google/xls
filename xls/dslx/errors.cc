@@ -100,6 +100,15 @@ absl::Status SignednessMismatchErrorStatus(const TypeAnnotation* annotation1,
       annotation2->ToString(), annotation2->span().ToString(file_table)));
 }
 
+absl::Status SignednessMismatchErrorStatus(const Type& type1, const Type& type2,
+                                           const Span& span1, const Span& span2,
+                                           const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::Substitute(
+      "TypeInferenceError: signed vs. unsigned mismatch: $0 at $1 vs. $2 at $3",
+      type1.ToString(), span1.ToString(file_table), type2.ToString(),
+      span2.ToString(file_table)));
+}
+
 absl::Status BitCountMismatchErrorStatus(const TypeAnnotation* annotation1,
                                          const TypeAnnotation* annotation2,
                                          const FileTable& file_table) {
@@ -109,6 +118,15 @@ absl::Status BitCountMismatchErrorStatus(const TypeAnnotation* annotation1,
       annotation2->ToString(), annotation2->span().ToString(file_table)));
 }
 
+absl::Status BitCountMismatchErrorStatus(const Type& type1, const Type& type2,
+                                         const Span& span1, const Span& span2,
+                                         const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::Substitute(
+      "TypeInferenceError: size mismatch: $0 at $1 vs. $2 at $3",
+      type1.ToString(), span1.ToString(file_table), type2.ToString(),
+      span2.ToString(file_table)));
+}
+
 absl::Status TypeMismatchErrorStatus(const TypeAnnotation* annotation1,
                                      const TypeAnnotation* annotation2,
                                      const FileTable& file_table) {
@@ -116,6 +134,15 @@ absl::Status TypeMismatchErrorStatus(const TypeAnnotation* annotation1,
       "TypeInferenceError: type mismatch: $0 at $1 vs. $2 at $3",
       annotation1->ToString(), annotation1->span().ToString(file_table),
       annotation2->ToString(), annotation2->span().ToString(file_table)));
+}
+
+absl::Status TypeMismatchErrorStatus(const Type& type1, const Type& type2,
+                                     const Span& span1, const Span& span2,
+                                     const FileTable& file_table) {
+  return absl::InvalidArgumentError(absl::Substitute(
+      "TypeInferenceError: type mismatch: $0 at $1 vs. $2 at $3",
+      type1.ToString(), span1.ToString(file_table), type2.ToString(),
+      span2.ToString(file_table)));
 }
 
 absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user,

@@ -67,10 +67,22 @@ absl::Status SignednessMismatchErrorStatus(const TypeAnnotation* annotation1,
                                            const TypeAnnotation* annotation2,
                                            const FileTable& file_table);
 
+// Variant of `SignednessMismatchErrorStatus` for when concrete types rather
+// than annotations are available.
+absl::Status SignednessMismatchErrorStatus(const Type& type1, const Type& type2,
+                                           const Span& span1, const Span& span2,
+                                           const FileTable& file_table);
+
 // Variant of `TypeInferenceErrorStatus` for when the bit count of one type
 // annotation is expected to match another and doesn't.
 absl::Status BitCountMismatchErrorStatus(const TypeAnnotation* annotation1,
                                          const TypeAnnotation* annotation2,
+                                         const FileTable& file_table);
+
+// Variant of `BitCountMismatchErrorStatus` for when concrete types rather than
+// annotations are available.
+absl::Status BitCountMismatchErrorStatus(const Type& type1, const Type& type2,
+                                         const Span& span1, const Span& span2,
                                          const FileTable& file_table);
 
 // Variant of `TypeInferenceErrorStatus` for when the overall type of one type
@@ -78,6 +90,12 @@ absl::Status BitCountMismatchErrorStatus(const TypeAnnotation* annotation1,
 // other is a tuple).
 absl::Status TypeMismatchErrorStatus(const TypeAnnotation* annotation1,
                                      const TypeAnnotation* annotation2,
+                                     const FileTable& file_table);
+
+// Variant of `TypeInferenceErrorStatus` for when concrete types instead of
+// annotations are available.
+absl::Status TypeMismatchErrorStatus(const Type& type1, const Type& type2,
+                                     const Span& span1, const Span& span2,
                                      const FileTable& file_table);
 
 // Creates a TypeMissingError status value referencing the given node (which has

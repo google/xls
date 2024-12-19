@@ -30,6 +30,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -38,6 +39,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 
@@ -145,42 +147,6 @@ struct TypeConstraints {
   std::optional<const TypeAnnotation*> signedness_definer;
 };
 
-// A visitor that finds the inference variables referred to by a given `AstNode`
-// and its descendants.
-class InferenceVariableDiscoveryVisitor : public AstNodeVisitorWithDefault {
- public:
-  explicit InferenceVariableDiscoveryVisitor(
-      absl::AnyInvocable<
-          absl::StatusOr<const InferenceVariable*>(const NameRef*)>
-          variable_resolver)
-      : variable_resolver_(std::move(variable_resolver)) {}
-
-  absl::Status HandleNameRef(const NameRef* ref) override {
-    absl::StatusOr<const InferenceVariable*> variable = variable_resolver_(ref);
-    if (variable.ok()) {
-      discovered_variables_.insert(*variable);
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status DefaultHandler(const AstNode* n) override {
-    for (const AstNode* child : n->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
-  const absl::flat_hash_set<const InferenceVariable*>& GetDiscoveredVariables()
-      const {
-    return discovered_variables_;
-  }
-
- private:
-  absl::AnyInvocable<absl::StatusOr<const InferenceVariable*>(const NameRef*)>
-      variable_resolver_;
-  absl::flat_hash_set<const InferenceVariable*> discovered_variables_;
-};
-
 class InferenceTableImpl : public InferenceTable {
  public:
   InferenceTableImpl(Module& module, const FileTable& file_table)
@@ -215,10 +181,14 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::StatusOr<const ParametricInvocation*> AddParametricInvocation(
-      const Invocation& node, const Function& callee, const Function& caller,
+      const Invocation& node, const Function& callee,
+      std::optional<const Function*> caller,
       std::optional<const ParametricInvocation*> caller_invocation) override {
+    VLOG(5) << "Add parametric invocation: " << node.ToString()
+            << " from caller invocation: " << ToString(caller_invocation);
     if (caller_invocation.has_value()) {
-      CHECK(&(*caller_invocation)->callee() == &caller);
+      CHECK(caller.has_value());
+      CHECK(&(*caller_invocation)->callee() == *caller);
     }
     auto invocation = std::make_unique<ParametricInvocation>(
         parametric_invocations_.size(), node, callee, caller,
@@ -305,26 +275,27 @@ class InferenceTableImpl : public InferenceTable {
         node, [=](NodeData& data) { data.type_variable = variable; });
   }
 
-  std::vector<const AstNode*> GetStaticNodes() const override {
-    return ConvertNodeSetToOrderedVector(static_nodes_);
-  }
-
-  // Returns all the nodes that have information in the table and whose types
-  // have distinct concretizations in the context of the given `invocation`. The
-  // nodes are returned in the order added to the table.
-  std::vector<const AstNode*> GetNodesWithInvocationSpecificTypes(
-      const ParametricInvocation* invocation) const override {
-    absl::flat_hash_set<const AstNode*> dependents;
-    for (const ParametricBinding* binding :
-         invocation->callee().parametric_bindings()) {
-      const InferenceVariable* variable =
-          variables_.at(binding->name_def()).get();
-      const auto it = variable_dependents_.find(variable);
-      if (it != variable_dependents_.end()) {
-        absl::c_copy(it->second, std::inserter(dependents, dependents.end()));
-      }
+  NodesByParametricInvocation GetNodesByParametricInvocation() const override {
+    NodesByParametricInvocation result;
+    absl::flat_hash_set<const AstNode*> static_nodes;
+    for (const auto& [node, node_data] : node_data_) {
+      static_nodes.insert(node);
     }
-    return ConvertNodeSetToOrderedVector(dependents);
+    for (const std::unique_ptr<ParametricInvocation>& invocation :
+         parametric_invocations_) {
+      absl::flat_hash_set<const AstNode*> nodes =
+          FlattenToSet(&invocation->callee());
+      nodes.erase(&invocation->callee());
+      static_nodes.erase(&invocation->callee());
+      for (const AstNode* node : nodes) {
+        static_nodes.erase(node);
+      }
+      result.emplace_back(invocation.get(),
+                          FilterAndConvertNodeSetToOrderedVector(nodes));
+    }
+    result.emplace_back(std::nullopt,
+                        FilterAndConvertNodeSetToOrderedVector(static_nodes));
+    return result;
   }
 
   std::optional<const TypeAnnotation*> GetTypeAnnotation(
@@ -385,9 +356,7 @@ class InferenceTableImpl : public InferenceTable {
     NodeData& node_data = it->second;
     if (inserted) {
       node_data.order_added = node_data_.size();
-      static_nodes_.insert(node);
     }
-    bool had_type_annotation_before = node_data.type_annotation.has_value();
     mutator(node_data);
     // Refine and check the associated type variable.
     if (node_data.type_variable.has_value() &&
@@ -395,46 +364,19 @@ class InferenceTableImpl : public InferenceTable {
       type_annotations_per_type_variable_[*node_data.type_variable].push_back(
           *node_data.type_annotation);
     }
-    // Update the dependencies of the node.
-    if (node_data.type_variable.has_value()) {
-      AddDependency(node, *node_data.type_variable);
-    }
-    if (!had_type_annotation_before && node_data.type_annotation.has_value()) {
-      XLS_ASSIGN_OR_RETURN(
-          absl::flat_hash_set<const InferenceVariable*> referenced_variables,
-          GetReferencedVariables(*node_data.type_annotation));
-      for (const InferenceVariable* variable : referenced_variables) {
-        AddDependency(node, variable);
-      }
-    }
     return absl::OkStatus();
   }
 
-  void AddDependency(const AstNode* node, const InferenceVariable* variable) {
-    variable_dependents_[variable].insert(node);
-    if (variable->parametric()) {
-      // Nodes are considered static by default, and they lose their static-ness
-      // when they are determined to depend on a parametric.
-      static_nodes_.erase(node);
-    }
-  }
-
-  std::vector<const AstNode*> ConvertNodeSetToOrderedVector(
+  std::vector<const AstNode*> FilterAndConvertNodeSetToOrderedVector(
       const absl::flat_hash_set<const AstNode*>& nodes) const {
     std::vector<const AstNode*> result;
-    absl::c_copy(nodes, std::back_inserter(result));
+    absl::c_copy_if(
+        nodes, std::back_inserter(result),
+        [&](const AstNode* node) { return node_data_.contains(node); });
     absl::c_sort(result, [this](const AstNode* x, const AstNode* y) {
       return node_data_.at(x).order_added < node_data_.at(y).order_added;
     });
     return result;
-  }
-
-  absl::StatusOr<absl::flat_hash_set<const InferenceVariable*>>
-  GetReferencedVariables(const AstNode* node) {
-    InferenceVariableDiscoveryVisitor visitor(
-        [this](const NameRef* ref) { return GetVariable(ref); });
-    XLS_RETURN_IF_ERROR(node->Accept(&visitor));
-    return visitor.GetDiscoveredVariables();
   }
 
   Module& module_;
@@ -450,13 +392,6 @@ class InferenceTableImpl : public InferenceTable {
       type_annotations_per_type_variable_;
   // The `AstNode` objects that have associated data.
   absl::flat_hash_map<const AstNode*, NodeData> node_data_;
-  // Which `AstNode` objects depend on which variables.
-  absl::flat_hash_map<const InferenceVariable*,
-                      absl::flat_hash_set<const AstNode*>>
-      variable_dependents_;
-  // These nodes don't depend on any parametric variables, so their associated
-  // types have a single concretization.
-  absl::flat_hash_set<const AstNode*> static_nodes_;
   // Parametric invocations and the corresponding information about parametric
   // variables.
   std::vector<std::unique_ptr<ParametricInvocation>> parametric_invocations_;

@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -36,7 +37,10 @@ namespace xls::dslx {
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
     const InferenceTable& table, Module& module, ImportData& import_data,
     WarningCollector& warning_collector, const FileTable& file_table,
-    const absl::flat_hash_set<const TypeAnnotation*>& auto_literal_annotations);
+    const absl::flat_hash_set<const TypeAnnotation*>& auto_literal_annotations,
+    const absl::flat_hash_map<const TypeAnnotation*,
+                              const ParametricInvocation*>&
+        invocation_scoped_type_annotations);
 
 }  // namespace xls::dslx
 
