@@ -12,15 +12,15 @@ module foo_proc(
 );
   wire out1_send_pred;
   wire out2_send_pred;
-  wire literal_90;
+  wire literal_104;
   wire p0_all_active_outputs_ready;
   assign out1_send_pred = dir == 32'h0000_0000;
   assign out2_send_pred = ~out1_send_pred;
-  assign literal_90 = 1'h1;
+  assign literal_104 = 1'h1;
   assign p0_all_active_outputs_ready = (~out1_send_pred | out1_rdy) & (~out2_send_pred | out2_rdy);
   assign out1 = in;
   assign out2 = in;
-  assign out1_vld = in_vld & literal_90 & literal_90 & out1_send_pred;
-  assign out2_vld = in_vld & literal_90 & literal_90 & out2_send_pred;
+  assign out1_vld = in_vld & literal_104 & literal_104 & out1_send_pred;
+  assign out2_vld = in_vld & literal_104 & literal_104 & out2_send_pred;
   assign in_rdy = p0_all_active_outputs_ready;
 endmodule

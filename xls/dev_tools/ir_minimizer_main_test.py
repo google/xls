@@ -811,9 +811,9 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     )
     minimized_ir = output.stdout
     self.assertEqual(function_count(minimized_ir), 2)
-    self.assertEqual(node_count(minimized_ir), 2)
+    self.assertEqual(node_count(minimized_ir), 3)
     self.assertIn('ret literal', minimized_ir)
-    self.assertIn('ret invoke', minimized_ir)
+    self.assertNotIn('ret invoke', minimized_ir)
 
   def test_can_remove_invoke_args(self):
     ir_file = self.create_tempfile(content=INVOKE_TWO)
@@ -873,9 +873,9 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     minimized_ir = output.stdout
     self._maybe_record_property('output', minimized_ir)
     self.assertEqual(function_count(minimized_ir), 2)
-    self.assertEqual(node_count(minimized_ir), 2)
+    self.assertEqual(node_count(minimized_ir), 3)
     self.assertIn('ret literal', minimized_ir)
-    self.assertIn('ret invoke', minimized_ir)
+    self.assertNotIn('ret invoke', minimized_ir)
 
 
 if __name__ == '__main__':

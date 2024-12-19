@@ -35,7 +35,12 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
   auto is_deletable = [](Node* n) {
-    return !n->function_base()->HasImplicitUse(n) &&
+    // Don't remove invokes, they will be removed by inlining. The invoked
+    // functions could have side effects, so DCE shouldn't remove them.
+    //
+    // TODO: google/xls#1806 -  consider making invokes side-effecting if we can
+    // deal with FFI well.
+    return !n->function_base()->HasImplicitUse(n) && !n->Is<Invoke>() &&
            (!OpIsSideEffecting(n->op()) || n->Is<Gate>());
   };
 

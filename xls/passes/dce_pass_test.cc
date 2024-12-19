@@ -167,5 +167,33 @@ TEST_F(DeadCodeEliminationPassTest, GateRemoved) {
   EXPECT_THAT(f->GetNode(kDeadNodeName), Not(IsOk()));
 }
 
+TEST_F(DeadCodeEliminationPassTest, SideEffectingInvokeNotRemoved) {
+  auto p = CreatePackage();
+  Function* side_effecting;
+  {
+    FunctionBuilder fb("side_effecting", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(32));
+    fb.Trace(fb.Literal(Value::Token()), fb.Literal(Value(UBits(1, 1))), {x},
+             "x = {}");
+    XLS_ASSERT_OK_AND_ASSIGN(
+        side_effecting, fb.BuildWithReturnValue(fb.Literal(Value::Tuple({}))));
+  }
+
+  FunctionBuilder fb("invoker", p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  fb.Param("y", p->GetBitsType(32));
+  fb.Invoke({x}, side_effecting);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(m::Function("side_effecting"),
+                                   m::Function("invoker")));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
+
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(m::Function("side_effecting"),
+                                   m::Function("invoker")));
+}
+
 }  // namespace
 }  // namespace xls
