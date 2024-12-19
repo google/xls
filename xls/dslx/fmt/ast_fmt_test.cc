@@ -3203,5 +3203,123 @@ TEST_F(ModuleFmtTest, DisableFmtAroundTestFn) {
 )");
 }
 
+TEST_F(ModuleFmtTest, CommentBeforeFirstItemStructLiteral) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo {
+        // Comment before
+        a: u1:0,
+        b: u1:0,
+    };
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, CommentBetweenItemsInStructLiteral) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo {
+        a: u1:0,
+        // and between
+        b: u1:0,
+    };
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, CommentAfterLastItemInStructLiteral) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo {
+        a: u1:0,
+        b: u1:0,
+        // and after.
+    };
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, CommentThroughoutInStructLiteral) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo {
+        // Comment before
+        a: u1:0,
+        // and between
+        b: u1:0,
+        // and after.
+    };
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, CommentSameLineAsItemInStructLiteral) {
+  // TODO: https://github.com/google/xls/issues/1719 - if there is a comment
+  // on the same line as this item, don't insert a hard-line.
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo {
+        a: u1:0, // and between
+        b: u1:0, // and after.
+    };
+}
+)",
+        R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo {
+        a: u1:0,
+        // and between
+        b: u1:0,
+        // and after.
+    };
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, CommentAfterStructLiteralSpan) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo { a: u1:0, b: u1:0 };  // after only
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, StructLiteral) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() { let foo = Foo { a: u1:0, b: u1:0 }; }
+)");
+}
+
+TEST_F(ModuleFmtTest, StructLiteralShorthand) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let a = u1:0;
+    let foo = Foo {
+        a,
+        b: u1:0 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1,
+    };
+}
+)");
+}
+TEST_F(ModuleFmtTest, StructLiteralBreak) {
+  DoFmt(R"(struct Foo { a: u1, b: u1 }
+
+fn test() {
+    let foo = Foo {
+        a: u1:0 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1,
+        b: u1:0 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1 + u1:1,
+    };
+}
+)");
+}
 }  // namespace
 }  // namespace xls::dslx

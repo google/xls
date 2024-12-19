@@ -1390,52 +1390,85 @@ DocRef FmtStructMembersFlat(
 }
 
 DocRef FmtStructMembersBreak(
-    absl::Span<const std::pair<std::string, Expr*>> members, Comments& comments,
-    DocArena& arena) {
-  return FmtJoin<std::pair<std::string, Expr*>>(
-      members, Joiner::kCommaHardlineTrailingCommaAlways,
-      [](const auto& member, Comments& comments, DocArena& arena) {
-        const auto& [field_name, expr] = member;
-        // If the expression is an identifier that matches its corresponding
-        // struct member name, we canonically use the shorthand notation of just
-        // providing the identifier and leaving the member name implicitly as
-        // the same symbol.
-        if (const NameRef* name_ref = dynamic_cast<const NameRef*>(expr);
-            name_ref != nullptr && name_ref->identifier() == field_name) {
-          return arena.MakeText(field_name);
-        }
+    Span struct_span, absl::Span<const std::pair<std::string, Expr*>> members,
+    Comments& comments, DocArena& arena) {
+  std::vector<DocRef> pieces;
+  Pos previous_item_limit = struct_span.start();
+  for (size_t i = 0; i < members.size(); ++i) {
+    const std::pair<std::string, Expr*>& member = members[i];
+    const auto& [field_name, expr] = member;
 
-        DocRef field_expr = Fmt(*expr, comments, arena);
+    // If there are comments between the last item and here, insert them.
+    Span comment_span(previous_item_limit, expr->span().start());
+    if (std::optional<DocRef> previous_comments =
+            EmitCommentsBetween(comment_span.start(), comment_span.limit(),
+                                comments, arena, nullptr)) {
+      pieces.push_back(previous_comments.value());
+      pieces.push_back(arena.hard_line());
+    }
+    previous_item_limit = expr->span().limit();
 
-        // This is the document we want to emit both when we:
-        // - Know it fits in flat mode
-        // - Know the start of the document (i.e. the leader on the RHS
-        //   expression) can be emitted in flat mode
-        //
-        // That's why it has a `break1` in it (instead of a space) and a
-        // reassessment of whether to enter break mode for the field
-        // expression.
-        DocRef on_flat =
-            ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
-                            arena.break1(), arena.MakeGroup(field_expr)});
-        DocRef nest_field_expr =
-            ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
-                            arena.hard_line(), arena.MakeNest(field_expr)});
+    // If the expression is an identifier that matches its corresponding
+    // struct member name, we canonically use the shorthand notation of just
+    // providing the identifier and leaving the member name implicitly as
+    // the same symbol.
+    DocRef member_doc;
+    if (const NameRef* name_ref = dynamic_cast<const NameRef*>(expr);
+        name_ref != nullptr && name_ref->identifier() == field_name) {
+      member_doc = arena.MakeText(field_name);
+    } else {
+      // First we format the member into a doc and then decide the best way to
+      // put it into the sequence.
+      DocRef field_expr = Fmt(*expr, comments, arena);
 
-        DocRef on_other;
-        if (expr->IsBlockedExprWithLeader()) {
-          DocRef leader = ConcatN(
-              arena, {arena.MakeText(field_name), arena.colon(), arena.space(),
-                      FmtBlockedExprLeader(*expr, comments, arena)});
-          on_other = arena.MakeModeSelect(leader, /*on_flat=*/on_flat,
-                                          /*on_break=*/nest_field_expr);
-        } else {
-          on_other = arena.MakeFlatChoice(on_flat, nest_field_expr);
-        }
+      // This is the document we want to emit both when we:
+      // - Know it fits in flat mode
+      // - Know the start of the document (i.e. the leader on the RHS
+      //   expression) can be emitted in flat mode
+      //
+      // That's why it has a `break1` in it (instead of a space) and a
+      // reassessment of whether to enter break mode for the field
+      // expression.
+      DocRef on_flat =
+          ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
+                          arena.break1(), arena.MakeGroup(field_expr)});
+      DocRef nest_field_expr =
+          ConcatN(arena, {arena.MakeText(field_name), arena.colon(),
+                          arena.hard_line(), arena.MakeNest(field_expr)});
 
-        return arena.MakeNestIfFlatFits(on_flat, on_other);
-      },
-      comments, arena);
+      DocRef on_other;
+      if (expr->IsBlockedExprWithLeader()) {
+        DocRef leader = ConcatN(
+            arena, {arena.MakeText(field_name), arena.colon(), arena.space(),
+                    FmtBlockedExprLeader(*expr, comments, arena)});
+        on_other = arena.MakeModeSelect(leader, /*on_flat=*/on_flat,
+                                        /*on_break=*/nest_field_expr);
+      } else {
+        on_other = arena.MakeFlatChoice(on_flat, nest_field_expr);
+      }
+
+      member_doc = arena.MakeNestIfFlatFits(on_flat, on_other);
+    }
+
+    pieces.push_back(member_doc);
+    pieces.push_back(arena.comma());
+    // TODO: https://github.com/google/xls/issues/1719 - if there is a comment
+    // on the same line as this item, insert the comment first.
+    if (i + 1 != members.size()) {
+      // Not the last item, add a hardline
+      pieces.push_back(arena.hard_line());
+    }
+  }
+
+  // Insert comments between the last item and the end of the struct.
+  Span comment_span(previous_item_limit, struct_span.limit());
+  if (std::optional<DocRef> previous_comments =
+          EmitCommentsBetween(comment_span.start(), comment_span.limit(),
+                              comments, arena, nullptr)) {
+    pieces.push_back(arena.hard_line());
+    pieces.push_back(previous_comments.value());
+  }
+  return ConcatNGroup(arena, pieces);
 }
 
 DocRef FmtFlatRest(const StructInstance& n, Comments& comments,
@@ -1448,10 +1481,11 @@ DocRef FmtFlatRest(const StructInstance& n, Comments& comments,
 
 DocRef FmtBreakRest(const StructInstance& n, Comments& comments,
                     DocArena& arena) {
-  return ConcatN(arena, {arena.hard_line(),
-                         arena.MakeNest(FmtStructMembersBreak(
-                             n.GetUnorderedMembers(), comments, arena)),
-                         arena.hard_line(), arena.ccurl()});
+  return ConcatN(arena,
+                 {arena.hard_line(),
+                  arena.MakeNest(FmtStructMembersBreak(
+                      n.span(), n.GetUnorderedMembers(), comments, arena)),
+                  arena.hard_line(), arena.ccurl()});
 }
 
 DocRef Fmt(const StructInstance& n, Comments& comments, DocArena& arena) {
@@ -1466,8 +1500,14 @@ DocRef Fmt(const StructInstance& n, Comments& comments, DocArena& arena) {
   // definition may be defined an an imported file, and we have auto-formatting
   // work purely at the single-file syntax level.
 
-  DocRef on_flat = FmtFlatRest(n, comments, arena);
+  // If there are comments within the span, we must go to break mode, because
+  // newlines.
   DocRef on_break = FmtBreakRest(n, comments, arena);
+  if (CommentsWithin(n.span(), comments)) {
+    return arena.MakeConcat(leader, on_break);
+  }
+
+  DocRef on_flat = FmtFlatRest(n, comments, arena);
   return arena.MakeConcat(
       leader, arena.MakeGroup(arena.MakeFlatChoice(on_flat, on_break)));
 }
@@ -1487,7 +1527,8 @@ DocRef Fmt(const SplatStructInstance& n, Comments& comments, DocArena& arena) {
   DocRef on_break = ConcatN(
       arena, {arena.hard_line(),
               arena.MakeNest(ConcatN(
-                  arena, {FmtStructMembersBreak(n.members(), comments, arena),
+                  arena, {FmtStructMembersBreak(n.span(), n.members(), comments,
+                                                arena),
                           arena.hard_line(), arena.dot_dot(), splatted})),
               arena.hard_line(), arena.ccurl()});
   return arena.MakeConcat(
