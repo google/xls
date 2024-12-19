@@ -37,6 +37,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/verifier_checker.h"
 
@@ -90,10 +91,6 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
               },
           },
           options.pass_pipeline));
-  // if (!options.pass_list) {
-  //   pipeline = CreateOptimizationPassPipeline();
-  // } else {
-  // }
   OptimizationPassOptions pass_options;
   pass_options.opt_level = options.opt_level;
   pass_options.ir_dump_path = options.ir_dump_path;
@@ -106,8 +103,12 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   pass_options.use_context_narrowing_analysis =
       options.use_context_narrowing_analysis;
   pass_options.bisect_limit = options.bisect_limit;
+  pass_options.record_metrics = options.metrics != nullptr;
   PassResults results;
   XLS_RETURN_IF_ERROR(pipeline->Run(package, pass_options, &results).status());
+  if (options.metrics) {
+    *options.metrics = results.aggregate_results.ToProto();
+  }
   return absl::OkStatus();
 }
 

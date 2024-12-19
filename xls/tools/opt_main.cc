@@ -49,6 +49,7 @@
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/tools/opt.h"
 
@@ -127,6 +128,12 @@ ABSL_FLAG(std::optional<int64_t>, passes_bisect_limit, std::nullopt,
           "fuel to ensure the compiler finishes at a particular point.");
 ABSL_FLAG(bool, list_passes, false,
           "If passed list the names of all passes and exit.");
+ABSL_FLAG(std::optional<std::string>, pipeline_metrics_proto, std::nullopt,
+          "Output path for the pipeline metrics binary proto recording what "
+          "this opt performed.");
+ABSL_FLAG(std::optional<std::string>, pipeline_metrics_textproto, std::nullopt,
+          "Output path for the pipeline metrics text proto recording what "
+          "this opt performed.");
 
 namespace xls::tools {
 namespace {
@@ -241,6 +248,10 @@ absl::Status RealMain(std::string_view input_path) {
     pass_pipeline = *pass_list;
   }
 
+  PipelineMetricsProto metrics;
+  bool wants_metrics = absl::GetFlag(FLAGS_pipeline_metrics_proto) ||
+                       absl::GetFlag(FLAGS_pipeline_metrics_textproto);
+
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -257,7 +268,19 @@ absl::Status RealMain(std::string_view input_path) {
               .use_context_narrowing_analysis = use_context_narrowing_analysis,
               .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
+              .metrics = wants_metrics ? &metrics : nullptr,
           }));
+  if (absl::GetFlag(FLAGS_pipeline_metrics_proto)) {
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(*absl::GetFlag(FLAGS_pipeline_metrics_proto),
+                        metrics.SerializeAsString()));
+  }
+  if (absl::GetFlag(FLAGS_pipeline_metrics_textproto)) {
+    std::string tf;
+    XLS_RET_CHECK(google::protobuf::TextFormat::PrintToString(metrics, &tf));
+    XLS_RETURN_IF_ERROR(
+        SetFileContents(*absl::GetFlag(FLAGS_pipeline_metrics_textproto), tf));
+  }
 
   if (output_path == "-") {
     std::cout << opt_ir;

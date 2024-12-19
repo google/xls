@@ -43,6 +43,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
+#include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls {
@@ -70,6 +71,10 @@ struct PassOptionsBase {
   // number of passes executed might change due to setting this field as
   // fixed-points may complete earlier.
   std::optional<int64_t> bisect_limit;
+
+  // If true, record metrics about runtime, number of nodes affected and other
+  // information as appropriate for each pass run.
+  bool record_metrics = false;
 };
 
 // An object containing information about the invocation of a pass (single call
@@ -85,11 +90,54 @@ struct PassInvocation {
   absl::Duration run_duration;
 };
 
+// Data structure holding statistics about a particular pass.
+struct SinglePassResult {
+  // How many times the pass was run.
+  int64_t run_count = 0;
+  // How many runs changed the IR.
+  int64_t changed_count = 0;
+  // Aggregate transformation metrics across the runs.
+  TransformMetrics metrics{};
+  // Total duration of the running of the pass.
+  absl::Duration duration;
+
+  PassResultProto ToProto() const;
+};
+
+// Data structure returned by contains aggregate statistics about the passes run
+// in a compound pass.
+class CompoundPassResult {
+ public:
+  // Whether the IR was changed.
+  bool changed() const { return changed_; }
+  void set_changed(bool value) { changed_ = value; }
+
+  // Add the results of a single run of a pass.
+  void AddSinglePassResult(std::string_view pass_name, bool changed,
+                           absl::Duration duration,
+                           const TransformMetrics& metrics);
+
+  // Accumulates the statistics in `other` into this one.
+  void AccumulateCompoundPassResult(const CompoundPassResult& other);
+
+  std::string ToString() const;
+  PipelineMetricsProto ToProto() const;
+
+ private:
+  bool changed_ = false;
+
+  // Aggregate results for each pass. Indexed by short name.
+  absl::flat_hash_map<std::string, SinglePassResult> pass_results_;
+};
+
 // A object to which metadata may be written in each pass invocation. This data
 // structure is passed by mutable pointer to PassBase::Run.
 struct PassResults {
   // This vector contains and entry for each invocation of each pass.
   std::vector<PassInvocation> invocations;
+
+  // The aggregate results of all actual invocations performed.
+  CompoundPassResult aggregate_results;
 };
 
 // Base class for all compiler passes. Template parameters:
@@ -215,43 +263,6 @@ class InvariantCheckerBase {
   virtual ~InvariantCheckerBase() = default;
   virtual absl::Status Run(IrT* ir, const OptionsT& options,
                            ResultsT* results) const = 0;
-};
-
-// Data structure holding statistics about a particular pass.
-struct SinglePassResult {
-  // How many times the pass was run.
-  int64_t run_count = 0;
-  // How many runs changed the IR.
-  int64_t changed_count = 0;
-  // Aggregate transformation metrics across the runs.
-  TransformMetrics metrics;
-  // Total duration of the running of the pass.
-  absl::Duration duration;
-};
-
-// Data structure returned by contains aggregate statistics about the passes run
-// in a compound pass.
-class CompoundPassResult {
- public:
-  // Whether the IR was changed.
-  bool changed() const { return changed_; }
-  void set_changed(bool value) { changed_ = value; }
-
-  // Add the results of a single run of a pass.
-  void AddSinglePassResult(std::string_view pass_name, bool changed,
-                           absl::Duration duration,
-                           const TransformMetrics& metrics);
-
-  // Accumulates the statistics in `other` into this one.
-  void AccumulateCompoundPassResult(const CompoundPassResult& other);
-
-  std::string ToString() const;
-
- private:
-  bool changed_ = false;
-
-  // Aggregate results for each pass. Indexed by short name.
-  absl::flat_hash_map<std::string, SinglePassResult> pass_results_;
 };
 
 // CompoundPass is a container for other passes. For example, the scalar
@@ -449,7 +460,7 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
                                   results->invocations.size(), ir->name());
 
     TransformMetrics before_metrics;
-    if (VLOG_IS_ON(1)) {
+    if (VLOG_IS_ON(1) || options.record_metrics) {
       before_metrics = ir->transform_metrics();
     }
 
@@ -542,6 +553,10 @@ CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
   }
 
   aggregate_result.set_changed(changed);
+  if (options.record_metrics) {
+    // Update the full pass-result.
+    results->aggregate_results.AccumulateCompoundPassResult(aggregate_result);
+  }
   return aggregate_result;
 }
 

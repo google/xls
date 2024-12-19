@@ -50,6 +50,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/transform_metrics.pb.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -902,6 +903,15 @@ std::string TransformMetrics::ToString() const {
       "{ nodes added: %d, nodes removed: %d, nodes replaced: %d, operands "
       "replaced: %d }",
       nodes_added, nodes_removed, nodes_replaced, operands_replaced);
+}
+
+TransformMetricsProto TransformMetrics::ToProto() const {
+  TransformMetricsProto ret;
+  ret.set_nodes_added(nodes_added);
+  ret.set_nodes_removed(nodes_removed);
+  ret.set_nodes_replaced(nodes_replaced);
+  ret.set_operands_replaced(operands_replaced);
+  return ret;
 }
 
 }  // namespace xls

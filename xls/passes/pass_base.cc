@@ -15,13 +15,16 @@
 #include "xls/passes/pass_base.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "google/protobuf/duration.pb.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "xls/ir/package.h"
+#include "xls/passes/pass_metrics.pb.h"
 
 namespace xls {
 
@@ -69,6 +72,28 @@ std::string CompoundPassResult::ToString() const {
         result.metrics.ToString());
   }
   return s;
+}
+
+PassResultProto SinglePassResult::ToProto() const {
+  PassResultProto res;
+  res.set_run_count(run_count);
+  res.set_changed_count(changed_count);
+  *res.mutable_metrics() = metrics.ToProto();
+
+  absl::Duration rem;
+  int64_t s = absl::IDivDuration(duration, absl::Seconds(1), &rem);
+  int64_t n = absl::IDivDuration(duration, absl::Nanoseconds(1), &rem);
+  res.mutable_pass_duration()->set_seconds(s);
+  res.mutable_pass_duration()->set_nanos(n);
+  return res;
+}
+
+PipelineMetricsProto CompoundPassResult::ToProto() const {
+  PipelineMetricsProto res;
+  for (const auto& [name, result] : pass_results_) {
+    res.mutable_pass_results()->insert({name, result.ToProto()});
+  }
+  return res;
 }
 
 }  // namespace xls

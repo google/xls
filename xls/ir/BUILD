@@ -501,6 +501,16 @@ py_proto_library(
     deps = [":op_proto"],
 )
 
+proto_library(
+    name = "transform_metrics_proto",
+    srcs = ["transform_metrics.proto"],
+)
+
+cc_proto_library(
+    name = "transform_metrics_cc_proto",
+    deps = [":transform_metrics_proto"],
+)
+
 cc_library(
     name = "state_element",
     srcs = [
@@ -586,6 +596,7 @@ cc_library(
         ":register",
         ":source_location",
         ":state_element",
+        ":transform_metrics_cc_proto",
         ":type",
         ":type_manager",
         ":unwrapping_iterator",

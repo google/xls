@@ -80,6 +80,25 @@ genrule(
     tools = [":dump_default_optimization_pass_pipeline_main"],
 )
 
+proto_library(
+    name = "pass_metrics_proto",
+    srcs = ["pass_metrics.proto"],
+    deps = [
+        "//xls/ir:transform_metrics_proto",
+        "@com_google_protobuf//:duration_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "pass_metrics_cc_proto",
+    deps = [":pass_metrics_proto"],
+)
+
+py_proto_library(
+    name = "pass_metrics_py_pb2",
+    deps = [":pass_metrics_proto"],
+)
+
 cc_library(
     name = "optimization_pass_pipeline",
     srcs = ["optimization_pass_pipeline.cc"],
@@ -1306,6 +1325,7 @@ cc_library(
     srcs = ["pass_base.cc"],
     hdrs = ["pass_base.h"],
     deps = [
+        ":pass_metrics_cc_proto",
         ":pass_pipeline_cc_proto",
         "//xls/common:casts",
         "//xls/common/file:filesystem",
@@ -1323,6 +1343,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
+        "@com_google_protobuf//:duration_cc_proto",
     ],
 )
 

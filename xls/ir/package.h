@@ -34,6 +34,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/transform_metrics.pb.h"
 #include "xls/ir/type.h"
 #include "xls/ir/type_manager.h"
 #include "xls/ir/value.h"
@@ -70,6 +71,7 @@ struct TransformMetrics {
   TransformMetrics operator+(const TransformMetrics& other) const;
   TransformMetrics operator-(const TransformMetrics& other) const;
   std::string ToString() const;
+  TransformMetricsProto ToProto() const;
 };
 
 class Package {

@@ -28,6 +28,7 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
 
 namespace xls::tools {
@@ -48,6 +49,7 @@ struct OptOptions {
   std::variant<std::nullopt_t, std::string_view, PassPipelineProto>
       pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
+  PipelineMetricsProto* metrics = nullptr;
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular
