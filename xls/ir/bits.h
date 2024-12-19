@@ -249,6 +249,9 @@ class Bits {
 
 // Helper for "stringing together" bits objects into a final result, avoiding
 // intermediate allocations.
+//
+// Note that to use this object you have to know the total bit count up front.
+// If the total bit count is unknown see `BitPushBuffer`.
 class BitsRope {
  public:
   explicit BitsRope(int64_t total_bit_count) : bitmap_(total_bit_count) {}

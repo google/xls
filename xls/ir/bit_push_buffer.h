@@ -18,7 +18,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "xls/common/math_util.h"
+#include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
 
@@ -30,28 +30,50 @@ class BitPushBuffer {
   // ordering with which these pushed bits are returned in the byte sequence.
   void PushBit(bool bit) { bitmap_.push_back(bit); }
 
+  InlineBitmap ToBitmap() const {
+    return InlineBitmap::FromBitsMsbIs0(bitmap_);
+  }
+
   // Retrieves the pushed bits as a sequence of bytes.
   //
-  // The first-pushed bit goes into the MSb of the 0th byte. Concordantly, the
-  // final byte, if it is partial, will have padding zeroes in the least
-  // significant bits.
-  std::vector<uint8_t> GetUint8Data() const {
-    // Implementation note: bitmap does not expose its underlying storage.
-    std::vector<uint8_t> result;
-    result.resize(CeilOfRatio(bitmap_.size(), 8UL), 0);
-    for (int64_t i = 0; i < static_cast<int64_t>(bitmap_.size()); ++i) {
-      result[i / 8] |= bitmap_[i] << (7 - i % 8);
-    }
-    return result;
-  }
+  // The first-pushed bit goes into the MSb of the 0th byte.
+  //
+  // i.e. if we just push a single `1` bit, the byte that comes out of this
+  // function is `0x80`.
+  //
+  // The final byte, if it is partial, will have padding zeroes in the least
+  // significant bits, as shown above.
+  std::vector<uint8_t> GetUint8DataWithLsbPadding() const;
+
+  // As above, but the zero-padding is placed in the high bits of the first
+  // byte.
+  //
+  // i.e. if we just push a single `1` bit, the byte that comes out of this
+  // function is `0x01`.
+  //
+  // The first byte, if it is partial, will have padding zeroes in the most
+  // significant bits, as shown above.
+  std::vector<uint8_t> GetUint8DataWithMsbPadding() const;
 
   bool empty() const { return bitmap_.empty(); }
 
   // Returns the number of bytes required to store the currently-pushed bits.
   int64_t size_in_bytes() const { return CeilOfRatio(bitmap_.size(), 8UL); }
 
+  // Returns the number of bits currently in the buffer.
+  int64_t size_in_bits() const { return bitmap_.size(); }
+
+  // Returns a binary string representation of the currently-pushed bits; e.g.:
+  // ```c++
+  // BitPushBuffer buffer;
+  // buffer.PushBit(true);
+  // buffer.PushBit(false);
+  // buffer.ToString() == "0b10"
+  // ```
+  std::string ToString() const;
+
  private:
-  std::vector<bool> bitmap_;
+  absl::InlinedVector<bool, 64> bitmap_;
 };
 
 }  // namespace xls
