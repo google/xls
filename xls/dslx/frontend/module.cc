@@ -222,57 +222,29 @@ bool Module::IsPublicMember(const AstNode& node) const {
 std::optional<ModuleMember*> Module::FindMemberWithName(
     std::string_view target) {
   for (ModuleMember& member : top_) {
-    if (std::holds_alternative<Function*>(member)) {
-      if (std::get<Function*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<Proc*>(member)) {
-      if (std::get<Proc*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<TestFunction*>(member)) {
-      if (std::get<TestFunction*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<TestProc*>(member)) {
-      if (std::get<TestProc*>(member)->proc()->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<QuickCheck*>(member)) {
-      if (std::get<QuickCheck*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<TypeAlias*>(member)) {
-      if (std::get<TypeAlias*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<StructDef*>(member)) {
-      if (std::get<StructDef*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<ProcDef*>(member)) {
-      if (std::get<ProcDef*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<ConstantDef*>(member)) {
-      if (std::get<ConstantDef*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<EnumDef*>(member)) {
-      if (std::get<EnumDef*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<Import*>(member)) {
-      if (std::get<Import*>(member)->identifier() == target) {
-        return &member;
-      }
-    } else if (std::holds_alternative<ConstAssert*>(member)) {
-      continue;  // These have no name / binding.
-    } else if (std::holds_alternative<Impl*>(member)) {
-      continue;  // These have no name / binding.
-    } else {
-      LOG(FATAL) << "Unhandled module member variant: "
-                 << ToAstNode(member)->GetNodeTypeName();
+    ModuleMember* result = absl::visit(
+        Visitor{
+            [&](auto* n) -> ModuleMember* {
+              if (n->identifier() == target) {
+                return &member;
+              }
+              return nullptr;
+            },
+            [&](Use* n) -> ModuleMember* {
+              for (std::string_view identifier : n->GetLeafIdentifiers()) {
+                if (identifier == target) {
+                  return &member;
+                }
+              }
+              return nullptr;
+            },
+            [&](Impl*) -> ModuleMember* { return nullptr; },
+            [&](ConstAssert*) -> ModuleMember* { return nullptr; },
+            [&](VerbatimNode*) -> ModuleMember* { return nullptr; },
+        },
+        member);
+    if (result != nullptr) {
+      return std::optional<ModuleMember*>(result);
     }
   }
   return std::nullopt;
