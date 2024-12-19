@@ -27,6 +27,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/convert_ir_to_blocks_passes.h"
+#include "xls/codegen/mark_channel_fifos_pass.h"
 #include "xls/codegen/update_channel_metadata_pass.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/status/ret_check.h"
@@ -100,6 +101,7 @@ std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(
     top->Add<ConvertFuncsToCombinationalBlocksPass>();
     top->Add<ConvertProcsToCombinationalBlocksPass>();
   } else {
+    top->Add<MarkChannelFifosPass>();
     top->Add<ConvertFuncsToPipelinedBlocksPass>();
     top->Add<ConvertProcsToPipelinedBlocksPass>();
   }

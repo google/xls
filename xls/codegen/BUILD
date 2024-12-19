@@ -256,6 +256,7 @@ cc_library(
         ":codegen_options",
         ":codegen_pass",
         ":convert_ir_to_blocks_passes",
+        ":mark_channel_fifos_pass",
         ":update_channel_metadata_pass",
         "//xls/codegen/vast",
         "//xls/common/status:ret_check",
@@ -430,6 +431,7 @@ cc_library(
         ":codegen_pass",
         ":codegen_wrapper_pass",
         ":concurrent_stage_groups",
+        ":mark_channel_fifos_pass",
         ":register_legalization_pass",
         "//xls/codegen/vast",
         "//xls/common:casts",
@@ -1831,6 +1833,44 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "mark_channel_fifos_pass",
+    srcs = ["mark_channel_fifos_pass.cc"],
+    hdrs = ["mark_channel_fifos_pass.h"],
+    deps = [
+        ":codegen_options",
+        ":codegen_pass",
+        "//xls/common:casts",
+        "//xls/ir:channel",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "mark_channel_fifos_pass_test",
+    srcs = ["mark_channel_fifos_pass_test.cc"],
+    deps = [
+        ":codegen_options",
+        ":codegen_pass",
+        ":mark_channel_fifos_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/status:status_matchers",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -46,6 +46,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/concurrent_stage_groups.h"
+#include "xls/codegen/mark_channel_fifos_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
@@ -1474,13 +1475,12 @@ static absl::Status AddInputOutputFlops(
   for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
       StreamingChannel* channel = down_cast<StreamingChannel*>(input.channel);
+      XLS_RET_CHECK(channel->channel_config().input_flop_kind())
+          << "No input flop kind";
       // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
-      FlopKind kind = channel->channel_config().input_flop_kind().value_or(
-          options.flop_inputs()
-              ? CodegenOptions::IOKindToFlopKind(options.flop_inputs_kind())
-              : FlopKind::kNone);
+      FlopKind kind = *channel->channel_config().input_flop_kind();
       XLS_RETURN_IF_ERROR(AddRegisterAfterStreamingInput(
           input, kind, options.ResetBehavior(), block, valid_nodes));
 
@@ -1496,13 +1496,12 @@ static absl::Status AddInputOutputFlops(
   for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
       StreamingChannel* channel = down_cast<StreamingChannel*>(output.channel);
+      XLS_RET_CHECK(channel->channel_config().output_flop_kind())
+          << "No output flop kind";
       // TODO(https://github.com/google/xls/issues/1803): This is super hacky.
       // We really should have a different pass that configures all the channels
       // in a separate lowering step.
-      FlopKind kind = channel->channel_config().output_flop_kind().value_or(
-          options.flop_outputs()
-              ? CodegenOptions::IOKindToFlopKind(options.flop_outputs_kind())
-              : FlopKind::kNone);
+      FlopKind kind = *channel->channel_config().output_flop_kind();
       XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(
           output, kind, options.ResetBehavior(), block, valid_nodes));
 
@@ -3400,6 +3399,15 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
   XLS_RET_CHECK_EQ(block_name_uniquer.GetSanitizedUniqueName(module_name),
                    module_name);
   CodegenPassUnit unit(package, top_block);
+
+  // Run codegen passes as appropriate
+  {
+    MarkChannelFifosPass mark_chans;
+    CodegenPassOptions cg_options;
+    cg_options.codegen_options = options;
+    CodegenPassResults results;
+    XLS_RETURN_IF_ERROR(mark_chans.Run(&unit, cg_options, &results).status());
+  }
 
   for (const auto& [fb, schedule] : sorted_schedules) {
     std::string sub_block_name = block_name_uniquer.GetSanitizedUniqueName(
