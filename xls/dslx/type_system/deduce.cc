@@ -1636,17 +1636,21 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
     VLOG(5) << "DeduceArrayTypeAnnotation; bits type constructor: "
             << node->ToString();
 
-    std::optional<TypeDim> dim;
     if (element_type->builtin_type() == BuiltinType::kXN) {
       // This type constructor takes a boolean as its first array argument to
       // indicate signedness.
-      XLS_ASSIGN_OR_RETURN(dim, DimToConcreteBool(node->dim(), ctx));
-      t = std::make_unique<BitsConstructorType>(std::move(dim).value());
+      XLS_ASSIGN_OR_RETURN(TypeDim dim, DimToConcreteBool(node->dim(), ctx));
+      t = std::make_unique<BitsConstructorType>(std::move(dim));
+    } else if (element_type->builtin_type() == BuiltinType::kToken) {
+      // Token types have no signedness.
+      XLS_ASSIGN_OR_RETURN(TypeDim dim, DimToConcreteUsize(node->dim(), ctx));
+      auto element_type = std::make_unique<TokenType>();
+      t = std::make_unique<ArrayType>(std::move(element_type), std::move(dim));
     } else {
-      XLS_ASSIGN_OR_RETURN(dim, DimToConcreteUsize(node->dim(), ctx));
+      XLS_ASSIGN_OR_RETURN(TypeDim dim, DimToConcreteUsize(node->dim(), ctx));
       // We know we can determine signedness as the `xN` case is handled above.
       bool is_signed = element_type->GetSignedness().value();
-      t = std::make_unique<BitsType>(is_signed, std::move(dim).value());
+      t = std::make_unique<BitsType>(is_signed, std::move(dim));
     }
   } else {
     VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
@@ -1661,6 +1665,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
     VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
                                   node->ToString(), t->ToString());
   }
+
   auto result = std::make_unique<MetaType>(std::move(t));
   VLOG(5) << "DeduceArrayTypeAnnotation result" << result->ToString();
   return result;

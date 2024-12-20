@@ -25,6 +25,13 @@
 namespace xls::dslx {
 namespace {
 
+// Previously this would cause an internal error due to token not having a
+// signedness.
+TEST(TypecheckTest, TokenArrayTypeAnnotation) {
+  constexpr std::string_view kProgram = R"(proc t{e:token[0]})";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 // Scenario where entry proc has a config with a "spawn" statement and a
 // trailing semicolon, with no members to configure for itself.
 TEST(TypecheckTest, ConfigSpawnTerminatingSemicolonNoMembers) {
