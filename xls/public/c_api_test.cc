@@ -178,6 +178,132 @@ TEST(XlsCApiTest, ParseTypedValueAndFreeIt) {
   xls_value_free(value);
 }
 
+// Helper for invoking APIs where we want to immediately free the C-API-provided
+// string and convert it into a C++ type.
+//
+// This is useful for temporaries like for display in error messages we we want
+// convenience instead of explicitly showing how the lifetimes are used.
+static std::string ToOwnedCppString(char* cstr) {
+  std::string result = std::string(cstr);
+  xls_c_str_free(cstr);
+  return result;
+}
+
+// Takes a bits-based value and flattens it to a bits buffer and checks it's the
+// same as the bits inside the value.
+TEST(XlsCApiTest, FlattenBitsValueToBits) {
+  char* error_out = nullptr;
+  xls_value* value = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[32]:0x42", &error_out, &value));
+  absl::Cleanup free_value([value] { xls_value_free(value); });
+
+  // Get the bits from within the value. Note that it's owned by the caller.
+  xls_bits* value_bits = nullptr;
+  ASSERT_TRUE(xls_value_get_bits(value, &error_out, &value_bits));
+  absl::Cleanup free_value_bits([value_bits] { xls_bits_free(value_bits); });
+
+  // Flatten the value to a bits buffer.
+  xls_bits* flattened = xls_value_flatten_to_bits(value);
+  absl::Cleanup free_flattened([flattened] { xls_bits_free(flattened); });
+
+  // The flattened bits should be the same as the original bits.
+  EXPECT_TRUE(xls_bits_eq(value_bits, flattened))
+      << "value_bits: "
+      << ToOwnedCppString(xls_bits_to_debug_string(value_bits))
+      << "\nflattened:  "
+      << ToOwnedCppString(xls_bits_to_debug_string(flattened));
+}
+
+TEST(XlsCApiTest, FlattenTupleValueToBits) {
+  char* error_out = nullptr;
+  xls_value* u3_7 = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[3]:0x7", &error_out, &u3_7));
+  absl::Cleanup free_u3_7([u3_7] { xls_value_free(u3_7); });
+
+  xls_value* u2_0 = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[2]:0x0", &error_out, &u2_0));
+  absl::Cleanup free_u2_0([u2_0] { xls_value_free(u2_0); });
+
+  // Make them into a tuple; i.e. (bits[3]:0x7, bits[2]:0x0).
+  xls_value* elements[] = {u3_7, u2_0};
+  xls_value* tuple = xls_value_make_tuple(/*element_count=*/2, elements);
+  absl::Cleanup free_tuple([tuple] { xls_value_free(tuple); });
+
+  // Flatten the tuple to a bits value.
+  xls_bits* flattened = xls_value_flatten_to_bits(tuple);
+  absl::Cleanup free_flattened([flattened] { xls_bits_free(flattened); });
+
+  // Make the desired value.
+  xls_bits* want_bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(5, 0b11100, &error_out, &want_bits));
+  absl::Cleanup free_want_bits([want_bits] { xls_bits_free(want_bits); });
+
+  // Check they're equivalent.
+  EXPECT_TRUE(xls_bits_eq(flattened, want_bits))
+      << "flattened: " << ToOwnedCppString(xls_bits_to_debug_string(flattened))
+      << "\nwant_bits: "
+      << ToOwnedCppString(xls_bits_to_debug_string(want_bits));
+}
+
+TEST(XlsCApiTest, MakeBitsFromUint8DataWithMsbPadding) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(6, 0b11'0000, &error_out, &bits));
+  absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
+
+  EXPECT_EQ(xls_bits_get_bit_count(bits), 6);
+  EXPECT_EQ(xls_bits_get_bit(bits, 0), 0);
+  EXPECT_EQ(xls_bits_get_bit(bits, 1), 0);
+  EXPECT_EQ(xls_bits_get_bit(bits, 2), 0);
+  EXPECT_EQ(xls_bits_get_bit(bits, 3), 0);
+  EXPECT_EQ(xls_bits_get_bit(bits, 4), 1);
+  EXPECT_EQ(xls_bits_get_bit(bits, 5), 1);
+}
+
+TEST(XlsCApiTest, MakeSbitsDoesNotFit) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_FALSE(xls_bits_make_sbits(1, -2, &error_out, &bits));
+  absl::Cleanup free_error([error_out] { xls_c_str_free(error_out); });
+  EXPECT_THAT(std::string_view{error_out},
+              HasSubstr("Value 0xfffffffffffffffe requires 2 bits to fit in an "
+                        "signed datatype"));
+
+  ASSERT_TRUE(xls_bits_make_sbits(2, -2, &error_out, &bits));
+  EXPECT_EQ(ToOwnedCppString(xls_bits_to_debug_string(bits)), "0b10");
+  absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
+}
+
+TEST(XlsCApiTest, FlattenArrayValueToBits) {
+  char* error_out = nullptr;
+  xls_value* array = nullptr;
+  ASSERT_TRUE(
+      xls_parse_typed_value("[bits[3]:0x7, bits[3]:0x0]", &error_out, &array));
+  absl::Cleanup free_array([array] { xls_value_free(array); });
+
+  xls_bits* flattened = xls_value_flatten_to_bits(array);
+  absl::Cleanup free_flattened([flattened] { xls_bits_free(flattened); });
+
+  xls_bits* want_bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(6, 0b111000, &error_out, &want_bits));
+  absl::Cleanup free_want_bits([want_bits] { xls_bits_free(want_bits); });
+
+  EXPECT_TRUE(xls_bits_eq(flattened, want_bits))
+      << "flattened: " << ToOwnedCppString(xls_bits_to_debug_string(flattened))
+      << "\nwant_bits: "
+      << ToOwnedCppString(xls_bits_to_debug_string(want_bits));
+}
+
+TEST(XlsCApiTest, MakeSignedBits) {
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_sbits(5, -1, &error_out, &bits));
+  absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
+
+  EXPECT_EQ(xls_bits_get_bit_count(bits), 5);
+  EXPECT_EQ(xls_bits_get_bit(bits, 0), 1);
+}
+
 TEST(XlsCApiTest, ParsePackageAndInterpretFunctionInIt) {
   const std::string kPackage = R"(package p
 

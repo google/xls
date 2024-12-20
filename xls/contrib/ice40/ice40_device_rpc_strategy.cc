@@ -280,7 +280,7 @@ absl::StatusOr<Value> Ice40DeviceRpcStrategy::CallUnnamed(
     return absl::InvalidArgumentError("Cannot perform an empty-payload RPC.");
   }
 
-  std::vector<uint8_t> u8_data = buffer.GetUint8Data();
+  std::vector<uint8_t> u8_data = buffer.GetUint8DataWithLsbPadding();
 
   int64_t bytes_written = 0;
   while (bytes_written < buffer.size_in_bytes()) {

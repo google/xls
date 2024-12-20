@@ -35,8 +35,10 @@ package(
 cc_library(
     name = "bit_push_buffer",
     hdrs = ["bit_push_buffer.h"],
+    srcs = ["bit_push_buffer.cc"],
     deps = [
         "//xls/common:math_util",
+        "//xls/data_structures:inline_bitmap",
     ],
 )
 

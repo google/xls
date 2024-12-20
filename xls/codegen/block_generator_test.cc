@@ -1399,7 +1399,8 @@ endpackage : pkg
                                            }));
     BitPushBuffer buffer;
     x_value.FlattenTo(&buffer);
-    x_bits = Bits::FromBytes(buffer.GetUint8Data(), 5 * 32);
+    x_bits = Bits::FromBytes(buffer.GetUint8DataWithMsbPadding(),
+                             buffer.size_in_bits());
   }
   Bits y_bits;
   {
@@ -1412,7 +1413,8 @@ endpackage : pkg
                                            }));
     BitPushBuffer buffer;
     y_value.FlattenTo(&buffer);
-    y_bits = Bits::FromBytes(buffer.GetUint8Data(), 5 * 32);
+    y_bits = Bits::FromBytes(buffer.GetUint8DataWithMsbPadding(),
+                             buffer.size_in_bits());
   }
   Bits out_bits;
   {
@@ -1430,7 +1432,8 @@ endpackage : pkg
                                              }));
     BitPushBuffer buffer;
     out_value.FlattenTo(&buffer);
-    out_bits = Bits::FromBytes(buffer.GetUint8Data(), 10 * 32);
+    out_bits = Bits::FromBytes(buffer.GetUint8DataWithMsbPadding(),
+                               buffer.size_in_bits());
   }
 
   seq.Set("x", x_bits).Set("y", y_bits);

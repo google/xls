@@ -76,8 +76,12 @@ class InlineBitmap {
   }
 
   // Constructs a bitmap of width `bits.size()` using the given bits,
-  // interpreting index 0 as the LSD.
-  static InlineBitmap FromBits(absl::Span<bool const> bits) {
+  // interpreting index 0 as the *least* significant bit.
+  //
+  // Note: if you find you want an overload that accepts a `std::vector<bool>`,
+  // consider using an `absl::InlinedVector<bool, N>` as storage instead, as it
+  // can be converted to span.
+  static InlineBitmap FromBitsLsbIs0(absl::Span<bool const> bits) {
     InlineBitmap result(bits.size(), /*fill=*/false);
     int64_t bit_idx = 0;
     uint64_t* word = result.data_.data();
@@ -87,6 +91,15 @@ class InlineBitmap {
         ++word;
         bit_idx = 0;
       }
+    }
+    return result;
+  }
+
+  // As above, but index 0 of the span is the most significant bit.
+  static InlineBitmap FromBitsMsbIs0(absl::Span<bool const> bits) {
+    InlineBitmap result(bits.size(), /*fill=*/false);
+    for (int64_t i = 0; i < bits.size(); ++i) {
+      result.Set(bits.size() - i - 1, bits[i]);
     }
     return result;
   }
