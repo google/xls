@@ -31,6 +31,7 @@
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/proc_block_conversion.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

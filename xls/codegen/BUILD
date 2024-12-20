@@ -422,8 +422,17 @@ cc_library(
 
 cc_library(
     name = "block_conversion",
-    srcs = ["block_conversion.cc"],
-    hdrs = ["block_conversion.h"],
+    srcs = [
+        "block_conversion.cc",
+        "conversion_utils.cc",
+        "proc_block_conversion.cc",
+    ],
+    hdrs = [
+        "block_conversion.h",
+        "clone_nodes_into_block_handler.h",
+        "conversion_utils.h",
+        "proc_block_conversion.h",
+    ],
     deps = [
         ":bdd_io_analysis",
         ":codegen_checker",
