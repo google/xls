@@ -3056,7 +3056,7 @@ proc A {
         let _my_grand_finale_here = true;
     }
 })",
-                      "was deleted");
+                      "would be deleted");
 }
 
 TEST_F(ModuleFmtTest, BinopWithCommentBeforeOpNoNewline) {

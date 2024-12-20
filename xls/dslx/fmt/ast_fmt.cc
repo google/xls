@@ -3009,10 +3009,14 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
     }
     for (const CommentData* comment : comments_.GetComments(span)) {
       if (!comments_.WasPlaced(comment)) {
+        const std::string& comment_text =
+            std::string{absl::StripTrailingAsciiWhitespace(comment->text)};
         return absl::InternalError(absl::StrFormat(
-            "Comment at %s was deleted by the formatter: //%sThis is "
-            "probably due to a bug.",
-            comment->span.ToString(arena_.file_table()), comment->text));
+            "Formatting was skipped because a comment at %s would be "
+            "deleted by the formatter: //%s\nThis is probably due to a bug "
+            "(which may not have been reported yet). To complete formatting, "
+            "try moving the comment to a different line.",
+            comment->span.ToString(arena_.file_table()), comment_text));
       }
     }
   }
