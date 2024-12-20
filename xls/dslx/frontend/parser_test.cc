@@ -1596,10 +1596,10 @@ TEST_F(ParserTest, LocalConstBinding) {
   ASSERT_TRUE(const_let->is_const());
   EXPECT_EQ("u8:42", const_let->rhs()->ToString());
 
-  auto* const_ref =
-      dynamic_cast<ConstRef*>(std::get<Expr*>(stmts.at(1)->wrapped()));
-  ASSERT_NE(const_ref, nullptr);
-  const NameDef* name_def = const_ref->name_def();
+  auto* name_ref =
+      dynamic_cast<NameRef*>(std::get<Expr*>(stmts.at(1)->wrapped()));
+  ASSERT_NE(name_ref, nullptr);
+  auto* name_def = std::get<const NameDef*>(name_ref->name_def());
   EXPECT_EQ(name_def->ToString(), "FOO");
   AstNode* definer = name_def->definer();
   EXPECT_EQ(definer, const_let);
@@ -2340,14 +2340,14 @@ TEST_F(ParserTest, ConstWithTypeAnnotation) {
   RoundTrip(R"(const MOL: u32 = u32:42;)");
 }
 
-TEST_F(ParserTest, ConstArrayOfConstRefs) {
+TEST_F(ParserTest, ConstArrayOfConstantRefs) {
   RoundTrip(R"(const MOL = u32:42;
 const ZERO = u32:0;
 const ARR = u32[2]:[MOL, ZERO];)");
 }
 
 // As above, but uses a trailing ellipsis in the array definition.
-TEST_F(ParserTest, ConstArrayOfConstRefsEllipsis) {
+TEST_F(ParserTest, ConstArrayOfConstantRefsEllipsis) {
   RoundTrip(R"(const MOL = u32:42;
 const ZERO = u32:0;
 const ARR = u32[2]:[MOL, ZERO, ...];)");

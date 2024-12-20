@@ -91,13 +91,19 @@ absl::StatusOr<InterpValue> EvaluateConstexprValue(DeduceCtx* ctx,
 // TypeDim for later instantiation).
 absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
     const Expr* e, DeduceCtx* ctx) {
-  if (auto* n = dynamic_cast<const ConstRef*>(e)) {
-    XLS_RETURN_IF_ERROR(ctx->Deduce(n).status());
-    XLS_ASSIGN_OR_RETURN(InterpValue constant,
-                         ctx->type_info()->GetConstExpr(n));
-    return std::make_unique<ParametricConstant>(std::move(constant));
-  }
   if (auto* n = dynamic_cast<const NameRef*>(e)) {
+    // If the NameRef refers to a constant definition, we resolve it as a
+    // constant.
+    if (std::holds_alternative<const NameDef*>(n->name_def())) {
+      auto* name_def = std::get<const NameDef*>(n->name_def());
+      std::optional<InterpValue> constant =
+          ctx->type_info()->GetConstExprOption(name_def);
+      if (constant.has_value()) {
+        return std::make_unique<ParametricConstant>(
+            std::move(constant.value()));
+      }
+    }
+
     return std::make_unique<ParametricSymbol>(n->identifier(), n->span());
   }
   if (auto* n = dynamic_cast<const Binop*>(e)) {
@@ -1967,20 +1973,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNameRef(const NameRef* node,
                                 ctx->file_table());
 }
 
-absl::StatusOr<std::unique_ptr<Type>> DeduceConstRef(const ConstRef* node,
-                                                     DeduceCtx* ctx) {
-  VLOG(5) << "DeduceConstRef: " << node->ToString() << " @ "
-          << node->span().ToString(ctx->file_table());
-
-  // ConstRef is a subtype of NameRef, same deduction rule works.
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type, DeduceNameRef(node, ctx));
-  XLS_ASSIGN_OR_RETURN(InterpValue value,
-                       ctx->type_info()->GetConstExpr(node->name_def()));
-  VLOG(5) << " DeduceConstRef value: " << value.ToString();
-  ctx->type_info()->NoteConstExpr(node, std::move(value));
-  return type;
-}
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceStructDef(const StructDef* node,
                                                       DeduceCtx* ctx) {
   XLS_RETURN_IF_ERROR(TypecheckStructDefBase(node, ctx));
@@ -2096,7 +2088,6 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(FormatMacro, DeduceFormatMacro)
   DEDUCE_DISPATCH(ZeroMacro, DeduceZeroMacro)
   DEDUCE_DISPATCH(AllOnesMacro, DeduceAllOnesMacro)
-  DEDUCE_DISPATCH(ConstRef, DeduceConstRef)
   DEDUCE_DISPATCH(NameRef, DeduceNameRef)
 
   // Unhandled nodes for deduction, either they are custom visited or not

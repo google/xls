@@ -228,14 +228,22 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleColonRef(const ColonRef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    ColonRef::Subject new_subject;
-    if (std::holds_alternative<NameRef*>(n->subject())) {
-      new_subject =
-          down_cast<NameRef*>(old_to_new_.at(std::get<NameRef*>(n->subject())));
-    } else {
-      new_subject = down_cast<ColonRef*>(
-          old_to_new_.at(std::get<ColonRef*>(n->subject())));
-    }
+    ColonRef::Subject new_subject = absl::visit(
+        Visitor{[&](NameRef* name_ref) -> ColonRef::Subject {
+                  AstNode* new_node = old_to_new_.at(name_ref);
+                  // Do an integrity check that the NameRef variant indeed is
+                  // holding a NameRef node.
+                  CHECK_EQ(new_node->kind(), AstNodeKind::kNameRef);
+                  return down_cast<NameRef*>(new_node);
+                },
+                [&](ColonRef* colon_ref) -> ColonRef::Subject {
+                  return down_cast<ColonRef*>(old_to_new_.at(colon_ref));
+                },
+                [&](TypeRefTypeAnnotation* type_ref) -> ColonRef::Subject {
+                  return down_cast<TypeRefTypeAnnotation*>(
+                      old_to_new_.at(type_ref));
+                }},
+        n->subject());
 
     old_to_new_[n] = module_->Make<ColonRef>(n->span(), new_subject, n->attr(),
                                              n->in_parens());
@@ -253,12 +261,6 @@ class AstCloner : public AstNodeVisitor {
         n->span(), down_cast<NameDef*>(old_to_new_.at(n->name_def())),
         new_type_annotation, down_cast<Expr*>(old_to_new_.at(n->value())),
         n->is_public());
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleConstRef(const ConstRef* n) override {
-    old_to_new_[n] =
-        module_->Make<ConstRef>(n->span(), n->identifier(), n->name_def());
     return absl::OkStatus();
   }
 

@@ -64,10 +64,24 @@ namespace xls::dslx {
 namespace internal {
 namespace {
 
+static std::string ParametricEnvMapToString(
+    const absl::flat_hash_map<std::string, InterpValue>& parametric_env_map) {
+  return absl::StrFormat(
+      "{%s}", absl::StrJoin(parametric_env_map, ", ",
+                            [](std::string* out, const auto& pair) {
+                              absl::StrAppend(out, pair.first, ": ",
+                                              pair.second.ToString());
+                            }));
+}
+
 // Resolves possibly-parametric type 'annotated' via 'parametric_env_map'.
 absl::StatusOr<std::unique_ptr<Type>> ResolveInternal(
     const Type& annotated,
     const absl::flat_hash_map<std::string, InterpValue>& parametric_env_map) {
+  VLOG(5) << "Resolving " << annotated.ToString()
+          << " with parametric_env_map: "
+          << ParametricEnvMapToString(parametric_env_map);
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<Type> resolved,
       annotated.MapSize([&](const TypeDim& dim) -> absl::StatusOr<TypeDim> {
@@ -97,6 +111,9 @@ absl::StatusOr<std::unique_ptr<Type>> ResolveInternal(
 
 absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
                                           const ParametricEnv& parametric_env) {
+  VLOG(5) << "InterpretExpr; expr: " << expr->ToString()
+          << " parametric_env: " << parametric_env.ToString();
+
   // If we're interpreting something in another module, switch to its root type
   // info, otherwise truck on with the current DeduceCtx.
   std::unique_ptr<DeduceCtx> new_ctx_holder;

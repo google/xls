@@ -803,10 +803,6 @@ absl::Status BytecodeEmitter::HandleConstAssert(const ConstAssert* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::HandleConstRef(const ConstRef* node) {
-  return HandleNameRef(node);
-}
-
 absl::Status BytecodeEmitter::HandleFor(const For* node) {
   // Here's how a `for` loop is implemented, in some sort of pseudocode:
   //  - Initialize iterable & index

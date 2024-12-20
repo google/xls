@@ -54,7 +54,6 @@
   X(Cast)                          \
   X(ChannelDecl)                   \
   X(ColonRef)                      \
-  X(ConstRef)                      \
   X(For)                           \
   X(FormatMacro)                   \
   X(FunctionRef)                   \
@@ -203,10 +202,6 @@ class FreeVariables {
       const {
     return values_;
   }
-
-  // Returns all of the free variable NameRefs that are references to constants
-  // (as the ConstRef subtype of NameRef).
-  std::vector<const ConstRef*> GetConstRefs();
 
   // Returns the number of unique free variables (note: not the number of
   // references, but the number of free variables).
@@ -936,7 +931,7 @@ class StatementBlock : public Expr {
 // Every name reference has a link to its corresponding `name_def()`, which can
 // either be defined in the module somewhere (NameDef) or defined as a built-in
 // symbol that's implicitly available, e.g. built-in functions (BuiltinNameDef).
-class NameRef : public Expr {
+class NameRef final : public Expr {
  public:
   NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def,
           bool in_parens = false)
@@ -3492,44 +3487,6 @@ class Let : public AstNode {
   // Whether or not this is a constant binding; constant bindings cannot be
   // shadowed.
   bool is_const_;
-};
-
-// Used to represent a named reference to a Constant name definition.
-class ConstRef : public NameRef {
- public:
-  using NameRef::NameRef;
-
-  ~ConstRef() override;
-
-  AstNodeKind kind() const override { return AstNodeKind::kConstRef; }
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleConstRef(this);
-  }
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleConstRef(this);
-  }
-
-  std::string_view GetNodeTypeName() const override { return "ConstRef"; }
-
-  // When holding a ConstRef we know that the corresponding NameDef cannot be
-  // builtin (since consts are user constructs).
-  const NameDef* name_def() const {
-    return std::get<const NameDef*>(NameRef::name_def());
-  }
-
-  Expr* GetValue() const {
-    AstNode* definer = name_def()->definer();
-    CHECK(definer != nullptr);
-    // Definer will only ever be a ConstantDef or a Let.
-    if (ConstantDef* cd = dynamic_cast<ConstantDef*>(definer); cd != nullptr) {
-      return cd->value();
-    }
-
-    Let* let = dynamic_cast<Let*>(definer);
-    CHECK_NE(let, nullptr);
-    return let->rhs();
-  }
 };
 
 // A channel declaration, e.g., `let (p, c) = chan<u32>("my_chan");`

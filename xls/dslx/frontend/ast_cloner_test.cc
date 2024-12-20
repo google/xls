@@ -1534,8 +1534,8 @@ proc MyProc {
   EXPECT_EQ(kExpected, clone->ToString());
 }
 
-// A ConstRef doesn't own its underlying NameDef. So don't clone it.
-TEST(AstClonerTest, DoesntCloneConstRefNameDefs) {
+// A NameRef doesn't own its underlying NameDef. So don't clone it.
+TEST(AstClonerTest, DoesntCloneNameRefNameDefs) {
   constexpr std::string_view kProgram = R"(
 const FOO = u32:42;
 fn bar() -> u32{
@@ -1552,10 +1552,10 @@ fn bar() -> u32{
   ASSERT_EQ(body_expr->statements().size(), 1);
   ASSERT_TRUE(
       std::holds_alternative<Expr*>(body_expr->statements().at(0)->wrapped()));
-  ConstRef* orig_ref = down_cast<ConstRef*>(
+  auto* orig_ref = down_cast<NameRef*>(
       std::get<Expr*>(body_expr->statements().at(0)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(orig_ref));
-  ConstRef* new_ref = down_cast<ConstRef*>(clone);
+  NameRef* new_ref = down_cast<NameRef*>(clone);
   EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());
 }
 

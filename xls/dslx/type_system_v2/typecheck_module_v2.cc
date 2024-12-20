@@ -94,10 +94,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
-  absl::Status HandleConstRef(const ConstRef* node) override {
-    return PropagateDefToRef(node);
-  }
-
   absl::Status HandleNameRef(const NameRef* node) override {
     return PropagateDefToRef(node);
   }
