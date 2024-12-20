@@ -62,8 +62,10 @@ TEST(AstTest, ModuleWithStructAndImpl) {
   BuiltinType bool_type = BuiltinTypeFromString("bool").value();
   TypeAnnotation* bool_type_annot = m.Make<BuiltinTypeAnnotation>(
       Span::Fake(), bool_type, m.GetOrCreateBuiltinNameDef(bool_type));
-  std::vector<StructMember> members{
-      StructMember(fake_span, "member_var", bool_type_annot)};
+  NameDef* field_name_def =
+      m.Make<NameDef>(fake_span, std::string("member_var"), nullptr);
+  std::vector<StructMemberNode*> members{m.Make<StructMemberNode>(
+      fake_span, field_name_def, fake_span, bool_type_annot)};
 
   // Struct definition.
   NameDef* name_def =

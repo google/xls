@@ -2638,14 +2638,17 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   return init;
 }
 
-std::vector<StructMember> ConvertProcMembersToStructMembers(
-    const std::vector<ProcMember*>& proc_members) {
-  std::vector<StructMember> struct_members;
+std::vector<StructMemberNode*> ConvertProcMembersToStructMembers(
+    Module* module, const std::vector<ProcMember*>& proc_members) {
+  std::vector<StructMemberNode*> struct_members;
   struct_members.reserve(proc_members.size());
   for (ProcMember* proc_member : proc_members) {
-    struct_members.push_back(StructMember{proc_member->span(),
-                                          proc_member->identifier(),
-                                          proc_member->type_annotation()});
+    // Best estimate of the colon span is between the name and the type.
+    Span colon_span(proc_member->name_def()->span().limit(),
+                    proc_member->type_annotation()->span().start());
+    struct_members.push_back(module->Make<StructMemberNode>(
+        proc_member->span(), proc_member->name_def(), colon_span,
+        proc_member->type_annotation()));
   }
   return struct_members;
 }
@@ -2880,9 +2883,11 @@ absl::StatusOr<ModuleMember> Parser::ParseProcLike(const Pos& start_pos,
           "Impl-style procs must use commas to separate members.");
     }
     // Assume this is an impl-style proc and return a `ProcDef` for it.
-    ProcDef* proc_def = module_->Make<ProcDef>(
-        span, name_def, std::move(parametric_bindings),
-        ConvertProcMembersToStructMembers(proc_like_body.members), is_public);
+    ProcDef* proc_def =
+        module_->Make<ProcDef>(span, name_def, std::move(parametric_bindings),
+                               ConvertProcMembersToStructMembers(
+                                   module_.get(), proc_like_body.members),
+                               is_public);
     outer_bindings.Add(name_def->identifier(), proc_def);
     return proc_def;
   }
@@ -3318,20 +3323,25 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(const Pos& start_pos,
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
 
-  auto parse_struct_member = [this,
-                              &bindings]() -> absl::StatusOr<StructMember> {
-    Span name_span;
-    XLS_ASSIGN_OR_RETURN(std::string name, PopIdentifierOrError(&name_span));
+  auto parse_struct_member =
+      [this, &bindings]() -> absl::StatusOr<StructMemberNode*> {
+    Pos node_start_pos = GetPos();
+    XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDefNoBind());
+    Pos colon_start_pos = GetPos();
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on struct field"));
+    Pos colon_end_pos = GetPos();
+    Span colon_span(colon_start_pos, colon_end_pos);
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
-    return StructMember{.name_span = name_span, .name = name, .type = type};
+    Pos node_end_pos = GetPos();
+    return module_->Make<StructMemberNode>(Span(node_start_pos, node_end_pos),
+                                           name_def, colon_span, type);
   };
 
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<StructMember> members,
-      ParseCommaSeq<StructMember>(parse_struct_member, TokenKind::kCBrace));
+  XLS_ASSIGN_OR_RETURN(std::vector<StructMemberNode*> members,
+                       ParseCommaSeq<StructMemberNode*>(parse_struct_member,
+                                                        TokenKind::kCBrace));
 
   Span span(start_pos, GetPos());
   auto* struct_def =

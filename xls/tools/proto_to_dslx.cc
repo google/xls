@@ -531,7 +531,7 @@ absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
 absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
                            NameToRecord* name_to_record) {
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
-  std::vector<dslx::StructMember> elements;
+  std::vector<dslx::StructMemberNode*> elements;
 
   const Descriptor* descriptor =
       std::get<const Descriptor*>(message_record->descriptor);
@@ -577,23 +577,32 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
     if (element.count == 0) {
       continue;
     }
+    auto* name_def = module->Make<dslx::NameDef>(span, std::string(name),
+                                                 /*definer=*/nullptr);
     if (!fd->is_repeated()) {
-      elements.push_back(
-          dslx::StructMember{span, std::string(name), type_annot});
+      auto* member = module->Make<dslx::StructMemberNode>(span, name_def, span,
+                                                          type_annot);
+      elements.push_back(member);
     } else {
       auto* array_size = module->Make<dslx::Number>(
           span, absl::StrCat(element.count), dslx::NumberKind::kOther,
           /*type=*/nullptr);
       type_annot =
           module->Make<dslx::ArrayTypeAnnotation>(span, type_annot, array_size);
-      elements.push_back(
-          dslx::StructMember{span, std::string(name), type_annot});
+      auto* member = module->Make<dslx::StructMemberNode>(span, name_def, span,
+                                                          type_annot);
+      elements.push_back(member);
 
       std::string name_with_count = absl::StrCat(fd->name(), "_count");
+      auto* name_def_with_count =
+          module->Make<dslx::NameDef>(span, std::string(name_with_count),
+                                      /*definer=*/nullptr);
       auto* u32_annot = module->Make<dslx::BuiltinTypeAnnotation>(
           span, dslx::BuiltinType::kU32,
           module->GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU32));
-      elements.push_back(dslx::StructMember{span, name_with_count, u32_annot});
+      member = module->Make<dslx::StructMemberNode>(span, name_def_with_count,
+                                                    span, u32_annot);
+      elements.push_back(member);
     }
   }
 

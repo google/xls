@@ -332,7 +332,7 @@ class VastToDslxTranslator {
   absl::StatusOr<dslx::StructDef*> TranslateStructWithName(
       verilog::Struct* vast_struct, dslx::NameDef* name_def,
       std::string_view vast_name) {
-    std::vector<dslx::StructMember> members;
+    std::vector<dslx::StructMemberNode*> members;
     members.reserve(vast_struct->members().size());
     for (verilog::Def* def : vast_struct->members()) {
       XLS_ASSIGN_OR_RETURN(dslx::TypeAnnotation * type,
@@ -341,9 +341,12 @@ class VastToDslxTranslator {
       while (IsDslxReserved(member_name)) {
         member_name = absl::StrCat("_", member_name);
       }
-      members.push_back({.name_span = CreateNodeSpan(def),
-                         .name = member_name,
-                         .type = type});
+      dslx::Span span = CreateNodeSpan(def);
+      auto* name_def =
+          module().Make<dslx::NameDef>(span, member_name, /*definer=*/nullptr);
+      auto* struct_member =
+          module().Make<dslx::StructMemberNode>(span, name_def, span, type);
+      members.push_back(struct_member);
     }
     dslx::StructDef* struct_def = module().Make<dslx::StructDef>(
         CreateNodeSpan(vast_struct), name_def,

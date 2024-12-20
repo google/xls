@@ -1418,13 +1418,21 @@ std::string FormatMacro::FormatArgs() const {
 StructDefBase::StructDefBase(
     Module* owner, Span span, NameDef* name_def,
     std::vector<ParametricBinding*> parametric_bindings,
-    std::vector<StructMember> members, bool is_public)
+    std::vector<StructMemberNode*> members, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
       parametric_bindings_(std::move(parametric_bindings)),
       members_(std::move(members)),
-      public_(is_public) {}
+      public_(is_public) {
+  for (const auto* member : members_) {
+    struct_members_.push_back(StructMember{
+        .name_span = member->name_def()->span(),
+        .name = member->name(),
+        .type = member->type(),
+    });
+  }
+}
 
 StructDefBase::~StructDefBase() = default;
 
@@ -1434,8 +1442,8 @@ std::vector<AstNode*> StructDefBase::GetChildren(bool want_types) const {
     results.push_back(pb);
   }
   if (want_types) {
-    for (const auto& member : members_) {
-      results.push_back(member.type);
+    for (const auto* member : members_) {
+      results.push_back(member->type());
     }
   }
   return results;
@@ -1455,9 +1463,9 @@ std::string StructDefBase::ToStringWithEntityKeywordAndAttribute(
   std::string result =
       absl::StrFormat("%s%s%s %s%s {\n", attribute, public_ ? "pub " : "",
                       keyword, identifier(), parametric_str);
-  for (const auto& item : members_) {
-    absl::StrAppendFormat(&result, "%s%s: %s,\n", kRustOneIndent, item.name,
-                          item.type->ToString());
+  for (const auto* item : members_) {
+    absl::StrAppendFormat(&result, "%s%s: %s,\n", kRustOneIndent, item->name(),
+                          item->type()->ToString());
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -1466,8 +1474,8 @@ std::string StructDefBase::ToStringWithEntityKeywordAndAttribute(
 std::vector<std::string> StructDefBase::GetMemberNames() const {
   std::vector<std::string> names;
   names.reserve(members_.size());
-  for (auto& item : members_) {
-    names.push_back(item.name);
+  for (const auto* item : members_) {
+    names.push_back(item->name());
   }
   return names;
 }

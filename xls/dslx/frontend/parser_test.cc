@@ -1721,9 +1721,9 @@ TEST_F(ParserTest, ZeroMacroSimpleStructArray) {
   NameDef* name_def =
       mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
-  auto* struct_def = mod.Make<StructDef>(Span::Fake(), name_def,
-                                         std::vector<ParametricBinding*>(),
-                                         std::vector<StructMember>{}, false);
+  auto* struct_def = mod.Make<StructDef>(
+      Span::Fake(), name_def, std::vector<ParametricBinding*>(),
+      std::vector<StructMemberNode*>{}, false);
   b.Add(name_def->identifier(), struct_def);
 
   absl::StatusOr<Expr*> expr = p.ParseExpression(/*bindings=*/b);
@@ -1766,8 +1766,8 @@ TEST_F(ParserTest, ZeroMacroParametricStruct) {
 
   name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
-  auto* struct_def = mod.Make<StructDef>(Span::Fake(), name_def, params,
-                                         std::vector<StructMember>{}, false);
+  auto* struct_def = mod.Make<StructDef>(
+      Span::Fake(), name_def, params, std::vector<StructMemberNode*>{}, false);
   b.Add(name_def->identifier(), struct_def);
 
   absl::StatusOr<Expr*> expr = p.ParseExpression(/*bindings=*/b);
@@ -1810,8 +1810,8 @@ TEST_F(ParserTest, ZeroMacroParametricStructArray) {
 
   name_def = mod.Make<NameDef>(Span::Fake(), std::string("MyType"), nullptr);
 
-  auto* struct_def = mod.Make<StructDef>(Span::Fake(), name_def, params,
-                                         std::vector<StructMember>{}, false);
+  auto* struct_def = mod.Make<StructDef>(
+      Span::Fake(), name_def, params, std::vector<StructMemberNode*>{}, false);
   b.Add(name_def->identifier(), struct_def);
 
   absl::StatusOr<Expr*> expr = p.ParseExpression(/*bindings=*/b);

@@ -776,14 +776,17 @@ class AstCloner : public AstNodeVisitor {
       new_parametric_bindings.push_back(new_pb);
     }
 
-    std::vector<StructMember> new_members;
-    for (const StructMember& member : n->members()) {
+    std::vector<StructMemberNode*> new_members;
+    for (const StructMemberNode* member : n->member_nodes()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(member->name_def()));
       XLS_ASSIGN_OR_RETURN(
           TypeAnnotation * new_type,
-          CastIfNotVerbatim<TypeAnnotation*>(old_to_new_.at(member.type)));
-      new_members.push_back(StructMember{.name_span = member.name_span,
-                                         .name = member.name,
-                                         .type = new_type});
+          CastIfNotVerbatim<TypeAnnotation*>(old_to_new_.at(member->type())));
+      XLS_ASSIGN_OR_RETURN(
+          NameDef * new_name,
+          CastIfNotVerbatim<NameDef*>(old_to_new_.at(member->name_def())));
+      new_members.push_back(module_->Make<StructMemberNode>(
+          member->span(), new_name, member->colon_span(), new_type));
     }
 
     auto* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));

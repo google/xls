@@ -64,19 +64,17 @@ const Span kFakeSpan(kFakePos, kFakePos);
 // Note that the `StructType` has to refer to a `StructDef` AST node which is
 // why this helper is needed.
 StructType CreateSimpleStruct(Module& module) {
-  std::vector<StructMember> ast_members;
-  ast_members.emplace_back(StructMember{
-      .name_span = kFakeSpan,
-      .name = "x",
-      .type = module.Make<BuiltinTypeAnnotation>(
+  std::vector<StructMemberNode*> ast_members;
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "x", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
           kFakeSpan, BuiltinType::kU8,
-          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))});
-  ast_members.emplace_back(StructMember{
-      .name_span = kFakeSpan,
-      .name = "y",
-      .type = module.Make<BuiltinTypeAnnotation>(
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))));
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "y", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
           kFakeSpan, BuiltinType::kU1,
-          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))});
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))));
 
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
@@ -100,19 +98,17 @@ StructType CreateSimpleStruct(Module& module) {
 // Note that the `StructType` has to refer to a `StructDef` AST node which is
 // why this helper is needed.
 StructType CreateSimpleParametricStruct(Module& module) {
-  std::vector<StructMember> ast_members;
-  ast_members.emplace_back(StructMember{
-      .name_span = kFakeSpan,
-      .name = "x",
-      .type = module.Make<BuiltinTypeAnnotation>(
+  std::vector<StructMemberNode*> ast_members;
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "x", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
           kFakeSpan, BuiltinType::kU8,
-          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))});
-  ast_members.emplace_back(StructMember{
-      .name_span = kFakeSpan,
-      .name = "y",
-      .type = module.Make<BuiltinTypeAnnotation>(
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))));
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "y", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
           kFakeSpan, BuiltinType::kU1,
-          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))});
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))));
 
   std::vector<ParametricBinding*> bindings;
   NameDef* type_m_name_def = module.Make<NameDef>(Span::Fake(), "M", nullptr);
@@ -135,19 +131,17 @@ StructType CreateSimpleParametricStruct(Module& module) {
 }
 
 StructType CreateStructWithParametricExpr(Module& module) {
-  std::vector<StructMember> ast_members;
-  ast_members.emplace_back(StructMember{
-      .name_span = kFakeSpan,
-      .name = "x",
-      .type = module.Make<BuiltinTypeAnnotation>(
+  std::vector<StructMemberNode*> ast_members;
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "x", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
           kFakeSpan, BuiltinType::kU8,
-          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))});
-  ast_members.emplace_back(StructMember{
-      .name_span = kFakeSpan,
-      .name = "y",
-      .type = module.Make<BuiltinTypeAnnotation>(
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))));
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "y", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
           kFakeSpan, BuiltinType::kU1,
-          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))});
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))));
 
   std::vector<ParametricBinding*> bindings;
   NameDef* type_m_name_def = module.Make<NameDef>(Span::Fake(), "M", nullptr);
@@ -419,7 +413,7 @@ TEST(TypeTest, EmptyStructTypeIsNotUnit) {
   Span fake_span(Pos(fileno, 0, 0), Pos(fileno, 0, 0));
   auto* struct_def = module.Make<StructDef>(
       fake_span, module.Make<NameDef>(fake_span, "S", nullptr),
-      std::vector<ParametricBinding*>{}, std::vector<StructMember>{},
+      std::vector<ParametricBinding*>{}, std::vector<StructMemberNode*>{},
       /*is_public=*/false);
   std::vector<std::unique_ptr<Type>> members;
   StructType s(std::move(members), *struct_def);

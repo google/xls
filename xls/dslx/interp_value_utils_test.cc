@@ -144,18 +144,17 @@ TEST(InterpValueHelpersTest, CreateZeroStructValue) {
   FileTable file_table;
   Module module("test", /*fs_path=*/std::nullopt, file_table);
 
-  std::vector<StructMember> ast_members;
-  ast_members.emplace_back(
-      StructMember{kFakeSpan, "x",
-                   module.Make<BuiltinTypeAnnotation>(
-                       kFakeSpan, BuiltinType::kU8,
-                       module.GetOrCreateBuiltinNameDef(BuiltinType::kU8))});
-  ast_members.emplace_back(
-      StructMember{.name_span = kFakeSpan,
-                   .name = "y",
-                   .type = module.Make<BuiltinTypeAnnotation>(
-                       kFakeSpan, BuiltinType::kU1,
-                       module.GetOrCreateBuiltinNameDef(BuiltinType::kU1))});
+  std::vector<StructMemberNode*> ast_members;
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "x", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU8,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU8))));
+  ast_members.emplace_back(module.Make<StructMemberNode>(
+      kFakeSpan, module.Make<NameDef>(kFakeSpan, "y", nullptr), kFakeSpan,
+      module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU1,
+          module.GetOrCreateBuiltinNameDef(dslx::BuiltinType::kU1))));
 
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
@@ -244,14 +243,19 @@ TEST(InterpValueHelpersTest, ValueToInterpValue) {
   NameDef struct_name_def(/*owner=*/nullptr, /*span=*/Span::Fake(), "my_struct",
                           /*definer=*/nullptr);
 
+  NameDef struct_member_name_def(/*owner=*/nullptr, /*span=*/Span::Fake(),
+                                 "member",
+                                 /*definer=*/nullptr);
+  StructMemberNode member(/* owner= */ nullptr, Span::Fake(),
+                          /*name_def= */ &struct_member_name_def,
+                          /*colon_span=*/Span::Fake(), /*type=*/nullptr);
   StructDef struct_def(/*owner=*/nullptr, /*span=*/Span::Fake(),
                        /*name_def=*/&struct_name_def,
                        /*parametric_bindings=*/{},
                        // these members are unused, but need to have the same
                        // number of elements as members in 'struct_type'.
                        /*members=*/
-                       std::vector<StructMember>{{Span::Fake(), "", nullptr},
-                                                 {Span::Fake(), "", nullptr}},
+                       std::vector<StructMemberNode*>{&member, &member},
                        /*is_public=*/false);
   std::vector<std::unique_ptr<Type>> members;
   members.push_back(BitsType::MakeU8());

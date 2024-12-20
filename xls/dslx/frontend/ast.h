@@ -2550,7 +2550,7 @@ class StructDefBase : public AstNode {
  public:
   StructDefBase(Module* owner, Span span, NameDef* name_def,
                 std::vector<ParametricBinding*> parametric_bindings,
-                std::vector<StructMember> members, bool is_public);
+                std::vector<StructMemberNode*> members, bool is_public);
 
   ~StructDefBase() override;
 
@@ -2563,6 +2563,9 @@ class StructDefBase : public AstNode {
 
   const std::string& identifier() const { return name_def_->identifier(); }
 
+  // TODO: https://github.com/google/xls/issues/1756 - Change this to return the
+  // StructMemberNodes instead of TypeAnnotations, so the formatter can
+  // more easily format (and not format) the members.
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   NameDef* name_def() const { return name_def_; }
@@ -2570,14 +2573,21 @@ class StructDefBase : public AstNode {
     return parametric_bindings_;
   }
 
-  const std::vector<StructMember>& members() const { return members_; }
-  std::vector<StructMember>& mutable_members() { return members_; }
+  const std::vector<StructMemberNode*>& member_nodes() const {
+    return members_;
+  }
+  // TODO: https://github.com/google/xls/issues/1756 - Change this to return the
+  // StructMemberNodes instead of StructMember, so we remove the latter.
+  const std::vector<StructMember>& members() const { return struct_members_; }
+  std::vector<StructMember>& mutable_members() { return struct_members_; }
 
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
-  const std::string& GetMemberName(int64_t i) const { return members_[i].name; }
+  const std::string& GetMemberName(int64_t i) const {
+    return members_[i]->name();
+  }
   std::vector<std::string> GetMemberNames() const;
 
   int64_t size() const { return members_.size(); }
@@ -2611,7 +2621,8 @@ class StructDefBase : public AstNode {
   Span span_;
   NameDef* name_def_;
   std::vector<ParametricBinding*> parametric_bindings_;
-  std::vector<StructMember> members_;
+  std::vector<StructMemberNode*> members_;
+  std::vector<StructMember> struct_members_;
   bool public_;
   std::optional<Impl*> impl_;
 };
