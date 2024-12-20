@@ -43,7 +43,6 @@ enum class AstNodeKind : uint8_t {
   kColonRef,
   kConditional,
   kConstAssert,
-  kConstRef,
   kConstantDef,
   kEnumDef,
   kFor,

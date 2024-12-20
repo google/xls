@@ -1336,22 +1336,29 @@ absl::StatusOr<uint64_t> AstGenerator::GetExprAsUint64(Expr* expr) {
   if (auto* number = dynamic_cast<Number*>(expr)) {
     return number->GetAsUint64(file_table);
   }
-  auto* const_ref = dynamic_cast<ConstRef*>(expr);
-  if (const_ref == nullptr) {
-    return absl::InvalidArgumentError("Expression is not a number or constant");
+
+  // See if `expr` is a `NameRef` to a `ConstantDef` definer.
+  if (auto* name_ref = dynamic_cast<NameRef*>(expr); name_ref != nullptr) {
+    auto it = constants_.find(name_ref->identifier());
+    if (it != constants_.end()) {
+      ConstantDef* constant_def = it->second;
+      Expr* value = constant_def->value();
+      return GetExprAsUint64(value);
+    }
   }
-  ConstantDef* const_def = constants_[const_ref->identifier()];
-  Number* number = dynamic_cast<Number*>(const_def->value());
-  XLS_RET_CHECK(number != nullptr) << const_def->ToString();
-  return number->GetAsUint64(file_table);
+
+  return absl::UnimplementedError(
+      absl::StrFormat("AstGenerator::GetExprAsUint64; unknown expression for "
+                      "evaluation to uint64: `%s`",
+                      expr->ToString()));
 }
 
 int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
   return GetExprAsUint64(type->dim()).value();
 }
 
-ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,
-                                            std::optional<int64_t> want_width) {
+NameRef* AstGenerator::GetOrCreateConstNameRef(
+    int64_t value, std::optional<int64_t> want_width) {
   // We use a canonical naming scheme so we can detect duplicate requests for
   // the same value.
   int64_t width;
@@ -1379,8 +1386,8 @@ ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,
     name_def->set_definer(constant_def);
     constants_[identifier] = constant_def;
   }
-  return module_->Make<ConstRef>(fake_span_, identifier,
-                                 constant_def->name_def());
+  return module_->Make<NameRef>(fake_span_, identifier,
+                                constant_def->name_def());
 }
 
 ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
@@ -1388,7 +1395,7 @@ ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
   Expr* dim;
   if (RandomBool(0.5)) {
     // Get-or-create a module level constant for the array size.
-    dim = GetOrCreateConstRef(array_size, /*want_width=*/32);
+    dim = GetOrCreateConstNameRef(array_size, /*want_width=*/32);
   } else {
     dim = MakeNumber(array_size);
   }

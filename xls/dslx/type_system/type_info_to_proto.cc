@@ -65,8 +65,6 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_NAME_DEF;
     case AstNodeKind::kNameRef:
       return AST_NODE_KIND_NAME_REF;
-    case AstNodeKind::kConstRef:
-      return AST_NODE_KIND_CONST_REF;
     case AstNodeKind::kBuiltinNameDef:
       return AST_NODE_KIND_BUILTIN_NAME_DEF;
     case AstNodeKind::kConditional:
@@ -697,8 +695,6 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kNameDef;
     case AST_NODE_KIND_NAME_REF:
       return AstNodeKind::kNameRef;
-    case AST_NODE_KIND_CONST_REF:
-      return AstNodeKind::kConstRef;
     case AST_NODE_KIND_BUILTIN_NAME_DEF:
       return AstNodeKind::kBuiltinNameDef;
     case AST_NODE_KIND_CONDITIONAL:
@@ -828,6 +824,7 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
     // Note: since this is a proto enum there are sentinel values defined in
     // addition to the "real" above. Return an invalid argument error.
     case AST_NODE_KIND_INVALID:
+    case AST_NODE_KIND_CONST_REF:  // Removed.
     case AstNodeKindProto_INT_MIN_SENTINEL_DO_NOT_USE_:
     case AstNodeKindProto_INT_MAX_SENTINEL_DO_NOT_USE_:
       return absl::InvalidArgumentError(

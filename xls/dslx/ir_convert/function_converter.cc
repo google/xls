@@ -300,7 +300,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   NO_TRAVERSE_DISPATCH(Param)
   NO_TRAVERSE_DISPATCH(NameRef)
-  NO_TRAVERSE_DISPATCH(ConstRef)
   NO_TRAVERSE_DISPATCH(Number)
   NO_TRAVERSE_DISPATCH(String)
 
@@ -716,10 +715,6 @@ absl::Status FunctionConverter::HandleParam(const Param* node) {
     param->set_sv_type(*sv_value);
   }
   return absl::OkStatus();
-}
-
-absl::Status FunctionConverter::HandleConstRef(const ConstRef* node) {
-  return DefAlias(node->name_def(), /*to=*/node);
 }
 
 absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {

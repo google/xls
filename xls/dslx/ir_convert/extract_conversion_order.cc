@@ -433,11 +433,8 @@ class InvocationVisitor : public ExprVisitor {
   // No ColonRef handling (ColonRef invocations are handled in HandleInvocation;
   // all other ColonRefs are to constant values, which don't need their deriving
   // exprs converted to IR.
-  // No ConstRef handling: constants don't need their defiving exprs converted
-  // to IR.
   DEFAULT_HANDLE(ChannelDecl)
   DEFAULT_HANDLE(ColonRef)
-  DEFAULT_HANDLE(ConstRef)
   DEFAULT_HANDLE(NameRef)
   DEFAULT_HANDLE(Number)
   DEFAULT_HANDLE(String)

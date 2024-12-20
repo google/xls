@@ -1005,7 +1005,7 @@ fn imported_enum_ref() -> u3 {
               IsOkAndHolds(InterpValue::MakeSBits(3, 2)));
 }
 
-TEST(BytecodeEmitterTest, HandlesConstRefs) {
+TEST(BytecodeEmitterTest, HandlesConstantRefs) {
   constexpr std::string_view kProgram = R"(const kFoo = u32:100;
 
 #[test]

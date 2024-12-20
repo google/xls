@@ -316,7 +316,6 @@ class FunctionConverter {
 
   // AstNode handlers.
   absl::Status HandleBinop(const Binop* node);
-  absl::Status HandleConstRef(const ConstRef* node);
   absl::Status HandleNameRef(const NameRef* node);
   absl::Status HandleNumber(const Number* node);
   absl::Status HandleParam(const Param* node);
