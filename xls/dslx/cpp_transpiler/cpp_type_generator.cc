@@ -433,9 +433,9 @@ class StructCppTypeGenerator : public CppTypeGenerator {
       const StructDef* struct_def, TypeInfo* type_info,
       ImportData* import_data) {
     std::vector<std::unique_ptr<CppEmitter>> member_emitters;
-    for (const auto& i : struct_def->members()) {
+    for (const auto* m : struct_def->members()) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<CppEmitter> emitter,
-                           CppEmitter::Create(i.type, i.type->ToString(),
+                           CppEmitter::Create(m->type(), m->type()->ToString(),
                                               type_info, import_data));
       member_emitters.push_back(std::move(emitter));
     }

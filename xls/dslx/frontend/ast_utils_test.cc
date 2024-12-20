@@ -82,9 +82,9 @@ struct TheStruct {
   // Helper that extracts the metadata associated with a given field name.
   auto get_type_metadata =
       [&](std::string_view name) -> std::optional<BitVectorMetadata> {
-    for (const StructMember& member : the_struct_def->members()) {
-      if (member.name == name) {
-        return ExtractBitVectorMetadata(member.type);
+    for (const StructMemberNode* member : the_struct_def->members()) {
+      if (member->name() == name) {
+        return ExtractBitVectorMetadata(member->type());
       }
     }
     LOG(FATAL) << "Unknown field: " << name;

@@ -312,10 +312,10 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
         dslx::StructDef * struct_def,
         ResolveLocalStructDef(typeref_type->type_ref()->type_definition()));
     std::vector<std::pair<std::string, dslx::Expr*>> members;
-    for (const auto& child : struct_def->members()) {
+    for (const auto* child : struct_def->members()) {
       XLS_ASSIGN_OR_RETURN(dslx::Expr * expr,
-                           MakeZeroValuedElement(module, child.type));
-      members.push_back({child.name, expr});
+                           MakeZeroValuedElement(module, child->type()));
+      members.push_back({child->name(), expr});
     }
     return module->Make<dslx::StructInstance>(span, typeref_type, members);
   }

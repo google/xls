@@ -728,11 +728,11 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
 
  private:
   absl::Status HandleStructDefBaseInternal(const StructDefBase* struct_def) {
-    for (const StructMember& member : struct_def->members()) {
+    for (const StructMemberNode* member : struct_def->members()) {
       if (token_found_) {
         break;
       }
-      XLS_RETURN_IF_ERROR(member.type->Accept(this));
+      XLS_RETURN_IF_ERROR(member->type()->Accept(this));
     }
     return absl::OkStatus();
   }

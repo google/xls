@@ -2573,12 +2573,7 @@ class StructDefBase : public AstNode {
     return parametric_bindings_;
   }
 
-  const std::vector<StructMemberNode*>& member_nodes() const {
-    return members_;
-  }
-  // TODO: https://github.com/google/xls/issues/1756 - Change this to return the
-  // StructMemberNodes instead of StructMember, so we remove the latter.
-  const std::vector<StructMember>& members() const { return struct_members_; }
+  const std::vector<StructMemberNode*>& members() const { return members_; }
   std::vector<StructMember>& mutable_members() { return struct_members_; }
 
   bool is_public() const { return public_; }

@@ -777,7 +777,7 @@ class AstCloner : public AstNodeVisitor {
     }
 
     std::vector<StructMemberNode*> new_members;
-    for (const StructMemberNode* member : n->member_nodes()) {
+    for (const StructMemberNode* member : n->members()) {
       XLS_RETURN_IF_ERROR(ReplaceOrVisit(member->name_def()));
       XLS_ASSIGN_OR_RETURN(
           TypeAnnotation * new_type,

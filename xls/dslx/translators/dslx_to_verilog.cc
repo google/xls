@@ -263,7 +263,7 @@ DslxTypeToVerilogManager::TypeAnnotationToVastType(
               for (int64_t i = 0; i < struct_type.size(); ++i) {
                 std::string_view member_name = struct_type.GetMemberName(i);
                 const TypeAnnotation* member_type_annotation =
-                    struct_def->members().at(i).type;
+                    struct_def->members().at(i)->type();
                 const Type& member_type = struct_type.GetMemberType(i);
 
                 XLS_ASSIGN_OR_RETURN(verilog::DataType * element_data_type,

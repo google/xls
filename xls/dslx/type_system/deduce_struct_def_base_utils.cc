@@ -99,14 +99,15 @@ absl::StatusOr<std::vector<std::unique_ptr<Type>>> DeduceStructDefBaseMembers(
     absl::AnyInvocable<absl::Status(DeduceCtx* ctx, const Span&, const Type&)>
         validator) {
   std::vector<std::unique_ptr<Type>> members;
-  for (const auto& [name_span, name, type] : node->members()) {
-    WarnOnInappropriateMemberName(name, name_span, *node->owner(), ctx);
+  for (const auto* member : node->members()) {
+    WarnOnInappropriateMemberName(member->name(), member->name_def()->span(),
+                                  *node->owner(), ctx);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete,
-                         ctx->DeduceAndResolve(type));
+                         ctx->DeduceAndResolve(member->type()));
     XLS_ASSIGN_OR_RETURN(
-        concrete, UnwrapMetaType(std::move(concrete), type->span(),
+        concrete, UnwrapMetaType(std::move(concrete), member->type()->span(),
                                  "struct member type", ctx->file_table()));
-    XLS_RETURN_IF_ERROR(validator(ctx, name_span, *concrete));
+    XLS_RETURN_IF_ERROR(validator(ctx, member->name_def()->span(), *concrete));
     members.push_back(std::move(concrete));
   }
   return members;

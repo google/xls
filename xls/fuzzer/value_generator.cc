@@ -281,12 +281,11 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
           },
           [&](dslx::StructDef* struct_def) -> absl::StatusOr<Expr*> {
             std::vector<std::pair<std::string, Expr*>> members;
-            for (const auto& [_, member_name, member_type] :
-                 struct_def->members()) {
+            for (const auto* member : struct_def->members()) {
               XLS_ASSIGN_OR_RETURN(
                   Expr * member_value,
-                  GenerateDslxConstant(bit_gen, module, member_type));
-              members.push_back(std::make_pair(member_name, member_value));
+                  GenerateDslxConstant(bit_gen, module, member->type()));
+              members.push_back(std::make_pair(member->name(), member_value));
             }
             auto* type_ref = module->Make<dslx::TypeRef>(fake_span, struct_def);
             auto* type_ref_type_annotation =

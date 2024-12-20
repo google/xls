@@ -761,13 +761,13 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
         // Structs may then have comments at the end of specific members.
         const auto member_comments = struct_member_comments_.find(type_name);
         if (member_comments != struct_member_comments_.end()) {
-          for (const dslx::StructMember& member :
+          for (const dslx::StructMemberNode* member :
                std::get<dslx::StructDef*>(*type_def)->members()) {
             const auto member_comment =
-                member_comments->second.find(member.name);
+                member_comments->second.find(member->name());
             if (member_comment != member_comments->second.end()) {
               comment_data.push_back(
-                  CommentAfter(member.GetSpan(), member_comment->second));
+                  CommentAfter(member->span(), member_comment->second));
             }
           }
         }

@@ -2393,9 +2393,9 @@ static void FmtStructMembers(const StructDefBase& n, Comments& comments,
   std::vector<DocRef> body_pieces;
   Pos last_member_pos = n.span().start();
   for (size_t i = 0; i < n.members().size(); ++i) {
-    const auto& [name_span, name, type] = n.members()[i];
+    const auto* member = n.members()[i];
 
-    const Span member_span = n.members()[i].GetSpan();
+    const Span member_span = member->span();
     const Pos& member_start = member_span.start();
 
     // See if there are comments between the last member and the start of this
@@ -2416,10 +2416,10 @@ static void FmtStructMembers(const StructDefBase& n, Comments& comments,
 
     last_member_pos = member_span.limit();
 
-    body_pieces.push_back(arena.MakeText(name));
+    body_pieces.push_back(arena.MakeText(member->name()));
     body_pieces.push_back(arena.colon());
     body_pieces.push_back(arena.space());
-    body_pieces.push_back(Fmt(*type, comments, arena));
+    body_pieces.push_back(Fmt(*member->type(), comments, arena));
     bool last_member = i + 1 == n.members().size();
     if (last_member) {
       body_pieces.push_back(arena.MakeFlatChoice(/*on_flat=*/arena.empty(),
