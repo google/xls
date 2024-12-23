@@ -102,6 +102,10 @@ struct xls_value* xls_value_make_token();
 // Returns a new `bits[1]:1` XLS value which the caller must free.
 struct xls_value* xls_value_make_true();
 
+// Returns a new tuple-kind XLS value which the caller must free.
+struct xls_value* xls_value_make_tuple(size_t element_count,
+                                       struct xls_value** elements);
+
 // Attempts to extract a "bits" value from the given XLS value -- the resulting
 // `bits_out` is owned by the caller and must be freed via `xls_bits_free()` on
 // success.
@@ -110,7 +114,33 @@ bool xls_value_get_bits(const struct xls_value* value, char** error_out,
 
 int64_t xls_bits_get_bit_count(const struct xls_bits* bits);
 
+// Returns a string representation of the given bits value.
+//
+// Note: the returned string is owned by the caller and must be freed via
+// `xls_c_str_free`.
+char* xls_bits_to_debug_string(const struct xls_bits* bits);
+
+// Helper routine for making an unsigned bits value using a value that fits in a
+// 64-bit word.
+//
+// `bit_count` must be large enough to hold the value or an error is returned.
+bool xls_bits_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
+                         struct xls_bits** bits_out);
+
+// As above but for a signed bit value -- `bit_count` must be large enough to
+// hold the value assuming sign extension or an error is returned.
+bool xls_bits_make_sbits(int64_t bit_count, int64_t value, char** error_out,
+                         struct xls_bits** bits_out);
+
 void xls_bits_free(struct xls_bits* bits);
+
+bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b);
+
+// Returns the bit at the given index, where `index` is a zero-is-lsb value.
+//
+// That is, if the bits value is `0b01`, then `xls_bits_get_bit(bits, 0)`
+// returns 1, `xls_bits_get_bit(bits, 1)` returns 0.
+bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index);
 
 // Returns a new `bits[1]:0` XLS value which the caller must free.
 struct xls_value* xls_value_make_false();
@@ -136,6 +166,15 @@ bool xls_value_to_string_format_preference(
 
 // Deallocates a value, e.g. one as created by `xls_parse_typed_value`.
 void xls_value_free(struct xls_value* v);
+
+// Flattens the given value to a sequence of bits in a bits "buffer" value.
+//
+// Note that in a tuple or array the earlier fields/members are stored in the
+// most significant bits of the result value.
+//
+// Note: the returned bits buffer is owned by the caller and must be freed via
+// `xls_bits_free`.
+struct xls_bits* xls_value_flatten_to_bits(const struct xls_value* v);
 
 void xls_package_free(struct xls_package* p);
 

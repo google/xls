@@ -63,7 +63,7 @@ absl::StatusOr<Bits> SBitsWithStatus(int64_t value, int64_t bit_count) {
 }
 
 Bits::Bits(absl::Span<bool const> bits)
-    : bitmap_(InlineBitmap::FromBits(bits)) {}
+    : bitmap_(InlineBitmap::FromBitsLsbIs0(bits)) {}
 
 void Bits::SetRange(int64_t start_index, int64_t end_index, bool value) {
   bitmap_.SetRange(start_index, end_index, value);

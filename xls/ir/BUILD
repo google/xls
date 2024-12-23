@@ -34,9 +34,11 @@ package(
 
 cc_library(
     name = "bit_push_buffer",
+    srcs = ["bit_push_buffer.cc"],
     hdrs = ["bit_push_buffer.h"],
     deps = [
         "//xls/common:math_util",
+        "//xls/data_structures:inline_bitmap",
     ],
 )
 
@@ -411,6 +413,7 @@ cc_test(
         "bits_test.cc",
     ],
     deps = [
+        ":bit_push_buffer",
         ":bits",
         ":bits_ops",
         ":bits_test_utils",
@@ -426,6 +429,7 @@ cc_test(
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],

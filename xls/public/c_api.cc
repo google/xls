@@ -28,12 +28,14 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
@@ -214,6 +216,80 @@ struct xls_value* xls_value_make_true() {
 struct xls_value* xls_value_make_false() {
   auto* value = new xls::Value(xls::Value::Bool(false));
   return reinterpret_cast<xls_value*>(value);
+}
+
+bool xls_bits_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
+                         struct xls_bits** bits_out) {
+  CHECK(error_out != nullptr);
+  CHECK(bits_out != nullptr);
+  absl::StatusOr<xls::Bits> bits = xls::UBitsWithStatus(value, bit_count);
+  if (!bits.ok()) {
+    *error_out = xls::ToOwnedCString(bits.status().ToString());
+    return false;
+  }
+  *bits_out =
+      reinterpret_cast<xls_bits*>(new xls::Bits(std::move(bits).value()));
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_bits_make_sbits(int64_t bit_count, int64_t value, char** error_out,
+                         struct xls_bits** bits_out) {
+  CHECK(error_out != nullptr);
+  CHECK(bits_out != nullptr);
+  absl::StatusOr<xls::Bits> bits = xls::SBitsWithStatus(value, bit_count);
+  if (!bits.ok()) {
+    *error_out = xls::ToOwnedCString(bits.status().ToString());
+    return false;
+  }
+  *bits_out =
+      reinterpret_cast<xls_bits*>(new xls::Bits(std::move(bits).value()));
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  return cpp_bits->Get(index);
+}
+
+char* xls_bits_to_debug_string(const struct xls_bits* bits) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  std::string s = cpp_bits->ToDebugString();
+  return xls::ToOwnedCString(s);
+}
+
+struct xls_value* xls_value_make_tuple(size_t element_count,
+                                       struct xls_value** elements) {
+  CHECK(elements != nullptr);
+  std::vector<xls::Value> cpp_elements;
+  cpp_elements.reserve(element_count);
+  for (size_t i = 0; i < element_count; ++i) {
+    cpp_elements.push_back(*reinterpret_cast<xls::Value*>(elements[i]));
+  }
+  auto* value = new xls::Value(xls::Value::TupleOwned(std::move(cpp_elements)));
+  return reinterpret_cast<xls_value*>(value);
+}
+
+struct xls_bits* xls_value_flatten_to_bits(const struct xls_value* value) {
+  CHECK(value != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  xls::BitPushBuffer push_buffer;
+  cpp_value->FlattenTo(&push_buffer);
+  LOG(INFO) << "Flattened " << cpp_value->ToString() << " to "
+            << push_buffer.size_in_bits() << " bits";
+  xls::Bits bits = xls::Bits::FromBitmap(push_buffer.ToBitmap());
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(bits)));
+}
+
+bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b) {
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  const auto* cpp_a = reinterpret_cast<const xls::Bits*>(a);
+  const auto* cpp_b = reinterpret_cast<const xls::Bits*>(b);
+  return *cpp_a == *cpp_b;
 }
 
 int64_t xls_bits_get_bit_count(const struct xls_bits* bits) {

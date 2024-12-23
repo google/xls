@@ -1,5 +1,10 @@
+xls_bits_eq
 xls_bits_free
+xls_bits_get_bit
 xls_bits_get_bit_count
+xls_bits_make_sbits
+xls_bits_make_ubits
+xls_bits_to_debug_string
 xls_c_str_free
 xls_convert_dslx_path_to_ir
 xls_convert_dslx_to_ir
@@ -92,11 +97,13 @@ xls_schedule_and_codegen_result_free
 xls_schedule_and_codegen_result_get_verilog_text
 xls_type_to_string
 xls_value_eq
+xls_value_flatten_to_bits
 xls_value_free
 xls_value_get_bits
 xls_value_make_false
 xls_value_make_token
 xls_value_make_true
+xls_value_make_tuple
 xls_value_to_string
 xls_value_to_string_format_preference
 xls_vast_concat_as_expression
