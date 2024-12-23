@@ -329,8 +329,7 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
             }
 
             if (!std::holds_alternative<ConstantDef*>(*maybe_member.value())) {
-              VLOG(3) << "ConstRef \"" << expr->ToString()
-                      << "\" is not constexpr evaluatable.";
+              VLOG(3) << expr->ToString() << " is not constexpr evaluatable.";
               return absl::OkStatus();
             }
 
@@ -365,10 +364,6 @@ absl::Status ConstexprEvaluator::HandleConstAssert(
   return TypeInferenceErrorStatus(const_assert->span(), nullptr,
                                   "const_assert! expression was false",
                                   file_table);
-}
-
-absl::Status ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
-  return HandleNameRef(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
@@ -728,20 +723,6 @@ absl::StatusOr<ConstexprEnvData> MakeConstexprEnv(
     } else {
       non_constexpr.insert(sample_ref);
     }
-  }
-
-  for (const ConstRef* const_ref : freevars.GetConstRefs()) {
-    VLOG(5) << "analyzing constant reference: " << const_ref->ToString()
-            << " def: " << const_ref->ToString();
-    Expr* const_expr = const_ref->GetValue();
-    absl::StatusOr<InterpValue> value = type_info->GetConstExpr(const_expr);
-    if (!value.ok()) {
-      continue;
-    }
-
-    VLOG(5) << "freevar env record: " << const_ref->identifier() << " => "
-            << value->ToString();
-    env.insert({const_ref->identifier(), *value});
   }
 
   return ConstexprEnvData{

@@ -481,7 +481,6 @@ class Parser : public TokenParser {
   //            | ColonRef
   //            | NameDef
   //            | NameRef
-  //            | ConstRef
   //            | Number
   absl::StatusOr<NameDefTree*> ParsePattern(Bindings& bindings);
 
@@ -663,7 +662,7 @@ class Parser : public TokenParser {
   // `Let` nodes are created _after_ those that use their namedefs (due to the
   // chaining of the `body` member variable. We need to know, though, if a
   // reference to such an NDT (or element thereof) is to a constant or not, so
-  // we can emit either a ConstRef or NameRef. This set holds those NDTs known
+  // we can emit a NameRef. This set holds those NDTs known
   // to be constant for that purpose.
   absl::flat_hash_set<NameDefTree*> const_ndts_;
 

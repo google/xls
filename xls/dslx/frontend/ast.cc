@@ -225,8 +225,6 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "proc member";
     case AstNodeKind::kNameRef:
       return "name reference";
-    case AstNodeKind::kConstRef:
-      return "const reference";
     case AstNodeKind::kArray:
       return "array";
     case AstNodeKind::kString:
@@ -391,18 +389,6 @@ FreeVariables::GetNameDefTuples() const {
     return lhs.first < rhs.first;
   });
   return result;
-}
-
-std::vector<const ConstRef*> FreeVariables::GetConstRefs() {
-  std::vector<const ConstRef*> const_refs;
-  for (const auto& [name, refs] : values_) {
-    for (const NameRef* name_ref : refs) {
-      if (auto* const_ref = dynamic_cast<const ConstRef*>(name_ref)) {
-        const_refs.push_back(const_ref);
-      }
-    }
-  }
-  return const_refs;
 }
 
 std::vector<AnyNameDef> FreeVariables::GetNameDefs() const {
@@ -1034,7 +1020,7 @@ SelfTypeAnnotation::~SelfTypeAnnotation() = default;
 BuiltinNameDef::~BuiltinNameDef() = default;
 
 bool IsConstant(AstNode* node) {
-  if (IsOneOf<Number, ConstRef, ColonRef>(node)) {
+  if (IsOneOf<Number, ColonRef>(node)) {
     return true;
   }
   if (IsOneOf<NameRef>(node)) {
@@ -2041,10 +2027,6 @@ Match::Match(Module* owner, Span span, Expr* matched,
 // -- class NameRef
 
 NameRef::~NameRef() = default;
-
-// -- class ConstRef
-
-ConstRef::~ConstRef() = default;
 
 // -- class Range
 

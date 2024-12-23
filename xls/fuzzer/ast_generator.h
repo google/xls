@@ -688,7 +688,7 @@ class AstGenerator {
 
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
-  ConstRef* GetOrCreateConstRef(
+  NameRef* GetOrCreateConstNameRef(
       int64_t value, std::optional<int64_t> want_width = std::nullopt);
 
   // Returns a recoverable status error with the given message. A recoverable

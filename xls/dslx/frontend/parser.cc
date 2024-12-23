@@ -955,25 +955,9 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
       bindings.ResolveNodeOrError(*tok->GetValue(), tok->span(), file_table()));
   AnyNameDef name_def = BoundNodeToAnyNameDef(bn);
   if (std::holds_alternative<ConstantDef*>(bn)) {
-    return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
+    return module_->Make<NameRef>(tok->span(), *tok->GetValue(), name_def);
   }
 
-  if (std::holds_alternative<NameDef*>(bn)) {
-    // As opposed to the AnyNameDef above.
-    const AstNode* node = std::get<NameDef*>(bn);
-    while (node->parent() != nullptr &&
-           node->parent()->kind() == AstNodeKind::kNameDefTree) {
-      node = node->parent();
-    }
-
-    // Since Let construction is deferred, we can't look up the definer of this
-    // NameDef[Tree]; it doesn't exist yet. Instead, we just note that a given
-    // NDT is const (or not, by omission in the set).
-    if (dynamic_cast<const NameDefTree*>(node) != nullptr &&
-        const_ndts_.contains(dynamic_cast<const NameDefTree*>(node))) {
-      return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
-    }
-  }
   return module_->Make<NameRef>(tok->span(), *tok->GetValue(), name_def);
 }
 
@@ -1468,15 +1452,11 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
     }
 
     std::optional<BoundNode> resolved = bindings.ResolveNode(*tok.GetValue());
-    NameRef* ref;
     if (resolved) {
       AnyNameDef name_def =
           bindings.ResolveNameOrNullopt(*tok.GetValue()).value();
-      if (std::holds_alternative<ConstantDef*>(*resolved)) {
-        ref = module_->Make<ConstRef>(tok.span(), *tok.GetValue(), name_def);
-      } else {
-        ref = module_->Make<NameRef>(tok.span(), *tok.GetValue(), name_def);
-      }
+      NameRef* ref =
+          module_->Make<NameRef>(tok.span(), *tok.GetValue(), name_def);
       return module_->Make<NameDefTree>(tok.span(), ref);
     }
 
@@ -3062,8 +3042,8 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
   }
 
   if (const_) {
-    // Mark this NDT as const to determine if refs to it should be ConstRefs
-    // or NameRefs. Also disallow destructuring assignment for constants.
+    // Mark this NDT as const. Also disallow destructuring assignment for
+    // constants.
     const_ndts_.insert(name_def_tree);
     if (name_def_tree->Flatten().size() != 1) {
       return ParseErrorStatus(
