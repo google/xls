@@ -102,8 +102,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleVerbatimNode(const VerbatimNode* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 
-  static absl::StatusOr<InterpValue> CreateChannelValue(const Type* type);
-
  private:
   ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
                      WarningCollector* warning_collector,

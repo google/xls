@@ -58,6 +58,7 @@
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/type_system/deduce_colon_ref.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/deduce_enum_def.h"
@@ -192,18 +193,24 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceParam(const Param* node,
       f->tag() == FunctionTag::kProcConfig && ctx->fn_stack().size() == 2;
   bool is_channel_like_param =
       dynamic_cast<ChannelType*>(param_type.get()) != nullptr;
-  if (!is_channel_like_param) {
+  ChannelDirection direction = ChannelDirection::kIn;
+  if (is_channel_like_param) {
+    direction = dynamic_cast<ChannelType*>(param_type.get())->direction();
+  } else {
     ArrayType* array_type = dynamic_cast<ArrayType*>(param_type.get());
     is_channel_like_param = array_type != nullptr &&
                             dynamic_cast<const ChannelType*>(
                                 &array_type->element_type()) != nullptr &&
                             array_type->size().GetAsInt64().ok();
+    if (is_channel_like_param) {
+      direction = dynamic_cast<const ChannelType*>(&array_type->element_type())
+                      ->direction();
+    }
   }
   bool is_param_constexpr = ctx->type_info()->IsKnownConstExpr(node);
   if (is_root_proc && is_channel_like_param && !is_param_constexpr) {
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        ConstexprEvaluator::CreateChannelValue(param_type.get()));
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         CreateChannelReference(direction, param_type.get()));
     ctx->type_info()->NoteConstExpr(node, value);
     ctx->type_info()->NoteConstExpr(node->name_def(), value);
   }

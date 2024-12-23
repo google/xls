@@ -56,11 +56,11 @@
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
+#include "xls/dslx/bytecode/proc_hierarchy_interpreter.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
-#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -529,132 +529,67 @@ absl::Status CompareResultsProc(
   return absl::OkStatus();
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, dslx::InterpValue>>
-ConvertChannelValues(
-    dslx::Proc* proc, const dslx::ImportData& import_data,
-    const dslx::TypecheckedModule& tm,
-    const std::vector<std::vector<dslx::InterpValue>>& input_channel_values) {
-  XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
-                       tm.type_info->GetTopLevelProcTypeInfo(proc));
-  std::vector<dslx::ProcInstance> proc_instances;
-  absl::flat_hash_map<std::string, dslx::InterpValue> converted_channel_values;
-  // Positional indexes of the input channels in the config function.
-  std::vector<int64_t> in_chan_indexes;
-
-  for (int64_t index = 0; index < proc->config().params().size(); ++index) {
-    // Currently, only channels are supported as parameters to the config
-    // function of a proc.
-    dslx::Param* param = proc->config().params().at(index);
-    dslx::ChannelTypeAnnotation* channel_type =
-        dynamic_cast<dslx::ChannelTypeAnnotation*>(param->type_annotation());
-    if (channel_type == nullptr) {
-      return absl::InternalError(
-          "Only channels are supported as parameters to the config function of "
-          "a proc");
-    }
-    if (channel_type->direction() != dslx::ChannelDirection::kIn) {
-      continue;
-    }
-    converted_channel_values.insert(
-        {param->identifier(), dslx::InterpValue::MakeChannel()});
-    in_chan_indexes.push_back(index);
-  }
-
-  std::vector<std::unique_ptr<dslx::Type>> channel_payload_types(
-      in_chan_indexes.size());
-  for (int64_t index = 0; index < in_chan_indexes.size(); ++index) {
-    XLS_ASSIGN_OR_RETURN(
-        dslx::Type * type,
-        proc_type_info->GetItemOrError(
-            proc->config().params().at(in_chan_indexes[index])));
-    dslx::ChannelType* channel_type = dynamic_cast<dslx::ChannelType*>(type);
-    if (channel_type == nullptr) {
-      return absl::InternalError(
-          "Only channels are supported as parameters to the config function of "
-          "a proc");
-    }
-    channel_payload_types[index] = channel_type->payload_type().CloneToUnique();
-  }
-
-  for (const std::vector<dslx::InterpValue>& values : input_channel_values) {
-    CHECK_EQ(in_chan_indexes.size(), values.size())
-        << "The input channel count should match the args count.";
-    for (int64_t index = 0; index < values.size(); ++index) {
-      dslx::Param* param = proc->config().params().at(in_chan_indexes[index]);
-      XLS_ASSIGN_OR_RETURN(
-          dslx::InterpValue payload_value,
-          SignConvertValue(*channel_payload_types[index], values[index]));
-      converted_channel_values.at(param->identifier())
-          .GetChannelOrDie()
-          ->push_back(payload_value);
-    }
-  }
-  return converted_channel_values;
-}
-
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<dslx::InterpValue>>>
 RunProc(dslx::Proc* proc, dslx::ImportData& import_data,
-        const dslx::TypecheckedModule& tm,
-        const absl::flat_hash_map<std::string, dslx::InterpValue>&
-            input_channel_values,
+        const dslx::TypecheckedModule& tm, const ArgsBatch& args_batch,
         int64_t proc_ticks) {
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
-  std::vector<dslx::ProcInstance> proc_instances;
-  std::vector<dslx::InterpValue> config_args;
-  // Positional indexes of the output channels in the config function.
+
+  std::string module_name = proc->owner()->name();
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<dslx::ProcHierarchyInterpreter> hierarchy_interpreter,
+      dslx::ProcHierarchyInterpreter::Create(&import_data, proc_type_info,
+                                             proc));
+
+  // Positional indexes of the input and output channels in the config function.
   std::vector<int64_t> out_chan_indexes;
+  std::vector<int64_t> in_chan_indexes;
   // The mapping of the channels in the output_channel_names follow the mapping
   // of out_chan_indexes. For example, out_channel_names[i] refers to same
   // channel at out_chan_indexes[i].
   std::vector<std::string> out_ir_channel_names;
-
-  std::string module_name = proc->owner()->name();
-  for (int64_t index = 0; index < proc->config().params().size(); ++index) {
-    dslx::Param* param = proc->config().params().at(index);
-    // Currently, only channels are supported as parameters to the config
-    // function of a proc.
-    dslx::ChannelTypeAnnotation* channel_type =
-        dynamic_cast<dslx::ChannelTypeAnnotation*>(param->type_annotation());
-    if (channel_type == nullptr) {
-      return absl::InternalError(
-          "Only channels are supported as parameters to the config function of "
-          "a proc");
-    }
-    if (channel_type->direction() == dslx::ChannelDirection::kIn) {
-      config_args.push_back(input_channel_values.at(param->identifier()));
-    } else if (channel_type->direction() == dslx::ChannelDirection::kOut) {
-      config_args.push_back(dslx::InterpValue::MakeChannel());
+  for (int64_t index = 0; index < hierarchy_interpreter->GetInterfaceSize();
+       ++index) {
+    if (hierarchy_interpreter->GetInterfaceChannelDirection(index) ==
+        dslx::ChannelDirection::kIn) {
+      in_chan_indexes.push_back(index);
+    } else {
       out_chan_indexes.push_back(index);
       out_ir_channel_names.push_back(absl::StrCat(
           module_name, "__", proc->config().params().at(index)->identifier()));
     }
   }
 
-  dslx::ProcIdFactory proc_id_factory;
-  XLS_RETURN_IF_ERROR(dslx::ProcConfigBytecodeInterpreter::EvalSpawn(
-      &import_data, &proc_id_factory, /*caller_proc_id=*/std::nullopt,
-      proc_type_info, /*caller_bindings=*/std::nullopt,
-      /*callee_bindings=*/std::nullopt, std::nullopt, proc, config_args,
-      &proc_instances));
-
-  // Currently a single proc is supported.
-  CHECK_EQ(proc_instances.size(), 1);
-  for (int i = 0; i < proc_ticks; i++) {
-    XLS_RETURN_IF_ERROR(proc_instances[0].Run().status());
+  // Feed the inputs to the channels.
+  for (const std::vector<dslx::InterpValue>& arg_batch : args_batch) {
+    XLS_RET_CHECK_EQ(in_chan_indexes.size(), arg_batch.size());
+    for (int64_t i = 0; i < arg_batch.size(); ++i) {
+      dslx::InterpValueChannel& channel =
+          hierarchy_interpreter->GetInterfaceChannel(in_chan_indexes[i]);
+      const dslx::Type* payload_type =
+          hierarchy_interpreter->GetInterfaceChannelPayloadType(
+              in_chan_indexes[i]);
+      XLS_ASSIGN_OR_RETURN(dslx::InterpValue payload_value,
+                           SignConvertValue(*payload_type, arg_batch[i]));
+      channel.Write(payload_value);
+    }
   }
 
-  // TODO(vmirian): Ideally, the result should be a tuple containing two
-  // tuples. The first entry is the result of the next function, the second is
-  // the results of the output channels. Collect the result from the next
-  // function.
+  for (int i = 0; i < proc_ticks; i++) {
+    XLS_RETURN_IF_ERROR(hierarchy_interpreter->Tick());
+  }
+
   absl::flat_hash_map<std::string, std::vector<dslx::InterpValue>>
       all_channel_values;
   for (int64_t index = 0; index < out_chan_indexes.size(); ++index) {
-    std::shared_ptr<dslx::InterpValue::Channel> channel =
-        config_args[out_chan_indexes[index]].GetChannelOrDie();
+    dslx::InterpValueChannel& channel =
+        hierarchy_interpreter->GetInterfaceChannel(out_chan_indexes[index]);
     all_channel_values[out_ir_channel_names[index]] =
-        std::vector<dslx::InterpValue>(channel->begin(), channel->end());
+        std::vector<dslx::InterpValue>();
+    while (!channel.IsEmpty()) {
+      all_channel_values[out_ir_channel_names[index]].push_back(channel.Read());
+    }
   }
   return all_channel_values;
 }
@@ -680,13 +615,9 @@ InterpretDslxProc(std::string_view text, std::string_view top_name,
   XLS_RET_CHECK(std::holds_alternative<dslx::Proc*>(*member));
   dslx::Proc* proc = std::get<dslx::Proc*>(*member);
 
-  absl::flat_hash_map<std::string, dslx::InterpValue> converted_channel_values;
-  XLS_ASSIGN_OR_RETURN(converted_channel_values,
-                       ConvertChannelValues(proc, import_data, tm, args_batch));
   absl::flat_hash_map<std::string, std::vector<dslx::InterpValue>> dslx_results;
-  XLS_ASSIGN_OR_RETURN(
-      dslx_results,
-      RunProc(proc, import_data, tm, converted_channel_values, tick_count));
+  XLS_ASSIGN_OR_RETURN(dslx_results,
+                       RunProc(proc, import_data, tm, args_batch, tick_count));
 
   absl::flat_hash_map<std::string, std::vector<Value>> ir_channel_values;
   for (const auto& [key, values] : dslx_results) {

@@ -467,7 +467,7 @@ proc tester_proc {
   if (GetParam() == RunnerType::kDslxInterpreter) {
     EXPECT_THAT(failures[0],
                 AllOf(HasSubstr("proc `incrementer` is blocked on receive on "
-                                "channel `incrementer::in_ch`"),
+                                "channel `tester_proc->incrementer#0::in_ch`"),
                       HasSubstr("proc `tester_proc` is blocked on receive on "
                                 "channel `tester_proc::data_in`")));
   } else {

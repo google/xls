@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -31,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
@@ -383,6 +385,67 @@ absl::StatusOr<std::string> InterpValueAsString(const InterpValue& v) {
     result.push_back(static_cast<uint8_t>(element_byte));
   }
   return result;
+}
+
+absl::StatusOr<InterpValue> CreateChannelReference(
+    ChannelDirection direction, const Type* type,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator) {
+  if (auto* array_type = dynamic_cast<const ArrayType*>(type)) {
+    XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
+    std::vector<InterpValue> elements;
+    elements.reserve(dim_int);
+    for (int i = 0; i < dim_int; i++) {
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue element,
+          CreateChannelReference(direction, &array_type->element_type(),
+                                 channel_instance_allocator));
+      elements.push_back(element);
+    }
+    return InterpValue::MakeArray(elements);
+  }
+
+  // `type` must be either an array or ChannelType.
+  const ChannelType* ct = dynamic_cast<const ChannelType*>(type);
+  XLS_RET_CHECK_NE(ct, nullptr);
+  std::optional<int64_t> channel_instance_id =
+      channel_instance_allocator.has_value()
+          ? std::make_optional((*channel_instance_allocator)())
+          : std::nullopt;
+  return InterpValue::MakeChannelReference(direction, channel_instance_id);
+}
+
+absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
+    const Type* type,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator) {
+  if (auto* array_type = dynamic_cast<const ArrayType*>(type)) {
+    XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
+    std::vector<InterpValue> lhs_elements;
+    std::vector<InterpValue> rhs_elements;
+    lhs_elements.reserve(dim_int);
+    rhs_elements.reserve(dim_int);
+    for (int i = 0; i < dim_int; i++) {
+      XLS_ASSIGN_OR_RETURN(
+          auto lhs_rhs, CreateChannelReferencePair(&array_type->element_type(),
+                                                   channel_instance_allocator));
+      lhs_elements.push_back(lhs_rhs.first);
+      rhs_elements.push_back(lhs_rhs.second);
+    }
+    XLS_ASSIGN_OR_RETURN(InterpValue lhs, InterpValue::MakeArray(lhs_elements));
+    XLS_ASSIGN_OR_RETURN(InterpValue rhs, InterpValue::MakeArray(rhs_elements));
+    return std::make_pair(lhs, rhs);
+  }
+
+  // `type` must be either an array or ChannelType.
+  const ChannelType* ct = dynamic_cast<const ChannelType*>(type);
+  XLS_RET_CHECK_NE(ct, nullptr);
+  std::optional<int64_t> channel_instance_id =
+      channel_instance_allocator.has_value()
+          ? std::make_optional((*channel_instance_allocator)())
+          : std::nullopt;
+  return std::make_pair(InterpValue::MakeChannelReference(
+                            ChannelDirection::kOut, channel_instance_id),
+                        InterpValue::MakeChannelReference(ChannelDirection::kIn,
+                                                          channel_instance_id));
 }
 
 }  // namespace xls::dslx

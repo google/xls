@@ -31,6 +31,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/value_format_descriptor.h"
@@ -53,7 +54,7 @@ enum class InterpValueTag : uint8_t {
   kEnum,
   kFunction,
   kToken,
-  kChannel,
+  kChannelReference,
 };
 
 std::string TagToString(InterpValueTag tag);
@@ -75,7 +76,24 @@ class InterpValue {
     Function* function;
   };
   using FnData = std::variant<Builtin, UserFnData>;
-  using Channel = std::deque<InterpValue>;
+
+  // An immutable reference to a channel object.
+  class ChannelReference {
+   public:
+    ChannelReference(ChannelDirection direction,
+                     std::optional<int64_t> channel_instance_id)
+        : direction_(direction), channel_instance_id_(channel_instance_id) {}
+    ChannelDirection GetDirection() const { return direction_; }
+
+    // An optional unique identifier of the particular channel instance this
+    // refers to in the proc hierarchy. This value is only present for use cases
+    // where the hierarchy is elaborated such as the bytecode interpreter.
+    std::optional<int64_t> GetChannelId() const { return channel_instance_id_; }
+
+   private:
+    ChannelDirection direction_;
+    std::optional<int64_t> channel_instance_id_;
+  };
 
   // Factories
 
@@ -119,9 +137,13 @@ class InterpValue {
         std::move(bits));
   }
   static InterpValue MakeTuple(std::vector<InterpValue> members);
-  static InterpValue MakeChannel() {
-    return InterpValue(InterpValueTag::kChannel, std::make_shared<Channel>());
+  static InterpValue MakeChannelReference(
+      ChannelDirection direction,
+      std::optional<int64_t> channel_instance_id = std::nullopt) {
+    return InterpValue(InterpValueTag::kChannelReference,
+                       ChannelReference(direction, channel_instance_id));
   }
+
   static absl::StatusOr<InterpValue> MakeArray(
       std::vector<InterpValue> elements);
   static InterpValue MakeBool(bool value) {
@@ -162,7 +184,9 @@ class InterpValue {
   bool IsBuiltinFunction() const {
     return IsFunction() && std::holds_alternative<Builtin>(GetFunctionOrDie());
   }
-  bool IsChannel() const { return tag_ == InterpValueTag::kChannel; }
+  bool IsChannelReference() const {
+    return tag_ == InterpValueTag::kChannelReference;
+  }
 
   bool IsTraceBuiltin() const {
     return IsBuiltinFunction() &&
@@ -316,9 +340,9 @@ class InterpValue {
   const FnData& GetFunctionOrDie() const { return *GetFunction().value(); }
   absl::StatusOr<Bits> GetBits() const;
   const Bits& GetBitsOrDie() const;
-  absl::StatusOr<std::shared_ptr<Channel>> GetChannel() const;
-  std::shared_ptr<Channel> GetChannelOrDie() const {
-    return std::get<std::shared_ptr<Channel>>(payload_);
+  absl::StatusOr<ChannelReference> GetChannelReference() const;
+  ChannelReference GetChannelReferenceOrDie() const {
+    return std::get<ChannelReference>(payload_);
   }
 
   // For enum values, returns the enum that the bit pattern is interpreted by is
@@ -395,9 +419,8 @@ class InterpValue {
   //
   // TODO(leary): 2020-02-10 When all Python bindings are eliminated we can more
   // easily make an interpreter scoped lifetime that InterpValues can live in.
-  using Payload =
-      std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
-                   std::shared_ptr<TokenData>, std::shared_ptr<Channel>>;
+  using Payload = std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
+                               std::shared_ptr<TokenData>, ChannelReference>;
 
   InterpValue(InterpValueTag tag, Payload payload)
       : tag_(tag), payload_(std::move(payload)) {}

@@ -120,9 +120,11 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
   BytecodeInterpreterOptions options;
   options.rollover_hook([&](const Span& s) { rollovers.push_back(s); });
 
-  XLS_ASSIGN_OR_RETURN(InterpValue value, BytecodeInterpreter::Interpret(
-                                              ctx->import_data(), bf.get(),
-                                              /*args=*/{}, options));
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue value,
+      BytecodeInterpreter::Interpret(
+          ctx->import_data(), bf.get(),
+          /*args=*/{}, /*channel_manager=*/std::nullopt, options));
 
   for (const Span& s : rollovers) {
     ctx->warnings()->Add(s, WarningKind::kConstexprEvalRollover,

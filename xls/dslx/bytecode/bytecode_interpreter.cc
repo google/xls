@@ -41,7 +41,6 @@
 #include "xls/dslx/bytecode/builtins.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
-#include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
@@ -145,10 +144,11 @@ constexpr int64_t kChannelTraceIndentation = 2;
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
     const std::vector<InterpValue>& args,
+    std::optional<InterpValueChannelManager*> channel_manager,
     const BytecodeInterpreterOptions& options) {
-  ProcIdFactory proc_id_factory;
-  BytecodeInterpreter interpreter(import_data, &proc_id_factory,
-                                  /*proc_id=*/std::nullopt, options);
+  BytecodeInterpreter interpreter(import_data,
+                                  /*proc_id=*/std::nullopt, channel_manager,
+                                  options);
   XLS_RETURN_IF_ERROR(interpreter.InitFrame(bf, args, bf->type_info()));
   XLS_RETURN_IF_ERROR(interpreter.Run());
   if (options.validate_final_stack_depth()) {
@@ -158,13 +158,13 @@ constexpr int64_t kChannelTraceIndentation = 2;
 }
 
 BytecodeInterpreter::BytecodeInterpreter(
-    ImportData* import_data, ProcIdFactory* proc_id_factory,
-    const std::optional<ProcId>& proc_id,
+    ImportData* import_data, const std::optional<ProcId>& proc_id,
+    std::optional<InterpValueChannelManager*> channel_manager,
     const BytecodeInterpreterOptions& options)
     : import_data_(ABSL_DIE_IF_NULL(import_data)),
-      proc_id_factory_(proc_id_factory),
       proc_id_(proc_id),
       stack_(import_data_->file_table()),
+      channel_manager_(channel_manager),
       options_(options) {}
 
 absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
@@ -184,14 +184,13 @@ absl::Status BytecodeInterpreter::InitFrame(BytecodeFunction* bf,
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeInterpreter>>
-BytecodeInterpreter::CreateUnique(ImportData* import_data,
-                                  ProcIdFactory* proc_id_factory,
-                                  const std::optional<ProcId>& proc_id,
-                                  BytecodeFunction* bf,
-                                  const std::vector<InterpValue>& args,
-                                  const BytecodeInterpreterOptions& options) {
+BytecodeInterpreter::CreateUnique(
+    ImportData* import_data, const std::optional<ProcId>& proc_id,
+    BytecodeFunction* bf, const std::vector<InterpValue>& args,
+    std::optional<InterpValueChannelManager*> channel_manager,
+    const BytecodeInterpreterOptions& options) {
   auto interp = absl::WrapUnique(
-      new BytecodeInterpreter(import_data, proc_id_factory, proc_id, options));
+      new BytecodeInterpreter(import_data, proc_id, channel_manager, options));
   XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args, bf->type_info()));
   return interp;
 }
@@ -1122,17 +1121,24 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
   XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
-  XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
+  XLS_ASSIGN_OR_RETURN(InterpValue::ChannelReference channel_reference,
+                       channel_value.GetChannelReference());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+
+  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
+  int64_t channel_id = channel_reference.GetChannelId().value();
+  XLS_RET_CHECK(channel_manager_.has_value());
+  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
 
   XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                        bytecode.channel_data());
-  if (condition.IsTrue() && !channel->empty()) {
+  if (condition.IsTrue() && !channel.IsEmpty()) {
+    InterpValue value = channel.Read();
     if (options_.trace_channels() && options_.trace_hook()) {
-      XLS_ASSIGN_OR_RETURN(std::string formatted_data,
-                           ToStringMaybeFormatted(
-                               channel->front(), channel_data->value_fmt_desc(),
-                               kChannelTraceIndentation));
+      XLS_ASSIGN_OR_RETURN(
+          std::string formatted_data,
+          ToStringMaybeFormatted(value, channel_data->value_fmt_desc(),
+                                 kChannelTraceIndentation));
       options_.trace_hook()(
           bytecode.source_span(),
           absl::StrFormat("Received data on channel `%s`:\n%s",
@@ -1140,8 +1146,7 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
                           formatted_data));
     }
     stack_.Push(InterpValue::MakeTuple(
-        {token, channel->front(), InterpValue::MakeBool(true)}));
-    channel->pop_front();
+        {token, std::move(value), InterpValue::MakeBool(true)}));
   } else {
     stack_.Push(InterpValue::MakeTuple(
         {token, default_value, InterpValue::MakeBool(false)}));
@@ -1154,37 +1159,43 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
-  XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
+  XLS_ASSIGN_OR_RETURN(auto channel_reference,
+                       channel_value.GetChannelReference());
   XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
                        bytecode.channel_data());
+
+  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
+  int64_t channel_id = channel_reference.GetChannelId().value();
+  XLS_RET_CHECK(channel_manager_.has_value());
+  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+
   if (condition.IsTrue()) {
-    if (channel->empty()) {
+    if (channel.IsEmpty()) {
       // Restore the stack!
       stack_.Push(channel_value);
       stack_.Push(condition);
       stack_.Push(default_value);
       blocked_channel_info_ = BlockedChannelInfo{
-          .name = std::string(channel_data->channel_name()),
+          .name = FormatChannelNameForTracing(*channel_data),
           .span = bytecode.source_span(),
       };
       return absl::UnavailableError("Channel is empty.");
     }
 
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
-
+    InterpValue value = channel.Read();
     if (options_.trace_channels() && options_.trace_hook()) {
-      XLS_ASSIGN_OR_RETURN(std::string formatted_data,
-                           ToStringMaybeFormatted(
-                               channel->front(), channel_data->value_fmt_desc(),
-                               kChannelTraceIndentation));
+      XLS_ASSIGN_OR_RETURN(
+          std::string formatted_data,
+          ToStringMaybeFormatted(value, channel_data->value_fmt_desc(),
+                                 kChannelTraceIndentation));
       options_.trace_hook()(
           bytecode.source_span(),
           absl::StrFormat("Received data on channel `%s`:\n%s",
                           FormatChannelNameForTracing(*channel_data),
                           formatted_data));
     }
-    stack_.Push(InterpValue::MakeTuple({token, channel->front()}));
-    channel->pop_front();
+    stack_.Push(InterpValue::MakeTuple({token, std::move(value)}));
   } else {
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
     stack_.Push(InterpValue::MakeTuple({token, default_value}));
@@ -1197,8 +1208,15 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue payload, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
-  XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
+  XLS_ASSIGN_OR_RETURN(auto channel_reference,
+                       channel_value.GetChannelReference());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+
+  XLS_RET_CHECK(channel_reference.GetChannelId().has_value());
+  int64_t channel_id = channel_reference.GetChannelId().value();
+  XLS_RET_CHECK(channel_manager_.has_value());
+  InterpValueChannel& channel = (*channel_manager_)->GetChannel(channel_id);
+
   if (condition.IsTrue()) {
     if (options_.trace_channels() && options_.trace_hook()) {
       XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
@@ -1213,7 +1231,7 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
                           FormatChannelNameForTracing(*channel_data),
                           formatted_data));
     }
-    channel->push_back(payload);
+    channel.Write(payload);
   }
   stack_.Push(token);
   return absl::OkStatus();
@@ -1625,187 +1643,21 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
 
 std::string BytecodeInterpreter::FormatChannelNameForTracing(
     const Bytecode::ChannelData& channel) {
-  // Indicate which instance of the proc it is, only if we are in a
-  // multi-instance network and it's not the root proc (since the root only has
-  // one instance).
-  if (proc_id().has_value() && proc_id()->proc_instance_stack.size() > 1 &&
-      proc_id_factory()->HasMultipleInstancesOfAnyProc()) {
-    return absl::StrFormat("%s (%s)", channel.channel_name(),
-                           proc_id()->ToString());
+  if (proc_id().has_value()) {
+    // Include a string describing the instantiation path to this channel
+    // instance. For example:
+    //   my_top->my_proc#1->your_proc#2::the_channel
+    std::string result;
+    for (auto [proc, instance] : proc_id()->proc_instance_stack) {
+      if (result.empty()) {
+        result += proc->identifier();
+      } else {
+        absl::StrAppendFormat(&result, "->%s#%d", proc->identifier(), instance);
+      }
+    }
+    return absl::StrCat(result, "::", channel.channel_name());
   }
   return std::string(channel.channel_name());
-}
-
-ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
-    ImportData* import_data, ProcIdFactory* proc_id_factory,
-    const std::optional<ProcId>& proc_id,
-    std::vector<ProcInstance>* proc_instances,
-    const BytecodeInterpreterOptions& options)
-    : BytecodeInterpreter(import_data, proc_id_factory, proc_id, options),
-      proc_instances_(proc_instances) {}
-
-absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
-    ImportData* import_data, ProcIdFactory* proc_id_factory,
-    TypeInfo* type_info, Proc* root_proc, const InterpValue& terminator,
-    std::vector<ProcInstance>* proc_instances,
-    const BytecodeInterpreterOptions& options) {
-  return EvalSpawn(import_data, proc_id_factory,
-                   /*caller_proc_id=*/std::nullopt, type_info,
-                   /*caller_bindings=*/std::nullopt,
-                   /*callee_bindings=*/std::nullopt,
-                   /*spawn_functions=*/std::nullopt, root_proc,
-                   /*config_args=*/{terminator}, proc_instances, options);
-}
-
-absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
-    const Bytecode& bytecode) {
-  Frame& frame = frames().back();
-  XLS_RET_CHECK(proc_id().has_value());
-  XLS_ASSIGN_OR_RETURN(const Bytecode::SpawnData* spawn_data,
-                       bytecode.spawn_data());
-  XLS_ASSIGN_OR_RETURN(
-      std::vector<InterpValue> config_args,
-      PopArgsRightToLeft(spawn_data->spawn_functions().config->args().size()));
-  return EvalSpawn(import_data(), proc_id_factory(),
-                   /*caller_proc_id=*/proc_id(), frame.type_info(),
-                   spawn_data->caller_bindings(), spawn_data->callee_bindings(),
-                   spawn_data->spawn_functions(), spawn_data->proc(),
-                   config_args, proc_instances_, options());
-}
-
-/* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
-    ImportData* import_data, ProcIdFactory* proc_id_factory,
-    const std::optional<ProcId>& caller_proc_id, const TypeInfo* type_info,
-    const std::optional<ParametricEnv>& caller_bindings,
-    const std::optional<ParametricEnv>& callee_bindings,
-    std::optional<Bytecode::SpawnFunctions> spawn_functions, Proc* proc,
-    absl::Span<const InterpValue> config_args,
-    std::vector<ProcInstance>* proc_instances,
-    const BytecodeInterpreterOptions& options) {
-  const TypeInfo* parent_ti = type_info;
-
-  const ParametricEnv& actual_caller_bindings =
-      caller_bindings.has_value() ? caller_bindings.value() : ParametricEnv();
-
-  auto get_parametric_type_info =
-      [type_info, actual_caller_bindings](
-          const Invocation* invoc) -> absl::StatusOr<TypeInfo*> {
-    std::optional<TypeInfo*> maybe_type_info =
-        type_info->GetInvocationTypeInfo(invoc, actual_caller_bindings);
-    if (!maybe_type_info.has_value()) {
-      return absl::InternalError(absl::StrFormat(
-          "ProcConfigBytecodeInterpreter::EvalSpawn; could not find type info "
-          "for invocation `%s` caller_bindings: %s",
-          invoc->ToString(), actual_caller_bindings.ToString()));
-    }
-    return maybe_type_info.value();
-  };
-
-  // We need to get a new TI if there's a spawn, i.e., this isn't a top-level
-  // proc instantiation, to avoid constexpr values from colliding between
-  // different proc instantiations.
-  if (spawn_functions.has_value()) {
-    // We're guaranteed that these have values if the proc is parametric (the
-    // root proc can't be parametric).
-    XLS_ASSIGN_OR_RETURN(type_info,
-                         get_parametric_type_info(spawn_functions->config));
-  }
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BytecodeFunction> config_bf,
-      BytecodeEmitter::Emit(
-          import_data, type_info, proc->config(), callee_bindings,
-          BytecodeEmitterOptions{.format_preference =
-                                     options.format_preference()}));
-
-  ProcId callee_proc_id = proc_id_factory->CreateProcId(caller_proc_id, proc);
-  ProcConfigBytecodeInterpreter cbi(import_data, proc_id_factory,
-                                    callee_proc_id, proc_instances, options);
-  XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args, type_info));
-  XLS_RETURN_IF_ERROR(cbi.Run());
-  XLS_RET_CHECK_EQ(cbi.stack().size(), 1);
-  InterpValue constants_tuple = cbi.stack().PeekOrDie();
-  XLS_RET_CHECK(constants_tuple.IsTuple());
-  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* constants,
-                       constants_tuple.GetValues());
-
-  // The Proc's "next" state includes all proc members (i.e., constants) as well
-  // as the _actual_ state args themselves (plus the implicit token if needed).
-  std::vector<InterpValue> full_next_args = *constants;
-  InterpValue initial_state(InterpValue::MakeToken());
-  if (spawn_functions.has_value()) {
-    XLS_ASSIGN_OR_RETURN(initial_state, parent_ti->GetConstExpr(
-                                            spawn_functions->next->args()[0]));
-  } else {
-    // If this is the top-level proc, then we can get its initial state from the
-    // ModuleMember typechecking, since A) top-level procs can't be
-    // parameterized and B) typechecking will eagerly constexpr evaluate init
-    // functions.
-    XLS_ASSIGN_OR_RETURN(initial_state,
-                         parent_ti->GetConstExpr(proc->init().body()));
-  }
-  full_next_args.insert(full_next_args.end(), initial_state);
-
-  std::vector<NameDef*> member_defs;
-  member_defs.reserve(proc->members().size());
-  for (const ProcMember* param : proc->members()) {
-    member_defs.push_back(param->name_def());
-  }
-
-  if (spawn_functions.has_value()) {
-    XLS_ASSIGN_OR_RETURN(type_info,
-                         get_parametric_type_info(spawn_functions->next));
-  }
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BytecodeFunction> next_bf,
-      BytecodeEmitter::EmitProcNext(
-          import_data, type_info, proc->next(), callee_bindings, member_defs,
-          BytecodeEmitterOptions{.format_preference =
-                                     options.format_preference()}));
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BytecodeInterpreter> next_interpreter,
-      CreateUnique(import_data, proc_id_factory, callee_proc_id, next_bf.get(),
-                   full_next_args, options));
-  proc_instances->push_back(ProcInstance{proc, std::move(next_interpreter),
-                                         std::move(next_bf), full_next_args,
-                                         type_info});
-  return absl::OkStatus();
-}
-
-absl::StatusOr<ProcRunResult> ProcInstance::Run() {
-  bool progress_made = false;
-  absl::Status result_status = interpreter_->Run(&progress_made);
-
-  if (result_status.ok()) {
-    InterpValue result_value = interpreter_->stack_.PeekOrDie();
-    // If we're starting from next fn top, then set [non-member] args for the
-    // next go-around.
-    // If we get an empty tuple and the proc has no recurrent state, then don't
-    // add it.
-    const int64_t size_with_recurrent_state = proc_->members().size() + 1;
-    if (next_args_.size() == size_with_recurrent_state) {
-      next_args_.back() = result_value;
-    } else {
-      QCHECK(result_value.IsTuple() && result_value.GetLength().value() == 0);
-    }
-
-    XLS_RETURN_IF_ERROR(
-        interpreter_->InitFrame(next_fn_.get(), next_args_, type_info_));
-    return ProcRunResult{.execution_state = ProcExecutionState::kCompleted,
-                         .blocked_channel_info = std::nullopt,
-                         .progress_made = progress_made};
-  }
-
-  if (result_status.code() == absl::StatusCode::kUnavailable) {
-    // Empty recv channel. Just return Ok and we'll try again next time.
-    return ProcRunResult{
-        .execution_state = ProcExecutionState::kBlockedOnReceive,
-        .blocked_channel_info = interpreter_->blocked_channel_info(),
-        .progress_made = progress_made};
-  }
-
-  return result_status;
 }
 
 }  // namespace xls::dslx

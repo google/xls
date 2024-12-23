@@ -48,6 +48,7 @@
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
+#include "xls/dslx/bytecode/proc_hierarchy_interpreter.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
@@ -56,7 +57,6 @@
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -141,6 +141,7 @@ absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{},
+                                        /*hierarchy_interpreter=*/std::nullopt,
                                         options)
       .status();
 }
@@ -154,49 +155,24 @@ absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
   XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                        type_info->GetTopLevelProcTypeInfo(tp->proc()));
 
-  std::vector<ProcInstance> proc_instances;
-  XLS_ASSIGN_OR_RETURN(InterpValue terminator,
-                       ti->GetConstExpr(tp->proc()->config().params()[0]));
-  ProcIdFactory proc_id_factory;
-  XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
-      import_data, &proc_id_factory, ti, tp->proc(), terminator,
-      &proc_instances, options));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcHierarchyInterpreter> hierarchy_interpreter,
+      ProcHierarchyInterpreter::Create(import_data, ti, tp->proc(), options));
 
-  std::shared_ptr<InterpValue::Channel> term_chan =
-      terminator.GetChannelOrDie();
-  int64_t tick_count = 0;
-  while (term_chan->empty()) {
-    bool progress_made = false;
-    if (options.max_ticks().has_value() &&
-        tick_count > options.max_ticks().value()) {
-      return absl::DeadlineExceededError(
-          absl::StrFormat("Exceeded limit of %d proc ticks before terminating",
-                          options.max_ticks().value()));
-    }
+  // There should be a single top config argument: the terminator
+  // channel. Determine the actual channel object.
+  XLS_RET_CHECK_EQ(hierarchy_interpreter->InterfaceArgs().size(), 1);
+  std::string terminal_channel_name =
+      std::string{hierarchy_interpreter->GetInterfaceChannelName(0)};
+  InterpValueChannel& terminal_channel =
+      hierarchy_interpreter->GetInterfaceChannel(0);
 
-    std::vector<std::string> blocked_channels;
-    for (auto& p : proc_instances) {
-      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p.Run());
-      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
-        XLS_RET_CHECK(run_result.blocked_channel_info.has_value());
-        BlockedChannelInfo channel_info =
-            run_result.blocked_channel_info.value();
-        blocked_channels.push_back(absl::StrFormat(
-            "%s: proc `%s` is blocked on receive on channel `%s`",
-            channel_info.span.ToString(import_data->file_table()),
-            p.proc()->identifier(), channel_info.name));
-      }
-      progress_made |= run_result.progress_made;
-    }
+  // Run until a single output appears in the terminal channel.
+  XLS_RETURN_IF_ERROR(
+      hierarchy_interpreter->TickUntilOutput({{terminal_channel_name, 1}})
+          .status());
 
-    if (!progress_made) {
-      return absl::DeadlineExceededError(absl::StrFormat(
-          "Procs are deadlocked:\n%s", absl::StrJoin(blocked_channels, "\n")));
-    }
-    ++tick_count;
-  }
-
-  InterpValue ret_val = term_chan->front();
+  InterpValue ret_val = terminal_channel.Read();
   XLS_RET_CHECK(ret_val.IsBool());
   if (!ret_val.IsTrue()) {
     return FailureErrorStatus(tp->proc()->span(),

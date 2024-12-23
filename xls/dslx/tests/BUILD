@@ -1286,6 +1286,12 @@ dslx_lang_test(name = "parametric_builtin_in_module_level_const")
 
 dslx_lang_test(name = "map_module_level_const")
 
+dslx_lang_test(
+    name = "three_level_proc_hierarchy",
+    convert_to_ir = False,
+    dslx_entry = "my_top",
+)
+
 exports_files(glob(include = ["*.x"]))
 
 build_test(

@@ -1567,7 +1567,8 @@ proc Foo {
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 7);
   const std::vector<std::string> kConfigExpected = {
-      "literal (channel, channel)",
+      "literal (channel_reference(out, channel_instance_id=none), "
+      "channel_reference(in, channel_instance_id=none))",
       "expand_tuple",
       "store 0",
       "store 1",
@@ -1634,12 +1635,13 @@ proc Parent {
                            tm.type_info->GetTopLevelProcTypeInfo(parent));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> parent_config_bf,
-      BytecodeEmitter::Emit(&import_data, parent_ti, parent->config(),
-                            ParametricEnv()));
+      BytecodeEmitter::EmitProcConfig(&import_data, parent_ti, parent->config(),
+                                      ParametricEnv()));
   const std::vector<Bytecode>& parent_config_bytecodes =
       parent_config_bf->bytecodes();
   const std::vector<std::string> kParentConfigExpected = {
-      "literal (channel, channel)",
+      "literal (channel_reference(out, channel_instance_id=none), "
+      "channel_reference(in, channel_instance_id=none))",
       "expand_tuple",
       "store 0",
       "store 1",
@@ -1701,7 +1703,7 @@ proc Parent {
                           "load 0",         //
                           "literal u1:1",   //
                           "literal u32:0",  //
-                          "recv Child::c",  //
+                          "recv c",         //
                           "expand_tuple",   //
                           "store 4",        //
                           "store 5",        //

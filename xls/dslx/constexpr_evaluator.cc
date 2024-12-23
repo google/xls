@@ -35,7 +35,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
-#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -50,6 +49,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_expression.h"
@@ -233,27 +233,6 @@ absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {
   return InterpretExpr(expr);
 }
 
-// Creates an InterpValue for the described channel or array of channels.
-absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
-    const Type* type) {
-  if (auto* array_type = dynamic_cast<const ArrayType*>(type)) {
-    XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
-    std::vector<InterpValue> elements;
-    elements.reserve(dim_int);
-    for (int i = 0; i < dim_int; i++) {
-      XLS_ASSIGN_OR_RETURN(InterpValue element,
-                           CreateChannelValue(&array_type->element_type()));
-      elements.push_back(element);
-    }
-    return InterpValue::MakeArray(elements);
-  }
-
-  // There can't be tuples or structs of channels, only arrays.
-  const ChannelType* ct = dynamic_cast<const ChannelType*>(type);
-  XLS_RET_CHECK_NE(ct, nullptr);
-  return InterpValue::MakeChannel();
-}
-
 // While a channel's *contents* aren't constexpr, the existence of the channel
 // itself is.
 absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
@@ -282,9 +261,12 @@ absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
                                     file_table);
   }
 
-  XLS_ASSIGN_OR_RETURN(InterpValue channel,
-                       CreateChannelValue(&tuple_type->GetMemberType(0)));
-  type_info_->NoteConstExpr(expr, InterpValue::MakeTuple({channel, channel}));
+  XLS_ASSIGN_OR_RETURN(
+      auto in_out_channels,
+      CreateChannelReferencePair(&tuple_type->GetMemberType(0)));
+  type_info_->NoteConstExpr(
+      expr,
+      InterpValue::MakeTuple({in_out_channels.first, in_out_channels.second}));
   return absl::OkStatus();
 }
 

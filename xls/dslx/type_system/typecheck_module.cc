@@ -94,7 +94,8 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     // The first and only argument to a Proc's config function is the terminator
     // channel. Create it here and mark it constexpr for deduction.
     ScopedFnStackEntry scoped_entry(proc->config(), ctx, WithinProc::kYes);
-    InterpValue terminator(InterpValue::MakeChannel());
+    InterpValue terminator(
+        InterpValue::MakeChannelReference(ChannelDirection::kOut));
     ctx->type_info()->NoteConstExpr(proc->config().params()[0], terminator);
     XLS_RETURN_IF_ERROR(TypecheckFunction(proc->config(), ctx));
     scoped_entry.Finish();

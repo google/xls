@@ -18,10 +18,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/functional/function_ref.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/ir/value.h"
@@ -104,6 +107,29 @@ absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
 // Converts an InterpValue of type u8[len] to a string. Assumes the InterpValue
 // is utf8 encoded like everything else.
 absl::StatusOr<std::string> InterpValueAsString(const InterpValue& v);
+
+// Creates a ChannelReference InterpValue. `type` is the type of the channel
+// node not the payload type. `type` may be an array in which case an array of
+// ChannelReferences is returned. `channel_instance_allocator`, if specified, is
+// called to set the instance ID of each ChannelReference as they are created.
+absl::StatusOr<InterpValue> CreateChannelReference(
+    ChannelDirection direction, const Type* type,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
+        std::nullopt);
+
+// Creates a pair of ChannelReference InterpValues. The first element has
+// channel direction "out" while the second element has channel direction
+// "in". As with `CreateChannelReference` this function can produce arrays of
+// channel references (or arrays of arrays, etc). Corresponding
+// ChannelReferences in the first and second elements will have the same channel
+// instance id (if any). This is similar in form to what a DSLX channel
+// declaration produces. For example,
+//
+//   let (foo_s, foo_r) = chan<u32>("foo");
+absl::StatusOr<std::pair<InterpValue, InterpValue>> CreateChannelReferencePair(
+    const Type* type,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator =
+        std::nullopt);
 
 }  // namespace xls::dslx
 

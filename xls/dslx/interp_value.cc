@@ -37,6 +37,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/value_format_descriptor.h"
@@ -63,8 +64,8 @@ std::string TagToString(InterpValueTag tag) {
       return "function";
     case InterpValueTag::kToken:
       return "token";
-    case InterpValueTag::kChannel:
-      return "channel";
+    case InterpValueTag::kChannelReference:
+      return "channel_reference";
   }
   return absl::StrFormat("<invalid InterpValueTag(%d)>",
                          static_cast<int64_t>(tag));
@@ -219,8 +220,13 @@ std::string InterpValue::ToString(bool humanize,
           std::get<UserFnData>(GetFunctionOrDie()).function->identifier());
     case InterpValueTag::kToken:
       return absl::StrFormat("token:%p", GetTokenData().get());
-    case InterpValueTag::kChannel:
-      return "channel";
+    case InterpValueTag::kChannelReference:
+      return absl::StrFormat(
+          "channel_reference(%s, channel_instance_id=%s)",
+          ChannelDirectionToString(GetChannelReferenceOrDie().GetDirection()),
+          GetChannelReferenceOrDie().GetChannelId().has_value()
+              ? absl::StrCat(*GetChannelReferenceOrDie().GetChannelId())
+              : "none");
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -429,9 +435,12 @@ bool InterpValue::Eq(const InterpValue& other) const {
     // same module and generic implementation.
     case InterpValueTag::kFunction:
       break;
-    case InterpValueTag::kChannel:
-      // Channels are never equal.
-      return false;
+    case InterpValueTag::kChannelReference:
+      return GetChannelReferenceOrDie().GetDirection() ==
+                 other.GetChannelReferenceOrDie().GetDirection() &&
+             GetChannelReferenceOrDie().GetChannelId().has_value() &&
+             GetChannelReferenceOrDie().GetChannelId() ==
+                 other.GetChannelReferenceOrDie().GetChannelId();
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;
 }
@@ -694,12 +703,13 @@ const Bits& InterpValue::GetBitsOrDie() const {
   return std::get<EnumData>(payload_).value;
 }
 
-absl::StatusOr<std::shared_ptr<InterpValue::Channel>> InterpValue::GetChannel()
+absl::StatusOr<InterpValue::ChannelReference> InterpValue::GetChannelReference()
     const {
-  if (std::holds_alternative<std::shared_ptr<Channel>>(payload_)) {
-    return std::get<std::shared_ptr<Channel>>(payload_);
+  if (std::holds_alternative<ChannelReference>(payload_)) {
+    return std::get<ChannelReference>(payload_);
   }
-  return absl::InvalidArgumentError("Value does not contain a channel.");
+  return absl::InvalidArgumentError(
+      "Value does not contain a channel reference.");
 }
 
 // Returns the minimum of the given bits value interpreted as an unsigned
@@ -953,9 +963,9 @@ absl::StatusOr<xls::Value> InterpValue::ConvertToIr() const {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot convert functions to IR: %s", ToString(/*humanize=*/true)));
     }
-    case InterpValueTag::kChannel: {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Cannot convert channel-typed values to IR."));
+    case InterpValueTag::kChannelReference: {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Cannot convert channel-reference-typed values to IR."));
     }
   }
   LOG(FATAL) << "Unhandled tag: " << tag_;

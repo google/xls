@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -35,7 +36,6 @@
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/frontend/proc.h"
 #include "xls/dslx/frontend/proc_id.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -43,8 +43,6 @@
 #include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
-
-class ProcInstance;
 
 using PostFnEvalHook = std::function<absl::Status(
     const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
@@ -64,6 +62,44 @@ struct BlockedChannelInfo {
   Span span;
 };
 
+// A FIFO which backs channel instances in the bytecode interpreter.
+class InterpValueChannel {
+ public:
+  InterpValueChannel() = default;
+  InterpValueChannel(const InterpValueChannel&) = delete;
+  InterpValueChannel(InterpValueChannel&&) = default;
+
+  bool IsEmpty() const { return queue_.empty(); }
+  int64_t GetSize() const { return queue_.size(); }
+  InterpValue Read() {
+    InterpValue result = std::move(queue_.front());
+    queue_.pop_front();
+    return result;
+  }
+  void Write(InterpValue v) { queue_.push_back(std::move(v)); }
+
+ private:
+  std::deque<InterpValue> queue_;
+};
+
+// A collection of all channel objects used by a proc network (elaboration).
+class InterpValueChannelManager {
+ public:
+  explicit InterpValueChannelManager(int64_t size = 0) : channels_(size) {}
+
+  int64_t size() const { return channels_.size(); }
+  InterpValueChannel& GetChannel(int instance_id) {
+    return *channels_[instance_id];
+  }
+  int64_t AllocateChannel() {
+    channels_.push_back(std::make_unique<InterpValueChannel>());
+    return channels_.size() - 1;
+  }
+
+ private:
+  std::vector<std::unique_ptr<InterpValueChannel>> channels_;
+};
+
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
 // and a set of initial environmental bindings (key/value pairs) and executes
 // until end result.
@@ -72,6 +108,7 @@ class BytecodeInterpreter {
   static absl::StatusOr<InterpValue> Interpret(
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
+      std::optional<InterpValueChannelManager*> channel_manager = std::nullopt,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
   virtual ~BytecodeInterpreter() = default;
@@ -89,26 +126,8 @@ class BytecodeInterpreter {
       const Bytecode::TraceData& trace_data, InterpreterStack& stack);
 
   const FileTable& file_table() const { return import_data_->file_table(); }
-
- protected:
-  BytecodeInterpreter(ImportData* import_data, ProcIdFactory* proc_id_factory,
-                      const std::optional<ProcId>& proc_id,
-                      const BytecodeInterpreterOptions& options);
-
-  // Creates a new interpreter object with an initialized entry frame.
-  static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
-      ImportData* import_data, ProcIdFactory* proc_id_factory,
-      const std::optional<ProcId>& proc_id, BytecodeFunction* bf,
-      const std::vector<InterpValue>& args,
-      const BytecodeInterpreterOptions& options);
-
-  const InterpreterStack& stack() const { return stack_; }
-
-  std::vector<Frame>& frames() { return frames_; }
-  ImportData* import_data() { return import_data_; }
-  ProcIdFactory* proc_id_factory() const { return proc_id_factory_; }
-  const std::optional<ProcId>& proc_id() const { return proc_id_; }
   const BytecodeInterpreterOptions& options() const { return options_; }
+  const InterpreterStack& stack() const { return stack_; }
   const std::optional<BlockedChannelInfo>& blocked_channel_info() const {
     return blocked_channel_info_;
   }
@@ -117,18 +136,32 @@ class BytecodeInterpreter {
   // executed.  Progress can be stalled on blocked receive operations.
   absl::Status Run(bool* progress_made = nullptr);
 
+  // Creates a new interpreter object with an initialized entry frame.
+  static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
+      ImportData* import_data, const std::optional<ProcId>& proc_id,
+      BytecodeFunction* bf, const std::vector<InterpValue>& args,
+      std::optional<InterpValueChannelManager*> channel_manager,
+      const BytecodeInterpreterOptions& options);
+
+ protected:
+  BytecodeInterpreter(ImportData* import_data,
+                      const std::optional<ProcId>& proc_id,
+                      std::optional<InterpValueChannelManager*> channel_manager,
+                      const BytecodeInterpreterOptions& options);
+
+  std::vector<Frame>& frames() { return frames_; }
+  ImportData* import_data() { return import_data_; }
+  const std::optional<ProcId>& proc_id() const { return proc_id_; }
+
   // Pops `count` arguments to a function or spawn, assuming they were pushed in
   // left-to-right order and must be popped in right-to-left order.
   absl::StatusOr<std::vector<InterpValue>> PopArgsRightToLeft(size_t count);
 
   // Formats the name of the given `channel` for logging via the trace hook. The
-  // name is qualified with the proc instantiation context, if it would
-  // otherwise be ambiguous.
+  // name is qualified with the proc instantiation context.
   std::string FormatChannelNameForTracing(const Bytecode::ChannelData& channel);
 
  private:
-  friend class ProcInstance;
-
   // Runs the next instruction in the current frame. Returns an error if called
   // when the PC is already pointing to the end of the bytecode.
   absl::Status EvalNextInstruction();
@@ -218,108 +251,20 @@ class BytecodeInterpreter {
   absl::StatusOr<InterpValue> Pop() { return stack_.Pop(); }
 
   ImportData* const import_data_;
-  ProcIdFactory* const proc_id_factory_;
   const std::optional<ProcId> proc_id_;
 
   InterpreterStack stack_;
   std::vector<Frame> frames_;
-
+  std::optional<InterpValueChannelManager*> channel_manager_;
   BytecodeInterpreterOptions options_;
 
   // This field is set to the name of the blocked channel when a receive is
   // blocked. This is reset (and potentially set again) each time the Run method
   // executes.
-  // TODO(meheff): 2023/02/14 A better way of handling this is by definining a
+  // TODO(meheff): 2023/02/14 A better way of handling this is by defining a
   // separate continuation data structure which encapsulates the entire
   // execution state including this value.
   std::optional<BlockedChannelInfo> blocked_channel_info_;
-};
-
-// Specialization of BytecodeInterpreter for executing Proc `config` functions.
-// These are special b/c they define a tree of ProcInstances that we need to
-// collect at the end so we can "tick" them. Only this class, unlike
-// BytecodeInterpreter, can process `spawn` nodes.
-class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
- public:
-  // Populates `proc_instances` with the instances required to run the proc
-  // network rooted at `root_proc`.
-  static absl::Status InitializeProcNetwork(
-      ImportData* import_data, ProcIdFactory* proc_id_factory,
-      TypeInfo* type_info, Proc* root_proc, const InterpValue& terminator,
-      std::vector<ProcInstance>* proc_instances,
-      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
-
-  ~ProcConfigBytecodeInterpreter() override = default;
-
-  // Implementation of Spawn handling common to both InitializeProcNetwork
-  // and EvalSpawn. `next_args` should not include Proc members or the
-  // obligatory Token; they're added to the arg list internally.
-  static absl::Status EvalSpawn(
-      ImportData* import_data, ProcIdFactory* proc_id_factory,
-      const std::optional<ProcId>& caller_proc_id, const TypeInfo* type_info,
-      const std::optional<ParametricEnv>& caller_bindings,
-      const std::optional<ParametricEnv>& callee_bindings,
-      std::optional<Bytecode::SpawnFunctions> spawn_functions, Proc* proc,
-      absl::Span<const InterpValue> config_args,
-      std::vector<ProcInstance>* proc_instances,
-      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
-
- private:
-  ProcConfigBytecodeInterpreter(ImportData* import_data,
-                                ProcIdFactory* proc_id_factory,
-                                const std::optional<ProcId>& proc_id,
-                                std::vector<ProcInstance>* proc_instances,
-                                const BytecodeInterpreterOptions& options);
-
-  absl::Status EvalSpawn(const Bytecode& bytecode) override;
-
-  std::vector<ProcInstance>* proc_instances_;
-};
-
-// The execution state that a proc may be left in after a call to
-// ProcInstance::Run.
-enum class ProcExecutionState : uint8_t {
-  // The proc tick completed.
-  kCompleted,
-  // The proc tick was blocked on a blocking receive.
-  kBlockedOnReceive,
-};
-
-// Data structure holding the result of a single call to ProcInstance::Run.
-struct ProcRunResult {
-  ProcExecutionState execution_state;
-
-  // If tick state is kBlockedOnReceive this field holds the name and usage
-  // location of the blocked channel.
-  std::optional<BlockedChannelInfo> blocked_channel_info;
-
-  // Whether any progress was made (at least one instruction was executed).
-  bool progress_made;
-};
-
-// A ProcInstance is an instantiation of a Proc.
-// ProcInstance : Proc :: Object : Class, roughly.
-class ProcInstance {
- public:
-  ProcInstance(Proc* proc, std::unique_ptr<BytecodeInterpreter> interpreter,
-               std::unique_ptr<BytecodeFunction> next_fn,
-               std::vector<InterpValue> next_args, const TypeInfo* type_info)
-      : proc_(proc),
-        interpreter_(std::move(interpreter)),
-        next_fn_(std::move(next_fn)),
-        next_args_(std::move(next_args)),
-        type_info_(type_info) {}
-
-  // Executes a single "tick" of the ProcInstance.
-  absl::StatusOr<ProcRunResult> Run();
-  Proc* proc() const { return proc_; }
-
- private:
-  Proc* proc_;
-  std::unique_ptr<BytecodeInterpreter> interpreter_;
-  std::unique_ptr<BytecodeFunction> next_fn_;
-  std::vector<InterpValue> next_args_;
-  const TypeInfo* type_info_;
 };
 
 }  // namespace xls::dslx

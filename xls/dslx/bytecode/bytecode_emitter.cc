@@ -26,6 +26,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -66,16 +67,6 @@
 namespace xls::dslx {
 namespace {
 
-// Determines the owning proc for `node` by walking the parent links.
-const Proc* GetContainingProc(const AstNode* node) {
-  AstNode* proc_node = node->parent();
-  while (dynamic_cast<const Proc*>(proc_node) == nullptr) {
-    proc_node = proc_node->parent();
-    CHECK(proc_node != nullptr);
-  }
-  return dynamic_cast<const Proc*>(proc_node);
-}
-
 // Find concrete type of channel's payload.
 absl::StatusOr<std::unique_ptr<Type>> GetChannelPayloadType(
     const TypeInfo* type_info, const Expr* channel) {
@@ -106,12 +97,9 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
                        MakeValueFormatDescriptor(*channel_payload_type.get(),
                                                  format_preference));
 
-  const Proc* proc_node = GetContainingProc(channel);
-  std::string_view proc_name = proc_node->identifier();
-
-  return Bytecode::ChannelData(
-      absl::StrFormat("%s::%s", proc_name, channel->ToString()),
-      std::move(channel_payload_type), std::move(struct_fmt_desc));
+  return Bytecode::ChannelData(channel->ToString(),
+                               std::move(channel_payload_type),
+                               std::move(struct_fmt_desc));
 }
 
 absl::StatusOr<ValueFormatDescriptor> ExprToValueFormatDescriptor(
@@ -148,10 +136,12 @@ std::optional<ValueFormatDescriptor> GetFormatDescriptorFromNumber(
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, const TypeInfo* type_info,
     const std::optional<ParametricEnv>& caller_bindings,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
     const BytecodeEmitterOptions& options)
     : import_data_(import_data),
       type_info_(type_info),
       caller_bindings_(caller_bindings),
+      channel_instance_allocator_(channel_instance_allocator),
       options_(options) {}
 
 BytecodeEmitter::~BytecodeEmitter() = default;
@@ -169,8 +159,19 @@ BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
                       const Function& f,
                       const std::optional<ParametricEnv>& caller_bindings,
                       const BytecodeEmitterOptions& options) {
-  return EmitProcNext(import_data, type_info, f, caller_bindings,
-                      /*proc_members=*/{}, options);
+  return EmitInternal(import_data, type_info, f, caller_bindings,
+                      /*proc_members=*/{},
+                      /*channel_instance_allocator=*/std::nullopt, options);
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
+BytecodeEmitter::EmitProcConfig(
+    ImportData* import_data, const TypeInfo* type_info, const Function& f,
+    const std::optional<ParametricEnv>& caller_bindings,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+    const BytecodeEmitterOptions& options) {
+  return EmitInternal(import_data, type_info, f, caller_bindings,
+                      /*proc_members=*/{}, channel_instance_allocator, options);
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
@@ -179,9 +180,21 @@ BytecodeEmitter::EmitProcNext(
     const std::optional<ParametricEnv>& caller_bindings,
     const std::vector<NameDef*>& proc_members,
     const BytecodeEmitterOptions& options) {
+  return EmitInternal(import_data, type_info, f, caller_bindings, proc_members,
+                      /*channel_instance_allocator=*/std::nullopt, options);
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
+BytecodeEmitter::EmitInternal(
+    ImportData* import_data, const TypeInfo* type_info, const Function& f,
+    const std::optional<ParametricEnv>& caller_bindings,
+    const std::vector<NameDef*>& proc_members,
+    std::optional<absl::FunctionRef<int64_t()>> channel_instance_allocator,
+    const BytecodeEmitterOptions& options) {
   XLS_RET_CHECK(type_info != nullptr);
 
-  BytecodeEmitter emitter(import_data, type_info, caller_bindings, options);
+  BytecodeEmitter emitter(import_data, type_info, caller_bindings,
+                          channel_instance_allocator, options);
   for (const NameDef* name_def : proc_members) {
     emitter.namedef_to_slot_[name_def] = emitter.next_slotno_++;
   }
@@ -198,7 +211,8 @@ BytecodeEmitter::EmitExpression(
     const absl::flat_hash_map<std::string, InterpValue>& env,
     const std::optional<ParametricEnv>& caller_bindings,
     const BytecodeEmitterOptions& options) {
-  BytecodeEmitter emitter(import_data, type_info, caller_bindings, options);
+  BytecodeEmitter emitter(import_data, type_info, caller_bindings,
+                          /*channel_instance_allocator=*/std::nullopt, options);
 
   XLS_ASSIGN_OR_RETURN(std::vector<const NameDef*> name_defs,
                        CollectReferencedUnder(expr));
@@ -703,8 +717,18 @@ absl::Status BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
   // Channels are created as constexpr values during type deduction/constexpr
   // evaluation, since they're concrete values that need to be shared amongst
   // two actors.
-  XLS_ASSIGN_OR_RETURN(InterpValue channel, type_info_->GetConstExpr(node));
-  Add(Bytecode::MakeLiteral(node->span(), channel));
+  std::optional<Type*> maybe_decl_type = type_info_->GetItem(node);
+  auto* tuple_type = dynamic_cast<TupleType*>(maybe_decl_type.value());
+  XLS_RET_CHECK(tuple_type != nullptr);
+  XLS_RET_CHECK_EQ(tuple_type->size(), 2);
+
+  XLS_ASSIGN_OR_RETURN(auto in_out_channels,
+                       CreateChannelReferencePair(&tuple_type->GetMemberType(0),
+                                                  channel_instance_allocator_));
+
+  Add(Bytecode::MakeLiteral(
+      node->span(),
+      InterpValue::MakeTuple({in_out_channels.first, in_out_channels.second})));
   return absl::OkStatus();
 }
 

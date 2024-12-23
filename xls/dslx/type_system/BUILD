@@ -152,6 +152,7 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_utils",
         "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_emitter",
