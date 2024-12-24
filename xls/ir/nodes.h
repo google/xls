@@ -677,9 +677,21 @@ class StateRead final : public Node {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kStateRead};
   StateRead(const SourceInfo& loc, StateElement* state_element,
-            std::string_view name, FunctionBase* function);
+            std::optional<Node*> predicate, std::string_view name,
+            FunctionBase* function);
 
   StateElement* state_element() const { return state_element_; }
+
+  std::optional<Node*> predicate() const {
+    return has_predicate_ ? std::make_optional(operand(0)) : std::nullopt;
+  }
+
+  absl::StatusOr<int64_t> predicate_operand_number() const {
+    if (!has_predicate_) {
+      return absl::InternalError("predicate is not present");
+    }
+    return 0;
+  }
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
@@ -689,6 +701,7 @@ class StateRead final : public Node {
 
  private:
   StateElement* state_element_;
+  bool has_predicate_;
 };
 
 class Next final : public Node {
@@ -709,18 +722,14 @@ class Next final : public Node {
   Node* value() const { return operand(1); }
 
   std::optional<Node*> predicate() const {
-    return predicate_operand_number().ok()
-               ? std::optional<Node*>(operand(*predicate_operand_number()))
-               : std::nullopt;
+    return has_predicate_ ? std::make_optional(operand(2)) : std::nullopt;
   }
 
   absl::StatusOr<int64_t> predicate_operand_number() const {
     if (!has_predicate_) {
       return absl::InternalError("predicate is not present");
     }
-    int64_t ret = 2;
-
-    return ret;
+    return 2;
   }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
@@ -984,15 +993,14 @@ class RegisterWrite final : public Node {
   Node* data() const { return operand(0); }
 
   std::optional<Node*> load_enable() const {
-    return load_enable_operand_number().ok()
-               ? std::optional<Node*>(operand(*load_enable_operand_number()))
+    return has_load_enable_
+               ? std::make_optional(operand(*load_enable_operand_number()))
                : std::nullopt;
   }
 
   std::optional<Node*> reset() const {
-    return reset_operand_number().ok()
-               ? std::optional<Node*>(operand(*reset_operand_number()))
-               : std::nullopt;
+    return has_reset_ ? std::make_optional(operand(*reset_operand_number()))
+                      : std::nullopt;
   }
 
   Register* GetRegister() const { return reg_; }
@@ -1020,22 +1028,14 @@ class RegisterWrite final : public Node {
     if (!has_load_enable_) {
       return absl::InternalError("load_enable is not present");
     }
-    int64_t ret = 1;
-
-    return ret;
+    return 1;
   }
 
   absl::StatusOr<int64_t> reset_operand_number() const {
     if (!has_reset_) {
       return absl::InternalError("reset is not present");
     }
-    int64_t ret = 2;
-
-    if (!has_load_enable_) {
-      ret--;
-    }
-
-    return ret;
+    return has_load_enable_ ? 2 : 1;
   }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;

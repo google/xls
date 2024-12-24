@@ -144,15 +144,28 @@ class Proc : public FunctionBase {
                             absl::Span<const Value> init_values);
 
   // Replace all state elements with new state parameters and the given initial
-  // values, and the next state values. This is defined as an overload rather
-  // than as a std::optional `next_state` argument because initializer lists do
-  // not explicitly convert to std::optional<absl::Span> making callsites
-  // verbose.
+  // values, using the given read predicates. The next state nodes are set to
+  // the newly created state parameter nodes. This is defined as an overload
+  // rather than as a std::optional `read_predicates` argument because
+  // initializer lists do not explicitly convert to std::optional<absl::Span>
+  // making callsites verbose.
+  absl::Status ReplaceState(
+      absl::Span<const std::string> requested_state_names,
+      absl::Span<const Value> init_values,
+      absl::Span<const std::optional<Node*>> read_predicates);
+
+  // Replace all state elements with new state parameters and the given initial
+  // values, using the given read predicates and the given next state values.
+  // This is defined as an overload rather than as a std::optional `next_state`
+  // argument because initializer lists do not explicitly convert to
+  // std::optional<absl::Span> making callsites verbose.
   //
   // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  absl::Status ReplaceState(absl::Span<const std::string> requested_state_names,
-                            absl::Span<const Value> init_values,
-                            absl::Span<Node* const> next_state);
+  absl::Status ReplaceState(
+      absl::Span<const std::string> requested_state_names,
+      absl::Span<const Value> init_values,
+      absl::Span<const std::optional<Node*>> read_predicates,
+      absl::Span<Node* const> next_state);
 
   // Replace the state element at the given index with a new state parameter,
   // initial value, and next state value. If `next_state` is not given then the
@@ -175,6 +188,12 @@ class Proc : public FunctionBase {
       XLS_RET_CHECK(new_state_read->GetType() == old_state_read->GetType());
       return new_state_read;
     }
+    // Called with the old state_read node. Must return a node which will be the
+    // new 'predicate' for the new state_read. old_state_read's predicate.
+    virtual absl::StatusOr<std::optional<Node*>> TransformReadPredicate(
+        Proc* proc, StateRead* old_state_read) {
+      return old_state_read->predicate();
+    }
     // Called with the new_state_read node and the next-node (Without any
     // updates applied to it). Must return a node which adapts the old_next's
     // value() node to the value of the corresponding next on new_param.
@@ -186,7 +205,7 @@ class Proc : public FunctionBase {
     }
     // Caled with the new_state_read node and the next-node (Without any updates
     // applied to it). Must return a node which will be the new 'predicate' for
-    // the corresponding 'next' on the new_param.
+    // the corresponding 'next' on the new_state_read.
     virtual absl::StatusOr<std::optional<Node*>> TransformNextPredicate(
         Proc* proc, StateRead* new_state_read, Next* old_next) {
       return old_next->predicate();
@@ -221,14 +240,28 @@ class Proc : public FunctionBase {
   // node. Returns the newly created state read node.
   absl::StatusOr<StateRead*> AppendStateElement(
       std::string_view requested_state_name, const Value& init_value,
-      std::optional<Node*> next_state = std::nullopt);
+      std::optional<Node*> read_predicate, std::optional<Node*> next_state);
+  absl::StatusOr<StateRead*> AppendStateElement(
+      std::string_view requested_state_name, const Value& init_value) {
+    return AppendStateElement(requested_state_name, init_value,
+                              /*read_predicate=*/std::nullopt,
+                              /*next_state=*/std::nullopt);
+  }
 
   // Adds a state element at the given index. Current state elements at the
   // given index or higher will be shifted up. Returns the newly created
   // parameter node.
   absl::StatusOr<StateRead*> InsertStateElement(
       int64_t index, std::string_view requested_state_name,
-      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
+      const Value& init_value, std::optional<Node*> read_predicate,
+      std::optional<Node*> next_state);
+  absl::StatusOr<StateRead*> InsertStateElement(
+      int64_t index, std::string_view requested_state_name,
+      const Value& init_value) {
+    return InsertStateElement(index, requested_state_name, init_value,
+                              /*read_predicate=*/std::nullopt,
+                              /*next_state=*/std::nullopt);
+  }
 
   bool HasImplicitUse(Node* node) const override;
 

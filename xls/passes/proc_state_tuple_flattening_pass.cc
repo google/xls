@@ -142,6 +142,7 @@ struct AbstractStateElement {
   std::string name;
   Value initial_value;
   Node* placeholder;
+  std::optional<Node*> read_predicate;
   Node* next;
   std::vector<NextValue> next_values;
 };
@@ -152,16 +153,20 @@ absl::Status ReplaceProcState(Proc* proc,
                               absl::Span<const AbstractStateElement> elements) {
   std::vector<std::string> names;
   std::vector<Value> init_values;
+  std::vector<std::optional<Node*>> read_predicates;
   std::vector<Node*> nexts;
   names.reserve(elements.size());
   init_values.reserve(elements.size());
+  read_predicates.reserve(elements.size());
   nexts.reserve(elements.size());
   for (const AbstractStateElement& element : elements) {
     names.push_back(element.name);
     init_values.push_back(element.initial_value);
+    read_predicates.push_back(element.read_predicate);
     nexts.push_back(element.next);
   }
-  XLS_RETURN_IF_ERROR(proc->ReplaceState(names, init_values, nexts));
+  XLS_RETURN_IF_ERROR(
+      proc->ReplaceState(names, init_values, read_predicates, nexts));
   for (int64_t i = 0; i < elements.size(); ++i) {
     for (const NextValue& next_value : elements[i].next_values) {
       XLS_RETURN_IF_ERROR(
@@ -233,6 +238,7 @@ absl::Status FlattenState(Proc* proc) {
       XLS_ASSIGN_OR_RETURN(
           element.placeholder,
           proc->MakeNode<Literal>(state_read->loc(), init_values[i]));
+      element.read_predicate = state_read->predicate();
       if (next_state.empty()) {
         // The next element for this param is just itself; we preserve that.
         element.next = element.placeholder;

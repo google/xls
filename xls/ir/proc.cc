@@ -189,22 +189,50 @@ absl::Status Proc::ReplaceState(
         requested_state_names.size(), init_values.size()));
   }
   for (int64_t i = 0; i < requested_state_names.size(); ++i) {
-    XLS_RETURN_IF_ERROR(
-        AppendStateElement(requested_state_names[i], init_values[i]).status());
+    XLS_RETURN_IF_ERROR(AppendStateElement(requested_state_names[i],
+                                           init_values[i],
+                                           /*read_predicate=*/std::nullopt,
+                                           /*next_state=*/std::nullopt)
+                            .status());
   }
   return absl::OkStatus();
 }
 
 absl::Status Proc::ReplaceState(
     absl::Span<const std::string> requested_state_names,
-    absl::Span<const Value> init_values, absl::Span<Node* const> next_state) {
+    absl::Span<const Value> init_values,
+    absl::Span<const std::optional<Node*>> read_predicates) {
+  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
+    XLS_RETURN_IF_ERROR(RemoveStateElement(i));
+  }
+  state_name_uniquer_.Reset();
+  if (requested_state_names.size() != init_values.size()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Must specify equal number of state names (%d) and initial values (%d)",
+        requested_state_names.size(), init_values.size()));
+  }
+  for (int64_t i = 0; i < requested_state_names.size(); ++i) {
+    XLS_RETURN_IF_ERROR(AppendStateElement(requested_state_names[i],
+                                           init_values[i], read_predicates[i],
+                                           /*next_state=*/std::nullopt)
+                            .status());
+  }
+  return absl::OkStatus();
+}
+
+absl::Status Proc::ReplaceState(
+    absl::Span<const std::string> requested_state_names,
+    absl::Span<const Value> init_values,
+    absl::Span<const std::optional<Node*>> read_predicates,
+    absl::Span<Node* const> next_state) {
   for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
     XLS_RETURN_IF_ERROR(RemoveStateElement(i));
   }
   state_name_uniquer_.Reset();
   // Verify next values match the type of the initial values.
   if (requested_state_names.size() != next_state.size() ||
-      requested_state_names.size() != init_values.size()) {
+      requested_state_names.size() != init_values.size() ||
+      requested_state_names.size() != read_predicates.size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Must specify equal number of state names (%d), next state values (%d) "
         "and initial values (%d)",
@@ -212,7 +240,8 @@ absl::Status Proc::ReplaceState(
   }
   for (int64_t i = 0; i < requested_state_names.size(); ++i) {
     XLS_RETURN_IF_ERROR(AppendStateElement(requested_state_names[i],
-                                           init_values[i], next_state[i])
+                                           init_values[i], read_predicates[i],
+                                           next_state[i])
                             .status());
   }
   return absl::OkStatus();
@@ -259,7 +288,8 @@ absl::StatusOr<StateRead*> Proc::ReplaceStateElement(
   // Construct the new state-read node, and update all trackers.
   XLS_ASSIGN_OR_RETURN(
       StateRead * state_read,
-      MakeNodeWithName<StateRead>(SourceInfo(), new_state_element, state_name));
+      MakeNodeWithName<StateRead>(SourceInfo(), new_state_element,
+                                  /*predicate=*/std::nullopt, state_name));
   state_reads_[new_state_element] = state_read;
   if (next_state.has_value() &&
       !ValueConformsToType(init_value, next_state.value()->GetType())) {
@@ -322,14 +352,15 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
 
 absl::StatusOr<StateRead*> Proc::AppendStateElement(
     std::string_view requested_state_name, const Value& init_value,
-    std::optional<Node*> next_state) {
+    std::optional<Node*> read_predicate, std::optional<Node*> next_state) {
   return InsertStateElement(GetStateElementCount(), requested_state_name,
-                            init_value, next_state);
+                            init_value, read_predicate, next_state);
 }
 
 absl::StatusOr<StateRead*> Proc::InsertStateElement(
     int64_t index, std::string_view requested_state_name,
-    const Value& init_value, std::optional<Node*> next_state) {
+    const Value& init_value, std::optional<Node*> read_predicate,
+    std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
   const bool is_append = (index == GetStateElementCount());
   std::string state_name = UniquifyStateName(requested_state_name);
@@ -337,9 +368,9 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
       state_name, package()->GetTypeForValue(init_value), init_value);
   StateElement* state_element = state_elements_.at(state_name).get();
   state_vec_.insert(state_vec_.begin() + index, state_element);
-  XLS_ASSIGN_OR_RETURN(
-      StateRead * state_read,
-      MakeNodeWithName<StateRead>(SourceInfo(), state_element, state_name));
+  XLS_ASSIGN_OR_RETURN(StateRead * state_read,
+                       MakeNodeWithName<StateRead>(SourceInfo(), state_element,
+                                                   read_predicate, state_name));
   state_reads_[state_element] = state_read;
 
   // TODO: google/xls#1520 - remove this once fully transitioned over to
@@ -428,12 +459,15 @@ absl::StatusOr<Proc*> Proc::Clone(
     }
     return state_name_remapping.at(orig);
   };
-  for (int64_t i = 0; i < GetStateElementCount(); ++i) {
-    XLS_ASSIGN_OR_RETURN(StateRead * cloned_state_read,
-                         cloned_proc->AppendStateElement(
-                             remap_state_name(GetStateElement(i)->name()),
-                             GetStateElement(i)->initial_value()));
-    original_to_clone[state_reads_.at(GetStateElement(i))] = cloned_state_read;
+  for (StateElement* state_element : StateElements()) {
+    StateRead* state_read = state_reads_.at(state_element);
+    XLS_ASSIGN_OR_RETURN(
+        StateRead * cloned_state_read,
+        cloned_proc->AppendStateElement(remap_state_name(state_element->name()),
+                                        state_element->initial_value(),
+                                        state_read->predicate(),
+                                        /*next_state=*/std::nullopt));
+    original_to_clone[state_read] = cloned_state_read;
   }
   if (is_new_style_proc()) {
     for (ChannelReference* channel_ref : interface()) {
@@ -867,10 +901,13 @@ absl::StatusOr<StateRead*> Proc::TransformStateElement(
   StateElement* old_state_element = old_state_read->state_element();
   std::string orig_name(old_state_element->name());
   std::string orig_read_name(old_state_read->GetNameView());
+  XLS_ASSIGN_OR_RETURN(std::optional<Node*> read_predicate,
+                       transform.TransformReadPredicate(this, old_state_read));
   XLS_ASSIGN_OR_RETURN(
       StateRead * new_state_read,
       AppendStateElement(absl::StrFormat("TEMP_NAME__%s__", orig_name),
-                         init_value));
+                         init_value, read_predicate,
+                         /*next_state=*/std::nullopt));
   new_state_read->SetLoc(old_state_read->loc());
   StateElement* new_state_element = new_state_read->state_element();
   std::string temp_name = new_state_element->name();

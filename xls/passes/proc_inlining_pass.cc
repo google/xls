@@ -1768,14 +1768,21 @@ absl::Status SetProcState(Proc* proc,
                           absl::Span<const AbstractStateElement> elements) {
   std::vector<std::string> names;
   std::vector<Value> initial_values;
+  std::vector<std::optional<Node*>> read_predicates;
   std::vector<Node*> nexts;
+  names.reserve(elements.size());
+  initial_values.reserve(elements.size());
+  read_predicates.reserve(elements.size());
+  nexts.reserve(elements.size());
   for (const AbstractStateElement& element : elements) {
     XLS_RET_CHECK(element.IsNextSet()) << element.GetName();
     initial_values.push_back(element.GetInitialValue());
     names.push_back(std::string{element.GetName()});
+    read_predicates.push_back(std::nullopt);
     nexts.push_back(element.GetNext());
   }
-  XLS_RETURN_IF_ERROR(proc->ReplaceState(names, initial_values, nexts));
+  XLS_RETURN_IF_ERROR(
+      proc->ReplaceState(names, initial_values, read_predicates, nexts));
 
   for (int64_t i = 0; i < elements.size(); ++i) {
     XLS_RETURN_IF_ERROR(

@@ -806,21 +806,33 @@ class ProcBuilder : public BuilderBase {
   // `next_state` must match the number of state parameters.
   absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state = {});
 
-  // Adds a state element to the proc with the given initial value. Returns the
-  // newly added state parameter.
+  // Adds a state element to the proc with the given initial value (and read
+  // predicate if provided). Returns the newly added state read.
   BValue StateElement(std::string_view name, const Value& initial_value,
+                      std::optional<BValue> read_predicate,
                       const SourceInfo& loc = SourceInfo());
-
-  // Adds a state element to the proc with the given initial value. Returns the
-  // newly added state parameter.
   BValue StateElement(std::string_view name, const ValueBuilder& initial_value,
+                      std::optional<BValue> read_predicate,
                       const SourceInfo& loc = SourceInfo());
-
-  // Adds a state element to the proc with the given initial value. Returns the
-  // newly added state parameter.
+  BValue StateElement(std::string_view name, const Bits& initial_value,
+                      std::optional<BValue> read_predicate,
+                      const SourceInfo& loc = SourceInfo()) {
+    return StateElement(name, Value(initial_value), read_predicate, loc);
+  }
+  BValue StateElement(std::string_view name, const Value& initial_value,
+                      const SourceInfo& loc = SourceInfo()) {
+    return StateElement(name, initial_value, /*read_predicate=*/std::nullopt,
+                        loc);
+  }
+  BValue StateElement(std::string_view name, const ValueBuilder& initial_value,
+                      const SourceInfo& loc = SourceInfo()) {
+    return StateElement(name, initial_value, /*read_predicate=*/std::nullopt,
+                        loc);
+  }
   BValue StateElement(std::string_view name, const Bits& initial_value,
                       const SourceInfo& loc = SourceInfo()) {
-    return StateElement(name, Value(initial_value), loc);
+    return StateElement(name, Value(initial_value),
+                        /*read_predicate=*/std::nullopt, loc);
   }
 
   // Adds a (conditional) next value for the named state element. Returns an

@@ -117,7 +117,9 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
   EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(42, 32)));
 
-  XLS_ASSERT_OK(proc->AppendStateElement("y", Value(UBits(100, 32))));
+  XLS_ASSERT_OK(proc->AppendStateElement("y", Value(UBits(100, 32)),
+                                         /*read_predicate=*/std::nullopt,
+                                         /*next_state=*/std::nullopt));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
@@ -131,6 +133,7 @@ TEST_F(ProcTest, AddAndRemoveState) {
                            proc->MakeNodeWithName<Literal>(
                                SourceInfo(), Value(UBits(0, 32)), "zero"));
   XLS_ASSERT_OK(proc->AppendStateElement("z", Value(UBits(123, 32)),
+                                         /*read_predicate=*/std::nullopt,
                                          /*next_state=*/zero_literal));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
@@ -154,7 +157,9 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(2)->name(), "z");
   EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(2));
 
-  XLS_ASSERT_OK(proc->InsertStateElement(0, "foo", Value(UBits(123, 32))));
+  XLS_ASSERT_OK(proc->InsertStateElement(0, "foo", Value(UBits(123, 32)),
+                                         /*read_predicate=*/std::nullopt,
+                                         /*next_state=*/std::nullopt));
   EXPECT_EQ(proc->GetStateElementCount(), 4);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
@@ -162,7 +167,9 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
   EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(3));
 
-  XLS_ASSERT_OK(proc->InsertStateElement(4, "bar", Value(UBits(1, 64))));
+  XLS_ASSERT_OK(proc->InsertStateElement(4, "bar", Value(UBits(1, 64)),
+                                         /*read_predicate=*/std::nullopt,
+                                         /*next_state=*/std::nullopt));
   EXPECT_EQ(proc->GetStateElementCount(), 5);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
@@ -198,6 +205,7 @@ TEST_F(ProcTest, ReplaceState) {
   XLS_ASSERT_OK(proc->ReplaceState(
       {"foo", "bar", "baz"},
       {Value(UBits(1, 32)), Value(UBits(2, 32)), Value(UBits(2, 32))},
+      {std::nullopt, std::nullopt, std::nullopt},
       {forty_two.node(), forty_two.node(), forty_two.node()}));
   EXPECT_THAT(proc->GetNextStateIndices(forty_two.node()),
               ElementsAre(0, 1, 2));

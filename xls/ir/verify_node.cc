@@ -904,7 +904,12 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandleStateRead(StateRead* state_read) override {
-    XLS_RETURN_IF_ERROR(ExpectOperandCount(state_read, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandCountRange(state_read, 0, 1));
+    if (state_read->predicate().has_value()) {
+      XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(state_read, /*operand_no=*/0,
+                                                   /*expected_bit_count=*/1));
+    }
+
     if (!state_read->function_base()->IsProc()) {
       return absl::InternalError(absl::StrFormat(
           "StateRead node %s (for state element %s) is not in a proc",
@@ -913,6 +918,7 @@ class NodeChecker : public DfsVisitor {
     Proc* proc = state_read->function_base()->AsProcOrDie();
     XLS_RETURN_IF_ERROR(
         proc->GetStateElementIndex(state_read->state_element()).status());
+
     return absl::OkStatus();
   }
 

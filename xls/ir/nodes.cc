@@ -900,11 +900,14 @@ Param::Param(const SourceInfo& loc, Type* type, std::string_view name,
 }
 
 StateRead::StateRead(const SourceInfo& loc, StateElement* state_element,
-                     std::string_view name, FunctionBase* function)
+                     std::optional<Node*> predicate, std::string_view name,
+                     FunctionBase* function)
     : Node(Op::kStateRead, state_element->type(), loc, name, function),
-      state_element_(state_element) {
+      state_element_(state_element),
+      has_predicate_(predicate.has_value()) {
   CHECK(IsOpClass<StateRead>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `StateRead`.";
+  AddOptionalOperand(predicate);
 }
 
 bool StateRead::IsDefinitelyEqualTo(const Node* other) const {
@@ -1303,7 +1306,7 @@ absl::StatusOr<Node*> Select::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
   std::optional<Node*> new_default_value =
-      default_value().has_value() ? std::optional<Node*>(new_operands.back())
+      default_value().has_value() ? std::make_optional(new_operands.back())
                                   : std::nullopt;
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Select>(
@@ -1356,7 +1359,7 @@ absl::StatusOr<Node*> Receive::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Receive>(
       loc(), new_operands[0],
-      new_operands.size() > 1 ? std::optional<Node*>(new_operands[1])
+      new_operands.size() > 1 ? std::make_optional(new_operands[1])
                               : std::nullopt,
       channel_name(), is_blocking(), GetNameView());
 }
@@ -1366,7 +1369,7 @@ absl::StatusOr<Node*> Send::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Send>(
       loc(), new_operands[0], new_operands[1],
-      new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
+      new_operands.size() > 2 ? std::make_optional(new_operands[2])
                               : std::nullopt,
       channel_name(), GetNameView());
 }
@@ -1374,8 +1377,10 @@ absl::StatusOr<Node*> Send::CloneInNewFunction(
 absl::StatusOr<Node*> StateRead::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   // TODO(meheff): Choose an appropriate name for the cloned node.
-  return new_function->MakeNodeWithName<StateRead>(loc(), state_element(),
-                                                   GetNameView());
+  return new_function->MakeNodeWithName<StateRead>(
+      loc(), state_element(),
+      new_operands.empty() ? std::nullopt : std::make_optional(new_operands[0]),
+      GetNameView());
 }
 
 absl::StatusOr<Node*> Next::CloneInNewFunction(
@@ -1383,7 +1388,7 @@ absl::StatusOr<Node*> Next::CloneInNewFunction(
   // TODO(meheff): Choose an appropriate name for the cloned node.
   return new_function->MakeNodeWithName<Next>(
       loc(), new_operands[0], new_operands[1],
-      new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
+      new_operands.size() > 2 ? std::make_optional(new_operands[2])
                               : std::nullopt,
       GetNameView());
 }
