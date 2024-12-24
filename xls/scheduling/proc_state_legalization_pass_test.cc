@@ -14,6 +14,8 @@
 
 #include "xls/scheduling/proc_state_legalization_pass.h"
 
+#include <optional>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status_matchers.h"
@@ -267,6 +269,100 @@ TEST_F(ProcStateLegalizationPassTest,
           m::Next(
               x.node(), x.node(),
               m::Nor(positive_predicate.node(), negative_predicate.node()))));
+}
+
+TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x_even =
+      pb.Eq(pb.UMod(x, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
+  BValue x_multiple_of_3 =
+      pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 32)),
+                             /*read_predicate=*/x_even);
+  pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
+  pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  EXPECT_EQ(proc->GetStateRead(*proc->GetStateElement("x"))->predicate(),
+            std::nullopt);
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+      Optional(m::Or(
+          m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
+          m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
+      UnorderedElementsAre(
+          m::Next(
+              m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
+              m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
+          m::Next(m::StateRead("y"), m::StateRead("y"),
+                  m::And(m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
+                                     m::Literal(0)),
+                               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                     m::Literal(0))),
+                         m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                      m::Literal(0)))))));
+}
+
+TEST_F(ProcStateLegalizationPassTest,
+       ProcWithCorrectlyPredicatedStateReadAndNoDefaultNextNeeded) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x_multiple_of_3 =
+      pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
+  BValue x_not_multiple_of_3 = pb.Not(x_multiple_of_3);
+  BValue disjunction = pb.Or(x_multiple_of_3, x_not_multiple_of_3);
+  BValue y = pb.StateElement("y", Value(UBits(0, 32)),
+                             /*read_predicate=*/disjunction);
+  pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
+  pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
+  pb.Next(y, y, x_not_multiple_of_3);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+}
+
+TEST_F(ProcStateLegalizationPassTest,
+       ProcWithPredicatedStateReadAndNoDefaultNextNeeded) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x_even =
+      pb.Eq(pb.UMod(x, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 32)),
+                             /*read_predicate=*/x_even);
+  BValue x_multiple_of_3 =
+      pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
+  BValue x_not_multiple_of_3 = pb.Not(x_multiple_of_3);
+  pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
+  pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
+  pb.Next(y, y, x_not_multiple_of_3);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+      Optional(
+          m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
+                m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
+                m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                             m::Literal(0))))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
+      UnorderedElementsAre(
+          m::Next(
+              m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
+              m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
+          m::Next(m::StateRead("y"), m::StateRead("y"),
+                  m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                               m::Literal(0))))));
 }
 
 }  // namespace
