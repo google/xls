@@ -267,7 +267,6 @@ fn parse_dictionary_id<CAPACITY: u32>(buffer: Buffer<CAPACITY>, desc: FrameHeade
       u2:1 => u32:1,
       u2:2 => u32:2,
       u2:3 => u32:4,
-      _    => fail!("not_possible", u32:0)
     };
 
     let (result, data) = buff::buffer_pop_checked(buffer, bytes * u32:8);
@@ -362,7 +361,6 @@ fn parse_frame_content_size<CAPACITY: u32>(buffer: Buffer<CAPACITY>, desc: Frame
       u2:1 => u32:2,
       u2:2 => u32:4,
       u2:3 => u32:8,
-      _    => fail!("not_possible", u32:0)
     };
 
     let (result, data) = buff::buffer_pop_checked(buffer, bytes * u32:8);

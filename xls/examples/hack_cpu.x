@@ -258,7 +258,6 @@ fn cpu(pc: u16, rd: u16, ra: u16, ram: u16[32], rom: u16[32]) -> (u16, u16, u16,
   let (pc', rd', ra', rm', wm) = match ins[15+:u1] {
     u1:0 => run_a_instruction(pc, ins, rd, ra, rm),
     u1:1 => run_c_instruction(pc, ins, rd, ra, rm),
-    _ => fail!("exhaustive_boolean_match", (pc, rd, ra, rm, u1:0)),
   };
   (pc', rd', ra', if wm { update(ram, ra', rm') } else { ram })
 }

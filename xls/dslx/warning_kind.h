@@ -42,8 +42,9 @@ enum class WarningKind : WarningKindInt {
   kConstantNaming = 1 << 9,
   kMemberNaming = 1 << 10,
   kShouldUseAssert = 1 << 11,
+  kAlreadyExhaustiveMatch = 1 << 12,
 };
-constexpr WarningKindInt kWarningKindCount = 12;
+constexpr WarningKindInt kWarningKindCount = 13;
 
 inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -58,6 +59,7 @@ inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstantNaming,
     WarningKind::kMemberNaming,
     WarningKind::kShouldUseAssert,
+    WarningKind::kAlreadyExhaustiveMatch,
 };
 
 // Flag set datatype.
@@ -69,6 +71,24 @@ inline constexpr WarningKindSet kNoWarningsSet = WarningKindSet{0};
 // `kDefaultWarningsSet` below.
 inline constexpr WarningKindSet kAllWarningsSet =
     WarningKindSet{(WarningKindInt{1} << kWarningKindCount) - 1};
+
+// Set intersection.
+inline WarningKindSet operator&(WarningKindSet a, WarningKindSet b) {
+  return WarningKindSet{a.value() & b.value()};
+}
+
+// Set union.
+inline WarningKindSet operator|(WarningKindSet a, WarningKindSet b) {
+  return WarningKindSet{a.value() | b.value()};
+}
+
+// Returns the complement of a warning set.
+//
+// Note that we define this instead of operator~ because it has an existing
+// overload for STRONG_INT_TYPE.
+inline WarningKindSet Complement(WarningKindSet a) {
+  return WarningKindSet{~a.value() & kAllWarningsSet.value()};
+}
 
 // Disables "warning" out of "set" and returns that updated result.
 constexpr WarningKindSet DisableWarning(WarningKindSet set,
@@ -88,8 +108,11 @@ inline bool WarningIsEnabled(WarningKindSet set, WarningKind warning) {
 
 // TODO(leary): 2024-03-15 Enable "should use fail if" by default after some
 // propagation time.
-inline constexpr WarningKindSet kDefaultWarningsSet =
-    DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert);
+// TODO(cdleary): 2025-02-03 Enable "already exhaustive match" by default after
+// some propagation time.
+inline constexpr WarningKindSet kDefaultWarningsSet = DisableWarning(
+    DisableWarning(kAllWarningsSet, WarningKind::kShouldUseAssert),
+    WarningKind::kAlreadyExhaustiveMatch);
 
 // Converts a string representation of a warnings to its corresponding enum
 // value.
@@ -106,6 +129,14 @@ absl::StatusOr<WarningKindSet> WarningKindSetFromDisabledString(
 // the string.
 absl::StatusOr<WarningKindSet> WarningKindSetFromString(
     std::string_view enabled_string);
+
+std::string WarningKindSetToString(WarningKindSet set);
+
+// Returns the default warning set with the modifications given in flags.
+//
+// If flags are contradictory, returns an error.
+absl::StatusOr<WarningKindSet> GetWarningsSetFromFlags(
+    std::string_view enable_warnings, std::string_view disable_warnings);
 
 }  // namespace xls::dslx
 

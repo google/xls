@@ -636,13 +636,15 @@ enum EnumType : u2 {
 }
 
 fn main(x: EnumType) -> u32 {
-    match x {
-        EnumType::FIRST => u32:0,
-        EnumType::SECOND => u32:1,
+    if x == EnumType::FIRST {
+        u32:0
+    } else if x == EnumType::SECOND {
+        u32:1
+    } else {
         // This should not be reachable.
         // But, if we synthesize hardware, under this condition the function is
         // well-defined to give back zero.
-        _ => fail!("unknown_EnumType", u32:0),
+        fail!("unknown_EnumType", u32:0)
     }
 }
 ```

@@ -405,8 +405,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/match_not_exhaustive.x'
     )
-    self.assertIn('match_not_exhaustive.x:16:3-19:4', stderr)
-    self.assertIn('Only matches with trailing irrefutable patterns', stderr)
+    self.assertIn('match_not_exhaustive.x:16:5-19:6', stderr)
+    self.assertIn('Match patterns are not exhaustive', stderr)
 
   def test_bad_coverpoint_name(self):
     stderr = self._run(
@@ -1285,6 +1285,18 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'Unsized arrays are not supported, a (constant) size is required.',
         stderr,
     )
+
+  def test_already_exhaustive_match_warning(self):
+    # Note: this flag is disabled by default, for now.
+    stderr = self._run(
+        'xls/dslx/tests/errors/unnecessary_trailing_match_pattern.x',
+        want_err_retcode=False)
+    self.assertNotIn('Match is already exhaustive', stderr)
+
+    stderr = self._run(
+        'xls/dslx/tests/errors/unnecessary_trailing_match_pattern.x',
+        enable_warnings={'already_exhaustive_match'}, want_err_retcode=True)
+    self.assertIn('Match is already exhaustive', stderr)
 
 
 if __name__ == '__main__':

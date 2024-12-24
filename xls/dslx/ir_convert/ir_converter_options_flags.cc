@@ -55,6 +55,9 @@ ABSL_FLAG(bool, verify, true,
 ABSL_FLAG(std::optional<std::string>, disable_warnings, std::nullopt,
           "Comma-delimited list of warnings to disable -- not generally "
           "recommended, but can be used in exceptional circumstances");
+ABSL_FLAG(std::optional<std::string>, enable_warnings, std::nullopt,
+          "Comma-delimited list of warnings to enable -- this is only useful "
+          "if/when some warnings are disabled in the default warning set");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
 ABSL_FLAG(std::optional<std::string>, interface_proto_file, std::nullopt,

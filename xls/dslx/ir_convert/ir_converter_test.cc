@@ -380,7 +380,7 @@ TEST(IrConverterTest, MatchTupleOfTuplesRestOfTuple) {
                              }));
 }
 
-TEST(IrConverterTest, MatchRestOfTupleAsArmFails) {
+TEST(IrConverterTest, MatchRestOfTupleAsTrailingArm) {
   const char* program =
       R"(fn f() -> u32 {
   let t = (u32:1, u32:2);
@@ -389,12 +389,11 @@ TEST(IrConverterTest, MatchRestOfTupleAsArmFails) {
     (..) => u32:1
   }
 })";
-  auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(
-      ConvertOneFunctionForTest(program, "f", import_data,
-                                ConvertOptions{.emit_positions = false}),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("with trailing irrefutable patterns")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(program, "f",
+                                ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
 }
 
 TEST(IrConverterTest, Struct) {

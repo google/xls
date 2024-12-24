@@ -52,6 +52,8 @@ absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind) {
       return "member_naming";
     case WarningKind::kShouldUseAssert:
       return "should_use_assert";
+    case WarningKind::kAlreadyExhaustiveMatch:
+      return "already_exhaustive_match";
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Invalid warning kind: ", static_cast<int>(kind)));
@@ -97,6 +99,31 @@ absl::StatusOr<WarningKindSet> WarningKindSetFromString(
     enabled = EnableWarning(enabled, k);
   }
   return enabled;
+}
+
+std::string WarningKindSetToString(WarningKindSet set) {
+  std::vector<std::string_view> enabled_warnings;
+  for (WarningKind kind : kAllWarningKinds) {
+    if (WarningIsEnabled(set, kind)) {
+      enabled_warnings.push_back(WarningKindToString(kind).value());
+    }
+  }
+  return absl::StrJoin(enabled_warnings, ",");
+}
+
+absl::StatusOr<WarningKindSet> GetWarningsSetFromFlags(
+    std::string_view enable_warnings, std::string_view disable_warnings) {
+  XLS_ASSIGN_OR_RETURN(WarningKindSet enabled,
+                       WarningKindSetFromString(enable_warnings));
+  XLS_ASSIGN_OR_RETURN(WarningKindSet disabled,
+                       WarningKindSetFromString(disable_warnings));
+  if ((enabled & disabled) != kNoWarningsSet) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot both enable and disable the same warning(s); enabled: %s "
+        "disabled: %s",
+        WarningKindSetToString(enabled), WarningKindSetToString(disabled)));
+  }
+  return (kDefaultWarningsSet | enabled) & Complement(disabled);
 }
 
 }  // namespace xls::dslx

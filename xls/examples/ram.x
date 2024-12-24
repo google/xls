@@ -266,7 +266,6 @@ pub proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
         SimultaneousReadWriteBehavior::READ_BEFORE_WRITE => mem[read_req.addr],
         SimultaneousReadWriteBehavior::WRITE_BEFORE_READ => value_to_write,
         SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => fail!("conflicting_read_and_write", mem[read_req.addr]),
-        _ => fail!("impossible_case", uN[DATA_WIDTH]:0),
       }
     } else { mem[read_req.addr] };
     let read_resp_value = ReadResp<DATA_WIDTH> {

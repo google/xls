@@ -145,13 +145,8 @@ absl::StatusOr<TestResult> RealMain(
     std::optional<std::string_view> xml_output_file, EvaluatorType evaluator) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
-      WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
-
-  XLS_ASSIGN_OR_RETURN(
-      const WarningKindSet warnings_to_enable,
-      WarningKindSetFromString(absl::GetFlag(FLAGS_enable_warnings)));
-
-  warnings |= warnings_to_enable;
+      GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
+                              absl::GetFlag(FLAGS_disable_warnings)));
 
   RealFilesystem vfs;
 

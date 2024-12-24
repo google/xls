@@ -267,13 +267,6 @@ pub proc AxiWriter<
                     ..state
                 }
             },
-            _ => {
-                assert!(false, "Invalid state");
-                State {
-                    fsm: Fsm::ERROR,
-                    ..state
-                }
-            }
         };
 
         let w_bundle = match(state.fsm) {

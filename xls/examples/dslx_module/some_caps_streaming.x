@@ -29,7 +29,6 @@ pub proc some_caps_streaming<N: u32> {
             some_caps::Choice::CAPITALIZE => some_caps::Choice::NOTHING,
             some_caps::Choice::NOTHING => some_caps::Choice::SPONGE,
             some_caps::Choice::SPONGE => some_caps::Choice::CAPITALIZE,
-            _ => state,
         };
         let tok = send(tok, bytes_result, some_caps::maybe_capitalize(val, state));
         ns

@@ -94,6 +94,14 @@ std::string TagToString(InterpValueTag tag) {
       Bits(bit_count)};
 }
 
+/* static */ InterpValue InterpValue::MakeOneValue(bool is_signed,
+                                                   int64_t bit_count) {
+  CHECK_GT(bit_count, 0);
+  return InterpValue(
+      is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits,
+      Bits(bit_count).UpdateWithSet(0, true));
+}
+
 /* static */ InterpValue InterpValue::MakeMaxValue(bool is_signed,
                                                    int64_t bit_count) {
   auto bits = Bits::AllOnes(bit_count);
@@ -485,6 +493,40 @@ absl::StatusOr<InterpValue> InterpValue::Le(const InterpValue& other) const {
 
 absl::StatusOr<InterpValue> InterpValue::Lt(const InterpValue& other) const {
   return Compare(*this, other, &bits_ops::ULessThan, &bits_ops::SLessThan);
+}
+
+std::optional<InterpValue> InterpValue::Increment() const {
+  CHECK(IsBits());
+  Bits b = GetBitsOrDie();
+  if (*this == MakeMaxValue(IsSigned(), GetBitCount().value())) {
+    return std::nullopt;  // Overflow case.
+  }
+  return InterpValue(tag_, bits_ops::Increment(b));
+}
+
+std::optional<InterpValue> InterpValue::Decrement() const {
+  CHECK(IsBits());
+  if (*this == MakeMinValue(IsSigned(), GetBitCount().value())) {
+    return std::nullopt;  // Underflow case.
+  }
+  Bits b = GetBitsOrDie();
+  return InterpValue(tag_, bits_ops::Decrement(b));
+}
+
+absl::StatusOr<InterpValue> InterpValue::Min(const InterpValue& other) const {
+  XLS_ASSIGN_OR_RETURN(InterpValue lt, Lt(other));
+  if (lt.IsTrue()) {
+    return *this;
+  }
+  return other;
+}
+
+absl::StatusOr<InterpValue> InterpValue::Max(const InterpValue& other) const {
+  XLS_ASSIGN_OR_RETURN(InterpValue lt, Lt(other));
+  if (lt.IsTrue()) {
+    return other;
+  }
+  return *this;
 }
 
 absl::StatusOr<InterpValue> InterpValue::BitwiseNegate() const {

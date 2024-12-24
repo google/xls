@@ -201,10 +201,6 @@ proc MemReaderInternal<
                     State { fsm: Fsm::REQUEST, ..state }
                 }
             },
-            _ => {
-                fail!("invalid_state", false);
-                state
-            },
         };
 
         next_state

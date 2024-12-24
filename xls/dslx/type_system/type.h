@@ -1139,6 +1139,13 @@ inline bool operator==(const BitsLikeProperties& a,
   return a.is_signed == b.is_signed && a.size == b.size;
 }
 
+inline std::ostream& operator<<(std::ostream& os,
+                                const BitsLikeProperties& properties) {
+  return os << absl::StreamFormat("BitsLikeProperties{is_signed: %s, size: %s}",
+                                  properties.is_signed.ToString(),
+                                  properties.size.ToString());
+}
+
 // Returns ths "bits-like properties" for a given type `t` -- in practice this
 // means that the type can either be a true `BitsType` or an instantiated
 // `BitsConstructorType` -- from both of these forms we can retrieve information

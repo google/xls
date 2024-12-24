@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-enum MyEnum : u2 {
-    A = 0,
-    B = 1,
-    C = 2,
+fn f(x: bool) -> u32 {
+    match x {
+        true => u32:0,
+        false => u32:1,
+        _ => u32:2,
+    }
 }
-
-fn is_valid(x: MyEnum) -> bool { x == MyEnum::A || x == MyEnum::B || x == MyEnum::C }
-
-#[quickcheck(exhaustive)]
-fn prop_enum_is_valid(x: MyEnum) -> bool { is_valid(x) }

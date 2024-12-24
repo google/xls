@@ -374,7 +374,6 @@ pub fn cast_from_fixed_using_rne<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u3
         // Further, input when zero does not have a sign, so we will always return +0.0
         (_, true) => zero<EXP_SZ, FRACTION_SZ>(false),
         (false, false) => APFloat<EXP_SZ, FRACTION_SZ> { sign: is_negative, bexp, fraction },
-        _ => qnan<EXP_SZ, FRACTION_SZ>(),
     }
 }
 
@@ -480,7 +479,6 @@ pub fn cast_from_fixed_using_rz<EXP_SZ: u32, FRACTION_SZ: u32, NUM_SRC_BITS: u32
         // Further, input when zero does not have a sign, so we will always return +0.0
         (_, true) => zero<EXP_SZ, FRACTION_SZ>(false),
         (false, false) => APFloat<EXP_SZ, FRACTION_SZ> { sign: is_negative, bexp, fraction },
-        _ => qnan<EXP_SZ, FRACTION_SZ>(),
     }
 }
 
@@ -736,7 +734,6 @@ pub fn upcast<TO_EXP_SZ: u32, TO_FRACTION_SZ: u32, FROM_EXP_SZ: u32, FROM_FRACTI
                 let to_fraction = (f.fraction as uN[TO_FRACTION_SZ]) << FROM_TO_FRACTION_SHIFT;
                 APFloat { sign: f.sign, bexp: to_bexp, fraction: to_fraction }
             },
-            _ => fail!("unsupported_kind", qnan<TO_EXP_SZ, TO_FRACTION_SZ>()),
         }
     }
 }

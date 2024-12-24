@@ -322,9 +322,23 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceColonRef(const ColonRef* node,
                       ctx->file_table());
                 }
                 XLS_ASSIGN_OR_RETURN(
-                    auto enum_type, DeduceEnumDef(enum_def, subject_ctx.get()));
-                return UnwrapMetaType(std::move(enum_type), node->span(),
-                                      "enum type", ctx->file_table());
+                    std::unique_ptr<Type> enum_type,
+                    DeduceEnumDef(enum_def, subject_ctx.get()));
+                XLS_ASSIGN_OR_RETURN(
+                    enum_type,
+                    UnwrapMetaType(std::move(enum_type), node->span(),
+                                   "enum type", ctx->file_table()));
+
+                // We also want to note the ColonRef's constexpr value as we
+                // resolved its enum definition.
+                XLS_ASSIGN_OR_RETURN(Expr * enum_value_expr,
+                                     enum_def->GetValue(node->attr()));
+                XLS_ASSIGN_OR_RETURN(
+                    InterpValue enum_value,
+                    subject_ctx->type_info()->GetConstExpr(enum_value_expr));
+                ctx->type_info()->NoteConstExpr(node, enum_value);
+
+                return enum_type;
               },
               [&](BuiltinNameDef* builtin_name_def) -> ReturnT {
                 return DeduceColonRefToBuiltinNameDef(builtin_name_def, node);

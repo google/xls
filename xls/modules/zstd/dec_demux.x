@@ -141,7 +141,6 @@ pub proc DecoderDemux {
                 };
                 (false, false, true, new_state)
             },
-            _ => fail!("IDLE_STATE_IMPOSSIBLE", (false, false, false, state))
         };
 
         let end_state = if (send_raw || send_rle || send_cmp) {

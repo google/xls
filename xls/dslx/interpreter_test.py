@@ -141,7 +141,7 @@ class InterpreterTest(test_base.TestCase):
         program, warnings_as_errors=False, want_error=True
     )
     self.assertIn(
-        'The program being interpreted failed! The value was not matched',
+        'Match pattern is not exhaustive',
         stderr,
     )
 

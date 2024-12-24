@@ -649,24 +649,25 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
                    .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
-class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
+class FindTypeVisitor : public AstNodeVisitorWithDefault {
  public:
-  FindTokenTypeVisitor() = default;
+  explicit FindTypeVisitor(
+      std::function<bool(const TypeAnnotation*)> is_target_type)
+      : is_target_type_(std::move(is_target_type)) {}
 
-  bool GetTokenFound() const { return token_found_; }
+  bool found() const { return found_; }
 
   absl::Status HandleBuiltinTypeAnnotation(
       const BuiltinTypeAnnotation* builtin_type) override {
-    if (!token_found_) {
-      token_found_ = builtin_type->builtin_type() == BuiltinType::kToken;
-    }
+    found_ = found_ || is_target_type_(builtin_type);
     return absl::OkStatus();
   }
 
   absl::Status HandleTupleTypeAnnotation(
       const TupleTypeAnnotation* tuple_type) override {
+    found_ = found_ || is_target_type_(tuple_type);
     for (TypeAnnotation* member_type : tuple_type->members()) {
-      if (token_found_) {
+      if (found_) {
         break;
       }
       XLS_RETURN_IF_ERROR(member_type->Accept(this));
@@ -676,11 +677,13 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleArrayTypeAnnotation(
       const ArrayTypeAnnotation* array_type) override {
+    found_ = found_ || is_target_type_(array_type);
     return array_type->element_type()->Accept(this);
   }
 
   absl::Status HandleTypeRefTypeAnnotation(
       const TypeRefTypeAnnotation* type_ref_type) override {
+    found_ = found_ || is_target_type_(type_ref_type);
     return type_ref_type->type_ref()->Accept(this);
   }
 
@@ -720,6 +723,7 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* type_variable_type) override {
+    found_ = found_ || is_target_type_(type_variable_type);
     return type_variable_type->type_variable()->Accept(this);
   }
 
@@ -764,7 +768,7 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
  private:
   absl::Status HandleStructDefBaseInternal(const StructDefBase* struct_def) {
     for (const StructMemberNode* member : struct_def->members()) {
-      if (token_found_) {
+      if (found_) {
         break;
       }
       XLS_RETURN_IF_ERROR(member->type()->Accept(this));
@@ -772,36 +776,32 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  bool token_found_ = false;
+  const std::function<bool(const TypeAnnotation*)> is_target_type_;
+  bool found_ = false;
 };
 
 /* static */ absl::StatusOr<bool> AstGenerator::ContainsToken(
     const TypeAnnotation* type) {
-  FindTokenTypeVisitor token_visitor;
-  XLS_RETURN_IF_ERROR(type->Accept(&token_visitor));
-  return token_visitor.GetTokenFound();
+  FindTypeVisitor find_type_visitor(
+      [](const TypeAnnotation* type) { return IsToken(type); });
+  XLS_RETURN_IF_ERROR(type->Accept(&find_type_visitor));
+  return find_type_visitor.found();
 }
 
-/* static */ bool AstGenerator::ContainsTypeRef(const TypeAnnotation* type) {
-  if (IsTypeRef(type)) {
-    return true;
-  }
-  if (auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type)) {
-    for (TypeAnnotation* member_type : tuple_type->members()) {
-      if (ContainsTypeRef(member_type)) {
-        return true;
-      }
-    }
-    return false;
-  }
-  if (auto array_type = dynamic_cast<const ArrayTypeAnnotation*>(type)) {
-    return ContainsTypeRef(array_type->element_type());
-  }
-  if (auto channel_type = dynamic_cast<const ChannelTypeAnnotation*>(type)) {
-    return ContainsTypeRef(channel_type->payload());
-  }
-  CHECK_NE(dynamic_cast<const BuiltinTypeAnnotation*>(type), nullptr);
-  return false;
+/* static */ absl::StatusOr<bool> AstGenerator::ContainsArray(
+    const TypeAnnotation* type) {
+  FindTypeVisitor find_type_visitor(
+      [](const TypeAnnotation* type) { return IsArray(type); });
+  XLS_RETURN_IF_ERROR(type->Accept(&find_type_visitor));
+  return find_type_visitor.found();
+}
+
+/* static */ absl::StatusOr<bool> AstGenerator::ContainsTypeRef(
+    const TypeAnnotation* type) {
+  FindTypeVisitor find_type_visitor(
+      [](const TypeAnnotation* type) { return IsTypeRef(type); });
+  XLS_RETURN_IF_ERROR(type->Accept(&find_type_visitor));
+  return find_type_visitor.found();
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueTupleWithoutToken(
@@ -911,6 +911,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
 
 absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     Context* ctx, const TypeAnnotation* type) {
+  XLS_RET_CHECK(!IsTypeRef(type)) << "Matched-on TypeRefs-typed values are not "
+                                     "supported by the fuzzer; got: "
+                                  << type->ToString();
+  XLS_RET_CHECK(!IsArray(type))
+      << "Matched-on type cannot be an array; got: " << type->ToString();
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
     // Ten percent of the time, generate a wildcard pattern.
@@ -952,33 +957,9 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     return module_->Make<NameDefTree>(fake_span_, tuple_values);
   }
 
-  if (IsArray(type)) {
-    // For the array type, only name references are supported in the match arm.
-    // Reference: https://github.com/google/xls/issues/810.
-    auto array_matches = [&type](const TypedExpr& e) -> bool {
-      return !ContainsTypeRef(e.type) && e.type->ToString() == type->ToString();
-    };
-    std::vector<TypedExpr> array_candidates =
-        GatherAllValues(&ctx->env, array_matches);
-    // Twenty percent of the time, generate a wildcard pattern.
-    if (array_candidates.empty() || RandomBool(0.20)) {
-      WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
-      return module_->Make<NameDefTree>(fake_span_, wc);
-    }
-    TypedExpr array =
-        RandomChoice(absl::MakeConstSpan(array_candidates), bit_gen_);
-    NameRef* name_ref = dynamic_cast<NameRef*>(array.expr);
-    return module_->Make<NameDefTree>(fake_span_, name_ref);
-  }
-  if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
-    TypeRef* type_ref = type_ref_type->type_ref();
-    const TypeDefinition& type_definition = type_ref->type_definition();
-    CHECK(std::holds_alternative<TypeAlias*>(type_definition));
-    TypeAlias* alias = std::get<TypeAlias*>(type_definition);
-    return GenerateMatchArmPattern(ctx, &alias->type_annotation());
-  }
-
-  CHECK(IsBits(type));
+  CHECK(IsBits(type))
+      << "Expected match arm pattern to be a tuple or bits type; got: "
+      << type->ToString() << " kind: " << type->GetNodeTypeName();
 
   // Five percent of the time, generate a wildcard pattern.
   if (RandomBool(0.05)) {
@@ -1036,8 +1017,15 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr match,
-                       ChooseEnvValueNotContainingToken(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(
+      TypedExpr match,
+      ChooseEnvValue(&ctx->env, [](const TypedExpr& te) -> bool {
+        // TODO(cdleary): 2025-02-03 We should be able to support TypeRef if we
+        // were able to dereference it to an originating `TypeAnnotation`.
+        return !ContainsToken(te.type).value() &&
+               !ContainsArray(te.type).value() &&
+               !ContainsTypeRef(te.type).value();
+      }));
   LastDelayingOp last_delaying_op = match.last_delaying_op;
   int64_t min_stage = match.min_stage;
   TypeAnnotation* match_return_type = GenerateType();

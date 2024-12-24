@@ -1,0 +1,89 @@
+# Copyright 2025 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//xls:xls_internal"],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+cc_library(
+    name = "interp_value_interval",
+    srcs = ["interp_value_interval.cc"],
+    hdrs = ["interp_value_interval.h"],
+    deps = [
+        "//xls/dslx:interp_value",
+    ],
+)
+
+cc_test(
+    name = "interp_value_interval_test",
+    srcs = ["interp_value_interval_test.cc"],
+    deps = [
+        ":interp_value_interval",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "nd_region",
+    srcs = ["nd_region.cc"],
+    hdrs = ["nd_region.h"],
+    deps = [
+        ":interp_value_interval",
+        "//xls/dslx:interp_value",
+    ],
+)
+
+cc_test(
+    name = "nd_region_test",
+    srcs = ["nd_region_test.cc"],
+    deps = [
+        ":nd_region",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "match_exhaustiveness_checker",
+    srcs = ["match_exhaustiveness_checker.cc"],
+    hdrs = ["match_exhaustiveness_checker.h"],
+    deps = [
+        ":nd_region",
+        "//xls/dslx:import_data",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+    ],
+)
+
+cc_test(
+    name = "exhaustiveness_match_test",
+    srcs = ["exhaustiveness_match_test.cc"],
+    deps = [
+        ":match_exhaustiveness_checker",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)

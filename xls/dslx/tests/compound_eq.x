@@ -21,14 +21,13 @@ fn main() -> bool {
     x == x
 }
 
+fn slice_off_array(x: TestBlob) -> ((u2, u1), bool) { (x.1, x.2) }
+
 // Manually expand a test blob into its leaf components to check equality.
 fn blob_eq(x: TestBlob, y: TestBlob) -> bool {
-    let zero = u32:0;
-    let one = u32:1;
-    match (x, y) {
-        ((x_arr, (x_tup1, x_tup2), x_bool), (y_arr, (y_tup1, y_tup2), y_bool)) =>
-            x_arr[zero] == y_arr[zero] && x_arr[one] == y_arr[one] && x_tup1 == y_tup1 &&
-            x_tup2 == y_tup2 && x_bool == y_bool,
+    match (slice_off_array(x), slice_off_array(y)) {
+        (((x_tup1, x_tup2), x_bool), ((y_tup1, y_tup2), y_bool)) =>
+            x_tup1 == y_tup1 && x_tup2 == y_tup2 && x_bool == y_bool,
     }
 }
 
@@ -44,12 +43,9 @@ fn eq_by_element(x: TestBlob[3], y: TestBlob[3]) -> bool {
 // Manually expand a test blob into its leaf components to check if any are
 // not equal.
 fn blob_neq(x: TestBlob, y: TestBlob) -> bool {
-    let zero = u32:0;
-    let one = u32:1;
-    match (x, y) {
-        ((x_arr, (x_tup1, x_tup2), x_bool), (y_arr, (y_tup1, y_tup2), y_bool)) =>
-            x_arr[zero] != y_arr[zero] || x_arr[one] != y_arr[one] || x_tup1 != y_tup1 ||
-            x_tup2 != y_tup2 || x_bool != y_bool,
+    match (slice_off_array(x), slice_off_array(y)) {
+        (((x_tup1, x_tup2), x_bool), ((y_tup1, y_tup2), y_bool)) =>
+            x_tup1 != y_tup1 || x_tup2 != y_tup2 || x_bool != y_bool,
     }
 }
 

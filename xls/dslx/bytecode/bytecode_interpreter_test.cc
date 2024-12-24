@@ -921,8 +921,9 @@ fn main(x: u32) -> u32 {
 
   absl::StatusOr<InterpValue> value =
       Interpret(kProgram, "main", {InterpValue::MakeU32(2)});
-  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-                                       HasSubstr("The value was not matched")));
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Match pattern is not exhaustive")));
 }
 
 TEST_F(BytecodeInterpreterTest, RunMatchWithNameRefs) {

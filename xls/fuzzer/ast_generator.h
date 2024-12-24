@@ -226,8 +226,16 @@ class AstGenerator {
   static bool EnvContainsTuple(const Env& e);
   static bool EnvContainsToken(const Env& e);
   static bool EnvContainsChannel(const Env& e);
+
+  // Helper that tests whether a given type annotation contains a token type
+  // (transitively anywhere in the structure of the type).
   static absl::StatusOr<bool> ContainsToken(const TypeAnnotation* type);
-  static bool ContainsTypeRef(const TypeAnnotation* type);
+
+  // As above but for types containing arrays.
+  static absl::StatusOr<bool> ContainsArray(const TypeAnnotation* type);
+
+  // As above but for types containing TypeRef type annotations.
+  static absl::StatusOr<bool> ContainsTypeRef(const TypeAnnotation* type);
 
   // Generates a function with name "name", returning the minimum number of
   // stages the function can be scheduled in.

@@ -101,6 +101,7 @@ class InterpValue {
   static InterpValue MakeSBits(int64_t bit_count, int64_t value);
 
   static InterpValue MakeZeroValue(bool is_signed, int64_t bit_count);
+  static InterpValue MakeOneValue(bool is_signed, int64_t bit_count);
   static InterpValue MakeMaxValue(bool is_signed, int64_t bit_count);
   static InterpValue MakeMinValue(bool is_signed, int64_t bit_count);
 
@@ -256,6 +257,9 @@ class InterpValue {
   absl::StatusOr<InterpValue> Add(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Sub(const InterpValue& other) const;
 
+  std::optional<InterpValue> Decrement() const;
+  std::optional<InterpValue> Increment() const;
+
   absl::StatusOr<InterpValue> Mul(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Shl(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Shrl(const InterpValue& other) const;
@@ -283,6 +287,10 @@ class InterpValue {
   absl::StatusOr<InterpValue> Le(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Gt(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Ge(const InterpValue& other) const;
+
+  absl::StatusOr<InterpValue> Min(const InterpValue& other) const;
+
+  absl::StatusOr<InterpValue> Max(const InterpValue& other) const;
 
   // Performs the signed comparison defined by "method".
   //

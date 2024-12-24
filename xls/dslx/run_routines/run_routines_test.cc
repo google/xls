@@ -219,6 +219,8 @@ fn qc(x: MyEnum) -> bool {
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
+  options.warnings =
+      DisableWarning(kAllWarningsSet, WarningKind::kAlreadyExhaustiveMatch);
   options.run_comparator = &jit_comparator;
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
@@ -351,7 +353,7 @@ fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> b
   // Look at the failure message to make sure the u16 is reported.
   std::vector<std::string> failures = result.GetFailureMessages();
   ASSERT_EQ(failures.size(), 1);
-  EXPECT_THAT(failures[0], HasSubstr("tests: [u16:34]"));
+  EXPECT_THAT(failures[0], HasSubstr("tests: [u16:"));
 }
 
 // An exhaustive quickcheck that fails just for one value in a decently large

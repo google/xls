@@ -38,14 +38,14 @@ ImportData CreateImportData(
   return import_data;
 }
 
-ImportData CreateImportDataForTest(
-    std::unique_ptr<VirtualizableFilesystem> vfs) {
+ImportData CreateImportDataForTest(std::unique_ptr<VirtualizableFilesystem> vfs,
+                                   WarningKindSet warnings) {
   if (vfs == nullptr) {
     vfs = std::make_unique<RealFilesystem>();
   }
   absl::Span<const std::filesystem::path> additional_search_paths = {};
   ImportData import_data(xls::kDefaultDslxStdlibPath, additional_search_paths,
-                         kDefaultWarningsSet, std::move(vfs));
+                         warnings, std::move(vfs));
   import_data.SetBytecodeCache(std::make_unique<BytecodeCache>());
   return import_data;
 }

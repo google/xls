@@ -85,7 +85,6 @@ fn decode_magic_number(state: ZstdDecoderState) -> (bool, BlockDataPacket, ZstdD
             ..ZERO_DECODER_STATE
         },
         magic::MagicStatus::NO_ENOUGH_DATA => state,
-        _ => state,
     };
     trace_fmt!("zstd_dec: decode_magic_number: new_state: {:#x}", new_state);
 
@@ -113,7 +112,6 @@ fn decode_frame_header(state: ZstdDecoderState) -> (bool, BlockDataPacket, ZstdD
             status: ZstdDecoderStatus::ERROR,
             ..ZERO_DECODER_STATE
         },
-        _ => state,
     };
     trace_fmt!("zstd_dec: decode_frame_header: new_state: {:#x}", new_state);
 
@@ -163,7 +161,6 @@ fn decode_block_header(state: ZstdDecoderState) -> (bool, BlockDataPacket, ZstdD
                 ..ZERO_DECODER_STATE
         },
         block_header::BlockHeaderStatus::NO_ENOUGH_DATA => state,
-        _ => state,
     };
     trace_fmt!("zstd_dec: decode_block_header: new_state: {:#x}", new_state);
 
