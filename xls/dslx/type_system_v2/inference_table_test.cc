@@ -36,8 +36,6 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
@@ -48,8 +46,7 @@ namespace xls::dslx {
 namespace {
 
 using ::absl_testing::StatusIs;
-using ::testing::AllOf;
-using ::testing::ContainsRegex;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 
 class InferenceTableTest : public ::testing::Test {
@@ -98,17 +95,15 @@ TEST_F(InferenceTableTest, TypeInfoForEmptyTable) {
   EXPECT_EQ(type_info_string, "");
 }
 
-TEST_F(InferenceTableTest, TypeInfoForOneSimpleAnnotation) {
+TEST_F(InferenceTableTest, AddOneSimpleAnnotation) {
   // Just one def for x:u32.
   NameDef* x = module_->Make<NameDef>(Span::Fake(), "x", /*definer=*/nullptr);
   TypeAnnotation* annotation = module_->Make<BuiltinTypeAnnotation>(
       Span::Fake(), BuiltinType::kU32,
       module_->GetOrCreateBuiltinNameDef("u32"));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(x, annotation));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           ConvertTableToTypeInfoString());
-  EXPECT_EQ(type_info_string,
-            "span: <no-file>:1:1-1:1, node: `x`, type: uN[32]");
+  EXPECT_EQ(table_->GetTypeAnnotation(x), annotation);
+  EXPECT_EQ(table_->GetTypeVariable(x), std::nullopt);
 }
 
 TEST_F(InferenceTableTest, SetTypeVariableToNonInferenceVariable) {
@@ -133,10 +128,11 @@ TEST_F(InferenceTableTest, SetTypeVariableToNonType) {
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-TEST_F(InferenceTableTest, SignednessMismatch) {
+TEST_F(InferenceTableTest, AddAnnotationsWithConflictingSignedness) {
   // Apply the same type variable to the LHS and RHS of an addition, then claim
   // that the LHS (x) is annotated as u32 and the RHS (y) is annotated as s32.
-  // Upon associating s32 with y, we should get a signedness mismatch.
+  // This should be allowed by the table, as it's caught at the conversion
+  // stage.
   NameDef* x = module_->Make<NameDef>(Span::Fake(), "x", /*definer=*/nullptr);
   NameDef* y = module_->Make<NameDef>(Span::Fake(), "y", /*definer=*/nullptr);
   NameRef* x_ref = module_->Make<NameRef>(Span::Fake(), "x", x);
@@ -158,16 +154,14 @@ TEST_F(InferenceTableTest, SignednessMismatch) {
   XLS_EXPECT_OK(table_->SetTypeVariable(y_ref, t0));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(x_ref, u32_annotation));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(y_ref, s32_annotation));
-  EXPECT_THAT(
-      ConvertTableToTypeInfo(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               ContainsRegex("signed vs. unsigned mismatch.*s32.*vs. u32")));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<const TypeAnnotation*> annotations,
+                           table_->GetTypeAnnotationsForTypeVariable(t0));
+  EXPECT_THAT(annotations, ElementsAre(u32_annotation, s32_annotation));
 }
 
-TEST_F(InferenceTableTest, SignednessAgreement) {
+TEST_F(InferenceTableTest, AddAnnotationsWithSameSignedness) {
   // Apply the same type variable to the LHS and RHS of an addition, then claim
-  // that the LHS (x) and the RHS (y) are both annotated as u32. This should not
-  // error.
+  // that the LHS (x) and the RHS (y) are both annotated as u32.
   NameDef* x = module_->Make<NameDef>(Span::Fake(), "x", /*definer=*/nullptr);
   NameDef* y = module_->Make<NameDef>(Span::Fake(), "y", /*definer=*/nullptr);
   NameRef* x_ref = module_->Make<NameRef>(Span::Fake(), "x", x);
@@ -186,10 +180,9 @@ TEST_F(InferenceTableTest, SignednessAgreement) {
   XLS_EXPECT_OK(table_->SetTypeVariable(y_ref, t0));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(x_ref, u32_annotation));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(y_ref, u32_annotation));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           ConvertTableToTypeInfoString());
-  EXPECT_THAT(type_info_string, AllOf(HasSubstr("node: `x`, type: uN[32]"),
-                                      HasSubstr("node: `y`, type: uN[32]")));
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<const TypeAnnotation*> annotations,
+                           table_->GetTypeAnnotationsForTypeVariable(t0));
+  EXPECT_THAT(annotations, ElementsAre(u32_annotation, u32_annotation));
 }
 
 TEST_F(InferenceTableTest, ParametricVariable) {
@@ -210,6 +203,7 @@ TEST_F(InferenceTableTest, ParametricVariable) {
   for (const Param* param : foo->params()) {
     XLS_ASSERT_OK(table_->SetTypeAnnotation(param, param->type_annotation()));
   }
+  const NameDef* n = foo->parametric_bindings()[0]->name_def();
   XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
                            module_->GetMemberOrError<Function>("bar"));
   ASSERT_EQ(bar->body()->statements().size(), 2);
@@ -217,78 +211,28 @@ TEST_F(InferenceTableTest, ParametricVariable) {
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
-  XLS_ASSERT_OK(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricInvocation* parametric_invocation1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
-  XLS_ASSERT_OK(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricInvocation* parametric_invocation2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
-  std::optional<TypeInfo*> invocation_ti1 =
-      ti->GetInvocationTypeInfo(invocation1, ParametricEnv());
-  std::optional<TypeInfo*> invocation_ti2 =
-      ti->GetInvocationTypeInfo(invocation2, ParametricEnv());
-  EXPECT_TRUE(invocation_ti1.has_value());
-  EXPECT_TRUE(invocation_ti2.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1, file_table_));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2, file_table_));
-  EXPECT_THAT(invocation_ti1_string,
-              HasSubstr("node: `a: uN[N]`, type: uN[4]"));
-  EXPECT_THAT(invocation_ti2_string,
-              HasSubstr("node: `a: uN[N]`, type: uN[5]"));
-}
+  EXPECT_THAT(table_->GetParametricInvocations(),
+              ElementsAre(parametric_invocation1, parametric_invocation2));
 
-TEST_F(InferenceTableTest, ParametricVariableForSignedness) {
-  ParseAndInitModuleAndTable(R"(
-    fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
-    fn bar() {
-      foo<true, u32:4>(u4:1);
-      foo<false, u32:5>(u5:3);
-    }
-)");
-
-  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
-                           module_->GetMemberOrError<Function>("foo"));
-  ASSERT_EQ(foo->parametric_bindings().size(), 2);
-  ASSERT_EQ(foo->params().size(), 1);
-  for (const ParametricBinding* binding : foo->parametric_bindings()) {
-    XLS_ASSERT_OK(table_->DefineParametricVariable(*binding));
-  }
-  for (const Param* param : foo->params()) {
-    XLS_ASSERT_OK(table_->SetTypeAnnotation(param, param->type_annotation()));
-  }
-  XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
-                           module_->GetMemberOrError<Function>("bar"));
-  ASSERT_EQ(bar->body()->statements().size(), 2);
-  const Invocation* invocation1 = down_cast<const Invocation*>(
-      ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  const Invocation* invocation2 = down_cast<const Invocation*>(
-      ToAstNode(bar->body()->statements().at(1)->wrapped()));
-  XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation1, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt));
-  XLS_ASSERT_OK(
-      table_->AddParametricInvocation(*invocation2, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt));
-
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
-  std::optional<TypeInfo*> invocation_ti1 =
-      ti->GetInvocationTypeInfo(invocation1, ParametricEnv());
-  std::optional<TypeInfo*> invocation_ti2 =
-      ti->GetInvocationTypeInfo(invocation2, ParametricEnv());
-  EXPECT_TRUE(invocation_ti1.has_value());
-  EXPECT_TRUE(invocation_ti2.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1, file_table_));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2, file_table_));
-  EXPECT_THAT(invocation_ti1_string,
-              HasSubstr("node: `a: xN[S][N]`, type: sN[4]"));
-  EXPECT_THAT(invocation_ti2_string,
-              HasSubstr("node: `a: xN[S][N]`, type: uN[5]"));
+  InvocationScopedExpr parametric_inv1_n_value =
+      table_->GetParametricValue(*n, *parametric_invocation1);
+  InvocationScopedExpr parametric_inv2_n_value =
+      table_->GetParametricValue(*n, *parametric_invocation2);
+  // These exprs are scoped to `nullopt` invocation because they reside in the
+  // non-parametric calling context.
+  EXPECT_EQ(parametric_inv1_n_value.invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv2_n_value.invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv1_n_value.expr()->ToString(), "u32:4");
+  EXPECT_EQ(parametric_inv2_n_value.expr()->ToString(), "u32:5");
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
@@ -307,6 +251,8 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
                            module_->GetMemberOrError<Function>("foo"));
   ASSERT_EQ(foo->parametric_bindings().size(), 2);
+  const NameDef* m = foo->parametric_bindings()[0]->name_def();
+  const NameDef* n = foo->parametric_bindings()[1]->name_def();
   ASSERT_EQ(foo->params().size(), 2);
   XLS_ASSERT_OK(
       table_->DefineParametricVariable(*foo->parametric_bindings()[0]));
@@ -322,30 +268,36 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
-  XLS_ASSERT_OK(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricInvocation* parametric_invocation1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
-  XLS_ASSERT_OK(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricInvocation* parametric_invocation2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
-  std::optional<TypeInfo*> invocation_ti1 =
-      ti->GetInvocationTypeInfo(invocation1, ParametricEnv());
-  std::optional<TypeInfo*> invocation_ti2 =
-      ti->GetInvocationTypeInfo(invocation2, ParametricEnv());
-  EXPECT_TRUE(invocation_ti1.has_value());
-  EXPECT_TRUE(invocation_ti2.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1, file_table_));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2, file_table_));
-  EXPECT_THAT(invocation_ti1_string,
-              AllOf(HasSubstr("node: `a: uN[M]`, type: uN[4]"),
-                    HasSubstr("node: `b: uN[N]`, type: uN[16]")));
-  EXPECT_THAT(invocation_ti2_string,
-              AllOf(HasSubstr("node: `a: uN[M]`, type: uN[5]"),
-                    HasSubstr("node: `b: uN[N]`, type: uN[25]")));
+  EXPECT_THAT(table_->GetParametricInvocations(),
+              ElementsAre(parametric_invocation1, parametric_invocation2));
+
+  InvocationScopedExpr parametric_inv1_m_value =
+      table_->GetParametricValue(*m, *parametric_invocation1);
+  InvocationScopedExpr parametric_inv1_n_value =
+      table_->GetParametricValue(*n, *parametric_invocation1);
+  InvocationScopedExpr parametric_inv2_m_value =
+      table_->GetParametricValue(*m, *parametric_invocation2);
+  InvocationScopedExpr parametric_inv2_n_value =
+      table_->GetParametricValue(*n, *parametric_invocation2);
+
+  // Exprs that reside in the callee are scoped to the callee invocation.
+  EXPECT_EQ(parametric_inv1_m_value.invocation(), parametric_invocation1);
+  EXPECT_EQ(parametric_inv2_m_value.invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv1_n_value.invocation(), parametric_invocation1);
+  EXPECT_EQ(parametric_inv2_n_value.invocation(), parametric_invocation2);
+  EXPECT_EQ(parametric_inv1_m_value.expr()->ToString(), "u32:4");
+  EXPECT_EQ(parametric_inv2_m_value.expr()->ToString(), "u32:5");
+  EXPECT_EQ(parametric_inv1_n_value.expr()->ToString(), "M * M");
+  EXPECT_EQ(parametric_inv2_n_value.expr()->ToString(), "M * M");
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
@@ -362,6 +314,7 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
   XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
                            module_->GetMemberOrError<Function>("foo"));
   ASSERT_EQ(foo->parametric_bindings().size(), 1);
+  const NameDef* m = foo->parametric_bindings()[0]->name_def();
   ASSERT_EQ(foo->params().size(), 1);
   XLS_ASSERT_OK(
       table_->DefineParametricVariable(*foo->parametric_bindings()[0]));
@@ -373,18 +326,15 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
   ASSERT_EQ(bar->body()->statements().size(), 1);
   const Invocation* invocation = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  XLS_ASSERT_OK(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      const ParametricInvocation* parametric_invocation,
       table_->AddParametricInvocation(*invocation, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
-  std::optional<TypeInfo*> invocation_ti =
-      ti->GetInvocationTypeInfo(invocation, ParametricEnv());
-  EXPECT_TRUE(invocation_ti.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti, file_table_));
-  EXPECT_THAT(invocation_ti1_string,
-              HasSubstr("node: `a: uN[M]`, type: uN[5]"));
+  InvocationScopedExpr parametric_inv_m_value =
+      table_->GetParametricValue(*m, *parametric_invocation);
+  EXPECT_EQ(parametric_inv_m_value.invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv_m_value.expr()->ToString(), "u32:5");
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithUnsupportedAnnotation) {
@@ -405,91 +355,6 @@ TEST_F(InferenceTableTest, ParametricVariableWithUnsupportedAnnotation) {
       table_->DefineParametricVariable(*foo->parametric_bindings()[0]),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Inference variables of type T are not supported")));
-}
-
-TEST_F(InferenceTableTest, ParametricVariableAndParametricCaller) {
-  ParseAndInitModuleAndTable(R"(
-    fn foo<M: u32 = {u32:4}, N: u32 = {M * M}>(a: uN[M], b: uN[N])
-        -> uN[M + N] { a ++ b }
-
-    fn bar<X: u32>() {
-      foo<X>(zero!<uN[X]>(), zero!<uN[X * X]>());
-    }
-
-    fn baz() {
-      bar<u32:5>();
-      bar<u32:7>();
-    }
-)");
-
-  // Get `foo` and its relevant nodes.
-  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
-                           module_->GetMemberOrError<Function>("foo"));
-  ASSERT_EQ(foo->parametric_bindings().size(), 2);
-  ASSERT_EQ(foo->params().size(), 2);
-  XLS_ASSERT_OK(
-      table_->DefineParametricVariable(*foo->parametric_bindings()[0]));
-  XLS_ASSERT_OK(
-      table_->DefineParametricVariable(*foo->parametric_bindings()[1]));
-  for (const Param* param : foo->params()) {
-    XLS_ASSERT_OK(table_->SetTypeAnnotation(param, param->type_annotation()));
-  }
-
-  // Get `bar` and its relevant nodes.
-  XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
-                           module_->GetMemberOrError<Function>("bar"));
-  ASSERT_EQ(bar->parametric_bindings().size(), 1);
-  XLS_ASSERT_OK(
-      table_->DefineParametricVariable(*bar->parametric_bindings()[0]));
-  ASSERT_EQ(bar->body()->statements().size(), 1);
-  const Invocation* foo_invocation_node = down_cast<const Invocation*>(
-      ToAstNode(bar->body()->statements().at(0)->wrapped()));
-
-  // Get `baz` and its relevant nodes.
-  XLS_ASSERT_OK_AND_ASSIGN(const Function* baz,
-                           module_->GetMemberOrError<Function>("baz"));
-  ASSERT_EQ(baz->body()->statements().size(), 2);
-  const Invocation* bar_invocation_node1 = down_cast<const Invocation*>(
-      ToAstNode(baz->body()->statements().at(0)->wrapped()));
-  const Invocation* bar_invocation_node2 = down_cast<const Invocation*>(
-      ToAstNode(baz->body()->statements().at(1)->wrapped()));
-
-  // Add the 4 parametric invocations to the table.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      const ParametricInvocation* bar_invocation1,
-      table_->AddParametricInvocation(*bar_invocation_node1, *bar, baz,
-                                      /*caller_invocation=*/std::nullopt));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      const ParametricInvocation* bar_invocation2,
-      table_->AddParametricInvocation(*bar_invocation_node2, *bar, baz,
-                                      /*caller_invocation=*/std::nullopt));
-  XLS_ASSERT_OK(table_->AddParametricInvocation(*foo_invocation_node, *foo, bar,
-                                                bar_invocation1));
-  XLS_ASSERT_OK(table_->AddParametricInvocation(*foo_invocation_node, *foo, bar,
-                                                bar_invocation2));
-
-  // Check what we get for the 2 invocations of `foo`.
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti, ConvertTableToTypeInfo());
-  std::optional<TypeInfo*> invocation_ti1 = ti->GetInvocationTypeInfo(
-      foo_invocation_node,
-      ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
-          {"X", InterpValue::MakeU32(5)}}));
-  std::optional<TypeInfo*> invocation_ti2 = ti->GetInvocationTypeInfo(
-      foo_invocation_node,
-      ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
-          {"X", InterpValue::MakeU32(7)}}));
-  EXPECT_TRUE(invocation_ti1.has_value());
-  EXPECT_TRUE(invocation_ti2.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti1_string,
-                           TypeInfoToString(**invocation_ti1, file_table_));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string invocation_ti2_string,
-                           TypeInfoToString(**invocation_ti2, file_table_));
-  EXPECT_THAT(invocation_ti1_string,
-              AllOf(HasSubstr("node: `a: uN[M]`, type: uN[5]"),
-                    HasSubstr("node: `b: uN[N]`, type: uN[25]")));
-  EXPECT_THAT(invocation_ti2_string,
-              AllOf(HasSubstr("node: `a: uN[M]`, type: uN[7]"),
-                    HasSubstr("node: `b: uN[N]`, type: uN[49]")));
 }
 
 TEST_F(InferenceTableTest, TooManyParametricsInInvocation) {

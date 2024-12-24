@@ -39,7 +39,6 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
-#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 
@@ -273,29 +272,6 @@ class InferenceTableImpl : public InferenceTable {
     }
     return MutateAndCheckNodeData(
         node, [=](NodeData& data) { data.type_variable = variable; });
-  }
-
-  NodesByParametricInvocation GetNodesByParametricInvocation() const override {
-    NodesByParametricInvocation result;
-    absl::flat_hash_set<const AstNode*> static_nodes;
-    for (const auto& [node, node_data] : node_data_) {
-      static_nodes.insert(node);
-    }
-    for (const std::unique_ptr<ParametricInvocation>& invocation :
-         parametric_invocations_) {
-      absl::flat_hash_set<const AstNode*> nodes =
-          FlattenToSet(&invocation->callee());
-      nodes.erase(&invocation->callee());
-      static_nodes.erase(&invocation->callee());
-      for (const AstNode* node : nodes) {
-        static_nodes.erase(node);
-      }
-      result.emplace_back(invocation.get(),
-                          FilterAndConvertNodeSetToOrderedVector(nodes));
-    }
-    result.emplace_back(std::nullopt,
-                        FilterAndConvertNodeSetToOrderedVector(static_nodes));
-    return result;
   }
 
   std::optional<const TypeAnnotation*> GetTypeAnnotation(

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stack>
 #include <string>
 #include <utility>
 #include <variant>
@@ -32,12 +33,14 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
-#include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -104,6 +107,142 @@ absl::StatusOr<SizeValue> UnifySizeValues(const std::optional<SizeValue>& x,
   return *x;
 }
 
+// Represents a step in `TypeInfo` conversion order where the `ParametricEnv`
+// for a parametric invocation is converted.
+struct ParametricEnvConversion {
+  const ParametricInvocation* parametric_invocation;
+};
+
+// Represents a step in `TypeInfo` conversion where the `TypeInfo` for a certain
+// node is converted. The node's `TypeInfo` may or may not be scoped to a
+// `ParametricInvocation`.
+struct NodeConversion {
+  std::optional<const ParametricInvocation*> parametric_invocation;
+  const AstNode* node;
+};
+
+using TypeInfoConversionStep =
+    std::variant<ParametricEnvConversion, NodeConversion>;
+
+// Traverses an AST and flattens it into a `vector` in the order the `TypeInfo`
+// needs to be built such that prerequisites will be present in `TypeInfo` when
+// evaluations are done.
+class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
+ public:
+  ConversionOrderVisitor(
+      const InferenceTable& table,
+      absl::flat_hash_map<const TypeAnnotation*, const ParametricInvocation*>
+          invocation_scoped_annotations)
+      : table_(table),
+        invocation_scoped_annotations_(invocation_scoped_annotations) {
+    parametric_invocation_stack_.push(std::nullopt);
+  }
+
+  absl::Status HandleFunction(const Function* node) override {
+    if (node->IsParametric()) {
+      // Parametric functions are traversed when invocations of them are
+      // encountered.
+      return absl::OkStatus();
+    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    // We generally want a post-order traversal here because that is the
+    // dependency flow, e.g., if you are going to ask `ConstexprEvaluator` to
+    // evaluate `N + 1`, you want to have established what `N` and `1` are
+    // first.
+    for (const AstNode* node : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(node->Accept(this));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<const ParametricInvocation*> related_invocations,
+        GetRelatedInvocations(node));
+    // The first time we hit some dependency of a parametric invocation (the
+    // `Invocation` node itself or some related node), we need to load the
+    // callee's parametric binding exprs and request that its ParametricEnv be
+    // converted.
+    for (const ParametricInvocation* invocation : related_invocations) {
+      XLS_RETURN_IF_ERROR(HandleParametricBindingExprsInternal(invocation));
+      steps_.push_back(ParametricEnvConversion{invocation});
+      handled_parametric_invocations_.insert(invocation);
+    }
+    // Convert the actual encountered node.
+    steps_.push_back(NodeConversion{
+        .parametric_invocation = parametric_invocation_stack_.top(),
+        .node = node});
+    // We can now convert the actual parametric function(s) in the invocation
+    // context(s).
+    for (const ParametricInvocation* invocation : related_invocations) {
+      XLS_RETURN_IF_ERROR(HandleParametricFunctionInternal(invocation));
+    }
+    return absl::OkStatus();
+  }
+
+  const std::vector<TypeInfoConversionStep>& steps() const { return steps_; }
+
+ private:
+  absl::StatusOr<std::vector<const ParametricInvocation*>>
+  GetRelatedInvocations(const AstNode* node) {
+    std::vector<const ParametricInvocation*> result;
+    if (std::optional<const TypeAnnotation*> annotation =
+            table_.GetTypeAnnotation(node);
+        annotation.has_value()) {
+      const auto it = invocation_scoped_annotations_.find(*annotation);
+      if (it != invocation_scoped_annotations_.end() &&
+          !handled_parametric_invocations_.contains(it->second)) {
+        result.push_back(it->second);
+      }
+    }
+    if (std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
+        variable.has_value()) {
+      XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
+                           table_.GetTypeAnnotationsForTypeVariable(*variable));
+      for (const TypeAnnotation* annotation : annotations) {
+        const auto it = invocation_scoped_annotations_.find(annotation);
+        if (it != invocation_scoped_annotations_.end() &&
+            !handled_parametric_invocations_.contains(it->second)) {
+          result.push_back(it->second);
+        }
+      }
+    }
+    return result;
+  }
+
+  absl::Status HandleParametricBindingExprsInternal(
+      const ParametricInvocation* parametric_invocation) {
+    parametric_invocation_stack_.push(parametric_invocation);
+    for (const ParametricBinding* binding :
+         parametric_invocation->callee().parametric_bindings()) {
+      if (binding->expr() != nullptr) {
+        XLS_RETURN_IF_ERROR(binding->expr()->Accept(this));
+      }
+    }
+    parametric_invocation_stack_.pop();
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleParametricFunctionInternal(
+      const ParametricInvocation* parametric_invocation) {
+    parametric_invocation_stack_.push(parametric_invocation);
+    for (const AstNode* child :
+         parametric_invocation->callee().GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    parametric_invocation_stack_.pop();
+    return absl::OkStatus();
+  }
+
+  const InferenceTable& table_;
+  const absl::flat_hash_map<const TypeAnnotation*, const ParametricInvocation*>
+      invocation_scoped_annotations_;
+  std::vector<TypeInfoConversionStep> steps_;
+  std::stack<std::optional<const ParametricInvocation*>>
+      parametric_invocation_stack_;
+  absl::flat_hash_set<const ParametricInvocation*>
+      handled_parametric_invocations_;
+};
+
 // An object that facilitates the conversion of an `InferenceTable` to
 // `TypeInfo`.
 class InferenceTableConverter {
@@ -127,11 +266,24 @@ class InferenceTableConverter {
         invocation_scoped_type_annotations_(
             invocation_scoped_type_annotations) {}
 
-  // Generates the resulting type info for the given invocation, as a child of
-  // the base type info.
+  // Creates the child `TypeInfo` object for the given parametric invocation,
+  // leaving it initially empty.
   absl::Status AddInvocation(
       const ParametricInvocation* parametric_invocation) {
     VLOG(5) << "Adding invocation type info for "
+            << parametric_invocation->callee().ToString();
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * invocation_type_info,
+        import_data_.type_info_owner().New(&module_, base_type_info_));
+    invocation_type_info_.emplace(parametric_invocation, invocation_type_info);
+    return absl::OkStatus();
+  }
+
+  // Generates the final `ParametricEnv` objects for the given invocation, and
+  // adds the invocation's data to the base type info.
+  absl::Status GenerateParametricEnvs(
+      const ParametricInvocation* parametric_invocation) {
+    VLOG(5) << "Populating invocation type info for "
             << parametric_invocation->callee().ToString();
     ParametricEnv caller_env;
     if (parametric_invocation->caller_invocation().has_value()) {
@@ -139,10 +291,6 @@ class InferenceTableConverter {
                            ParametricInvocationToEnv(
                                *parametric_invocation->caller_invocation()));
     }
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * invocation_type_info,
-        import_data_.type_info_owner().New(&module_, base_type_info_));
-    invocation_type_info_.emplace(parametric_invocation, invocation_type_info);
     XLS_ASSIGN_OR_RETURN(ParametricEnv callee_env,
                          ParametricInvocationToEnv(parametric_invocation));
     VLOG(5) << "Caller env: " << caller_env.ToString();
@@ -152,67 +300,83 @@ class InferenceTableConverter {
         parametric_invocation->caller().has_value()
             ? *parametric_invocation->caller()
             : nullptr,
-        caller_env, callee_env, invocation_type_info);
+        caller_env, callee_env,
+        invocation_type_info_.at(parametric_invocation));
   }
 
-  // Generates type info for either a particular parametric invocation (storing
-  // the result in a child of `base_type_info_`), or the static nodes in the
-  // table (storing the result in `base_type_info_` itself).
+  // Generates type info for one node.
   absl::Status GenerateTypeInfo(
       std::optional<const ParametricInvocation*> parametric_invocation,
-      const std::vector<const AstNode*> nodes) {
-    VLOG(5) << "Generate type info for: " << ToString(parametric_invocation)
-            << " with " << nodes.size() << " nodes.";
+      const AstNode* node) {
+    VLOG(5) << "Generate type info for node: " << node->ToString();
     TypeInfo* ti = parametric_invocation.has_value()
                        ? invocation_type_info_.at(*parametric_invocation)
                        : base_type_info_;
-    for (const AstNode* node : nodes) {
-      VLOG(5) << "Generate type info for node: " << node->ToString();
-      std::optional<const TypeAnnotation*> annotation;
-      const std::optional<const NameRef*> type_variable =
-          table_.GetTypeVariable(node);
-      if (type_variable.has_value()) {
-        // A type variable implies unification may be needed, so don't just use
-        // the type annotation of the node if it has a variable associated with
-        // it.
-        std::optional<Span> node_span = node->GetSpan();
-        CHECK(node_span.has_value());
-        if ((node->kind() == AstNodeKind::kConstantDef ||
-             node->kind() == AstNodeKind::kNameDef) &&
-            !VariableHasAnyExplicitTypeAnnotations(*type_variable)) {
-          // The motivation for disallowing this, irrespective of its
-          // unifiability, is that otherwise a snippet like this would present
-          // a serious ambiguity:
-          //   const X = 3;
-          //   const Y = X + 1;
-          // If we auto-annotate the `3` as `u2` and the `1` becomes `u2` via
-          // normal promotion, `X + 1` surprisingly overflows. What is really
-          // desired here is probably a common type for `X` and `Y` that fits
-          // both. We want the programmer to write that type on the `X` line at
-          // a minimum, which will then predictably propagate to `Y` if they
-          // don't say otherwise.
-          return absl::InvalidArgumentError(absl::Substitute(
-              "TypeInferenceError: A variable or constant cannot be defined "
-              "with an implicit type. `$0` at $1 must have a type annotation "
-              "on at least one side of its assignment.",
-              node->ToString(), node_span->ToString(file_table_)));
-        }
-        XLS_ASSIGN_OR_RETURN(annotation,
-                             UnifyTypeAnnotations(parametric_invocation,
-                                                  *type_variable, *node_span));
-      } else {
-        annotation = table_.GetTypeAnnotation(node);
+
+    std::optional<const TypeAnnotation*> annotation;
+    const std::optional<const NameRef*> type_variable =
+        table_.GetTypeVariable(node);
+    if (type_variable.has_value()) {
+      // A type variable implies unification may be needed, so don't just use
+      // the type annotation of the node if it has a variable associated with
+      // it.
+      std::optional<Span> node_span = node->GetSpan();
+      CHECK(node_span.has_value());
+      if (node->parent() != nullptr &&
+          ((node->parent()->kind() == AstNodeKind::kConstantDef ||
+            node->parent()->kind() == AstNodeKind::kNameDef)) &&
+          !VariableHasAnyExplicitTypeAnnotations(*type_variable)) {
+        // The motivation for disallowing this, irrespective of its
+        // unifiability, is that otherwise a snippet like this would present
+        // a serious ambiguity:
+        //   const X = 3;
+        //   const Y = X + 1;
+        // If we auto-annotate the `3` as `u2` and the `1` becomes `u2` via
+        // normal promotion, `X + 1` surprisingly overflows. What is really
+        // desired here is probably a common type for `X` and `Y` that fits
+        // both. We want the programmer to write that type on the `X` line at
+        // a minimum, which will then predictably propagate to `Y` if they
+        // don't say otherwise.
+        return absl::InvalidArgumentError(absl::Substitute(
+            "TypeInferenceError: A variable or constant cannot be defined "
+            "with an implicit type. `$0` at $1 must have a type annotation "
+            "on at least one side of its assignment.",
+            node->parent()->ToString(), node_span->ToString(file_table_)));
       }
-      if (!annotation.has_value()) {
-        // The caller may have passed a node that is in the AST but not in the
-        // table, and it may not be needed in the table.
-        VLOG(5) << "No type information for: " << node->ToString();
-        continue;
+      XLS_ASSIGN_OR_RETURN(annotation,
+                           UnifyTypeAnnotations(parametric_invocation,
+                                                *type_variable, *node_span));
+    } else {
+      annotation = table_.GetTypeAnnotation(node);
+    }
+    if (!annotation.has_value()) {
+      // The caller may have passed a node that is in the AST but not in the
+      // table, and it may not be needed in the table.
+      VLOG(5) << "No type information for: " << node->ToString();
+      return absl::OkStatus();
+    }
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
+                         Concretize(*annotation, parametric_invocation));
+    XLS_RETURN_IF_ERROR(ValidateConcreteTypeForNode(node, type.get()));
+    if (const auto* literal = dynamic_cast<const Number*>(node);
+        literal != nullptr && literal->type_annotation() != nullptr) {
+      ti->SetItem(literal->type_annotation(),
+                  *std::make_unique<MetaType>(type->CloneToUnique()));
+    }
+    ti->SetItem(node, *type);
+    if (const auto* constant_def = dynamic_cast<const ConstantDef*>(node)) {
+      VLOG(5) << "Checking constant def value: " << constant_def->ToString()
+              << " with type: " << type->ToString();
+      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+          &import_data_, ti, &warning_collector_, ParametricEnv(),
+          constant_def->value(), type.get());
+      if (value.ok()) {
+        VLOG(5) << "Constnat def: " << constant_def->ToString()
+                << " has value: " << value->ToString();
+        ti->NoteConstExpr(constant_def, *value);
+        ti->NoteConstExpr(constant_def->value(), *value);
+        ti->NoteConstExpr(constant_def->name_def(), *value);
       }
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                           Concretize(*annotation, parametric_invocation));
-      XLS_RETURN_IF_ERROR(ValidateConcreteTypeForNode(node, type.get()));
-      ti->SetItem(node, *type);
     }
     return absl::OkStatus();
   }
@@ -316,9 +480,15 @@ class InferenceTableConverter {
     // Note: the `ParametricEnv` is irrelevant here, because we have guaranteed
     // that any parametric that may be referenced by the expr has been noted as
     // a normal constexpr in `type_info`.
-    return ConstexprEvaluator::EvaluateToValue(
-        &import_data_, type_info, &warning_collector_, ParametricEnv(),
-        scoped_expr.expr(), /*type=*/nullptr);
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue result,
+        ConstexprEvaluator::EvaluateToValue(
+            &import_data_, type_info, &warning_collector_, ParametricEnv(),
+            scoped_expr.expr(), /*type=*/nullptr));
+    VLOG(5) << "Evaluation result for: " << scoped_expr.expr()->ToString()
+            << " in context: " << ToString(scoped_expr.invocation())
+            << " value: " << result.ToString();
+    return result;
   }
 
   // Generates a `ParametricEnv` for the given invocation, which is needed for
@@ -337,23 +507,6 @@ class InferenceTableConverter {
          invocation->callee().parametric_bindings()) {
       InvocationScopedExpr expr =
           table_.GetParametricValue(*binding->name_def(), *invocation);
-      if (expr.expr() == binding->expr()) {
-        // When a parametric default expr is used, it needs its node types
-        // loaded now, because they are in the callee context. The callee
-        // context is currently at an early phase of setup, given that we are
-        // still determining its parametric env. When not defaulted, a
-        // parametric value expr is in the caller context, and it should already
-        // have the nodes loaded.
-        // TODO: https://github.com/google/xls/issues/193 - We need more nuanced
-        // ordering here in order to support references to global constants, and
-        // complex parametric value exprs at call sites.
-        absl::flat_hash_set<const AstNode*> binding_expr_node_set =
-            FlattenToSet(expr.expr());
-        std::vector<const AstNode*> binding_expr_nodes(
-            binding_expr_node_set.begin(), binding_expr_node_set.end());
-        XLS_RETURN_IF_ERROR(
-            GenerateTypeInfo(expr.invocation(), binding_expr_nodes));
-      }
       XLS_ASSIGN_OR_RETURN(InterpValue value, Evaluate(expr));
       invocation_type_info_.at(invocation)
           ->NoteConstExpr(binding->name_def(), value);
@@ -386,8 +539,6 @@ class InferenceTableConverter {
       return std::get<int64_t>(value_or_expr);
     }
     const Expr* expr = std::get<const Expr*>(value_or_expr);
-    VLOG(5) << "Evaluate `" << expr->ToString()
-            << "` against: " << ToString(parametric_invocation);
     std::optional<const TypeAnnotation*> type_annotation =
         table_.GetTypeAnnotation(expr);
     if (!type_annotation.has_value()) {
@@ -793,6 +944,9 @@ class InferenceTableConverter {
   absl::flat_hash_map<const ParametricInvocation*, ParametricEnv>
       converted_parametric_envs_;
   absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
+  // For annotations that are present in here, any `Expr` in the annotation must
+  // be treated as an `InvocationScopedExpr` scoped to the invocation specified
+  // here.
   const absl::flat_hash_map<const TypeAnnotation*, const ParametricInvocation*>
       invocation_scoped_type_annotations_;
 };
@@ -811,23 +965,52 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
   InferenceTableConverter converter(
       table, module, import_data, warning_collector, base_type_info, file_table,
       auto_literal_annotations, invocation_scoped_type_annotations);
-  InferenceTable::NodesByParametricInvocation nodes_by_invocation =
-      table.GetNodesByParametricInvocation();
 
-  // Add all the invocations first, which creates their invocation `TypeInfo`
-  // objects, and populates them with parametrics, but not the types of all
-  // relevant nodes. This is because parametrics are at the interface between a
-  // caller and callee, and may have references outside the invocation.
-  for (const auto& [invocation, _] : nodes_by_invocation) {
-    if (invocation.has_value()) {
-      XLS_RETURN_IF_ERROR(converter.AddInvocation(*invocation));
-    }
+  // Figure out the order in which we can sequentially concretize all type info
+  // and add all constexprs.
+  ConversionOrderVisitor order_visitor(table,
+                                       invocation_scoped_type_annotations);
+  XLS_RETURN_IF_ERROR(module.Accept(&order_visitor));
+  VLOG(5) << "TypeInfo conversion order";
+  VLOG(5) << "-------------------------";
+  for (const TypeInfoConversionStep& step : order_visitor.steps()) {
+    absl::visit(Visitor{[&](const NodeConversion& node_conversion) {
+                          VLOG(5)
+                              << "Convert node: "
+                              << ToString(node_conversion.parametric_invocation)
+                              << ", " << node_conversion.node->ToString();
+                        },
+                        [&](const ParametricEnvConversion& env_conversion) {
+                          VLOG(5)
+                              << "Convert parametric env: "
+                              << ToString(env_conversion.parametric_invocation);
+                        }},
+                step);
+  }
+  VLOG(5) << "--------------------";
+
+  // The TypeInfo objects for invocations all need to exist before their
+  // `ParametricEnv` objects are finalizable. Some invocation may have a
+  // dependency on just some of the info in another invocation's environment,
+  // and the order determination assumes we can use that.
+  for (const ParametricInvocation* parametric_invocation :
+       table.GetParametricInvocations()) {
+    XLS_RETURN_IF_ERROR(converter.AddInvocation(parametric_invocation));
   }
 
-  // Now add the types of relevant nodes for all invocations (including the
-  // standalone context, which has invocation `nullopt`).
-  for (const auto& [invocation, nodes] : nodes_by_invocation) {
-    XLS_RETURN_IF_ERROR(converter.GenerateTypeInfo(invocation, nodes));
+  // Generate the type info.
+  for (const TypeInfoConversionStep& step : order_visitor.steps()) {
+    XLS_RETURN_IF_ERROR(
+        absl::visit(Visitor{[&](const NodeConversion& node_conversion) {
+                              return converter.GenerateTypeInfo(
+                                  node_conversion.parametric_invocation,
+                                  node_conversion.node);
+                            },
+                            [&](const ParametricEnvConversion& env_conversion) {
+                              return converter.GenerateParametricEnvs(
+                                  env_conversion.parametric_invocation);
+                            }},
+                    step));
   }
 
   return converter.GetBaseTypeInfo();

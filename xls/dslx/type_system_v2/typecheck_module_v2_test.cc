@@ -999,6 +999,8 @@ const X = foo<11, 20>(u20:5);
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfParameterizedSignednessAndSizeWithSum) {
+  // The point here is to make sure that the uN[N] type annotation being
+  // propagated onto a complex subtree in global scope is correctly dealt with.
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 const X = u32:3;
 const Y = u32:4;
@@ -1076,6 +1078,75 @@ const X = foo<24>(foo<24>(4) + foo<24>(5));
       type_info_string,
       HasSubstr(
           "node: `const X = foo<24>(foo<24>(4) + foo<24>(5));`, type: uN[24]"));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionUsingGlobalConstantInParametricDefault) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+fn foo<M: u32, N: u32 = {M + X}>(a: uN[N]) -> uN[N] { a }
+const Z = foo<12>(u15:1);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const Z = foo<12>(u15:1);`, type: uN[15]"));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionCallUsingGlobalConstantInParametricArgument) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const X = u32:3;
+const Z = foo<X>(u3:1);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const Z = foo<X>(u3:1);`, type: uN[3]"));
+}
+
+TEST(TypecheckV2Test, ParametricFunctionCallFollowedByTypePropagation) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const Y = foo<15>(u15:1);
+const Z = Y + 1;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const Z = Y + 1;`, type: uN[15]"));
+}
+
+TEST(TypecheckV2Test, GlobalConstantUsingParametricFunction) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const X = foo<32>(u32:3);
+const Y = foo<X>(u3:1);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = foo<32>(u32:3);`, type: uN[32]"),
+            HasSubstr("node: `const Y = foo<X>(u3:1);`, type: uN[3]")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantUsingAndUsedByParametricFunction) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const X = foo<32>(u32:3);
+const Y = foo<X>(u3:1);
+fn bar<N: u32>(a: uN[N]) -> uN[N] { a + Y + foo<3>(Y) }
+const Z = bar<X>(u3:1 + Y);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = foo<32>(u32:3);`, type: uN[32]"),
+            HasSubstr("node: `const Y = foo<X>(u3:1);`, type: uN[3]"),
+            HasSubstr("node: `const Z = bar<X>(u3:1 + Y);`, type: uN[3]")));
 }
 
 }  // namespace

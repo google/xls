@@ -28,7 +28,6 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
-        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/algorithm:container",
@@ -50,6 +49,7 @@ cc_library(
     deps = [
         ":inference_table",
         ":type_annotation_utils",
+        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
@@ -58,7 +58,7 @@ cc_library(
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
-        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
@@ -74,6 +74,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -90,7 +91,6 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
-        "//xls/dslx:interp_value",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
@@ -98,7 +98,6 @@ cc_test(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
-        "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",

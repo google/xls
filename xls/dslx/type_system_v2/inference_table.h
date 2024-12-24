@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/substitute.h"
@@ -183,8 +182,7 @@ class InferenceTable {
       std::optional<const Function*> caller,
       std::optional<const ParametricInvocation*> caller_invocation) = 0;
 
-  // Retrieves all the parametric invocations that have been defined for all
-  // parametric functions.
+  // Retrieves all the parametric invocations that have been defined.
   virtual std::vector<const ParametricInvocation*> GetParametricInvocations()
       const = 0;
 
@@ -207,16 +205,6 @@ class InferenceTable {
   // type annotation, but `let x = something;` does not.
   virtual absl::Status SetTypeAnnotation(const AstNode* node,
                                          const TypeAnnotation* type) = 0;
-
-  using NodesByParametricInvocation =
-      std::vector<std::pair<std::optional<const ParametricInvocation*>,
-                            std::vector<const AstNode*>>>;
-
-  // Returns a table of parametric invocation to the nodes in the callee
-  // function, plus an element at the end for all nodes not in a parametric
-  // context.
-  virtual NodesByParametricInvocation GetNodesByParametricInvocation()
-      const = 0;
 
   // Returns the type annotation for `node` in the table, if any.
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(
