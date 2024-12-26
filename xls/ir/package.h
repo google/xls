@@ -68,6 +68,10 @@ struct TransformMetrics {
   // Node::ReplaceOperand[Number]).
   int64_t operands_replaced = 0;
 
+  // Number of operands removed (number of calls to
+  // Node::RemoveOptionalOperand).
+  int64_t operands_removed = 0;
+
   TransformMetrics operator+(const TransformMetrics& other) const;
   TransformMetrics operator-(const TransformMetrics& other) const;
   std::string ToString() const;

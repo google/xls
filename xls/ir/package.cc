@@ -885,6 +885,7 @@ TransformMetrics TransformMetrics::operator+(
       .nodes_removed = nodes_removed + other.nodes_removed,
       .nodes_replaced = nodes_replaced + other.nodes_replaced,
       .operands_replaced = operands_replaced + other.operands_replaced,
+      .operands_removed = operands_removed + other.operands_removed,
   };
 }
 
@@ -895,14 +896,16 @@ TransformMetrics TransformMetrics::operator-(
       .nodes_removed = nodes_removed - other.nodes_removed,
       .nodes_replaced = nodes_replaced - other.nodes_replaced,
       .operands_replaced = operands_replaced - other.operands_replaced,
+      .operands_removed = operands_removed - other.operands_removed,
   };
 }
 
 std::string TransformMetrics::ToString() const {
   return absl::StrFormat(
       "{ nodes added: %d, nodes removed: %d, nodes replaced: %d, operands "
-      "replaced: %d }",
-      nodes_added, nodes_removed, nodes_replaced, operands_replaced);
+      "replaced: %d, operands removed: %d }",
+      nodes_added, nodes_removed, nodes_replaced, operands_replaced,
+      operands_removed);
 }
 
 TransformMetricsProto TransformMetrics::ToProto() const {

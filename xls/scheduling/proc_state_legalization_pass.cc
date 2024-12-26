@@ -65,17 +65,7 @@ absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
   return proc->GetStateElementCount() > 0;
 }
 
-class StateReadPredicateRemover : public Proc::StateElementTransformer {
- public:
-  ~StateReadPredicateRemover() override = default;
-
-  absl::StatusOr<std::optional<Node*>> TransformReadPredicate(
-      Proc* proc, StateRead* old_state_read) override {
-    return std::nullopt;
-  }
-};
-
-// Ensure that `state_read` is either unpredicated or has a predicate that is
+// Ensure that `state_read` is either unconditional or has a predicate that is
 // true whenever any of its corresponding `next_value`s are active.
 absl::StatusOr<bool> LegalizeStateReadPredicate(
     Proc* proc, StateElement* state_element,
@@ -84,19 +74,15 @@ absl::StatusOr<bool> LegalizeStateReadPredicate(
   const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
       proc->next_values(state_read);
   if (!state_read->predicate().has_value() || next_values.empty()) {
-    // No predicate; nothing to do.
+    // Already unconditional, or no explicit `next_value`s; nothing to do.
     return false;
   }
 
   if (absl::c_any_of(next_values, [](const Next* next) {
         return !next->predicate().has_value();
       })) {
-    StateReadPredicateRemover predicate_remover;
-    XLS_RETURN_IF_ERROR(proc->TransformStateElement(
-                                state_read,
-                                state_read->state_element()->initial_value(),
-                                predicate_remover)
-                            .status());
+    // At least one next_value is unconditional; remove the predicate.
+    XLS_RETURN_IF_ERROR(state_read->RemovePredicate());
     return true;
   }
 

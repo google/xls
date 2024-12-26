@@ -318,6 +318,36 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
     }
   }
 
+  // Operations with an optional predicate can have their predicate removed if
+  // the predicate is always true, or be deleted if the predicate is always
+  // false.
+  if (n->Is<Next>() && n->As<Next>()->predicate().has_value()) {
+    std::optional<Bits> known_predicate =
+        query_engine.KnownValueAsBits(*n->As<Next>()->predicate());
+    if (known_predicate.has_value() && known_predicate->IsAllOnes()) {
+      Next* next = n->As<Next>();
+      XLS_RETURN_IF_ERROR(next->RemovePredicate());
+      return true;
+    } else if (known_predicate.has_value() && known_predicate->IsZero()) {
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+      XLS_RETURN_IF_ERROR(n->function_base()->RemoveNode(n));
+      return true;
+    }
+  }
+  if (n->Is<StateRead>() && n->As<StateRead>()->predicate().has_value()) {
+    std::optional<Bits> known_predicate =
+        query_engine.KnownValueAsBits(*n->As<StateRead>()->predicate());
+    if (known_predicate.has_value() && known_predicate->IsAllOnes()) {
+      StateRead* state_read = n->As<StateRead>();
+      XLS_RETURN_IF_ERROR(state_read->RemovePredicate());
+      return true;
+    }
+    // If the predicate is always false (i.e., the state is never read), it
+    // still might end up being augmented by state legalization, so we can't
+    // safely remove it here.
+  }
+
   return false;
 }
 

@@ -683,14 +683,31 @@ class StateRead final : public Node {
   StateElement* state_element() const { return state_element_; }
 
   std::optional<Node*> predicate() const {
-    return has_predicate_ ? std::make_optional(operand(0)) : std::nullopt;
+    return has_predicate_ ? std::make_optional(operand(kPredicateOperand))
+                          : std::nullopt;
   }
 
   absl::StatusOr<int64_t> predicate_operand_number() const {
     if (!has_predicate_) {
       return absl::InternalError("predicate is not present");
     }
-    return 0;
+    return kPredicateOperand;
+  }
+
+  absl::Status AddPredicate(Node* predicate) {
+    XLS_RET_CHECK(!has_predicate_) << absl::StreamFormat(
+        "Cannot add predicate to node `%s` as it already has one", GetName());
+    AddOptionalOperand(predicate);
+    has_predicate_ = true;
+    return absl::OkStatus();
+  }
+
+  absl::Status RemovePredicate() {
+    XLS_RET_CHECK(has_predicate_) << absl::StreamFormat(
+        "Cannot remove predicate of node `%s` as it has none", GetName());
+    XLS_RETURN_IF_ERROR(RemoveOptionalOperand(kPredicateOperand));
+    has_predicate_ = false;
+    return absl::OkStatus();
   }
 
   absl::StatusOr<Node*> CloneInNewFunction(
@@ -700,6 +717,8 @@ class StateRead final : public Node {
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:
+  static constexpr int64_t kPredicateOperand = 0;
+
   StateElement* state_element_;
   bool has_predicate_;
 };
@@ -722,19 +741,38 @@ class Next final : public Node {
   Node* value() const { return operand(1); }
 
   std::optional<Node*> predicate() const {
-    return has_predicate_ ? std::make_optional(operand(2)) : std::nullopt;
+    return has_predicate_ ? std::make_optional(operand(kPredicateOperand))
+                          : std::nullopt;
   }
 
   absl::StatusOr<int64_t> predicate_operand_number() const {
     if (!has_predicate_) {
       return absl::InternalError("predicate is not present");
     }
-    return 2;
+    return kPredicateOperand;
+  }
+
+  absl::Status AddPredicate(Node* predicate) {
+    XLS_RET_CHECK(!has_predicate_) << absl::StreamFormat(
+        "Cannot add predicate to node `%s` as it already has one", GetName());
+    AddOptionalOperand(predicate);
+    has_predicate_ = true;
+    return absl::OkStatus();
+  }
+
+  absl::Status RemovePredicate() {
+    XLS_RET_CHECK(has_predicate_) << absl::StreamFormat(
+        "Cannot remove predicate of node `%s` as it has none", GetName());
+    XLS_RETURN_IF_ERROR(RemoveOptionalOperand(kPredicateOperand));
+    has_predicate_ = false;
+    return absl::OkStatus();
   }
 
   bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:
+  static constexpr int64_t kPredicateOperand = 2;
+
   bool has_predicate_;
 };
 

@@ -859,6 +859,23 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
   return absl::OkStatus();
 }
 
+absl::Status Node::RemoveOptionalOperand(int64_t operand_no) {
+  XLS_RET_CHECK_EQ(operand_no, operands_.size() - 1);
+  Node* old_operand = operands_[operand_no];
+  ++package()->transform_metrics().operands_removed;
+
+  operands_.pop_back();
+
+  for (Node* operand : operands()) {
+    if (operand == old_operand) {
+      return absl::OkStatus();
+    }
+  }
+  // old_operand is no longer an operand of this node.
+  old_operand->RemoveUser(this);
+  return absl::OkStatus();
+}
+
 absl::Status Node::ReplaceUsesWith(Node* replacement,
                                    const std::function<bool(Node*)>& filter,
                                    bool replace_implicit_uses) {

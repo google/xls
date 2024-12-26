@@ -15,6 +15,7 @@
 #include "xls/passes/canonicalization_pass.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -44,6 +45,9 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
+using ::testing::Optional;
 
 class CanonicalizePassTest : public IrTestBase {
  protected:
@@ -293,6 +297,56 @@ TEST_F(CanonicalizePassTest, SelectWithGiantSelector) {
   EXPECT_THAT(f->return_value(), m::Select(m::Param("p"),
                                            /*cases=*/{m::Param("x")},
                                            /*default_value=*/m::Param("y")));
+}
+
+TEST_F(CanonicalizePassTest, NextValueWithAlwaysTruePredicate) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(R"(
+     proc test(st: bits[1], init={0}) {
+        literal.1: bits[1] = literal(value=1)
+        next_value.2: () = next_value(param=st, value=literal.1, predicate=literal.1)
+     }
+  )",
+                                                  p.get()));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("st"), m::Literal(1),
+                                  /*predicate=*/m::Literal(1))));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(/*state_read=*/m::StateRead("st"),
+                                  /*value=*/m::Literal(1))));
+}
+
+TEST_F(CanonicalizePassTest, NextValueWithAlwaysFalsePredicate) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, ParseProc(R"(
+     proc test(st: bits[1], init={1}) {
+        literal.1: bits[1] = literal(value=0)
+        next_value.2: () = next_value(param=st, value=literal.1, predicate=literal.1)
+     }
+  )",
+                                                  p.get()));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("st"), m::Literal(0),
+                                  /*predicate=*/m::Literal(0))));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(proc->next_values(), IsEmpty());
+}
+
+TEST_F(CanonicalizePassTest, StateReadWithAlwaysTruePredicate) {
+  auto p = CreatePackage();
+  ProcBuilder pb("test", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)),
+                             /*read_predicate=*/pb.Literal(UBits(1, 1)));
+  pb.Next(x, pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+  EXPECT_THAT(proc->GetStateRead(int64_t{0})->predicate(),
+              Optional(m::Literal(1)));
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateRead(int64_t{0})->predicate(), std::nullopt);
 }
 
 }  // namespace
