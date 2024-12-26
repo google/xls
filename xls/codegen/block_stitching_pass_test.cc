@@ -316,7 +316,8 @@ TEST_F(BlockStitchingPassTest, StitchNetworkWithDirectConnections) {
       p->GetBlock("top_proc").value()->GetInstantiations(),
       UnorderedElementsAre(
           m::Instantiation(proc1->name() + "_inst0", InstantiationKind::kBlock),
-          m::Instantiation("top_proc__1_inst1", InstantiationKind::kBlock)));
+          m::Instantiation("top_proc__1_inst1", InstantiationKind::kBlock),
+          m::Instantiation(HasSubstr("fifo_ch1"), InstantiationKind::kFifo)));
   XLS_ASSERT_OK_AND_ASSIGN(xls::Instantiation * inst0,
                            p->GetBlock("top_proc")
                                .value()
@@ -324,6 +325,14 @@ TEST_F(BlockStitchingPassTest, StitchNetworkWithDirectConnections) {
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::Instantiation * inst1,
       p->GetBlock("top_proc").value()->GetInstantiation("top_proc__1_inst1"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * inst2,
+      p->GetBlock("top_proc").value()->GetInstantiation("fifo_ch1"));
+  ASSERT_EQ(inst2->kind(), InstantiationKind::kFifo);
+  XLS_ASSERT_OK_AND_ASSIGN(xls::FifoInstantiation * fifo_inst,
+                           inst2->AsFifoInstantiation());
+  EXPECT_EQ(fifo_inst->fifo_config().depth(), 0);
+
   EXPECT_THAT(
       p->GetBlock("top_proc").value()->nodes(),
       IsSupersetOf({
@@ -331,20 +340,23 @@ TEST_F(BlockStitchingPassTest, StitchNetworkWithDirectConnections) {
                                 Eq(inst1)),
           m::InstantiationInput(m::InputPort("ch0_data"), "ch0_data",
                                 Eq(inst1)),
-          m::InstantiationInput(
-              m::InstantiationOutput(
-                  "ch1_ready", m::Instantiation(proc1->name() + "_inst0")),
-              "ch1_ready", Eq(inst1)),
-          m::InstantiationOutput("ch1_data", Eq(inst1)),
-          m::InstantiationOutput("ch1_valid", Eq(inst1)),
+          m::InstantiationInput(m::InstantiationOutput(
+                                    "push_ready", m::Instantiation("fifo_ch1")),
+                                "ch1_ready", Eq(inst1)),
+          m::InstantiationOutput("pop_data", Eq(fifo_inst)),
+          m::InstantiationOutput("pop_valid", Eq(fifo_inst)),
+          m::InstantiationInput(m::InstantiationOutput("ch1_data", Eq(inst1)),
+                                "push_data", m::Instantiation("fifo_ch1")),
+          m::InstantiationInput(m::InstantiationOutput("ch1_valid", Eq(inst1)),
+                                "push_valid", m::Instantiation("fifo_ch1")),
+          m::InstantiationInput(m::InstantiationOutput("ch1_ready", Eq(inst0)),
+                                "pop_ready", m::Instantiation("fifo_ch1")),
           m::InstantiationOutput("ch0_ready", Eq(inst1)),
           m::InstantiationInput(
-              m::InstantiationOutput("ch1_valid",
-                                     m::Instantiation("top_proc__1_inst1")),
+              m::InstantiationOutput("pop_valid", m::Instantiation("fifo_ch1")),
               "ch1_valid", Eq(inst0)),
           m::InstantiationInput(
-              m::InstantiationOutput("ch1_data",
-                                     m::Instantiation("top_proc__1_inst1")),
+              m::InstantiationOutput("pop_data", m::Instantiation("fifo_ch1")),
               "ch1_data", Eq(inst0)),
           m::InstantiationInput(m::InputPort("ch2_ready"), "ch2_ready",
                                 Eq(inst0)),
@@ -457,7 +469,8 @@ TEST_F(BlockStitchingPassTest, StitchBlockWithLoopback) {
       p->GetBlock("top_proc").value()->GetInstantiations(),
       UnorderedElementsAre(
           m::Instantiation(proc1->name() + "_inst0", InstantiationKind::kBlock),
-          m::Instantiation("top_proc__1_inst1", InstantiationKind::kBlock)));
+          m::Instantiation("top_proc__1_inst1", InstantiationKind::kBlock),
+          m::Instantiation("fifo_ch2", InstantiationKind::kFifo)));
   XLS_ASSERT_OK_AND_ASSIGN(xls::Instantiation * inst0,
                            p->GetBlock("top_proc")
                                .value()
@@ -472,20 +485,21 @@ TEST_F(BlockStitchingPassTest, StitchBlockWithLoopback) {
                                 Eq(inst1)),
           m::InstantiationInput(m::InputPort("ch0_data"), "ch0_data",
                                 Eq(inst1)),
-          m::InstantiationInput(
-              m::InstantiationOutput(
-                  "ch2_ready", m::Instantiation(proc1->name() + "_inst0")),
-              "ch2_ready", Eq(inst1)),
+          m::InstantiationInput(m::InstantiationOutput(
+                                    "push_ready", m::Instantiation("fifo_ch2")),
+                                "ch2_ready", Eq(inst1)),
+          m::InstantiationInput(m::InstantiationOutput("ch2_data", Eq(inst1)),
+                                "push_data", m::Instantiation("fifo_ch2")),
+          m::InstantiationInput(m::InstantiationOutput("ch2_valid", Eq(inst1)),
+                                "push_valid", m::Instantiation("fifo_ch2")),
           m::InstantiationOutput("ch2_data", Eq(inst1)),
           m::InstantiationOutput("ch2_valid", Eq(inst1)),
           m::InstantiationOutput("ch0_ready", Eq(inst1)),
           m::InstantiationInput(
-              m::InstantiationOutput("ch2_valid",
-                                     m::Instantiation("top_proc__1_inst1")),
+              m::InstantiationOutput("pop_valid", m::Instantiation("fifo_ch2")),
               "ch2_valid", Eq(inst0)),
           m::InstantiationInput(
-              m::InstantiationOutput("ch2_data",
-                                     m::Instantiation("top_proc__1_inst1")),
+              m::InstantiationOutput("pop_data", m::Instantiation("fifo_ch2")),
               "ch2_data", Eq(inst0)),
           m::InstantiationInput(m::InputPort("ch3_ready"), "ch3_ready",
                                 Eq(inst0)),
@@ -588,7 +602,8 @@ TEST_F(BlockStitchingPassTest, StitchBlockWithIdleOutput) {
                                                 m::Block(proc1->name())));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
-  ASSERT_EQ(top_block->GetInstantiations().size(), 2);
+  // top_proc__1, proc1, and fifo
+  ASSERT_EQ(top_block->GetInstantiations().size(), 3);
   EXPECT_THAT(
       top_block->nodes(),
       Contains(m::OutputPort(
@@ -4908,7 +4923,7 @@ TEST_F(ProcInliningPassTest, ProcWithConditionalNonblockingReceives) {
   constexpr std::string_view ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=false, metadata="")
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=$1, metadata="")
 chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
 top proc foo(count: bits[32], init={0}) {
@@ -4944,7 +4959,8 @@ proc output_passthrough(state: bits[1], init={1}) {
   for (int64_t fifo_depth : {0, 1, 10}) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Package> p,
-        ParsePackage(absl::Substitute(ir_text, fifo_depth)));
+        ParsePackage(absl::Substitute(ir_text, fifo_depth,
+                                      fifo_depth == 0 ? "true" : "false")));
     EXPECT_THAT(
         p->GetFunctionBases(),
         UnorderedElementsAre(m::Proc("foo"), m::Proc("output_passthrough")));

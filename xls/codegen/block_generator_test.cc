@@ -90,8 +90,8 @@ using ::testing::HasSubstr;
 constexpr char kTestName[] = "block_generator_test";
 constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
-inline constexpr std::string_view kFifoRTLText =
-    R"(// simple fifo implementation
+inline constexpr std::string_view kDepth1FifoRTLText =
+    R"(// simple fifo depth-1 implementation
 module xls_fifo_wrapper (
 clk, rst,
 push_ready, push_data, push_valid,
@@ -143,6 +143,43 @@ pop_ready,  pop_data,  pop_valid);
       end
     end
   end
+endmodule
+)";
+
+inline constexpr std::string_view kDepth0FifoRTLText =
+    R"(// simple fifo depth-1 implementation
+module xls_fifo_wrapper (
+clk, rst,
+push_ready, push_data, push_valid,
+pop_ready,  pop_data,  pop_valid);
+  parameter Width = 32,
+            Depth = 32,
+            EnableBypass = 0,
+            RegisterPushOutputs = 1,
+            RegisterPopOutputs = 1;
+  localparam AddrWidth = $clog2(Depth) + 1;
+  input  wire             clk;
+  input  wire             rst;
+  output wire             push_ready;
+  input  wire [Width-1:0] push_data;
+  input  wire             push_valid;
+  input  wire             pop_ready;
+  output wire [Width-1:0] pop_data;
+  output wire             pop_valid;
+
+  // Require depth be 1 and bypass disabled.
+  initial begin
+    if (EnableBypass != 1 || Depth != 0 || RegisterPushOutputs || RegisterPopOutputs) begin
+      // FIFO configuration not supported.
+      $fatal(1);
+    end
+  end
+
+
+  assign push_ready = pop_ready;
+  assign pop_valid = push_valid;
+  assign pop_data = push_data;
+
 endmodule
 )";
 
@@ -1572,8 +1609,9 @@ proc running_sum(first_cycle: bits[1], init={1}) {
 
   verilog = absl::StrCat("`include \"fifo.v\"\n\n", verilog);
 
-  VerilogInclude fifo_definition{.relative_path = "fifo.v",
-                                 .verilog_text = std::string{kFifoRTLText}};
+  VerilogInclude fifo_definition{
+      .relative_path = "fifo.v",
+      .verilog_text = std::string{kDepth1FifoRTLText}};
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog, /*macro_definitions=*/{},
@@ -1883,8 +1921,9 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
       MakeMultiProc(FifoConfig(/*depth=*/1, /*bypass=*/false,
                                /*register_push_outputs=*/true,
                                /*register_pop_outputs=*/false)));
-  VerilogInclude fifo_definition{.relative_path = "fifo.v",
-                                 .verilog_text = std::string{kFifoRTLText}};
+  VerilogInclude fifo_definition{
+      .relative_path = "fifo.v",
+      .verilog_text = std::string{kDepth1FifoRTLText}};
   std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
   result.module_generator_result.verilog_text = absl::StrCat(
@@ -1920,12 +1959,21 @@ TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
       MakeMultiProc(FifoConfig(/*depth=*/0, /*bypass=*/true,
                                /*register_push_outputs=*/false,
                                /*register_pop_outputs=*/false)));
-  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
-                                 result.module_generator_result.verilog_text);
+  VerilogInclude fifo_definition{
+      .relative_path = "fifo.v",
+      .verilog_text = std::string{kDepth0FifoRTLText}};
+  std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
 
-  ModuleSimulator simulator =
-      NewModuleSimulator(result.module_generator_result.verilog_text,
-                         result.module_generator_result.signature);
+  result.module_generator_result.verilog_text = absl::StrCat(
+      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.module_generator_result.verilog_text,
+                                 /*macro_definitions=*/{}, include_definitions);
+
+  ModuleSimulator simulator = NewModuleSimulator(
+      result.module_generator_result.verilog_text,
+      result.module_generator_result.signature, include_definitions);
 
   absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
   input_values["in"] = {UBits(0, 32), UBits(20, 32), UBits(30, 32)};

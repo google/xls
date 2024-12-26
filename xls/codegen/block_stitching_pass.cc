@@ -192,56 +192,6 @@ absl::Status StitchStreamingInputToFifo(
   return absl::OkStatus();
 }
 
-// Directly stitch a streaming output (i.e. a send on a streaming channel) to
-// its associated input (i.e. a receive on a streaming channel). This is used
-// when the FIFO configuration has depth 0.
-absl::Status StitchStreamingOutputToInput(
-    const absl::flat_hash_map<Block*, ::xls::Instantiation*>& instantiations,
-    Block* block, const StreamingInput* input, const StreamingOutput* output) {
-  Block* in_block = input->port.value()->function_base()->AsBlockOrDie();
-  Block* out_block = output->port.value()->function_base()->AsBlockOrDie();
-  auto in_itr = instantiations.find(in_block);
-  if (in_itr == instantiations.end()) {
-    return absl::NotFoundError(
-        absl::StrCat("Could not find inst for ", *in_block));
-  }
-  auto out_itr = instantiations.find(out_block);
-  if (out_itr == instantiations.end()) {
-    return absl::NotFoundError(
-        absl::StrCat("Could not find inst for ", *out_block));
-  }
-  xls::Instantiation* in_inst = in_itr->second;
-  xls::Instantiation* out_inst = out_itr->second;
-  XLS_ASSIGN_OR_RETURN(
-      xls::Node * data,
-      block->MakeNode<xls::InstantiationOutput>(
-          SourceInfo(), out_inst, output->port.value()->GetName()));
-  XLS_ASSIGN_OR_RETURN(
-      xls::Node * valid,
-      block->MakeNode<xls::InstantiationOutput>(SourceInfo(), out_inst,
-                                                output->port_valid->GetName()));
-  XLS_ASSIGN_OR_RETURN(
-      xls::Node * ready,
-      block->MakeNode<xls::InstantiationOutput>(SourceInfo(), in_inst,
-                                                input->port_ready->GetName()));
-  XLS_RETURN_IF_ERROR(
-      block
-          ->MakeNode<xls::InstantiationInput>(SourceInfo(), data, in_inst,
-                                              input->port.value()->GetName())
-          .status());
-  XLS_RETURN_IF_ERROR(
-      block
-          ->MakeNode<xls::InstantiationInput>(SourceInfo(), valid, in_inst,
-                                              input->port_valid->GetName())
-          .status());
-  XLS_RETURN_IF_ERROR(
-      block
-          ->MakeNode<xls::InstantiationInput>(SourceInfo(), ready, out_inst,
-                                              output->port_ready->GetName())
-          .status());
-  return absl::OkStatus();
-}
-
 // Punch a streaming output through the container block. This happens when a
 // block has an external send on a streaming channel.
 absl::Status ExposeStreamingOutput(
@@ -416,29 +366,24 @@ absl::Status StitchStreamingChannel(
     XLS_RET_CHECK(channel->channel_config().fifo_config().has_value())
         << absl::StreamFormat("Channel %s has no fifo config.",
                               channel->name());
-    if (channel->channel_config().fifo_config()->depth() > 0) {
-      XLS_ASSIGN_OR_RETURN(
-          xls::Instantiation * instantiation,
-          container->AddInstantiation(
-              inst_name,
-              std::make_unique<xls::FifoInstantiation>(
-                  inst_name, *channel->channel_config().fifo_config(),
-                  channel->type(), channel->name(), container->package())));
-      XLS_RET_CHECK(container->GetResetPort().has_value());
-      XLS_RETURN_IF_ERROR(container
-                              ->MakeNode<xls::InstantiationInput>(
-                                  SourceInfo(), *container->GetResetPort(),
-                                  instantiation,
-                                  FifoInstantiation::kResetPortName)
-                              .status());
-      XLS_RETURN_IF_ERROR(StitchStreamingOutputToFifo(instantiations, container,
-                                                      instantiation, output));
-      XLS_RETURN_IF_ERROR(StitchStreamingInputToFifo(instantiations, container,
-                                                     instantiation, input));
-    } else {
-      XLS_RETURN_IF_ERROR(StitchStreamingOutputToInput(
-          instantiations, container, input, output));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        xls::Instantiation * instantiation,
+        container->AddInstantiation(
+            inst_name,
+            std::make_unique<xls::FifoInstantiation>(
+                inst_name, *channel->channel_config().fifo_config(),
+                channel->type(), channel->name(), container->package())));
+    XLS_RET_CHECK(container->GetResetPort().has_value());
+    XLS_RETURN_IF_ERROR(container
+                            ->MakeNode<xls::InstantiationInput>(
+                                SourceInfo(), *container->GetResetPort(),
+                                instantiation,
+                                FifoInstantiation::kResetPortName)
+                            .status());
+    XLS_RETURN_IF_ERROR(StitchStreamingOutputToFifo(instantiations, container,
+                                                    instantiation, output));
+    XLS_RETURN_IF_ERROR(StitchStreamingInputToFifo(instantiations, container,
+                                                   instantiation, input));
   } else if (has_input && !has_output) {
     XLS_RETURN_IF_ERROR(ExposeStreamingInput(instantiations, container, input));
   } else if (!has_input && has_output) {

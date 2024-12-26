@@ -1,3 +1,5 @@
+`include "fifo.v"
+
 module pipelined_proc__1(
   input wire clk,
   input wire rst,
@@ -127,34 +129,53 @@ module pipelined_proc(
   output wire out_vld
 );
   wire instantiation_output_130;
-  wire [31:0] instantiation_output_134;
-  wire instantiation_output_135;
+  wire [31:0] instantiation_output_135;
   wire instantiation_output_136;
-  wire [31:0] instantiation_output_140;
-  wire instantiation_output_141;
+  wire instantiation_output_143;
+  wire [31:0] instantiation_output_147;
+  wire instantiation_output_148;
+  wire instantiation_output_137;
+  wire [31:0] instantiation_output_141;
+  wire instantiation_output_142;
 
   // ===== Instantiations
   pipelined_proc__1 pipelined_proc__1_inst0 (
     .rst(rst),
     .in(in),
     .in_vld(in_vld),
-    .internal_rdy(instantiation_output_136),
+    .internal_rdy(instantiation_output_137),
     .in_rdy(instantiation_output_130),
-    .internal(instantiation_output_134),
-    .internal_vld(instantiation_output_135),
+    .internal(instantiation_output_135),
+    .internal_vld(instantiation_output_136),
     .clk(clk)
   );
   proc_out proc_out_inst1 (
     .rst(rst),
-    .internal(instantiation_output_134),
-    .internal_vld(instantiation_output_135),
+    .internal(instantiation_output_141),
+    .internal_vld(instantiation_output_142),
     .out_rdy(out_rdy),
-    .internal_rdy(instantiation_output_136),
-    .out(instantiation_output_140),
-    .out_vld(instantiation_output_141),
+    .internal_rdy(instantiation_output_143),
+    .out(instantiation_output_147),
+    .out_vld(instantiation_output_148),
     .clk(clk)
   );
+  xls_fifo_wrapper #(
+    .Width(32'd32),
+    .Depth(32'd0),
+    .EnableBypass(1'd1),
+    .RegisterPushOutputs(1'd0),
+    .RegisterPopOutputs(1'd0)
+  ) fifo_internal (
+    .clk(clk),
+    .rst(rst),
+    .push_data(instantiation_output_135),
+    .push_valid(instantiation_output_136),
+    .pop_ready(instantiation_output_143),
+    .push_ready(instantiation_output_137),
+    .pop_data(instantiation_output_141),
+    .pop_valid(instantiation_output_142)
+  );
   assign in_rdy = instantiation_output_130;
-  assign out = instantiation_output_140;
-  assign out_vld = instantiation_output_141;
+  assign out = instantiation_output_147;
+  assign out_vld = instantiation_output_148;
 endmodule

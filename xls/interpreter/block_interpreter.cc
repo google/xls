@@ -165,7 +165,12 @@ class FifoModel {
         output_valid_register_name_(
             absl::StrCat(instance_prefix_, kOutputValidRegisterName)),
         reg_state_(reg_state),
-        next_reg_state_(next_reg_state) {}
+        next_reg_state_(next_reg_state) {
+    if (config_.depth() == 0) {
+      CHECK(config_.bypass() && !config_.register_pop_outputs() &&
+            !config_.register_push_outputs());
+    }
+  }
 
   absl::Status HandleInput(InstantiationInput* input, const Value& value) {
     if (input->port_name() == FifoInstantiation::kResetPortName) {
@@ -183,6 +188,12 @@ class FifoModel {
     if (!(push_valid_.has_value() && push_data_.has_value() &&
           pop_ready_.has_value() && reset_.has_value())) {
       // Not yet ready to compute next state.
+      return absl::OkStatus();
+    }
+    // No need to do anything else if the FIFO has depth 0, we'll just pass
+    // through the inputs.
+    if (config_.depth() == 0) {
+      NextElements() = Value::Tuple({});
       return absl::OkStatus();
     }
     XLS_RET_CHECK(Elements().IsTuple());
@@ -937,8 +948,8 @@ class StatelessBlockContinuation final : public BlockContinuation {
 };
 
 template <typename Evaluate>
-StatelessBlockContinuation(BlockElaboration&&, BlockRunResult&&,
-                           Evaluate) -> StatelessBlockContinuation<Evaluate>;
+StatelessBlockContinuation(BlockElaboration&&, BlockRunResult&&, Evaluate)
+    -> StatelessBlockContinuation<Evaluate>;
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<BlockContinuation>>
