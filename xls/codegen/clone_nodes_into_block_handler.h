@@ -341,13 +341,16 @@ class CloneNodesIntoBlockHandler {
     }
 
     // The register write will be created later in HandleNextValue.
-    result_.state_registers[index] =
-        StateRegister{.name = std::string(state_element->name()),
-                      .reset_value = state_element->initial_value(),
-                      .read_stage = stage,
-                      .reg = reg,
-                      .reg_write = nullptr,
-                      .reg_read = reg_read};
+    result_.state_registers[index] = StateRegister{
+        .name = std::string(state_element->name()),
+        .reset_value = state_element->initial_value(),
+        .read_stage = stage,
+        .read_predicate = state_read->predicate().has_value()
+                              ? node_map_.at(*state_read->predicate())
+                              : nullptr,
+        .reg = reg,
+        .reg_write = nullptr,
+        .reg_read = reg_read};
 
     result_.input_states[stage].push_back(index);
 

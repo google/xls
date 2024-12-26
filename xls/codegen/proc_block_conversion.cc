@@ -27,6 +27,7 @@
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -334,12 +335,20 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
             block->MakeNode<NaryOp>(write_loc, determined_conditions, Op::kOr));
       }
 
+      // The state register is read from iff the reading stage is active and the
+      // read predicate (if any) is true.
+      absl::InlinedVector<Node*, 2> read_conditions(
+          {state_enables.at(state_register->read_stage)});
+      if (state_register->read_predicate != nullptr) {
+        read_conditions.push_back(state_register->read_predicate);
+      }
+      XLS_ASSIGN_OR_RETURN(Node * value_consumed,
+                           NaryAndIfNeeded(block, read_conditions));
+
       XLS_ASSIGN_OR_RETURN(
           Node * reg_full_load_enable,
           block->MakeNode<NaryOp>(
-              write_loc,
-              std::vector<Node*>{state_enables.at(state_register->read_stage),
-                                 value_determined},
+              write_loc, std::vector<Node*>{value_consumed, value_determined},
               Op::kOr));
       XLS_ASSIGN_OR_RETURN(
           RegisterWrite * new_reg_full_write,
@@ -445,7 +454,43 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
         // always be valid.
         continue;
       }
-      active_valids.push_back(state_register->reg_full_read);
+
+      // The state is valid if it's full, or if we know it's unread (and thus
+      // not written to either) in the activation that's currently at the stage
+      // that wants to read it.
+      std::string state_valid_name = "";
+      absl::InlinedVector<Node*, 2> state_valid_conditions(
+          {state_register->reg_full_read});
+      if (state_register->read_predicate != nullptr) {
+        // Don't block if we're not reading the state.
+
+        // If predicate has an assigned name, let the not expression get
+        // inlined. Otherwise, give a descriptive name.
+        std::string name = "";
+        if (!state_register->read_predicate->HasAssignedName()) {
+          name = absl::StrFormat("%s_not_read", state_register->name);
+        }
+        XLS_ASSIGN_OR_RETURN(
+            Node * unread, block->MakeNodeWithName<UnOp>(
+                               state_register->reg_full_read->loc(),
+                               state_register->read_predicate, Op::kNot, name));
+
+        // not_read will have an assigned name or be inlined, so only check the
+        // state full register read. If it has an assigned name, just let
+        // everything inline. Otherwise, give a descriptive name.
+        if (!state_register->reg_full_read->HasAssignedName()) {
+          state_valid_name =
+              absl::StrFormat("%s_state_valid", state_register->name);
+        }
+        state_valid_conditions.push_back(unread);
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          Node * state_valid,
+          NaryOrIfNeeded(block, state_valid_conditions,
+                         /*name=*/state_valid_name,
+                         /*loc=*/state_register->reg_full_read->loc()));
+      active_valids.push_back(state_valid);
     }
 
     // And reduce all the active valid signals. This signal is true iff all

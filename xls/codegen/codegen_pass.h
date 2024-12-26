@@ -175,6 +175,7 @@ struct StateRegister {
   std::string name;
   Value reset_value;
   Stage read_stage;
+  Node* read_predicate;
   std::vector<NextValue> next_values;
   Register* reg;
   RegisterWrite* reg_write;

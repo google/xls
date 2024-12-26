@@ -5605,6 +5605,252 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
                           5, 5, std::nullopt, 6, 6, std::nullopt, 7, 7))));
 }
 
+class AddPredicate : public Proc::StateElementTransformer {
+ public:
+  explicit AddPredicate(Node* predicate) : predicate_(predicate) {}
+  ~AddPredicate() override = default;
+
+  absl::StatusOr<std::optional<Node*>> TransformReadPredicate(
+      Proc* proc, StateRead* old_state_read) override {
+    return predicate_;
+  }
+
+ private:
+  Node* predicate_;
+};
+
+TEST_F(ProcConversionTestFixture, ProcWithDynamicStateReads) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1], init={0, 5, 0}) {
+  tkn: token = literal(value=token)
+  lit1: bits[32] = literal(value=1)
+  selected_counter: bits[32] = sel(index, cases=[counter0, counter1])
+  send.1: token = send(tkn, selected_counter, channel=out)
+  incremented_counter: bits[32] = add(selected_counter, lit1)
+  index_is_0: bits[1] = not(index)
+  index_is_1: bits[1] = identity(index)
+  increment_counter0: () = next_value(param=counter0, value=incremented_counter, predicate=index_is_0)
+  increment_counter1: () = next_value(param=counter1, value=incremented_counter, predicate=index_is_1)
+  next_index: () = next_value(param=index, value=index_is_0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           package->GetProc("alternating_counter"));
+  AddPredicate only_on_0(*proc->GetNode("index_is_0"));
+  AddPredicate only_on_1(*proc->GetNode("index_is_1"));
+  XLS_ASSERT_OK(proc->TransformStateElement(
+                        proc->GetStateRead(*proc->GetStateElement("counter0")),
+                        Value(UBits(0, 32)), only_on_0)
+                    .status());
+  XLS_ASSERT_OK(proc->TransformStateElement(
+                        proc->GetStateRead(*proc->GetStateElement("counter1")),
+                        Value(UBits(5, 32)), only_on_1)
+                    .status());
+
+  ASSERT_THAT(
+      proc->next_values(proc->GetStateRead(*proc->GetStateElement("counter0"))),
+      SizeIs(1));
+  ASSERT_THAT(
+      proc->next_values(proc->GetStateRead(*proc->GetStateElement("counter1"))),
+      SizeIs(1));
+  SchedulingOptions scheduling_options =
+      SchedulingOptions()
+          .pipeline_stages(3)
+          .worst_case_throughput(2)
+          .add_constraint(
+              NodeInCycleConstraint(*proc->GetNode("selected_counter"), 0))
+          .add_constraint(NodeInCycleConstraint(
+              *proc->next_values(
+                       proc->GetStateRead(*proc->GetStateElement("counter0")))
+                   .begin(),
+              1))
+          .add_constraint(NodeInCycleConstraint(
+              *proc->next_values(
+                       proc->GetStateRead(*proc->GetStateElement("counter1")))
+                   .begin(),
+              1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), scheduling_options));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("alternating_counter");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
+
+  std::vector<ChannelSource> sources{};
+  std::vector<ChannelSink> sinks{
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 1.0, unit.top_block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kAttendValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> non_streaming_inputs(
+      32, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{reset_name, reset_active}},
+                                     non_streaming_inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          unit.top_block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+          non_streaming_inputs, options.reset()));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+      results.inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+      results.outputs;
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  EXPECT_THAT(sinks.at(0).GetOutputCycleSequenceAsUint64(),
+              IsOkAndHolds(Skipping(
+                  10, ElementsAre(0, 5, 1, 6, 2, 7, 3, 8, 4, 9, 5, 10, 6, 11, 7,
+                                  12, 8, 13, 9, 14, 10, 15))));
+}
+
+TEST_F(ProcConversionTestFixture, ProcWithComplexDynamicStateFeedback) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1], init={0, 5, 0}) {
+  tkn: token = literal(value=token)
+  lit1: bits[32] = literal(value=1)
+  selected_counter: bits[32] = sel(index, cases=[counter0, counter1])
+  send.1: token = send(tkn, selected_counter, channel=out)
+  incremented_counter: bits[32] = add(selected_counter, lit1)
+  index_is_0: bits[1] = not(index)
+  index_is_1: bits[1] = identity(index)
+  increment_counter0: () = next_value(param=counter0, value=incremented_counter, predicate=index_is_0)
+  increment_counter1: () = next_value(param=counter1, value=incremented_counter, predicate=index_is_1)
+  next_index: () = next_value(param=index, value=index_is_0)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           package->GetProc("alternating_counter"));
+  AddPredicate only_on_0(*proc->GetNode("index_is_0"));
+  AddPredicate only_on_1(*proc->GetNode("index_is_1"));
+  XLS_ASSERT_OK(proc->TransformStateElement(
+                        proc->GetStateRead(*proc->GetStateElement("counter0")),
+                        Value(UBits(0, 32)), only_on_0)
+                    .status());
+  XLS_ASSERT_OK(proc->TransformStateElement(
+                        proc->GetStateRead(*proc->GetStateElement("counter1")),
+                        Value(UBits(5, 32)), only_on_1)
+                    .status());
+
+  SchedulingOptions scheduling_options =
+      SchedulingOptions()
+          .pipeline_stages(3)
+          .worst_case_throughput(3)
+          .add_constraint(
+              NodeInCycleConstraint(*proc->GetNode("selected_counter"), 0))
+          .add_constraint(NodeInCycleConstraint(
+              *proc->next_values(
+                       proc->GetStateRead(*proc->GetStateElement("counter0")))
+                   .begin(),
+              2))
+          .add_constraint(NodeInCycleConstraint(
+              *proc->next_values(
+                       proc->GetStateRead(*proc->GetStateElement("counter1")))
+                   .begin(),
+              1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, TestDelayEstimator(), scheduling_options));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("alternating_counter");
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
+                                                     schedule, options, proc));
+
+  std::vector<ChannelSource> sources{};
+  std::vector<ChannelSink> sinks{
+      ChannelSink(
+          "out_data", "out_valid", "out_ready", 1.0, unit.top_block,
+          /*reset_behavior=*/ChannelSink::BehaviorDuringReset::kAttendValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> non_streaming_inputs(
+      32, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{reset_name, reset_active}},
+                                     non_streaming_inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          unit.top_block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+          non_streaming_inputs, options.reset()));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+      results.inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+      results.outputs;
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  EXPECT_THAT(
+      sinks.at(0).GetOutputCycleSequenceAsUint64(),
+      IsOkAndHolds(Skipping(
+          10, ElementsAre(0, 5, std::nullopt, 1, 6, std::nullopt, 2, 7,
+                          std::nullopt, 3, 8, std::nullopt, 4, 9, std::nullopt,
+                          5, 10, std::nullopt, 6, 11, std::nullopt, 7))));
+}
+
 TEST_F(BlockConversionTest, SimpleMutualExclusiveRegions) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), p.get());
