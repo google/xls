@@ -26,7 +26,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -54,6 +53,24 @@
 #include "xls/ir/value_utils.h"
 
 namespace xls {
+namespace {
+
+// Produces a vector of nodes from the given span removing duplicates. The
+// first instance of each node is kept and subsequent duplicates are dropped,
+// e.g. RemoveDuplicateNodes({a, b, a, c, a, d}) -> {a, b, c, d}.
+std::vector<Node*> RemoveDuplicateNodes(absl::Span<Node* const> values) {
+  absl::flat_hash_set<Node*> unique_values_set(values.begin(), values.end());
+  std::vector<Node*> unique_values_vector;
+  unique_values_vector.reserve(unique_values_set.size());
+  for (Node* value : values) {
+    if (auto extracted = unique_values_set.extract(value)) {
+      unique_values_vector.push_back(extracted.value());
+    }
+  }
+  return unique_values_vector;
+}
+
+}  // namespace
 
 bool IsLiteralWithRunOfSetBits(Node* node, int64_t* leading_zero_count,
                                int64_t* set_bit_count,
@@ -347,15 +364,12 @@ absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
     return f->MakeNodeWithName<Literal>(source_info, Value(UBits(1, 1)), name);
   }
 
-  absl::btree_set<Node*, Node::NodeIdLessThan> unique_operands(operands.begin(),
-                                                               operands.end());
+  std::vector<Node*> unique_operands = RemoveDuplicateNodes(operands);
   if (unique_operands.size() == 1) {
-    return operands[0];
+    return unique_operands[0];
   }
-  return f->MakeNodeWithName<NaryOp>(
-      source_info,
-      std::vector<Node*>(unique_operands.begin(), unique_operands.end()),
-      Op::kAnd, name);
+  return f->MakeNodeWithName<NaryOp>(source_info, unique_operands, Op::kAnd,
+                                     name);
 }
 
 absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
@@ -366,15 +380,12 @@ absl::StatusOr<Node*> NaryOrIfNeeded(FunctionBase* f,
     return f->MakeNodeWithName<Literal>(source_info, Value(UBits(0, 1)), name);
   }
 
-  absl::btree_set<Node*, Node::NodeIdLessThan> unique_operands(operands.begin(),
-                                                               operands.end());
+  std::vector<Node*> unique_operands = RemoveDuplicateNodes(operands);
   if (unique_operands.size() == 1) {
-    return operands[0];
+    return unique_operands[0];
   }
-  return f->MakeNodeWithName<NaryOp>(
-      source_info,
-      std::vector<Node*>(unique_operands.begin(), unique_operands.end()),
-      Op::kOr, name);
+  return f->MakeNodeWithName<NaryOp>(source_info, unique_operands, Op::kOr,
+                                     name);
 }
 
 absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
@@ -382,15 +393,14 @@ absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
                                       std::string_view name,
                                       const SourceInfo& source_info) {
   XLS_RET_CHECK(!operands.empty());
-  absl::btree_set<Node*, Node::NodeIdLessThan> unique_operands(operands.begin(),
-                                                               operands.end());
+
+  std::vector<Node*> unique_operands = RemoveDuplicateNodes(operands);
   if (unique_operands.size() == 1) {
-    return f->MakeNodeWithName<UnOp>(source_info, operands[0], Op::kNot, name);
+    return f->MakeNodeWithName<UnOp>(source_info, unique_operands[0], Op::kNot,
+                                     name);
   }
-  return f->MakeNodeWithName<NaryOp>(
-      source_info,
-      std::vector<Node*>(unique_operands.begin(), unique_operands.end()),
-      Op::kNor, name);
+  return f->MakeNodeWithName<NaryOp>(source_info, unique_operands, Op::kNor,
+                                     name);
 }
 
 bool IsUnsignedCompare(Node* node) {

@@ -45,5 +45,5 @@ module neg_proc(
   assign out = __out_reg;
   assign out_vld = __out_valid_reg;
   assign in_rdy = in_load_en;
-  assign idle = ~(in_vld | __in_valid_reg | __out_valid_reg);
+  assign idle = ~(__in_valid_reg | __out_valid_reg | in_vld);
 endmodule

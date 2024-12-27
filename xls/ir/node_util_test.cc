@@ -481,8 +481,8 @@ TEST_F(NodeUtilTest, NaryNorWithMultipleInputs) {
       NaryNorIfNeeded(
           f, std::vector<Node*>{a0.node(), a3.node(), a2.node(), a1.node(),
                                 a4.node(), a1.node(), a3.node(), a1.node()}),
-      IsOkAndHolds(m::Nor(m::Param("a0"), m::Param("a1"), m::Param("a2"),
-                          m::Param("a3"), m::Param("a4"))));
+      IsOkAndHolds(m::Nor(m::Param("a0"), m::Param("a3"), m::Param("a2"),
+                          m::Param("a1"), m::Param("a4"))));
 }
 
 TEST_F(NodeUtilTest, ChannelUsers) {

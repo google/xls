@@ -1317,7 +1317,6 @@ cc_library(
         "//xls/data_structures:inline_bitmap",
         "//xls/data_structures:leaf_type_tree",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log:check",
