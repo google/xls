@@ -27,5 +27,5 @@ proc __test_module__Counter_0_next(__state: bits[32], init={0}) {
   __token: token = literal(value=token, id=6)
   tuple_index.11: token = tuple_index(receive.10, index=0, id=11)
   tok__1: token = send(tok, next_state, predicate=literal.8, channel=test_module__out_ch, id=16)
-  next (next_state)
+  next_value.17: () = next_value(param=__state, value=next_state, id=17)
 }

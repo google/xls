@@ -2788,9 +2788,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
-  BValue result = std::get<BValue>(node_to_ir_[f->body()]);
+  builder_ptr->Next(state, std::get<BValue>(node_to_ir_[f->body()]));
 
-  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build({result}));
+  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build());
   package_data_.ir_to_dslx[p] = f;
   return absl::OkStatus();
 }
