@@ -1273,6 +1273,8 @@ void LibToolThread::Run() {
   argv.emplace_back("-Wno-c++11-narrowing");
   argv.emplace_back("-Wno-conversion");
   argv.emplace_back("-Wno-missing-template-arg-list-after-template-kw");
+  // Needed for ASM to work properly on ARM
+  argv.emplace_back("--target=x86_64-linux-android");
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;
 
