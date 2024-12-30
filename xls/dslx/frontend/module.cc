@@ -85,6 +85,9 @@ std::string Module::ToString() const {
             case ModuleAnnotation::kTypeInferenceVersion2:
               absl::StrAppend(out, "#![type_inference_version = 2]");
               break;
+            case ModuleAnnotation::kAllowUseSyntax:
+              absl::StrAppend(out, "#![feature(use_syntax)]");
+              break;
           }
         });
     return absl::StrCat(header, "\n\n", body);

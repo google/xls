@@ -1738,7 +1738,9 @@ fn divmod() {})*";
 
 TEST(AstClonerTest, Use) {
   constexpr std::string_view kProgram =
-      R"(use foo::bar::{baz::{bat, qux}, ipsum};)";
+      R"(#![feature(use_syntax)]
+
+use foo::bar::{baz::{bat, qux}, ipsum};)";
 
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",

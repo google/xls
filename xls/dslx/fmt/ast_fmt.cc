@@ -2897,6 +2897,10 @@ absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
           pieces.push_back(arena_.MakeText("#![type_inference_version = 2]"));
           pieces.push_back(arena_.hard_line());
           break;
+        case ModuleAnnotation::kAllowUseSyntax:
+          pieces.push_back(arena_.MakeText("#![feature(use_syntax)]"));
+          pieces.push_back(arena_.hard_line());
+          break;
       }
     }
     pieces.push_back(arena_.hard_line());
