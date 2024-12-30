@@ -664,45 +664,6 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
                                         std::move(edge_set));
     }
 
-    // The operands of single-bit logical operations may not be observable
-    // depending on the value of the *other* operands. For example, given:
-    //
-    //    OR(X, Y, Z)
-    //
-    // The value X is not observable if Y or Z is one, so we can assume in the
-    // computation of X that Y and Z are zero. Similar assumptions can be made
-    // for other logical operations (NOR, NAD, NAND).
-    //
-    // This can only be used when a (BDD) query engine is *not* used because as
-    // soon as the graph is transformed the query engine becomes stale. This is
-    // not the case with the select-based transformations because of the mutual
-    // exclusion of the assumed conditions.
-    //
-    // TODO(b/323003986): Incrementally update the BDD.
-    if ((node->op() == Op::kOr || node->op() == Op::kNor ||
-         node->op() == Op::kAnd || node->op() == Op::kNand) &&
-        node->BitCountOrDie() == 1 && !use_bdd_) {
-      // The value you can assume other operands have in the computation of this
-      // operand.
-      TernaryValue assumed_operand_value =
-          (node->op() == Op::kOr || node->op() == Op::kNor)
-              ? TernaryValue::kKnownZero
-              : TernaryValue::kKnownOne;
-      for (int64_t i = 0; i < node->operand_count(); ++i) {
-        if (node->operand(i)->Is<Literal>()) {
-          continue;
-        }
-        ConditionSet edge_set = set;
-        for (int64_t j = 0; j < node->operand_count(); ++j) {
-          if (i != j && !node->operand(j)->Is<Literal>()) {
-            edge_set.AddCondition(Condition{.node = node->operand(j),
-                                            .value = {assumed_operand_value}});
-          }
-        }
-        condition_map.SetEdgeConditionSet(node, i, std::move(edge_set));
-      }
-    }
-
     if (node->Is<Send>()) {
       Send* send = node->As<Send>();
       if (!send->predicate().has_value()) {
