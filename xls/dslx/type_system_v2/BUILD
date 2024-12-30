@@ -108,6 +108,54 @@ cc_test(
 )
 
 cc_library(
+    name = "solve_for_parametrics",
+    srcs = ["solve_for_parametrics.cc"],
+    hdrs = ["solve_for_parametrics.h"],
+    deps = [
+        ":type_annotation_utils",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:zip_ast",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "solve_for_parametrics_test",
+    srcs = ["solve_for_parametrics_test.cc"],
+    deps = [
+        ":solve_for_parametrics",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:scanner",
+        "//xls/ir:bits",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "typecheck_module_v2",
     srcs = ["typecheck_module_v2.cc"],
     hdrs = ["typecheck_module_v2.h"],
