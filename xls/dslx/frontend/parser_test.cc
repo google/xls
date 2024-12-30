@@ -1666,38 +1666,48 @@ fn foo() -> bar::T<2>[3] {
 }
 
 TEST_F(ParserTest, UseOneItemFromModule) {
-  RoundTrip(R"(use foo::BAR;
+  RoundTrip(R"(#![feature(use_syntax)]
+
+use foo::BAR;
 fn main() -> u32 {
     BAR
 })");
 }
 
 TEST_F(ParserTest, UseTwoItemsFromModule) {
-  RoundTrip(R"(use foo::{BAR, BAZ};
+  RoundTrip(R"(#![feature(use_syntax)]
+
+use foo::{BAR, BAZ};
 fn main() -> u32 {
     BAR + BAZ
 })");
 }
 
 TEST_F(ParserTest, UseWithNestedLevels) {
-  RoundTrip(R"(use foo::{bar::{baz, qux}, quux};
+  RoundTrip(R"(#![feature(use_syntax)]
+
+use foo::{bar::{baz, qux}, quux};
 fn main() -> u32 {
     baz + qux + quux
 })");
 }
 
 TEST_F(ParserTest, UseCollidesWithImport) {
-  constexpr std::string_view kProgram = "use foo; import foo;";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+
+use foo; import foo;
+)";
   absl::StatusOr<std::unique_ptr<Module>> module = Parse(kProgram);
   EXPECT_THAT(
       module.status(),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Import of `foo` is shadowing an existing definition")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("`import` syntax is disabled for this module via "
+                         "`#![feature(use_syntax)]` at module scope")));
 }
 
 TEST_F(ParserTest, UseWithPeersAtTopLevelNotAllowed) {
-  constexpr std::string_view kProgram = "use {foo, bar};";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use {foo, bar};)";
   absl::StatusOr<std::unique_ptr<Module>> module = Parse(kProgram);
   EXPECT_THAT(
       module.status(),

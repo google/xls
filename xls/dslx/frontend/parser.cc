@@ -257,6 +257,16 @@ absl::Status Parser::ParseModuleAttribute() {
   Span identifier_span;
   XLS_ASSIGN_OR_RETURN(std::string identifier,
                        PopIdentifierOrError(&identifier_span));
+  if (identifier == "feature") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(std::string feature, PopIdentifierOrError());
+    if (feature == "use_syntax") {
+      module_->AddAnnotation(ModuleAnnotation::kAllowUseSyntax);
+    }
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    return absl::OkStatus();
+  }
   if (identifier == "type_inference_version") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
     XLS_RETURN_IF_ERROR(ParseTypeInferenceVersionAttribute());
@@ -474,11 +484,25 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kImport: {
+        if (module_->annotations().contains(
+                ModuleAnnotation::kAllowUseSyntax)) {
+          return ParseErrorStatus(
+              peek->span(),
+              "`import` syntax is disabled for this module via "
+              "`#![feature(use_syntax)]` at module scope; use `use` instead");
+        }
         XLS_ASSIGN_OR_RETURN(Import * import, ParseImport(*bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(import, make_collision_error));
         break;
       }
       case Keyword::kUse: {
+        if (!module_->annotations().contains(
+                ModuleAnnotation::kAllowUseSyntax)) {
+          return ParseErrorStatus(
+              peek->span(),
+              "`use` syntax is not enabled for this module; enable with "
+              "`#![feature(use_syntax)]` at module scope");
+        }
         XLS_ASSIGN_OR_RETURN(Use * use, ParseUse(*bindings));
         XLS_RETURN_IF_ERROR(module_->AddTop(use, make_collision_error));
         break;
