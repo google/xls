@@ -3181,7 +3181,19 @@ TEST_F(ParserTest, UnreasonablyDeepExpr) {
   Parser parser{"test", &s};
   absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(module, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("Expression is too deeply nested")));
+                               HasSubstr("Extremely deep nesting detected")));
+}
+
+// Previously we could avoid the nesting detector by entering an interior
+// production in the grammar like a Term.
+TEST_F(ParserTest, UnreasonablyDeepTermExprNesting) {
+  constexpr std::string_view kProgram = R"(const E=
+0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0(0()";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Extremely deep nesting detected")));
 }
 
 TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
