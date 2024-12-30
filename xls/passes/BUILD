@@ -1764,6 +1764,7 @@ cc_library(
         "//xls/common:module_initializer",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",

@@ -1072,5 +1072,85 @@ TEST_F(ConditionalSpecializationPassTest, NextValueChange) {
                                   m::StateRead("value2"), m::Eq())));
 }
 
+TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNot) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue s = fb.Not(a);
+  BValue result = fb.Select(s, {a, b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Select(m::Not(m::Param("a")), {m::Literal(1), m::Param("b")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughEq) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue s = fb.Eq(b, fb.Literal(UBits(1, 1)));
+  BValue result = fb.Select(s, {a, b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Select(m::Eq(m::Param("b"), m::Literal(1)),
+                                           {m::Param("a"), m::Literal(1)}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNe) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue s = fb.Ne(a, fb.Literal(UBits(1, 1)));
+  BValue result = fb.Select(s, {a, b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Select(m::Ne(m::Param("a"), m::Literal(1)),
+                                           {m::Literal(1), m::Param("b")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughOr) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue s = fb.Or(a, b);
+  BValue result = fb.Select(s, {a, b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Select(m::Or(m::Param("a"), m::Param("b")),
+                                           {m::Literal(0), m::Param("b")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughAnd) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u1 = p->GetBitsType(1);
+  BValue a = fb.Param("a", u1);
+  BValue b = fb.Param("b", u1);
+  BValue s = fb.And(a, b);
+  BValue result = fb.Select(s, {a, b});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(result));
+
+  solvers::z3::ScopedVerifyEquivalence sve{f};
+  EXPECT_THAT(Run(f, /*use_bdd=*/false), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Select(m::And(m::Param("a"), m::Param("b")),
+                                           {m::Param("a"), m::Literal(1)}));
+}
+
 }  // namespace
 }  // namespace xls
