@@ -595,3 +595,44 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "zip_ast",
+    srcs = ["zip_ast.cc"],
+    hdrs = ["zip_ast.h"],
+    deps = [
+        ":ast",
+        ":ast_node_visitor_with_default",
+        ":module",
+        ":pos",
+        "//xls/common/status:status_macros",
+        "//xls/ir:bits",
+        "//xls/ir:number_parser",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "zip_ast_test",
+    srcs = ["zip_ast_test.cc"],
+    deps = [
+        ":ast",
+        ":ast_node_visitor_with_default",
+        ":module",
+        ":parser",
+        ":pos",
+        ":scanner",
+        ":zip_ast",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
