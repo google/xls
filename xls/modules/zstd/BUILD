@@ -33,6 +33,8 @@ package(
     licenses = ["notice"],
 )
 
+exports_files(["xls_fifo_wrapper.v"])
+
 xls_dslx_library(
     name = "buffer_dslx",
     srcs = [
