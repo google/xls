@@ -18,7 +18,7 @@ import xls.examples.ram;
 
 pub struct HashTableReadReq<
     KEY_W: u32, SIZE: u32,
-    SIZE_W: u32 = {std::clog2(SIZE + u32:1)}
+    SIZE_W:u32 = {std::clog2(SIZE + u32:1)}
 > {
     num_entries_log2: uN[SIZE_W],  // number of HashTable entries used in the runtime
     key: uN[KEY_W],
@@ -31,7 +31,7 @@ pub struct HashTableReadResp<VALUE_W: u32> {
 
 pub struct HashTableWriteReq<
     KEY_W: u32, VALUE_W: u32, SIZE: u32,
-    SIZE_W:u32 = { std::clog2(SIZE + u32:1)}
+    SIZE_W:u32 = {std::clog2(SIZE + u32:1)}
 > {
     num_entries_log2: uN[SIZE_W],  // number of HashTable entries used in the runtime
     key: uN[KEY_W],
@@ -71,11 +71,12 @@ struct RamData<VALUE_W: u32> {
 
 proc HashTableReadReqHandler<
     KEY_W: u32, VALUE_W: u32, SIZE: u32, KNUTH_CONSTANT: u32,
+    SIZE_W: u32 = {std::clog2(SIZE + u32:1)},
     HASH_W: u32 = {std::clog2(SIZE)},
     RAM_DATA_W: u32 = {VALUE_W + u32:1},
     RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(u32:1, RAM_DATA_W)}
 > {
-    type ReadReq = HashTableReadReq<KEY_W, SIZE>;
+    type ReadReq = HashTableReadReq<KEY_W, SIZE, SIZE_W>;
     type RamReadReq = ram::ReadReq<HASH_W, RAM_NUM_PARTITIONS>;
 
     read_req_r: chan<ReadReq> in;
@@ -152,11 +153,12 @@ proc HashTableReadRespHandler<
 
 proc HashTableWriteReqHandler<
     KEY_W: u32, VALUE_W: u32, SIZE: u32, KNUTH_CONSTANT: u32,
+    SIZE_W: u32 = {std::clog2(SIZE + u32:1)},
     HASH_W: u32 = {std::clog2(SIZE)},
     RAM_DATA_W: u32 = {VALUE_W + u32:1},
     RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(u32:1, RAM_DATA_W)}
 > {
-    type WriteReq = HashTableWriteReq<KEY_W, VALUE_W, SIZE>;
+    type WriteReq = HashTableWriteReq<KEY_W, VALUE_W, SIZE, SIZE_W>;
     type RamWriteReq = ram::WriteReq<HASH_W, RAM_DATA_W, RAM_NUM_PARTITIONS>;
 
     write_req_r: chan<WriteReq> in;
@@ -218,14 +220,15 @@ proc HashTableWriteRespHandler {
 
 pub proc HashTable<
     KEY_W: u32, VALUE_W: u32, SIZE: u32,
+    SIZE_W: u32 = {std::clog2(SIZE + u32:1)},
     HASH_W: u32 = {std::clog2(SIZE)},
     KNUTH_CONSTANT: u32 = {u32:0x1e35a7bd},
     RAM_DATA_W: u32 = {VALUE_W + u32:1},
     RAM_NUM_PARTITIONS: u32 = {ram::num_partitions(u32:1, RAM_DATA_W)}
 > {
-    type ReadReq = HashTableReadReq<KEY_W, SIZE>;
+    type ReadReq = HashTableReadReq<KEY_W, SIZE, SIZE_W>;
     type ReadResp = HashTableReadResp<VALUE_W>;
-    type WriteReq = HashTableWriteReq<KEY_W, VALUE_W, SIZE>;
+    type WriteReq = HashTableWriteReq<KEY_W, VALUE_W, SIZE, SIZE_W>;
     type WriteResp = HashTableWriteResp;
 
     type RamReadReq = ram::ReadReq<HASH_W, RAM_NUM_PARTITIONS>;
@@ -243,14 +246,25 @@ pub proc HashTable<
         ram_write_req_s: chan<RamWriteReq> out,
         ram_write_resp_r: chan<RamWriteResp> in
     ) {
-        spawn HashTableReadReqHandler<KEY_W, VALUE_W, SIZE, KNUTH_CONSTANT>(
+        spawn HashTableReadReqHandler<
+            KEY_W, VALUE_W, SIZE, KNUTH_CONSTANT,
+            // FIXME: Remove below parameters when resolving default values is fixed
+            SIZE_W, HASH_W, RAM_DATA_W, RAM_NUM_PARTITIONS,
+        >(
             read_req_r, ram_read_req_s
         );
-
-        spawn HashTableReadRespHandler<VALUE_W>(
+        spawn HashTableReadRespHandler<
+            VALUE_W,
+            // FIXME: Remove below parameters when resolving default values is fixed
+            RAM_DATA_W,
+        >(
             ram_read_resp_r, read_resp_s
         );
-        spawn HashTableWriteReqHandler<KEY_W, VALUE_W, SIZE, KNUTH_CONSTANT>(
+        spawn HashTableWriteReqHandler<
+            KEY_W, VALUE_W, SIZE, KNUTH_CONSTANT,
+            // FIXME: Remove below parameters when resolving default values is fixed
+            SIZE_W, HASH_W, RAM_DATA_W, RAM_NUM_PARTITIONS,
+        >(
             write_req_r, ram_write_req_s
         );
         spawn HashTableWriteRespHandler(
@@ -266,14 +280,15 @@ pub proc HashTable<
 const INST_KEY_W = u32:32;
 const INST_VALUE_W = u32:32;
 const INST_SIZE = u32:512;
+const INST_SIZE_W = std::clog2(INST_SIZE + u32:1);
 const INST_HASH_W = std::clog2(INST_SIZE);
 const INST_RAM_DATA_W = INST_VALUE_W + u32:1;
 const INST_RAM_NUM_PARTITIONS = ram::num_partitions(u32:1, INST_RAM_DATA_W);
 
 proc HashTableInst {
-    type InstReadReq = HashTableReadReq<INST_KEY_W, INST_SIZE>;
+    type InstReadReq = HashTableReadReq<INST_KEY_W, INST_SIZE, INST_SIZE_W>;
     type InstReadResp = HashTableReadResp<INST_VALUE_W>;
-    type InstWriteReq = HashTableWriteReq<INST_KEY_W, INST_VALUE_W, INST_SIZE>;
+    type InstWriteReq = HashTableWriteReq<INST_KEY_W, INST_VALUE_W, INST_SIZE, INST_SIZE_W>;
     type InstWriteResp = HashTableWriteResp;
 
     type InstRamReadReq = ram::ReadReq<INST_HASH_W, INST_RAM_NUM_PARTITIONS>;
@@ -315,9 +330,9 @@ const TEST_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_WORD_PARTITION_SIZE, TE
 const TEST_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_INITIALIZED = true;
 
-type TestReadReq = HashTableReadReq<TEST_KEY_W, TEST_SIZE>;
+type TestReadReq = HashTableReadReq<TEST_KEY_W, TEST_SIZE, TEST_SIZE_W>;
 type TestReadResp = HashTableReadResp<TEST_VALUE_W>;
-type TestWriteReq = HashTableWriteReq<TEST_KEY_W, TEST_VALUE_W, TEST_SIZE>;
+type TestWriteReq = HashTableWriteReq<TEST_KEY_W, TEST_VALUE_W, TEST_SIZE, TEST_SIZE_W>;
 type TestWriteResp = HashTableWriteResp;
 
 type TestRamReadReq = ram::ReadReq<TEST_HASH_W, TEST_RAM_NUM_PARTITIONS>;
