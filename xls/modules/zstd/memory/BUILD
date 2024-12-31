@@ -546,6 +546,7 @@ py_test(
     data = [
         ":mem_reader_adv.v",
         ":mem_reader_wrapper.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -805,6 +806,7 @@ py_test(
     data = [
         ":mem_writer.v",
         ":mem_writer_wrapper.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.sv",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
