@@ -15,6 +15,7 @@
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@xls_pip_deps//:requirements.bzl", "requirement")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -401,6 +402,7 @@ verilog_library(
     name = "mem_reader_verilog_lib",
     srcs = [
         ":mem_reader.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -455,6 +457,7 @@ verilog_library(
     name = "mem_reader_adv_verilog_lib",
     srcs = [
         ":mem_reader_adv.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -485,6 +488,34 @@ place_and_route(
     synthesized_rtl = ":mem_reader_adv_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "mem_reader_cocotb_test",
+    srcs = ["mem_reader_cocotb_test.py"],
+    data = [
+        ":mem_reader_adv.v",
+        ":mem_reader_wrapper.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:memory",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
 
 xls_dslx_library(
@@ -564,6 +595,33 @@ place_and_route(
     synthesized_rtl = ":axi_writer_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "axi_writer_cocotb_test",
+    srcs = ["axi_writer_cocotb_test.py"],
+    data = [
+        ":axi_writer.v",
+        ":axi_writer_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
 
 xls_dslx_library(
@@ -683,6 +741,7 @@ verilog_library(
     name = "mem_writer_verilog_lib",
     srcs = [
         ":mem_writer.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -713,4 +772,32 @@ place_and_route(
     synthesized_rtl = ":mem_writer_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+py_test(
+    name = "mem_writer_cocotb_test",
+    srcs = ["mem_writer_cocotb_test.py"],
+    data = [
+        ":mem_writer.v",
+        ":mem_writer_wrapper.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    env = {"BUILD_WORKING_DIRECTORY": "sim_build"},
+    imports = ["."],
+    tags = ["manual"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        requirement("cocotb"),
+        requirement("cocotbext-axi"),
+        requirement("pytest"),
+        "//xls/common:runfiles",
+        "//xls/modules/zstd/cocotb:channel",
+        "//xls/modules/zstd/cocotb:utils",
+        "//xls/modules/zstd/cocotb:xlsstruct",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
 )
