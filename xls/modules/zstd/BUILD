@@ -59,6 +59,8 @@ xls_dslx_test(
     library = ":math_dslx",
 )
 
+exports_files(["xls_fifo_wrapper.sv"])
+
 xls_dslx_library(
     name = "buffer_dslx",
     srcs = [
