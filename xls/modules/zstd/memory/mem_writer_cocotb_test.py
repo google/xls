@@ -442,6 +442,7 @@ def generate_padded_test_data_arbitrary(mem_size, test_cases):
 if __name__ == "__main__":
     toplevel = "mem_writer_wrapper"
     verilog_sources = [
+      "xls/modules/zstd/xls_fifo_wrapper.sv",
       "xls/modules/zstd/memory/mem_writer.v",
       "xls/modules/zstd/memory/mem_writer_wrapper.v",
     ]
