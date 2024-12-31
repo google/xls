@@ -243,6 +243,7 @@ verilog_library(
     name = "axi_stream_remove_empty_verilog_lib",
     srcs = [
         ":axi_stream_remove_empty.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
