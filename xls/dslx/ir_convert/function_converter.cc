@@ -1666,7 +1666,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   Module* lookup_module = nullptr;
   if (auto* name_ref = dynamic_cast<NameRef*>(fn_node)) {
     map_fn_name = name_ref->identifier();
-    if (IsNameParametricBuiltin(map_fn_name)) {
+    if (IsBuiltinParametricNameRef(name_ref)) {
       VLOG(5) << "Map of parametric builtin: " << map_fn_name;
       return DefMapWithBuiltin(node, name_ref, node->args()[0],
                                *node_parametric_env.value());
