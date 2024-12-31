@@ -3196,6 +3196,17 @@ TEST_F(ParserTest, UnreasonablyDeepTermExprNesting) {
                                HasSubstr("Extremely deep nesting detected")));
 }
 
+// As above but guards the TypeAnnotation production in the grammar.
+TEST_F(ParserTest, UnreasonablyDeepTypeDefinition) {
+  constexpr std::string_view kProgram = R"(type T=
+((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((()";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Extremely deep nesting detected")));
+}
+
 TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
   constexpr std::string_view kProgram = "const A=4[5]:[";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};

@@ -814,6 +814,8 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     Bindings& bindings, std::optional<Token> first) {
+  XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
+
   VLOG(5) << "ParseTypeAnnotation @ " << GetPos();
   if (!first.has_value()) {
     XLS_ASSIGN_OR_RETURN(first, PopToken());
