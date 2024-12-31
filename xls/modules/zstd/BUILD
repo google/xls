@@ -60,6 +60,8 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+exports_files(["xls_fifo_wrapper.sv"])
+
 xls_dslx_library(
     name = "buffer_dslx",
     srcs = [
