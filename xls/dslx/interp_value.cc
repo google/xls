@@ -451,9 +451,11 @@ bool InterpValue::operator==(const InterpValue& rhs) const { return Eq(rhs); }
     const InterpValue& lhs, const InterpValue& rhs, CompareF ucmp,
     CompareF scmp) {
   if (lhs.tag_ != rhs.tag_) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Same tag is required for a comparison operation: lhs %s rhs %s",
-        TagToString(lhs.tag_), TagToString(rhs.tag_)));
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Same tag is required for a comparison operation: lhs "
+                        "tag: %s, rhs tag: %s, lhs value: %s, rhs value: %s",
+                        TagToString(lhs.tag_), TagToString(rhs.tag_),
+                        lhs.ToString(), rhs.ToString()));
   }
   switch (lhs.tag_) {
     case InterpValueTag::kUBits:
@@ -692,7 +694,8 @@ absl::StatusOr<Bits> InterpValue::GetBits() const {
     return std::get<EnumData>(payload_).value;
   }
 
-  return absl::InvalidArgumentError("Value does not contain bits.");
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Value %s does not contain bits.", ToString()));
 }
 
 const Bits& InterpValue::GetBitsOrDie() const {

@@ -979,14 +979,59 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   return absl::OkStatus();
 }
 
-static absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info,
-                                             Expr* expr) {
-  std::optional<Type*> maybe_type = type_info->GetItem(expr);
-  if (!maybe_type.has_value()) {
-    return absl::InternalError(
-        "Could not find concrete type for slice component.");
+absl::Status BytecodeEmitter::HandleSlice(const Index* node, Slice* slice) {
+  std::optional<StartAndWidth> saw = type_info_->GetSliceStartAndWidth(
+      slice,
+      caller_bindings_.has_value() ? *caller_bindings_ : ParametricEnv());
+  if (!saw.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Expected start-and-width data for slice `%s` @ %s to be populated "
+        "from type checking.",
+        slice->ToString(), node->span().ToString(file_table())));
   }
-  return maybe_type.value()->GetTotalBitCount()->GetAsInt64();
+
+  XLS_RET_CHECK_GE(saw->start, 0);
+  XLS_RET_CHECK_GE(saw->width, 0);
+
+  // Helper for either getting the span of the given slice index or, if that
+  // slice index is nullptr, getting the span from the index operation as a
+  // fallback.
+  auto span_or_default = [&](Expr* slice_index) -> Span {
+    if (slice_index != nullptr) {
+      return slice_index->span();
+    }
+    return node->span();
+  };
+
+  bytecode_.push_back(Bytecode(span_or_default(slice->start()),
+                               Bytecode::Op::kLiteral,
+                               InterpValue::MakeU32(saw->start)));
+  bytecode_.push_back(Bytecode(span_or_default(slice->limit()),
+                               Bytecode::Op::kLiteral,
+                               InterpValue::MakeU32(saw->width)));
+
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSlice));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleWidthSlice(const Index* node,
+                                               WidthSlice* width_slice) {
+  XLS_RETURN_IF_ERROR(width_slice->start()->AcceptExpr(this));
+
+  std::optional<Type*> maybe_type = type_info_->GetItem(width_slice->width());
+  if (!maybe_type.has_value()) {
+    return absl::InternalError(absl::StrCat(
+        "Could not find concrete type for slice width parameter \"",
+        width_slice->width()->ToString(), "\"."));
+  }
+
+  MetaType* type = dynamic_cast<MetaType*>(maybe_type.value());
+  XLS_RET_CHECK(type != nullptr) << maybe_type.value()->ToString();
+  XLS_RET_CHECK(IsBitsLike(*type->wrapped())) << type->ToString();
+
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kWidthSlice, type->CloneToUnique()));
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
@@ -994,73 +1039,12 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
 
   if (std::holds_alternative<Slice*>(node->rhs())) {
     Slice* slice = std::get<Slice*>(node->rhs());
-    if (slice->start() == nullptr) {
-      int64_t start_width;
-      if (slice->limit() == nullptr) {
-        // TODO(rspringer): Define a uniform `usize` to avoid specifying magic
-        // numbers here. This is the default size used for untyped numbers in
-        // the typechecker.
-        start_width = 32;
-      } else {
-        XLS_ASSIGN_OR_RETURN(start_width,
-                             GetValueWidth(type_info_, slice->limit()));
-      }
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                                   InterpValue::MakeSBits(start_width, 0)));
-    } else {
-      XLS_RETURN_IF_ERROR(slice->start()->AcceptExpr(this));
-    }
-
-    if (slice->limit() == nullptr) {
-      std::optional<Type*> maybe_type = type_info_->GetItem(node->lhs());
-      if (!maybe_type.has_value()) {
-        return absl::InternalError("Could not find concrete type for slice.");
-      }
-      Type* type = maybe_type.value();
-      // These will never fail.
-      absl::StatusOr<TypeDim> dim = type->GetTotalBitCount();
-      CHECK_OK(dim);
-      absl::StatusOr<int64_t> width = dim->GetAsInt64();
-      CHECK_OK(width);
-
-      int64_t limit_width;
-      if (slice->start() == nullptr) {
-        // TODO(rspringer): Define a uniform `usize` to avoid specifying magic
-        // numbers here. This is the default size used for untyped numbers in
-        // the typechecker.
-        limit_width = 32;
-      } else {
-        XLS_ASSIGN_OR_RETURN(limit_width,
-                             GetValueWidth(type_info_, slice->start()));
-      }
-      bytecode_.push_back(
-          Bytecode(node->span(), Bytecode::Op::kLiteral,
-                   InterpValue::MakeSBits(limit_width, *width)));
-    } else {
-      XLS_RETURN_IF_ERROR(slice->limit()->AcceptExpr(this));
-    }
-    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSlice));
-    return absl::OkStatus();
+    return HandleSlice(node, slice);
   }
 
   if (std::holds_alternative<WidthSlice*>(node->rhs())) {
     WidthSlice* width_slice = std::get<WidthSlice*>(node->rhs());
-    XLS_RETURN_IF_ERROR(width_slice->start()->AcceptExpr(this));
-
-    std::optional<Type*> maybe_type = type_info_->GetItem(width_slice->width());
-    if (!maybe_type.has_value()) {
-      return absl::InternalError(absl::StrCat(
-          "Could not find concrete type for slice width parameter \"",
-          width_slice->width()->ToString(), "\"."));
-    }
-
-    MetaType* type = dynamic_cast<MetaType*>(maybe_type.value());
-    XLS_RET_CHECK(type != nullptr) << maybe_type.value()->ToString();
-    XLS_RET_CHECK(IsBitsLike(*type->wrapped())) << type->ToString();
-
-    bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kWidthSlice,
-                                 type->CloneToUnique()));
-    return absl::OkStatus();
+    return HandleWidthSlice(node, width_slice);
   }
 
   // Otherwise, it's a regular [array or tuple] index op.

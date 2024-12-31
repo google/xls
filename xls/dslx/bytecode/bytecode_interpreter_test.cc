@@ -147,6 +147,9 @@ TEST_F(BytecodeInterpreterTest, DupLiteral) {
   EXPECT_EQ(result.ToString(), "u32:42");
 }
 
+// Note: this test case spews a stack trace as the `!stack_.empty()` error comes
+// from a `XLS_RET_CHECK`, this is really an internals-flags-an-error test not a
+// behavioral test.
 TEST_F(BytecodeInterpreterTest, DupEmptyStack) {
   std::vector<Bytecode> bytecodes;
   bytecodes.emplace_back(kFakeSpan, Bytecode::Op::kDup);
@@ -1316,6 +1319,25 @@ fn negative_end_slice() -> u16 {
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xbeef);
+}
+
+// https://github.com/google/xls/issues/1784 -- note that the size of a slice
+// can never be negative, but the bytecode interpreter can have inflated
+// expectations that don't line up with what the type checker will accept. This
+// test is to ensure that we don't crash when we encounter this case.
+TEST_F(BytecodeInterpreterTest, NegativeSizeSlice) {
+  constexpr std::string_view kProgram = R"(
+fn negative_size_slice() -> bits[0] {
+  (u32:0x42)[5:3]
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "negative_size_slice"));
+  ASSERT_TRUE(value.IsUBits());
+  const Bits& bits = value.GetBitsOrDie();
+  EXPECT_EQ(bits.bit_count(), 0);
+  EXPECT_EQ(bits.ToUint64().value(), 0);
 }
 
 TEST_F(BytecodeInterpreterTest, WidthSlice) {
