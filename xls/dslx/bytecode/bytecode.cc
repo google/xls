@@ -198,8 +198,11 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "swap") {
     return Bytecode::Op::kSwap;
   }
-  if (s == "trace") {
-    return Bytecode::Op::kTrace;
+  if (s == "trace_arg") {
+    return Bytecode::Op::kTraceArg;
+  }
+  if (s == "trace_fmt") {
+    return Bytecode::Op::kTraceFmt;
   }
   if (s == "width_slice") {
     return Bytecode::Op::kWidthSlice;
@@ -313,8 +316,10 @@ std::string OpToString(Bytecode::Op op) {
       return "usub";
     case Bytecode::Op::kSwap:
       return "swap";
-    case Bytecode::Op::kTrace:
-      return "trace";
+    case Bytecode::Op::kTraceArg:
+      return "trace_arg";
+    case Bytecode::Op::kTraceFmt:
+      return "trace_fmt";
     case Bytecode::Op::kWidthSlice:
       return "width_slice";
     case Bytecode::Op::kXor:

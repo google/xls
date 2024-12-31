@@ -475,8 +475,12 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalSwap(bytecode));
       break;
     }
-    case Bytecode::Op::kTrace: {
-      XLS_RETURN_IF_ERROR(EvalTrace(bytecode));
+    case Bytecode::Op::kTraceFmt: {
+      XLS_RETURN_IF_ERROR(EvalTraceFmt(bytecode));
+      break;
+    }
+    case Bytecode::Op::kTraceArg: {
+      XLS_RETURN_IF_ERROR(EvalTraceArg(bytecode));
       break;
     }
     case Bytecode::Op::kWidthSlice: {
@@ -1410,7 +1414,7 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
   return absl::StrJoin(pieces, "");
 }
 
-absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
+absl::Status BytecodeInterpreter::EvalTraceFmt(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
                        bytecode.trace_data());
   XLS_ASSIGN_OR_RETURN(std::string message,
@@ -1419,6 +1423,21 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
     options_.trace_hook()(bytecode.source_span(), message);
   }
   stack_.Push(InterpValue::MakeToken());
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalTraceArg(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
+                       bytecode.trace_data());
+  // The trace operation acts as an identity function so we peek at the TOS to
+  // push it later.
+  InterpValue value = stack_.PeekOrDie();
+  XLS_ASSIGN_OR_RETURN(std::string message,
+                       TraceDataToString(*trace_data, stack_));
+  if (options_.trace_hook()) {
+    options_.trace_hook()(bytecode.source_span(), message);
+  }
+  stack_.Push(value);
   return absl::OkStatus();
 }
 
