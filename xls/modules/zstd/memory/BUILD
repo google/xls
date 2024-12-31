@@ -403,6 +403,7 @@ verilog_library(
     name = "mem_reader_verilog_lib",
     srcs = [
         ":mem_reader.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -458,6 +459,7 @@ verilog_library(
     name = "mem_reader_adv_verilog_lib",
     srcs = [
         ":mem_reader_adv.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -496,6 +498,7 @@ py_test(
     data = [
         ":mem_reader_adv.v",
         ":mem_reader_wrapper.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
@@ -741,6 +744,7 @@ verilog_library(
     name = "mem_writer_verilog_lib",
     srcs = [
         ":mem_writer.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )
@@ -779,6 +783,7 @@ py_test(
     data = [
         ":mem_writer.v",
         ":mem_writer_wrapper.v",
+        "//xls/modules/zstd:xls_fifo_wrapper.v",
         "@com_icarus_iverilog//:iverilog",
         "@com_icarus_iverilog//:vvp",
     ],
