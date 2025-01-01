@@ -3207,6 +3207,17 @@ TEST_F(ParserTest, UnreasonablyDeepTypeDefinition) {
                                HasSubstr("Extremely deep nesting detected")));
 }
 
+// As above but guards the pattern-match production in the grammar.
+TEST_F(ParserTest, UnreasonablyDeepPatternMatch) {
+  constexpr std::string_view kProgram = R"(fn f(x: u32) { match x {
+((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((()";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(module, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Extremely deep nesting detected")));
+}
+
 TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
   constexpr std::string_view kProgram = "const A=4[5]:[";
   Scanner s{file_table_, Fileno(0), std::string(kProgram)};

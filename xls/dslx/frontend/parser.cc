@@ -1418,6 +1418,8 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
 }
 
 absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
+  XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard depth_guard, BumpExpressionDepth());
+
   XLS_ASSIGN_OR_RETURN(std::optional<Token> oparen,
                        TryPopToken(TokenKind::kOParen));
   if (oparen.has_value()) {
