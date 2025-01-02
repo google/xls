@@ -83,7 +83,7 @@ std::string Module::ToString() const {
               absl::StrAppend(out, "#![allow(nonstandard_member_naming)]");
               break;
             case ModuleAnnotation::kTypeInferenceVersion2:
-              absl::StrAppend(out, "#![type_inference_version = 2]");
+              absl::StrAppend(out, "#![feature(type_inference_v2)]");
               break;
             case ModuleAnnotation::kAllowUseSyntax:
               absl::StrAppend(out, "#![feature(use_syntax)]");

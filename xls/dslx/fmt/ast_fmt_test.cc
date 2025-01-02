@@ -2559,7 +2559,7 @@ fn id(x: u32) { x }
 }
 
 TEST_F(ModuleFmtTest, TypeInferenceVersionAnnotation) {
-  DoFmt(R"(#![type_inference_version = 2]
+  DoFmt(R"(#![feature(type_inference_v2)]
 
 fn id(x: u32) { x }
 )");
