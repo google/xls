@@ -1253,54 +1253,15 @@ absl::Status BytecodeInterpreter::EvalShr(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalSlice(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(InterpValue limit, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue length, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
-  XLS_ASSIGN_OR_RETURN(int64_t basis_bit_count, basis.GetBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t start_bit_count, start.GetBitCount());
-
-  InterpValue zero = InterpValue::MakeSBits(start_bit_count, 0);
-  InterpValue basis_length =
-      InterpValue::MakeSBits(start_bit_count, basis_bit_count);
-
-  XLS_ASSIGN_OR_RETURN(InterpValue start_lt_zero, start.Lt(zero));
-  if (start_lt_zero.IsTrue()) {
-    // Remember, start is negative if we're here.
-    XLS_ASSIGN_OR_RETURN(start, basis_length.Add(start));
-    // If start is _still_ less than zero, then we clamp to zero.
-    XLS_ASSIGN_OR_RETURN(start_lt_zero, start.Lt(zero));
-    if (start_lt_zero.IsTrue()) {
-      start = zero;
-    }
-  }
-
-  XLS_ASSIGN_OR_RETURN(InterpValue limit_lt_zero, limit.Lt(zero));
-  if (limit_lt_zero.IsTrue()) {
-    // Ditto.
-    XLS_ASSIGN_OR_RETURN(limit, basis_length.Add(limit));
-    XLS_ASSIGN_OR_RETURN(limit_lt_zero, limit.Lt(zero));
-    if (limit_lt_zero.IsTrue()) {
-      limit = zero;
-    }
-  }
-
-  // If limit extends past the basis, then we truncate limit.
-  XLS_ASSIGN_OR_RETURN(InterpValue limit_ge_basis_length,
-                       limit.Ge(basis_length));
-  if (limit_ge_basis_length.IsTrue()) {
-    limit =
-        InterpValue::MakeSBits(start_bit_count, basis.GetBitCount().value());
-  }
-  XLS_ASSIGN_OR_RETURN(InterpValue length, limit.Sub(start));
-
-  // At this point, both start and length must be nonnegative, so we force them
-  // to UBits, since Slice expects that.
-  XLS_ASSIGN_OR_RETURN(int64_t start_value, start.GetBitValueViaSign());
-  XLS_ASSIGN_OR_RETURN(int64_t length_value, length.GetBitValueViaSign());
-  XLS_RET_CHECK_GE(start_value, 0);
-  XLS_RET_CHECK_GE(length_value, 0);
-  start = InterpValue::MakeBits(/*is_signed=*/false, start.GetBitsOrDie());
-  length = InterpValue::MakeBits(/*is_signed=*/false, length.GetBitsOrDie());
+  XLS_RET_CHECK(length.IsUBits())
+      << "Slice length is not unsigned bits: " << length.ToString();
+  XLS_RET_CHECK(start.IsUBits())
+      << "Slice start is not unsigned bits: " << start.ToString();
+  XLS_RET_CHECK(basis.IsUBits())
+      << "Slice basis is not unsigned bits: " << basis.ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Slice(start, length));
   stack_.Push(result);
   return absl::OkStatus();

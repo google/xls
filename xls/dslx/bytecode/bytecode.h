@@ -161,7 +161,8 @@ class Bytecode {
     // otherwise it'll be logical.
     kShr,
     // Slices out a subset of the bits-typed value on TOS2,
-    // starting at index TOS1 and ending at index TOS0.
+    // starting at index TOS1 with bitwidth at TOS0.
+    // Note: the start index and the bitwidth should both be non-negative.
     kSlice,
     // Creates a new proc interpreter using the data in the optional data member
     // (as a `SpawnData`).
