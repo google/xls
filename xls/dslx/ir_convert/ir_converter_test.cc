@@ -3089,6 +3089,20 @@ proc Counter {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, MapInvocationWithBuiltinFunction) {
+  constexpr std::string_view program =
+      R"(
+fn main(x: u32[4]) -> u32[4] {
+  map(x, clz)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, MapInvocationWithParametricFunction) {
   constexpr std::string_view program =
       R"(

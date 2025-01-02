@@ -42,7 +42,7 @@
 #include "xls/dslx/dslx_builtins_signatures.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -341,7 +341,8 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   Expr* callee = invocation->callee();
 
   Function* caller = ctx->fn_stack().back().f();
-  if (IsNameParametricBuiltin(callee->ToString())) {
+  if (auto* name_ref = dynamic_cast<const NameRef*>(callee);
+      name_ref != nullptr && IsBuiltinParametricNameRef(name_ref)) {
     return TypecheckParametricBuiltinInvocation(ctx, invocation, caller);
   }
 
@@ -377,9 +378,9 @@ absl::StatusOr<TypeAndParametricEnv> TypecheckInvocation(
   DeduceCtx* parent_ctx = ctx;
   std::unique_ptr<DeduceCtx> imported_ctx_holder;
   if (dynamic_cast<ColonRef*>(invocation->callee()) != nullptr) {
-    auto placeholder = GetImportedDeduceCtx;
-    XLS_ASSIGN_OR_RETURN(imported_ctx_holder,
-                         placeholder(ctx, invocation, caller_parametric_env));
+    XLS_ASSIGN_OR_RETURN(
+        imported_ctx_holder,
+        GetImportedDeduceCtx(ctx, invocation, caller_parametric_env));
     ctx = imported_ctx_holder.get();
   }
 

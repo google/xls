@@ -348,6 +348,7 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/container:flat_hash_map",

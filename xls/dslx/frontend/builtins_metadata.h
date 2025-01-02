@@ -32,8 +32,14 @@ struct BuiltinsData {
 // and 2) whether the builtin is represented as an AST node.
 const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins();
 
-// Returns whether the identifier is a builtin parameter not implemented as an
-// AST node
+// Returns whether the identifier is a builtin parameetric function (i.e. a key
+// in the `GetParametricBuiltins` map)
+// -- built-in functions are always available at the DSLX top level scope, but
+// are not implemented as AST nodes.
+//
+// Warning: prefer to use `IsBuiltinParametricNameRef()` over this function
+// wherever possible -- it's easy to forget to check that the name definition is
+// a `BuiltinNameDef` before testing the identifier.
 bool IsNameParametricBuiltin(std::string_view identifier);
 
 }  // namespace xls::dslx

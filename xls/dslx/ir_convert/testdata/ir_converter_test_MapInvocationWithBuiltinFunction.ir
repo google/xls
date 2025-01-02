@@ -1,0 +1,14 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__clz(arg: bits[32] id=2) -> bits[32] {
+  reverse.3: bits[32] = reverse(arg, id=3)
+  one_hot.4: bits[33] = one_hot(reverse.3, lsb_prio=true, id=4)
+  encode.5: bits[6] = encode(one_hot.4, id=5)
+  ret zero_ext.6: bits[32] = zero_ext(encode.5, new_bit_count=32, id=6)
+}
+
+fn __test_module__main(x: bits[32][4] id=1) -> bits[32][4] {
+  ret map.7: bits[32][4] = map(x, to_apply=__test_module__clz, id=7)
+}
