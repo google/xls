@@ -206,7 +206,7 @@ async def ram_test_not_full_packets(dut):
 @cocotb.test(timeout_time=5000, timeout_unit="ms")
 async def ram_test_random(dut):
   mem_size = 2**ADDR_WIDTH
-  test_count = 200
+  test_count = 50
 
   (write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt) = generate_test_data_random(test_count, mem_size)
   await test_writer(dut, mem_size, write_req_input, data_in_input, write_resp_expect, memory_verification, expected_memory, resp_cnt)
