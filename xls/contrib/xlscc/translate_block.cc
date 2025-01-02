@@ -2268,11 +2268,6 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
     const absl::btree_multimap<const xls::StateElement*, NextStateValue>&
         next_state_values,
     const xls::SourceInfo& loc) {
-  const int64_t n_state_elems = pb.proc()->StateElements().size();
-
-  std::vector<xls::BValue> next_state_values_list;
-  next_state_values_list.reserve(n_state_elems);
-
   for (xls::StateElement* elem : pb.proc()->StateElements()) {
     const int64_t values_for_elem = next_state_values.count(elem);
     XLSCC_CHECK_GE(values_for_elem, 0, loc);
@@ -2295,7 +2290,8 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
       } else {
         next_state_value_bval = next_state_value.value;
       }
-      next_state_values_list.push_back(next_state_value_bval);
+      pb.Next(read_bval, next_state_value_bval, /*pred=*/std::nullopt, loc,
+              /*name=*/absl::StrFormat("%s_next", elem->name()));
       continue;
     }
     // More than one next value
@@ -2356,7 +2352,8 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
     }
 
     XLSCC_CHECK(next_state_value_bval.valid(), loc);
-    next_state_values_list.push_back(next_state_value_bval);
+    pb.Next(read_bval, next_state_value_bval, /*pred=*/std::nullopt, loc,
+            /*name=*/absl::StrFormat("%s_next", elem->name()));
 
     // Generate asserts for same priority conditions being mutually exclusive
     {
@@ -2405,7 +2402,7 @@ absl::StatusOr<xls::Proc*> Translator::BuildWithNextStateValueMap(
     }
   }
 
-  return pb.Build(next_state_values_list);
+  return pb.Build();
 }
 
 }  // namespace xlscc
