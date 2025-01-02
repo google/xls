@@ -131,10 +131,9 @@ $ ./bazel-bin/xls/tools/codegen_main test_unroll.opt.ir \
   --delay_model="asap7" \
   --output_verilog_path=test_unroll.v \
   --module_name=xls_test_unroll \
-  --entry=test_unroll \
+  --top=test_unroll \
   --reset=rst \
-  --reset_active_low=false \
-  --reset_asynchronous=false \
+  --reset_data_path=false \
   --pipeline_stages=5 \
   --flop_inputs=true \
   --flop_outputs=true

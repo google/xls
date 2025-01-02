@@ -40,7 +40,7 @@ To generate some verilog:
 
 ```console
 echo "#pragma hls_top
-int add3(int input) { return input+3; }" > test.cc
+int add3(int x) { return x+3; }" > test.cc
 
 bazel build -c opt //xls/contrib/xlscc:xlscc //xls/tools:opt_main //xls/tools:codegen_main
 bazel-bin/xls/contrib/xlscc/xlscc test.cc > test.ir

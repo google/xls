@@ -25,7 +25,7 @@ public:
     #pragma hls_top
     void Run() {
     int sum = 0;
-        #pragma hls_pipeline_unroll yes
+        #pragma hls_pipeline_init_interval 1
         for(int i=0;i<4;++i) {
             sum += in.read();
         }
@@ -42,10 +42,8 @@ Use a combination of `xlscc` and `opt_main` to generate optimized XLS IR.
 $ ./bazel-bin/xls/contrib/xlscc/xlscc test_loop.cc \
   --block_from_class TestBlock --block_pb block.pb \
   > test_loop.ir
-$ ./bazel-bin/xls/tools/opt_main test_loop.ir --inline_procs > test_loop.opt.ir
+$ ./bazel-bin/xls/tools/opt_main test_loop.ir > test_loop.opt.ir
 ```
-
-The `--inline_procs` option is necessary to make pipelined loops synthesizable.
 
 ## Examine the optimized IR
 

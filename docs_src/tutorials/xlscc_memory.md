@@ -92,19 +92,19 @@ rewrites {
   }
   from_channels_logical_to_physical: {
     key: "abstract_read_req"
-    value: "store__read_request"
+    value: "store_read_request"
   }
   from_channels_logical_to_physical: {
     key: "abstract_read_resp"
-    value: "store__read_response"
+    value: "store_read_response"
   }
   from_channels_logical_to_physical: {
     key: "abstract_write_req"
-    value: "store__write_request"
+    value: "store_write_request"
   }
   from_channels_logical_to_physical: {
     key: "write_completion"
-    value: "store__write_response"
+    value: "store_write_response"
   }
   to_name_prefix: "store_"
 }
@@ -136,16 +136,12 @@ $ ./bazel-bin/xls/tools/codegen_main test_memory.opt.ir \
   --pipeline_stages=2  \
   --flop_inputs=false \
   --flop_outputs=false \
-  --io_constraints=store__read_req:send:store__read_resp:recv:1:1,store__write_req:send:store__write_completion:recv:1:1 \
   --ram_configurations=ram:1R1W:store__read_req:store__read_resp:store__write_req:store__write_completion
 ```
 
 Below is a quick summary of the options.
 
-1.  `--io_constraints=store__read_req:send:store__read_resp:recv:1:1...` This
-    option ensures that requests to the memory are written exactly 1 cycle
-    before responses are read.
-2.  `--ram_configurations=ram:1R1W:store__read_req...` This option informs
+1.  `--ram_configurations=ram:1R1W:store__read_req...` This option informs
     codegen of the necessary information about the memory to generate the top
     level ports in the correct style. "ram" is the name prefix the ports will
     use.
