@@ -43,6 +43,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
@@ -1380,26 +1381,45 @@ static absl::Status Unify(NameDefTree* name_def_tree, const Type& other,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_rhs_type,
                        ctx->Resolve(other));
   if (name_def_tree->is_leaf()) {
+    auto mismatch = [&](const Type& leaf_type) -> absl::Status {
+      return ctx->TypeMismatchError(
+          name_def_tree->span(), nullptr, *resolved_rhs_type, nullptr,
+          leaf_type,
+          absl::StrFormat(
+              "Conflicting types; pattern expects %s but got %s from value",
+              resolved_rhs_type->ToString(), leaf_type.ToString()));
+    };
+
     NameDefTree::Leaf leaf = name_def_tree->leaf();
-    if (std::holds_alternative<NameDef*>(leaf)) {
-      // Defining a name in the pattern match, we accept all types.
-      ctx->type_info()->SetItem(ToAstNode(leaf), *resolved_rhs_type);
-    } else if (std::holds_alternative<WildcardPattern*>(leaf) ||
-               std::holds_alternative<RestOfTuple*>(leaf)) {
-      // Nothing to do
-    } else if (std::holds_alternative<Number*>(leaf) ||
-               std::holds_alternative<ColonRef*>(leaf)) {
-      // For a reference (or literal) the types must be consistent.
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_leaf_type,
-                           ctx->DeduceAndResolve(ToAstNode(leaf)));
-      if (*resolved_leaf_type != *resolved_rhs_type) {
-        return ctx->TypeMismatchError(
-            name_def_tree->span(), nullptr, *resolved_rhs_type, nullptr,
-            *resolved_leaf_type,
-            absl::StrFormat(
-                "Conflicting types; pattern expects %s but got %s from value",
-                resolved_rhs_type->ToString(), resolved_leaf_type->ToString()));
-      }
+    absl::Status status = absl::visit(
+        Visitor{[&](NameDef* n) {
+                  // Defining a name in the pattern match, we accept all types.
+                  ctx->type_info()->SetItem(ToAstNode(leaf),
+                                            *resolved_rhs_type);
+                  return absl::OkStatus();
+                },
+                [](WildcardPattern*) { return absl::OkStatus(); },
+                [](RestOfTuple*) { return absl::OkStatus(); },
+                [&](Range* n) -> absl::Status {
+                  XLS_ASSIGN_OR_RETURN(
+                      Type * start_type,
+                      ctx->type_info()->GetItemOrError(n->start()));
+                  if (*start_type != *resolved_rhs_type) {
+                    return mismatch(*start_type);
+                  }
+                  return absl::OkStatus();
+                },
+                [&](auto* n) -> absl::Status {
+                  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> resolved_leaf_type,
+                                       ctx->DeduceAndResolve(n));
+                  if (*resolved_leaf_type != *resolved_rhs_type) {
+                    return mismatch(*resolved_leaf_type);
+                  }
+                  return absl::OkStatus();
+                }},
+        leaf);
+    if (!status.ok()) {
+      return status;
     }
   } else {
     const NameDefTree::Nodes& nodes = name_def_tree->nodes();
@@ -1445,6 +1465,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> matched,
                        ctx->Deduce(node->matched()));
+  if (matched->IsMeta() || matched->IsFunction()) {
+    return TypeInferenceErrorStatus(
+        node->span(), matched.get(),
+        "Match construct cannot match on this type.", ctx->file_table());
+  }
 
   if (node->arms().empty()) {
     return TypeInferenceErrorStatus(
