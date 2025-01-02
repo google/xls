@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -171,6 +172,25 @@ inline TernaryValue Or(const TernaryValue& a, const TernaryValue& b) {
     return TernaryValue::kKnownZero;
   }
   return TernaryValue::kUnknown;
+}
+
+inline TernaryValue Not(const TernaryValue& a) {
+  switch (a) {
+    case TernaryValue::kKnownZero:
+      return TernaryValue::kKnownOne;
+    case TernaryValue::kKnownOne:
+      return TernaryValue::kKnownZero;
+    case TernaryValue::kUnknown:
+      return TernaryValue::kUnknown;
+  }
+  ABSL_UNREACHABLE();
+}
+inline TernaryVector Not(TernarySpan a) {
+  TernaryVector result;
+  result.reserve(a.size());
+  absl::c_transform(a, std::back_inserter(result),
+                    [](TernaryValue v) { return Not(v); });
+  return result;
 }
 
 TernaryVector BitsToTernary(const Bits& bits);

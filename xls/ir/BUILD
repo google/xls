@@ -359,6 +359,7 @@ cc_library(
         "//xls/data_structures:inline_bitmap",
         "//xls/data_structures:leaf_type_tree",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

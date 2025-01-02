@@ -211,53 +211,37 @@ class ConditionSet {
       AddCondition(Condition{.node = operand, .value = negated});
     }
 
-    if (condition.node->op() == Op::kOr &&
-        absl::c_any_of(condition.value, [](TernaryValue v) {
-          return v == TernaryValue::kKnownZero;
-        })) {
-      VLOG(4) << "Lifting known bits through an OR; or("
-              << absl::StrJoin(condition.node->operands(), ", ",
-                               [](std::string* out, Node* node) {
-                                 absl::StrAppend(out, node->GetName());
-                               })
-              << ") == " << xls::ToString(condition.value);
-      TernaryVector lifted = condition.value;
-      for (int64_t i = 0; i < lifted.size(); ++i) {
-        if (lifted[i] == TernaryValue::kKnownOne) {
-          lifted[i] = TernaryValue::kUnknown;
-        }
-      }
-      for (Node* operand : condition.node->operands()) {
-        if (operand->Is<Literal>()) {
-          continue;
-        }
-        AddImpliedConditions(Condition{.node = operand, .value = lifted},
-                             query_engine);
-      }
-    }
+    if (condition.node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
+      TernaryVector lifted_value = condition.node->OpIn({Op::kNand, Op::kNor})
+                                       ? ternary_ops::Not(condition.value)
+                                       : condition.value;
+      TernaryValue lifted_bit = condition.node->OpIn({Op::kAnd, Op::kNand})
+                                    ? TernaryValue::kKnownOne
+                                    : TernaryValue::kKnownZero;
+      TernaryValue non_lifted_bit = ternary_ops::Not(lifted_bit);
 
-    if (condition.node->op() == Op::kAnd &&
-        absl::c_any_of(condition.value, [](TernaryValue v) {
-          return v == TernaryValue::kKnownOne;
-        })) {
-      VLOG(4) << "Lifting known bits through an AND; and("
-              << absl::StrJoin(condition.node->operands(), ", ",
-                               [](std::string* out, Node* node) {
-                                 absl::StrAppend(out, node->GetName());
-                               })
-              << ") == " << xls::ToString(condition.value);
-      TernaryVector lifted = condition.value;
-      for (int64_t i = 0; i < lifted.size(); ++i) {
-        if (lifted[i] == TernaryValue::kKnownZero) {
-          lifted[i] = TernaryValue::kUnknown;
+      if (absl::c_contains(lifted_value, lifted_bit)) {
+        for (int64_t i = 0; i < lifted_value.size(); ++i) {
+          if (lifted_value[i] == non_lifted_bit) {
+            lifted_value[i] = TernaryValue::kUnknown;
+          }
         }
-      }
-      for (Node* operand : condition.node->operands()) {
-        if (operand->Is<Literal>()) {
-          continue;
+        VLOG(4) << "Lifting known bits; " << OpToString(condition.node->op())
+                << "("
+                << absl::StrJoin(condition.node->operands(), ", ",
+                                 [](std::string* out, Node* node) {
+                                   absl::StrAppend(out, node->GetName());
+                                 })
+                << ") == " << xls::ToString(condition.value)
+                << ", so all operands must match: "
+                << xls::ToString(lifted_value);
+        for (Node* operand : condition.node->operands()) {
+          if (operand->Is<Literal>()) {
+            continue;
+          }
+          AddImpliedConditions(
+              Condition{.node = operand, .value = lifted_value}, query_engine);
         }
-        AddImpliedConditions(Condition{.node = operand, .value = lifted},
-                             query_engine);
       }
     }
 
