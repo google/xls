@@ -751,11 +751,7 @@ class TupleType : public Type {
 // These will nest in the case of multidimensional arrays.
 class ArrayType : public Type {
  public:
-  ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
-      : element_type_(std::move(element_type)), size_(size) {
-    CHECK(!element_type_->IsMeta())
-        << element_type_->ToStringInternal(FullyQualify::kNo, nullptr);
-  }
+  ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size);
 
   absl::Status Accept(TypeVisitor& v) const override {
     return v.HandleArray(*this);

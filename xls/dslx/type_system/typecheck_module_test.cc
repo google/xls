@@ -1878,6 +1878,31 @@ fn main() -> u32 {
                HasSubstr("Cannot pass a type as a function argument.")));
 }
 
+TEST(TypecheckTest, InvalidParametricTypeConstantArrayContents) {
+  constexpr std::string_view kImported = R"(
+pub struct MyStruct<A: u32, B: u32> {
+  a: bits[A],
+  b: bits[B],
+}
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+const MY_ARRAY = imported::MyStruct<u32:4, u32:8>[2]:[
+    imported::MyStruct
+];
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  absl::StatusOr<TypecheckedModule> result =
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data);
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Array element cannot be a metatype")))
+      << result.status();
+}
+
 TEST(TypecheckErrorTest, ArraySizeOfBitsType) {
   EXPECT_THAT(
       Typecheck(R"(
