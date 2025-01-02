@@ -856,6 +856,14 @@ absl::StatusOr<TypeDim> TupleType::GetTotalBitCount() const {
 
 // -- ArrayType
 
+ArrayType::ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size)
+    : element_type_(std::move(element_type)), size_(size) {
+  CHECK(!element_type_->IsMeta())
+      << "Array element cannot be a metatype because arrays cannot hold types; "
+         "got: "
+      << element_type_->ToStringInternal(FullyQualify::kNo, nullptr);
+}
+
 absl::StatusOr<std::unique_ptr<Type>> ArrayType::MapSize(
     const std::function<absl::StatusOr<TypeDim>(TypeDim)>& f) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> new_element_type,

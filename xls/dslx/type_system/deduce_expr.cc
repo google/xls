@@ -164,7 +164,7 @@ static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayTypeAnnotation(
 // numbers. This will become more generalized with type inference 2.0.
 static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayInternal(
     const Array* node, DeduceCtx* ctx) {
-  VLOG(5) << "DeduceArray; node: " << node->ToString();
+  VLOG(5) << "DeduceArrayInternal; node: " << node->ToString();
 
   if (node->members().empty()) {
     return DeduceEmptyArray(node, ctx);
@@ -175,6 +175,7 @@ static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayInternal(
                        DeduceArrayTypeAnnotation(node, ctx));
 
   if (annotated != nullptr) {
+    VLOG(5) << "DeduceArrayInternal; annotated: " << annotated->ToString();
     // If the array type is annotated, as a user convenience, we propagate the
     // element type to bare (unannotated) literal numbers contained in the
     // array.
@@ -206,11 +207,21 @@ static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayInternal(
     }
   }
 
+  std::unique_ptr<Type> inferred_element_type =
+      member_types[0]->CloneToUnique();
+  // Check that we're not making an array of types, as arrays cannot hold types.
+  if (inferred_element_type->IsMeta()) {
+    return TypeInferenceErrorStatus(
+        node->span(), inferred_element_type.get(),
+        "Array element cannot be a metatype because arrays cannot hold types.",
+        ctx->file_table());
+  }
+
   // Check that we're not making a token array, as tokens must not alias, and
   // arrays obscure their provenance as they are aggregate types.
-  if (member_types[0]->HasToken()) {
+  if (inferred_element_type->HasToken()) {
     return TypeInferenceErrorStatus(
-        node->span(), member_types[0].get(),
+        node->span(), inferred_element_type.get(),
         "Types with tokens cannot be placed in arrays.", ctx->file_table());
   }
 
@@ -219,7 +230,7 @@ static absl::StatusOr<std::unique_ptr<ArrayType>> DeduceArrayInternal(
 
   // Try to infer the array type from the first member.
   std::unique_ptr<ArrayType> inferred = std::make_unique<ArrayType>(
-      member_types[0]->CloneToUnique(), member_types_dim);
+      std::move(inferred_element_type), member_types_dim);
 
   if (annotated == nullptr) {
     if (node->has_ellipsis()) {
