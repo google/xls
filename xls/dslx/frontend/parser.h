@@ -586,12 +586,6 @@ class Parser : public TokenParser {
   // Side-effect: module_ is tagged with the parsed attribute on success.
   absl::Status ParseModuleAttribute();
 
-  // Parses the value of the `type_inference_version` module level attribute,
-  // i.e. just the `foo` token in `#![type_inference_version = foo]`, and adds
-  // the appropriate attribute to `module_` if the default version is not
-  // indicated.
-  absl::Status ParseTypeInferenceVersionAttribute();
-
   // Parses DSLX attributes, analogous to Rust's attributes.
   //
   // This accepts the following attributes:

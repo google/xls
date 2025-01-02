@@ -1657,7 +1657,7 @@ TEST(AstClonerTest, CloneModuleClonesVerbatimNode) {
 TEST(AstClonerTest, ModuleLevelAnnotations) {
   constexpr std::string_view kProgram =
       R"(#![allow(nonstandard_constant_naming)]
-#![type_inference_version = 2]
+#![feature(type_inference_v2)]
 
 const name = u32:42;)";
 

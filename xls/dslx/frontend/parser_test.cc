@@ -2962,47 +2962,19 @@ TEST_F(ParserTest, ParseAllowNonstandardConstantNamingAnnotation) {
       testing::ElementsAre(ModuleAnnotation::kAllowNonstandardConstantNaming));
 }
 
-TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue1) {
+TEST_F(ParserTest, NoAttributeForTypeInferenceVersion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
-#![type_inference_version = 1]
+fn f() { () }
 )"));
   EXPECT_THAT(module->annotations(), testing::IsEmpty());
 }
 
 TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue2) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
-#![type_inference_version = 2]
+#![feature(type_inference_v2)]
 )"));
   EXPECT_THAT(module->annotations(),
               testing::ElementsAre(ModuleAnnotation::kTypeInferenceVersion2));
-}
-
-TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue3Fails) {
-  absl::StatusOr<std::unique_ptr<Module>> module = Parse(R"(
-#![type_inference_version = 3]
-)");
-  EXPECT_THAT(module,
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Type inference version must be 1 or 2.")));
-}
-
-TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithNonIntegerFails) {
-  absl::StatusOr<std::unique_ptr<Module>> module = Parse(R"(
-#![type_inference_version = "2"]
-)");
-  EXPECT_THAT(
-      module,
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Type inference version must be an unquoted integer.")));
-}
-
-TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithParenFormatFails) {
-  absl::StatusOr<std::unique_ptr<Module>> module = Parse(R"(
-#![type_inference_version(2)]
-)");
-  EXPECT_THAT(module, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("Expected '=', got '('")));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the

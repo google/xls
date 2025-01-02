@@ -36,7 +36,7 @@ using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
 absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program) {
-  return Typecheck(absl::StrCat("#![type_inference_version = 2]\n\n", program));
+  return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program));
 }
 
 // Verifies the type produced by `TypecheckV2`, for the topmost node only, in a
