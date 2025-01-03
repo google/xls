@@ -608,6 +608,8 @@ class StructTypeBase : public Type {
 // things like type comparisons
 class StructType : public StructTypeBase {
  public:
+  static std::string GetDebugName() { return "StructType"; }
+
   StructType(std::vector<std::unique_ptr<Type>> members,
              const StructDef& struct_def,
              absl::flat_hash_map<std::string, TypeDim>
@@ -751,6 +753,8 @@ class TupleType : public Type {
 // These will nest in the case of multidimensional arrays.
 class ArrayType : public Type {
  public:
+  static std::string GetDebugName() { return "ArrayType"; }
+
   ArrayType(std::unique_ptr<Type> element_type, const TypeDim& size);
 
   absl::Status Accept(TypeVisitor& v) const override {
@@ -878,6 +882,8 @@ class BitsConstructorType : public Type {
 // respectively.
 class BitsType : public Type {
  public:
+  static std::string GetDebugName() { return "BitsType"; }
+
   static std::unique_ptr<BitsType> MakeU64() {
     return std::make_unique<BitsType>(false, 64);
   }
@@ -941,6 +947,8 @@ class BitsType : public Type {
 // Represents a function type with params and a return type.
 class FunctionType : public Type {
  public:
+  static std::string GetDebugName() { return "FunctionType"; }
+
   FunctionType(std::vector<std::unique_ptr<Type>> params,
                std::unique_ptr<Type> return_type)
       : params_(std::move(params)), return_type_(std::move(return_type)) {
@@ -1105,6 +1113,15 @@ struct BitsLikeProperties {
   TypeDim is_signed;
   TypeDim size;
 };
+
+// Returns a string representation of the BitsLikeProperties that looks similar
+// to a corresponding BitsType.
+std::string ToTypeString(const BitsLikeProperties& properties);
+
+inline BitsLikeProperties Clone(const BitsLikeProperties& properties) {
+  return BitsLikeProperties{.is_signed = properties.is_signed.Clone(),
+                            .size = properties.size.Clone()};
+}
 
 inline bool operator==(const BitsLikeProperties& a,
                        const BitsLikeProperties& b) {

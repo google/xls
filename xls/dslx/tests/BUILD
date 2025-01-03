@@ -185,6 +185,8 @@ dslx_lang_test(name = "xn_type_equivalence")
 
 dslx_lang_test(name = "xn_signedness_properties")
 
+dslx_lang_test(name = "xn_slice_bounds")
+
 dslx_lang_test(
     name = "parametric_shift",
     # TODO(leary): 2023-08-14 Runs into "cannot translate zero length bitvector

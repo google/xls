@@ -1503,7 +1503,7 @@ fn test_fp_lt_2() {
 fn to_signed_or_unsigned_int<RESULT_SZ: u32, RESULT_SIGNED: bool, EXP_SZ: u32, FRACTION_SZ: u32>
     (x: APFloat<EXP_SZ, FRACTION_SZ>) -> xN[RESULT_SIGNED][RESULT_SZ] {
     const WIDE_FRACTION: u32 = FRACTION_SZ + u32:1;
-    const MAX_FRACTION_SZ: u32 = std::umax(RESULT_SZ, WIDE_FRACTION);
+    const MAX_FRACTION_SZ: u32 = std::max(RESULT_SZ, WIDE_FRACTION);
 
     const INT_MIN = if RESULT_SIGNED {
         (uN[MAX_FRACTION_SZ]:1 << (RESULT_SZ - u32:1))  // or rather, its negative.

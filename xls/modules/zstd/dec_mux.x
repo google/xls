@@ -117,7 +117,7 @@ pub proc DecoderMux {
         let all_valid = state.raw_data_valid && state.rle_data_valid && state.compressed_data_valid;
 
         let state = if (any_valid) {
-            let min_id = std::umin(std::umin(rle_id, raw_id), compressed_id);
+            let min_id = std::min(std::min(rle_id, raw_id), compressed_id);
             trace_fmt!("DecoderMux: rle_id: {}, raw_id: {}, compressed_id: {}", rle_id, raw_id, compressed_id);
             trace_fmt!("DecoderMux: min_id: {}", min_id);
 

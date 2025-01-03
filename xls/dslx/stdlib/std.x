@@ -90,74 +90,68 @@ fn unsigned_max_value_test() {
     assert_eq(u32:0xffffffff, unsigned_max_value<u32:32>());
 }
 
-// Returns the maximum of two signed integers.
-pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x > y { x } else { y } }
+// Returns the maximum of two (signed or unsigned) integers.
+pub fn max<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> xN[S][N] { if x > y { x } else { y } }
 
 #[test]
-fn smax_test() {
-    assert_eq(s2:0, smax(s2:0, s2:0));
-    assert_eq(s2:1, smax(s2:-1, s2:1));
-    assert_eq(s7:-3, smax(s7:-3, s7:-6));
+fn max_test_signed() {
+    assert_eq(s2:0, max(s2:0, s2:0));
+    assert_eq(s2:1, max(s2:-1, s2:1));
+    assert_eq(s7:-3, max(s7:-3, s7:-6));
 }
 
-// Returns the maximum of two unsigned integers.
-pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
-
 #[test]
-fn umax_test() {
-    assert_eq(u1:1, umax(u1:1, u1:0));
-    assert_eq(u1:1, umax(u1:1, u1:1));
-    assert_eq(u2:3, umax(u2:3, u2:2));
+fn max_test_unsigned() {
+    assert_eq(u1:1, max(u1:1, u1:0));
+    assert_eq(u1:1, max(u1:1, u1:1));
+    assert_eq(u2:3, max(u2:3, u2:2));
 }
 
-// Returns the maximum of two signed integers.
-pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { if x < y { x } else { y } }
+// Returns the minimum of two (signed or unsigned) integers.
+pub fn min<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> xN[S][N] { if x < y { x } else { y } }
 
 #[test]
-fn smin_test() {
-    assert_eq(s1:0, smin(s1:0, s1:0));
-    assert_eq(s1:-1, smin(s1:0, s1:1));
-    assert_eq(s1:-1, smin(s1:1, s1:0));
-    assert_eq(s1:-1, smin(s1:1, s1:1));
-
-    assert_eq(s2:-2, smin(s2:0, s2:-2));
-    assert_eq(s2:-1, smin(s2:0, s2:-1));
-    assert_eq(s2:0, smin(s2:0, s2:0));
-    assert_eq(s2:0, smin(s2:0, s2:1));
-
-    assert_eq(s2:-2, smin(s2:1, s2:-2));
-    assert_eq(s2:-1, smin(s2:1, s2:-1));
-    assert_eq(s2:0, smin(s2:1, s2:0));
-    assert_eq(s2:1, smin(s2:1, s2:1));
-
-    assert_eq(s2:-2, smin(s2:-2, s2:-2));
-    assert_eq(s2:-2, smin(s2:-2, s2:-1));
-    assert_eq(s2:-2, smin(s2:-2, s2:0));
-    assert_eq(s2:-2, smin(s2:-2, s2:1));
-
-    assert_eq(s2:-2, smin(s2:-1, s2:-2));
-    assert_eq(s2:-1, smin(s2:-1, s2:-1));
-    assert_eq(s2:-1, smin(s2:-1, s2:0));
-    assert_eq(s2:-1, smin(s2:-1, s2:1));
+fn min_test_unsigned() {
+    assert_eq(u1:0, min(u1:1, u1:0));
+    assert_eq(u1:1, min(u1:1, u1:1));
+    assert_eq(u2:2, min(u2:3, u2:2));
 }
 
-// Returns the minimum of two unsigned integers.
-pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x < y { x } else { y } }
-
 #[test]
-fn umin_test() {
-    assert_eq(u1:0, umin(u1:1, u1:0));
-    assert_eq(u1:1, umin(u1:1, u1:1));
-    assert_eq(u2:2, umin(u2:3, u2:2));
+fn min_test_signed() {
+    assert_eq(s1:0, min(s1:0, s1:0));
+    assert_eq(s1:-1, min(s1:0, s1:1));
+    assert_eq(s1:-1, min(s1:1, s1:0));
+    assert_eq(s1:-1, min(s1:1, s1:1));
+
+    assert_eq(s2:-2, min(s2:0, s2:-2));
+    assert_eq(s2:-1, min(s2:0, s2:-1));
+    assert_eq(s2:0, min(s2:0, s2:0));
+    assert_eq(s2:0, min(s2:0, s2:1));
+
+    assert_eq(s2:-2, min(s2:1, s2:-2));
+    assert_eq(s2:-1, min(s2:1, s2:-1));
+    assert_eq(s2:0, min(s2:1, s2:0));
+    assert_eq(s2:1, min(s2:1, s2:1));
+
+    assert_eq(s2:-2, min(s2:-2, s2:-2));
+    assert_eq(s2:-2, min(s2:-2, s2:-1));
+    assert_eq(s2:-2, min(s2:-2, s2:0));
+    assert_eq(s2:-2, min(s2:-2, s2:1));
+
+    assert_eq(s2:-2, min(s2:-1, s2:-2));
+    assert_eq(s2:-1, min(s2:-1, s2:-1));
+    assert_eq(s2:-1, min(s2:-1, s2:0));
+    assert_eq(s2:-1, min(s2:-1, s2:1));
 }
 
 // Returns unsigned add of x (N bits) and y (M bits) as a max(N,M)+1 bit value.
-pub fn uadd<N: u32, M: u32, R: u32 = {umax(N, M) + u32:1}>(x: uN[N], y: uN[M]) -> uN[R] {
+pub fn uadd<N: u32, M: u32, R: u32 = {max(N, M) + u32:1}>(x: uN[N], y: uN[M]) -> uN[R] {
     (x as uN[R]) + (y as uN[R])
 }
 
 // Returns signed add of x (N bits) and y (M bits) as a max(N,M)+1 bit value.
-pub fn sadd<N: u32, M: u32, R: u32 = {umax(N, M) + u32:1}>(x: sN[N], y: sN[M]) -> sN[R] {
+pub fn sadd<N: u32, M: u32, R: u32 = {max(N, M) + u32:1}>(x: sN[N], y: sN[M]) -> sN[R] {
     (x as sN[R]) + (y as sN[R])
 }
 
@@ -773,7 +767,7 @@ fn test_to_unsigned() {
 //  let result : (bool, u16) = uadd_with_overflow<u32:16>(x, y);
 //
 pub fn uadd_with_overflow
-    <V: u32, N: u32, M: u32, MAX_N_M: u32 = {umax(N, M)}, MAX_N_M_V: u32 = {umax(MAX_N_M, V)}>
+    <V: u32, N: u32, M: u32, MAX_N_M: u32 = {max(N, M)}, MAX_N_M_V: u32 = {max(MAX_N_M, V)}>
     (x: uN[N], y: uN[M]) -> (bool, uN[V]) {
 
     let x_extended = widening_cast<uN[MAX_N_M_V + u32:1]>(x);
@@ -801,47 +795,48 @@ fn test_uadd_with_overflow() {
 }
 
 // Extract bits given a fixed-point integer with a constant offset.
-//   i.e. let x_extended = x as uN[max(unsigned_sizeof(x) + fixed_shift, to_exclusive)];
-//        (x_extended << fixed_shift)[from_inclusive:to_exclusive]
+//   i.e. let x_extended = x as uN[max(unsigned_sizeof(x) + FIXED_SHIFT, TO_EXCLUSIVE)];
+//        (x_extended << FIXED_SHIFT)[FROM_INCLUSIVE:TO_EXCLUSIVE]
 //
 // This function behaves as-if x has reasonably infinite precision so that
-// the result is zero-padded if from_inclusive or to_exclusive are out of
+// the result is zero-padded if FROM_INCLUSIVE or TO_EXCLUSIVE are out of
 // range of the original x's bitwidth.
 //
-// If to_exclusive <= from_exclusive, the result will be a zero-bit uN[0].
+// If TO_EXCLUSIVE <= FROM_INCLUSIVE, the result will be a zero-bit uN[0].
 pub fn extract_bits
-    <from_inclusive: u32, to_exclusive: u32, fixed_shift: u32, N: u32,
-     extract_width: u32 = {smax(s32:0, to_exclusive as s32 - from_inclusive as s32) as u32}>
-    (x: uN[N]) -> uN[extract_width] {
-    if to_exclusive <= from_inclusive {
-        uN[extract_width]:0
+    <FROM_INCLUSIVE: u32, TO_EXCLUSIVE: u32, FIXED_SHIFT: u32, N: u32,
+     EXTRACT_WIDTH: u32 = {max(s32:0, TO_EXCLUSIVE as s32 - FROM_INCLUSIVE as s32) as u32}>
+    (x: uN[N]) -> uN[EXTRACT_WIDTH] {
+    if TO_EXCLUSIVE <= FROM_INCLUSIVE {
+        uN[EXTRACT_WIDTH]:0
     } else {
         // With a non-zero fixed width, all lower bits of index < fixed_shift are
         // are zero.
         let lower_bits =
-            uN[checked_cast<u32>(smax(s32:0, fixed_shift as s32 - from_inclusive as s32))]:0;
+            uN[checked_cast<u32>(max(s32:0, FIXED_SHIFT as s32 - FROM_INCLUSIVE as s32))]:0;
 
         // Based on the input of N bits and a fixed shift, there are an effective
         // count of N + fixed_shift known bits.  All bits of index >
         // N + fixed_shift - 1 are zero's.
         const UPPER_BIT_COUNT = checked_cast<u32>(
-            smax(s32:0, N as s32 + fixed_shift as s32 - to_exclusive as s32 - s32:1));
-        let upper_bits = uN[UPPER_BIT_COUNT]:0;
+            max(s32:0, N as s32 + FIXED_SHIFT as s32 - TO_EXCLUSIVE as s32 - s32:1));
+        const UPPER_BITS = uN[UPPER_BIT_COUNT]:0;
 
-        if fixed_shift < from_inclusive {
+        if FIXED_SHIFT < FROM_INCLUSIVE {
             // The bits extracted start within or after the middle span.
             //  upper_bits ++ middle_bits
-            let middle_bits = upper_bits ++
-                              x[smin(from_inclusive as s32 - fixed_shift as s32, N as s32)
-                                :smin(to_exclusive as s32 - fixed_shift as s32, N as s32)];
-            (upper_bits ++ middle_bits) as uN[extract_width]
-        } else if fixed_shift <= to_exclusive {
+            const FROM: s32 = min(FROM_INCLUSIVE as s32 - FIXED_SHIFT as s32, N as s32);
+            const TO: s32 = min(TO_EXCLUSIVE as s32 - FIXED_SHIFT as s32, N as s32);
+            let middle_bits = UPPER_BITS ++ x[FROM:TO];
+            (UPPER_BITS ++ middle_bits) as uN[EXTRACT_WIDTH]
+        } else if FIXED_SHIFT <= TO_EXCLUSIVE {
             // The bits extracted start within the fixed_shift span.
-            let middle_bits = x[0:smin(to_exclusive as s32 - fixed_shift as s32, N as s32)];
+            const TO: s32 = min(TO_EXCLUSIVE as s32 - FIXED_SHIFT as s32, N as s32);
+            let middle_bits = x[0:TO];
 
-            (upper_bits ++ middle_bits ++ lower_bits) as uN[extract_width]
+            (UPPER_BITS ++ middle_bits ++ lower_bits) as uN[EXTRACT_WIDTH]
         } else {
-            uN[extract_width]:0
+            uN[EXTRACT_WIDTH]:0
         }
     }
 }
@@ -928,7 +923,7 @@ pub fn umul_with_overflow
     <V: u32, N: u32, M: u32, N_lower_bits: u32 = {N >> u32:1},
      N_upper_bits: u32 = {N - N_lower_bits}, M_lower_bits: u32 = {M >> u32:1},
      M_upper_bits: u32 = {M - M_lower_bits},
-     Min_N_M_lower_bits: u32 = {umin(N_lower_bits, M_lower_bits)}, N_Plus_M: u32 = {N + M}>
+     Min_N_M_lower_bits: u32 = {min(N_lower_bits, M_lower_bits)}, N_Plus_M: u32 = {N + M}>
     (x: uN[N], y: uN[M]) -> (bool, uN[V]) {
     // Break x and y into two halves.
     // x = x1 ++ x0,

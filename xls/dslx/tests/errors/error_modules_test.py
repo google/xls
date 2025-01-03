@@ -873,8 +873,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_umin_type_mismatch(self):
     stderr = self._run('xls/dslx/tests/errors/umin_type_mismatch.x')
-    self.assertIn('umin_type_mismatch.x:21:12-21:27', stderr)
-    self.assertIn('XlsTypeError: uN[N] vs uN[8]', stderr)
+    self.assertIn('umin_type_mismatch.x:21:13-21:28', stderr)
+    self.assertIn('saw: 42; then: 8', stderr)
 
   def test_diag_block_with_trailing_semi(self):
     stderr = self._run(
