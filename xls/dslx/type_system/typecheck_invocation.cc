@@ -98,10 +98,12 @@ static absl::Status TypecheckIsAcceptableWideningCast(DeduceCtx* ctx,
   XLS_RET_CHECK(maybe_from_type.has_value());
   XLS_RET_CHECK(maybe_to_type.has_value());
 
-  BitsType* from = dynamic_cast<BitsType*>(maybe_from_type.value());
-  BitsType* to = dynamic_cast<BitsType*>(maybe_to_type.value());
+  std::optional<BitsLikeProperties> from_bits_like =
+      GetBitsLike(*maybe_from_type.value());
+  std::optional<BitsLikeProperties> to_bits_like =
+      GetBitsLike(*maybe_to_type.value());
 
-  if (from == nullptr || to == nullptr) {
+  if (!from_bits_like.has_value() || !to_bits_like.has_value()) {
     return ctx->TypeMismatchError(
         node->span(), from_expr, *maybe_from_type.value(), node,
         *maybe_to_type.value(),
@@ -110,13 +112,13 @@ static absl::Status TypecheckIsAcceptableWideningCast(DeduceCtx* ctx,
                         maybe_to_type.value()->ToErrorString()));
   }
 
-  bool signed_input = from->is_signed();
-  bool signed_output = to->is_signed();
+  XLS_ASSIGN_OR_RETURN(bool signed_input,
+                       from_bits_like->is_signed.GetAsBool());
+  XLS_ASSIGN_OR_RETURN(bool signed_output, to_bits_like->is_signed.GetAsBool());
 
   XLS_ASSIGN_OR_RETURN(int64_t old_bit_count,
-                       from->GetTotalBitCount().value().GetAsInt64());
-  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
-                       to->GetTotalBitCount().value().GetAsInt64());
+                       from_bits_like->size.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, to_bits_like->size.GetAsInt64());
 
   bool can_cast =
       ((signed_input == signed_output) && (new_bit_count >= old_bit_count)) ||
@@ -128,8 +130,8 @@ static absl::Status TypecheckIsAcceptableWideningCast(DeduceCtx* ctx,
         *maybe_to_type.value(),
         absl::StrFormat("Can not cast from type %s (%d bits) to"
                         " %s (%d bits) with widening_cast",
-                        from->ToString(), old_bit_count, to->ToString(),
-                        new_bit_count));
+                        ToTypeString(from_bits_like.value()), old_bit_count,
+                        ToTypeString(to_bits_like.value()), new_bit_count));
   }
 
   return absl::OkStatus();

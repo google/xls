@@ -960,12 +960,15 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
       int64_t old_bit_count,
       std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
 
-  if (dynamic_cast<ArrayType*>(output_type.get()) != nullptr ||
-      dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
+  std::optional<BitsLikeProperties> output_bits_like =
+      GetBitsLike(*output_type);
+  std::optional<BitsLikeProperties> input_bits_like = GetBitsLike(*input_type);
+
+  if (!output_bits_like.has_value() || !input_bits_like.has_value()) {
     return IrConversionErrorStatus(
         node->span(),
-        absl::StrFormat("CheckedCast to and from array "
-                        "is not currently supported for IR conversion; "
+        absl::StrFormat("CheckedCast is only supported for bits-like types in "
+                        "IR conversion; "
                         "attempted checked cast from: %s to: %s",
                         input_type->ToString(), output_type->ToString()),
         file_table());

@@ -30,6 +30,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
@@ -403,6 +404,9 @@ class TypeInfo {
 
 template <typename T>
 inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
+  static_assert(std::is_base_of<Type, T>::value,
+                "T must be a subclass of Type");
+
   std::optional<Type*> t = GetItem(key);
   if (!t.has_value()) {
     return absl::NotFoundError(
@@ -411,11 +415,11 @@ inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
   }
   DCHECK(t.value() != nullptr);
   auto* target = dynamic_cast<T*>(t.value());
-  if (target == nullptr) {
-    return absl::FailedPreconditionError(absl::StrFormat(
-        "AST node (%s) @ %s did not have expected Type subtype.",
-        key->GetNodeTypeName(), SpanToString(key->GetSpan(), file_table())));
-  }
+  XLS_RET_CHECK(target != nullptr) << absl::StreamFormat(
+      "AST node `%s` @ %s did not have expected `xls::dslx::Type` subtype; "
+      "want: %s got: %s",
+      key->ToString(), SpanToString(key->GetSpan(), file_table()),
+      T::GetDebugName(), t.value()->GetDebugTypeName());
   return target;
 }
 

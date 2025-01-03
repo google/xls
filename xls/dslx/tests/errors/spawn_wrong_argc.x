@@ -19,7 +19,7 @@ pub proc foo {
   config () { () }
 
   next(state: ()) {
-    std::umin(u32:1, u32:2);
+    std::min(u32:1, u32:2);
     ()
   }
 }
@@ -37,7 +37,7 @@ proc test_case {
   }
 
   next(state: ()) {
-    std::umin(u32:1, u32:2);
+    std::min(u32:1, u32:2);
     let tok = send(join(), terminator, true);
     ()
   }
