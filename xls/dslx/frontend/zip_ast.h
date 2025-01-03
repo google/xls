@@ -17,9 +17,25 @@
 
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
+#include "absl/strings/substitute.h"
 #include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
+
+// Options for the behavior of `ZipAst`.
+struct ZipAstOptions {
+  // Whether to consider it a mismatch if an LHS `NameRef` refers to a different
+  // def than the RHS one.
+  bool check_defs_for_name_refs = false;
+
+  // The callback for handling mismatches. By default, this generates an error.
+  absl::AnyInvocable<absl::Status(const AstNode*, const AstNode*)>
+      accept_mismatch_callback =
+          [](const AstNode* x, const AstNode* y) -> absl::Status {
+    return absl::InvalidArgumentError(
+        absl::Substitute("Mismatch: $0 vs. $1", x->ToString(), y->ToString()));
+  };
+};
 
 // Traverses `lhs` and `rhs`, invoking `lhs_visitor` and then `rhs_visitor` for
 // each corresponding node pair.
@@ -28,15 +44,13 @@ namespace xls::dslx {
 // each corresponding node is of the same class and has the same number of
 // children.
 //
-// If a structural mismatch is encountered, then the `accept_mismatch_callback`
-// is invoked, and if it errors, the error is propagated out of `ZipAst`. On
-// success of `accept_mismatch_callback`, the mismatching subtree is ignored,
-// and `ZipAst` proceeds.
-absl::Status ZipAst(
-    const AstNode* lhs, const AstNode* rhs, AstNodeVisitor* lhs_visitor,
-    AstNodeVisitor* rhs_visitor,
-    absl::AnyInvocable<absl::Status(const AstNode*, const AstNode*)>
-        accept_mismatch_callback);
+// If a structural mismatch is encountered, then
+// `options.accept_mismatch_callback` is invoked, and if it errors, the error is
+// propagated out of `ZipAst`. On success of `options.accept_mismatch_callback`,
+// the mismatching subtree is ignored, and `ZipAst` proceeds.
+absl::Status ZipAst(const AstNode* lhs, const AstNode* rhs,
+                    AstNodeVisitor* lhs_visitor, AstNodeVisitor* rhs_visitor,
+                    ZipAstOptions options = ZipAstOptions{});
 
 }  // namespace xls::dslx
 

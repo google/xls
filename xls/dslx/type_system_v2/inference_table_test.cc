@@ -223,16 +223,18 @@ TEST_F(InferenceTableTest, ParametricVariable) {
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_invocation1, parametric_invocation2));
 
-  InvocationScopedExpr parametric_inv1_n_value =
+  std::optional<InvocationScopedExpr> parametric_inv1_n_value =
       table_->GetParametricValue(*n, *parametric_invocation1);
-  InvocationScopedExpr parametric_inv2_n_value =
+  std::optional<InvocationScopedExpr> parametric_inv2_n_value =
       table_->GetParametricValue(*n, *parametric_invocation2);
+  ASSERT_TRUE(parametric_inv1_n_value.has_value());
+  ASSERT_TRUE(parametric_inv2_n_value.has_value());
   // These exprs are scoped to `nullopt` invocation because they reside in the
   // non-parametric calling context.
-  EXPECT_EQ(parametric_inv1_n_value.invocation(), std::nullopt);
-  EXPECT_EQ(parametric_inv2_n_value.invocation(), std::nullopt);
-  EXPECT_EQ(parametric_inv1_n_value.expr()->ToString(), "u32:4");
-  EXPECT_EQ(parametric_inv2_n_value.expr()->ToString(), "u32:5");
+  EXPECT_EQ(parametric_inv1_n_value->invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv2_n_value->invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv1_n_value->expr()->ToString(), "u32:4");
+  EXPECT_EQ(parametric_inv2_n_value->expr()->ToString(), "u32:5");
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
@@ -280,24 +282,28 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_invocation1, parametric_invocation2));
 
-  InvocationScopedExpr parametric_inv1_m_value =
+  std::optional<InvocationScopedExpr> parametric_inv1_m_value =
       table_->GetParametricValue(*m, *parametric_invocation1);
-  InvocationScopedExpr parametric_inv1_n_value =
+  std::optional<InvocationScopedExpr> parametric_inv1_n_value =
       table_->GetParametricValue(*n, *parametric_invocation1);
-  InvocationScopedExpr parametric_inv2_m_value =
+  std::optional<InvocationScopedExpr> parametric_inv2_m_value =
       table_->GetParametricValue(*m, *parametric_invocation2);
-  InvocationScopedExpr parametric_inv2_n_value =
+  std::optional<InvocationScopedExpr> parametric_inv2_n_value =
       table_->GetParametricValue(*n, *parametric_invocation2);
+  ASSERT_TRUE(parametric_inv1_m_value.has_value());
+  ASSERT_TRUE(parametric_inv1_n_value.has_value());
+  ASSERT_TRUE(parametric_inv2_m_value.has_value());
+  ASSERT_TRUE(parametric_inv2_n_value.has_value());
 
   // Exprs that reside in the callee are scoped to the callee invocation.
-  EXPECT_EQ(parametric_inv1_m_value.invocation(), parametric_invocation1);
-  EXPECT_EQ(parametric_inv2_m_value.invocation(), std::nullopt);
-  EXPECT_EQ(parametric_inv1_n_value.invocation(), parametric_invocation1);
-  EXPECT_EQ(parametric_inv2_n_value.invocation(), parametric_invocation2);
-  EXPECT_EQ(parametric_inv1_m_value.expr()->ToString(), "u32:4");
-  EXPECT_EQ(parametric_inv2_m_value.expr()->ToString(), "u32:5");
-  EXPECT_EQ(parametric_inv1_n_value.expr()->ToString(), "M * M");
-  EXPECT_EQ(parametric_inv2_n_value.expr()->ToString(), "M * M");
+  EXPECT_EQ(parametric_inv1_m_value->invocation(), parametric_invocation1);
+  EXPECT_EQ(parametric_inv2_m_value->invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv1_n_value->invocation(), parametric_invocation1);
+  EXPECT_EQ(parametric_inv2_n_value->invocation(), parametric_invocation2);
+  EXPECT_EQ(parametric_inv1_m_value->expr()->ToString(), "u32:4");
+  EXPECT_EQ(parametric_inv2_m_value->expr()->ToString(), "u32:5");
+  EXPECT_EQ(parametric_inv1_n_value->expr()->ToString(), "M * M");
+  EXPECT_EQ(parametric_inv2_n_value->expr()->ToString(), "M * M");
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
@@ -331,10 +337,11 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
       table_->AddParametricInvocation(*invocation, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
-  InvocationScopedExpr parametric_inv_m_value =
+  std::optional<InvocationScopedExpr> parametric_inv_m_value =
       table_->GetParametricValue(*m, *parametric_invocation);
-  EXPECT_EQ(parametric_inv_m_value.invocation(), std::nullopt);
-  EXPECT_EQ(parametric_inv_m_value.expr()->ToString(), "u32:5");
+  ASSERT_TRUE(parametric_inv_m_value.has_value());
+  EXPECT_EQ(parametric_inv_m_value->invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv_m_value->expr()->ToString(), "u32:5");
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithUnsupportedAnnotation) {

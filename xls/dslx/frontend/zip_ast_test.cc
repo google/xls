@@ -41,6 +41,7 @@ namespace {
 using absl_testing::StatusIs;
 using ::testing::Contains;
 using ::testing::ElementsAre;
+using ::testing::HasSubstr;
 using ::testing::Not;
 
 class ZipAstTest : public ::testing::Test {
@@ -85,10 +86,11 @@ TEST_F(ZipAstTest, ZipEmptyModules) {
   Collector collector;
   XLS_EXPECT_OK(
       ZipAst(module1.get(), module2.get(), &collector, &collector,
-             [](const AstNode*, const AstNode*) {
+             ZipAstOptions{.accept_mismatch_callback = [](const AstNode*,
+                                                          const AstNode*) {
                return absl::FailedPreconditionError(
                    "Should not invoke accept mismatch callback here.");
-             }));
+             }}));
   EXPECT_THAT(collector.nodes(), ElementsAre(module1.get(), module2.get()));
 }
 
@@ -104,11 +106,47 @@ fn muladd<S: bool, N: u32>(a: xN[S][N], b: xN[S][N], c: xN[S][N]) -> xN[S][N] {
   Collector collector2;
   XLS_EXPECT_OK(
       ZipAst(module1.get(), module2.get(), &collector1, &collector2,
-             [](const AstNode* a, const AstNode* b) {
+             ZipAstOptions{.accept_mismatch_callback = [](const AstNode* a,
+                                                          const AstNode* b) {
                return absl::FailedPreconditionError(
                    "Should not invoke accept mismatch callback here.");
-             }));
+             }}));
   EXPECT_EQ(collector1.GetNodeStrings(), collector2.GetNodeStrings());
+}
+
+TEST_F(ZipAstTest, ZipStructurallyMatchingExprsWithoutNameRefChecking) {
+  constexpr std::string_view kProgram = R"(
+const X = u32:4;
+const Y = X + 1;
+const Z = Y + 1;
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* y,
+                           module->GetMemberOrError<ConstantDef>("Y"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* z,
+                           module->GetMemberOrError<ConstantDef>("Z"));
+  Collector collector1;
+  Collector collector2;
+  XLS_EXPECT_OK(ZipAst(y, z, &collector1, &collector2));
+}
+
+TEST_F(ZipAstTest, ZipStructurallyMatchingExprsWithNameRefChecking) {
+  constexpr std::string_view kProgram = R"(
+const X = u32:4;
+const Y = X + 1;
+const Z = Y + 1;
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(kProgram));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* y,
+                           module->GetMemberOrError<ConstantDef>("Y"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* z,
+                           module->GetMemberOrError<ConstantDef>("Z"));
+  Collector collector1;
+  Collector collector2;
+  EXPECT_THAT(
+      ZipAst(y, z, &collector1, &collector2,
+             ZipAstOptions{.check_defs_for_name_refs = true}),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("X vs. Y")));
 }
 
 TEST_F(ZipAstTest, ZipWithMismatchAccepted) {
@@ -124,12 +162,14 @@ fn muladd<S: bool, N: u32>(a: xN[S][N], b: xN[S][N], c: xN[S][N]) -> xN[S][N] {
   )"));
   Collector collector1;
   Collector collector2;
-  XLS_EXPECT_OK(ZipAst(module1.get(), module2.get(), &collector1, &collector2,
-                       [](const AstNode* a, const AstNode* b) {
-                         EXPECT_EQ(a->ToString(), "b");
-                         EXPECT_EQ(b->ToString(), "u32:42");
-                         return absl::OkStatus();
-                       }));
+  XLS_EXPECT_OK(
+      ZipAst(module1.get(), module2.get(), &collector1, &collector2,
+             ZipAstOptions{.accept_mismatch_callback = [](const AstNode* a,
+                                                          const AstNode* b) {
+               EXPECT_EQ(a->ToString(), "b");
+               EXPECT_EQ(b->ToString(), "u32:42");
+               return absl::OkStatus();
+             }}));
   EXPECT_EQ(collector1.nodes().size(), collector2.nodes().size());
   EXPECT_THAT(collector1.GetNodeStrings(), Contains("(a + u32:1)"));
   EXPECT_THAT(collector2.GetNodeStrings(), Contains("(a + u32:1)"));
@@ -152,13 +192,15 @@ fn muladd<S: bool, N: u32>(a: xN[S][N], b: xN[S][N], c: xN[S][N]) -> xN[S][N] {
   )"));
   Collector collector1;
   Collector collector2;
-  EXPECT_THAT(ZipAst(module1.get(), module2.get(), &collector1, &collector2,
-                     [](const AstNode* a, const AstNode* b) {
-                       EXPECT_EQ(a->ToString(), "b");
-                       EXPECT_EQ(b->ToString(), "u32:42");
-                       return absl::InvalidArgumentError("rejected");
-                     }),
-              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      ZipAst(module1.get(), module2.get(), &collector1, &collector2,
+             ZipAstOptions{.accept_mismatch_callback =
+                               [](const AstNode* a, const AstNode* b) {
+                                 EXPECT_EQ(a->ToString(), "b");
+                                 EXPECT_EQ(b->ToString(), "u32:42");
+                                 return absl::InvalidArgumentError("rejected");
+                               }}),
+      StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_EQ(collector1.nodes().size(), collector2.nodes().size());
   EXPECT_THAT(collector1.GetNodeStrings(), Contains("(a + u32:1)"));
   EXPECT_THAT(collector2.GetNodeStrings(), Contains("(a + u32:1)"));

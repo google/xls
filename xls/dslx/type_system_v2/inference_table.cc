@@ -221,12 +221,7 @@ class InferenceTableImpl : public InferenceTable {
             variable,
             InvocationScopedExpr(caller_invocation, binding->type_annotation(),
                                  std::get<Expr*>(value)));
-      } else if (binding->expr() == nullptr) {
-        return absl::UnimplementedError(absl::StrCat(
-            "Type inference version 2 is a work in progress and doesn't yet "
-            "support inferring parametrics from function arguments: ",
-            invocation->ToString()));
-      } else {
+      } else if (binding->expr() != nullptr) {
         values.emplace(
             variable,
             InvocationScopedExpr(invocation.get(), binding->type_annotation(),
@@ -234,6 +229,7 @@ class InferenceTableImpl : public InferenceTable {
       }
     }
     const ParametricInvocation* result = invocation.get();
+    node_to_parametric_invocation_.emplace(&node, result);
     parametric_invocations_.push_back(std::move(invocation));
     parametric_values_by_invocation_.emplace(result, std::move(values));
     return result;
@@ -249,11 +245,22 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
-  InvocationScopedExpr GetParametricValue(
+  std::optional<const ParametricInvocation*> GetParametricInvocation(
+      const Invocation* node) const override {
+    const auto it = node_to_parametric_invocation_.find(node);
+    return it == node_to_parametric_invocation_.end()
+               ? std::nullopt
+               : std::make_optional(it->second);
+  }
+
+  std::optional<InvocationScopedExpr> GetParametricValue(
       const NameDef& binding_name_def,
       const ParametricInvocation& invocation) const override {
     const InferenceVariable* variable = variables_.at(&binding_name_def).get();
-    return parametric_values_by_invocation_.at(&invocation).at(variable);
+    const absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>&
+        values = parametric_values_by_invocation_.at(&invocation);
+    const auto it = values.find(variable);
+    return it == values.end() ? std::nullopt : std::make_optional(it->second);
   }
 
   absl::Status SetTypeAnnotation(const AstNode* node,
@@ -371,6 +378,8 @@ class InferenceTableImpl : public InferenceTable {
   // Parametric invocations and the corresponding information about parametric
   // variables.
   std::vector<std::unique_ptr<ParametricInvocation>> parametric_invocations_;
+  absl::flat_hash_map<const Invocation*, const ParametricInvocation*>
+      node_to_parametric_invocation_;
   absl::flat_hash_map<
       const ParametricInvocation*,
       absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>>

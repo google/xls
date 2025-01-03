@@ -48,6 +48,7 @@ cc_library(
     hdrs = ["inference_table_to_type_info.h"],
     deps = [
         ":inference_table",
+        ":solve_for_parametrics",
         ":type_annotation_utils",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
@@ -59,6 +60,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
@@ -74,6 +76,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
 )
@@ -228,6 +231,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:type_info",
         "//xls/ir:bits",
         "//xls/ir:number_parser",
         "@com_google_absl//absl/status",

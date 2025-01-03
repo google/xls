@@ -27,12 +27,6 @@
 namespace xls::dslx {
 namespace {
 
-// Returns true if `node` is of type `T`; false otherwise.
-template <typename T>
-bool MatchType(const AstNode* node) {
-  return dynamic_cast<const T*>(node) != nullptr;
-}
-
 // A visitor intended to be invoked for both the LHS and RHS trees, to perform
 // the work of `ZipAst` non-recursively. The caller must do the recursive
 // descent itself, and invoke this visitor for each LHS/RHS counterpart node
@@ -40,16 +34,12 @@ bool MatchType(const AstNode* node) {
 class ZipVisitor : public AstNodeVisitorWithDefault {
  public:
   ZipVisitor(AstNodeVisitor* lhs_visitor, AstNodeVisitor* rhs_visitor,
-             absl::AnyInvocable<absl::Status(const AstNode*, const AstNode*)>
-                 accept_mismatch_callback)
+             ZipAstOptions options)
       : lhs_visitor_(lhs_visitor),
         rhs_visitor_(rhs_visitor),
-        accept_mismatch_callback_(std::move(accept_mismatch_callback)) {}
+        options_(std::move(options)) {}
 
-  absl::AnyInvocable<absl::Status(const AstNode*, const AstNode*)>&
-  accept_mismatch_callback() {
-    return accept_mismatch_callback_;
-  }
+  ZipAstOptions& options() { return options_; }
 
 #define DECLARE_HANDLER(__type)                           \
   absl::Status Handle##__type(const __type* n) override { \
@@ -65,28 +55,49 @@ class ZipVisitor : public AstNodeVisitorWithDefault {
   absl::Status Handle(const T* node) {
     if (!lhs_.has_value()) {
       lhs_ = node;
-      match_fn_ = MatchType<T>;
+      match_fn_ = &ZipVisitor::MatchNode<T>;
       return absl::OkStatus();
     }
     // `node` is the RHS if we get here.
-    if (match_fn_(node)) {
+    if ((this->*match_fn_)(*lhs_, node)) {
       XLS_RETURN_IF_ERROR((*lhs_)->Accept(lhs_visitor_));
       XLS_RETURN_IF_ERROR(node->Accept(rhs_visitor_));
     } else {
-      XLS_RETURN_IF_ERROR(accept_mismatch_callback_(*lhs_, node));
+      XLS_RETURN_IF_ERROR(options_.accept_mismatch_callback(*lhs_, node));
     }
     lhs_ = std::nullopt;
     match_fn_ = nullptr;
     return absl::OkStatus();
   }
 
+  template <typename T>
+  bool MatchContent(const T* lhs, const T* rhs) {
+    return true;
+  }
+
+  template <>
+  bool MatchContent(const NameRef* lhs, const NameRef* rhs) {
+    return !options_.check_defs_for_name_refs ||
+           ToAstNode(lhs->name_def()) == ToAstNode(rhs->name_def());
+  }
+
+  // Returns true if `node` is of type `T` and `MatchContent<T>` returns true.
+  template <typename T>
+  bool MatchNode(const AstNode* lhs, const AstNode* rhs) {
+    const T* casted_lhs = dynamic_cast<const T*>(lhs);
+    const T* casted_rhs = dynamic_cast<const T*>(rhs);
+    return casted_lhs != nullptr && casted_rhs != nullptr &&
+           MatchContent(casted_lhs, casted_rhs);
+  }
+
   AstNodeVisitor* lhs_visitor_;
   AstNodeVisitor* rhs_visitor_;
-  absl::AnyInvocable<absl::Status(const AstNode*, const AstNode*)>
-      accept_mismatch_callback_;
+  ZipAstOptions options_;
 
   std::optional<const AstNode*> lhs_;
-  absl::AnyInvocable<bool(const AstNode*)> match_fn_ = nullptr;
+
+  using MatchFn = bool (ZipVisitor::*)(const AstNode*, const AstNode*);
+  MatchFn match_fn_ = nullptr;
 };
 
 // Helper for `ZipAst` which runs recursively and invokes the same `visitor` for
@@ -98,7 +109,7 @@ absl::Status ZipInternal(ZipVisitor* visitor, const AstNode* lhs,
   std::vector<AstNode*> lhs_children = lhs->GetChildren(/*want_types=*/true);
   std::vector<AstNode*> rhs_children = rhs->GetChildren(/*want_types=*/true);
   if (lhs_children.size() != rhs_children.size()) {
-    return visitor->accept_mismatch_callback()(lhs, rhs);
+    return visitor->options().accept_mismatch_callback(lhs, rhs);
   }
   for (int i = 0; i < lhs_children.size(); i++) {
     XLS_RETURN_IF_ERROR(ZipInternal(visitor, lhs_children[i], rhs_children[i]));
@@ -108,13 +119,10 @@ absl::Status ZipInternal(ZipVisitor* visitor, const AstNode* lhs,
 
 }  // namespace
 
-absl::Status ZipAst(
-    const AstNode* lhs, const AstNode* rhs, AstNodeVisitor* lhs_visitor,
-    AstNodeVisitor* rhs_visitor,
-    absl::AnyInvocable<absl::Status(const AstNode*, const AstNode*)>
-        accept_mismatch_callback) {
-  ZipVisitor visitor(lhs_visitor, rhs_visitor,
-                     std::move(accept_mismatch_callback));
+absl::Status ZipAst(const AstNode* lhs, const AstNode* rhs,
+                    AstNodeVisitor* lhs_visitor, AstNodeVisitor* rhs_visitor,
+                    ZipAstOptions options) {
+  ZipVisitor visitor(lhs_visitor, rhs_visitor, std::move(options));
   return ZipInternal(&visitor, lhs, rhs);
 }
 

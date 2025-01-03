@@ -186,10 +186,17 @@ class InferenceTable {
   virtual std::vector<const ParametricInvocation*> GetParametricInvocations()
       const = 0;
 
+  // Retrieves the `ParametricInvocation` associated with `node` if there is
+  // one.
+  virtual std::optional<const ParametricInvocation*> GetParametricInvocation(
+      const Invocation* node) const = 0;
+
   // Returns the expression for the value of the given parametric in the given
-  // invocation. Note that the return value may be scoped to either `invocation`
-  // or its caller, depending on where the value expression originated from.
-  virtual InvocationScopedExpr GetParametricValue(
+  // invocation, if the parametric has an explicit or default expression. If it
+  // is implicit, then this returns `nullopt`. Note that the return value may be
+  // scoped to either `invocation` or its caller, depending on where the value
+  // expression originated from.
+  virtual std::optional<InvocationScopedExpr> GetParametricValue(
       const NameDef& binding_name_def,
       const ParametricInvocation& invocation) const = 0;
 

@@ -804,7 +804,7 @@ const Y:u32 = foo(1);
 
 TEST(TypecheckV2Test, FunctionCallPassingInTooLargeAutoSizeFails) {
   EXPECT_THAT(R"(
-fn foo(a: u4) -> u32 { a }
+fn foo(a: u4) -> u4 { a }
 const Y = foo(32767);
 )",
               TypecheckFails(HasSizeMismatch("uN[15]", "u4")));
@@ -813,7 +813,7 @@ const Y = foo(32767);
 TEST(TypecheckV2Test, FunctionCallPassingInTooLargeExplicitIntegerSizeFails) {
   EXPECT_THAT(R"(
 const X:u32 = 1;
-fn foo(a: u4) -> u32 { a }
+fn foo(a: u4) -> u4 { a }
 const Y = foo(X);
 )",
               TypecheckFails(HasSizeMismatch("uN[32]", "u4")));
@@ -830,7 +830,7 @@ const Y = foo(X);
 
 TEST(TypecheckV2Test, FunctionCallPassingInArrayForIntegerFails) {
   EXPECT_THAT(R"(
-fn foo(a: u4) -> u32 { a }
+fn foo(a: u4) -> u4 { a }
 const Y = foo([u32:1, u32:2]);
 )",
               TypecheckFails(HasTypeMismatch("uN[32][2]", "u4")));
@@ -919,6 +919,28 @@ const Y = foo<11>(u11:5);
 }
 
 TEST(TypecheckV2Test,
+     ParametricFunctionTakingIntegerOfImplicitParameterizedSize) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const X = foo(u10:5);
+const Y = foo(u11:5);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasSubstr("node: `const X = foo(u10:5);`, type: uN[10]"),
+                    HasSubstr("node: `const Y = foo(u11:5);`, type: uN[11]")));
+}
+
+TEST(TypecheckV2Test, ParametricFunctionWithNonInferrableParametric) {
+  EXPECT_THAT(R"(
+fn foo<M: u32, N: u32>(a: uN[M]) -> uN[M] { a }
+const X = foo(u10:5);
+)",
+              TypecheckFails(HasSubstr("Could not infer parametric(s): N")));
+}
+
+TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfParameterizedSignedness) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
@@ -931,6 +953,20 @@ const Y = foo<true>(s32:5);
       type_info_string,
       AllOf(HasSubstr("node: `const X = foo<false>(u32:5);`, type: uN[32]"),
             HasSubstr("node: `const Y = foo<true>(s32:5);`, type: sN[32]")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionTakingIntegerOfImplicitParameterizedSignedness) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
+const X = foo(u32:5);
+const Y = foo(s32:5);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasSubstr("node: `const X = foo(u32:5);`, type: uN[32]"),
+                    HasSubstr("node: `const Y = foo(s32:5);`, type: sN[32]")));
 }
 
 TEST(TypecheckV2Test,
@@ -947,6 +983,20 @@ const Y = foo<true, 11>(s11:5);
       AllOf(
           HasSubstr("node: `const X = foo<false, 10>(u10:5);`, type: uN[10]"),
           HasSubstr("node: `const Y = foo<true, 11>(s11:5);`, type: sN[11]")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionTakingIntegerOfImplicitParameterizedSignednessAndSize) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
+const X = foo(u10:5);
+const Y = foo(s11:5);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasSubstr("node: `const X = foo(u10:5);`, type: uN[10]"),
+                    HasSubstr("node: `const Y = foo(s11:5);`, type: sN[11]")));
 }
 
 TEST(TypecheckV2Test,
@@ -985,16 +1035,41 @@ const X = foo<11>(u12:5);
               HasSubstr("node: `const X = foo<11>(u12:5);`, type: uN[12]"));
 }
 
-TEST(TypecheckV2Test,
-     ParametricFunctionTakingIntegerWithOverriddenDependentDefaultParametric) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+TEST(TypecheckV2Test, ParametricFunctionWithDefaultImplicitlyOverriddenFails) {
+  // In a case like this, the "overridden" value for `N` must be explicit (v1
+  // agrees).
+  EXPECT_THAT(R"(
 fn foo<M: u32, N: u32 = {M + 1}>(a: uN[N]) -> uN[N] { a }
-const X = foo<11, 20>(u20:5);
+const X = foo<11>(u20:5);
+)",
+              TypecheckFails(HasSizeMismatch("uN[20]", "uN[12]")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionWithDefaultDependingOnInferredParametric) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<M: u32, N: u32 = {M + M}>(a: uN[M]) -> uN[M] { a }
+const X = foo(u10:5);
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
                            TypeInfoToString(result.tm));
   EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo<11, 20>(u20:5);`, type: uN[20]"));
+              HasSubstr("node: `const X = foo(u10:5);`, type: uN[10]"));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionWithInferredThenDefaultThenInferredParametric) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<A: u32, B: u32 = {A + 1}, C: u32>(x: uN[A], y: uN[C][B]) -> uN[A] {
+   x
+}
+const X = foo(u3:1, [u24:6, u24:7, u24:8, u24:9]);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const X = foo(u3:1, [u24:6, u24:7, u24:8, "
+                        "u24:9]);`, type: uN[3]"));
 }
 
 TEST(TypecheckV2Test,
@@ -1014,6 +1089,21 @@ const Z = foo<32>(X + Y + X + 50);
       HasSubstr("node: `const Z = foo<32>(X + Y + X + 50);`, type: uN[32]"));
 }
 
+TEST(TypecheckV2Test,
+     ParametricFunctionTakingIntegerOfImplicitSignednessAndSizeWithSum) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const X = u32:3;
+const Y = u32:4;
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const Z = foo(X + Y + X + 50);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      HasSubstr("node: `const Z = foo(X + Y + X + 50);`, type: uN[32]"));
+}
+
 TEST(TypecheckV2Test, ParametricFunctionTakingArrayOfParameterizedSize) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
@@ -1027,6 +1117,21 @@ const Y = foo<4>([1, 2, 3, 4]);
       AllOf(HasSubstr("node: `const X = foo<3>([1, 2, 3]);`, type: uN[32][3]"),
             HasSubstr(
                 "node: `const Y = foo<4>([1, 2, 3, 4]);`, type: uN[32][4]")));
+}
+
+TEST(TypecheckV2Test, ParametricFunctionTakingArrayOfImplicitSize) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
+const X = foo([1, 2, 3]);
+const Y = foo([1, 2, 3, 4]);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(
+          HasSubstr("node: `const X = foo([1, 2, 3]);`, type: uN[32][3]"),
+          HasSubstr("node: `const Y = foo([1, 2, 3, 4]);`, type: uN[32][4]")));
 }
 
 TEST(TypecheckV2Test,
@@ -1067,6 +1172,30 @@ const X = foo<24, 23>(4);
               HasSubstr("node: `const X = foo<24, 23>(4);`, type: uN[23]"));
 }
 
+TEST(TypecheckV2Test, ParametricFunctionImplicitParameterPropagation) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn bar<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A] { a + 1 }
+fn foo<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[B] { bar(b, a) }
+const X = foo(u23:4, u17:5);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const X = foo(u23:4, u17:5);`, type: uN[17]"));
+}
+
+TEST(TypecheckV2Test, ParametricFunctionImplicitParameterExplicitPropagation) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn bar<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A] { a + 1 }
+fn foo<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[B] { bar<B, A>(b, a) }
+const X = foo(u23:4, u17:5);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const X = foo(u23:4, u17:5);`, type: uN[17]"));
+}
+
 TEST(TypecheckV2Test, ParametricFunctionInvocationNesting) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
@@ -1078,6 +1207,46 @@ const X = foo<24>(foo<24>(4) + foo<24>(5));
       type_info_string,
       HasSubstr(
           "node: `const X = foo<24>(foo<24>(4) + foo<24>(5));`, type: uN[24]"));
+}
+
+TEST(TypecheckV2Test, ParametricFunctionImplicitInvocationNesting) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
+const X = foo(foo(u24:4) + foo(u24:5));
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      HasSubstr(
+          "node: `const X = foo(foo(u24:4) + foo(u24:5));`, type: uN[24]"));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionImplicitInvocationNestingWithExplicitOuter) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
+const X = foo<24>(foo(u24:4 + foo(u24:6)) + foo(u24:5));
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const X = foo<24>(foo(u24:4 + foo(u24:6)) + "
+                        "foo(u24:5));`, type: uN[24]"));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionImplicitInvocationNestingWithExplicitInner) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
+const X = foo(foo<24>(4) + foo<24>(5));
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      HasSubstr(
+          "node: `const X = foo(foo<24>(4) + foo<24>(5));`, type: uN[24]"));
 }
 
 TEST(TypecheckV2Test,
@@ -1106,10 +1275,36 @@ const Z = foo<X>(u3:1);
               HasSubstr("node: `const Z = foo<X>(u3:1);`, type: uN[3]"));
 }
 
+TEST(TypecheckV2Test,
+     ParametricFunctionCallUsingGlobalConstantInImplicitParametricArgument) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const X = u3:1;
+const Z = foo(X);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const Z = foo(X);`, type: uN[3]"));
+}
+
 TEST(TypecheckV2Test, ParametricFunctionCallFollowedByTypePropagation) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const Y = foo<15>(u15:1);
+const Z = Y + 1;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              HasSubstr("node: `const Z = Y + 1;`, type: uN[15]"));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionCallWithImplicitParameterFollowedByTypePropagation) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const Y = foo(u15:1);
 const Z = Y + 1;
 )"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,

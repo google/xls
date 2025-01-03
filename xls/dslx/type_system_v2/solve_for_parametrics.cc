@@ -95,7 +95,8 @@ class Resolver {
   Resolver(
       Visitor* resolvable_visitor, Visitor* dependent_visitor,
       const absl::flat_hash_set<const ParametricBinding*>& bindings_to_resolve,
-      absl::AnyInvocable<absl::StatusOr<InterpValue>(const Expr*)>
+      absl::AnyInvocable<absl::StatusOr<InterpValue>(
+          const TypeAnnotation* expected_type, const Expr*)>
           expr_evaluator)
       : resolvable_visitor_(resolvable_visitor),
         dependent_visitor_(dependent_visitor),
@@ -132,25 +133,12 @@ class Resolver {
         *resolvable_visitor_->last_signedness_and_bit_count();
     SignednessAndBitCountResult dependent_signedness_and_bit_count =
         *dependent_visitor_->last_signedness_and_bit_count();
-    if (std::holds_alternative<const Expr*>(
-            dependent_signedness_and_bit_count.bit_count)) {
-      XLS_RETURN_IF_ERROR(
-          std::get<const Expr*>(dependent_signedness_and_bit_count.bit_count)
-              ->Accept(dependent_visitor_));
-      XLS_RETURN_IF_ERROR(
-          ResolveVariable(resolvable_signedness_and_bit_count.bit_count,
-                          *dependent_visitor_->last_variable()));
-    }
-    if (std::holds_alternative<const Expr*>(
-            dependent_signedness_and_bit_count.signedness)) {
-      XLS_RETURN_IF_ERROR(
-          std::get<const Expr*>(dependent_signedness_and_bit_count.signedness)
-              ->Accept(dependent_visitor_));
-      XLS_RETURN_IF_ERROR(
-          ResolveVariable(resolvable_signedness_and_bit_count.signedness,
-                          *dependent_visitor_->last_variable()));
-    }
-    return absl::OkStatus();
+    XLS_RETURN_IF_ERROR(ResolveIntegerTypeComponent(
+        resolvable_signedness_and_bit_count.bit_count,
+        dependent_signedness_and_bit_count.bit_count));
+    return ResolveIntegerTypeComponent(
+        resolvable_signedness_and_bit_count.signedness,
+        dependent_signedness_and_bit_count.signedness);
   }
 
   absl::flat_hash_map<const ParametricBinding*, InterpValue>& results() {
@@ -174,8 +162,10 @@ class Resolver {
       return absl::InvalidArgumentError(
           absl::Substitute("Could not evaluate: $0", resolvable->ToString()));
     }
-    XLS_ASSIGN_OR_RETURN(InterpValue value, expr_evaluator_(expr));
-    return NoteValue(it->second, std::move(value));
+    const ParametricBinding* binding = it->second;
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         expr_evaluator_(binding->type_annotation(), expr));
+    return NoteValue(binding, std::move(value));
   }
 
   // Variant that takes an int64_t `value` instead of an `Expr`.
@@ -188,10 +178,14 @@ class Resolver {
     XLS_ASSIGN_OR_RETURN(
         SignednessAndBitCountResult signedness_and_bit_count,
         GetSignednessAndBitCount(it->second->type_annotation()));
-    XLS_ASSIGN_OR_RETURN(bool is_signed,
-                         Evaluate(signedness_and_bit_count.signedness));
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                         Evaluate(signedness_and_bit_count.bit_count));
+    XLS_ASSIGN_OR_RETURN(
+        bool is_signed,
+        Evaluate(CreateBoolAnnotation(*variable->owner(), variable->span()),
+                 signedness_and_bit_count.signedness));
+    XLS_ASSIGN_OR_RETURN(
+        int64_t bit_count,
+        Evaluate(CreateS64Annotation(*variable->owner(), variable->span()),
+                 signedness_and_bit_count.bit_count));
     return NoteValue(it->second,
                      is_signed ? InterpValue::MakeSBits(bit_count, value)
                                : InterpValue::MakeUBits(bit_count, value));
@@ -205,6 +199,30 @@ class Resolver {
       return ResolveVariable(std::get<T>(value), variable);
     }
     return ResolveVariable(std::get<const Expr*>(value), variable);
+  }
+
+  // Resolves a variable for the signedness or bit count of an integer type like
+  // `xN[S][N]`, `uN[N]`, etc. The input is expected to be a field from a
+  // `SignednessAndBitCountResult` object obtained using the type annotation.
+  // If the component is not a variable, this does nothing.
+  template <typename T>
+  absl::Status ResolveIntegerTypeComponent(
+      const std::variant<T, const Expr*>& resolvable,
+      const std::variant<T, const Expr*>& dependent) {
+    if (!std::holds_alternative<const Expr*>(dependent)) {
+      // If the dependent value is not actually dependent on anything, there is
+      // nothing to do. We would hit this for the static component in a
+      // dependent annotation that only has one component parameterized, like
+      // `xN[S][32]`.
+      return absl::OkStatus();
+    }
+    XLS_RETURN_IF_ERROR(
+        std::get<const Expr*>(dependent)->Accept(dependent_visitor_));
+    if (dependent_visitor_->last_variable().has_value()) {
+      XLS_RETURN_IF_ERROR(
+          ResolveVariable(resolvable, *dependent_visitor_->last_variable()));
+    }
+    return absl::OkStatus();
   }
 
   // Records the given `value` for `variable` in the result map, and ensures
@@ -221,12 +239,14 @@ class Resolver {
   }
 
   template <typename T>
-  absl::StatusOr<T> Evaluate(std::variant<T, const Expr*> value_or_expr) {
+  absl::StatusOr<T> Evaluate(const TypeAnnotation* expected_type,
+                             std::variant<T, const Expr*> value_or_expr) {
     if (std::holds_alternative<T>(value_or_expr)) {
       return std::get<T>(value_or_expr);
     }
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         expr_evaluator_(std::get<const Expr*>(value_or_expr)));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        expr_evaluator_(expected_type, std::get<const Expr*>(value_or_expr)));
     return value.GetBitValueUnsigned();
   }
 
@@ -234,7 +254,9 @@ class Resolver {
   Visitor* const dependent_visitor_;
   absl::flat_hash_map<const NameDef*, const ParametricBinding*>
       bindings_to_resolve_;
-  absl::AnyInvocable<absl::StatusOr<InterpValue>(const Expr*)> expr_evaluator_;
+  absl::AnyInvocable<absl::StatusOr<InterpValue>(
+      const TypeAnnotation* expected_type, const Expr*)>
+      expr_evaluator_;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> results_;
 };
 
@@ -244,17 +266,21 @@ absl::StatusOr<absl::flat_hash_map<const ParametricBinding*, InterpValue>>
 SolveForParametrics(const TypeAnnotation* resolvable_type,
                     const TypeAnnotation* parametric_dependent_type,
                     absl::flat_hash_set<const ParametricBinding*> parametrics,
-                    absl::AnyInvocable<absl::StatusOr<InterpValue>(const Expr*)>
+                    absl::AnyInvocable<absl::StatusOr<InterpValue>(
+                        const TypeAnnotation* expected_type, const Expr*)>
                         expr_evaluator) {
   Visitor resolvable_visitor;
   Visitor dependent_visitor;
   Resolver resolver(&resolvable_visitor, &dependent_visitor, parametrics,
                     std::move(expr_evaluator));
-  XLS_RETURN_IF_ERROR(ZipAst(resolvable_type, parametric_dependent_type,
-                             &resolvable_visitor, &dependent_visitor,
-                             [&](const AstNode* lhs, const AstNode* rhs) {
-                               return resolver.AcceptMismatch(lhs, rhs);
-                             }));
+  XLS_RETURN_IF_ERROR(
+      ZipAst(resolvable_type, parametric_dependent_type, &resolvable_visitor,
+             &dependent_visitor,
+             ZipAstOptions{.check_defs_for_name_refs = true,
+                           .accept_mismatch_callback = [&](const AstNode* lhs,
+                                                           const AstNode* rhs) {
+                             return resolver.AcceptMismatch(lhs, rhs);
+                           }}));
   return std::move(resolver.results());
 }
 

@@ -79,18 +79,15 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleConstantDef(const ConstantDef* node) override {
     VLOG(5) << "HandleConstantDef: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<ConstantDef*>(node),
-                                      GenerateInternalTypeVariableName(node)));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->name_def(), variable));
+    XLS_ASSIGN_OR_RETURN(const NameRef* variable,
+                         DefineTypeVariableForVariableOrConstant(node));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->value(), variable));
-    if (node->type_annotation() != nullptr) {
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(node->name_def(), node->type_annotation()));
-    }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleParam(const Param* node) override {
+    VLOG(5) << "HandleParam: " << node->ToString();
+    XLS_RETURN_IF_ERROR(DefineTypeVariableForVariableOrConstant(node).status());
     return DefaultHandler(node);
   }
 
@@ -339,6 +336,25 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
+  // Helper that creates an internal type variable for a `ConstantDef`, `Param`,
+  // or similar type of node that contains a `NameDef` and optional
+  // `TypeAnnotation`.
+  template <typename T>
+  absl::StatusOr<const NameRef*> DefineTypeVariableForVariableOrConstant(
+      const T* node) {
+    XLS_ASSIGN_OR_RETURN(const NameRef* variable,
+                         table_.DefineInternalVariable(
+                             InferenceVariableKind::kType, const_cast<T*>(node),
+                             GenerateInternalTypeVariableName(node)));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->name_def(), variable));
+    if (node->type_annotation() != nullptr) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node->name_def(), node->type_annotation()));
+    }
+    return variable;
+  }
+
   // Helper that handles invocation nodes calling free functions, i.e. functions
   // that do not require callee object type info to be looked up. If a
   // `parametric_invocation` is specified, it is for the invocation actually
@@ -599,8 +615,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAst(annotation));
     annotation = dynamic_cast<const TypeAnnotation*>(cloned);
     CHECK(annotation != nullptr);
-    invocation_scoped_type_annotations_.emplace(annotation,
-                                                *parametric_invocation);
+    for (const AstNode* next : FlattenToSet(annotation)) {
+      if (const auto* next_annotation =
+              dynamic_cast<const TypeAnnotation*>(next)) {
+        invocation_scoped_type_annotations_.emplace(next_annotation,
+                                                    *parametric_invocation);
+      }
+    }
     return annotation;
   }
 

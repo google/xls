@@ -86,10 +86,11 @@ const BAR: uN[4] = uN[4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, IsEmpty());
 }
 
@@ -107,11 +108,35 @@ const BAR: uN[4] = uN[4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(4))));
+}
+
+TEST_F(SolveForParametricsTest, SolveForUnWithConstant) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, Parse(R"(
+const X = u32:1;
+fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
+const BAR: uN[X] = uN[X]:1;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(const ConstantDef* bar,
+                           module->GetMemberOrError<ConstantDef>("BAR"));
+  const ParametricBinding* n = foo->parametric_bindings()[0];
+  const Param* a = foo->params()[0];
+  absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      values,
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return InterpValue::MakeU32(5);
+                          }));
+  EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(5))));
 }
 
 TEST_F(SolveForParametricsTest, SolveForUnWithUnWithExpr) {
@@ -128,10 +153,12 @@ const BAR: uN[4 + X] = uN[4 + X]:1;
   const Param* a = foo->params()[0];
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
-      values, SolveForParametrics(
-                  bar->type_annotation(), a->type_annotation(),
-                  absl::flat_hash_set<const ParametricBinding*>{n},
-                  [&](const Expr* expr) { return InterpValue::MakeU32(5); }));
+      values,
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return InterpValue::MakeU32(5);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(5))));
 }
 
@@ -149,10 +176,11 @@ const BAR: u4 = u4:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(4))));
 }
 
@@ -170,10 +198,11 @@ const BAR: sN[4] = sN[4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeS32(4))));
 }
 
@@ -191,10 +220,11 @@ const BAR: xN[false][4] = xN[false][4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeS32(4))));
 }
 
@@ -212,10 +242,11 @@ const BAR: bits[4] = bits[4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeS32(4))));
 }
 
@@ -233,10 +264,11 @@ const BAR: uN[4] = uN[4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeS32(4))));
 }
 
@@ -255,10 +287,11 @@ const BAR: xN[true][4] = xN[true][4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{s, n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{s, n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(s, InterpValue::MakeU32(1)),
                                            Pair(n, InterpValue::MakeS32(4))));
 }
@@ -277,10 +310,11 @@ const BAR: xN[true][4] = xN[true][4]:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeS32(4))));
 }
 
@@ -299,10 +333,11 @@ const BAR: s4 = s4:1;
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{s, n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{s, n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(s, InterpValue::MakeBool(1)),
                                            Pair(n, InterpValue::MakeS32(4))));
 }
@@ -321,10 +356,11 @@ const BAR: u32[3] = [u32:0, u32:1, u32:3];
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(3))));
 }
 
@@ -343,10 +379,11 @@ const BAR: u32[33][34] = zero!<u32[33][34]>();
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{m, n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{m, n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(m, InterpValue::MakeU32(33)),
                                            Pair(n, InterpValue::MakeU32(34))));
 }
@@ -365,10 +402,11 @@ const BAR: u32[33][34] = zero!<u32[33][34]>();
   const ParametricBinding* n = foo->parametric_bindings()[0];
   const Param* a = foo->params()[0];
   EXPECT_THAT(
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }),
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("u32:33 vs. u32:34")));
 }
@@ -391,11 +429,12 @@ const BAR: xN[false][24][33][34] = zero!<xN[false][24][33][34]>();
   const Param* a = foo->params()[0];
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
-      values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{m, n, s, w},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      values, SolveForParametrics(
+                  bar->type_annotation(), a->type_annotation(),
+                  absl::flat_hash_set<const ParametricBinding*>{m, n, s, w},
+                  [&](const TypeAnnotation*, const Expr* expr) {
+                    return EvaluateLiteral(expr, false, 32);
+                  }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(s, InterpValue::MakeU32(false)),
                                            Pair(w, InterpValue::MakeU32(24)),
                                            Pair(m, InterpValue::MakeU32(33)),
@@ -417,10 +456,11 @@ const BAR: (u10, (s4, sN[10]))[20] = zero!<(u10, (s4, sN[10]))[20]>();
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   XLS_ASSERT_OK_AND_ASSIGN(
       values,
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n, x},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }));
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n, x},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }));
   EXPECT_THAT(values, UnorderedElementsAre(Pair(n, InterpValue::MakeU32(10)),
                                            Pair(x, InterpValue::MakeU32(20))));
 }
@@ -438,10 +478,11 @@ const BAR: (uN[5], bool) = zero!<(uN[5], bool)>();
   const Param* a = foo->params()[0];
   absl::flat_hash_map<const ParametricBinding*, InterpValue> values;
   EXPECT_THAT(
-      SolveForParametrics(
-          bar->type_annotation(), a->type_annotation(),
-          absl::flat_hash_set<const ParametricBinding*>{n},
-          [&](const Expr* expr) { return EvaluateLiteral(expr, false, 32); }),
+      SolveForParametrics(bar->type_annotation(), a->type_annotation(),
+                          absl::flat_hash_set<const ParametricBinding*>{n},
+                          [&](const TypeAnnotation*, const Expr* expr) {
+                            return EvaluateLiteral(expr, false, 32);
+                          }),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Mismatch: (uN[5], bool) vs. u32[N]")));
 }

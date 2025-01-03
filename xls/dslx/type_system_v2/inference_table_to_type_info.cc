@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
+#include <list>
 #include <memory>
 #include <optional>
 #include <stack>
@@ -32,7 +34,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -41,6 +45,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -51,6 +56,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/solve_for_parametrics.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -184,14 +190,13 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
  private:
   absl::StatusOr<std::vector<const ParametricInvocation*>>
   GetRelatedInvocations(const AstNode* node) {
-    std::vector<const ParametricInvocation*> result;
+    std::vector<const ParametricInvocation*> referenced_invocations;
     if (std::optional<const TypeAnnotation*> annotation =
             table_.GetTypeAnnotation(node);
         annotation.has_value()) {
       const auto it = invocation_scoped_annotations_.find(*annotation);
-      if (it != invocation_scoped_annotations_.end() &&
-          !handled_parametric_invocations_.contains(it->second)) {
-        result.push_back(it->second);
+      if (it != invocation_scoped_annotations_.end()) {
+        referenced_invocations.push_back(it->second);
       }
     }
     if (std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
@@ -200,12 +205,42 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
                            table_.GetTypeAnnotationsForTypeVariable(*variable));
       for (const TypeAnnotation* annotation : annotations) {
         const auto it = invocation_scoped_annotations_.find(annotation);
-        if (it != invocation_scoped_annotations_.end() &&
-            !handled_parametric_invocations_.contains(it->second)) {
-          result.push_back(it->second);
+        if (it != invocation_scoped_annotations_.end()) {
+          referenced_invocations.push_back(it->second);
         }
       }
     }
+    // In a case like `foo(foo(...))` where `foo` is a parametric function, the
+    // implicit parametrics of the outer invocation depend on the inference of
+    // the inner invocation.
+    std::list<const ParametricInvocation*> nested_invocations;
+    for (const ParametricInvocation* invocation : referenced_invocations) {
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const AstNode*> descendants,
+          CollectUnder(&invocation->node(), /*want_types=*/false));
+      for (const AstNode* descendant : descendants) {
+        if (descendant == &invocation->node()) {
+          continue;
+        }
+        if (const auto* descendant_invocation =
+                dynamic_cast<const Invocation*>(descendant)) {
+          std::optional<const ParametricInvocation*>
+              descendant_parametric_invocation =
+                  table_.GetParametricInvocation(descendant_invocation);
+          if (descendant_parametric_invocation.has_value()) {
+            nested_invocations.push_front(*descendant_parametric_invocation);
+          }
+        }
+      }
+    }
+    std::vector<const ParametricInvocation*> result;
+    auto needs_handling = [&](const ParametricInvocation* invocation) {
+      return !handled_parametric_invocations_.contains(invocation);
+    };
+    absl::c_copy_if(nested_invocations, std::back_inserter(result),
+                    needs_handling);
+    absl::c_copy_if(referenced_invocations, std::back_inserter(result),
+                    needs_handling);
     return result;
   }
 
@@ -503,18 +538,130 @@ class InferenceTableConverter {
       return it->second;
     }
     absl::flat_hash_map<std::string, InterpValue> values;
+    absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
+    auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
+      if (implicit_parametrics.empty()) {
+        return absl::OkStatus();
+      }
+      absl::flat_hash_map<std::string, InterpValue> new_values;
+      XLS_ASSIGN_OR_RETURN(new_values, InferImplicitFunctionParametrics(
+                                           invocation, implicit_parametrics));
+      implicit_parametrics.clear();
+      values.merge(std::move(new_values));
+      return absl::OkStatus();
+    };
     for (const ParametricBinding* binding :
          invocation->callee().parametric_bindings()) {
-      InvocationScopedExpr expr =
+      std::optional<InvocationScopedExpr> expr =
           table_.GetParametricValue(*binding->name_def(), *invocation);
-      XLS_ASSIGN_OR_RETURN(InterpValue value, Evaluate(expr));
-      invocation_type_info_.at(invocation)
-          ->NoteConstExpr(binding->name_def(), value);
-      values.emplace(binding->name_def()->identifier(), value);
+      if (expr.has_value()) {
+        // The expr may be a default expr which may use the inferred values of
+        // any parametrics preceding it, so let's resolve any pending implicit
+        // ones now.
+        XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
+        // Now evaluate the expr.
+        XLS_ASSIGN_OR_RETURN(InterpValue value, Evaluate(*expr));
+        invocation_type_info_.at(invocation)
+            ->NoteConstExpr(binding->name_def(), value);
+        values.emplace(binding->name_def()->identifier(), value);
+      } else {
+        implicit_parametrics.insert(binding);
+      }
     }
+    // Resolve any implicit ones that are at the end of the list.
+    XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
     ParametricEnv env(values);
     converted_parametric_envs_.emplace(invocation, env);
     return env;
+  }
+
+  // Attempts to infer the values of the specified implicit parametrics in an
+  // invocation, using the types of the regular arguments being passed. If not
+  // all of `implicit_parametrics` can be determined, this function returns an
+  // error.
+  absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
+  InferImplicitFunctionParametrics(
+      const ParametricInvocation* invocation,
+      absl::flat_hash_set<const ParametricBinding*> implicit_parametrics) {
+    VLOG(5) << "Inferring " << implicit_parametrics.size()
+            << " implicit parametrics for invocation: " << ToString(invocation);
+    absl::flat_hash_map<std::string, InterpValue> values;
+    const absl::Span<Param* const> formal_args = invocation->callee().params();
+    const absl::Span<Expr* const> actual_args = invocation->node().args();
+    TypeInfo* ti = invocation_type_info_.at(invocation);
+    for (int i = 0; i < formal_args.size(); i++) {
+      std::optional<const NameRef*> actual_arg_type_var =
+          table_.GetTypeVariable(actual_args[i]);
+      if (!actual_arg_type_var.has_value()) {
+        VLOG(5) << "The actual argument: `" << actual_args[i]->ToString()
+                << "` has no type variable.";
+        continue;
+      }
+      VLOG(5) << "Using type variable: " << (*actual_arg_type_var)->ToString();
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const TypeAnnotation*> actual_arg_annotations,
+          table_.GetTypeAnnotationsForTypeVariable(*actual_arg_type_var));
+      XLS_RETURN_IF_ERROR(
+          ResolveVariableTypeAnnotations(invocation, actual_arg_annotations));
+      TypeInfo* actual_arg_ti = base_type_info_;
+      if (invocation->caller_invocation().has_value()) {
+        actual_arg_ti =
+            invocation_type_info_.at(*invocation->caller_invocation());
+      }
+      // The type variable for the actual argument should have at least one
+      // annotation associated with it that came from the formal argument and is
+      // therefore dependent on the parametric we are solving for. Let's unify
+      // just the independent annotations(s) for the purposes of solving for the
+      // variable.
+      RemoveAnnotationsReferringToNamesWithoutTypeInfo(actual_arg_ti,
+                                                       actual_arg_annotations);
+      if (actual_arg_annotations.empty()) {
+        VLOG(5) << "The actual argument type variable: "
+                << (*actual_arg_type_var)->ToString()
+                << " has no independent type annotations.";
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* actual_arg_type,
+          UnifyTypeAnnotations(invocation, actual_arg_annotations,
+                               actual_args[i]->span()));
+      std::optional<const ParametricInvocation*> effective_invocation =
+          GetEffectiveParametricInvocation(invocation->caller_invocation(),
+                                           actual_arg_type);
+      absl::flat_hash_map<const ParametricBinding*, InterpValue> resolved;
+      VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
+              << " with effective invocation: "
+              << ToString(effective_invocation);
+      XLS_ASSIGN_OR_RETURN(
+          resolved,
+          SolveForParametrics(
+              actual_arg_type, formal_args[i]->type_annotation(),
+              implicit_parametrics,
+              [&](const TypeAnnotation* expected_type, const Expr* expr) {
+                return Evaluate(InvocationScopedExpr(effective_invocation,
+                                                     expected_type, expr));
+              }));
+      for (auto& [binding, value] : resolved) {
+        VLOG(5) << "Inferred implicit parametric value: " << value.ToString()
+                << " for binding: " << binding->identifier()
+                << " using function argument: `" << actual_args[i]->ToString()
+                << "` of actual type: " << actual_arg_type->ToString();
+        ti->NoteConstExpr(binding->name_def(), value);
+        implicit_parametrics.erase(binding);
+        values.emplace(binding->identifier(), std::move(value));
+      }
+    }
+    if (!implicit_parametrics.empty()) {
+      std::vector<std::string> binding_names;
+      binding_names.reserve(implicit_parametrics.size());
+      for (const ParametricBinding* binding : implicit_parametrics) {
+        binding_names.push_back(binding->identifier());
+      }
+      return absl::InvalidArgumentError(
+          absl::StrCat("Could not infer parametric(s): ",
+                       absl::StrJoin(binding_names, ", ")));
+    }
+    return values;
   }
 
   absl::StatusOr<bool> EvaluateBoolOrExpr(
@@ -579,11 +726,8 @@ class InferenceTableConverter {
       return absl::InvalidArgumentError(
           "Failed to unify because there are no type annotations.");
     }
-    for (int i = 0; i < annotations.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(annotations[i],
-                           ResolveVariableTypeAnnotations(parametric_invocation,
-                                                          annotations[i]));
-    }
+    XLS_RETURN_IF_ERROR(
+        ResolveVariableTypeAnnotations(parametric_invocation, annotations));
     if (annotations.size() == 1 &&
         !invocation_scoped_type_annotations_.contains(annotations[0])) {
       // This is here mainly for preservation of shorthand annotations appearing
@@ -796,6 +940,19 @@ class InferenceTableConverter {
     return result;
   }
 
+  // Variant that deeply resolves all `TypeVariableTypeAnnotation`s within a
+  // vector of annotations.
+  absl::Status ResolveVariableTypeAnnotations(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::vector<const TypeAnnotation*>& annotations) {
+    for (int i = 0; i < annotations.size(); i++) {
+      XLS_ASSIGN_OR_RETURN(annotations[i],
+                           ResolveVariableTypeAnnotations(parametric_invocation,
+                                                          annotations[i]));
+    }
+    return absl::OkStatus();
+  }
+
   // Checks if the given concrete type ultimately makes sense for the given
   // node, based on the intrinsic properties of the node, like being an add
   // operation or containing an embedded literal.
@@ -931,6 +1088,38 @@ class InferenceTableConverter {
       return scope_it->second;
     }
     return context_invocation;
+  }
+
+  // Removes any annotations in the given vector that contain any `NameRef`
+  // whose type info has not (yet) been generated. The effective `TypeInfo` for
+  // each annotation is either `default_ti`; or, for invocation-scoped
+  // annotations, the `TypeInfo` for the relevant parametric invocation.
+  void RemoveAnnotationsReferringToNamesWithoutTypeInfo(
+      TypeInfo* default_ti, std::vector<const TypeAnnotation*>& annotations) {
+    annotations.erase(
+        std::remove_if(
+            annotations.begin(), annotations.end(),
+            [&](const TypeAnnotation* annotation) {
+              TypeInfo* ti = default_ti;
+              const auto it =
+                  invocation_scoped_type_annotations_.find(annotation);
+              if (it != invocation_scoped_type_annotations_.end()) {
+                ti = invocation_type_info_.at(it->second);
+              }
+              FreeVariables vars =
+                  GetFreeVariablesByLambda(annotation, [&](const NameRef& ref) {
+                    if (!std::holds_alternative<const NameDef*>(
+                            ref.name_def())) {
+                      return false;
+                    }
+                    const NameDef* name_def =
+                        std::get<const NameDef*>(ref.name_def());
+                    return !ti->GetItem(name_def).has_value() &&
+                           !ti->IsKnownConstExpr(name_def);
+                  });
+              return vars.GetFreeVariableCount() > 0;
+            }),
+        annotations.end());
   }
 
   const InferenceTable& table_;

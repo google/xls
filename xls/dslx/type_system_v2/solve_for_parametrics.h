@@ -44,7 +44,8 @@ absl::StatusOr<absl::flat_hash_map<const ParametricBinding*, InterpValue>>
 SolveForParametrics(const TypeAnnotation* resolvable_type,
                     const TypeAnnotation* parametric_dependent_type,
                     absl::flat_hash_set<const ParametricBinding*> parametrics,
-                    absl::AnyInvocable<absl::StatusOr<InterpValue>(const Expr*)>
+                    absl::AnyInvocable<absl::StatusOr<InterpValue>(
+                        const TypeAnnotation* expected_type, const Expr*)>
                         expr_evaluator);
 
 }  // namespace xls::dslx
