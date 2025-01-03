@@ -87,4 +87,9 @@ message CodegenFlagsProto {
 
   // Should internal fifos be manually generated in verilog.
   optional bool materialize_internal_fifos = 37;
+
+  // If present, the seed used to randomize the order of lines in the output. If
+  // empty, will use a default order. This can be useful for creating multiple
+  // equivalent Verilog outputs to exercise the rest of the synthesis pipeline.
+  repeated int32 randomize_order_seed = 38;
 }

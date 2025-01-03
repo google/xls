@@ -124,6 +124,10 @@ CODEGEN_FIELDS = {
     "emit_sv_types": "Whether or not to honor the #[sv_type(NAME)] annotations in the source DSLX.",
     "codegen_version": "Version of codegen to use (0=default).",
     "materialize_internal_fifos": "Whether or not to materialize internal fifos directly in Verilog.",
+    "randomize_order_seed": "If present, the seed used to randomize the order of lines in the " +
+                            "output, as a comma-separated list of one or more 32-bit integers. " +
+                            "If empty, will use a default order. This can be useful for creating " +
+                            "multiple equivalent Verilog outputs to exercise a synthesis pipeline.",
 }
 
 SCHEDULING_FIELDS = {

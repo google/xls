@@ -399,6 +399,10 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
           "Unknown merge strategy: %v", p.register_merge_strategy()));
   }
 
+  if (!p.randomize_order_seed().empty()) {
+    options.randomize_order_seed(p.randomize_order_seed());
+  }
+
   if (p.has_codegen_version()) {
     options.codegen_version(p.codegen_version());
   }

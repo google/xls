@@ -445,3 +445,9 @@ response-receive are scheduled to match the RAM's latency.
     register merging. Registers are eligible for merging if the stages they are
     read in are not simultaneously activatable and the registers are the same
     type.
+
+# Miscellaneous
+
+-   `--randomize_order_seed`, if provided, controls the seed used to randomize
+    the order of lines in the output. This is useful for creating multiple
+    equivalent Verilog outputs to exercise the rest of the pipeline.

@@ -20,6 +20,7 @@
 #include <deque>
 #include <initializer_list>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,6 +32,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -66,6 +68,23 @@
 namespace xls {
 namespace verilog {
 namespace {
+
+template <typename T>
+std::vector<T> Shuffle(absl::Span<const T> v, absl::BitGenRef rng) {
+  std::vector<T> vector(v.begin(), v.end());
+  absl::c_shuffle(vector, rng);
+  return vector;
+}
+
+template <typename T>
+absl::Span<const T> MaybeShuffle(absl::Span<const T> v, std::vector<T>& storage,
+                                 std::optional<absl::BitGenRef> rng) {
+  if (!rng.has_value()) {
+    return v;
+  }
+  storage = Shuffle(v, *rng);
+  return absl::MakeConstSpan(storage);
+}
 
 // Returns true if the given type is representable in the Verilog.
 bool IsRepresentable(Type* type) { return type->GetFlatBitCount() > 0; }
@@ -200,7 +219,8 @@ struct Stage {
 // TODO(meheff): 2021/08/27 Replace this pipeline reconstruction with tags on
 // the pipeline registers which indicate the stage. These markers then are used
 // to structure the Verilog.
-absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
+absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(
+    Block* block, std::optional<absl::BitGenRef> rng) {
   // Construct a graph as an edge list which indicates the minimum distance in
   // stages between nodes in the block.
   struct Edge {
@@ -295,7 +315,7 @@ absl::StatusOr<std::vector<Stage>> SplitBlockIntoStages(Block* block) {
 
   // Gather the nodes in a vector of stages.
   std::vector<Stage> stages(max_stage + 1);
-  for (Node* node : TopoSort(block)) {
+  for (Node* node : TopoSort(block, rng)) {
     if (node->Is<InputPort>() || node->Is<OutputPort>()) {
       continue;
     }
@@ -359,7 +379,13 @@ class BlockGenerator {
         input_port_sv_types_(input_port_sv_types),
         output_port_sv_types_(output_port_sv_types),
         file_(file),
-        mb_(block->name(), file_, options, clock_name, reset_proto) {}
+        mb_(block->name(), file_, options, clock_name, reset_proto) {
+    if (!options.randomize_order_seed().empty()) {
+      std::seed_seq seed_seq(options.randomize_order_seed().begin(),
+                             options.randomize_order_seed().end());
+      rng_.emplace(seed_seq);
+    }
+  }
 
   // Generates and returns the Verilog text for the underlying block.
   absl::Status Emit() {
@@ -373,7 +399,7 @@ class BlockGenerator {
       // cosmetic relative to the emit_as_pipeline=false option as the Verilog
       // generated each way is functionally identical.
       XLS_ASSIGN_OR_RETURN(std::vector<Stage> stages,
-                           SplitBlockIntoStages(block_));
+                           SplitBlockIntoStages(block_, rng_));
       for (int64_t stage_num = 0; stage_num < stages.size(); ++stage_num) {
         VLOG(2) << "Emitting stage: " << stage_num;
         const Stage& stage = stages.at(stage_num);
@@ -398,9 +424,13 @@ class BlockGenerator {
         }
       }
     } else {
-      XLS_RETURN_IF_ERROR(DeclareRegisters(block_->GetRegisters()));
-      XLS_RETURN_IF_ERROR(EmitLogic(TopoSort(block_)));
-      XLS_RETURN_IF_ERROR(AssignRegisters(block_->GetRegisters()));
+      std::vector<Register*> shuffled_storage;
+      absl::Span<Register* const> registers =
+          MaybeShuffle(block_->GetRegisters(), shuffled_storage, rng_);
+
+      XLS_RETURN_IF_ERROR(DeclareRegisters(registers));
+      XLS_RETURN_IF_ERROR(EmitLogic(TopoSort(block_, rng_)));
+      XLS_RETURN_IF_ERROR(AssignRegisters(registers));
     }
 
     // Emit instantiations separately at the end of the Verilog module.
@@ -424,7 +454,9 @@ class BlockGenerator {
   }
 
   absl::Status EmitInputPorts() {
-    for (const Block::Port& port : block_->GetPorts()) {
+    std::vector<Block::Port> shuffled_storage;
+    for (const Block::Port& port :
+         MaybeShuffle(block_->GetPorts(), shuffled_storage, rng_)) {
       if (std::holds_alternative<InputPort*>(port)) {
         InputPort* input_port = std::get<InputPort*>(port);
         if (reset_proto_.has_value() &&
@@ -747,7 +779,9 @@ class BlockGenerator {
   absl::Status EmitOutputPorts() {
     // Iterate through GetPorts and pick out the output ports because GetPorts
     // contains the desired port ordering.
-    for (const Block::Port& port : block_->GetPorts()) {
+    std::vector<Block::Port> shuffled_storage;
+    for (const Block::Port& port :
+         MaybeShuffle(block_->GetPorts(), shuffled_storage, rng_)) {
       if (std::holds_alternative<OutputPort*>(port)) {
         OutputPort* output_port = std::get<OutputPort*>(port);
         const NodeRepresentation& output_expr =
@@ -766,9 +800,13 @@ class BlockGenerator {
   // in the block. These declared outputs can then be used in downstream
   // expressions.
   absl::Status DeclareInstantiationOutputs() {
-    for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
+    std::vector<xls::Instantiation*> shuffled_instantiations;
+    for (xls::Instantiation* instantiation : MaybeShuffle(
+             block_->GetInstantiations(), shuffled_instantiations, rng_)) {
+      std::vector<InstantiationOutput*> shuffled_outputs;
       for (InstantiationOutput* output :
-           block_->GetInstantiationOutputs(instantiation)) {
+           MaybeShuffle(block_->GetInstantiationOutputs(instantiation),
+                        shuffled_outputs, rng_)) {
         node_exprs_[output] =
             mb_.DeclareVariable(output->GetName(), output->GetType());
       }
@@ -804,10 +842,14 @@ class BlockGenerator {
       }
       return to_connect;
     };
-    for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
+    std::vector<xls::Instantiation*> shuffled_instantiations;
+    for (xls::Instantiation* instantiation : MaybeShuffle(
+             block_->GetInstantiations(), shuffled_instantiations, rng_)) {
       std::vector<Connection> connections;
+      std::vector<InstantiationInput*> shuffled_inputs;
       for (InstantiationInput* input :
-           block_->GetInstantiationInputs(instantiation)) {
+           MaybeShuffle(block_->GetInstantiationInputs(instantiation),
+                        shuffled_inputs, rng_)) {
         XLS_RET_CHECK(input->operand_count() > 0);
         const NodeRepresentation& expr = node_exprs_.at(input->operand(0));
         XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
@@ -817,8 +859,10 @@ class BlockGenerator {
         connections.push_back(Connection{.port_name = input->port_name(),
                                          .expression = to_connect});
       }
+      std::vector<InstantiationOutput*> shuffled_outputs;
       for (InstantiationOutput* output :
-           block_->GetInstantiationOutputs(instantiation)) {
+           MaybeShuffle(block_->GetInstantiationOutputs(instantiation),
+                        shuffled_outputs, rng_)) {
         const NodeRepresentation& expr = node_exprs_.at(output);
         XLS_RET_CHECK(std::holds_alternative<Expression*>(expr));
         XLS_ASSIGN_OR_RETURN(Expression * to_connect,
@@ -944,6 +988,8 @@ class BlockGenerator {
 
   VerilogFile* file_;
   ModuleBuilder mb_;
+
+  std::optional<std::mt19937_64> rng_;
 
   // Map from Node* to the Verilog expression representing its value.
   absl::flat_hash_map<Node*, NodeRepresentation> node_exprs_;

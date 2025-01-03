@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -24,6 +25,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
@@ -32,7 +34,8 @@
 
 namespace xls {
 
-std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
+std::vector<Node*> ReverseTopoSort(FunctionBase* f,
+                                   std::optional<absl::BitGenRef> randomizer) {
   // For topological traversal we only add nodes to the order when all of its
   // users have been scheduled.
   //
@@ -65,42 +68,6 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
   auto all_users_scheduled = [&](Node* n) {
     return absl::c_all_of(n->users(), is_scheduled);
   };
-  auto bump_down_remaining_users = [&](Node* n) {
-    CHECK(!n->users().empty());
-    auto result = pending_to_remaining_users.insert({n, n->users().size()});
-    auto it = result.first;
-    int64_t& remaining_users = it->second;
-    CHECK_GT(remaining_users, 0);
-    remaining_users -= 1;
-    VLOG(5) << "Bumped down remaining users for: " << n
-            << "; now: " << remaining_users;
-    if (remaining_users == 0) {
-      ready.push_back(result.first->first);
-      remaining_users -= 1;
-    }
-  };
-
-  absl::flat_hash_set<Node*> seen_operands;
-  auto add_to_order = [&](Node* r) {
-    VLOG(5) << "Adding node to order: " << r;
-    DCHECK(all_users_scheduled(r)) << r << " users size: " << r->users().size();
-    ordered.push_back(r);
-
-    // We share seen_operands across invocations of add_to_order to reduce
-    // overhead of constructing/allocating a set each time. Clear it before
-    // using it.
-    seen_operands.clear();
-
-    // We want to be careful to only bump down our operands once, since we're a
-    // single user, even though we may refer to them multiple times in our
-    // operands sequence.
-    for (auto it = r->operands().rbegin(); it != r->operands().rend(); ++it) {
-      Node* operand = *it;
-      if (auto [_, inserted] = seen_operands.insert(operand); inserted) {
-        bump_down_remaining_users(operand);
-      }
-    }
-  };
 
   auto seed_ready = [&](Node* n) {
     ready.push_front(n);
@@ -132,9 +99,81 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
     seed_ready(return_value);
   }
 
+  std::optional<absl::flat_hash_map<Node*, int64_t>> random_priority;
+  auto random_comparator = [&](Node* a, Node* b) {
+    CHECK(random_priority.has_value());
+    return random_priority->at(a) < random_priority->at(b);
+  };
+  if (randomizer.has_value()) {
+    std::vector<Node*> random_order(f->nodes().begin(), f->nodes().end());
+    absl::c_shuffle(random_order, *randomizer);
+    for (int64_t i = 0; i < random_order.size(); ++i) {
+      if (random_order[i] == return_value) {
+        // Make sure the return value is always highest-priority, so it comes
+        // first in the output.
+        std::swap(random_order[i], random_order[random_order.size() - 1]);
+      }
+    }
+
+    random_priority.emplace();
+    random_priority->reserve(random_order.size());
+    for (int64_t i = 0; i < random_order.size(); ++i) {
+      CHECK(random_priority->emplace(random_order[i], i).second);
+    }
+
+    absl::c_make_heap(ready, random_comparator);
+  }
+
+  auto bump_down_remaining_users = [&](Node* n) {
+    CHECK(!n->users().empty());
+    auto result = pending_to_remaining_users.insert({n, n->users().size()});
+    auto it = result.first;
+    int64_t& remaining_users = it->second;
+    CHECK_GT(remaining_users, 0);
+    remaining_users -= 1;
+    VLOG(5) << "Bumped down remaining users for: " << n
+            << "; now: " << remaining_users;
+    if (remaining_users == 0) {
+      ready.push_back(result.first->first);
+      if (random_priority.has_value()) {
+        absl::c_push_heap(ready, random_comparator);
+      }
+      remaining_users -= 1;
+    }
+  };
+
+  absl::flat_hash_set<Node*> seen_operands;
+  auto add_to_order = [&](Node* r) {
+    VLOG(5) << "Adding node to order: " << r;
+    DCHECK(all_users_scheduled(r)) << r << " users size: " << r->users().size();
+    ordered.push_back(r);
+
+    // We share seen_operands across invocations of add_to_order to reduce
+    // overhead of constructing/allocating a set each time. Clear it before
+    // using it.
+    seen_operands.clear();
+
+    // We want to be careful to only bump down our operands once, since we're a
+    // single user, even though we may refer to them multiple times in our
+    // operands sequence.
+    for (auto it = r->operands().rbegin(); it != r->operands().rend(); ++it) {
+      Node* operand = *it;
+      if (auto [_, inserted] = seen_operands.insert(operand); inserted) {
+        bump_down_remaining_users(operand);
+      }
+    }
+  };
+
   while (!ready.empty()) {
-    Node* r = ready.front();
-    ready.pop_front();
+    Node* r;
+    if (random_priority.has_value()) {
+      absl::c_pop_heap(ready, random_comparator);
+      r = ready.back();
+      ready.pop_back();
+    } else {
+      r = ready.front();
+      ready.pop_front();
+    }
     add_to_order(r);
   }
 
@@ -155,8 +194,9 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f) {
   return ordered;
 }
 
-std::vector<Node*> TopoSort(FunctionBase* f) {
-  std::vector<Node*> ordered = ReverseTopoSort(f);
+std::vector<Node*> TopoSort(FunctionBase* f,
+                            std::optional<absl::BitGenRef> randomizer) {
+  std::vector<Node*> ordered = ReverseTopoSort(f, randomizer);
   std::reverse(ordered.begin(), ordered.end());
   return ordered;
 }

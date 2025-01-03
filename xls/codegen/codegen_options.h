@@ -333,6 +333,17 @@ class CodegenOptions {
     return materialize_internal_fifos_;
   }
 
+  // If non-empty, the seed used to randomize the order of lines in the output.
+  // If not provided, will use a default order. This is useful for creating
+  // multiple equivalent Verilog outputs to exercise the rest of the pipeline.
+  CodegenOptions& randomize_order_seed(absl::Span<const int32_t> value) {
+    randomize_order_seed_ = std::vector<int32_t>(value.begin(), value.end());
+    return *this;
+  }
+  const std::vector<int32_t>& randomize_order_seed() const {
+    return randomize_order_seed_;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -368,6 +379,7 @@ class CodegenOptions {
   std::string simulation_macro_name_ = "SIMULATION";
   Version codegen_version_ = Version::kDefault;
   bool materialize_internal_fifos_ = false;
+  std::vector<int32_t> randomize_order_seed_;
 };
 
 template <typename Sink>

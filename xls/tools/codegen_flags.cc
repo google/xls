@@ -20,11 +20,15 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/flags/flag.h"
+#include "absl/flags/marshalling.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -170,6 +174,15 @@ ABSL_FLAG(int64_t, codegen_version, 0,
           "Version of codegen to use.  Either 2 (refactored codegen), 1 "
           "(orignal codegen path), or 0 for default");
 
+struct SeedSeq {
+  std::vector<int32_t> elements;
+};
+ABSL_FLAG(SeedSeq, randomize_order_seed, {},
+          "If present, the seed used to randomize the order of lines in the "
+          "output. If empty, will use a default order. This can be useful for "
+          "creating multiple equivalent Verilog outputs to exercise the rest "
+          "of the synthesis pipeline.");
+
 // LINT.ThenChange(
 //   //xls/build_rules/xls_providers.bzl,
 //   //docs_src/codegen_options.md
@@ -180,6 +193,36 @@ ABSL_FLAG(
     std::optional<std::string>, ir_interface_proto, std::nullopt,
     "An optional proto which includes details from the original DSLX about the "
     "interface. For example it holds the sv types we want modules to generate");
+
+// Returns a textual flag value corresponding to the SeedSeq `seed_seq`.
+std::string AbslUnparseFlag(const SeedSeq& seed_seq) {
+  return absl::StrJoin(seed_seq.elements, ",",
+                       [](std::string* out, int element) {
+                         out->append(absl::UnparseFlag(element));
+                       });
+}
+
+// Parses a SeedSeq from the command line flag value `text`.
+// Returns true and sets `*seed_seq` on success; returns false and sets `*error`
+// on failure.
+bool AbslParseFlag(std::string_view text, SeedSeq* seed_seq,
+                   std::string* error) {
+  // We have to clear the list to overwrite any existing value.
+  seed_seq->elements.clear();
+  // absl::StrSplit("") produces {""}, but we need {} on empty input.
+  if (text.empty()) {
+    return true;
+  }
+  for (const auto& part : absl::StrSplit(text, ',')) {
+    // Let the flag module parse each element value for us.
+    int element;
+    if (!absl::ParseFlag(std::string(part), &element, error)) {
+      return false;
+    }
+    seed_seq->elements.push_back(element);
+  }
+  return true;
+}
 
 namespace xls {
 namespace {
@@ -292,6 +335,12 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
   proto.set_register_merge_strategy(merge_strategy);
 
   // Misc
+  if (FLAGS_randomize_order_seed.IsSpecifiedOnCommandLine()) {
+    any_flags_set = true;
+    absl::c_copy(absl::GetFlag(FLAGS_randomize_order_seed).elements,
+                 google::protobuf::RepeatedFieldBackInserter(
+                     proto.mutable_randomize_order_seed()));
+  }
   if (absl::GetFlag(FLAGS_ir_interface_proto)) {
     XLS_ASSIGN_OR_RETURN(
         std::string interface_bytes,
