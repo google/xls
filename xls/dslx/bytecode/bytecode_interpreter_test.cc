@@ -199,6 +199,16 @@ fn main() -> () {
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
+TEST_F(BytecodeInterpreterTest, TraceActsAsIdentity) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+  trace!(u32:42) >> trace!(u32:1)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_EQ(value, InterpValue::MakeU32(42 >> 1));
+}
+
 TEST_F(BytecodeInterpreterTest, TraceFmtBitsValueDefaultFormat) {
   constexpr std::string_view kProgram = R"(
 fn main() -> () {
