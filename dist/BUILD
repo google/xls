@@ -69,6 +69,7 @@ pkg_tar(
         "//xls/dslx:interpreter_main",
         "//xls/dslx:prove_quickcheck_main",
         "//xls/dslx/ir_convert:ir_converter_main",
+        "//xls/dslx/lsp:dslx_ls",
         "//xls/tools:codegen_main",
         "//xls/tools:opt_main",
         "//xls/tools:proto_to_dslx_main",
