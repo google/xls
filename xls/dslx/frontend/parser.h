@@ -76,6 +76,35 @@ XLS_DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
 
 constexpr ExprRestrictions kNoRestrictions = ExprRestrictions(0);
 
+// forward declaration
+class Parser;
+
+// RAII guard used to ensure the expression nesting depth does not get
+// unreasonably deep (which can cause stack overflows and "erroneously" flag
+// fuzzing issues in that dimension).
+class ABSL_MUST_USE_RESULT ExpressionDepthGuard final {
+ public:
+  explicit ExpressionDepthGuard(Parser* parser) : parser_(parser) {}
+  ~ExpressionDepthGuard();
+
+  // move-only type, and we use the parser pointer to track which instance is
+  // performing the side effect in the destructor if the original is moved
+  ExpressionDepthGuard(ExpressionDepthGuard&& other) : parser_(other.parser_) {
+    other.parser_ = nullptr;
+  }
+  ExpressionDepthGuard& operator=(ExpressionDepthGuard&& other) {
+    parser_ = other.parser_;
+    other.parser_ = nullptr;
+    return *this;
+  }
+
+  ExpressionDepthGuard(const ExpressionDepthGuard&) = delete;
+  ExpressionDepthGuard& operator=(const ExpressionDepthGuard&) = delete;
+
+ private:
+  Parser* parser_;
+};
+
 class Parser : public TokenParser {
  public:
   Parser(std::string module_name, Scanner* scanner)
@@ -128,6 +157,7 @@ class Parser : public TokenParser {
 
  private:
   friend class ParserTest;
+  friend class ExpressionDepthGuard;
 
   // Simple helper class to wrap the operations necessary to evaluate [parser]
   // productions as transactions - with "Commit" or "Rollback" operations.
@@ -650,6 +680,12 @@ class Parser : public TokenParser {
                                              bool is_public,
                                              Bindings& outer_bindings,
                                              Keyword keyword);
+
+  // Bumps the internally-tracked expression depth so we can provide a useful
+  // error if we over-recurse on expression depth past the point a user would
+  // reasonably be expected to do. This (e.g.) helps avoid stack overflows
+  // during fuzzing.
+  absl::StatusOr<ExpressionDepthGuard> BumpExpressionDepth();
 
   std::unique_ptr<Module> module_;
 
