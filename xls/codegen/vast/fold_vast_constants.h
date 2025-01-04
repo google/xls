@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_FOLD_VAST_CONSTANTS_H_
-#define XLS_CODEGEN_FOLD_VAST_CONSTANTS_H_
+#ifndef XLS_CODEGEN_VAST_FOLD_VAST_CONSTANTS_H_
+#define XLS_CODEGEN_VAST_FOLD_VAST_CONSTANTS_H_
 
 #include <cstdint>
 
@@ -53,4 +53,4 @@ absl::StatusOr<DataType*> FoldVastConstants(
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_FOLD_VAST_CONSTANTS_H_
+#endif  // XLS_CODEGEN_VAST_FOLD_VAST_CONSTANTS_H_

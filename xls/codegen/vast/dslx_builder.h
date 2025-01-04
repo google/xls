@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_VAST__DSLX_BUILDER_H_
-#define XLS_CODEGEN_VAST__DSLX_BUILDER_H_
+#ifndef XLS_CODEGEN_VAST_DSLX_BUILDER_H_
+#define XLS_CODEGEN_VAST_DSLX_BUILDER_H_
 
 #include <filesystem>  // NOLINT
 #include <optional>
@@ -231,4 +231,4 @@ class DslxBuilder {
 
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_VAST__DSLX_BUILDER_H_
+#endif  // XLS_CODEGEN_VAST_DSLX_BUILDER_H_

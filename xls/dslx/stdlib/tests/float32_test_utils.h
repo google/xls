@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_STDLIB_FLOAT32_TEST_UTILS_H_
-#define XLS_DSLX_STDLIB_FLOAT32_TEST_UTILS_H_
+#ifndef XLS_DSLX_STDLIB_TESTS_FLOAT32_TEST_UTILS_H_
+#define XLS_DSLX_STDLIB_TESTS_FLOAT32_TEST_UTILS_H_
 
 #include <cmath>
 #include <cstdint>
@@ -68,4 +68,4 @@ inline bool CompareResultsWith1PercentMargin(float a, float b) {
 
 }  // namespace xls
 
-#endif  // XLS_DSLX_STDLIB_FLOAT32_TEST_UTILS_H_
+#endif  // XLS_DSLX_STDLIB_TESTS_FLOAT32_TEST_UTILS_H_

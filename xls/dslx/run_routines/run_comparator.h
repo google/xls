@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_RUN_COMPARATOR_H_
-#define XLS_DSLX_RUN_COMPARATOR_H_
+#ifndef XLS_DSLX_RUN_ROUTINES_RUN_COMPARATOR_H_
+#define XLS_DSLX_RUN_ROUTINES_RUN_COMPARATOR_H_
 
 #include <cstdint>
 #include <memory>
@@ -83,4 +83,4 @@ class RunComparator : public AbstractRunComparator {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_RUN_COMPARATOR_H_
+#endif  // XLS_DSLX_RUN_ROUTINES_RUN_COMPARATOR_H_

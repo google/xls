@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_TESTBENCH_THREAD_H_
-#define XLS_TOOLS_TESTBENCH_THREAD_H_
+#ifndef XLS_TESTS_TESTBENCH_THREAD_H_
+#define XLS_TESTS_TESTBENCH_THREAD_H_
 
 #include <atomic>
 #include <cstdint>
@@ -280,4 +280,4 @@ class TestbenchThreadBase {
 
 }  // namespace xls
 
-#endif  // XLS_TOOLS_TESTBENCH_THREAD_H_
+#endif  // XLS_TESTS_TESTBENCH_THREAD_H_

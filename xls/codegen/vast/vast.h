@@ -15,8 +15,8 @@
 // Subset-of-verilog AST, suitable for combining as datastructures before
 // emission.
 
-#ifndef XLS_CODEGEN_VAST_H_
-#define XLS_CODEGEN_VAST_H_
+#ifndef XLS_CODEGEN_VAST_VAST_H_
+#define XLS_CODEGEN_VAST_VAST_H_
 
 #include <cstdint>
 #include <limits>
@@ -2787,4 +2787,4 @@ inline T* VerilogPackageSection::Add(const SourceInfo& loc, Args&&... args) {
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_VAST_H_
+#endif  // XLS_CODEGEN_VAST_VAST_H_

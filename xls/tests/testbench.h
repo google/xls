@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_TESTBENCH_H_
-#define XLS_TOOLS_TESTBENCH_H_
+#ifndef XLS_TESTS_TESTBENCH_H_
+#define XLS_TESTS_TESTBENCH_H_
 
 #include <cmath>
 #include <cstdint>
@@ -352,4 +352,4 @@ class TestbenchBase {
 }  // namespace internal
 }  // namespace xls
 
-#endif  // XLS_TOOLS_TESTBENCH_H_
+#endif  // XLS_TESTS_TESTBENCH_H_
