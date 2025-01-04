@@ -38,6 +38,22 @@ absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
                                           ImportData* import_data,
                                           WarningCollector* warnings);
 
+// Forward decl for the internal declarations below.
+class DeduceCtx;
+
+namespace typecheck_internal {
+
+// Helper that typechecks a single module member -- this is exposed for testing.
+absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
+                                   ImportData* import_data, DeduceCtx* ctx);
+
+// Returns whether the status is a "sentinel" that indicates the type mismatch
+// information is present in the `DeduceCtx::type_mismatch_error_data()`.
+//
+// This is exposed for testing.
+bool IsTypeMismatchStatus(const absl::Status& status);
+
+}  // namespace typecheck_internal
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_TYPECHECK_MODULE_H_

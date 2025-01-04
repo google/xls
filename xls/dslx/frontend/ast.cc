@@ -629,6 +629,21 @@ Conditional::Conditional(Module* owner, Span span, Expr* test,
 
 Conditional::~Conditional() = default;
 
+std::vector<StatementBlock*> Conditional::GatherBlocks() {
+  std::vector<StatementBlock*> blocks;
+  blocks.push_back(consequent_);
+  absl::visit(Visitor{
+                  [&](StatementBlock* block) { blocks.push_back(block); },
+                  [&](Conditional* elseif) {
+                    for (StatementBlock* block : elseif->GatherBlocks()) {
+                      blocks.push_back(block);
+                    }
+                  },
+              },
+              alternate_);
+  return blocks;
+}
+
 std::string Conditional::ToStringInternal() const {
   std::string inline_str = absl::StrFormat(
       R"(if %s %s else %s)", test_->ToInlineString(),

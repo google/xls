@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_MAYBE_EXPLAIN_ERROR_H_
-#define XLS_DSLX_TYPE_SYSTEM_MAYBE_EXPLAIN_ERROR_H_
+#ifndef XLS_DSLX_DIAGNOSTICS_MAYBE_EXPLAIN_ERROR_H_
+#define XLS_DSLX_DIAGNOSTICS_MAYBE_EXPLAIN_ERROR_H_
 
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/pos.h"
@@ -30,4 +30,4 @@ absl::Status MaybeExplainError(const TypeMismatchErrorData& data,
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_MAYBE_EXPLAIN_ERROR_H_
+#endif  // XLS_DSLX_DIAGNOSTICS_MAYBE_EXPLAIN_ERROR_H_

@@ -1738,6 +1738,10 @@ class Conditional : public Expr {
     return Precedence::kStrongest;
   }
 
+  // Returns all of the blocks that participate in this conditional, i.e. the
+  // blocks of this if/else-if.../else ladder.
+  std::vector<StatementBlock*> GatherBlocks();
+
  private:
   std::string ToStringInternal() const final;
 

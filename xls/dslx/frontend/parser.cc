@@ -698,8 +698,12 @@ absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
     XLS_ASSIGN_OR_RETURN(alternate, ParseBlockExpression(bindings));
   }
 
-  return module_->Make<Conditional>(Span(if_kw.span().start(), GetPos()), test,
-                                    consequent, alternate);
+  auto* outer_conditional = module_->Make<Conditional>(
+      Span(if_kw.span().start(), GetPos()), test, consequent, alternate);
+  for (StatementBlock* block : outer_conditional->GatherBlocks()) {
+    block->SetEnclosing(outer_conditional);
+  }
+  return outer_conditional;
 }
 
 absl::StatusOr<Expr*> Parser::ParseConditionalExpression(

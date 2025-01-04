@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
+#include "xls/dslx/diagnostics/maybe_explain_error.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -38,7 +39,6 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
-#include "xls/dslx/type_system/maybe_explain_error.h"
 #include "xls/dslx/type_system/scoped_fn_stack_entry.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -207,6 +207,29 @@ static absl::Status TypecheckQuickcheck(QuickCheck* qc, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
+absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
+  if (typecheck_internal::IsTypeMismatchStatus(orig)) {
+    const std::optional<TypeMismatchErrorData>& data =
+        ctx.type_mismatch_error_data();
+    XLS_RET_CHECK(data.has_value())
+        << "Internal error: type mismatch error "
+           "was not accompanied by detail data; original status: "
+        << orig;
+    return MaybeExplainError(data.value(), ctx.file_table());
+  }
+
+  return orig;
+}
+
+}  // namespace
+
+namespace typecheck_internal {
+
+bool IsTypeMismatchStatus(const absl::Status& status) {
+  return status.code() == absl::StatusCode::kInvalidArgument &&
+         status.message() == "DslxTypeMismatchError";
+}
+
 absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
                                    ImportData* import_data, DeduceCtx* ctx) {
   VLOG(5) << "TypecheckModuleMember; member: `" << ToAstNode(member)->ToString()
@@ -335,26 +358,7 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
   return absl::OkStatus();
 }
 
-bool IsTypeMismatchStatus(const absl::Status& status) {
-  return status.code() == absl::StatusCode::kInvalidArgument &&
-         status.message() == "DslxTypeMismatchError";
-}
-
-absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
-  if (IsTypeMismatchStatus(orig)) {
-    const std::optional<TypeMismatchErrorData>& data =
-        ctx.type_mismatch_error_data();
-    XLS_RET_CHECK(data.has_value())
-        << "Internal error: type mismatch error "
-           "was not accompanied by detail data; original status: "
-        << orig;
-    return MaybeExplainError(data.value(), ctx.file_table());
-  }
-
-  return orig;
-}
-
-}  // namespace
+}  // namespace typecheck_internal
 
 absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
                                           ImportData* import_data,
@@ -379,8 +383,8 @@ absl::StatusOr<TypeInfo*> TypecheckModule(Module* module,
   XLS_RET_CHECK_EQ(ctx.fn_stack().back().f(), nullptr);
 
   for (const ModuleMember& member : module->top()) {
-    absl::Status status =
-        TypecheckModuleMember(member, module, import_data, &ctx);
+    absl::Status status = typecheck_internal::TypecheckModuleMember(
+        member, module, import_data, &ctx);
     if (!status.ok()) {
       return MaybeExpandTypeErrorData(status, ctx);
     }
