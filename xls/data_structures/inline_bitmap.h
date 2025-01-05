@@ -352,6 +352,42 @@ class InlineBitmap {
   absl::InlinedVector<uint64_t, 1> data_;
 };
 
+class BitmapView {
+ public:
+  explicit BitmapView(const InlineBitmap& bitmap,
+                      std::optional<int64_t> start_bit = std::nullopt,
+                      std::optional<int64_t> bit_count = std::nullopt)
+      : bitmap_(bitmap) {
+    start_bit_ = start_bit.value_or(0);
+    CHECK_LE(start_bit_, bitmap_.bit_count());
+    bit_count_ = bit_count.value_or(bitmap_.bit_count() - start_bit_);
+  }
+
+  bool Get(int64_t bit_index) const {
+    CHECK_LT(bit_index, bit_count_);
+    return bitmap_.Get(start_bit_ + bit_index);
+  }
+
+  BitmapView Slice(int64_t start_bit, int64_t bit_count) const {
+    return BitmapView(bitmap_, start_bit_ + start_bit, bit_count);
+  }
+
+  InlineBitmap ToBitmap() const {
+    InlineBitmap result(bit_count_, false);
+    for (int64_t i = 0; i < bit_count_; ++i) {
+      result.Set(i, Get(i));
+    }
+    return result;
+  }
+
+  int64_t bit_count() const { return bit_count_; }
+
+ private:
+  const InlineBitmap& bitmap_;
+  int64_t start_bit_;
+  int64_t bit_count_;
+};
+
 }  // namespace xls
 
 #endif  // XLS_DATA_STRUCTURES_INLINE_BITMAP_H_

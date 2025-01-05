@@ -2373,11 +2373,18 @@ DocRef Formatter::Format(const TestProc& n) {
 
 DocRef Formatter::Format(const QuickCheck& n) {
   std::vector<DocRef> pieces;
-  if (std::optional<int64_t> test_count = n.test_count()) {
-    pieces.push_back(arena_.MakeText(
-        absl::StrFormat("#[quickcheck(test_count=%d)]", test_count.value())));
-  } else {
-    pieces.push_back(arena_.MakeText("#[quickcheck]"));
+  switch (n.test_cases().tag()) {
+    case QuickCheckTestCasesTag::kExhaustive:
+      pieces.push_back(arena_.MakeText("#[quickcheck(exhaustive)]"));
+      break;
+    case QuickCheckTestCasesTag::kCounted:
+      if (n.test_cases().count().has_value()) {
+        pieces.push_back(arena_.MakeText(absl::StrFormat(
+            "#[quickcheck(test_count=%d)]", *n.test_cases().count())));
+      } else {
+        pieces.push_back(arena_.MakeText("#[quickcheck]"));
+      }
+      break;
   }
   pieces.push_back(arena_.hard_line());
   pieces.push_back(Format(*n.fn()));

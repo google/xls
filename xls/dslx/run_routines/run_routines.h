@@ -108,6 +108,8 @@ struct ParseAndTestOptions {
   WarningKindSet warnings = kDefaultWarningsSet;
   bool trace_channels = false;
   std::optional<int64_t> max_ticks;
+  std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
+      nullptr;
 };
 
 // As above, but a subset of the options required for the ParseAndProve()
@@ -118,6 +120,8 @@ struct ParseAndProveOptions {
   const RE2* test_filter = nullptr;
   bool warnings_as_errors = true;
   WarningKindSet warnings = kDefaultWarningsSet;
+  std::function<std::unique_ptr<VirtualizableFilesystem>()> vfs_factory =
+      nullptr;
 };
 
 enum class TestResult : uint8_t {
@@ -290,7 +294,8 @@ struct QuickCheckResults {
 // length of the returned vectors may be < 1000).
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
     xls::Function* xls_function, std::string_view ir_name,
-    AbstractRunComparator* run_comparator, int64_t seed, int64_t num_tests);
+    AbstractRunComparator* run_comparator, int64_t seed,
+    QuickCheckTestCases test_cases);
 
 }  // namespace xls::dslx
 

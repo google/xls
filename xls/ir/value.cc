@@ -252,6 +252,28 @@ void Value::FlattenTo(BitPushBuffer* buffer) const {
   LOG(FATAL) << "Invalid value kind: " << ValueKindToString(kind_);
 }
 
+absl::Status Value::PopulateFrom(BitmapView bitmap) {
+  switch (kind_) {
+    case ValueKind::kBits:
+      payload_ = Bits::FromBitmapView(bitmap);
+      return absl::OkStatus();
+    case ValueKind::kTuple:
+    case ValueKind::kArray: {
+      int64_t bit_index = 0;
+      for (Value& element : std::get<std::vector<Value>>(payload_)) {
+        XLS_RETURN_IF_ERROR(element.PopulateFrom(
+            bitmap.Slice(bit_index, element.GetFlatBitCount())));
+        bit_index += element.GetFlatBitCount();
+      }
+      return absl::OkStatus();
+    }
+    case ValueKind::kToken:
+    case ValueKind::kInvalid:
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Cannot populate value of kind: %s", ValueKindToString(kind_)));
+  }
+}
+
 absl::StatusOr<std::vector<Value>> Value::GetElements() const {
   if (!std::holds_alternative<std::vector<Value>>(payload_)) {
     return absl::InvalidArgumentError("Value does not hold elements.");

@@ -270,15 +270,60 @@ static bool TestMatchesFilter(std::string_view test_name,
   return RE2::FullMatch(test_name, *test_filter);
 }
 
+// Populates a value from a given tuple type with a flat bit contents given by
+// `i` -- this is useful for exhaustively iterating through a space to populate
+// an aggregate value.
+//
+// Precondition: tuple_type->GetFlatBitCount() must be <= 64 so we have enough
+// data in `i` to populate it.
+static std::vector<Value> MakeFromUint64(xls::TupleType* tuple_type,
+                                         uint64_t i) {
+  // We turn the uint64_t contents into a bit vector of the flat bit count of
+  // the tuple type and populate that tuple type from the bit string.
+  InlineBitmap bitmap =
+      InlineBitmap::FromWord(i, tuple_type->GetFlatBitCount());
+  BitmapView view(bitmap);
+  Value value = ZeroOfType(tuple_type);
+  CHECK_OK(value.PopulateFrom(view));
+  return value.GetElements().value();
+};
+
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
     xls::Function* xls_function, std::string_view ir_name,
-    AbstractRunComparator* run_comparator, int64_t seed, int64_t num_tests) {
+    AbstractRunComparator* run_comparator, int64_t seed,
+    QuickCheckTestCases test_cases) {
   QuickCheckResults results;
   std::minstd_rand rng_engine(seed);
+  xls::TupleType* param_tuple = xls_function->package()->GetTupleType(
+      xls_function->GetType()->parameters());
+
+  int64_t num_tests;
+  std::function<std::vector<Value>(int64_t)> make_arg_set;
+  switch (test_cases.tag()) {
+    case QuickCheckTestCasesTag::kExhaustive: {
+      int64_t parameter_bit_count = param_tuple->GetFlatBitCount();
+      if (parameter_bit_count > 48) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Cannot run an exhaustive quickcheck for `%s` "
+                            "because it has too large a parameter bit count; "
+                            "got: %d",
+                            xls_function->name(), parameter_bit_count));
+      }
+      num_tests = int64_t{1} << parameter_bit_count;
+      make_arg_set = [&](int64_t i) { return MakeFromUint64(param_tuple, i); };
+      break;
+    }
+    case QuickCheckTestCasesTag::kCounted:
+      num_tests =
+          test_cases.count().value_or(QuickCheckTestCases::kDefaultTestCount);
+      make_arg_set = [&](int64_t) {
+        return RandomFunctionArguments(xls_function, rng_engine);
+      };
+      break;
+  }
 
   for (int i = 0; i < num_tests; i++) {
-    results.arg_sets.push_back(
-        RandomFunctionArguments(xls_function, rng_engine));
+    results.arg_sets.push_back(make_arg_set(i));
     // TODO(https://github.com/google/xls/issues/506): 2021-10-15
     // Assertion failures should work out, but we should consciously decide
     // if/how we want to dump traces when running QuickChecks (always, for
@@ -351,7 +396,7 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
   XLS_ASSIGN_OR_RETURN(
       QuickCheckResults qc_results,
       DoQuickCheck(qc_fn.ir_function, qc_fn.ir_name, run_comparator, seed,
-                   quickcheck->GetTestCountOrDefault()));
+                   quickcheck->test_cases()));
   const auto& [arg_sets, results] = qc_results;
   XLS_ASSIGN_OR_RETURN(Bits last_result, results.back().GetBitsWithStatus());
   if (!last_result.IsZero()) {
@@ -426,7 +471,7 @@ static absl::Status RunQuickChecksIfJitEnabled(
       any_quicktest_run = true;
     }
     std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name
-              << " count: " << quickcheck->GetTestCountOrDefault() << "\n";
+              << " cases: " << quickcheck->test_cases().ToString() << "\n";
     const absl::Status status =
         RunQuickCheck(run_comparator, ir_package, quickcheck, type_info, *seed);
     const absl::Duration duration = absl::Now() - test_case_start;
@@ -459,9 +504,15 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   const absl::Time start = absl::Now();
   TestResultData result(start, /*test_cases=*/{});
 
+  std::unique_ptr<VirtualizableFilesystem> vfs;
+  if (options.vfs_factory != nullptr) {
+    vfs = options.vfs_factory();
+  } else {
+    vfs = std::make_unique<RealFilesystem>();
+  }
   auto import_data =
       CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
-                       options.warnings, std::make_unique<RealFilesystem>());
+                       options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
   absl::StatusOr<TypecheckedModule> tm =
       ParseAndTypecheck(program, filename, module_name, &import_data);
@@ -638,9 +689,15 @@ absl::StatusOr<TestResultData> AbstractTestRunner::ParseAndTest(
   const absl::Time start = absl::Now();
   TestResultData result(start, /*test_cases=*/{});
 
+  std::unique_ptr<VirtualizableFilesystem> vfs;
+  if (options.vfs_factory != nullptr) {
+    vfs = options.vfs_factory();
+  } else {
+    vfs = std::make_unique<RealFilesystem>();
+  }
   auto import_data =
       CreateImportData(options.dslx_stdlib_path, options.dslx_paths,
-                       options.warnings, std::make_unique<RealFilesystem>());
+                       options.warnings, std::move(vfs));
   FileTable& file_table = import_data.file_table();
 
   absl::StatusOr<TypecheckedModule> tm =

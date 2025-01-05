@@ -2167,22 +2167,40 @@ VerbatimNode::~VerbatimNode() = default;
 
 // -- class QuickCheck
 
+std::string QuickCheckTestCases::ToString() const {
+  switch (tag()) {
+    case QuickCheckTestCasesTag::kExhaustive:
+      return "exhaustive";
+    case QuickCheckTestCasesTag::kCounted:
+      if (count().has_value()) {
+        return absl::StrFormat("test_count=%d", count().value());
+      }
+      return absl::StrFormat("test_count=default=%d", kDefaultTestCount);
+  }
+}
+
 QuickCheck::QuickCheck(Module* owner, Span span, Function* fn,
-                       std::optional<int64_t> test_count)
+                       QuickCheckTestCases test_cases)
     : AstNode(owner),
       span_(std::move(span)),
       fn_(fn),
-      test_count_(test_count) {}
+      test_cases_(test_cases) {}
 
 QuickCheck::~QuickCheck() = default;
 
 std::string QuickCheck::ToString() const {
-  std::string test_count_str;
-  if (test_count_.has_value()) {
-    test_count_str = absl::StrFormat("(test_count=%d)", *test_count_);
+  std::string spec_str;
+  switch (test_cases_.tag()) {
+    case QuickCheckTestCasesTag::kExhaustive:
+      spec_str = "(exhaustive)";
+      break;
+    case QuickCheckTestCasesTag::kCounted:
+      if (test_cases_.count().has_value()) {
+        spec_str = absl::StrFormat("(test_count=%d)", *test_cases_.count());
+      }
+      break;
   }
-  return absl::StrFormat("#[quickcheck%s]\n%s", test_count_str,
-                         fn_->ToString());
+  return absl::StrFormat("#[quickcheck%s]\n%s", spec_str, fn_->ToString());
 }
 
 // -- class TupleIndex
