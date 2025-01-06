@@ -13,8 +13,8 @@
 // limitations under the License.
 
 fn tuple_index_all_bits_set(x: (u1, u2, u3, u4)) -> u4 {
-    // Tuple index access where the index has all bits set (e.g. demonstrates the index is treated as
-    // unsigned).
+    // Tuple index access where the index has all bits set (e.g. demonstrates the index is treated
+    // as unsigned).
     x.0b11
 }
 

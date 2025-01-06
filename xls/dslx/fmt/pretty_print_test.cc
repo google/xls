@@ -167,6 +167,16 @@ TEST(PrettyPrintTest, PrefixedReflowAfterIndentWidth40) {
     // indented)");
 }
 
+TEST(PrettyPrintTest, PrefixedReflowOffByOne) {
+  FileTable file_table;
+  DocArena arena(file_table);
+  // Total width is 8, so it should reflow since the max width is 7.
+  DocRef ref = arena.MakePrefixedReflow("// ", "1 2 3");
+  EXPECT_EQ(PrettyPrint(arena, ref, 7),
+            R"(// 1 2
+// 3)");
+}
+
 // Demonstrates that the empty line between nested elements don't have leading
 // spaces.
 TEST(PrettyPrintTest, NestLevelWithEmptyLine) {

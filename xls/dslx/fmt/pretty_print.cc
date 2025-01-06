@@ -255,7 +255,9 @@ void PrettyPrintInternal(const DocArena& arena, const Doc& doc,
                         // If the next token isn't going to fit we make a
                         // carriage return and go to the next prefix insertion.
                         const std::string& next_tok = remaining_toks.front();
-                        if (virtual_outcol + next_tok.size() >
+                        // Note: we add 1 to the next_tok size because we're
+                        // going to emit a space before it.
+                        if (virtual_outcol + next_tok.size() + 1 >
                             entry.text_width()) {
                           VLOG(5) << "PrefixedReflow; adding carriage "
                                      "return in advance of: `"

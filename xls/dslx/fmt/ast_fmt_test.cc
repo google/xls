@@ -3310,6 +3310,7 @@ fn test() {
 }
 )");
 }
+
 TEST_F(ModuleFmtTest, StructLiteralBreak) {
   DoFmt(R"(struct Foo { a: u1, b: u1 }
 
@@ -3321,5 +3322,26 @@ fn test() {
 }
 )");
 }
+
+TEST_F(ModuleFmtTest, CommentsDoNotReflow100Chars) {
+  // This is 100 characters, and should not reflow.
+  DoFmt(
+      R"(// Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labo
+struct Foo { a: u1, b: u1 }
+)");
+}
+
+TEST_F(ModuleFmtTest, CommentsReflow101Chars) {
+  // This is 101 characters, and wasn't reflowing before.
+  DoFmt(
+      R"(// Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labor
+struct Foo { a: u1, b: u1 }
+)",
+      R"(// Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
+// labor
+struct Foo { a: u1, b: u1 }
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx
