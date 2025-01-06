@@ -84,7 +84,9 @@ class InterpreterStack {
   }
 
   const InterpValue& PeekOrDie(int64_t from_top = 0) const {
-    CHECK_GE(stack_.size(), from_top + 1);
+    CHECK_GE(stack_.size(), from_top + 1) << absl::StreamFormat(
+        "Attempted to peek at from_top=%d but stack size is %d", from_top,
+        stack_.size());
     return stack_.at(stack_.size() - from_top - 1).value;
   }
 

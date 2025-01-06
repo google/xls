@@ -975,7 +975,7 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
       std::vector<FormatStep>(node->format().begin(), node->format().end()),
       std::move(value_fmt_descs));
   bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kTrace, std::move(trace_data)));
+      Bytecode(node->span(), Bytecode::Op::kTraceFmt, std::move(trace_data)));
   return absl::OkStatus();
 }
 
@@ -1070,7 +1070,7 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       steps.push_back(
           absl::StrCat("trace of ", node->args()[0]->ToString(), ": "));
       steps.push_back(options_.format_preference);
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kTrace,
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kTraceArg,
                                    Bytecode::TraceData(std::move(steps), {})));
       return absl::OkStatus();
     }

@@ -175,7 +175,10 @@ class Bytecode {
     // Swaps TOS0 and TOS1 on the stack.
     kSwap,
     // Prints information about the given arguments to the terminal.
-    kTrace,
+    kTraceFmt,
+    // Prints a single operand argument to the terminal and acts as identity
+    // function (i.e. places the operand value back on the stack).
+    kTraceArg,
     // Slices out TOS0 bits of the array- or bits-typed value on TOS2,
     // starting at index TOS1.
     kWidthSlice,
