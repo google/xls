@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_SYSTEM_WARN_ON_DEFINED_BUT_UNUSED_H_
-#define XLS_DSLX_TYPE_SYSTEM_WARN_ON_DEFINED_BUT_UNUSED_H_
+#ifndef XLS_DSLX_DIAGNOSTICS_WARN_ON_DEFINED_BUT_UNUSED_H_
+#define XLS_DSLX_DIAGNOSTICS_WARN_ON_DEFINED_BUT_UNUSED_H_
 
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
@@ -27,4 +27,4 @@ absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_SYSTEM_WARN_ON_DEFINED_BUT_UNUSED_H_
+#endif  // XLS_DSLX_DIAGNOSTICS_WARN_ON_DEFINED_BUT_UNUSED_H_

@@ -36,6 +36,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/diagnostics/warn_on_defined_but_unused.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -48,7 +49,6 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck_invocation.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
-#include "xls/dslx/type_system/warn_on_defined_but_unused.h"
 #include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 

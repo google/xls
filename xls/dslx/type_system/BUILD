@@ -274,24 +274,6 @@ cc_library(
 )
 
 cc_library(
-    name = "maybe_explain_error",
-    srcs = ["maybe_explain_error.cc"],
-    hdrs = ["maybe_explain_error.h"],
-    deps = [
-        ":format_type_mismatch",
-        ":type",
-        ":type_mismatch_error_data",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_node",
-        "//xls/dslx/frontend:pos",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_library(
     name = "instantiate_parametric_function",
     srcs = ["instantiate_parametric_function.cc"],
     hdrs = ["instantiate_parametric_function.h"],
@@ -370,7 +352,6 @@ cc_library(
     deps = [
         ":deduce",
         ":deduce_ctx",
-        ":maybe_explain_error",
         ":scoped_fn_stack_entry",
         ":type",
         ":type_info",
@@ -387,6 +368,7 @@ cc_library(
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_collector",
+        "//xls/dslx/diagnostics:maybe_explain_error",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:proc",
@@ -780,25 +762,6 @@ cc_library(
 )
 
 cc_library(
-    name = "warn_on_defined_but_unused",
-    srcs = ["warn_on_defined_but_unused.cc"],
-    hdrs = ["warn_on_defined_but_unused.h"],
-    deps = [
-        ":deduce_ctx",
-        ":type",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx:warning_kind",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_utils",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_library(
     name = "deduce_utils",
     srcs = ["deduce_utils.cc"],
     hdrs = ["deduce_utils.h"],
@@ -867,7 +830,6 @@ cc_library(
         ":type_info",
         ":typecheck_invocation",
         ":unwrap_meta_type",
-        ":warn_on_defined_but_unused",
         "//xls/common:casts",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -877,6 +839,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
+        "//xls/dslx/diagnostics:warn_on_defined_but_unused",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -911,40 +874,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "format_type_mismatch",
-    srcs = ["format_type_mismatch.cc"],
-    hdrs = ["format_type_mismatch.h"],
-    deps = [
-        ":type",
-        ":zip_types",
-        "//xls/common:visitor",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/frontend:pos",
-        "@com_google_absl//absl/log:check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_test(
-    name = "format_type_mismatch_test",
-    srcs = ["format_type_mismatch_test.cc"],
-    deps = [
-        ":format_type_mismatch",
-        ":type",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/dslx:channel_direction",
-        "//xls/dslx/frontend:pos",
         "@com_google_googletest//:gtest",
     ],
 )

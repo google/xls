@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system/warn_on_defined_but_unused.h"
+#include "xls/dslx/diagnostics/warn_on_defined_but_unused.h"
 
 #include <algorithm>
 #include <optional>

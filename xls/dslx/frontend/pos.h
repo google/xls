@@ -58,6 +58,8 @@ class FileTable {
   Fileno GetOrCreate(std::string_view path);
 
   std::string_view Get(Fileno fileno) const {
+    DCHECK(number_to_path_.contains(fileno))
+        << "fileno " << fileno.value() << " not found in FileTable";
     return number_to_path_.at(fileno);
   }
 

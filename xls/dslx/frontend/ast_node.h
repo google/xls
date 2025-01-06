@@ -171,11 +171,25 @@ class AstNode {
   // arise.)
   void SetParentNonLexical(AstNode* parent) { parent_ = parent; }
 
+  void SetEnclosing(AstNode* enclosing) { enclosing_ = enclosing; }
+  AstNode* GetEnclosing() const { return enclosing_; }
+
  private:
   void set_parent(AstNode* parent) { parent_ = parent; }
 
   Module* owner_;
+
+  // Parent in terms of the symmetrical relationship established by
+  // `GetChildren()`.
   AstNode* parent_ = nullptr;
+
+  // Note of an "enclosing" node which can be different from the "immediate
+  // parent" that claims this node via `GetChildren()`. This is useful for
+  // constructs that have a meaningful construct somewhere above in the AST but
+  // it's difficult to distinguish which by simply traversing `parent()` links
+  // upwards, e.g. `Conditional` nest else-if ladders under a primordial
+  // `Condition` that started the if-else ladder.
+  AstNode* enclosing_ = nullptr;
 };
 
 // Visits transitively from the root down using post-order visitation (visit

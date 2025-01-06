@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system/format_type_mismatch.h"
+#include "xls/dslx/diagnostics/format_type_mismatch.h"
 
 #include <algorithm>
 #include <cstdint>
