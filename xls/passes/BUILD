@@ -128,7 +128,6 @@ cc_library(
         ":lut_conversion_pass",
         ":map_inlining_pass",
         ":narrowing_pass",
-        ":next_node_modernize_pass",
         ":next_value_optimization_pass",
         ":optimization_pass",
         ":optimization_pass_registry",
@@ -1720,34 +1719,6 @@ cc_library(
 )
 
 cc_library(
-    name = "unroll_proc",
-    srcs = ["unroll_proc.cc"],
-    hdrs = ["unroll_proc.h"],
-    deps = [
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_test(
-    name = "unroll_proc_test",
-    srcs = ["unroll_proc_test.cc"],
-    deps = [
-        ":unroll_proc",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "conditional_specialization_pass",
     srcs = ["conditional_specialization_pass.cc"],
     hdrs = ["conditional_specialization_pass.h"],
@@ -1947,7 +1918,9 @@ cc_library(
         "//xls/ir:state_element",
         "//xls/ir:type",
         "//xls/ir:value",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -2579,6 +2552,7 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",
@@ -3539,38 +3513,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/solvers:z3_ir_equivalence_testutils",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "next_node_modernize_pass",
-    srcs = ["next_node_modernize_pass.cc"],
-    hdrs = ["next_node_modernize_pass.h"],
-    deps = [
-        ":optimization_pass",
-        ":optimization_pass_registry",
-        ":pass_base",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "@com_google_absl//absl/log",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "next_node_modernize_pass_test",
-    srcs = ["next_node_modernize_pass_test.cc"],
-    deps = [
-        ":next_node_modernize_pass",
-        ":pass_base",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir:bits",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )

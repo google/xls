@@ -46,6 +46,11 @@ class VerifiedPackage : public Package {
  public:
   explicit VerifiedPackage(std::string_view name) : Package(name) {}
   ~VerifiedPackage() override;
+
+  void AcceptInvalid() { verify_ = false; }
+
+ private:
+  bool verify_ = true;
 };
 
 // A test base class with convenience functions for IR tests.

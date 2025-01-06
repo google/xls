@@ -1165,27 +1165,9 @@ absl::Status ProcBuilder::InstantiateProc(
       .status();
 }
 
-absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
+absl::StatusOr<Proc*> ProcBuilder::Build() {
   if (ErrorPending()) {
     return GetError();
-  }
-
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  if (!next_state.empty() && next_state.size() != state_params_.size()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Number of recurrent state elements given (%d) does "
-                        "not equal the number of state elements in the proc "
-                        "(%d)",
-                        next_state.size(), state_params_.size()));
-  }
-  for (int64_t i = 0; i < next_state.size(); ++i) {
-    if (GetType(next_state[i]) != GetType(GetStateParam(i))) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Recurrent state type %s does not match proc "
-                          "parameter state type %s for element %d.",
-                          GetType(GetStateParam(i))->ToString(),
-                          GetType(next_state[i])->ToString(), i));
-    }
   }
 
   // down_cast the FunctionBase* to Proc*. We know this is safe because
@@ -1193,13 +1175,37 @@ absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
   // function_ is always a Proc.
   Proc* proc = package()->AddProc(
       absl::WrapUnique(down_cast<Proc*>(function_.release())));
-  for (int64_t i = 0; i < next_state.size(); ++i) {
-    XLS_RETURN_IF_ERROR(proc->SetNextStateElement(i, next_state[i].node()));
-  }
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }
   return proc;
+}
+
+absl::StatusOr<Proc*> ProcBuilder::Build(absl::Span<const BValue> next_state) {
+  if (!next_state.empty()) {
+    if (next_state.size() != state_params_.size()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Number of recurrent state elements given (%d) does "
+                          "not equal the number of state elements in the proc "
+                          "(%d)",
+                          next_state.size(), state_params_.size()));
+    }
+    if (!proc()->next_values().empty()) {
+      return absl::InvalidArgumentError(
+          "Cannot use Build(next_state) when also using next_value nodes.");
+    }
+    for (int64_t index = 0; index < next_state.size(); ++index) {
+      if (GetType(next_state[index]) != GetType(GetStateParam(index))) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Recurrent state type %s does not match provided "
+                            "state type %s for element %d.",
+                            GetType(GetStateParam(index))->ToString(),
+                            GetType(next_state[index])->ToString(), index));
+      }
+      Next(GetStateParam(index), next_state[index]);
+    }
+  }
+  return Build();
 }
 
 BValue ProcBuilder::StateElement(std::string_view name,

@@ -903,12 +903,13 @@ absl::Status Node::ReplaceUsesWith(Node* replacement,
   }
 
   // If the replacement does not have an assigned name but this node does, move
-  // the name over to preserve the name. If this is a parameter node then don't
-  // move the name because we cannot clear the name of a parameter node.
+  // the name over to preserve the name. If this is a parameter or state-read
+  // node then don't move the name because we cannot clear the name of a
+  // parameter node or state element.
   //
   // We also don't replace the name if some use was filtered out and not
   // updated.
-  if (all_replaced && !Is<Param>() && HasAssignedName() &&
+  if (all_replaced && !Is<Param>() && !Is<StateRead>() && HasAssignedName() &&
       !replacement->HasAssignedName()) {
     // Do not use SetName because we do not want the name to be uniqued which
     // would add a suffix because (clearly) the name already exists.

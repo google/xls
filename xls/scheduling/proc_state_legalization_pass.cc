@@ -42,29 +42,6 @@ namespace xls {
 
 namespace {
 
-absl::StatusOr<bool> ModernizeNextValues(Proc* proc) {
-  CHECK(proc->next_values().empty());
-
-  for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-    StateRead* state_read = proc->GetStateRead(index);
-    Node* next_value = proc->GetNextStateElement(index);
-    XLS_RETURN_IF_ERROR(
-        proc->MakeNodeWithName<Next>(
-                state_read->loc(), /*state_read=*/state_read,
-                /*value=*/next_value,
-                /*predicate=*/std::nullopt,
-                absl::StrCat(state_read->state_element()->name(), "_next"))
-            .status());
-
-    if (next_value != static_cast<Node*>(state_read)) {
-      // Nontrivial next-state element; remove it so we pass verification.
-      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, state_read));
-    }
-  }
-
-  return proc->GetStateElementCount() > 0;
-}
-
 // Ensure that `state_read` is either unconditional or has a predicate that is
 // true whenever any of its corresponding `next_value`s are active.
 absl::StatusOr<bool> LegalizeStateReadPredicate(
@@ -280,13 +257,6 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnFunctionBaseInternal(
     return false;
   }
   Proc* proc = f->AsProcOrDie();
-
-  // Convert old-style `next (...)` value handling into explicit nodes.
-  // TODO(epastor): Clean up after removing support for `next (...)` values.
-  if (proc->next_values().empty()) {
-    // No need to legalize; all of the nodes will be unconditional.
-    return ModernizeNextValues(proc);
-  }
 
   bool changed = false;
 

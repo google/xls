@@ -2946,6 +2946,9 @@ TEST_F(ProcInliningPassTest, DataDependencyWithoutTokenDependency) {
   ASSERT_THAT(Run(p.get(), /*top=*/"A"),
               StatusIs(absl::StatusCode::kUnimplemented,
                        HasSubstr("no token path exists")));
+
+  // Since the inlining pass failed, the package may be in an invalid state.
+  p->AcceptInvalid();
 }
 
 TEST_F(ProcInliningPassTest, ReceivedValueSentAndNext) {

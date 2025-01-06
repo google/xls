@@ -3,5 +3,6 @@ package test
 proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   my_token: token = state_read(state_element=my_token, id=3)
   my_state: bits[32] = state_read(state_element=my_state, id=4)
-  next (my_token, my_state)
+  next_value.5: () = next_value(param=my_token, value=my_token, id=5)
+  next_value.6: () = next_value(param=my_state, value=my_state, id=6)
 }

@@ -122,13 +122,10 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
       AnalyzeCriticalPath(proc, /*clock_period_ps=*/std::nullopt,
                           *delay_estimator_));
 
-  ASSERT_EQ(cp.size(), 3);
-  EXPECT_EQ(cp[0].node, rev.node());
-  EXPECT_EQ(cp[0].path_delay_ps, 2);
-  EXPECT_EQ(cp[1].node, neg.node());
-  EXPECT_EQ(cp[1].path_delay_ps, 1);
-  EXPECT_EQ(cp[2].node, proc->GetStateRead(int64_t{0}));
-  EXPECT_EQ(cp[2].path_delay_ps, 0);
+  EXPECT_THAT(cp, ElementsAre(FieldsAre(m::Next(), _, 2, _),
+                              FieldsAre(rev.node(), _, 2, _),
+                              FieldsAre(neg.node(), _, 1, _),
+                              FieldsAre(st.node(), _, 0, _)));
 }
 
 TEST_F(AnalyzeCriticalPathTest, ProcWithSendReceive) {

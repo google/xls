@@ -56,7 +56,6 @@
 #include "xls/passes/lut_conversion_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
-#include "xls/passes/next_node_modernize_pass.h"
 #include "xls/passes/next_value_optimization_pass.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -157,8 +156,6 @@ PreInliningPassGroup::PreInliningPassGroup()
                                "pre-inlining passes") {
   Add<DeadFunctionEliminationPass>();
   Add<DeadCodeEliminationPass>();
-  // TODO: google/xls#1795 - Remove once full transition to next-op is complete.
-  Add<NextNodeModernizePass>();
   // At this stage in the pipeline only optimizations up to level 2 should
   // run. 'opt_level' is the maximum level of optimization which should be run
   // in the entire pipeline so set the level of the simplification pass to the

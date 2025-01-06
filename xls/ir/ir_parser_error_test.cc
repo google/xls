@@ -1239,7 +1239,7 @@ proc foo(my_token: token, my_state: bits[32], init={token, 42}) {
   EXPECT_EQ(package->functions().size(), 0);
   EXPECT_EQ(package->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
-  EXPECT_EQ(proc->node_count(), 2);
+  EXPECT_EQ(proc->node_count(), 4);
   EXPECT_EQ(proc->StateElements().size(), 2);
   EXPECT_EQ(proc->GetStateElement(int64_t{0})->initial_value().ToString(),
             "token");
@@ -1467,8 +1467,8 @@ proc foo(my_token: token, my_state: bits[32], init={token, 42}) {
   EXPECT_THAT(
       Parser::ParsePackage(program).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Recurrent state type token does not match proc "
-                         "parameter state type bits[32] for element 0.")));
+               HasSubstr("Recurrent state type token does not match provided "
+                         "state type bits[32] for element 0.")));
 }
 
 TEST(IrParserErrorTest, ProcWithRet) {

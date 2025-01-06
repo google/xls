@@ -48,6 +48,7 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::Optional;
 
 namespace m = ::xls::op_matchers;
 
@@ -494,27 +495,35 @@ TEST_F(MutualExclusionPassTest, SelectPredicates) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   Predicates preds;
   XLS_ASSERT_OK(AddSelectPredicates(&preds, proc));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("selector1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("selector1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("selector2")).has_value());
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input2")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input3")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input2")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input3")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("select1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("input1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("input2")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("input3")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input2")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input3")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("select1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("select2")).has_value());
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("zero")).has_value());
 }
@@ -544,25 +553,31 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesCaseFanout) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   Predicates preds;
   XLS_ASSERT_OK(AddSelectPredicates(&preds, proc));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("selector1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("selector1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("selector2")).has_value());
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input2")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("input1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("input2")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("input3")).has_value());
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input2")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input2")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("not_input3")).has_value());
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("select1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("select1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("select2")).has_value());
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("anded")).has_value());
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("zero")).has_value());
@@ -592,25 +607,32 @@ TEST_F(MutualExclusionPassTest, SelectPredicatesImplicitUses) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   Predicates preds;
   XLS_ASSERT_OK(AddSelectPredicates(&preds, proc));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("selector1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("selector1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("selector2")).has_value());
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("input1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("input2")).has_value());
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("input3")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input2")).value(),
-              m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
-                     m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("not_input3")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1))));
-  EXPECT_THAT(preds.GetPredicate(*proc->GetNode("select1")).value(),
-              m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("input3")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(0)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input2")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector1"), m::Literal(1)),
+                      m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("not_input3")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(1)))));
+  EXPECT_THAT(
+      preds.GetPredicate(*proc->GetNode("select1")),
+      Optional(m::And(m::Eq(*proc->GetNode("selector2"), m::Literal(0)))));
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("select2")).has_value());
   EXPECT_FALSE(preds.GetPredicate(*proc->GetNode("zero")).has_value());
 }

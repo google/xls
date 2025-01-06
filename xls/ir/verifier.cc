@@ -706,31 +706,12 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
   for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
     StateRead* state_read = proc->GetStateRead(i);
     Node* next_state = proc->GetNextStateElement(i);
-    if (next_state == state_read) {
-      continue;
-    }
-
-    // Verify that this proc does not use `next_value` nodes.
-    if (!proc->next_values().empty()) {
+    if (next_state != state_read) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Proc %s includes both next_value nodes (e.g., %s) and next-state "
-          "values on its 'next' line; both cannot be used at the same time.",
-          proc->name(), proc->next_values().front()->GetName()));
+          "Proc %s uses nontrivial next-state values on its 'next' line (e.g., "
+          "%s); all procs are now required to use next_value nodes.",
+          proc->name(), next_state->GetName()));
     }
-
-    // Verify type of state param matches type of the corresponding initial
-    // value and next state element.
-    XLS_RET_CHECK_EQ(proc->GetStateRead(i)->GetType(),
-                     proc->GetNextStateElement(i)->GetType())
-        << absl::StreamFormat(
-               "State parameter %d of proc %s does not match next state type "
-               "%s, is %s",
-               i, proc->name(),
-               proc->GetNextStateElement(i)->GetType()->ToString(),
-               proc->GetStateRead(i)->GetType()->ToString());
-
-    XLS_RET_CHECK(ValueConformsToType(proc->GetStateElement(i)->initial_value(),
-                                      proc->GetStateRead(i)->GetType()));
   }
 
   return absl::OkStatus();

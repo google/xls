@@ -7,5 +7,6 @@ proc my_proc<in_ch: () in kind=streaming strictness=total_order, out_ch: ((), bi
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, ()) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
-  next (tuple_index.4, my_state)
+  next_value.13: () = next_value(param=my_token, value=tuple_index.4, id=13)
+  next_value.14: () = next_value(param=my_state, value=my_state, id=14)
 }

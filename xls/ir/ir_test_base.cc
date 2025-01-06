@@ -40,6 +40,10 @@
 namespace xls {
 
 VerifiedPackage::~VerifiedPackage() {
+  if (!verify_) {
+    return;
+  }
+
   absl::Status status = VerifyPackage(this);
   if (!status.ok()) {
     ADD_FAILURE() << absl::StrFormat(

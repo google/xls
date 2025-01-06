@@ -7,7 +7,8 @@ proc my_proc<in_ch: bits[32] in kind=single_value, out_ch: bits[32] out kind=str
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=in_ch, id=3)
   tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
-  next (tuple_index.4, my_state)
+  next_value.15: () = next_value(param=my_token, value=tuple_index.4, id=15)
+  next_value.16: () = next_value(param=my_state, value=my_state, id=16)
 }
 
 proc other_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
@@ -16,5 +17,6 @@ proc other_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   proc_instantiation foo(ch_a, ch_b, proc=my_proc)
   my_token: token = state_read(state_element=my_token, id=11)
   my_state: bits[32] = state_read(state_element=my_state, id=12)
-  next (my_token, my_state)
+  next_value.19: () = next_value(param=my_token, value=my_token, id=19)
+  next_value.20: () = next_value(param=my_state, value=my_state, id=20)
 }

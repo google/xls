@@ -226,6 +226,13 @@ absl::Status Proc::ReplaceState(
     absl::Span<const std::optional<Node*>> read_predicates,
     absl::Span<Node* const> next_state) {
   for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
+    std::vector<Next*> old_nexts(next_values(GetStateRead(i)).begin(),
+                                 next_values(GetStateRead(i)).end());
+    for (Next* next : old_nexts) {
+      XLS_RETURN_IF_ERROR(
+          next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+      XLS_RETURN_IF_ERROR(RemoveNode(next));
+    }
     XLS_RETURN_IF_ERROR(RemoveStateElement(i));
   }
   state_name_uniquer_.Reset();
@@ -255,11 +262,22 @@ absl::StatusOr<StateRead*> Proc::ReplaceStateElement(
   // Check that it's safe to remove the current state read node.
   StateElement* old_state_element = GetStateElement(index);
   StateRead* old_state_read = state_reads_.at(old_state_element);
-  if (!old_state_read->users().empty()) {
+  if (!absl::c_all_of(old_state_read->users(), [&](Node* user) {
+        return user->Is<Next>() &&
+               user->As<Next>()->state_read() == old_state_read;
+      })) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot remove state element %d of proc %s, existing "
                         "state read %s has uses",
                         index, name(), old_state_read->GetName()));
+  }
+
+  std::vector<Next*> old_nexts(next_values(old_state_read).begin(),
+                               next_values(old_state_read).end());
+  for (Next* next : old_nexts) {
+    XLS_RETURN_IF_ERROR(
+        next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+    XLS_RETURN_IF_ERROR(RemoveNode(next));
   }
 
   // Unless we're directly reusing the previous name, it needs to be uniqued.
@@ -302,8 +320,14 @@ absl::StatusOr<StateRead*> Proc::ReplaceStateElement(
 
   // TODO: google/xls#1520 - remove this once fully transitioned over to
   // `next_value` nodes.
-  next_state_[index] = next_state.value_or(state_read);
-  next_state_indices_[next_state_[index]].insert(index);
+  next_state_[index] = state_read;
+  next_state_indices_[state_read].insert(index);
+
+  if (next_state.has_value()) {
+    XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_read, *next_state,
+                                       /*predicate=*/std::nullopt)
+                            .status());
+  }
 
   return state_read;
 }
@@ -383,6 +407,9 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
           index, next_state.value()->GetName(),
           next_state.value()->GetType()->ToString(), init_value.ToString()));
     }
+    XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_read, *next_state,
+                                       /*predicate=*/std::nullopt)
+                            .status());
   }
   if (!is_append) {
     for (auto& [_, indices] : next_state_indices_) {
@@ -395,8 +422,7 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
       indices = std::move(relabeled_indices);
     }
   }
-  next_state_.insert(next_state_.begin() + index,
-                     next_state.value_or(state_read));
+  next_state_.insert(next_state_.begin() + index, state_read);
   next_state_indices_[next_state_[index]].insert(index);
 
   return state_read;

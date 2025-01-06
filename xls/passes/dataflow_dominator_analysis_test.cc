@@ -23,14 +23,18 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
+
+namespace m = xls::op_matchers;
 
 namespace xls {
 namespace {
 
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
 
 class DataflowDominatorAnalysisTest : public IrTestBase {};
 
@@ -337,7 +341,8 @@ TEST_F(DataflowDominatorAnalysisTest, MultipleOutputs) {
   EXPECT_THAT(analysis.GetDominatorsOfNode(z.node()), ElementsAre(z.node()));
 
   EXPECT_THAT(analysis.GetNodesDominatedByNode(x.node()),
-              ElementsAre(x.node()));
+              UnorderedElementsAre(
+                  x.node(), m::Next(m::StateRead("x"), m::StateRead("x"))));
   EXPECT_THAT(analysis.GetNodesDominatedByNode(y.node()),
               ElementsAre(y.node()));
   EXPECT_THAT(analysis.GetNodesDominatedByNode(z.node()),

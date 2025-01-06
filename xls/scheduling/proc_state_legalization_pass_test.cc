@@ -80,11 +80,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, y}));
 
-  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
-
-  EXPECT_THAT(proc->next_values(),
-              UnorderedElementsAre(m::Next(x.node(), x.node()),
-                                   m::Next(y.node(), y.node())));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
@@ -94,11 +90,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({y, x}));
 
-  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
-
-  ASSERT_THAT(proc->next_values(),
-              UnorderedElementsAre(m::Next(x.node(), y.node()),
-                                   m::Next(y.node(), x.node())));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {

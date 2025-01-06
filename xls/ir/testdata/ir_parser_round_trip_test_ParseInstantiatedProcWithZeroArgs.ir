@@ -3,12 +3,14 @@ package test
 proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   my_token: token = state_read(state_element=my_token, id=5)
   my_state: bits[32] = state_read(state_element=my_state, id=6)
-  next (my_token, my_state)
+  next_value.7: () = next_value(param=my_token, value=my_token, id=7)
+  next_value.8: () = next_value(param=my_state, value=my_state, id=8)
 }
 
 proc other_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   proc_instantiation foo(proc=my_proc)
-  my_token: token = state_read(state_element=my_token, id=7)
-  my_state: bits[32] = state_read(state_element=my_state, id=8)
-  next (my_token, my_state)
+  my_token: token = state_read(state_element=my_token, id=9)
+  my_state: bits[32] = state_read(state_element=my_state, id=10)
+  next_value.11: () = next_value(param=my_token, value=my_token, id=11)
+  next_value.12: () = next_value(param=my_state, value=my_state, id=12)
 }

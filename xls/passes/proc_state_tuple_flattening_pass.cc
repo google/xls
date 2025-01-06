@@ -20,7 +20,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -165,8 +167,17 @@ absl::Status ReplaceProcState(Proc* proc,
     read_predicates.push_back(element.read_predicate);
     nexts.push_back(element.next);
   }
-  XLS_RETURN_IF_ERROR(
-      proc->ReplaceState(names, init_values, read_predicates, nexts));
+  if (absl::c_all_of(elements, [](const AbstractStateElement& element) {
+        return element.next_values.empty();
+      })) {
+    XLS_RETURN_IF_ERROR(
+        proc->ReplaceState(names, init_values, read_predicates, nexts));
+  } else {
+    CHECK(absl::c_all_of(elements, [](const AbstractStateElement& element) {
+      return element.next == element.placeholder;
+    }));
+    XLS_RETURN_IF_ERROR(proc->ReplaceState(names, init_values));
+  }
   for (int64_t i = 0; i < elements.size(); ++i) {
     for (const NextValue& next_value : elements[i].next_values) {
       XLS_RETURN_IF_ERROR(

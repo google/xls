@@ -734,14 +734,14 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (add.4)
+  next_value.5: () = next_value(param=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
-  a: bits[32] = input_port(name=a, id=5)
-  b: bits[32] = input_port(name=b, id=6)
-  add.7: bits[32] = add(a, b, id=7)
-  out: () = output_port(add.7, name=out, id=8)
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  add.8: bits[32] = add(a, b, id=8)
+  out: () = output_port(add.8, name=out, id=9)
 }
 
 )";
@@ -819,38 +819,38 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (add.4)
+  next_value.5: () = next_value(param=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
-  a: bits[32] = input_port(name=a, id=5)
-  b: bits[32] = input_port(name=b, id=6)
-  add.7: bits[32] = add(a, b, id=7)
-  out: () = output_port(add.7, name=out, id=8)
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  add.8: bits[32] = add(a, b, id=8)
+  out: () = output_port(add.8, name=out, id=9)
 }
 
 fn my_function2(x: bits[32], y: bits[32]) -> bits[32] {
-  ret add.9: bits[32] = add(x, y)
+  ret add.10: bits[32] = add(x, y)
 }
 
 proc my_proc2(st: bits[32], init={42}) {
-  literal.10: bits[32] = literal(value=1, id=10)
-  add.11: bits[32] = add(literal.10, st, id=11)
-  next (add.11)
+  literal.11: bits[32] = literal(value=1, id=11)
+  add.12: bits[32] = add(literal.11, st, id=12)
+  next_value.13: () = next_value(param=st, value=add.12, id=13)
 }
 
 block my_block2(a: bits[32], b: bits[32], out: bits[32]) {
-  a: bits[32] = input_port(name=a, id=12)
-  b: bits[32] = input_port(name=b, id=13)
-  add.14: bits[32] = add(a, b, id=14)
-  out: () = output_port(add.14, name=out, id=15)
+  a: bits[32] = input_port(name=a, id=14)
+  b: bits[32] = input_port(name=b, id=15)
+  add.16: bits[32] = add(a, b, id=16)
+  out: () = output_port(add.16, name=out, id=17)
 }
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
-  EXPECT_EQ(pkg->GetNodeCount(), 20);
+  EXPECT_EQ(pkg->GetNodeCount(), 22);
   EXPECT_EQ(pkg->GetFunctionNodeCount(), 6);
-  EXPECT_EQ(pkg->GetProcNodeCount(), 6);
+  EXPECT_EQ(pkg->GetProcNodeCount(), 8);
   EXPECT_EQ(pkg->GetBlockNodeCount(), 8);
 }
 
@@ -865,14 +865,14 @@ top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (add.4)
+  next_value.5: () = next_value(param=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
-  a: bits[32] = input_port(name=a, id=5)
-  b: bits[32] = input_port(name=b, id=6)
-  add.7: bits[32] = add(a, b, id=7)
-  out: () = output_port(add.7, name=out, id=8)
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  add.8: bits[32] = add(a, b, id=8)
+  out: () = output_port(add.8, name=out, id=9)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
@@ -896,14 +896,14 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 top proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (add.4)
+  next_value.5: () = next_value(param=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
-  a: bits[32] = input_port(name=a, id=5)
-  b: bits[32] = input_port(name=b, id=6)
-  add.7: bits[32] = add(a, b, id=7)
-  out: () = output_port(add.7, name=out, id=8)
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  add.8: bits[32] = add(a, b, id=8)
+  out: () = output_port(add.8, name=out, id=9)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
@@ -927,14 +927,14 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (add.4)
+  next_value.5: () = next_value(param=st, value=add.4, id=5)
 }
 
 top block my_block(a: bits[32], b: bits[32], out: bits[32]) {
-  a: bits[32] = input_port(name=a, id=5)
-  b: bits[32] = input_port(name=b, id=6)
-  add.7: bits[32] = add(a, b, id=7)
-  out: () = output_port(add.7, name=out, id=8)
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  add.8: bits[32] = add(a, b, id=8)
+  out: () = output_port(add.8, name=out, id=9)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
@@ -958,14 +958,14 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 proc my_proc(st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
-  next (add.4)
+  next_value.5: () = next_value(param=st, value=add.4, id=5)
 }
 
 block my_block(a: bits[32], b: bits[32], out: bits[32]) {
-  a: bits[32] = input_port(name=a, id=5)
-  b: bits[32] = input_port(name=b, id=6)
-  add.7: bits[32] = add(a, b, id=7)
-  out: () = output_port(add.7, name=out, id=8)
+  a: bits[32] = input_port(name=a, id=6)
+  b: bits[32] = input_port(name=b, id=7)
+  add.8: bits[32] = add(a, b, id=8)
+  out: () = output_port(add.8, name=out, id=9)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));

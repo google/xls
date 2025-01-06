@@ -165,10 +165,14 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGVeryLongChain) {
   }
   BValue assertion =
       pb.Assert(t, pb.Literal(UBits(1, 1)), {}, "assertion failed");
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({assertion}));
+  BValue next = pb.Next(token, assertion);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(TokenDAG dag, ComputeTokenDAG(proc));
   EXPECT_THAT(dag,
-              ElementsAre(Pair(assertion.node(), ElementsAre(token.node()))));
+              UnorderedElementsAre(
+                  Pair(next.node(),
+                       UnorderedElementsAre(token.node(), assertion.node())),
+                  Pair(assertion.node(), UnorderedElementsAre(token.node()))));
 }
 
 TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {

@@ -136,8 +136,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:proc_testutils",
         "//xls/ir:value",
-        "//xls/passes:next_node_modernize_pass",
-        "//xls/passes:pass_base",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:status_matchers",

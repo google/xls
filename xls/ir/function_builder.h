@@ -33,6 +33,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
@@ -801,10 +802,14 @@ class ProcBuilder : public BuilderBase {
     return state_params_.at(index);
   }
 
+  absl::StatusOr<Proc*> Build();
+
   // Build the proc using the given BValues as the next state values. If
   // `next_state` is not empty, the number of recurrent state elements in
   // `next_state` must match the number of state parameters.
-  absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state = {});
+  // Provided as a convenience for the common case where we can treat the next
+  // state as approximately a return value.
+  absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state);
 
   // Adds a state element to the proc with the given initial value (and read
   // predicate if provided). Returns the newly added state read.

@@ -14,6 +14,7 @@
 
 #include "xls/passes/token_simplification_pass.h"
 
+#include <cstdint>
 #include <memory>
 
 #include "gmock/gmock.h"
@@ -34,6 +35,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
 
 class TokenSimplificationPassTest : public IrTestBase {
  protected:
@@ -122,8 +124,10 @@ TEST_F(TokenSimplificationPassTest, NestedDelay) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::MinDelay(m::StateRead("tok"), /*delay=*/3));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{0})),
+      ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
+                          m::MinDelay(m::StateRead("tok"), /*delay=*/3))));
 }
 
 TEST_F(TokenSimplificationPassTest, AfterAllWithCommonDelay) {
@@ -141,8 +145,10 @@ TEST_F(TokenSimplificationPassTest, AfterAllWithCommonDelay) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::MinDelay(m::StateRead("tok"), /*delay=*/6));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{0})),
+      ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
+                          m::MinDelay(m::StateRead("tok"), /*delay=*/6))));
 }
 
 TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
@@ -165,10 +171,13 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::AfterAll(m::Send(m::Send(m::StateRead("tok"), m::Literal()),
-                                  m::Literal()),
-                          m::Send(m::StateRead("tok"), m::Literal())));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{0})),
+      ElementsAre(m::Next(
+          proc->GetStateRead(int64_t{0}),
+          m::AfterAll(
+              m::Send(m::Send(m::StateRead("tok"), m::Literal()), m::Literal()),
+              m::Send(m::StateRead("tok"), m::Literal())))));
 }
 
 TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
@@ -191,10 +200,12 @@ TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::AfterAll(m::Send(m::StateRead("tok"), m::Literal()),
-                          m::Send(m::StateRead("tok"), m::Literal()),
-                          m::Send(m::StateRead("tok"), m::Literal())));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(
+                  proc->GetStateRead(int64_t{0}),
+                  m::AfterAll(m::Send(m::StateRead("tok"), m::Literal()),
+                              m::Send(m::StateRead("tok"), m::Literal()),
+                              m::Send(m::StateRead("tok"), m::Literal())))));
 }
 
 TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
@@ -216,7 +227,8 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::Send());
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(proc->GetStateRead(int64_t{0}), m::Send())));
 }
 
 TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
@@ -243,8 +255,10 @@ TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::AfterAll(m::Send(), m::Send(), m::Invoke()));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{0})),
+      ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
+                          m::AfterAll(m::Send(), m::Send(), m::Invoke()))));
 }
 
 }  // namespace

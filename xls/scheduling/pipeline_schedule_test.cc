@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -1280,8 +1281,9 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthAndIndividualSlack) {
   BValue send = pb.Send(ch_out, tkn, state);
   BValue delay = pb.MinDelay(send, /*delay=*/2);
   BValue rcv = pb.Receive(ch_in, /*token=*/delay);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build({pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data")}));
+  pb.Next(state, pb.TupleIndex(rcv, 1), /*pred=*/std::nullopt, SourceInfo(),
+          "next_state");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1294,7 +1296,7 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthAndIndividualSlack) {
                   .infeasible_per_state_backedge_slack_pool = 2.0})),
       StatusIs(absl::StatusCode::kInvalidArgument,
                AllOf(HasSubstr("--pipeline_stages=3"),
-                     HasSubstr("looking at paths between state and rcv_data "
+                     HasSubstr("looking at paths between state and next_state "
                                "(needs 2 additional slack)"))));
 }
 
@@ -1325,8 +1327,10 @@ TEST_F(
   BValue delay1 = pb.MinDelay(send1, /*delay=*/1);
   BValue rcv = pb.Receive(ch_in, /*token=*/pb.AfterAll({delay0, delay1}));
   BValue rcv_data = pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data");
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build({rcv_data, pb.Add(rcv_data, state1)}));
+  pb.Next(state0, rcv_data, /*pred=*/std::nullopt, SourceInfo(), "next_state0");
+  pb.Next(state1, pb.Add(rcv_data, state1), /*pred=*/std::nullopt, SourceInfo(),
+          "next_state1");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1337,11 +1341,12 @@ TEST_F(
               SchedulingFailureBehavior{
                   .explain_infeasibility = true,
                   .infeasible_per_state_backedge_slack_pool = 2.0})),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSubstr("--pipeline_stages=3"),
-                     HasSubstr("--worst_case_throughput=2"),
-                     HasSubstr("looking at paths between state0 and rcv_data "
-                               "(needs 1 additional slack)"))));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstr("--pipeline_stages=3"),
+                HasSubstr("--worst_case_throughput=2"),
+                HasSubstr("looking at paths between state0 and next_state0 "
+                          "(needs 1 additional slack)"))));
 }
 
 TEST_F(
@@ -1379,9 +1384,12 @@ TEST_F(
   BValue rcv =
       pb.Receive(ch_in, /*token=*/pb.AfterAll({delay0, delay1, delay2}));
   BValue rcv_data = pb.TupleIndex(rcv, 1, SourceInfo(), "rcv_data");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc,
-      pb.Build({rcv_data, pb.Add(rcv_data, state1), pb.Add(rcv_data, state2)}));
+  pb.Next(state0, rcv_data, /*pred=*/std::nullopt, SourceInfo(), "next_state0");
+  pb.Next(state1, pb.Add(rcv_data, state1), /*pred=*/std::nullopt, SourceInfo(),
+          "next_state1");
+  pb.Next(state2, pb.Add(rcv_data, state2), /*pred=*/std::nullopt, SourceInfo(),
+          "next_state2");
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -1396,11 +1404,12 @@ TEST_F(
                       // don't cause us to incorrectly prefer per-node slack
                       // over shared slack.
                   3.0 + std::numeric_limits<double>::epsilon()})),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               AllOf(HasSubstr("--pipeline_stages=4"),
-                     HasSubstr("--worst_case_throughput=3"),
-                     HasSubstr("looking at paths between state0 and rcv_data "
-                               "(needs 1 additional slack)"))));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstr("--pipeline_stages=4"),
+                HasSubstr("--worst_case_throughput=3"),
+                HasSubstr("looking at paths between state0 and next_state0 "
+                          "(needs 1 additional slack)"))));
 }
 
 TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {

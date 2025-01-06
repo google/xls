@@ -15,6 +15,7 @@
 #include "xls/ir/proc.h"
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -65,7 +66,7 @@ TEST_F(ProcTest, SimpleProc) {
   literal.2: bits[32] = literal(value=1, id=2)
   st: bits[32] = state_read(state_element=st, id=1)
   add.3: bits[32] = add(literal.2, st, id=3)
-  next (add.3)
+  next_value.4: () = next_value(param=st, value=add.3, id=4)
 }
 )");
 }
@@ -79,14 +80,19 @@ TEST_F(ProcTest, MutateProc) {
   BValue after_all = pb.AfterAll({tkn});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({after_all, add}));
 
-  EXPECT_THAT(proc->GetNextStateElement(0), m::AfterAll(m::StateRead("tkn")));
-  XLS_ASSERT_OK(proc->SetNextStateElement(0, tkn.node()));
+  ASSERT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("tkn"),
+                                  m::AfterAll(m::StateRead("tkn")))));
+  Next* next_tkn = *proc->next_values(proc->GetStateRead(int64_t{0})).begin();
+  XLS_ASSERT_OK(proc->RemoveNode(next_tkn));
   XLS_ASSERT_OK(proc->RemoveNode(after_all.node()));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::StateRead("tkn"));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})), IsEmpty());
 
-  EXPECT_THAT(proc->GetNextStateElement(1), m::Add());
-  XLS_ASSERT_OK(proc->SetNextStateElement(1, proc->GetStateRead(1)));
-  EXPECT_THAT(proc->GetNextStateElement(1), m::StateRead("st"));
+  ASSERT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(m::StateRead("st"), m::Add())));
+  Next* next_st = *proc->next_values(proc->GetStateRead(1)).begin();
+  XLS_ASSERT_OK(proc->RemoveNode(next_st));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)), IsEmpty());
 
   // Replace the state with a new type. First need to delete the (dead) use of
   // the existing state read.
@@ -97,9 +103,10 @@ TEST_F(ProcTest, MutateProc) {
   XLS_ASSERT_OK(proc->ReplaceStateElement(1, "new_state",
                                           Value(UBits(100, 100)), new_state));
 
-  EXPECT_THAT(proc->GetNextStateElement(1), m::Literal(UBits(100, 100)));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(m::StateRead("new_state"),
+                                  m::Literal(UBits(100, 100)))));
   EXPECT_THAT(proc->GetStateRead(1), m::Type("bits[100]"));
-  EXPECT_THAT(proc->GetNextStateIndices(new_state), ElementsAre(1));
 }
 
 TEST_F(ProcTest, AddAndRemoveState) {
@@ -144,18 +151,20 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(1)->initial_value(), Value(UBits(42, 32)));
   EXPECT_EQ(proc->GetStateElement(2)->initial_value(), Value(UBits(100, 32)));
   EXPECT_EQ(proc->GetStateElement(3)->initial_value(), Value(UBits(123, 32)));
-  EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "my_after_all");
-  EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "my_add");
-  EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "y");
-  EXPECT_EQ(proc->GetNextStateElement(3), zero_literal);
-  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(3));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{0})),
+      ElementsAre(m::Next(m::StateRead("tkn"), m::Name("my_after_all"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(m::StateRead("x"), m::Name("my_add"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(2)), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(3)),
+              ElementsAre(m::Next(m::StateRead("z"), m::Literal(0))));
 
   XLS_ASSERT_OK(proc->RemoveStateElement(2));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "tkn");
   EXPECT_EQ(proc->GetStateElement(1)->name(), "x");
   EXPECT_EQ(proc->GetStateElement(2)->name(), "z");
-  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(2));
 
   XLS_ASSERT_OK(proc->InsertStateElement(0, "foo", Value(UBits(123, 32)),
                                          /*read_predicate=*/std::nullopt,
@@ -165,7 +174,6 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(1)->name(), "tkn");
   EXPECT_EQ(proc->GetStateElement(2)->name(), "x");
   EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
-  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(3));
 
   XLS_ASSERT_OK(proc->InsertStateElement(4, "bar", Value(UBits(1, 64)),
                                          /*read_predicate=*/std::nullopt,
@@ -176,8 +184,9 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(2)->name(), "x");
   EXPECT_EQ(proc->GetStateElement(3)->name(), "z");
   EXPECT_EQ(proc->GetStateElement(4)->name(), "bar");
-  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), ElementsAre(3));
 
+  XLS_ASSERT_OK(
+      proc->RemoveNode(*proc->next_values(proc->GetStateRead(3)).begin()));
   XLS_ASSERT_OK(proc->ReplaceStateElement(3, "baz", Value::Tuple({})));
   EXPECT_EQ(proc->GetStateElementCount(), 5);
   EXPECT_EQ(proc->GetStateElement(0)->name(), "foo");
@@ -190,8 +199,14 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc p(foo: bits[32], tkn: token, x: bits[32], baz: "
                         "(), bar: bits[64], init={123, token, 42, (), 1}"));
-  EXPECT_THAT(proc->DumpIr(),
-              HasSubstr("next (foo, my_after_all, my_add, baz, bar"));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})), IsEmpty());
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(1)),
+      ElementsAre(m::Next(m::StateRead("tkn"), m::Name("my_after_all"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(2)),
+              ElementsAre(m::Next(m::StateRead("x"), m::Name("my_add"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(3)), IsEmpty());
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(4)), IsEmpty());
 }
 
 TEST_F(ProcTest, ReplaceState) {
@@ -200,21 +215,23 @@ TEST_F(ProcTest, ReplaceState) {
   pb.StateElement("x", Value(UBits(42, 32)));
   BValue forty_two = pb.Literal(UBits(42, 32), SourceInfo(), "forty_two");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({forty_two}));
-  EXPECT_THAT(proc->GetNextStateIndices(forty_two.node()), ElementsAre(0));
 
   XLS_ASSERT_OK(proc->ReplaceState(
       {"foo", "bar", "baz"},
       {Value(UBits(1, 32)), Value(UBits(2, 32)), Value(UBits(2, 32))},
       {std::nullopt, std::nullopt, std::nullopt},
       {forty_two.node(), forty_two.node(), forty_two.node()}));
-  EXPECT_THAT(proc->GetNextStateIndices(forty_two.node()),
-              ElementsAre(0, 1, 2));
 
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc p(foo: bits[32], bar: bits[32], baz: "
                         "bits[32], init={1, 2, 2})"));
-  EXPECT_THAT(proc->DumpIr(),
-              HasSubstr("next (forty_two, forty_two, forty_two)"));
+
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("foo"), m::Literal(42, 32))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(m::StateRead("bar"), m::Literal(42, 32))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(2)),
+              ElementsAre(m::Next(m::StateRead("baz"), m::Literal(42, 32))));
 }
 
 TEST_F(ProcTest, StatelessProc) {
@@ -345,16 +362,17 @@ TEST_F(ProcTest, Clone) {
 
   EXPECT_EQ(clone->DumpIr(),
             R"(proc cloned(tkn: token, state: bits[32], init={token, 42}) {
-  tkn: token = state_read(state_element=tkn, id=10)
-  literal.12: bits[32] = literal(value=1, id=12)
-  state: bits[32] = state_read(state_element=state, id=11)
-  receive_3: (token, bits[32]) = receive(tkn, channel=cloned_chan, id=13)
-  add.14: bits[32] = add(literal.12, state, id=14)
-  tuple_index.15: bits[32] = tuple_index(receive_3, index=1, id=15)
-  tuple_index.16: token = tuple_index(receive_3, index=0, id=16)
-  add.17: bits[32] = add(add.14, tuple_index.15, id=17)
-  send_9: token = send(tuple_index.16, add.17, channel=cloned_chan, id=18)
-  next (send_9, add.17)
+  tkn: token = state_read(state_element=tkn, id=12)
+  literal.14: bits[32] = literal(value=1, id=14)
+  state: bits[32] = state_read(state_element=state, id=13)
+  receive_3: (token, bits[32]) = receive(tkn, channel=cloned_chan, id=15)
+  add.16: bits[32] = add(literal.14, state, id=16)
+  tuple_index.17: bits[32] = tuple_index(receive_3, index=1, id=17)
+  tuple_index.18: token = tuple_index(receive_3, index=0, id=18)
+  add.19: bits[32] = add(add.16, tuple_index.17, id=19)
+  send_9: token = send(tuple_index.18, add.19, channel=cloned_chan, id=20)
+  next_value.21: () = next_value(param=tkn, value=send_9, id=21)
+  next_value.22: () = next_value(param=state, value=add.19, id=22)
 }
 )");
 }
@@ -392,18 +410,18 @@ TEST_F(ProcTest, CloneNewStyle) {
       clone->DumpIr(),
       R"(proc cloned<foo: bits[32] in kind=streaming strictness=proven_mutually_exclusive, bar: bits[32] out kind=streaming strictness=proven_mutually_exclusive>(state: bits[32], init={42}) {
   chan baz(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-  tkn: token = literal(value=token, id=13)
-  receive_3: (token, bits[32]) = receive(tkn, channel=foo, id=14)
-  tuple_index.15: token = tuple_index(receive_3, index=0, id=15)
-  receive_6: (token, bits[32]) = receive(tuple_index.15, channel=baz, id=16)
-  tuple_index.17: token = tuple_index(receive_6, index=0, id=17)
-  state: bits[32] = state_read(state_element=state, id=12)
-  send_9: token = send(tuple_index.17, state, channel=bar, id=18)
+  tkn: token = literal(value=token, id=14)
+  receive_3: (token, bits[32]) = receive(tkn, channel=foo, id=15)
+  tuple_index.16: token = tuple_index(receive_3, index=0, id=16)
+  receive_6: (token, bits[32]) = receive(tuple_index.16, channel=baz, id=17)
+  tuple_index.18: token = tuple_index(receive_6, index=0, id=18)
+  state: bits[32] = state_read(state_element=state, id=13)
   tuple_index.19: bits[32] = tuple_index(receive_3, index=1, id=19)
   tuple_index.20: bits[32] = tuple_index(receive_6, index=1, id=20)
-  send_10: token = send(send_9, state, channel=baz, id=21)
+  send_9: token = send(tuple_index.18, state, channel=bar, id=21)
   add.22: bits[32] = add(tuple_index.19, tuple_index.20, id=22)
-  next (add.22)
+  send_10: token = send(send_9, state, channel=baz, id=23)
+  next_value.24: () = next_value(param=state, value=add.22, id=24)
 }
 )");
 }

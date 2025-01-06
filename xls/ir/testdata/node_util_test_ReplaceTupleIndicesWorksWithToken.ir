@@ -1,10 +1,10 @@
 proc ReplaceTupleIndicesWorksWithToken(tkn: token, init={token}) {
   tkn: token = state_read(state_element=tkn, id=1)
-  literal.6: bits[32] = literal(value=0, id=6)
-  receive: (token, bits[32]) = tuple(tkn, literal.6, id=9)
+  literal.7: bits[32] = literal(value=0, id=7)
+  receive: (token, bits[32]) = tuple(tkn, literal.7, id=10)
   tuple_index.3: token = tuple_index(receive, index=0, id=3)
   tuple_index.4: bits[32] = tuple_index(receive, index=1, id=4)
-  receive.2: (token, bits[32]) = receive(tkn, channel=ch0, id=2)
   send.5: token = send(tuple_index.3, tuple_index.4, channel=ch1, id=5)
-  next (send.5)
+  receive.2: (token, bits[32]) = receive(tkn, channel=ch0, id=2)
+  next_value.6: () = next_value(param=tkn, value=send.5, id=6)
 }

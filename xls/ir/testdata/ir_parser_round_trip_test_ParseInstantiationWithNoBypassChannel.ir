@@ -8,7 +8,7 @@ proc placeholder_channel_user(tok: token, init={token}) {
   recv_tok: token = tuple_index(recv_out, index=0, id=2)
   recv_data: bits[32] = tuple_index(recv_out, index=1, id=3)
   send_out: token = send(recv_tok, recv_data, channel=foo, id=4)
-  next (send_out)
+  next_value.18: () = next_value(param=tok, value=send_out, id=18)
 }
 
 block sub_block(in: bits[32], out: bits[32]) {

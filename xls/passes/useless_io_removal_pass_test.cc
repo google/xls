@@ -42,6 +42,7 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::ElementsAre;
 
 class UselessIORemovalPassTest : public IrTestBase {
  protected:
@@ -75,9 +76,9 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySend) {
   pb.SendIf(channel, pb.Literal(Value::Token()), pb.Literal(UBits(0, 1)),
             pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
-  EXPECT_EQ(proc->node_count(), 6);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(proc->node_count(), 6);
+  EXPECT_EQ(proc->node_count(), original_node_count);
 }
 
 TEST_F(UselessIORemovalPassTest, DontRemoveOnlySendNewStyle) {
@@ -89,9 +90,9 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlySendNewStyle) {
   pb.StateElement("state", Value(UBits(0, 0)));
   pb.SendIf(channel, pb.Literal(UBits(0, 1)), pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
-  EXPECT_EQ(proc->node_count(), 6);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(proc->node_count(), 6);
+  EXPECT_EQ(proc->node_count(), original_node_count);
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
@@ -109,11 +110,13 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalse) {
   token = pb.Send(channel, token, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build({token, pb.Literal(UBits(0, 0))}));
-  EXPECT_EQ(proc->node_count(), 8);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->node_count(), 5);
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::Send(proc->GetStateRead(int64_t{0}), m::Literal(1)));
+  EXPECT_EQ(proc->node_count(), original_node_count - 3);
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(
+                  proc->GetStateRead(int64_t{0}),
+                  m::Send(proc->GetStateRead(int64_t{0}), m::Literal(1)))));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
@@ -129,9 +132,9 @@ TEST_F(UselessIORemovalPassTest, RemoveSendIfLiteralFalseNewStyle) {
           /*name=*/"actual_send");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Literal(UBits(0, 0))}));
 
-  EXPECT_EQ(proc->node_count(), 8);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->node_count(), 5);
+  EXPECT_EQ(proc->node_count(), original_node_count - 3);
   EXPECT_THAT(proc->GetNode("actual_send"),
               IsOkAndHolds(m::Send(m::Literal(Value::Token()), m::Literal(1))));
 }
@@ -150,9 +153,9 @@ TEST_F(UselessIORemovalPassTest, DontRemoveOnlyReceive) {
   token = pb.TupleIndex(token_and_result, 0);
   BValue result = pb.TupleIndex(token_and_result, 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({token, result}));
-  EXPECT_EQ(proc->node_count(), 6);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(proc->node_count(), 6);
+  EXPECT_EQ(proc->node_count(), original_node_count);
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
@@ -170,15 +173,19 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
   token = pb.TupleIndex(token_and_result, 0);
   BValue result = pb.TupleIndex(token_and_result, 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({token, result}));
-  EXPECT_EQ(proc->node_count(), 8);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->node_count(), 8);
+  EXPECT_EQ(proc->node_count(), original_node_count);
   auto tuple = m::Tuple(
       m::TupleIndex(m::Receive(m::StateRead("tkn"), m::Channel("test_channel")),
                     0),
       m::Literal(0));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
-  EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
+                                  m::TupleIndex(tuple, 0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(1)),
+      ElementsAre(m::Next(proc->GetStateRead(1), m::TupleIndex(tuple, 1))));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
@@ -194,12 +201,15 @@ TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
                     pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build({token, pb.Literal(UBits(0, 0))}));
-  EXPECT_EQ(proc->node_count(), 6);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->node_count(), 5);
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::Send(m::StateRead("tkn"), m::Literal(1)));
-  EXPECT_THAT(proc->GetNextStateElement(1), m::Literal(0));
+  EXPECT_EQ(proc->node_count(), original_node_count - 1);
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(int64_t{0})),
+      ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
+                          m::Send(m::StateRead("tkn"), m::Literal(1)))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(proc->GetStateRead(1), m::Literal(0))));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
@@ -216,12 +226,16 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
   token = pb.TupleIndex(token_and_result, 0);
   BValue result = pb.TupleIndex(token_and_result, 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({token, result}));
-  EXPECT_EQ(proc->node_count(), 6);
+  int64_t original_node_count = proc->node_count();
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_EQ(proc->node_count(), 5);
+  EXPECT_EQ(proc->node_count(), original_node_count - 1);
   auto tuple = m::Receive(m::StateRead("tkn"), m::Channel("test_channel"));
-  EXPECT_THAT(proc->GetNextStateElement(0), m::TupleIndex(tuple, 0));
-  EXPECT_THAT(proc->GetNextStateElement(1), m::TupleIndex(tuple, 1));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(proc->GetStateRead(int64_t{0}),
+                                  m::TupleIndex(tuple, 0))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(1)),
+      ElementsAre(m::Next(proc->GetStateRead(1), m::TupleIndex(tuple, 1))));
 }
 
 }  // namespace

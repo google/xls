@@ -14,6 +14,7 @@
 
 #include "xls/ir/function_builder.h"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -518,12 +519,16 @@ TEST(FunctionBuilderTest, SendAndReceive) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({after_all, next_state}));
 
   EXPECT_THAT(
-      proc->GetNextStateElement(0),
-      m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
-                  m::Send(m::StateRead(), m::StateRead(), m::Literal(1)),
-                  m::TupleIndex(m::Receive())));
-  EXPECT_THAT(proc->GetNextStateElement(1),
-              m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::Receive())));
+      proc->next_values(proc->GetStateRead(int64_t{0})),
+      ElementsAre(m::Next(
+          m::StateRead("my_token"),
+          m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
+                      m::Send(m::StateRead(), m::StateRead(), m::Literal(1)),
+                      m::TupleIndex(m::Receive())))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(m::StateRead("my_state"),
+                                  m::Add(m::TupleIndex(m::Receive()),
+                                         m::TupleIndex(m::Receive())))));
 
   EXPECT_THAT(proc->StateElements(),
               ElementsAre(m::StateElement("my_token", Value::Token()),
@@ -863,9 +868,11 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
           m::MinDelay(m::TupleIndex(m::Receive(m::TupleIndex(m::Receive())))),
           m::Add())));
 
-  EXPECT_THAT(proc->GetNextStateElement(0),
-              m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),
-                     m::TupleIndex(m::Receive(m::Channel("b")), 1)));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(
+                  m::StateRead("st"),
+                  m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),
+                         m::TupleIndex(m::Receive(m::Channel("b")), 1)))));
 }
 
 TEST(FunctionBuilderTest, StatelessProcBuilder) {
@@ -897,10 +904,14 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc the_proc(tkn: token, x: bits[32], y: bits[32], "
                         "z: bits[32], init={token, 1, 2, 3})"));
-  EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "tkn");
-  EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "x");
-  EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "x_plus_y");
-  EXPECT_EQ(proc->GetNextStateElement(3)->GetName(), "z");
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("tkn"), m::StateRead("tkn"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(m::StateRead("x"), m::StateRead("x"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(2)),
+              ElementsAre(m::Next(m::StateRead("y"), m::Name("x_plus_y"))));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(3)),
+              ElementsAre(m::Next(m::StateRead("z"), m::StateRead("z"))));
 }
 
 TEST(FunctionBuilderTest, ProcWithNextStateElement) {
@@ -911,7 +922,7 @@ TEST(FunctionBuilderTest, ProcWithNextStateElement) {
   BValue z = pb.StateElement("z", Value(UBits(3, 32)));
   BValue next = pb.Next(/*state_read=*/y, /*value=*/z, /*pred=*/x);
 
-  XLS_ASSERT_OK(pb.Build(/*next_state=*/{x, y, z}));
+  XLS_ASSERT_OK(pb.Build());
   EXPECT_THAT(next.node(),
               m::Next(m::StateRead("y"), /*value=*/m::StateRead("z"),
                       /*predicate=*/m::StateRead("x")));
@@ -938,7 +949,8 @@ TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   BValue state = pb.StateElement("st", Value(UBits(42, 16)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({state}));
 
-  EXPECT_THAT(proc->GetNextStateElement(0), m::StateRead("st"));
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(int64_t{0})),
+              ElementsAre(m::Next(m::StateRead("st"), m::StateRead("st"))));
 }
 
 TEST(FunctionBuilderTest, Assert) {
