@@ -325,13 +325,13 @@ def Xls_UmodOp : Xls_ArithBinaryOp<"umod", "unsigned modulo">;
 // Comparison operations
 //===----------------------------------------------------------------------===//
 
-class Xls_ComparisonOp<string name>
-    : Xls_BinaryOp<name, [Pure]> {
+class Xls_ComparisonOp<string name, Type operand_type>
+    : Xls_BinaryOp<name, [Pure, SameTypeOperands]> {
   let summary = !strconcat(name, " comparison");
   let description = summary;
   let arguments = (ins
-    Xls_Bits:$lhs,
-    Xls_Bits:$rhs
+    operand_type:$lhs,
+    operand_type:$rhs
   );
   let results = (outs
     Xls_Bits:$result
@@ -347,16 +347,16 @@ class Xls_ComparisonOp<string name>
   ];
 }
 
-def Xls_EqOp : Xls_ComparisonOp<"eq">;
-def Xls_NeOp : Xls_ComparisonOp<"ne">;
-def Xls_SgeOp : Xls_ComparisonOp<"sge">;
-def Xls_SgtOp : Xls_ComparisonOp<"sgt">;
-def Xls_SleOp : Xls_ComparisonOp<"sle">;
-def Xls_SltOp : Xls_ComparisonOp<"slt">;
-def Xls_UgeOp : Xls_ComparisonOp<"uge">;
-def Xls_UgtOp : Xls_ComparisonOp<"ugt">;
-def Xls_UleOp : Xls_ComparisonOp<"ule">;
-def Xls_UltOp : Xls_ComparisonOp<"ult">;
+def Xls_EqOp : Xls_ComparisonOp<"eq", Xls_BitsOrTuple>;
+def Xls_NeOp : Xls_ComparisonOp<"ne", Xls_BitsOrTuple>;
+def Xls_SgeOp : Xls_ComparisonOp<"sge", Xls_Bits>;
+def Xls_SgtOp : Xls_ComparisonOp<"sgt", Xls_Bits>;
+def Xls_SleOp : Xls_ComparisonOp<"sle", Xls_Bits>;
+def Xls_SltOp : Xls_ComparisonOp<"slt", Xls_Bits>;
+def Xls_UgeOp : Xls_ComparisonOp<"uge", Xls_Bits>;
+def Xls_UgtOp : Xls_ComparisonOp<"ugt", Xls_Bits>;
+def Xls_UleOp : Xls_ComparisonOp<"ule", Xls_Bits>;
+def Xls_UltOp : Xls_ComparisonOp<"ult", Xls_Bits>;
 
 //===----------------------------------------------------------------------===//
 // Shift operations
