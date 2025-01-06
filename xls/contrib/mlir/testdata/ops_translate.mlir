@@ -219,7 +219,7 @@ func.func @reverse(%arg0: i32) -> i32 {
 }
 
 func.func @decode(%arg0: i4) -> i16 {
-  %0 = xls.decode %arg0 : (i4) -> i16
+  %0 = xls.decode %arg0 { width = 16 : i64 } : (i4) -> i16
   return %0 : i16
 }
 

@@ -989,7 +989,7 @@ def Xls_DecodeOp : Xls_UnaryOp<"decode", [Pure, ShapesAreConsistent<["operand", 
   }];
   let arguments = (ins
     Xls_Bits:$operand,
-    OptionalAttr<I64Attr>:$width
+    I64Attr:$width
   );
   let results = (outs
     Xls_Bits:$result
