@@ -62,9 +62,9 @@ func.func @add(%arg0: i8, %arg1: i8) -> i8 {
   return %0 : i8
 }
 
-func.func @smul(%arg0: i8, %arg1: i8) -> i8 {
-  %0 = xls.smul %arg0, %arg1 : i8
-  return %0 : i8
+func.func @smul(%arg0: i8, %arg1: i8) -> i16 {
+  %0 = xls.smul %arg0, %arg1 : (i8, i8) -> i16
+  return %0 : i16
 }
 
 func.func @smulp(%arg0: i8, %arg1: i7) -> i9 {

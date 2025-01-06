@@ -332,11 +332,20 @@ XLS_UNARY_OP(NegOp, Negate);
 XLS_BINARY_OP(AddOp, Add);
 XLS_BINARY_OP(SdivOp, SDiv);
 XLS_BINARY_OP(SmodOp, SMod);
-XLS_BINARY_OP(SmulOp, SMul);
 XLS_BINARY_OP(SubOp, Subtract);
 XLS_BINARY_OP(UdivOp, UDiv);
 XLS_BINARY_OP(UmodOp, UMod);
-XLS_BINARY_OP(UmulOp, UMul);
+
+#define XLS_MUL_OP(TYPE, BUILDER)                                             \
+  BValue convertOp(TYPE op, const TranslationState& state, BuilderBase& fb) { \
+    auto result_type =                                                        \
+        cast<IntegerType>(mlir::getElementTypeOrSelf(op.getResult()));        \
+    return fb.BUILDER(state.getXlsValue(op.getLhs()),                         \
+                      state.getXlsValue(op.getRhs()), result_type.getWidth(), \
+                      state.getLoc(op));                                      \
+  }
+XLS_MUL_OP(SmulOp, SMul);
+XLS_MUL_OP(UmulOp, UMul);
 
 // Partial Products
 #define XLS_PARTIAL_PROD_OP(TYPE, BUILDER)                                \
