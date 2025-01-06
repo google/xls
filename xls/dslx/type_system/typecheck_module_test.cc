@@ -2030,7 +2030,38 @@ TEST(TypecheckTest, MatchArmMismatch) {
                HasSubstr("match arm did not have the same type")));
 }
 
-TEST(TypecheckTest, ArrayInconsistency) {
+TEST(TypecheckTest, MatchOnParametricFunction) {
+  absl::StatusOr<TypecheckResult> result = Typecheck(R"(
+fn p<N: u32>() -> u32 {
+  match p {
+    p => N
+  }
+}
+
+const X: u32 = p<u32:42>();
+)");
+  EXPECT_THAT(
+      result,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Match construct cannot match on this type.")));
+}
+
+TEST(TypecheckErrorTest, MatchWithFunctionInPattern) {
+  absl::StatusOr<TypecheckResult> result = Typecheck(R"(
+fn p<N: u32>(x: bool) -> u32 {
+  match x {
+    p => N,
+    _ => u32:0,
+  }
+}
+
+const X: u32 = p<u32:42>(false);
+)");
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("pattern expects uN[1]")));
+}
+
+TEST(TypecheckErrorTest, ArrayInconsistency) {
   EXPECT_THAT(Typecheck(R"(
 type Foo = (u8, u32);
 fn f() -> Foo {
@@ -2042,6 +2073,20 @@ fn f() -> Foo {
                        AllOf(HasSubstr("(uN[8], uN[32])\nvs uN[32]"),
                              HasSubstr("Array member did not have same "
                                        "type as other members."))));
+}
+
+TEST(TypecheckTest, MatchWithRange) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f(x: u32) -> u32 {
+  match x {
+    u32:0..u32:2 => x,
+    _ => u32:42,
+  }
+}
+
+const X: u32 = f(u32:1);
+const_assert!(X == u32:1);
+)"));
 }
 
 TEST(TypecheckTest, ArrayOfConsts) {
