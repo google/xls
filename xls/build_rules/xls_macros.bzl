@@ -566,6 +566,7 @@ Examples:
         "convert_array_index_to_select",
         "inline_procs",
         "use_context_narrowing_analysis",
+        "optimize_for_best_case_throughput",
     )
     opt_ir_args = {
         k: v

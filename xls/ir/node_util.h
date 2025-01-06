@@ -138,6 +138,11 @@ inline bool IsNotOf(const Node* node, const Node* inverted) {
   return node->op() == Op::kNot && node->operand(0) == inverted;
 }
 
+// Returns a LeafTypeTree of IR expressions, where each expression extracts the
+// value of the corresponding leaf element of the given node. Note that this
+// constructs new IR expressions, and so changes the IR.
+absl::StatusOr<LeafTypeTree<Node*>> ToTreeOfNodes(Node* node);
+
 // Returns an IR expression whose value is equal to the bits of 'node' at the
 // given bit positions concated together. All 'indices' must be unique.
 absl::StatusOr<Node*> GatherBits(Node* node, absl::Span<int64_t const> indices);

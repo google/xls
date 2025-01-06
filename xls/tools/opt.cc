@@ -102,6 +102,8 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   pass_options.ram_rewrites = options.ram_rewrites;
   pass_options.use_context_narrowing_analysis =
       options.use_context_narrowing_analysis;
+  pass_options.optimize_for_best_case_throughput =
+      options.optimize_for_best_case_throughput;
   pass_options.bisect_limit = options.bisect_limit;
   pass_options.record_metrics = options.metrics != nullptr;
   PassResults results;

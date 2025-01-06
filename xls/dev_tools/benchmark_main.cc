@@ -123,6 +123,11 @@ ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "Use context sensitive narrowing analysis. This is somewhat slower "
           "but might produce better results in some circumstances by using "
           "usage context to narrow values more aggressively.");
+ABSL_FLAG(
+    bool, optimize_for_best_case_throughput, false,
+    "Optimize for best case throughput, even at the cost of area. This will "
+    "aggressively optimize to create opportunities for improved throughput, "
+    "but at the cost of constraining the schedule and thus increasing area.");
 ABSL_FLAG(bool, run_evaluators, true,
           "Whether to run the JIT and interpreter.");
 ABSL_FLAG(bool, compare_delay_to_synthesis, false,

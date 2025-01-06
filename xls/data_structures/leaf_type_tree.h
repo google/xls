@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 #define XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 
+#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <iterator>
@@ -848,16 +849,54 @@ absl::StatusOr<LeafTypeTree<T>> ZipIndex(
   return LeafTypeTree<T>::CreateFromVector(type, std::move(new_elements));
 }
 
+// Use the given function to combine each corresponding leaf element in the
+// given `LeafTypeTree` inputs. Returns an error if the given `LeafTypeTree`s
+// are not generated from the same type.
+template <typename T, typename A, typename B = A>
+absl::StatusOr<LeafTypeTree<T>> ZipIndex(
+    LeafTypeTreeView<A> a, LeafTypeTreeView<B> b,
+    std::function<absl::StatusOr<T>(Type* element_type, const A& a_element,
+                                    const B& b_element,
+                                    absl::Span<const int64_t> index)>
+        f) {
+  XLS_RET_CHECK_EQ(a.type(), b.type());
+  Type* type = a.type();
+  int64_t size = a.size();
+
+  typename LeafTypeTree<T>::DataContainerT new_elements;
+  new_elements.reserve(size);
+  leaf_type_tree_internal::LeafTypeTreeIterator it(type);
+  while (!it.AtEnd()) {
+    XLS_ASSIGN_OR_RETURN(T value,
+                         f(it.leaf_type(), a.elements()[it.linear_index()],
+                           b.elements()[it.linear_index()], it.type_index()));
+    new_elements.push_back(std::move(value));
+    it.Advance();
+  }
+  return LeafTypeTree<T>::CreateFromVector(type, std::move(new_elements));
+}
+
+// Simple form of zip which accepts only two inputs and does not include type
+// and index arguments.
+template <typename T, typename A, typename B = A>
+absl::StatusOr<LeafTypeTree<T>> ZipStatus(
+    LeafTypeTreeView<A> a, LeafTypeTreeView<B> b,
+    std::function<absl::StatusOr<T>(const A&, const B&)> f) {
+  return ZipIndex<T, A, B>(a, b,
+                           [&](Type*, const A& a_element, const B& b_element,
+                               absl::Span<const int64_t>) -> absl::StatusOr<T> {
+                             return f(a_element, b_element);
+                           });
+}
+
 // Simple form of zip which accepts only two inputs and does not include type
 // and index arguments nor status return value.
-template <typename T, typename A>
-LeafTypeTree<T> Zip(LeafTypeTreeView<A> a, LeafTypeTreeView<A> b,
-                    std::function<T(const A&, const A&)> f) {
-  absl::StatusOr<LeafTypeTree<T>> result = ZipIndex<T, A>(
-      {a, b},
-      [&](Type* element_type, absl::Span<const A* const> elements,
-          absl::Span<const int64_t> index) -> absl::StatusOr<T> {
-        return f(*elements[0], *elements[1]);
+template <typename T, typename A, typename B = A>
+LeafTypeTree<T> Zip(LeafTypeTreeView<A> a, LeafTypeTreeView<B> b,
+                    std::function<T(const A&, const B&)> f) {
+  absl::StatusOr<LeafTypeTree<T>> result = ZipStatus<T, A, B>(
+      a, b, [&](const A& a_element, const B& b_element) -> absl::StatusOr<T> {
+        return f(a_element, b_element);
       });
   CHECK_OK(result);
   return result.value();

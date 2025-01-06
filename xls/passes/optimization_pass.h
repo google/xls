@@ -156,6 +156,9 @@ struct OptimizationPassOptions : public PassOptionsBase {
 
   // Use select context during narrowing range analysis.
   bool use_context_narrowing_analysis = false;
+
+  // Optimize for best case throughput, even at the cost of area.
+  bool optimize_for_best_case_throughput = false;
 };
 
 // An object containing information about the invocation of a pass (single call

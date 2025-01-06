@@ -103,6 +103,11 @@ ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "Use context sensitive narrowing analysis. This is somewhat slower "
           "but might produce better results in some circumstances by using "
           "usage context to narrow values more aggressively.");
+ABSL_FLAG(
+    bool, optimize_for_best_case_throughput, false,
+    "Optimize for best case throughput, even at the cost of area. This will "
+    "aggressively optimize to create opportunities for improved throughput, "
+    "but at the cost of constraining the schedule and thus increasing area.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 ABSL_FLAG(
     std::optional<std::string>, passes, std::nullopt,
@@ -213,6 +218,8 @@ absl::Status RealMain(std::string_view input_path) {
   }
   bool use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
+  bool optimize_for_best_case_throughput =
+      absl::GetFlag(FLAGS_optimize_for_best_case_throughput);
   std::optional<std::string> pass_list = absl::GetFlag(FLAGS_passes);
   std::optional<int64_t> bisect_limit =
       absl::GetFlag(FLAGS_passes_bisect_limit);
@@ -266,6 +273,8 @@ absl::Status RealMain(std::string_view input_path) {
               .inline_procs = inline_procs,
               .ram_rewrites = std::move(ram_rewrites_vec),
               .use_context_narrowing_analysis = use_context_narrowing_analysis,
+              .optimize_for_best_case_throughput =
+                  optimize_for_best_case_throughput,
               .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
               .metrics = wants_metrics ? &metrics : nullptr,

@@ -254,9 +254,10 @@ TEST_F(LeafTypeTreeTest, NestedTupleType) {
           .value();
   EXPECT_THAT(zipped.elements(), ElementsAre(0, 5, 3, 0, 42, 12, 0, 77));
 
-  LeafTypeTree<int64_t> simple_zipped = leaf_type_tree::Zip<int64_t, int64_t>(
-      tree.AsView(), other_tree.AsView(),
-      [](int64_t a, int64_t b) { return a - b; });
+  LeafTypeTree<int64_t> simple_zipped =
+      leaf_type_tree::Zip<int64_t, int64_t, int64_t>(
+          tree.AsView(), other_tree.AsView(),
+          [](int64_t a, int64_t b) { return a - b; });
   EXPECT_THAT(simple_zipped.elements(),
               ElementsAre(0, -5, 3, 0, 42, -12, 0, 77));
 

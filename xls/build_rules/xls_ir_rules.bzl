@@ -223,6 +223,7 @@ def _optimize_ir(ctx, src, original_input_files):
         "convert_array_index_to_select",
         "inline_procs",
         "use_context_narrowing_analysis",
+        "optimize_for_best_case_throughput",
         "top",
     )
 
@@ -460,6 +461,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "split_next_value_selects",
         "inline_procs",
         "use_context_narrowing_analysis",
+        "optimize_for_best_case_throughput",
         "run_evaluators",
     ] + _CODEGEN_FLAGS + _SCHEDULING_FLAGS
 

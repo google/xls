@@ -210,6 +210,50 @@ absl::StatusOr<Node*> FillPattern(TernarySpan pattern, Node* node) {
   return f->MakeNode<Concat>(node->loc(), slices);
 }
 
+absl::StatusOr<LeafTypeTree<Node*>> ToTreeOfNodes(Node* node) {
+  LeafTypeTree<Node*> result(node->GetType(), nullptr);
+  absl::flat_hash_map<absl::Span<int64_t const>, Node*> index_access;
+  index_access[{}] = node;
+  XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachIndex(
+      result.AsMutableView(),
+      [node, &index_access](Type*, Node*& leaf_node,
+                            absl::Span<const int64_t> indices) -> absl::Status {
+        for (int64_t i = 1; i <= indices.size(); ++i) {
+          auto it = index_access.find(indices.subspan(0, i));
+          if (it != index_access.end()) {
+            continue;
+          }
+
+          Node* accessed_node = index_access[indices.subspan(0, i - 1)];
+          if (accessed_node->GetType()->IsArray()) {
+            Bits index_bits = UBits(
+                indices.back(),
+                Bits::MinBitCountUnsigned(
+                    accessed_node->GetType()->AsArrayOrDie()->size() - 1));
+            XLS_ASSIGN_OR_RETURN(Node * literal_index,
+                                 node->function_base()->MakeNode<Literal>(
+                                     node->loc(), Value(index_bits)));
+            XLS_ASSIGN_OR_RETURN(index_access[indices.subspan(0, i)],
+                                 node->function_base()->MakeNode<ArrayIndex>(
+                                     node->loc(), accessed_node,
+                                     absl::MakeConstSpan({literal_index})));
+          } else if (accessed_node->GetType()->IsTuple()) {
+            XLS_ASSIGN_OR_RETURN(
+                index_access[indices.subspan(0, i)],
+                node->function_base()->MakeNode<TupleIndex>(
+                    node->loc(), accessed_node, indices.back()));
+          } else {
+            return absl::UnimplementedError(
+                absl::StrCat("Unsupported type for index access: ",
+                             accessed_node->GetType()->ToString()));
+          }
+        }
+        leaf_node = index_access.at(indices);
+        return absl::OkStatus();
+      }));
+  return result;
+}
+
 absl::StatusOr<Node*> GatherBits(Node* node, LeafTypeTreeView<Bits> mask) {
   std::vector<Node*> gathered_bits;
   absl::flat_hash_map<absl::Span<int64_t const>, Node*> index_access;

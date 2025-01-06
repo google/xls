@@ -165,6 +165,11 @@ available. Care should be used when modifying the values of these flags.
     contextual information to optimize range calculations. This can in some
     circumstances reveal additional optimization opportunities but it can be
     quite slow. Defaults to `false`.
+*   `--optimize_for_best_case_throughput=true|false`: Controls whether to
+    optimize aggressively for best case throughput, even at the cost of area.
+    This will aggressively optimize to create opportunities for improved
+    throughput, but at the cost of constraining the schedule and thus increasing
+    area. Defaults to `false`.
 
 ### Debugging/Experimenting with Optimizations
 

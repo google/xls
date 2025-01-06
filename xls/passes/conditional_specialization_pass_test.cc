@@ -14,6 +14,8 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
+#include <stdbool.h>
+
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -43,20 +45,28 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::A;
+using ::testing::Optional;
 
 class ConditionalSpecializationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(FunctionBase* f, bool use_bdd = true) {
+  absl::StatusOr<bool> Run(FunctionBase* f, bool use_bdd = true,
+                           bool optimize_for_best_case_throughput = false) {
     PassResults results;
+    OptimizationPassOptions options;
+    options.optimize_for_best_case_throughput =
+        optimize_for_best_case_throughput;
     XLS_ASSIGN_OR_RETURN(
         bool changed, ConditionalSpecializationPass(use_bdd).RunOnFunctionBase(
-                          f, OptimizationPassOptions(), &results));
+                          f, options, &results));
     return changed;
   }
-  absl::StatusOr<bool> Run(Package* p, bool use_bdd = true) {
+  absl::StatusOr<bool> Run(Package* p, bool use_bdd = true,
+                           bool optimize_for_best_case_throughput = false) {
     PassResults results;
-    return ConditionalSpecializationPass(use_bdd).Run(
-        p, OptimizationPassOptions(), &results);
+    OptimizationPassOptions options;
+    options.optimize_for_best_case_throughput =
+        optimize_for_best_case_throughput;
+    return ConditionalSpecializationPass(use_bdd).Run(p, options, &results);
   }
 };
 
@@ -1183,6 +1193,59 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedConditionThroughNand) {
   EXPECT_THAT(f->return_value(),
               m::Select(m::Nand(m::Param("a"), m::Param("b")),
                         {m::Literal(1), m::Param("b")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue index = pb.StateElement("index", UBits(0, 1));
+  BValue index_is_0 = pb.Not(index);
+  BValue index_is_1 = index;
+  BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
+  BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
+  BValue selected_counter =
+      pb.Select(index_is_1, {counter1}, /*default_value=*/counter0);
+  BValue incremented_counter =
+      pb.Add(selected_counter, pb.Literal(UBits(1, 32)));
+  pb.Next(index, index_is_0);
+  pb.Next(counter0, incremented_counter, /*pred=*/index_is_0);
+  pb.Next(counter1, incremented_counter, /*pred=*/index_is_1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
+      IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("counter0"))->predicate(),
+      Optional(m::Eq(m::StateRead("index"), m::Literal(0))));
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("counter1"))->predicate(),
+      Optional(m::Eq(m::StateRead("index"), m::Literal(1))));
+}
+
+TEST_F(ConditionalSpecializationPassTest, StateReadSpecializationDisabled) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue index = pb.StateElement("index", UBits(0, 1));
+  BValue index_is_0 = pb.Not(index);
+  BValue index_is_1 = index;
+  BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
+  BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
+  BValue selected_counter =
+      pb.Select(index_is_1, {counter1}, /*default_value=*/counter0);
+  BValue incremented_counter =
+      pb.Add(selected_counter, pb.Literal(UBits(1, 32)));
+  pb.Next(index, index_is_0);
+  pb.Next(counter0, incremented_counter, /*pred=*/index_is_0);
+  pb.Next(counter1, incremented_counter, /*pred=*/index_is_1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/false),
+      IsOkAndHolds(false));
 }
 
 }  // namespace

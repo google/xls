@@ -793,7 +793,7 @@ absl::StatusOr<BValue> Parser::ParseNode(
     case Op::kStateRead: {
       IdentifierString* state_name =
           arg_parser.AddKeywordArg<IdentifierString>("state_element");
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
       auto it = name_to_value->find(state_name->value);
       if (it == name_to_value->end()) {
         return absl::InvalidArgumentError(

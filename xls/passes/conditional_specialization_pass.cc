@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
@@ -40,15 +41,19 @@
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/data_structures/transitive_closure.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
@@ -278,6 +283,8 @@ class ConditionSet {
 
   absl::Span<const Condition> conditions() const { return conditions_; }
 
+  bool empty() const { return conditions_.empty(); }
+
   std::string ToString() const {
     std::vector<std::string> pieces;
     pieces.reserve(conditions_.size());
@@ -306,12 +313,19 @@ class ConditionSet {
   absl::flat_hash_map<Node*, ValueKnowledge> GetAsGivens() const {
     absl::flat_hash_map<Node*, ValueKnowledge> givens;
     for (const Condition& condition : conditions()) {
-      if (!condition.value.empty() &&
-          !ternary_ops::AllUnknown(condition.value)) {
-        TernaryVector ternary = condition.value;
-        if (givens[condition.node].ternary.has_value()) {
+      const bool condition_has_value =
+          !ternary_ops::AllUnknown(condition.value);
+      const bool condition_has_range =
+          condition.range.has_value() && !condition.range->IsMaximal();
+      if (!condition_has_value && !condition_has_range) {
+        continue;
+      }
+
+      ValueKnowledge& given = givens[condition.node];
+      if (condition_has_value) {
+        if (given.ternary.has_value()) {
           if (absl::Status merged = ternary_ops::UpdateWithUnion(
-                  ternary, givens[condition.node].ternary->Get({}));
+                  given.ternary->Get({}), condition.value);
               !merged.ok()) {
             // This is impossible, as the conditions contradict each other. For
             // now, we can't do anything about this; it might be worth finding a
@@ -320,19 +334,18 @@ class ConditionSet {
                     << ToString();
             return {};
           }
+        } else {
+          given.ternary = TernaryTree::CreateSingleElementTree(
+              condition.node->GetType(), std::move(condition.value));
         }
-        givens[condition.node].ternary = TernaryTree::CreateSingleElementTree(
-            condition.node->GetType(), std::move(condition.value));
       }
-      if (condition.range.has_value() && !condition.range->IsMaximal()) {
+      if (condition_has_range) {
         IntervalSet range = *condition.range;
-        if (givens[condition.node].intervals.has_value()) {
-          range = IntervalSet::Intersect(
-              range, givens[condition.node].intervals->Get({}));
+        if (given.intervals.has_value()) {
+          range = IntervalSet::Intersect(range, given.intervals->Get({}));
         }
-        givens[condition.node].intervals =
-            IntervalSetTree::CreateSingleElementTree(condition.node->GetType(),
-                                                     std::move(range));
+        given.intervals = IntervalSetTree::CreateSingleElementTree(
+            condition.node->GetType(), std::move(range));
       }
     }
     return givens;
@@ -360,14 +373,20 @@ class ConditionMap {
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index_[topo_sort[i]] = i;
       // Initially all node conditions are empty.
-      node_conditions_.emplace(topo_sort[i], topo_index_);
+      node_conditions_.emplace(topo_sort[i],
+                               std::make_unique<ConditionSet>(topo_index_));
     }
   }
 
   // Returns the condition set for the given node. Returns a mutable
   // reference as this is the mechanism for setting condition sets of nodes.
   ConditionSet& GetNodeConditionSet(Node* node) {
-    return node_conditions_.at(node);
+    auto it = node_conditions_.find(node);
+    if (it == node_conditions_.end()) {
+      it = node_conditions_.insert(
+          it, {node, std::make_unique<ConditionSet>(topo_index_)});
+    }
+    return *it->second;
   }
 
   // Sets the condition set for the given edge where the edge extends to
@@ -380,7 +399,8 @@ class ConditionMap {
                                condition_set.ToString());
     std::pair<Node*, int64_t> key = {node, operand_no};
     CHECK(!edge_conditions_.contains(key));
-    edge_conditions_.insert({key, std::move(condition_set)});
+    edge_conditions_.insert(
+        {key, std::make_unique<ConditionSet>(std::move(condition_set))});
   }
 
   // Returns the conditions which can be assumed along the edge to `node`
@@ -391,9 +411,9 @@ class ConditionMap {
       // There are no special conditions for this edge. Return the
       // conditions on the target of the edge which necessarily hold on the
       // edge as well.
-      return node_conditions_.at(node);
+      return GetNodeConditionSet(node);
     }
-    return edge_conditions_.at(key);
+    return *edge_conditions_.at(key);
   }
 
   // Returns the conditions which can be assumed along the edge(s) from node
@@ -426,16 +446,17 @@ class ConditionMap {
     std::stringstream os;
     os << "Node conditions:\n";
     for (const auto& [node, cond_set] : node_conditions_) {
-      if (!cond_set.conditions().empty()) {
-        os << absl::StrFormat("[%s]: %s", node->ToString(), cond_set.ToString())
+      if (!cond_set->conditions().empty()) {
+        os << absl::StrFormat("[%s]: %s", node->ToString(),
+                              cond_set->ToString())
            << "\n";
       }
     }
     os << "Edge conditions:\n";
     for (const auto& [key, cond_set] : edge_conditions_) {
-      if (!cond_set.conditions().empty()) {
+      if (!cond_set->conditions().empty()) {
         os << absl::StrFormat("[%s, %i]: %s", std::get<0>(key)->ToString(),
-                              std::get<1>(key), cond_set.ToString())
+                              std::get<1>(key), cond_set->ToString())
            << "\n";
       }
     }
@@ -447,13 +468,14 @@ class ConditionMap {
   absl::flat_hash_map<Node*, int64_t> topo_index_;
 
   // Set of conditions which might be assumed at each node.
-  absl::flat_hash_map<Node*, ConditionSet> node_conditions_;
+  absl::flat_hash_map<Node*, std::unique_ptr<ConditionSet>> node_conditions_;
 
   // Set of conditions which might be assumed at some edges. The key defines
   // an edge as (node, operand_no). If no key exists for an edge, then there
   // are no special conditions for the edge, and the conditions for the edge
   // are the same as the node.
-  absl::flat_hash_map<std::pair<Node*, int64_t>, ConditionSet> edge_conditions_;
+  absl::flat_hash_map<std::pair<Node*, int64_t>, std::unique_ptr<ConditionSet>>
+      edge_conditions_;
 };
 
 // Returns the value for node logically implied by the given conditions if a
@@ -584,6 +606,124 @@ std::optional<std::variant<Node*, ZeroValue>> GetSelectedCase(
   return ZeroValue{};
 }
 
+absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> AffectedBy(
+    FunctionBase* f) {
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> affected_by;
+  for (Node* node : TopoSort(f)) {
+    for (Node* operand : node->operands()) {
+      affected_by[operand].insert(node);
+    }
+  }
+  return TransitiveClosure(affected_by);
+}
+
+absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
+                                                TernaryTreeView ternary) {
+  if (absl::c_all_of(ternary.elements(), [](TernarySpan entry) {
+        return ternary_ops::AllUnknown(entry);
+      })) {
+    return std::nullopt;
+  }
+  LeafTypeTree<Bits> known_bits = leaf_type_tree::Map<Bits, TernaryVector>(
+      ternary,
+      [](TernarySpan entry) { return ternary_ops::ToKnownBits(entry); });
+  XLS_ASSIGN_OR_RETURN(Node * bits_to_check,
+                       GatherBits(node, known_bits.AsView()));
+  InlineBitmap target_bitmap(bits_to_check->BitCountOrDie());
+  int64_t target_index = 0;
+  leaf_type_tree::ForEach(ternary, [&](TernarySpan entry) {
+    for (TernaryValue value : entry) {
+      if (value == TernaryValue::kUnknown) {
+        continue;
+      }
+      target_bitmap.Set(target_index++, value == TernaryValue::kKnownOne);
+    }
+  });
+  XLS_ASSIGN_OR_RETURN(
+      Node * target,
+      node->function_base()->MakeNode<Literal>(
+          SourceInfo(), Value(Bits::FromBitmap(std::move(target_bitmap)))));
+  return node->function_base()->MakeNode<CompareOp>(SourceInfo(), bits_to_check,
+                                                    target, Op::kEq);
+}
+
+absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
+                                                IntervalSetTreeView intervals) {
+  if (absl::c_any_of(intervals.elements(), [](const IntervalSet& interval_set) {
+        return interval_set.BitCount() > 0 && interval_set.IsEmpty();
+      })) {
+    // Matching is impossible. Return a literal 0.
+    return node->function_base()->MakeNode<Literal>(SourceInfo(),
+                                                    Value(UBits(0, 1)));
+  }
+
+  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> node_tree, ToTreeOfNodes(node));
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<std::optional<Node*>> match_tree,
+      (leaf_type_tree::ZipStatus<std::optional<Node*>, Node*, IntervalSet>(
+          node_tree.AsView(), intervals.AsView(),
+          [&](Node* leaf_node, IntervalSet interval_set)
+              -> absl::StatusOr<std::optional<Node*>> {
+            if (interval_set.BitCount() == 0 || interval_set.IsMaximal()) {
+              return std::nullopt;
+            }
+            std::vector<Node*> interval_checks;
+            interval_checks.reserve(interval_set.Intervals().size());
+            for (const Interval& interval : interval_set.Intervals()) {
+              std::optional<Node*> interval_check;
+
+              if (!interval.LowerBound().IsZero()) {
+                XLS_ASSIGN_OR_RETURN(
+                    Node * lb, node->function_base()->MakeNode<Literal>(
+                                   SourceInfo(), Value(interval.LowerBound())));
+                XLS_ASSIGN_OR_RETURN(
+                    interval_check, node->function_base()->MakeNode<CompareOp>(
+                                        SourceInfo(), leaf_node, lb, Op::kUGe));
+              }
+
+              if (!interval.UpperBound().IsAllOnes()) {
+                XLS_ASSIGN_OR_RETURN(
+                    Node * ub, node->function_base()->MakeNode<Literal>(
+                                   SourceInfo(), Value(interval.UpperBound())));
+                XLS_ASSIGN_OR_RETURN(
+                    Node * ub_check,
+                    node->function_base()->MakeNode<CompareOp>(
+                        SourceInfo(), leaf_node, ub, Op::kULe));
+                if (interval_check.has_value()) {
+                  XLS_ASSIGN_OR_RETURN(
+                      interval_check,
+                      node->function_base()->MakeNode<NaryOp>(
+                          SourceInfo(),
+                          absl::MakeConstSpan({*interval_check, ub_check}),
+                          Op::kAnd));
+                } else {
+                  interval_check = ub_check;
+                }
+              }
+
+              if (interval_check.has_value()) {
+                interval_checks.push_back(*interval_check);
+              }
+            }
+            return NaryAndIfNeeded(node->function_base(), interval_checks);
+          })));
+
+  if (absl::c_all_of(match_tree.elements(), [](std::optional<Node*> entry) {
+        return !entry.has_value();
+      })) {
+    return std::nullopt;
+  }
+
+  std::vector<Node*> match_checks;
+  match_checks.reserve(match_tree.elements().size());
+  for (std::optional<Node*> entry : match_tree.elements()) {
+    if (entry.has_value()) {
+      match_checks.push_back(*entry);
+    }
+  }
+  return NaryAndIfNeeded(node->function_base(), match_checks);
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
@@ -600,6 +740,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   ConditionMap condition_map(f);
+
+  std::optional<absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
+      affected_by;
 
   // Iterate backwards through the graph because we add conditions at the case
   // arm operands of selects and propagate them upwards through the expressions
@@ -618,8 +761,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           "Node %s is an invoke and could be side-effecting", node->GetName());
       continue;
     }
-    if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
-        !node->Is<Next>()) {
+    if (OpIsSideEffecting(node->op()) &&
+        !node->OpIn({Op::kSend, Op::kStateRead, Op::kNext})) {
       // Inputs to side-effecting operations should not change so don't assume
       // any conditions for this node or it's predecessors.
       VLOG(4) << absl::StreamFormat("Node %s is side-effecting",
@@ -631,8 +774,36 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     //
     // If this node has an implicit use then we can't propagate any conditions
     // from the users because this value is unconditionally live and therefore
-    // its computed value should not be changed.
-    if (!f->HasImplicitUse(node)) {
+    // its computed value should not be changed. (However, we ignore the
+    // implicit use of a StateRead that's only used to declare that the
+    // corresponding state element is unchanged, since that's safe in this
+    // context.)
+    //
+    // Similarly, if this node is a StateRead's predicate, then its value can
+    // affect throughput and so shouldn't be changed.
+    XLS_ASSIGN_OR_RETURN(
+        bool has_real_implicit_use, [&]() -> absl::StatusOr<bool> {
+          if (!f->HasImplicitUse(node)) {
+            return false;
+          }
+          if (!node->Is<StateRead>()) {
+            return true;
+          }
+          Proc* proc = f->AsProcOrDie();
+          absl::btree_set<int64_t> next_state_indices =
+              proc->GetNextStateIndices(node);
+          if (next_state_indices.size() != 1) {
+            return true;
+          }
+          int64_t next_state_index = *next_state_indices.begin();
+          XLS_ASSIGN_OR_RETURN(int64_t index,
+                               proc->GetStateElementIndex(
+                                   node->As<StateRead>()->state_element()));
+          return index != next_state_index;
+        }());
+    if (!has_real_implicit_use &&
+        absl::c_none_of(node->users(),
+                        [](Node* user) { return user->Is<StateRead>(); })) {
       VLOG(4) << absl::StreamFormat(
           "%s has no implicit use, computing intersection of conditions of "
           "users",
@@ -806,6 +977,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       edge_set.AddImpliedConditions(
           Condition{.node = predicate, .value = {TernaryValue::kKnownOne}},
           query_engine);
+      condition_map.SetEdgeConditionSet(node, Next::kStateReadOperand,
+                                        edge_set);
       condition_map.SetEdgeConditionSet(node, Next::kValueOperand,
                                         std::move(edge_set));
     }
@@ -813,7 +986,69 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     VLOG(4) << absl::StreamFormat("Conditions for %s : %s", node->GetName(),
                                   set.ToString());
 
+    // Now specialize the node itself based on the conditions on its access.
+    if (options.optimize_for_best_case_throughput && node->Is<StateRead>() &&
+        !set.empty()) {
+      StateRead* state_read = node->As<StateRead>();
+      if (state_read->predicate().has_value()) {
+        // For now, avoid specializing the predicate of an already-conditional
+        // state read. This keeps us from getting into an infinite loop.
+        continue;
+      }
+
+      // Record that this node is unused (including by next_value nodes) when
+      // the condition set is not met.
+      absl::flat_hash_map<Node*, ValueKnowledge> accessed_when =
+          set.GetAsGivens();
+      if (accessed_when.empty()) {
+        continue;
+      }
+
+      std::vector<Node*> access_conditions;
+      if (!affected_by.has_value()) {
+        affected_by = AffectedBy(f);
+      }
+      for (auto& [src, given] : accessed_when) {
+        if ((*affected_by)[node].contains(src)) {
+          // The value of `src` depends on the value of `node`, so it's not
+          // possible to specialize on `src` without creating a cycle.
+          continue;
+        }
+        if (given.ternary.has_value()) {
+          XLS_ASSIGN_OR_RETURN(std::optional<Node*> access_condition,
+                               CheckMatch(src, given.ternary->AsView()));
+          if (access_condition.has_value()) {
+            access_conditions.push_back(*access_condition);
+          }
+        }
+        if (given.intervals.has_value()) {
+          XLS_ASSIGN_OR_RETURN(std::optional<Node*> access_condition,
+                               CheckMatch(src, given.intervals->AsView()));
+          if (access_condition.has_value()) {
+            access_conditions.push_back(*access_condition);
+          }
+        }
+      }
+      if (access_conditions.empty()) {
+        continue;
+      }
+
+      VLOG(2) << absl::StreamFormat(
+          "Specializing previously-unconditional state read %s; only accessed "
+          "when: %s",
+          node->GetName(), set.ToString());
+      XLS_ASSIGN_OR_RETURN(Node * new_predicate,
+                           NaryAndIfNeeded(f, access_conditions));
+      XLS_RETURN_IF_ERROR(state_read->SetPredicate(new_predicate));
+      changed = true;
+    }
+
     // Now specialize any operands (if possible) based on the conditions.
+    if (node->Is<StateRead>()) {
+      // We don't want to specialize the predicate of a state read; this can
+      // reduce throughput.
+      continue;
+    }
     for (int64_t operand_no = 0; operand_no < node->operand_count();
          ++operand_no) {
       Node* operand = node->operand(operand_no);
@@ -828,6 +1063,15 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       VLOG(4) << absl::StrFormat("Conditions on edge %s -> %s: %s",
                                  operand->GetName(), node->GetName(),
                                  edge_set.ToString());
+      if (edge_set.empty()) {
+        continue;
+      }
+
+      if (node->Is<Next>() && operand_no == Next::kStateReadOperand) {
+        // No point in specializing the state read, and it would make the node
+        // invalid anyway; this is just a pointer to the state element.
+        continue;
+      }
 
       std::unique_ptr<QueryEngine> specialized_query_engine =
           query_engine.SpecializeGiven(edge_set.GetAsGivens());
