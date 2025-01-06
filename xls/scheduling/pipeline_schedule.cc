@@ -24,6 +24,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -47,6 +48,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
+#include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
@@ -268,9 +270,14 @@ absl::Status PipelineSchedule::Verify() const {
 
 absl::Status PipelineSchedule::VerifyTiming(
     int64_t clock_period_ps, const DelayEstimator& delay_estimator) const {
+  // The set of nodes that cannot affect anything that will be synthesized.
+  const absl::flat_hash_set<Node*> dead_after_synthesis =
+      GetDeadAfterSynthesisNodes(function_base_);
+
   // Critical path from start of the cycle that a node is scheduled through the
   // node itself. If the schedule meets timing, then this value should be less
-  // than or equal to clock_period_ps for every node.
+  // than or equal to clock_period_ps for every node (except those that cannot
+  // affect anything that will be synthesized).
   absl::flat_hash_map<Node*, int64_t> node_cp;
   // The predecessor (operand) of the node through which the critical-path from
   // the start of the cycle extends.
@@ -284,6 +291,9 @@ absl::Status PipelineSchedule::VerifyTiming(
     int64_t cp_to_node_start = 0;
     cp_pred[node] = nullptr;
     for (Node* operand : node->operands()) {
+      if (dead_after_synthesis.contains(operand)) {
+        continue;
+      }
       if (cycle(operand) == cycle(node)) {
         if (cp_to_node_start < node_cp.at(operand)) {
           cp_to_node_start = node_cp.at(operand);
@@ -291,8 +301,11 @@ absl::Status PipelineSchedule::VerifyTiming(
         }
       }
     }
-    XLS_ASSIGN_OR_RETURN(int64_t node_delay,
-                         delay_estimator.GetOperationDelayInPs(node));
+    int64_t node_delay = 0;
+    if (!dead_after_synthesis.contains(node)) {
+      XLS_ASSIGN_OR_RETURN(node_delay,
+                           delay_estimator.GetOperationDelayInPs(node));
+    }
     node_cp[node] = cp_to_node_start + node_delay;
     if (max_cp_node == nullptr || node_cp[node] > node_cp[max_cp_node]) {
       max_cp_node = node;
@@ -322,10 +335,16 @@ absl::Status PipelineSchedule::VerifyTiming(
 
 absl::Status PipelineSchedule::VerifyTiming(
     int64_t clock_period_ps, const DelayManager& delay_manager) const {
+  const absl::flat_hash_set<Node*> dead_after_synthesis =
+      GetDeadAfterSynthesisNodes(function_base_);
+
   PathExtractOptions options;
   options.cycle_map = &cycle_map_;
   XLS_ASSIGN_OR_RETURN(PathInfo critical_path,
-                       delay_manager.GetLongestPath(options));
+                       delay_manager.GetLongestPath(
+                           options, /*except=*/[&](Node* source, Node* target) {
+                             return dead_after_synthesis.contains(target);
+                           }));
 
   auto [delay, source, target] = critical_path;
   if (delay > clock_period_ps) {

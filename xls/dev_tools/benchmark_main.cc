@@ -29,6 +29,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -83,6 +84,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.h"
@@ -364,10 +366,19 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
   std::vector<int64_t> flops_per_stage(schedule.length());
   std::vector<int64_t> duplicates_per_stage(schedule.length());
   std::vector<int64_t> constants_per_stage(schedule.length());
+  absl::flat_hash_set<Node*> dead_after_synthesis =
+      GetDeadAfterSynthesisNodes(f);
   for (int64_t i = 0; i < schedule.length(); ++i) {
     absl::flat_hash_map<BddNodeIndex, std::pair<Node*, int64_t>> bdd_nodes;
     for (Node* node : schedule.GetLiveOutOfCycle(i)) {
-      flops_per_stage[i] += node->GetType()->GetFlatBitCount();
+      if (!dead_after_synthesis.contains(node) &&
+          (f->HasImplicitUse(node) ||
+           absl::c_any_of(node->users(), [&](Node* user) {
+             return schedule.cycle(user) > i &&
+                    dead_after_synthesis.contains(user);
+           }))) {
+        flops_per_stage[i] += node->GetType()->GetFlatBitCount();
+      }
       if (node->GetType()->IsBits()) {
         for (int64_t bit_index = 0; bit_index < node->BitCountOrDie();
              ++bit_index) {

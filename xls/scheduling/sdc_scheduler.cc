@@ -48,6 +48,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -58,13 +59,19 @@ namespace {
 using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 namespace math_opt = ::operations_research::math_opt;
 
-// A helper function to compute each node's delay by calling the delay estimator
+// A helper function to compute each node's delay by calling the delay
+// estimator; treats all dead-after-synthesis nodes as having a delay of 0.
 absl::StatusOr<DelayMap> ComputeNodeDelays(
-    FunctionBase* f, const DelayEstimator& delay_estimator) {
+    FunctionBase* f, const absl::flat_hash_set<Node*>& dead_after_synthesis,
+    const DelayEstimator& delay_estimator) {
   DelayMap result;
   for (Node* node : f->nodes()) {
-    XLS_ASSIGN_OR_RETURN(result[node],
-                         delay_estimator.GetOperationDelayInPs(node));
+    if (dead_after_synthesis.contains(node)) {
+      result[node] = 0;
+    } else {
+      XLS_ASSIGN_OR_RETURN(result[node],
+                           delay_estimator.GetOperationDelayInPs(node));
+    }
   }
   return result;
 }
@@ -186,11 +193,12 @@ ComputeCombinationalDelayConstraints(
 
 }  // namespace
 
-SDCSchedulingModel::SDCSchedulingModel(FunctionBase* func,
-                                       const DelayMap& delay_map,
-                                       std::string_view model_name)
+SDCSchedulingModel::SDCSchedulingModel(
+    FunctionBase* func, absl::flat_hash_set<Node*> dead_after_synthesis,
+    const DelayMap& delay_map, std::string_view model_name)
     : func_(func),
       topo_sort_(TopoSort(func_)),
+      dead_after_synthesis_(dead_after_synthesis),
       model_(model_name),
       delay_map_(delay_map),
       last_stage_(model_.AddContinuousVariable(0.0, kMaxStages, "last_stage")),
@@ -236,7 +244,12 @@ SDCSchedulingModel::SDCSchedulingModel(FunctionBase* func,
 absl::Status SDCSchedulingModel::AddDefUseConstraints(
     Node* node, std::optional<Node*> user) {
   XLS_RETURN_IF_ERROR(AddCausalConstraint(node, user));
-  XLS_RETURN_IF_ERROR(AddLifetimeConstraint(node, user));
+  // If the user is dead after synthesis, we don't count its contribution to the
+  // lifetime, assuming the synthesis tool will be able to strip any pipeline
+  // registers used to persist the value.
+  if (!user.has_value() || !dead_after_synthesis_.contains(*user)) {
+    XLS_RETURN_IF_ERROR(AddLifetimeConstraint(node, user));
+  }
   return absl::OkStatus();
 }
 
@@ -912,18 +925,24 @@ SDCSchedulingModel::AddLowerBoundSlack(
 
 absl::StatusOr<std::unique_ptr<SDCScheduler>> SDCScheduler::Create(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
-  XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
-                       ComputeNodeDelays(f, delay_estimator));
-  std::unique_ptr<SDCScheduler> scheduler(
-      new SDCScheduler(f, std::move(delay_map)));
+  absl::flat_hash_set<Node*> dead_after_synthesis =
+      GetDeadAfterSynthesisNodes(f);
+  XLS_ASSIGN_OR_RETURN(
+      DelayMap delay_map,
+      ComputeNodeDelays(f, dead_after_synthesis, delay_estimator));
+  std::unique_ptr<SDCScheduler> scheduler(new SDCScheduler(
+      f, std::move(dead_after_synthesis), std::move(delay_map)));
   XLS_RETURN_IF_ERROR(scheduler->Initialize());
   return std::move(scheduler);
 }
 
-SDCScheduler::SDCScheduler(FunctionBase* f, DelayMap delay_map)
+SDCScheduler::SDCScheduler(FunctionBase* f,
+                           absl::flat_hash_set<Node*> dead_after_synthesis,
+                           DelayMap delay_map)
     : f_(f),
       delay_map_(std::move(delay_map)),
-      model_(f, delay_map_, absl::StrCat("sdc_model:", f->name())) {}
+      model_(f, std::move(dead_after_synthesis), delay_map_,
+             absl::StrCat("sdc_model:", f->name())) {}
 
 absl::Status SDCScheduler::Initialize() {
   XLS_ASSIGN_OR_RETURN(

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -117,8 +118,13 @@ class ScheduleBounds {
   absl::Status PropagateUpperBounds();
 
  private:
+  absl::StatusOr<int64_t> GetDelay(Node* node) const;
+
   // A topological sort of the nodes in the function.
   std::vector<Node*> topo_sort_;
+
+  // The set of nodes that can't affect anything that will be synthesized.
+  absl::flat_hash_set<Node*> dead_after_synthesis_;
 
   int64_t clock_period_ps_;
   const DelayEstimator* delay_estimator_;

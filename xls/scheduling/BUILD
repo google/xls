@@ -142,6 +142,7 @@ cc_library(
     srcs = ["sdc_scheduler.cc"],
     hdrs = ["sdc_scheduler.h"],
     deps = [
+        ":schedule_util",
         ":scheduling_options",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -167,11 +168,24 @@ cc_library(
 )
 
 cc_library(
+    name = "schedule_util",
+    srcs = ["schedule_util.cc"],
+    hdrs = ["schedule_util.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:op",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_set",
+    ],
+)
+
+cc_library(
     name = "pipeline_schedule",
     srcs = ["pipeline_schedule.cc"],
     hdrs = ["pipeline_schedule.h"],
     deps = [
         ":pipeline_schedule_cc_proto",
+        ":schedule_util",
         ":scheduling_options",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -183,6 +197,7 @@ cc_library(
         "//xls/ir:op",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -201,6 +216,7 @@ cc_library(
         ":min_cut_scheduler",
         ":pipeline_schedule",
         ":schedule_bounds",
+        ":schedule_util",
         ":scheduling_options",
         ":sdc_scheduler",
         "//xls/common/logging:log_lines",
@@ -219,6 +235,7 @@ cc_library(
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random:distributions",
@@ -275,6 +292,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:value",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
@@ -309,10 +327,12 @@ cc_library(
     srcs = ["schedule_bounds.cc"],
     hdrs = ["schedule_bounds.h"],
     deps = [
+        ":schedule_util",
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

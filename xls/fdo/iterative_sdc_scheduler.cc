@@ -44,6 +44,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -400,8 +401,10 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
   ScheduleCycleMap cycle_map;
   absl::flat_hash_set<NodeCut> evaluated_cuts;
   std::mt19937_64 bit_gen;
+  absl::flat_hash_set<Node *> dead_after_synthesis =
+      GetDeadAfterSynthesisNodes(f);
   for (int64_t i = 0; i < options.iteration_number; ++i) {
-    IterativeSDCSchedulingModel model(f, delay_manager);
+    IterativeSDCSchedulingModel model(f, dead_after_synthesis, delay_manager);
 
     for (const SchedulingConstraint &constraint : constraints) {
       XLS_RETURN_IF_ERROR(model.AddSchedulingConstraint(constraint));

@@ -274,6 +274,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
+        "//xls/scheduling:schedule_util",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:sdc_scheduler",
         "@com_google_absl//absl/container:flat_hash_map",

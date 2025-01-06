@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -46,7 +47,9 @@ class SDCSchedulingModel {
   static constexpr double kMaxStages = (1 << 20);
 
  public:
-  SDCSchedulingModel(FunctionBase* func, const DelayMap& delay_map,
+  SDCSchedulingModel(FunctionBase* func,
+                     absl::flat_hash_set<Node*> dead_after_synthesis,
+                     const DelayMap& delay_map,
                      std::string_view model_name = "");
 
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
@@ -149,6 +152,8 @@ class SDCSchedulingModel {
   FunctionBase* func_;
   const std::vector<Node*> topo_sort_;
 
+  absl::flat_hash_set<Node*> dead_after_synthesis_;
+
   operations_research::math_opt::Model model_;
   const DelayMap& delay_map_;
 
@@ -247,7 +252,8 @@ class SDCScheduler {
       std::optional<int64_t> worst_case_throughput = std::nullopt);
 
  private:
-  SDCScheduler(FunctionBase* f, DelayMap delay_map);
+  SDCScheduler(FunctionBase* f, absl::flat_hash_set<Node*> dead_after_synthesis,
+               DelayMap delay_map);
   absl::Status Initialize();
 
   absl::Status BuildError(

@@ -478,14 +478,14 @@ top proc f(x: bits[32], init={0}) {
 
 TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfFunction) {
   constexpr std::string_view ir_text = R"(package test
-fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
+fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32], bits[1]) {
   xy: bits[32] = umul(x, y)
   literal1: bits[32] = literal(value=1)
   xy_plus_1: bits[32] = add(xy, literal1)
   literal4: bits[32] = literal(value=4)
   xy_plus_1_gt_4: bits[1] = ugt(xy_plus_1, literal4)
   assertion: token = assert(tkn, xy_plus_1_gt_4, label="foo", message="bar")
-  ret out: (token, bits[32]) = tuple(assertion, xy_plus_1)
+  ret out: (token, bits[32], bits[1]) = tuple(assertion, xy_plus_1, xy_plus_1_gt_4)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -569,7 +569,8 @@ proc g(x: bits[32], init={4}) {
   // Now test proc 'g'.
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK(package->SetTop(package->GetFunctionBaseByName("g").value()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("g"));
+  XLS_ASSERT_OK(package->SetTop(proc));
   EXPECT_THAT(Run(package.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock("g"));
 
@@ -577,7 +578,7 @@ proc g(x: bits[32], init={4}) {
   ASSERT_NE(assertion, nullptr);
   Node* condition = assertion->As<xls::Assert>()->condition();
   EXPECT_THAT(condition, m::Or(m::Not(m::Name(HasSubstr("_stage_done"))),
-                               m::Name("xy_plus_1_gt_4")));
+                               m::Name(HasSubstr("xy_plus_1_gt_4"))));
 
   constexpr int64_t kNumCycles = 10;
   std::vector<absl::flat_hash_map<std::string, Value>> inputs(

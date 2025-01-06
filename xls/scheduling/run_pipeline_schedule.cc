@@ -27,6 +27,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/log_severity.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/distributions.h"
@@ -57,6 +58,7 @@
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/schedule_bounds.h"
+#include "xls/scheduling/schedule_util.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/sdc_scheduler.h"
 
@@ -159,12 +161,18 @@ absl::Status TightenBounds(sched::ScheduleBounds& bounds, FunctionBase* f,
   return absl::OkStatus();
 }
 
-// Returns the critical path through the given nodes (ordered topologically).
+// Returns the critical path through the given nodes (ordered topologically),
+// ignoring nodes that will be dead after synthesis.
 absl::StatusOr<int64_t> ComputeCriticalPath(
-    absl::Span<Node* const> topo_sort, const DelayEstimator& delay_estimator) {
+    absl::Span<Node* const> topo_sort,
+    const absl::flat_hash_set<Node*> dead_after_synthesis,
+    const DelayEstimator& delay_estimator) {
   int64_t function_cp = 0;
   absl::flat_hash_map<Node*, int64_t> node_cp;
   for (Node* node : topo_sort) {
+    if (dead_after_synthesis.contains(node)) {
+      continue;
+    }
     int64_t node_start = 0;
     for (Node* operand : node->operands()) {
       node_start = std::max(node_start, node_cp[operand]);
@@ -178,7 +186,8 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 }
 absl::StatusOr<int64_t> ComputeCriticalPath(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
-  return ComputeCriticalPath(TopoSort(f), delay_estimator);
+  return ComputeCriticalPath(TopoSort(f), GetDeadAfterSynthesisNodes(f),
+                             delay_estimator);
 }
 
 // Returns the minimum clock period in picoseconds for which it is feasible to

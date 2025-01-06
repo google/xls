@@ -17,8 +17,10 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -37,8 +39,10 @@ class IterativeSDCSchedulingModel : public SDCSchedulingModel {
   // Delay map is no longer needed as the delay calculation is completely
   // handled by the delay manager.
   IterativeSDCSchedulingModel(FunctionBase* func,
+                              absl::flat_hash_set<Node*> dead_after_synthesis,
                               const DelayManager& delay_manager)
-      : SDCSchedulingModel(func, DelayMap()), delay_manager_(delay_manager) {}
+      : SDCSchedulingModel(func, std::move(dead_after_synthesis), DelayMap()),
+        delay_manager_(delay_manager) {}
 
   // Overrides the original timing constraints builder. This method directly
   // call delay manager to extract the paths longer than the given clock period
