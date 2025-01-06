@@ -310,8 +310,15 @@ XLS_UNARY_OP(NotOp, Not);
     return fb.BUILDER(args, state.getLoc(op));                                \
   }
 XLS_VARIADIC_BINARY_OP(AndOp, And);
+XLS_VARIADIC_BINARY_OP(NandOp, Nand);
 XLS_VARIADIC_BINARY_OP(OrOp, Or);
+XLS_VARIADIC_BINARY_OP(NorOp, Nor);
 XLS_VARIADIC_BINARY_OP(XorOp, Xor);
+
+// Bitwise reduction operations
+XLS_UNARY_OP(AndReductionOp, AndReduce);
+XLS_UNARY_OP(OrReductionOp, OrReduce);
+XLS_UNARY_OP(XorReductionOp, XorReduce);
 
 // Arithmetic unary operations
 XLS_UNARY_OP(NegOp, Negate);
@@ -330,6 +337,21 @@ XLS_BINARY_OP(SubOp, Subtract);
 XLS_BINARY_OP(UdivOp, UDiv);
 XLS_BINARY_OP(UmodOp, UMod);
 XLS_BINARY_OP(UmulOp, UMul);
+
+// Partial Products
+#define XLS_PARTIAL_PROD_OP(TYPE, BUILDER)                                \
+  BValue convertOp(TYPE op, TranslationState& state, BuilderBase& fb) {   \
+    auto element_type =                                                   \
+        cast<IntegerType>(mlir::getElementTypeOrSelf(op.getResultLhs())); \
+                                                                          \
+    BValue out = fb.BUILDER(state.getXlsValue(op.getLhs()),               \
+                            state.getXlsValue(op.getRhs()),               \
+                            element_type.getWidth(), state.getLoc(op));   \
+    state.setMultiResultValue(op, out, fb);                               \
+    return out;                                                           \
+  }
+XLS_PARTIAL_PROD_OP(SmulpOp, SMulp);
+XLS_PARTIAL_PROD_OP(UmulpOp, UMulp);
 
 // Comparison operations
 XLS_BINARY_OP(EqOp, Eq);
@@ -885,6 +907,11 @@ BValue convertOp(NonblockingReceiveOp op, TranslationState& state,
   return out;
 }
 
+BValue convertOp(GateOp op, TranslationState& state, BuilderBase& fb) {
+  return fb.Gate(state.getXlsValue(op.getCondition()),
+                 state.getXlsValue(op.getData()), state.getLoc(op));
+}
+
 FailureOr<PackageInfo> importDslxInstantiation(
     ImportDslxFilePackageOp file_import_op, llvm::StringRef dslx_snippet,
     Package& package) {
@@ -1051,11 +1078,14 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // Unary bitwise ops.
             IdentityOp, NotOp,
             // Variadic bitwise operations
-            AndOp, OrOp, XorOp,
+            AndOp, NandOp, OrOp, NorOp, XorOp,
+            // Bitwise reduction operations
+            AndReductionOp, OrReductionOp, XorReductionOp,
             // Arithmetic unary operations
             NegOp,
             // Binary ops.
-            AddOp, SdivOp, SmodOp, SmulOp, SubOp, UdivOp, UmodOp, UmulOp,
+            AddOp, SdivOp, SmodOp, SmulOp, SmulpOp, SubOp, UdivOp, UmodOp,
+            UmulOp, UmulpOp,
             // Comparison operations
             EqOp, NeOp, SgeOp, SgtOp, SleOp, SltOp, UgeOp, UgtOp, UleOp, UltOp,
             // Shift operations
@@ -1081,8 +1111,9 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // CSP ops
             AfterAllOp, SendOp, BlockingReceiveOp, NonblockingReceiveOp,
             // Debugging ops
-            TraceOp>(
-            [&](auto t) { return convertOp(t, translation_state, fb); })
+            TraceOp,
+            // Misc. side-effecting ops
+            GateOp>([&](auto t) { return convertOp(t, translation_state, fb); })
         .Case<mlir::func::ReturnOp, YieldOp>([&](auto ret) {
           if (ret.getNumOperands() == 1) {
             return out = value_map[ret.getOperand(0)];
@@ -1115,8 +1146,9 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
     if (op == xls_region) {
       return WalkResult::skip();
     }
-    // Receives have multiple results but are explicitly supported.
-    if (!isa<BlockingReceiveOp, NonblockingReceiveOp>(op)) {
+    // Receives and partial products have multiple results but are explicitly
+    // supported.
+    if (!isa<BlockingReceiveOp, NonblockingReceiveOp, UmulpOp, SmulpOp>(op)) {
       assert(op->getNumResults() <= 1 && "Multiple results not supported");
     }
 
