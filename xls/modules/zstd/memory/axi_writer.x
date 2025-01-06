@@ -164,7 +164,7 @@ pub proc AxiWriter<
                 }
             },
             Fsm::TRANSFER_LENGTH => {
-                let tran_len = std::umin(state.transfer_data.length, std::umin(state.bytes_to_4k, state.bytes_to_max_axi_burst));
+                let tran_len = std::min(state.transfer_data.length, std::min(state.bytes_to_4k, state.bytes_to_max_axi_burst));
                 State {
                     fsm: Fsm::CALC_NEXT_TRANSFER,
                     transaction_len: tran_len,

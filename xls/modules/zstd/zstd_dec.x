@@ -179,7 +179,7 @@ fn feed_block_decoder(state: ZstdDecoderState) -> (bool, BlockDataPacket, ZstdDe
     trace_fmt!("zstd_dec: feed_block_decoder: buffer_length_bytes: {}", buffer_length_bytes);
     let data_width_bytes = (DATA_WIDTH >> 3) as BlockSize;
     trace_fmt!("zstd_dec: feed_block_decoder: data_width_bytes: {}", data_width_bytes);
-    let remaining_bytes_to_send_now = std::umin(remaining_bytes_to_send, data_width_bytes);
+    let remaining_bytes_to_send_now = std::min(remaining_bytes_to_send, data_width_bytes);
     trace_fmt!("zstd_dec: feed_block_decoder: remaining_bytes_to_send_now: {}", remaining_bytes_to_send_now);
     if (buffer_length_bytes >= remaining_bytes_to_send_now as u32) {
         let remaining_bits_to_send_now = (remaining_bytes_to_send_now as u32) << 3;

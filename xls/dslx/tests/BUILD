@@ -185,6 +185,10 @@ dslx_lang_test(name = "xn_type_equivalence")
 
 dslx_lang_test(name = "xn_signedness_properties")
 
+dslx_lang_test(name = "xn_slice_bounds")
+
+dslx_lang_test(name = "xn_widening_cast")
+
 dslx_lang_test(
     name = "parametric_shift",
     # TODO(leary): 2023-08-14 Runs into "cannot translate zero length bitvector
@@ -967,7 +971,7 @@ dslx_lang_test(
 )
 
 xls_dslx_opt_ir(
-    name = "mod_const_importer",
+    name = "mod_const_importer_opt_ir",
     srcs = ["mod_const_importer.x"],
     dslx_top = "main",
     deps = [":mod_simple_const_dslx"],
@@ -975,7 +979,7 @@ xls_dslx_opt_ir(
 
 xls_dslx_opt_ir_test(
     name = "mod_const_importer_test",
-    dep = ":mod_const_importer",
+    dep = ":mod_const_importer_opt_ir",
 )
 
 dslx_lang_test(

@@ -2,7 +2,8 @@
 
 This tutorial demonstrates how types and functions can be parameterized to
 enable them to work on data of different formats and layouts, e.g., for a
-function `foo` to work on both u16 and u32 data types, and anywhere in between.
+function `foo` to work on both `u16` and `u32` data types, and anywhere in
+between.
 
 It's recommended that you're familiar with the concepts in the previous
 tutorial,
@@ -11,7 +12,7 @@ before following this tutorial.
 
 ## Simple parametrics
 
-Consider the simple example of the `umax` function
+Consider the simple example of a `umax` function -- similar to the `max` function
 [in the DSLX standard library](https://github.com/google/xls/tree/main/xls/dslx/stdlib/std.x):
 
 ```dslx
@@ -40,10 +41,12 @@ infer them:
 Explicit specification:
 
 ```dslx
-import std;
+fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
+  if x > y { x } else { y }
+}
 
 fn foo(a: u32, b: u16) -> u64 {
-  std::umax<u32:64>(a as u64, b as u64)
+  umax<u32:64>(a as u64, b as u64)
 }
 ```
 
@@ -53,10 +56,12 @@ are.
 Parametric inference:
 
 ```dslx
-import std;
+fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
+  if x > y { x } else { y }
+}
 
 fn foo(a: u32, b: u16) -> u64 {
-  std::umax(a as u64, b as u64)
+  umax(a as u64, b as u64)
 }
 ```
 

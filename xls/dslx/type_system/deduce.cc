@@ -1244,48 +1244,52 @@ static absl::StatusOr<std::unique_ptr<Type>> DeduceSliceType(
   ctx->type_info()->AddSliceStartAndWidth(slice, fn_parametric_env, saw);
 
   // Make sure the start and end types match and that the limit fits.
-  std::unique_ptr<Type> start_type;
-  std::unique_ptr<Type> limit_type;
+  std::optional<BitsLikeProperties> start_bits_like;
+  std::optional<BitsLikeProperties> limit_bits_like;
   if (slice->start() == nullptr && slice->limit() == nullptr) {
-    start_type = BitsType::MakeS32();
-    limit_type = BitsType::MakeS32();
+    start_bits_like.emplace(
+        BitsLikeProperties{.is_signed = TypeDim::CreateBool(true),
+                           .size = TypeDim::CreateU32(32)});
+    limit_bits_like.emplace(
+        BitsLikeProperties{.is_signed = TypeDim::CreateBool(true),
+                           .size = TypeDim::CreateU32(32)});
   } else if (slice->start() != nullptr && slice->limit() == nullptr) {
-    XLS_ASSIGN_OR_RETURN(BitsType * tmp,
-                         ctx->type_info()->GetItemAs<BitsType>(slice->start()));
-    start_type = tmp->CloneToUnique();
-    limit_type = start_type->CloneToUnique();
+    std::optional<Type*> start_type = ctx->type_info()->GetItem(slice->start());
+    XLS_RET_CHECK(start_type.has_value());
+    start_bits_like = GetBitsLike(*start_type.value());
+    limit_bits_like.emplace(Clone(start_bits_like.value()));
   } else if (slice->start() == nullptr && slice->limit() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(BitsType * tmp,
-                         ctx->type_info()->GetItemAs<BitsType>(slice->limit()));
-    limit_type = tmp->CloneToUnique();
-    start_type = limit_type->CloneToUnique();
+    std::optional<Type*> limit_type = ctx->type_info()->GetItem(slice->limit());
+    XLS_RET_CHECK(limit_type.has_value());
+    limit_bits_like = GetBitsLike(*limit_type.value());
+    start_bits_like.emplace(Clone(limit_bits_like.value()));
   } else {
-    XLS_ASSIGN_OR_RETURN(BitsType * tmp,
-                         ctx->type_info()->GetItemAs<BitsType>(slice->start()));
-    start_type = tmp->CloneToUnique();
-    XLS_ASSIGN_OR_RETURN(tmp,
-                         ctx->type_info()->GetItemAs<BitsType>(slice->limit()));
-    limit_type = tmp->CloneToUnique();
+    std::optional<Type*> start_type = ctx->type_info()->GetItem(slice->start());
+    XLS_RET_CHECK(start_type.has_value());
+    start_bits_like = GetBitsLike(*start_type.value());
+
+    std::optional<Type*> limit_type = ctx->type_info()->GetItem(slice->limit());
+    XLS_RET_CHECK(limit_type.has_value());
+    limit_bits_like = GetBitsLike(*limit_type.value());
   }
 
-  if (*start_type != *limit_type) {
+  if (*start_bits_like != *limit_bits_like) {
     return TypeInferenceErrorStatus(
-        node->span(), limit_type.get(),
+        node->span(), nullptr,
         absl::StrFormat(
             "Slice limit type (%s) did not match slice start type (%s).",
-            limit_type->ToString(), start_type->ToString()),
+            ToTypeString(*limit_bits_like), ToTypeString(*start_bits_like)),
         ctx->file_table());
   }
-  XLS_ASSIGN_OR_RETURN(TypeDim type_width_dim, start_type->GetTotalBitCount());
+  const TypeDim& type_width_dim = start_bits_like->size;
   XLS_ASSIGN_OR_RETURN(int64_t type_width, type_width_dim.GetAsInt64());
   if (Bits::MinBitCountSigned(saw.start + saw.width) > type_width) {
     return TypeInferenceErrorStatus(
-        node->span(), limit_type.get(),
+        node->span(), nullptr,
         absl::StrFormat("Slice limit does not fit in index type: %d.",
                         saw.start + saw.width),
         ctx->file_table());
   }
-
   return std::make_unique<BitsType>(/*signed=*/false, saw.width);
 }
 

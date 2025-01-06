@@ -482,7 +482,7 @@ fn sequence_packet_to_read_reqs
     -> (ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>[RAM_NUM], RamOrder[RAM_NUM], SequenceExecutorPacket, bool) {
     type ReadReq = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
 
-    let max_len = std::umin(seq.length as u32, std::umin(RAM_NUM, hb_len));
+    let max_len = std::min(seq.length as u32, std::min(RAM_NUM, hb_len));
 
     let (next_seq, next_seq_valid) = if seq.length > max_len as CopyOrMatchLength {
         (

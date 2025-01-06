@@ -1,4 +1,4 @@
-// Copyright 2023 The XLS Authors
+// Copyright 2025 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,4 @@
 
 import std;
 
-const MY_U32 = u42:42;
-const MY_U8 = u8:42;
-
-fn f() -> u32 {
-    std::min(MY_U32, MY_U8)
-}
+fn main(x: u7, y: u7) -> u32 { widening_cast<u32>(std::max(x, y)) }

@@ -139,7 +139,7 @@ pub proc AxiReader<
 
         let bytes_to_max_burst = MAX_AXI_BURST_BYTES - aligned_offset as Length;
         let bytes_to_4k = common::bytes_to_4k_boundary(state.tran_addr);
-        let tran_len = std::umin(state.tran_len, std::umin(bytes_to_4k, bytes_to_max_burst));
+        let tran_len = std::min(state.tran_len, std::min(bytes_to_4k, bytes_to_max_burst));
         let (req_low_lane, req_high_lane) = common::get_lanes<DATA_W_DIV8>(state.tran_addr, tran_len);
 
         let adjusted_tran_len = aligned_offset as Addr + tran_len;

@@ -1,4 +1,4 @@
-// Copyright 2023 The XLS Authors
+// Copyright 2025 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import std;
+const S = true;
+const N = u32:32;
 
-const MY_U32 = u42:42;
-const MY_U8 = u8:42;
+type MyS32 = xN[S][N];
 
-fn f() -> u32 {
-    std::min(MY_U32, MY_U8)
+fn from_to(x: u32) -> u8 { x[MyS32:0:MyS32:8] }
+
+fn to(x: u32) -> u8 { x[:MyS32:8] }
+
+fn from(x: u32) -> u8 { x[MyS32:-8:] }
+
+fn main(x: u32) -> u8[3] { [from_to(x), to(x), from(x)] }
+
+#[test]
+fn test_main() {
+    assert_eq(from_to(u32:0x12345678), u8:0x78);
+    assert_eq(to(u32:0x12345678), u8:0x78);
+    assert_eq(from(u32:0x12345678), u8:0x12);
 }

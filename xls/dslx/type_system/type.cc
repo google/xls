@@ -1117,6 +1117,16 @@ bool IsBitsLike(const Type& t) {
          IsArrayOfBitsConstructor(t);
 }
 
+std::string ToTypeString(const BitsLikeProperties& properties) {
+  if (properties.is_signed.IsParametric()) {
+    return absl::StrFormat("xN[%s][%s]", properties.is_signed.ToString(),
+                           properties.size.ToString());
+  }
+  bool is_signed = properties.is_signed.GetAsBool().value();
+  return absl::StrFormat("%sN[%s]", is_signed ? "s" : "u",
+                         properties.size.ToString());
+}
+
 std::optional<BitsLikeProperties> GetBitsLike(const Type& t) {
   if (auto* bits_type = dynamic_cast<const BitsType*>(&t);
       bits_type != nullptr) {
