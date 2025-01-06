@@ -133,6 +133,7 @@ class Value {
 
   // Serializes the contents of this value as bits in the buffer.
   void FlattenTo(BitPushBuffer* buffer) const;
+  absl::Status PopulateFrom(BitmapView bitmap);
 
   ValueKind kind() const { return kind_; }
   bool IsTuple() const { return kind_ == ValueKind::kTuple; }

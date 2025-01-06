@@ -89,6 +89,10 @@ class Bits {
     return Bits(std::move(bitmap));
   }
 
+  static Bits FromBitmapView(BitmapView bitmap) {
+    return Bits(bitmap.ToBitmap());
+  }
+
   // Note: we flatten into the pushbuffer with the MSb pushed first.
   void FlattenTo(BitPushBuffer* buffer) const {
     for (int64_t i = 0; i < bit_count(); ++i) {

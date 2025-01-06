@@ -90,7 +90,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertRegex(lines[5], r'\[ SEED [\d ]{16} \]')
     self.assertEqual(
-        lines[6], '[ RUN QUICKCHECK        ] always_false count: 1000'
+        lines[6],
+        '[ RUN QUICKCHECK        ] always_false cases: test_count=default=1000',
     )
     self.assertEqual(lines[7], '[                FAILED ] always_false')
     self.assertEqual(lines[8], '[=======================] 1 quickcheck(s) ran.')

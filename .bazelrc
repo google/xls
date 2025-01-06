@@ -25,6 +25,7 @@ build --copt "-Wextra"                 --host_copt "-Wextra"
 
 # Turn some specific warnings into errors.
 build --copt "-Werror=switch" --host_copt "-Werror=switch"
+build --copt "-Werror=return-type" --host_copt "-Werror=return-type"
 
 # ... and disable the warnings we're not interested in.
 build --copt "-Wno-sign-compare"       --host_copt "-Wno-sign-compare"

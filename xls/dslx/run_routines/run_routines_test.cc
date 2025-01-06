@@ -167,6 +167,73 @@ fn trivial(x: u5) -> bool { id(true) }
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
 }
 
+// A simple exhaustive quickcheck that passes for all values.
+TEST_P(RunRoutinesTest, QuickcheckExhaustive) {
+  constexpr const char* kProgram = R"(
+fn id(x: bool) -> bool { x }
+
+#[quickcheck(exhaustive)]
+fn trivial(x: u2) -> bool { id(true) }
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+
+  ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
+  EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
+}
+
+// An exhaustive quickcheck that fails just for one value in a decently large
+// space.
+TEST_P(RunRoutinesTest, QuickcheckExhaustiveFail) {
+  constexpr std::string_view kProgram = R"(
+#[quickcheck(exhaustive)]
+fn trivial(x: u11) -> bool { x != u11::MAX }
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+  options.vfs_factory = [kProgram] {
+    return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, /*test_cases=*/1,
+                                   /*ran_count=*/0, /*failed_count=*/1));
+}
+
+// An exhaustive quickcheck that fails just for one value in a decently large
+// space using a two tuple of params.
+TEST_P(RunRoutinesTest, QuickcheckExhaustive2ParamFail) {
+  constexpr std::string_view kProgram = R"(
+#[quickcheck(exhaustive)]
+fn trivial(x: u5, y: u6) -> bool { !(x == u5::MAX && y == u6::MAX) }
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+  options.vfs_factory = [kProgram] {
+    return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, /*test_cases=*/1,
+                                   /*ran_count=*/0, /*failed_count=*/1));
+}
+
 TEST_P(RunRoutinesTest, NoSeedStillQuickChecks) {
   constexpr const char* kProgram = R"(
 fn id(x: bool) -> bool { x }
@@ -306,13 +373,13 @@ TEST(QuickcheckTest, QuickCheckBits) {
   }
   )";
   int64_t seed = 0;
-  int64_t num_tests = 1000;
+  QuickCheckTestCases test_cases = QuickCheckTestCases::Counted(1000);
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
+      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
   std::vector<Value> results = quickcheck_info.results;
   // If a counter-example was found, the last result will be 0.
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
@@ -330,13 +397,13 @@ TEST(QuickcheckTest, QuickCheckArray) {
   }
   )";
   int64_t seed = 0;
-  int64_t num_tests = 1000;
+  QuickCheckTestCases test_cases = QuickCheckTestCases::Counted(1000);
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
+      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
   std::vector<Value> results = quickcheck_info.results;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
 }
@@ -351,13 +418,13 @@ TEST(QuickcheckTest, QuickCheckTuple) {
   }
   )";
   int64_t seed = 0;
-  int64_t num_tests = 1000;
+  QuickCheckTestCases test_cases = QuickCheckTestCases::Counted(1000);
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
+      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
   std::vector<Value> results = quickcheck_info.results;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
 }
@@ -372,13 +439,13 @@ TEST(QuickcheckTest, NumTests) {
   }
   )";
   int64_t seed = 0;
-  int64_t num_tests = 5050;
+  QuickCheckTestCases test_cases = QuickCheckTestCases::Counted(5050);
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
+      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
 
   std::vector<std::vector<Value>> argsets = quickcheck_info.arg_sets;
   std::vector<Value> results = quickcheck_info.results;
@@ -397,16 +464,16 @@ TEST(QuickcheckTest, Seeding) {
   }
   )";
   int64_t seed = 12345;
-  int64_t num_tests = 1000;
+  QuickCheckTestCases test_cases = QuickCheckTestCases::Counted(1000);
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info1,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
+      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info2,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, num_tests));
+      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
 
   const auto& [argsets1, results1] = quickcheck_info1;
   const auto& [argsets2, results2] = quickcheck_info2;

@@ -1701,34 +1701,34 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   return f;
 }
 
+absl::StatusOr<QuickCheckTestCases> Parser::ParseQuickCheckConfig() {
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+  XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
+  if (tok.GetValue() == "exhaustive") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    return QuickCheckTestCases::Exhaustive();
+  }
+  if (tok.GetValue() == "test_count") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
+    XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kNumber));
+    XLS_ASSIGN_OR_RETURN(int64_t count, tok.GetValueAsInt64());
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    return QuickCheckTestCases::Counted(count);
+  }
+  return ParseErrorStatus(tok.span(),
+                          "Expected 'exhaustive' or 'test_count' in "
+                          "quickcheck directive");
+}
+
 absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
     absl::flat_hash_map<std::string, Function*>* name_to_fn, Bindings& bindings,
     const Pos& hash_pos) {
-  std::optional<int64_t> test_count;
-  XLS_ASSIGN_OR_RETURN(bool peek_is_paren, PeekTokenIs(TokenKind::kOParen));
-  if (peek_is_paren) {  // Config is specified.
-    DropTokenOrDie();
-    Span config_name_span;
-    XLS_ASSIGN_OR_RETURN(std::string config_name,
-                         PopIdentifierOrError(&config_name_span));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-    if (config_name == "test_count") {
-      XLS_ASSIGN_OR_RETURN(Token count_token,
-                           PopTokenOrError(TokenKind::kNumber));
-      XLS_ASSIGN_OR_RETURN(test_count, count_token.GetValueAsInt64());
-      if (test_count <= 0) {
-        return ParseErrorStatus(
-            count_token.span(),
-            absl::StrFormat("Number of tests should be > 0, got %d",
-                            *test_count));
-      }
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-    } else {
-      return ParseErrorStatus(
-          config_name_span,
-          absl::StrFormat("Unknown configuration key in directive: '%s'",
-                          config_name));
-    }
+  std::optional<QuickCheckTestCases> test_cases;
+  XLS_ASSIGN_OR_RETURN(bool peek_is_oparen, PeekTokenIs(TokenKind::kOParen));
+  if (peek_is_oparen) {  // Config is specified.
+    XLS_ASSIGN_OR_RETURN(test_cases, ParseQuickCheckConfig());
+  } else {
+    test_cases = QuickCheckTestCases::Counted(std::nullopt);
   }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
@@ -1736,7 +1736,7 @@ absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
       Function * fn,
       ParseFunction(GetPos(), /*is_public=*/false, bindings, name_to_fn));
   const Span quickcheck_span(hash_pos, fn->span().limit());
-  return module_->Make<QuickCheck>(quickcheck_span, fn, test_count);
+  return module_->Make<QuickCheck>(quickcheck_span, fn, test_cases.value());
 }
 
 absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,

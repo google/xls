@@ -701,6 +701,33 @@ void ProtoValueRoundTripWorks(const ValueProto& v) {
 
 FUZZ_TEST(ValueProto, ProtoValueRoundTripWorks)
     .WithDomains(fuzztest::Arbitrary<ValueProto>());
+
+void RoundTripFlattenToPopulateFrom(const ValueProto& vp) {
+  absl::StatusOr<Value> v = Value::FromProto(vp);
+  if (!v.ok()) {
+    // Don't bother with invalid values.
+    return;
+  }
+  TypeManager type_manager;
+  Type* type = type_manager.GetTypeForValue(v.value());
+  if (TypeHasToken(type)) {
+    // Token values cannot be serialized.
+    return;
+  }
+
+  BitPushBuffer push_buffer;
+  v->FlattenTo(&push_buffer);
+  InlineBitmap bitmap = push_buffer.ToBitmap();
+
+  Value round_trip = ZeroOfType(type);
+  ASSERT_TRUE(round_trip.SameTypeAs(v.value()));
+  XLS_ASSERT_OK(round_trip.PopulateFrom(BitmapView(bitmap)));
+  EXPECT_EQ(v.value(), round_trip);
+}
+
+FUZZ_TEST(ValueProto, RoundTripFlattenToPopulateFrom)
+    .WithDomains(fuzztest::Arbitrary<ValueProto>());
+
 }  // namespace
 
 }  // namespace xls

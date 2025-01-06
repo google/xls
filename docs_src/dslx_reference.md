@@ -2052,7 +2052,7 @@ implementation from above:
 // Reversing a value twice gets you the original value.
 
 #[quickcheck]
-fn prop_double_reverse(x: u32) -> bool {
+fn prop_double_bitreverse(x: u32) -> bool {
   x == rev(rev(x))
 }
 ```
@@ -2077,6 +2077,24 @@ for production can be found in the execution log.
 
 For determinism, the DSLX interpreter should be run with the `seed` flag:
 `./interpreter_main --seed=1234 <DSLX source file>`
+
+#### Exhaustive QuickCheck
+
+For small domains the quickcheck directive can also be placed in exhaustive mode via the `exhaustive` directive:
+
+```dslx
+// `u8` space is small enough to check exhaustively.
+#[quickcheck(exhaustive)]
+fn prop_double_bitreverse(x: u8) -> bool {
+  x == rev(rev(x))
+}
+```
+
+This is useful when there are small domains where we would prefer exhaustive
+stimulus over randomized stimulus. Note that as the space becomes large,
+exhaustive concrete-stimulus-based testing becomes implausible, and users should
+consider attempting to prove the QuickCheck formally via the
+`prove_quickcheck_main` tool.
 
 [hughes-paper]: https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf
 

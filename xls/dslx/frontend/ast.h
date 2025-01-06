@@ -3037,15 +3037,47 @@ class TestFunction : public AstNode {
   Function& fn_;
 };
 
+enum class QuickCheckTestCasesTag {
+  kExhaustive,
+  kCounted,
+};
+
+// Describes the test cases that should be run for a quickcheck test function --
+// they can be either counted or exhaustive, and for counted we have a default
+// count if the user doesn't explicitly specify a count.
+class QuickCheckTestCases {
+ public:
+  // The number of test cases we run if a count is not explicitly specified.
+  static constexpr int64_t kDefaultTestCount = 1000;
+
+  static QuickCheckTestCases Exhaustive() {
+    return QuickCheckTestCases(QuickCheckTestCasesTag::kExhaustive);
+  }
+  static QuickCheckTestCases Counted(std::optional<int64_t> count) {
+    return QuickCheckTestCases(QuickCheckTestCasesTag::kCounted, count);
+  }
+
+  std::string ToString() const;
+
+  QuickCheckTestCasesTag tag() const { return tag_; }
+  std::optional<int64_t> count() const { return count_; }
+
+ private:
+  explicit QuickCheckTestCases(QuickCheckTestCasesTag tag,
+                               std::optional<int64_t> count = std::nullopt)
+      : tag_(tag), count_(count) {}
+
+  QuickCheckTestCasesTag tag_;
+  std::optional<int64_t> count_;
+};
+
 // Represents a function to be quick-check'd.
 class QuickCheck : public AstNode {
  public:
   static std::string_view GetDebugTypeName() { return "quickcheck"; }
 
-  static constexpr int64_t kDefaultTestCount = 1000;
-
   QuickCheck(Module* owner, Span span, Function* fn,
-             std::optional<int64_t> test_count = std::nullopt);
+             QuickCheckTestCases test_cases);
 
   ~QuickCheck() override;
 
@@ -3066,17 +3098,14 @@ class QuickCheck : public AstNode {
   const std::string& identifier() const { return fn_->identifier(); }
 
   Function* fn() const { return fn_; }
-  int64_t GetTestCountOrDefault() const {
-    return test_count_ ? *test_count_ : kDefaultTestCount;
-  }
-  std::optional<int64_t> test_count() const { return test_count_; }
+  QuickCheckTestCases test_cases() const { return test_cases_; }
   std::optional<Span> GetSpan() const override { return span_; }
   const Span& span() const { return span_; }
 
  private:
   Span span_;
   Function* fn_;
-  std::optional<int64_t> test_count_;
+  QuickCheckTestCases test_cases_;
 };
 
 // Represents an index into a tuple, e.g., "(u32:7, u32:8).1".

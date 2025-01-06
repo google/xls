@@ -611,6 +611,9 @@ class Parser : public TokenParser {
       absl::flat_hash_map<std::string, Function*>* name_to_fn,
       Bindings& bindings, const Pos& hash_pos);
 
+  // Parses the test count configuration for a quickcheck directive.
+  absl::StatusOr<QuickCheckTestCases> ParseQuickCheckConfig();
+
   // Parses a module-level attribute -- cursor should be over the open bracket.
   //
   // Side-effect: module_ is tagged with the parsed attribute on success.
