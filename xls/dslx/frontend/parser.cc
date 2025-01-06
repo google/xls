@@ -634,12 +634,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
                                               ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
 
-  if (++approximate_expression_depth_ >= kApproximateExpressionDepthLimit) {
-    return ParseErrorStatus(peek->span(),
-                            "Expression is too deeply nested, please break "
-                            "into multiple statements");
-  }
-  auto bump_down = absl::Cleanup([this] { approximate_expression_depth_--; });
+  XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
 
   VLOG(5) << "ParseExpression @ " << GetPos() << " peek: `" << peek->ToString()
           << "`";
@@ -808,6 +803,8 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     Bindings& bindings, std::optional<Token> first) {
+  XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
+
   VLOG(5) << "ParseTypeAnnotation @ " << GetPos();
   if (!first.has_value()) {
     XLS_ASSIGN_OR_RETURN(first, PopToken());
@@ -1124,14 +1121,8 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings& bindings) {
                                  this]() -> absl::StatusOr<NameDefTree*> {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kOParen) {
-      if (++approximate_expression_depth_ >= kApproximateExpressionDepthLimit) {
-        return ParseErrorStatus(
-            peek->span(),
-            "Name definition tree is too deeply nested, please break "
-            "into multiple statements");
-      }
-      auto bump_down =
-          absl::Cleanup([this] { approximate_expression_depth_--; });
+      XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth,
+                           BumpExpressionDepth());
       return ParseNameDefTree(bindings);
     }
     XLS_ASSIGN_OR_RETURN(auto name_def, ParseNameDefOrWildcard(bindings));
@@ -1416,6 +1407,8 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
 }
 
 absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
+  XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard depth_guard, BumpExpressionDepth());
+
   XLS_ASSIGN_OR_RETURN(std::optional<Token> oparen,
                        TryPopToken(TokenKind::kOParen));
   if (oparen.has_value()) {
@@ -1801,12 +1794,7 @@ absl::StatusOr<Expr*> Parser::ParseTermLhs(Bindings& outer_bindings,
                                            ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
 
-  if (++approximate_expression_depth_ >= kApproximateExpressionDepthLimit) {
-    return ParseErrorStatus(peek->span(),
-                            "Expression is too deeply nested, please break "
-                            "into multiple statements");
-  }
-  auto bump_down = absl::Cleanup([this] { approximate_expression_depth_--; });
+  XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
 
   const Pos start_pos = peek->span().start();
   VLOG(5) << "ParseTerm @ " << start_pos << " peek: `" << peek->ToString()
@@ -2150,8 +2138,27 @@ done:
   return lhs;
 }
 
+ExpressionDepthGuard::~ExpressionDepthGuard() {
+  if (parser_ != nullptr) {
+    parser_->approximate_expression_depth_--;
+    CHECK_GE(parser_->approximate_expression_depth_, 0);
+    parser_ = nullptr;
+  }
+}
+
+absl::StatusOr<ExpressionDepthGuard> Parser::BumpExpressionDepth() {
+  if (++approximate_expression_depth_ >= kApproximateExpressionDepthLimit) {
+    return ParseErrorStatus(Span(GetPos(), GetPos()),
+                            "Extremely deep nesting detected -- please break "
+                            "into multiple statements");
+  }
+  return ExpressionDepthGuard(this);
+}
+
 absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
                                         ExprRestrictions restrictions) {
+  XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
+
   XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseTermLhs(outer_bindings, restrictions));
 
   while (true) {
