@@ -59,6 +59,7 @@ struct HuffmanControlAndSequenceState<AXI_ADDR_W: u32> {
     tree_description_size: uN[AXI_ADDR_W],
     ctrl: HuffmanControlAndSequenceCtrl<AXI_ADDR_W>,
     stream_sizes: uN[AXI_ADDR_W][4],
+    prescan_start_sent: bool,
 }
 
 const JUMP_TABLE_SIZE = u32:6;
@@ -172,6 +173,7 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
         let (tok, weights_dec_resp, weights_dec_resp_valid) = recv_if_non_blocking(tok, weights_dec_resp_r, state.weights_dec_pending, zero!<WeightsDecResp>());
         if (weights_dec_resp_valid) { trace_fmt!("Received Weights Decoding response: {:#x}", weights_dec_resp); } else {};
         let state = if weights_dec_resp_valid {
+            trace_fmt!("Tree description size: {:#x}", weights_dec_resp.tree_description_size);
             State {
                 weights_dec_pending: false,
                 tree_description_size: weights_dec_resp.tree_description_size,
@@ -194,12 +196,16 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
         let (tok, jump_table_raw, jump_table_valid) = recv_if_non_blocking(tok, mem_rd_resp_r, state.jump_table_dec_pending, zero!<MemReaderResp>());
         let stream_sizes = jump_table_raw.data[0:48] as u16[3];
         let total_streams_size = state.ctrl.len - state.tree_description_size;
-        let stream_sizes = uN[AXI_ADDR_W][4]:[stream_sizes[0] as uN[AXI_ADDR_W], stream_sizes[1] as uN[AXI_ADDR_W], stream_sizes[2] as uN[AXI_ADDR_W], total_streams_size - JUMP_TABLE_SIZE as uN[AXI_ADDR_W] - (stream_sizes[0] + stream_sizes[1] + stream_sizes[2]) as uN[AXI_ADDR_W]];
+        let stream_sizes = uN[AXI_ADDR_W][4]:[
+            stream_sizes[0] as uN[AXI_ADDR_W],
+            stream_sizes[1] as uN[AXI_ADDR_W],
+            stream_sizes[2] as uN[AXI_ADDR_W],
+            total_streams_size - JUMP_TABLE_SIZE as uN[AXI_ADDR_W] - (stream_sizes[0] + stream_sizes[1] + stream_sizes[2]) as uN[AXI_ADDR_W]
+        ];
         if jump_table_valid {
             trace_fmt!("Received Jump Table: {:#x}", jump_table_raw);
-            trace_fmt!("total_streams_size: {:#x}", total_streams_size);
-            trace_fmt!("state.tree_description_size: {:#x}", state.tree_description_size);
-            trace_fmt!("stream sizes: {:#x}", stream_sizes);
+            trace_fmt!("Total streams size: {:#x}", total_streams_size);
+            trace_fmt!("Stream sizes: {:#x}", stream_sizes);
         } else {};
         let state = if do_send_jump_table_req {
             State {
@@ -217,10 +223,29 @@ pub proc HuffmanControlAndSequence<AXI_ADDR_W: u32, AXI_DATA_W: u32> {
             state
         };
 
-        let start_decoding = ((state.fsm == FSM::DECODING) & (!state.weights_dec_pending) & (!state.stream_dec_pending) & (!state.jump_table_dec_pending) & ((!state.multi_stream_dec_pending) || (state.multi_stream_dec_pending && state.multi_stream_decodings_finished != u3:4)));
-        send_if(tok, prescan_start_s, start_decoding, true);
-        send_if(tok, code_builder_start_s, start_decoding, true);
-        if (start_decoding) { trace_fmt!("Sent START to prescan and code builder"); } else {};
+        let start_decoding = (
+            (state.fsm == FSM::DECODING) &
+            (!state.weights_dec_pending) &
+            (!state.stream_dec_pending) &
+            (!state.jump_table_dec_pending) &
+            (
+                (!state.multi_stream_dec_pending) ||
+                (state.multi_stream_dec_pending && state.multi_stream_decodings_finished != u3:4)
+            )
+        );
+        let send_prescan_start = start_decoding & (!state.prescan_start_sent);
+        send_if(tok, prescan_start_s, send_prescan_start, true);
+        send_if(tok, code_builder_start_s, send_prescan_start, true);
+        if (send_prescan_start) { trace_fmt!("Sent START to prescan and code builder"); } else {};
+
+        let state = if send_prescan_start {
+            State {
+                prescan_start_sent: send_prescan_start,
+                ..state
+            }
+        } else {
+            state
+        };
 
         let stream_sizes = state.stream_sizes;
         let (huffman_stream_addr, huffman_stream_len) = match(state.ctrl.new_config, state.ctrl.multi_stream, state.multi_stream_decodings_finished) {
@@ -566,16 +591,16 @@ proc HuffmanControlAndSequence_test {
             uN[TEST_AXI_ADDR_W]:0x3,
         ];
 
+        let (tok, prescan_start) = recv(tok, prescan_start_r);
+        trace_fmt!("[TEST] Received prescan START");
+        assert_eq(true, prescan_start);
+
+        let (tok, code_builder_start) = recv(tok, code_builder_start_r);
+        trace_fmt!("[TEST] Received code builder START");
+        assert_eq(true, code_builder_start);
+
         for (i, tok) in u32:0..u32:4 {
             trace_fmt!("[TEST] Stream #{}", i);
-
-            let (tok, prescan_start) = recv(tok, prescan_start_r);
-            trace_fmt!("[TEST] Received prescan START");
-            assert_eq(true, prescan_start);
-
-            let (tok, code_builder_start) = recv(tok, code_builder_start_r);
-            trace_fmt!("[TEST] Received code builder START");
-            assert_eq(true, code_builder_start);
 
             let (tok, axi_reader_ctrl) = recv(tok, axi_reader_ctrl_r);
             trace_fmt!("[TEST] Received AXI reader CTRL");
@@ -641,16 +666,16 @@ proc HuffmanControlAndSequence_test {
             uN[TEST_AXI_ADDR_W]:0x1F,
         ];
 
+        let (tok, prescan_start) = recv(tok, prescan_start_r);
+        trace_fmt!("[TEST] Received prescan START");
+        assert_eq(true, prescan_start);
+
+        let (tok, code_builder_start) = recv(tok, code_builder_start_r);
+        trace_fmt!("[TEST] Received code builder START");
+        assert_eq(true, code_builder_start);
+
         for (i, tok) in u32:0..u32:4 {
             trace_fmt!("[TEST] Stream #{}", i);
-
-            let (tok, prescan_start) = recv(tok, prescan_start_r);
-            trace_fmt!("[TEST] Received prescan START");
-            assert_eq(true, prescan_start);
-
-            let (tok, code_builder_start) = recv(tok, code_builder_start_r);
-            trace_fmt!("[TEST] Received code builder START");
-            assert_eq(true, code_builder_start);
 
             let (tok, axi_reader_ctrl) = recv(tok, axi_reader_ctrl_r);
             trace_fmt!("[TEST] Received AXI reader CTRL");
