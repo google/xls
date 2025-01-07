@@ -171,6 +171,7 @@ pub proc WeightPreScan
 
     next(state: State) {
         let tok = join();
+        trace_fmt!("State {}", state.fsm);
         let (recv_start, send_addr, write_internal, read_internal, addr) = match state.fsm {
             FSM::IDLE => (true, false, false, false, u32:0 as ExternalRamAddr),
             FSM::FIRST_RUN => (false, true, true, false, state.addr as ExternalRamAddr),
@@ -184,8 +185,14 @@ pub proc WeightPreScan
             }
         };
         let (tok1, start) = recv_if(tok, start_r, recv_start, false);
+        if recv_start {
+            trace_fmt!("Start received");
+        } else {};
 
-        let (tok2, internal_addr, _) = recv_non_blocking(tok, internal_memory_written_r, state.internal_addr as InternalRamAddr);
+        let (tok2, internal_addr, internal_addr_valid) = recv_non_blocking(tok, internal_memory_written_r, state.internal_addr as InternalRamAddr);
+        if internal_addr_valid {
+            trace_fmt!("Received internal addr {:#x}", internal_addr);
+        } else {};
         let next_state = match (state.fsm, start, send_addr, state.addr as u32 == MAX_RAM_ADDR - u32:1) {
             (FSM::IDLE, true, _, _) => State {
                 fsm: FSM::FIRST_RUN,
@@ -237,8 +244,14 @@ pub proc WeightPreScan
             mask: u1:1,
         };
         let tok3 = send_if(tok, read_req_s, send_addr, external_ram_req);
+        if send_addr {
+            trace_fmt!("Sent read request {:#x}", external_ram_req);
+        } else {};
         let (tok3, ram_data) = recv_if(tok3, read_rsp_r, send_addr, zero!<ReadResp>());
         let ram_data = ram_data.data as uN[WEIGHT_LOG][PARALLEL_ACCESS_WIDTH];
+        if send_addr {
+            trace_fmt!("Received read response {:#x}", ram_data);
+        } else {};
 
         let internal_ram_r_req = InternalReadReq {
             addr: addr,
@@ -249,11 +262,18 @@ pub proc WeightPreScan
         let meta_data = BitsToInternalStruct(meta_data_flat.data);
         let tok34 = join(tok3, tok4);
 
+        if read_internal {
+            trace_fmt!("Reading internal memory data: {:#x}", meta_data);
+        } else {};
+
         let prescan_output = OutData {
             weights: ram_data,
             meta_data: meta_data
         };
         let tok34 = send_if(tok34, weight_s, send_addr, prescan_output);
+        if send_addr {
+            trace_fmt!("Sent output {:#x}", prescan_output);
+        } else {};
 
         let occurance_matrix = for (i, occurance_matrix) in range(u32:0, PARALLEL_ACCESS_WIDTH) {
             let row = for (j, row) in range(u32:0, MAX_WEIGHT + u32:1) {
@@ -288,6 +308,10 @@ pub proc WeightPreScan
         let tok5 = send_if(tok, internal_write_req_s, write_internal, internal_ram_w_req);
         let (tok5, _) = recv_if(tok5, internal_write_rsp_r, write_internal, zero!<InternalWriteResp>());
         send_if(tok5, internal_memory_written_s, state.fsm == FSM::FIRST_RUN, addr as InternalRamAddr);
+        if write_internal {
+            trace_fmt!("Internal write {:#x}", _meta_data);
+        } else {};
+
         next_state
     }
 }
