@@ -18,7 +18,6 @@ import xls.modules.zstd.common;
 import xls.modules.zstd.memory.axi;
 import xls.modules.zstd.csr_config;
 import xls.modules.zstd.sequence_executor;
-// import xls.modules.zstd.zstd_frame_testcases;
 import xls.modules.zstd.memory.axi_ram;
 import xls.modules.zstd.zstd_dec;
 import xls.modules.zstd.comp_block_dec;
@@ -29,7 +28,9 @@ import xls.modules.zstd.parallel_rams;
 import xls.modules.zstd.literals_buffer;
 import xls.modules.zstd.fse_table_creator;
 import xls.modules.zstd.ram_mux;
-import xls.modules.zstd.comp_frame;
+// import xls.modules.zstd.zstd_frame_testcases as comp_frame;
+// import xls.modules.zstd.comp_frame;
+import xls.modules.zstd.comp_frame_huffman as comp_frame;
 
 const TEST_WINDOW_LOG_MAX = u32:30;
 
@@ -83,12 +84,18 @@ const TEST_TMP_RAM_WORD_PARTITION_SIZE = TEST_TMP_RAM_DATA_W;
 const TEST_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_TMP_RAM_WORD_PARTITION_SIZE, TEST_TMP_RAM_DATA_W);
 
+// Huffman weights memory parameters
+const HUFFMAN_WEIGHTS_RAM_SIZE: u32 = huffman_literals_dec::RAM_SIZE;
 const HUFFMAN_WEIGHTS_RAM_ADDR_W: u32 = huffman_literals_dec::WEIGHTS_ADDR_WIDTH;
 const HUFFMAN_WEIGHTS_RAM_DATA_W: u32 = huffman_literals_dec::WEIGHTS_DATA_WIDTH;
+const HUFFMAN_WEIGHTS_RAM_PARTITION_WORD_SIZE: u32 = huffman_literals_dec::WEIGHTS_PARTITION_WORD_SIZE;
 const HUFFMAN_WEIGHTS_RAM_NUM_PARTITIONS: u32 = huffman_literals_dec::WEIGHTS_NUM_PARTITIONS;
+
 // Huffman prescan memory parameters
+const HUFFMAN_PRESCAN_RAM_SIZE: u32 = huffman_literals_dec::RAM_SIZE;
 const HUFFMAN_PRESCAN_RAM_ADDR_W: u32 = huffman_literals_dec::PRESCAN_ADDR_WIDTH;
 const HUFFMAN_PRESCAN_RAM_DATA_W: u32 = huffman_literals_dec::PRESCAN_DATA_WIDTH;
+const HUFFMAN_PRESCAN_RAM_PARTITION_WORD_SIZE: u32 = huffman_literals_dec::PRESCAN_PARTITION_WORD_SIZE;
 const HUFFMAN_PRESCAN_RAM_NUM_PARTITIONS: u32 = huffman_literals_dec::PRESCAN_NUM_PARTITIONS;
 
 const HISTORY_BUFFER_SIZE_KB = common::HISTORY_BUFFER_SIZE_KB;
@@ -287,16 +294,32 @@ proc ZstdDecoderTest {
         let (reset_s, reset_r) = chan<()>("reset");
 
         // Huffman weights memory
-        let (huffman_lit_weights_mem_rd_req_s, _huffman_lit_weights_mem_rd_req_r) = chan<HuffmanWeightsReadReq>("huffman_lit_weights_mem_rd_req");
-        let (_huffman_lit_weights_mem_rd_resp_s, huffman_lit_weights_mem_rd_resp_r) = chan<HuffmanWeightsReadResp>("huffman_lit_weights_mem_rd_resp");
-        let (huffman_lit_weights_mem_wr_req_s, _huffman_lit_weights_mem_wr_req_r) = chan<HuffmanWeightsWriteReq>("huffman_lit_weights_mem_wr_req");
-        let (_huffman_lit_weights_mem_wr_resp_s, huffman_lit_weights_mem_wr_resp_r) = chan<HuffmanWeightsWriteResp>("huffman_lit_weights_mem_wr_resp");
+        let (huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_req_r) = chan<HuffmanWeightsReadReq>("huffman_lit_weights_mem_rd_req");
+        let (huffman_lit_weights_mem_rd_resp_s, huffman_lit_weights_mem_rd_resp_r) = chan<HuffmanWeightsReadResp>("huffman_lit_weights_mem_rd_resp");
+        let (huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_req_r) = chan<HuffmanWeightsWriteReq>("huffman_lit_weights_mem_wr_req");
+        let (huffman_lit_weights_mem_wr_resp_s, huffman_lit_weights_mem_wr_resp_r) = chan<HuffmanWeightsWriteResp>("huffman_lit_weights_mem_wr_resp");
+
+        spawn ram::RamModel<
+            HUFFMAN_WEIGHTS_RAM_DATA_W, HUFFMAN_WEIGHTS_RAM_SIZE, HUFFMAN_WEIGHTS_RAM_PARTITION_WORD_SIZE,
+            TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED
+        >(
+            huffman_lit_weights_mem_rd_req_r, huffman_lit_weights_mem_rd_resp_s,
+            huffman_lit_weights_mem_wr_req_r, huffman_lit_weights_mem_wr_resp_s,
+        );
 
         // Huffman prescan memory
-        let (huffman_lit_prescan_mem_rd_req_s, _huffman_lit_prescan_mem_rd_req_r) = chan<HuffmanPrescanReadReq>("huffman_lit_prescan_mem_rd_req");
-        let (_huffman_lit_prescan_mem_rd_resp_s, huffman_lit_prescan_mem_rd_resp_r) = chan<HuffmanPrescanReadResp>("huffman_lit_prescan_mem_rd_resp");
-        let (huffman_lit_prescan_mem_wr_req_s, _huffman_lit_prescan_mem_wr_req_r) = chan<HuffmanPrescanWriteReq>("huffman_lit_prescan_mem_wr_req");
-        let (_huffman_lit_prescan_mem_wr_resp_s, huffman_lit_prescan_mem_wr_resp_r) = chan<HuffmanPrescanWriteResp>("huffman_lit_prescan_mem_wr_resp");
+        let (huffman_lit_prescan_mem_rd_req_s, huffman_lit_prescan_mem_rd_req_r) = chan<HuffmanPrescanReadReq>("huffman_lit_prescan_mem_rd_req");
+        let (huffman_lit_prescan_mem_rd_resp_s, huffman_lit_prescan_mem_rd_resp_r) = chan<HuffmanPrescanReadResp>("huffman_lit_prescan_mem_rd_resp");
+        let (huffman_lit_prescan_mem_wr_req_s, huffman_lit_prescan_mem_wr_req_r) = chan<HuffmanPrescanWriteReq>("huffman_lit_prescan_mem_wr_req");
+        let (huffman_lit_prescan_mem_wr_resp_s, huffman_lit_prescan_mem_wr_resp_r) = chan<HuffmanPrescanWriteResp>("huffman_lit_prescan_mem_wr_resp");
+
+        spawn ram::RamModel<
+            HUFFMAN_PRESCAN_RAM_DATA_W, HUFFMAN_PRESCAN_RAM_SIZE, HUFFMAN_PRESCAN_RAM_PARTITION_WORD_SIZE,
+            TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED
+        >(
+            huffman_lit_prescan_mem_rd_req_r, huffman_lit_prescan_mem_rd_resp_s,
+            huffman_lit_prescan_mem_wr_req_r, huffman_lit_prescan_mem_wr_resp_s,
+        );
 
         // AXI channels for various blocks
         let (comp_axi_ar_s, comp_axi_ar_r) = chan<MemAxiAr>[AXI_CHAN_N]("comp_axi_ar");

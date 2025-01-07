@@ -138,20 +138,9 @@ proc HuffmanRawWeightsDecoder<
         let (tok, mem_rd_resp, mem_rd_resp_valid) = recv_if_non_blocking(tok, mem_rd_resp_r, do_recv_data, zero!<MemReaderResp>());
         if do_recv_data && mem_rd_resp_valid {
             trace_fmt!("[RAW] Received MemReader response {:#x}", mem_rd_resp);
+            trace_fmt!("[RAW] Data {:#x}", mem_rd_resp.data);
         } else {};
 
-        // FIXME: support injecting the last implicit weight for Huffman Tree Descriptions larger
-        // than a single bus width
-        //
-        // ^ This is partially done with saving the sum calculated below in the state.
-        // When the last mem_reader packet is received (received the last chunk of HTD)
-        // We should calculate the final sum and use it to calculate the `last_weight` of the HTD
-        // and put it in a correct spot in the `weights` array
-
-        // Calculate the last weight by summing 2^(weight - 1)
-        // for each weight read from the HTD (excluding 0's)
-        // The resulting sum must be subtracted from the next power of 2 after the resulting sum.
-        // The result is the weight of the last literal.
         const MAX_WEIGHTS_IN_PACKET = AXI_DATA_W >> u32:2;
         let weights = mem_rd_resp.data as u4[MAX_WEIGHTS_IN_PACKET];
         let sum = for (i, sum): (u32, u32) in u32:0..MAX_WEIGHTS_IN_PACKET {
@@ -202,18 +191,16 @@ proc HuffmanRawWeightsDecoder<
             ) as uN[AXI_DATA_W],
             _ => fail!("unsupported_axi_data_width", uN[AXI_DATA_W]:0),
         };
-        //trace_fmt!("[RAW] Reversed weights: {:#x}", reversed_weights);
-        //trace_fmt!("[RAW] BUFF_LEN: {:#x}", BUFF_LEN);
-        //trace_fmt!("[RAW] WEIGHTS_RAM_DATA_W: {:#x}", WEIGHTS_RAM_DATA_W);
-        //trace_fmt!("[RAW] AXI_DATA_W: {:#x}", AXI_DATA_W);
-        //trace_fmt!("[RAW] buffer_len: {:#x}", buffer_len);
+
+        if do_recv_data && mem_rd_resp_valid {
+            trace_fmt!("[RAW] Weights: {:#x}", weights);
+        } else {};
 
         if do_recv_data && mem_rd_resp_valid {
             trace_fmt!("[RAW] Weights: {:#x}", weights);
         } else {};
 
         let (buffer, buffer_len) = if do_recv_data && mem_rd_resp_valid {
-            //trace_fmt!("[RAW] shift: {:#x}", BUFF_LEN - AXI_DATA_W - buffer_len as u32);
             (
                 buffer | ((reversed_weights as uN[BUFF_LEN] << (BUFF_LEN - AXI_DATA_W - buffer_len as u32))),
                 buffer_len + (AXI_DATA_W as uN[BUFF_LEN_LOG2]),
@@ -621,7 +608,9 @@ pub proc HuffmanWeightsDecoder<
         let tok = send(tok, decoded_weights_sel_s, weights_type == WeightsType::FSE);
 
         // FSE
-        trace_fmt!("Decoding FSE Huffman weights");
+        if weights_type == WeightsType::FSE {
+            trace_fmt!("Decoding FSE Huffman weights");
+        } else {};
         let fse_weights_req = zero!<FseWeightsReq>();
         let tok = send_if(tok, fse_weights_req_s, weights_type == WeightsType::FSE, fse_weights_req);
         let (tok, fse_weights_resp) = recv_if(tok, fse_weights_resp_r, weights_type == WeightsType::FSE, zero!<FseWeightsResp>());
@@ -633,7 +622,9 @@ pub proc HuffmanWeightsDecoder<
         };
 
         // RAW
-        trace_fmt!("Decoding RAW Huffman weights");
+        if weights_type == WeightsType::RAW {
+            trace_fmt!("Decoding RAW Huffman weights");
+        } else {};
         let raw_weights_req = RawWeightsReq {
             addr: req.addr,
             n_symbols: header_byte - u8:127,
@@ -651,13 +642,13 @@ pub proc HuffmanWeightsDecoder<
             WeightsType::RAW => {
                 Resp {
                     status: raw_status,
-                    tree_description_size: (((header_byte - u8:127) >> u8:1) + u8:1) as uN[AXI_ADDR_W],
+                    tree_description_size: (((header_byte - u8:127) >> u8:1) + u8:1) as uN[AXI_ADDR_W] + uN[AXI_ADDR_W]:1, // include header size
                 }
             },
             WeightsType::FSE => {
                 Resp {
                     status: fse_status,
-                    tree_description_size: header_byte as uN[AXI_ADDR_W],
+                    tree_description_size: header_byte as uN[AXI_ADDR_W] + uN[AXI_ADDR_W]:1, // include header size
                 }
             },
             _ => fail!("impossible_weights_type", zero!<Resp>()),
@@ -975,7 +966,7 @@ proc HuffmanWeightsDecoder_test {
         let (tok, resp) = recv(tok, resp_r);
         trace_fmt!("[TEST] Received respose {:#x}", resp);
         assert_eq(HuffmanWeightsDecoderStatus::OKAY, resp.status);
-        assert_eq(((TEST_DATA[0] - u8:127 + u8:1) >> u32:1) as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
+        assert_eq((((TEST_DATA[0] - u8:127 + u8:1) >> u32:1) + u8:1) as uN[TEST_AXI_ADDR_W], resp.tree_description_size);
 
         // Insert last weight in test data
         let last_weight_idx = ((TEST_DATA[0] as u32 - u32:127) / u32:2) + u32:1;
