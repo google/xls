@@ -10,6 +10,8 @@
 ## check_sha256sum_frozen
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "check_sha256sum_frozen")
+
 check_sha256sum_frozen(<a href="#check_sha256sum_frozen-name">name</a>, <a href="#check_sha256sum_frozen-src">src</a>, <a href="#check_sha256sum_frozen-frozen_file">frozen_file</a>, <a href="#check_sha256sum_frozen-sha256sum">sha256sum</a>)
 </pre>
 
@@ -95,6 +97,8 @@ Examples:
 ## check_sha256sum_test
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "check_sha256sum_test")
+
 check_sha256sum_test(<a href="#check_sha256sum_test-name">name</a>, <a href="#check_sha256sum_test-src">src</a>, <a href="#check_sha256sum_test-sha256sum">sha256sum</a>)
 </pre>
 
@@ -130,6 +134,8 @@ Examples:
 ## proto_data
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "proto_data")
+
 proto_data(<a href="#proto_data-name">name</a>, <a href="#proto_data-src">src</a>, <a href="#proto_data-proto_name">proto_name</a>, <a href="#proto_data-protobin_file">protobin_file</a>)
 </pre>
 
@@ -165,6 +171,8 @@ Examples:
 ## xls_benchmark_verilog
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_benchmark_verilog")
+
 xls_benchmark_verilog(<a href="#xls_benchmark_verilog-name">name</a>, <a href="#xls_benchmark_verilog-verilog_target">verilog_target</a>)
 </pre>
 
@@ -192,6 +200,8 @@ Example:
 ## xls_dslx_library
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_library")
+
 xls_dslx_library(<a href="#xls_dslx_library-name">name</a>, <a href="#xls_dslx_library-deps">deps</a>, <a href="#xls_dslx_library-srcs">srcs</a>, <a href="#xls_dslx_library-warnings_as_errors">warnings_as_errors</a>)
 </pre>
 
@@ -251,6 +261,8 @@ Examples:
 ## xls_dslx_opt_ir_test
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_opt_ir_test")
+
 xls_dslx_opt_ir_test(<a href="#xls_dslx_opt_ir_test-name">name</a>, <a href="#xls_dslx_opt_ir_test-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_dslx_opt_ir_test-dep">dep</a>, <a href="#xls_dslx_opt_ir_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_opt_ir_test-evaluator">evaluator</a>, <a href="#xls_dslx_opt_ir_test-expect_equivalent">expect_equivalent</a>,
                      <a href="#xls_dslx_opt_ir_test-input_validator">input_validator</a>, <a href="#xls_dslx_opt_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_dslx_opt_ir_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_dslx_opt_ir_test-ir_eval_args">ir_eval_args</a>,
                      <a href="#xls_dslx_opt_ir_test-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_dslx_opt_ir_test-top">top</a>)
@@ -306,6 +318,8 @@ Examples:
 ## xls_dslx_prove_quickcheck_test
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_prove_quickcheck_test")
+
 xls_dslx_prove_quickcheck_test(<a href="#xls_dslx_prove_quickcheck_test-name">name</a>, <a href="#xls_dslx_prove_quickcheck_test-deps">deps</a>, <a href="#xls_dslx_prove_quickcheck_test-srcs">srcs</a>, <a href="#xls_dslx_prove_quickcheck_test-library">library</a>, <a href="#xls_dslx_prove_quickcheck_test-test_filter">test_filter</a>)
 </pre>
 
@@ -359,6 +373,8 @@ Examples:
 ## xls_dslx_test
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_test")
+
 xls_dslx_test(<a href="#xls_dslx_test-name">name</a>, <a href="#xls_dslx_test-deps">deps</a>, <a href="#xls_dslx_test-srcs">srcs</a>, <a href="#xls_dslx_test-dslx_test_args">dslx_test_args</a>, <a href="#xls_dslx_test-evaluator">evaluator</a>, <a href="#xls_dslx_test-library">library</a>)
 </pre>
 
@@ -413,6 +429,8 @@ Examples:
 ## xls_eval_ir_test
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_eval_ir_test")
+
 xls_eval_ir_test(<a href="#xls_eval_ir_test-name">name</a>, <a href="#xls_eval_ir_test-src">src</a>, <a href="#xls_eval_ir_test-input_validator">input_validator</a>, <a href="#xls_eval_ir_test-input_validator_expr">input_validator_expr</a>, <a href="#xls_eval_ir_test-ir_eval_args">ir_eval_args</a>, <a href="#xls_eval_ir_test-top">top</a>)
 </pre>
 
@@ -462,6 +480,8 @@ Examples:
 ## xls_ir_equivalence_test
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_equivalence_test")
+
 xls_ir_equivalence_test(<a href="#xls_ir_equivalence_test-name">name</a>, <a href="#xls_ir_equivalence_test-expect_equivalent">expect_equivalent</a>, <a href="#xls_ir_equivalence_test-ir_equivalence_args">ir_equivalence_args</a>, <a href="#xls_ir_equivalence_test-src_0">src_0</a>, <a href="#xls_ir_equivalence_test-src_1">src_1</a>, <a href="#xls_ir_equivalence_test-top">top</a>)
 </pre>
 
@@ -512,6 +532,8 @@ Examples:
 ## xls_ir_verilog_fdo
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_verilog_fdo")
+
 xls_ir_verilog_fdo(<a href="#xls_ir_verilog_fdo-name">name</a>, <a href="#xls_ir_verilog_fdo-src">src</a>, <a href="#xls_ir_verilog_fdo-outs">outs</a>, <a href="#xls_ir_verilog_fdo-block_ir_file">block_ir_file</a>, <a href="#xls_ir_verilog_fdo-codegen_args">codegen_args</a>, <a href="#xls_ir_verilog_fdo-codegen_options_proto">codegen_options_proto</a>,
                    <a href="#xls_ir_verilog_fdo-module_sig_file">module_sig_file</a>, <a href="#xls_ir_verilog_fdo-schedule_file">schedule_file</a>, <a href="#xls_ir_verilog_fdo-schedule_ir_file">schedule_ir_file</a>, <a href="#xls_ir_verilog_fdo-scheduling_options_proto">scheduling_options_proto</a>,
                    <a href="#xls_ir_verilog_fdo-sta_tool">sta_tool</a>, <a href="#xls_ir_verilog_fdo-standard_cells">standard_cells</a>, <a href="#xls_ir_verilog_fdo-synthesizer_linear_interpolation_factor">synthesizer_linear_interpolation_factor</a>, <a href="#xls_ir_verilog_fdo-verilog_file">verilog_file</a>,
@@ -568,6 +590,8 @@ Example:
 ## xls_model_generation
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_model_generation")
+
 xls_model_generation(<a href="#xls_model_generation-name">name</a>, <a href="#xls_model_generation-samples_file">samples_file</a>, <a href="#xls_model_generation-standard_cells">standard_cells</a>)
 </pre>
 
@@ -608,7 +632,9 @@ currently produced should be considered INCOMPLETE.
 ## cc_xls_ir_jit_wrapper
 
 <pre>
-cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-top">top</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">kwargs</a>)
+load("//xls/build_rules:xls_build_defs.bzl", "cc_xls_ir_jit_wrapper")
+
+cc_xls_ir_jit_wrapper(<a href="#cc_xls_ir_jit_wrapper-name">name</a>, <a href="#cc_xls_ir_jit_wrapper-src">src</a>, <a href="#cc_xls_ir_jit_wrapper-jit_wrapper_args">jit_wrapper_args</a>, <a href="#cc_xls_ir_jit_wrapper-wrapper_type">wrapper_type</a>, <a href="#cc_xls_ir_jit_wrapper-top">top</a>, <a href="#cc_xls_ir_jit_wrapper-kwargs">**kwargs</a>)
 </pre>
 
 Invokes the JIT wrapper generator and compiles the result as a cc_library.
@@ -636,6 +662,8 @@ identical to this macro.
 ## get_mangled_ir_symbol
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "get_mangled_ir_symbol")
+
 get_mangled_ir_symbol(<a href="#get_mangled_ir_symbol-module_name">module_name</a>, <a href="#get_mangled_ir_symbol-function_name">function_name</a>, <a href="#get_mangled_ir_symbol-parametric_values">parametric_values</a>, <a href="#get_mangled_ir_symbol-is_implicit_token">is_implicit_token</a>,
                       <a href="#get_mangled_ir_symbol-is_proc_next">is_proc_next</a>)
 </pre>
@@ -669,8 +697,10 @@ The "mangled" symbol string.
 ## xls_benchmark_ir
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_benchmark_ir")
+
 xls_benchmark_ir(<a href="#xls_benchmark_ir-name">name</a>, <a href="#xls_benchmark_ir-src">src</a>, <a href="#xls_benchmark_ir-synthesize">synthesize</a>, <a href="#xls_benchmark_ir-codegen_args">codegen_args</a>, <a href="#xls_benchmark_ir-benchmark_ir_args">benchmark_ir_args</a>, <a href="#xls_benchmark_ir-standard_cells">standard_cells</a>, <a href="#xls_benchmark_ir-tags">tags</a>,
-                 <a href="#xls_benchmark_ir-ir_tags">ir_tags</a>, <a href="#xls_benchmark_ir-synth_tags">synth_tags</a>, <a href="#xls_benchmark_ir-kwargs">kwargs</a>)
+                 <a href="#xls_benchmark_ir-ir_tags">ir_tags</a>, <a href="#xls_benchmark_ir-synth_tags">synth_tags</a>, <a href="#xls_benchmark_ir-kwargs">**kwargs</a>)
 </pre>
 
 Executes the benchmark tool on an IR file.
@@ -741,6 +771,8 @@ Examples:
 ## xls_dslx_cpp_type_library
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_cpp_type_library")
+
 xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-deps">deps</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
 </pre>
 
@@ -766,6 +798,8 @@ a cc_library with its target name identical to this macro.
 ## xls_dslx_fmt_test
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_fmt_test")
+
 xls_dslx_fmt_test(<a href="#xls_dslx_fmt_test-name">name</a>, <a href="#xls_dslx_fmt_test-src">src</a>, <a href="#xls_dslx_fmt_test-opportunistic_postcondition">opportunistic_postcondition</a>)
 </pre>
 
@@ -786,8 +820,10 @@ Creates a test target that confirms `src` is auto-formatted.
 ## xls_dslx_ir
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_ir")
+
 xls_dslx_ir(<a href="#xls_dslx_ir-name">name</a>, <a href="#xls_dslx_ir-dslx_top">dslx_top</a>, <a href="#xls_dslx_ir-srcs">srcs</a>, <a href="#xls_dslx_ir-deps">deps</a>, <a href="#xls_dslx_ir-library">library</a>, <a href="#xls_dslx_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_ir-enable_generated_file">enable_generated_file</a>,
-            <a href="#xls_dslx_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_ir-kwargs">kwargs</a>)
+            <a href="#xls_dslx_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_ir-kwargs">**kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule converting a DSLX source file to an IR file.
@@ -832,8 +868,10 @@ An IR conversion with a top entity defined.
 ## xls_dslx_opt_ir
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_opt_ir")
+
 xls_dslx_opt_ir(<a href="#xls_dslx_opt_ir-name">name</a>, <a href="#xls_dslx_opt_ir-dslx_top">dslx_top</a>, <a href="#xls_dslx_opt_ir-srcs">srcs</a>, <a href="#xls_dslx_opt_ir-deps">deps</a>, <a href="#xls_dslx_opt_ir-library">library</a>, <a href="#xls_dslx_opt_ir-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_opt_ir-opt_ir_args">opt_ir_args</a>,
-                <a href="#xls_dslx_opt_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_opt_ir-kwargs">kwargs</a>)
+                <a href="#xls_dslx_opt_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_opt_ir-kwargs">**kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule generating an optimized IR file from a DSLX source file.
@@ -885,8 +923,10 @@ Examples:
 ## xls_dslx_verilog
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_verilog")
+
 xls_dslx_verilog(<a href="#xls_dslx_verilog-name">name</a>, <a href="#xls_dslx_verilog-dslx_top">dslx_top</a>, <a href="#xls_dslx_verilog-verilog_file">verilog_file</a>, <a href="#xls_dslx_verilog-srcs">srcs</a>, <a href="#xls_dslx_verilog-deps">deps</a>, <a href="#xls_dslx_verilog-library">library</a>, <a href="#xls_dslx_verilog-ir_conv_args">ir_conv_args</a>, <a href="#xls_dslx_verilog-opt_ir_args">opt_ir_args</a>,
-                 <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>, <a href="#xls_dslx_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_verilog-kwargs">kwargs</a>)
+                 <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>, <a href="#xls_dslx_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_verilog-kwargs">**kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule generating a Verilog file from a DSLX source file and tests the build.
@@ -944,6 +984,8 @@ Examples:
 ## xls_ir_cc_library
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_cc_library")
+
 xls_ir_cc_library(<a href="#xls_ir_cc_library-name">name</a>, <a href="#xls_ir_cc_library-src">src</a>, <a href="#xls_ir_cc_library-top">top</a>, <a href="#xls_ir_cc_library-namespaces">namespaces</a>)
 </pre>
 
@@ -985,8 +1027,10 @@ This will produce a cc_library that will execute the fn `bar` from the
 ## xls_ir_opt_ir
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_opt_ir")
+
 xls_ir_opt_ir(<a href="#xls_ir_opt_ir-name">name</a>, <a href="#xls_ir_opt_ir-src">src</a>, <a href="#xls_ir_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_ir_opt_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_ir_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>,
-              <a href="#xls_ir_opt_ir-debug_srcs">debug_srcs</a>, <a href="#xls_ir_opt_ir-kwargs">kwargs</a>)
+              <a href="#xls_ir_opt_ir-debug_srcs">debug_srcs</a>, <a href="#xls_ir_opt_ir-kwargs">**kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule optimizing an IR file.
@@ -1038,9 +1082,11 @@ Examples:
 ## xls_ir_verilog
 
 <pre>
+load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_verilog")
+
 xls_ir_verilog(<a href="#xls_ir_verilog-name">name</a>, <a href="#xls_ir_verilog-src">src</a>, <a href="#xls_ir_verilog-verilog_file">verilog_file</a>, <a href="#xls_ir_verilog-codegen_args">codegen_args</a>, <a href="#xls_ir_verilog-codegen_options_proto">codegen_options_proto</a>,
                <a href="#xls_ir_verilog-scheduling_options_proto">scheduling_options_proto</a>, <a href="#xls_ir_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_ir_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>,
-               <a href="#xls_ir_verilog-kwargs">kwargs</a>)
+               <a href="#xls_ir_verilog-kwargs">**kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule generating a Verilog file from an IR file and tests the build.
@@ -1084,7 +1130,9 @@ Example:
 ## xls_synthesis_metrics
 
 <pre>
-xls_synthesis_metrics(<a href="#xls_synthesis_metrics-name">name</a>, <a href="#xls_synthesis_metrics-srcs">srcs</a>, <a href="#xls_synthesis_metrics-kwargs">kwargs</a>)
+load("//xls/build_rules:xls_build_defs.bzl", "xls_synthesis_metrics")
+
+xls_synthesis_metrics(<a href="#xls_synthesis_metrics-name">name</a>, <a href="#xls_synthesis_metrics-srcs">srcs</a>, <a href="#xls_synthesis_metrics-kwargs">**kwargs</a>)
 </pre>
 
 Gather per-pipeline-stage metrics from log files.

@@ -10,8 +10,10 @@
 ## xls_cc_ir
 
 <pre>
+load("//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl", "xls_cc_ir")
+
 xls_cc_ir(<a href="#xls_cc_ir-name">name</a>, <a href="#xls_cc_ir-src">src</a>, <a href="#xls_cc_ir-block">block</a>, <a href="#xls_cc_ir-block_pb_out">block_pb_out</a>, <a href="#xls_cc_ir-block_from_class">block_from_class</a>, <a href="#xls_cc_ir-src_deps">src_deps</a>, <a href="#xls_cc_ir-xlscc_args">xlscc_args</a>,
-          <a href="#xls_cc_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_cc_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_cc_ir-metadata_out">metadata_out</a>, <a href="#xls_cc_ir-kwargs">kwargs</a>)
+          <a href="#xls_cc_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_cc_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_cc_ir-metadata_out">metadata_out</a>, <a href="#xls_cc_ir-kwargs">**kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule generating an IR file from a C/C++ source file.
@@ -56,8 +58,10 @@ Examples:
 ## xls_cc_verilog
 
 <pre>
+load("//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl", "xls_cc_verilog")
+
 xls_cc_verilog(<a href="#xls_cc_verilog-name">name</a>, <a href="#xls_cc_verilog-src">src</a>, <a href="#xls_cc_verilog-block">block</a>, <a href="#xls_cc_verilog-verilog_file">verilog_file</a>, <a href="#xls_cc_verilog-src_deps">src_deps</a>, <a href="#xls_cc_verilog-xlscc_args">xlscc_args</a>, <a href="#xls_cc_verilog-opt_ir_args">opt_ir_args</a>, <a href="#xls_cc_verilog-codegen_args">codegen_args</a>,
-               <a href="#xls_cc_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_cc_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_cc_verilog-kwargs">kwargs</a>)
+               <a href="#xls_cc_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_cc_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_cc_verilog-kwargs">**kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule generating a Verilog file from a C/C++ source file.
