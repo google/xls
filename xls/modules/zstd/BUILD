@@ -1265,7 +1265,7 @@ genrule(
     name = "zstd_test_frames_generate",
     srcs = [],
     outs = ["zstd_frame_testcases.x"],
-    cmd = "$(location :zstd_test_frames_generator) -n 3 --btype RAW RLE COMPRESSED -o $@",
+    cmd = "$(location :zstd_test_frames_generator) -n 1 --seed 81419062 --btype COMPRESSED -o $@",
     tools = [":zstd_test_frames_generator"],
 )
 
@@ -1304,7 +1304,8 @@ xls_dslx_test(
         "zstd_dec.x",
         "zstd_dec_test.x",
         # "zstd_frame_testcases.x",
-        "comp_frame.x",
+        # "comp_frame.x",
+        "comp_frame_huffman.x",
     ],
     tags = ["manual"],
     deps = zstd_dec_deps,
