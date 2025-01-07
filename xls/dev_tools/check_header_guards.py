@@ -20,9 +20,10 @@
 
 import os
 import re
-
+import sys
 def get_expected_guard(filepath, repo_root):
-    # Convert the file path relative to repo root to an uppercase header guard format
+    # Convert the file path relative to repo root to an uppercase header guard
+    # format.
     relative_path = os.path.relpath(filepath, repo_root)
     guard = relative_path.upper().replace(os.sep, '_').replace('.', '_') + '_'
     return guard
@@ -31,7 +32,7 @@ def check_header_guard(filepath, expected_guard):
     with open(filepath, 'r') as file:
         lines = file.readlines()
 
-    # Check for the presence of the expected header guard
+    # Check for the presence of the expected header guard.
     guard_pattern = re.compile(r'#ifndef\s+(\S+)')
     for line in lines:
         match = guard_pattern.match(line.strip())
@@ -42,7 +43,8 @@ def check_header_guard(filepath, expected_guard):
     return False, None
 
 def find_h_files(repo_root):
-    # Find all .h files within the repo root, excluding xls/contrib and third_party
+    # Find all `.h` files within the repo root, excluding `xls/contrib` and
+    # `third_party`.
     h_files = []
     for root, _, files in os.walk(repo_root):
         if 'xls/contrib' in root or 'third_party' in root:
