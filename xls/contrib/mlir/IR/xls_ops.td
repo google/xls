@@ -658,7 +658,7 @@ def Xls_ArrayUpdateOp : Xls_Op<"array_update", [Pure, ShapesAreConsistent<["arra
   }];
   let arguments = (ins
     Xls_ArrayType:$array,
-    Xls_Bits:$value,
+    Xls_BitsOrTuple:$value,
     Xls_Bits:$index
   );
   let results = (outs
