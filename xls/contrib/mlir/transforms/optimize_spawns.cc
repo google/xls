@@ -112,8 +112,8 @@ class OptimizeSpawnsPass
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     patterns.add<SendOfBlockingReceiveOp>(&getContext());
-    if (failed(applyPatternsAndFoldGreedily(getOperation().getNext(),
-                                            std::move(patterns)))) {
+    if (failed(applyPatternsGreedily(getOperation().getNext(),
+                                     std::move(patterns)))) {
       signalPassFailure();
     }
 

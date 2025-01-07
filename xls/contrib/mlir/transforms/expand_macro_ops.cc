@@ -74,8 +74,7 @@ class ExpandMacroOpsPass
   void runOnOperation(XlsRegionOpInterface operation) {
     RewritePatternSet patterns(&getContext());
     patterns.add<ArrayUpdateSliceOpRewrite>(&getContext());
-    if (failed(mlir::applyPatternsAndFoldGreedily(operation,
-                                                  std::move(patterns)))) {
+    if (failed(mlir::applyPatternsGreedily(operation, std::move(patterns)))) {
       signalPassFailure();
     }
   }

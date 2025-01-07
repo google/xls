@@ -62,7 +62,7 @@ void MathToXlsPass::runOnOperation() {
   auto result = getOperation()->walk([&](Operation *op) {
     if (auto interface = dyn_cast<XlsRegionOpInterface>(op)) {
       if (interface.isSupportedRegion()) {
-        if (failed(applyPatternsAndFoldGreedily(op, patterns))) {
+        if (failed(applyPatternsGreedily(op, patterns))) {
           return WalkResult::interrupt();
         }
       }

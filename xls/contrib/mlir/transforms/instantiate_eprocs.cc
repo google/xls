@@ -91,7 +91,7 @@ void InstantiateEprocsPass::runOnOperation() {
   SymbolTable symbolTable(module);
   RewritePatternSet patterns(&getContext());
   patterns.add<InstantiateEprocPattern>(patterns.getContext(), symbolTable);
-  if (failed(mlir::applyPatternsAndFoldGreedily(module, std::move(patterns)))) {
+  if (failed(mlir::applyPatternsGreedily(module, std::move(patterns)))) {
     signalPassFailure();
   }
 }
