@@ -1531,7 +1531,7 @@ proc LiteralsDecoder_test {
 
             // Literals #4 (Huffman; 6 bytes)
             // Header: 0x01_80_42 (0b0000000110_0000000100_00_10)
-            AxiRamWrReq { addr: AxiRamAddr:0x10, data: (u8:0b0000_0001 ++ u24:0x010234 ++ u8:0x85 ++ u24:0x01_80_42) as AxiRamData, mask: AxiRamMask:0xFF }, // AXI addr: 0x80
+            AxiRamWrReq { addr: AxiRamAddr:0x10, data: (u8:0b0000_0001 ++ u24:0x100234 ++ u8:0x84 ++ u24:0x01_80_42) as AxiRamData, mask: AxiRamMask:0xFF }, // AXI addr: 0x80
             AxiRamWrReq { addr: AxiRamAddr:0x11, data: u8:0b00001_1_01 as AxiRamData, mask: AxiRamMask:0xFF },      // AXI addr: 0x88
 
             // Literals #5 (RLE; 12 bytes)
@@ -1548,7 +1548,7 @@ proc LiteralsDecoder_test {
 
             // Literals #8 (Huffman; 18 bytes)
             // Header: 0x04_81_06 (0b0000010010_0000010010_01_10)
-            AxiRamWrReq { addr: AxiRamAddr:0x50, data: (u8:0x02 ++ u24:0x010234 ++ u8:0x85 ++ u24:0x04_81_06) as AxiRamData, mask: AxiRamMask:0xFF }, // AXI addr: 0x280
+            AxiRamWrReq { addr: AxiRamAddr:0x50, data: (u8:0x02 ++ u24:0x100234 ++ u8:0x84 ++ u24:0x04_81_06) as AxiRamData, mask: AxiRamMask:0xFF }, // AXI addr: 0x280
             AxiRamWrReq { addr: AxiRamAddr:0x51, data: (u8:0b0000_0001 ++ u16:0b00001_1_01_0000_0001 ++ u40:0x0002_0002_00) as AxiRamData, mask: AxiRamMask:0xFF }, // AXI addr: 0x288
             AxiRamWrReq { addr: AxiRamAddr:0x52, data: (u16:0b00001_1_01_0000_0001 ++ u16:0b00001_1_01_0000_0001 ++ u8:0b00001_1_01) as AxiRamData, mask: AxiRamMask:0xFF }, // AXI addr: 290
 

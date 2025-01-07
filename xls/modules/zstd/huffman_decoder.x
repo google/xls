@@ -54,6 +54,7 @@ struct HuffmanDecoderState {
     symbol_code_len: uN[hcommon::WEIGHT_LOG][SYMBOLS_N],
     data_len: uN[BUFF_W_LOG2],
     data: uN[BUFF_W],
+    data_last: bool,
     code_length: CodeLen[BUFF_W],
     decoded_literals: uN[common::SYMBOL_WIDTH][u32:8],
     decoded_literals_len: u4,
@@ -248,6 +249,7 @@ pub proc HuffmanDecoder {
                 fsm: FSM::DECODE,
                 data_len: state.data_len + data.data_len as uN[BUFF_W_LOG2],
                 data: state.data | (data.data as uN[BUFF_W] << state.data_len),
+                data_last: data.last,
                 code_length: extend_buff_array(state.code_length, state.data_len as u32, data.code_length),
                 ..state
             }
@@ -269,7 +271,8 @@ pub proc HuffmanDecoder {
             let literals = for (i, literals):(u32, uN[common::SYMBOL_WIDTH][SYMBOLS_N]) in range(u32:0, SYMBOLS_N){
                 if (
                     state.symbol_valid[i] &&
-                    (data_masked == state.symbol_code[i])
+                    (data_masked == state.symbol_code[i]) &&
+                    (state.code_length[0] == state.symbol_code_len[i] as CodeLen)
                 ) {
                     update(literals, i, i as uN[common::SYMBOL_WIDTH])
                 } else {
@@ -324,8 +327,13 @@ pub proc HuffmanDecoder {
 
         let state = if do_send_literals {
             let fsm = if state.data_len == uN[BUFF_W_LOG2]:0 {
-                trace_fmt!("{} -> IDLE", state.fsm);
-                FSM::IDLE
+                if state.data_last {
+                    trace_fmt!("{} -> IDLE", state.fsm);
+                    FSM::IDLE
+                } else {
+                    trace_fmt!("{} -> READ_DATA", state.fsm);
+                    FSM::READ_DATA
+                }
             } else {
                 trace_fmt!("{} -> DECODE", state.fsm);
                 FSM::DECODE
@@ -574,6 +582,7 @@ const TEST_DATA = huffman_data_preprocessor::HuffmanDataPreprocessorData[3]:[
     huffman_data_preprocessor::HuffmanDataPreprocessorData {
         data: huffman_data_preprocessor::Data:0x32a0b682,
         data_len: CodeLen:30,
+        last: true,
         code_length: [
             CodeLen:3, CodeLen:1, CodeLen:6, CodeLen:6, CodeLen:4, CodeLen:3, CodeLen:3, CodeLen:1,
             CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3, CodeLen:1,
@@ -592,6 +601,7 @@ const TEST_DATA = huffman_data_preprocessor::HuffmanDataPreprocessorData[3]:[
     huffman_data_preprocessor::HuffmanDataPreprocessorData {
         data: huffman_data_preprocessor::Data:0x32a0b682,
         data_len: CodeLen:30,
+        last: true,
         code_length: [
             CodeLen:3, CodeLen:1, CodeLen:6, CodeLen:6, CodeLen:4, CodeLen:3, CodeLen:3, CodeLen:1,
             CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3, CodeLen:1,
@@ -610,6 +620,7 @@ const TEST_DATA = huffman_data_preprocessor::HuffmanDataPreprocessorData[3]:[
     huffman_data_preprocessor::HuffmanDataPreprocessorData {
         data: huffman_data_preprocessor::Data:0b1_010_100_110_1_010_100_100_001000_1_010_110_1_010_100000_010_101000_1_1_110_010_1,
         data_len: CodeLen:61,
+        last: true,
         code_length: [
             CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:1,
             CodeLen:1, CodeLen:6, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3,

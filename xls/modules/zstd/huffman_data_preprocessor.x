@@ -34,7 +34,6 @@ enum HuffmanDataPreprocessorFSM: u2 {
     IDLE = 0,
     AWAITING_CONFIG = 1,
     READ_DATA = 2,
-    PROCESSING = 3,
 }
 
 pub struct HuffmanDataPreprocessorStart {
@@ -45,13 +44,20 @@ pub struct HuffmanDataPreprocessorData {
     data: Data,
     data_len: CodeLen,
     code_length: CodeLen[H_DATA_W],
+    last: bool,
 }
 
 struct HuffmanDataPreprocessorState {
     fsm: HuffmanDataPreprocessorFSM,
     lookahead_config: Config,
-    data: Data,
-    data_len: CodeLen,
+    data_in: Data,
+    data_in_len: CodeLen,
+    data_in_last: bool,
+    data_in_ready: bool,
+    data_out: Data,
+    data_out_len: CodeLen,
+    data_out_last: bool,
+    remove_prefix: bool,
 }
 
 pub proc HuffmanDataPreprocessor {
@@ -115,50 +121,70 @@ pub proc HuffmanDataPreprocessor {
             State {
                 fsm: FSM::READ_DATA,
                 lookahead_config: config,
+                remove_prefix: true,
                 ..state
             }
         } else { state };
 
         // receive data
-        let do_read_data = state.fsm == FSM::READ_DATA;
+        let do_read_data = state.fsm == FSM::READ_DATA && (state.data_in_len < H_DATA_W as CodeLen);
         let (tok, data, data_valid) = recv_if_non_blocking(tok, data_r, do_read_data, zero!<DataIn>());
 
         // process data
         let state = if data_valid {
-            trace_fmt!("Received data {:#x}", data);
-            let fsm = if data.last {
-                FSM::PROCESSING
-            } else {
-                state.fsm
-            };
+            trace_fmt!("Received data {:#b}", data);
+            trace_fmt!("Data in state {:#b} (length {})", state.data_in, state.data_in_len);
             State {
-                fsm: fsm,
-                data: state.data | ((rev(data.data) as Data) << state.data_len),
-                data_len: state.data_len + CodeLen:8,
+                data_in: state.data_in | ((rev(data.data) as Data) << state.data_in_len),
+                data_in_len: state.data_in_len + CodeLen:8,
+                data_in_last: data.last,
+                data_in_ready: data.last || ((state.data_in_len + CodeLen:8) == (H_DATA_W as CodeLen)),
                 ..state
             }
         } else { state };
 
-        let processed_data = if state.fsm == FSM::PROCESSING {
-            let data_bits = state.data;
-            let data_bits_len = state.data_len;
+        let state = if state.data_in_ready && state.data_out_len == CodeLen:0 {
+            State {
+                data_out: state.data_in,
+                data_out_len: state.data_in_len,
+                data_out_last: state.data_in_last,
+                data_in: uN[H_DATA_W]:0,
+                data_in_len: CodeLen:0,
+                data_in_last: false,
+                data_in_ready: false,
+                ..state
+            }
+        } else {
+            state
+        };
+
+        let do_process_data = state.data_out_len > CodeLen:0;
+
+        let processed_data = if do_process_data {
+            let data_bits = state.data_out;
+            let data_bits_len = state.data_out_len;
+            trace_fmt!("Processing data {:#b} (length {})", state.data_out, state.data_out_len);
 
             // remove prefix
-            let (prefix_len, _) = for (i, (prefix_len, stop)): (u32, (u4, bool)) in range(u32:0, MAX_PREFIX_LEN as u32) {
-                if stop || (data_bits >> i) as u1 {
-                    (
-                        prefix_len,
-                        true,
-                    )
-                } else {
-                    (
-                        prefix_len + u4:1,
-                        stop,
-                    )
-                }
-            }((u4:1, false));
-
-            trace_fmt!("Prefix len: {}", prefix_len);
+            let prefix_len = if state.remove_prefix {
+                let (prefix_len, _) = for (i, (prefix_len, stop)): (u32, (u4, bool)) in range(u32:0, MAX_PREFIX_LEN as u32) {
+                    if stop || (data_bits >> i) as u1 {
+                        (
+                            prefix_len,
+                            true,
+                        )
+                    } else {
+                        (
+                            prefix_len + u4:1,
+                            stop,
+                        )
+                    }
+                }((u4:1, false));
+                trace_fmt!("Prefix len: {}", prefix_len);
+                prefix_len
+            } else {
+                u4:0
+            };
 
             let data_bits = data_bits >> prefix_len;
             let data_bits_len = data_bits_len - prefix_len as CodeLen;
@@ -215,18 +241,23 @@ pub proc HuffmanDataPreprocessor {
             PreprocessedData {
                 data: data_bits,
                 data_len: data_bits_len,
+                last: state.data_out_last,
                 code_length: code_lengths,
             }
 
         } else { zero!<PreprocessedData>() };
 
-        let tok = send_if(tok, preprocessed_data_s, state.fsm == FSM::PROCESSING, processed_data);
+        let tok = send_if(tok, preprocessed_data_s, do_process_data, processed_data);
+        if do_process_data {
+            trace_fmt!("Sent preprocessed data {:#x} (length {})", processed_data.data, processed_data.data_len);
+        } else {};
 
-        let state = if state.fsm == FSM::PROCESSING {
+        let state = if do_process_data {
             State {
-                fsm: FSM::IDLE,
-                lookahead_config: state.lookahead_config,
-                ..zero!<State>()
+                data_out: uN[H_DATA_W]:0,
+                data_out_len: CodeLen:0,
+                remove_prefix: processed_data.last,
+                ..state
             }
         } else { state };
 
@@ -311,6 +342,7 @@ const TEST_PREPROCESSED_DATA = HuffmanDataPreprocessorData[2]:[
     HuffmanDataPreprocessorData {
         data: Data:0b110_010_1_010000_010_110_1_1_010000_010,
         data_len: CodeLen:30,
+        last: true,
         code_length: [
             CodeLen:3, CodeLen:1, CodeLen:6, CodeLen:6, CodeLen:4, CodeLen:3, CodeLen:3, CodeLen:1,
             CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3, CodeLen:1,
@@ -329,13 +361,14 @@ const TEST_PREPROCESSED_DATA = HuffmanDataPreprocessorData[2]:[
     HuffmanDataPreprocessorData {
         data: Data:0b1_010_100_110_1_010_100_100_001000_1_010_110_1_010_100000_010_101000_1_1_110_010_1,
         data_len: CodeLen:61,
+        last: true,
         code_length: [
             CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:1,
-            CodeLen:1, CodeLen:6, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3,
-            CodeLen:1, CodeLen:9, CodeLen:6, CodeLen:6, CodeLen:6, CodeLen:3, CodeLen:3, CodeLen:1,
+            CodeLen:1, CodeLen:4, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3,
+            CodeLen:1, CodeLen:6, CodeLen:6, CodeLen:6, CodeLen:4, CodeLen:3, CodeLen:3, CodeLen:1,
             CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3,
-            CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:6, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:6,
-            CodeLen:6, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:3,
+            CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:4, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:6,
+            CodeLen:4, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:3, CodeLen:1, CodeLen:3,
             CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:1, CodeLen:3, CodeLen:3,
             CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:3, CodeLen:1, CodeLen:0, CodeLen:0, CodeLen:0,
             CodeLen:0, CodeLen:0, CodeLen:0, CodeLen:0, CodeLen:0, CodeLen:0, CodeLen:0, CodeLen:0,
