@@ -37,11 +37,14 @@ pub type HuffmanLiteralsDecoderReq = ctrl::HuffmanControlAndSequenceCtrl;
 pub type HuffmanLiteralsDecoderResp = ctrl::HuffmanControlAndSequenceResp;
 pub type HuffmanLiteralsDecoderStatus = ctrl::HuffmanControlAndSequenceStatus;
 
+pub const RAM_SIZE: u32 = prescan::RAM_SIZE;
 pub const WEIGHTS_ADDR_WIDTH: u32 = prescan::RAM_ADDR_WIDTH;
 pub const WEIGHTS_DATA_WIDTH: u32 = prescan::RAM_ACCESS_WIDTH;
+pub const WEIGHTS_PARTITION_WORD_SIZE: u32 = WEIGHTS_DATA_WIDTH;
 pub const WEIGHTS_NUM_PARTITIONS: u32 = u32:1;
 pub const PRESCAN_ADDR_WIDTH: u32 = prescan::RAM_ADDR_WIDTH;
 pub const PRESCAN_DATA_WIDTH: u32 = prescan::WeightPreScanMetaDataSize();
+pub const PRESCAN_PARTITION_WORD_SIZE: u32 = PRESCAN_DATA_WIDTH;
 pub const PRESCAN_NUM_PARTITIONS: u32 = u32:1;
 
 pub proc HuffmanLiteralsDecoder<
@@ -371,7 +374,7 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // Literals #0
     // Length: 6 bytes
     // New config, 1 Stream
-    // HTD Header: 0x85 (Direct representation, HTD length: 3 + HTD_header (1 byte))
+    // HTD Header: 0x84 (Direct representation, HTD length: 3)
     // Huffman Tree Description
     // code         symbol  length  weight
     // N/A          0x03    0       0
@@ -382,7 +385,7 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // 0b1          0x00    1       4
     // 0b00001      padding
 
-    TestAxiRamWrReq { addr: TestAxiRamAddr:0x0, data: (u16:0b00001_1_01_0000_0001 ++ u24:0x010234 ++ u8:0x85) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
+    TestAxiRamWrReq { addr: TestAxiRamAddr:0x0, data: (u16:0b00001_1_01_0000_0001 ++ u24:0x100234 ++ u8:0x84) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
     //                           AXI addr: 0x0                                  ^               ^          ^
     //                                                       Huffman-coded stream             HTD HTD Header
 
@@ -397,7 +400,7 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // Literals #2
     // Length: 18 bytes
     // New config, 4 Streams
-    // HTD Header: 0x85 (Direct representation, HTD length: 3 + HTD_header (1 byte))
+    // HTD Header: 0x84 (Direct representation, HTD length: 3 + HTD_header (1 byte))
     // Jump Table: 0x0002_0002_0002 (Stream1: 2 bytes; Stream2: 2 bytes; Stream3: 2 bytes)
     // Huffman Tree Description
     // code         symbol  length  weight
@@ -408,7 +411,7 @@ const TEST_MEMORY: TestAxiRamWrReq[7] = [
     // 0b01         0x01    2       3
     // 0b1          0x00    1       4
     // 0b00001      padding
-    TestAxiRamWrReq { addr: TestAxiRamAddr:0x40, data: (u32:0x0002_0002 ++ u24:0x010234 ++ u8:0x85) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
+    TestAxiRamWrReq { addr: TestAxiRamAddr:0x40, data: (u32:0x0002_0002 ++ u24:0x100234 ++ u8:0x84) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
     //                           AXI addr: 0x200                      ^               ^          ^
     //                                                       Jump table             HTD HTD Header
     TestAxiRamWrReq { addr: TestAxiRamAddr:0x41, data: (u16:0b00001_1_01_0000_0001 ++ u16:0b00001_1_01_0000_0001 ++ u16:0b00001_1_01_0000_0001 ++ u16:0x0002) as TestAxiRamData, mask: TestAxiRamMask:0xFF },
