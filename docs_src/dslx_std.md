@@ -96,14 +96,14 @@ taking the absolute value of each element in an input array:
 import std;
 
 fn main(x: s3[3]) -> s3[3] {
-  let y: s3[3] = map(x, std::abs);
-  y
+    let y: s3[3] = map(x, std::abs);
+    y
 }
 
 #[test]
 fn main_test() {
-  let got: s3[3] = main(s3[3]:[-1, 1, 0]);
-  assert_eq(s3[3]:[1, 1, 0], got)
+    let got: s3[3] = main(s3[3]:[-1, 1, 0]);
+    assert_eq(s3[3]:[1, 1, 0], got)
 }
 ```
 
@@ -146,11 +146,11 @@ fn test_zip_array_size_2() {
 ```dslx
 #[test]
 fn test_array_rev() {
-  assert_eq(array_rev(u8[1]:[42]), u8[1]:[42]);
-  assert_eq(array_rev(u3[2]:[1, 2]), u3[2]:[2, 1]);
-  assert_eq(array_rev(u3[3]:[2, 3, 4]), u3[3]:[4, 3, 2]);
-  assert_eq(array_rev(u4[3]:[0xf, 0, 0]), u4[3]:[0, 0, 0xf]);
-  assert_eq(array_rev(u3[0]:[]), u3[0]:[]);
+    assert_eq(array_rev(u8[1]:[42]), u8[1]:[42]);
+    assert_eq(array_rev(u3[2]:[1, 2]), u3[2]:[2, 1]);
+    assert_eq(array_rev(u3[3]:[2, 3, 4]), u3[3]:[4, 3, 2]);
+    assert_eq(array_rev(u4[3]:[0xf, 0, 0]), u4[3]:[0, 0, 0xf]);
+    assert_eq(array_rev(u3[0]:[]), u3[0]:[]);
 }
 ```
 
@@ -164,8 +164,8 @@ Note that this can only be applied to compile-time-constant expressions.
 ```dslx
 #[test]
 fn test_const_assert() {
-  const N = u32:42;
-  const_assert!(N >= u32:1<<5);
+    const N = u32:42;
+    const_assert!(N >= u32:1 << 5);
 }
 ```
 
@@ -175,9 +175,9 @@ cannot suppress them by putting them in a conditional:
 
 ```dslx-snippet
 fn f() {
-  if false {
-    const_assert!(false);  // <-- still fails even inside the "if false"
-  }
+    if false {
+        const_assert!(false);  // <-- still fails even inside the "if false"
+    }
 }
 ```
 
@@ -186,12 +186,15 @@ fn f() {
 DSLX provides the common "count leading zeroes" and "count trailing zeroes"
 functions:
 
-```dslx-snippet
-  let x0 = u32:0x0FFFFFF8;
-  let x1 = clz(x0);
-  let x2 = ctz(x0);
-  assert_eq(u32:4, x1);
-  assert_eq(u32:3, x2)
+```dslx
+#[test]
+fn test_clz_ctz() {
+    let x0 = u32:0x0FFFFFF8;
+    let x1 = clz(x0);
+    let x2 = ctz(x0);
+    assert_eq(u32:4, x1);
+    assert_eq(u32:3, x2)
+}
 ```
 
 ### `decode`
@@ -326,10 +329,10 @@ only its type is used to determine the result type of the sign extension.
 ```dslx
 #[test]
 fn test_signex() {
-  let x = u8:0xff;
-  let s: s32 = signex(x, s32:0);
-  let u: u32 = signex(x, u32:0);
-  assert_eq(s as u32, u)
+    let x = u8:0xff;
+    let s: s32 = signex(x, s32:0);
+    let u: u32 = signex(x, u32:0);
+    assert_eq(s as u32, u)
 }
 ```
 
@@ -354,24 +357,20 @@ result, and so on.
 
 ```dslx
 // (Dummy) wrapper around reverse.
-fn wrapper<N: u32>(x: bits[N]) -> bits[N] {
-  rev(x)
-}
+fn wrapper<N: u32>(x: bits[N]) -> bits[N] { rev(x) }
 
 // Target for IR conversion that works on u3s.
-fn main(x: u3) -> u3 {
-  wrapper(x)
-}
+fn main(x: u3) -> u3 { wrapper(x) }
 
 // Reverse examples.
 #[test]
 fn test_reverse() {
-  assert_eq(u3:0b100, main(u3:0b001));
-  assert_eq(u3:0b001, main(u3:0b100));
-  assert_eq(bits[0]:0, rev(bits[0]:0));
-  assert_eq(u1:1, rev(u1:1));
-  assert_eq(u2:0b10, rev(u2:0b01));
-  assert_eq(u2:0b00, rev(u2:0b00));
+    assert_eq(u3:0b100, main(u3:0b001));
+    assert_eq(u3:0b001, main(u3:0b100));
+    assert_eq(bits[0]:0, rev(bits[0]:0));
+    assert_eq(u1:1, rev(u1:1));
+    assert_eq(u2:0b10, rev(u2:0b01));
+    assert_eq(u2:0b00, rev(u2:0b00));
 }
 ```
 
@@ -404,9 +403,9 @@ trivial (0 bit wide) inputs:
 ```dslx
 #[test]
 fn test_trivial_reduce() {
-  assert_eq(and_reduce(bits[0]:0), true);
-  assert_eq(or_reduce(bits[0]:0), false);
-  assert_eq(xor_reduce(bits[0]:0), false);
+    assert_eq(and_reduce(bits[0]:0), true);
+    assert_eq(or_reduce(bits[0]:0), false);
+    assert_eq(xor_reduce(bits[0]:0), false);
 }
 ```
 
@@ -424,9 +423,9 @@ always made.
 ```dslx
 #[test]
 fn test_update() {
-  assert_eq(update([u8:1, u8:2, u8:3], u2:2, u8:42), [u8:1, u8:2, u8:42]);
-  assert_eq(update([[u8:1, u8:2], [u8:3, u8:4]],
-                   (u1:1, u1:0), u8:42), [[u8:1, u8:2], [u8:42, u8:4]]);
+    assert_eq(update([u8:1, u8:2, u8:3], u2:2, u8:42), [u8:1, u8:2, u8:42]);
+    assert_eq(
+        update([[u8:1, u8:2], [u8:3, u8:4]], (u1:1, u1:0), u8:42), [[u8:1, u8:2], [u8:42, u8:4]]);
 }
 ```
 
@@ -438,16 +437,14 @@ future). Here is an example of a `divceil` implementation with its corresponding
 tests:
 
 ```dslx
-fn divceil(x: u32, y: u32) -> u32 {
-  (x-u32:1) / y + u32:1
-}
+fn divceil(x: u32, y: u32) -> u32 { (x - u32:1) / y + u32:1 }
 
 #[test]
 fn test_divceil() {
-  assert_eq(u32:3, divceil(u32:5, u32:2));
-  assert_eq(u32:2, divceil(u32:4, u32:2));
-  assert_eq(u32:2, divceil(u32:3, u32:2));
-  assert_eq(u32:1, divceil(u32:2, u32:2));
+    assert_eq(u32:3, divceil(u32:5, u32:2));
+    assert_eq(u32:2, divceil(u32:4, u32:2));
+    assert_eq(u32:2, divceil(u32:3, u32:2));
+    assert_eq(u32:1, divceil(u32:2, u32:2));
 }
 ```
 
@@ -460,21 +457,18 @@ DSLX has a macro for easy creation of zero values, even from aggregate types.
 Invoke the macro with the type parameter as follows:
 
 ```dslx
-struct MyPoint {
-  x: u32,
-  y: u32,
-}
+struct MyPoint { x: u32, y: u32 }
 
 enum MyEnum : u2 {
-  ZERO = u2:0,
-  ONE = u2:1,
+    ZERO = u2:0,
+    ONE = u2:1,
 }
 
 #[test]
 fn test_zero_macro() {
-  assert_eq(zero!<u32>(), u32:0);
-  assert_eq(zero!<MyPoint>(), MyPoint{x: u32:0, y: u32:0});
-  assert_eq(zero!<MyEnum>(), MyEnum::ZERO);
+    assert_eq(zero!<u32>(), u32:0);
+    assert_eq(zero!<MyPoint>(), MyPoint { x: u32:0, y: u32:0 });
+    assert_eq(zero!<MyEnum>(), MyEnum::ZERO);
 }
 ```
 
@@ -483,16 +477,9 @@ initialize a subset of fields to zero. In the example below all fields except
 `foo` are initialized to zero in the struct returned by `f`.
 
 ```dslx
-struct MyStruct {
-  foo: u1,
-  bar: u2,
-  baz: u3,
-  bat: u4,
-}
+struct MyStruct { foo: u1, bar: u2, baz: u3, bat: u4 }
 
-fn f() -> MyStruct {
-  MyStruct{foo: u1:1, ..zero!<MyStruct>()}
-}
+fn f() -> MyStruct { MyStruct { foo: u1:1, ..zero!<MyStruct>() } }
 ```
 
 ### `all_ones!<T>`
@@ -501,22 +488,19 @@ Similar to `zero!<T>`, DSLX has a macro for easy creation of all-ones values,
 even from aggregate types. Invoke the macro with the type parameter as follows:
 
 ```dslx
-struct MyPoint {
-  x: u32,
-  y: u32,
-}
+struct MyPoint { x: u32, y: u32 }
 
 enum MyEnum : u2 {
-  ZERO = u2:0,
-  ONE = u2:1,
-  THREE = u2:3,
+    ZERO = u2:0,
+    ONE = u2:1,
+    THREE = u2:3,
 }
 
 #[test]
 fn test_all_ones_macro() {
-  assert_eq(all_ones!<u32>(), u32:0xFFFFFFFF);
-  assert_eq(all_ones!<MyPoint>(), MyPoint{x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF});
-  assert_eq(all_ones!<MyEnum>(), MyEnum::THREE);
+    assert_eq(all_ones!<u32>(), u32:0xFFFFFFFF);
+    assert_eq(all_ones!<MyPoint>(), MyPoint { x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF });
+    assert_eq(all_ones!<MyEnum>(), MyEnum::THREE);
 }
 ```
 
@@ -525,16 +509,9 @@ initialize a subset of fields to zero. In the example below all fields except
 `foo` are initialized to zero in the struct returned by `f`.
 
 ```dslx
-struct MyStruct {
-  foo: u1,
-  bar: u2,
-  baz: u3,
-  bat: u4,
-}
+struct MyStruct { foo: u1, bar: u2, baz: u3, bat: u4 }
 
-fn f() -> MyStruct {
-  MyStruct{foo: u1:1, ..all_ones!<MyStruct>()}
-}
+fn f() -> MyStruct { MyStruct { foo: u1:1, ..all_ones!<MyStruct>() } }
 ```
 
 ### `trace_fmt!`
@@ -549,16 +526,16 @@ dumping values to stdout. For example:
 // bazel run -c opt //xls/dslx:interpreter_main  /path/to/dslx/file.x -- --alsologtostderr
 
 fn shifty(x: u8, y: u3) -> u8 {
-  trace_fmt!("x: {:x} y: {}", x, y);
-  // Note: y looks different as a negative number when the high bit is set.
-  trace_fmt!("y as s8: {}", y as s2);
-  x << y
+    trace_fmt!("x: {:x} y: {}", x, y);
+    // Note: y looks different as a negative number when the high bit is set.
+    trace_fmt!("y as s8: {}", y as s2);
+    x << y
 }
 
 #[test]
 fn test_shifty() {
-  assert_eq(shifty(u8:0x42, u3:4), u8:0x20);
-  assert_eq(shifty(u8:0x42, u3:7), u8:0);
+    assert_eq(shifty(u8:0x42, u3:4), u8:0x20);
+    assert_eq(shifty(u8:0x42, u3:7), u8:0);
 }
 ```
 
@@ -638,8 +615,8 @@ the value `42` as a precondition:
 
 ```dslx
 fn main(x: u32) -> u32 {
-  assert!(x != u32:42, "x_never_forty_two");
-  x - u32:42
+    assert!(x != u32:42, "x_never_forty_two");
+    x - u32:42
 }
 ```
 
@@ -648,20 +625,20 @@ fn main(x: u32) -> u32 {
 for `main`):
 
 ```dslx
-enum EnumType: u2 {
-  FIRST = 0,
-  SECOND = 1,
+enum EnumType : u2 {
+    FIRST = 0,
+    SECOND = 1,
 }
 
 fn main(x: EnumType) -> u32 {
-  match x {
-    EnumType::FIRST => u32:0,
-    EnumType::SECOND => u32:1,
-    // This should not be reachable.
-    // But, if we synthesize hardware, under this condition the function is
-    // well-defined to give back zero.
-    _ => fail!("unknown_EnumType", u32:0),
-  }
+    match x {
+        EnumType::FIRST => u32:0,
+        EnumType::SECOND => u32:1,
+        // This should not be reachable.
+        // But, if we synthesize hardware, under this condition the function is
+        // well-defined to give back zero.
+        _ => fail!("unknown_EnumType", u32:0),
+    }
 }
 ```
 
@@ -891,8 +868,8 @@ import std;
 
 #[test]
 fn convert_to_bits_test() {
-  assert_eq(u3:0b001, std::convert_to_bits_msb0(bool[3]:[false, false, true]));
-  assert_eq(u3:0b100, std::convert_to_bits_msb0(bool[3]:[true, false, false]));
+    assert_eq(u3:0b001, std::convert_to_bits_msb0(bool[3]:[false, false, true]));
+    assert_eq(u3:0b100, std::convert_to_bits_msb0(bool[3]:[true, false, false]));
 }
 ```
 

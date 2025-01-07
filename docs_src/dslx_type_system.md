@@ -38,9 +38,7 @@ fn main() -> u8 {
 }
 
 #[test]
-fn test_main() {
-    assert_eq(main(), u8:42)
-}
+fn test_main() { assert_eq(main(), u8:42) }
 ```
 
 This allows us to write more generic code as library-style functions, which
@@ -85,6 +83,7 @@ fn p<N: u32>() -> bits[N] {
     const_assert!(N == u32:42);
     u42:64
 }
+
 fn main() -> u42 {
     p<u32:42>()  // this is fine
 }
@@ -109,13 +108,9 @@ The three components are performed in that order.
 In this example:
 
 ```dslx
-fn p<A: u32, B: u32>() -> (bits[A], bits[B]) {
-    (bits[A]:42, bits[B]:64)
-}
+fn p<A: u32, B: u32>() -> (bits[A], bits[B]) { (bits[A]:42, bits[B]:64) }
 
-fn main() -> (u8, u16) {
-    p<u32:8, u32:16>()
-}
+fn main() -> (u8, u16) { p<u32:8, u32:16>() }
 ```
 
 The caller `main` explicitly binds the parametrics `A` and `B` by supplying
@@ -126,17 +121,12 @@ arguments in the angle brackets.
 In this example:
 
 ```dslx
-fn p<A: u32>(x: bits[A]) -> bits[A] {
-    x + bits[A]:1
-}
-fn main() -> u13 {
-    p(u13:42)
-}
+fn p<A: u32>(x: bits[A]) -> bits[A] { x + bits[A]:1 }
+
+fn main() -> u13 { p(u13:42) }
 
 #[test]
-fn test_main() {
-  assert_eq(main(), u13:43)
-}
+fn test_main() { assert_eq(main(), u13:43) }
 ```
 
 `main` is implicitly saying what `A` must be by passing a `u13` -- we know that
@@ -158,18 +148,12 @@ fn main() -> u13 {
 In this example:
 
 ```dslx
-fn p<A: u32, B: u32 = {A+A}>(x: bits[A]) -> bits[B] {
-    x as bits[B]
-}
+fn p<A: u32, B: u32 = {A + A}>(x: bits[A]) -> bits[B] { x as bits[B] }
 
-fn main() -> u32 {
-    p(u16:42)
-}
+fn main() -> u32 { p(u16:42) }
 
 #[test]
-fn test_main() {
-    assert_eq(main(), u32:42);
-}
+fn test_main() { assert_eq(main(), u32:42); }
 ```
 
 `main` is implicitly saying what `A` must be by passing a `u16`; however, `B` is
@@ -188,16 +172,12 @@ One consequence of the ordering defined is that earlier parametric bindings can
 be used to define the types of later parametric bindings; e.g.
 
 ```dslx
-fn p<A: u32, B: bits[A] = {bits[A]:0}>() -> bits[A] {
-    B
-}
+fn p<A: u32, B: bits[A] = {bits[A]:0}>() -> bits[A] { B }
 
 fn main() -> u8 { p<u32:8>() }
 
 #[test]
-fn test_main() {
-    assert_eq(main(), u8:0)
-}
+fn test_main() { assert_eq(main(), u8:0) }
 ```
 
 Note that `main` uses an explicit parametric to define `A` as `8`. Then the

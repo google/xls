@@ -90,6 +90,7 @@ py_test(
         "//docs_src:dslx_documentation_files",
         "//docs_src/tutorials:all_files",
         "//xls/dslx:interpreter_main",
+        "//xls/dslx:dslx_fmt",
         "//xls/dslx/tests:mod_imported_file",
     ],
     python_version = "PY3",

@@ -94,27 +94,25 @@ and writes the sum to a third:
 
 ```dslx
 pub proc adder {
-  A: chan<u32> in;
-  B: chan<u32> in;
-  C: chan<u32> out;
+    A: chan<u32> in;
+    B: chan<u32> in;
+    C: chan<u32> out;
 
-  // The initial value of the proc's state (empty in this case).
-  init { () }
+    // The interface used by anything that spawns this proc, which will need to
+    // configure its inputs & outputs.
+    config(A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) { (A, B, C) }
 
-  // The interface used by anything that spawns this proc, which will need to
-  // configure its inputs & outputs.
-  config (A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) {
-    (A, B, C)
-  }
+    // The initial value of the proc's state (empty in this case).
+    init { () }
 
-  // The description of how this proc actually acts when running.
-  next(st: ()) {
-    let (tok_A, data_A) = recv(join(), A);
-    let (tok_B, data_B) = recv(join(), B);
-    let sum = data_A + data_B;
-    let tok = join(tok_A, tok_B);
-    send(tok, C, sum);
-  }
+    // The description of how this proc actually acts when running.
+    next(st: ()) {
+        let (tok_A, data_A) = recv(join(), A);
+        let (tok_B, data_B) = recv(join(), B);
+        let sum = data_A + data_B;
+        let tok = join(tok_A, tok_B);
+        send(tok, C, sum);
+    }
 }
 ```
 
@@ -146,26 +144,20 @@ this as follows:
 
 ```dslx
 pub proc fallback {
-  A: chan<u32> in;
-  B: chan<u32> in;
-  C: chan<u32> out;
+    A: chan<u32> in;
+    B: chan<u32> in;
+    C: chan<u32> out;
 
-  init { () }
+    config(A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) { (A, B, C) }
 
-  config (A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) {
-    (A, B, C)
-  }
+    init { () }
 
-  next(st: ()) {
-    let (tok, x) = recv(join(), A);
-    let (tok, y) = recv_if(tok, B, x == u32:0, u32:0);
-    let val = if x != u32:0 {
-      x
-    } else {
-      y
-    };
-    send(tok, C, val);
-  }
+    next(st: ()) {
+        let (tok, x) = recv(join(), A);
+        let (tok, y) = recv_if(tok, B, x == u32:0, u32:0);
+        let val = if x != u32:0 { x } else { y };
+        send(tok, C, val);
+    }
 }
 ```
 
@@ -175,25 +167,19 @@ receive will only trigger if that branch is taken.
 
 ```dslx
 pub proc fallback {
-  A: chan<u32> in;
-  B: chan<u32> in;
-  C: chan<u32> out;
+    A: chan<u32> in;
+    B: chan<u32> in;
+    C: chan<u32> out;
 
-  init { () }
+    config(A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) { (A, B, C) }
 
-  config (A: chan<u32> in, B: chan<u32> in, C: chan<u32> out) {
-    (A, B, C)
-  }
+    init { () }
 
-  next(st: ()) {
-    let (tok, x) = recv(join(), A);
-    let (tok, val) = if x != u32:0 {
-      (tok, x)
-    } else {
-      recv(tok, B)
-    };
-    send(tok, C, val);
-  }
+    next(st: ()) {
+        let (tok, x) = recv(join(), A);
+        let (tok, val) = if x != u32:0 { (tok, x) } else { recv(tok, B) };
+        send(tok, C, val);
+    }
 }
 ```
 
@@ -219,29 +205,23 @@ the result would overflow), and returns the updated accumulator value:
 
 ```dslx
 pub proc saturating_accumulator {
-  ch_in: chan<u32> in;
-  result: chan<u32> out;
+    ch_in: chan<u32> in;
+    result: chan<u32> out;
 
-  init { u32:0 }
+    config(ch_in: chan<u32> in, result: chan<u32> out) { (ch_in, result) }
 
-  config (ch_in: chan<u32> in, result: chan<u32> out) {
-    (ch_in, result)
-  }
+    init { u32:0 }
 
-  next(accumulated: u32) {
-    let (tok, data) = recv(join(), ch_in);
-    let sum = (data as u33) + (accumulated as u33);
-    let new_val = if sum > all_ones!<u32>() as u33 {
-      all_ones!<u32>()
-    } else {
-      sum as u32
-    };
-    send(tok, result, new_val);
+    next(accumulated: u32) {
+        let (tok, data) = recv(join(), ch_in);
+        let sum = (data as u33) + (accumulated as u33);
+        let new_val = if sum > all_ones!<u32>() as u33 { all_ones!<u32>() } else { sum as u32 };
+        send(tok, result, new_val);
 
-    // The last expression is the value the next activation will receive as its
-    // state.
-    new_val
-  }
+        // The last expression is the value the next activation will receive as its
+        // state.
+        new_val
+    }
 }
 ```
 
@@ -279,28 +259,26 @@ sends the clamped difference:
 
 ```dslx
 pub proc clamped_diff {
-  ch_in: chan<s32> in;
-  result: chan<s32> out;
+    ch_in: chan<s32> in;
+    result: chan<s32> out;
 
-  init { s32:0 }
+    config(ch_in: chan<s32> in, result: chan<s32> out) { (ch_in, result) }
 
-  config (ch_in: chan<s32> in, result: chan<s32> out) {
-    (ch_in, result)
-  }
+    init { s32:0 }
 
-  next(prev: s32) {
-    let (tok, val) = recv(join(), ch_in);
-    let diff = (val as s33) - (prev as s33);
-    let clamped_diff = if diff > s33:5 {
-      s32:5
-    } else if diff < s33:-5 {
-      s32:-5
-    } else {
-      diff as s32
-    };
-    send(tok, result, clamped_diff);
-    val
-  }
+    next(prev: s32) {
+        let (tok, val) = recv(join(), ch_in);
+        let diff = (val as s33) - (prev as s33);
+        let clamped_diff = if diff > s33:5 {
+            s32:5
+        } else if diff < s33:-5 {
+            s32:-5
+        } else {
+            diff as s32
+        };
+        send(tok, result, clamped_diff);
+        val
+    }
 }
 ```
 
@@ -391,7 +369,7 @@ pub proc serialize {
 
   init { join() }
 
-  config (ch_in: chan<complex_struct> in, result: chan<u32> out) {
+  config(ch_in: chan<complex_struct> in, result: chan<u32> out) {
     (ch_in, result)
   }
 
@@ -448,32 +426,25 @@ the lower-priority data (from `data1_in`) only when there's no higher-priority
 message to send:
 
 ```dslx
-struct Message {
-  value1: u32,
-  value2: u64,
-  value3: bool
-}
+struct Message { value1: u32, value2: u64, value3: bool }
 
 pub proc priority_arbiter {
-  data0_in: chan<Message> in;
-  data1_in: chan<Message> in;
-  result: chan<(u1, Message)> out;
+    data0_in: chan<Message> in;
+    data1_in: chan<Message> in;
+    result: chan<(u1, Message)> out;
 
-  init { () }
+    config(data0_in: chan<Message> in, data1_in: chan<Message> in, result: chan<(u1, Message)> out) {
+        (data0_in, data1_in, result)
+    }
 
-  config (data0_in: chan<Message> in, data1_in: chan<Message> in, result: chan<(u1, Message)> out) {
-    (data0_in, data1_in, result)
-  }
+    init { () }
 
-  next (st: ()) {
-    let (tok, data0_msg, data0_valid) = recv_non_blocking(join(), data0_in, zero!<Message>());
-    let (tok, data1_msg, data1_valid) = recv_if_non_blocking(tok, data1_in, !data0_valid, zero!<Message>());
-    let (source, to_send) = if (data0_valid) {
-      (u1:0, data0_msg)
-    } else {
-      (u1:1, data1_msg)
-    };
-    send_if(tok, result, data0_valid || data1_valid, (source, to_send));
-  }
+    next(st: ()) {
+        let (tok, data0_msg, data0_valid) = recv_non_blocking(join(), data0_in, zero!<Message>());
+        let (tok, data1_msg, data1_valid) =
+            recv_if_non_blocking(tok, data1_in, !data0_valid, zero!<Message>());
+        let (source, to_send) = if data0_valid { (u1:0, data0_msg) } else { (u1:1, data1_msg) };
+        send_if(tok, result, data0_valid || data1_valid, (source, to_send));
+    }
 }
 ```

@@ -39,9 +39,7 @@ as well as a implementation that is functionally equivalent. Here, there is one
 mapped to the return of the DSLX function:
 
 ```dslx
-fn foo(a: u32) -> u32 {
-  a + u32:1
-}
+fn foo(a: u32) -> u32 { a + u32:1 }
 ```
 
 You can now add an annotation `#[extern_verilog("...")]` to the DSLX function
@@ -57,7 +55,7 @@ myfoo {fn} (       // Placeholder for the instantiation name.
 );                 // Semicolon optional, code-generation will always add one.
 ")]
 fn foo(a: u32) -> u32 {
-  a + u32:1
+    a + u32:1
 }
 ```
 
@@ -96,8 +94,8 @@ myfoo {fn} #(
    .out({return})
 )
 ")]
-fn foo<WIDTH:u32>(a:bits[WIDTH]) -> bits[WIDTH] {
-  a + uN[WIDTH]:1
+fn foo<WIDTH: u32>(a: bits[WIDTH]) -> bits[WIDTH] {
+    a + uN[WIDTH]:1
 }
 ```
 
@@ -121,8 +119,8 @@ mybar {fn} (
    .otherout({return.1})
 )
 ")]
-fn bar(a:(s32, s32), b:s32) -> (s32, s32) {
-   (a.0 + a.1, b)
+fn bar(a: (s32, s32), b: s32) -> (s32, s32) {
+    (a.0 + a.1, b)
 }
 ```
 
@@ -160,8 +158,8 @@ mybaz {fn} #(
    .out({return})
 )
 ")]
-fn baz(a:u32, b:u32, c:u32) -> u32 {
-  u32:42  // local implementation
+fn baz(a: u32, b: u32, c: u32) -> u32 {
+    u32:42  // local implementation
 }
 ```
 
@@ -190,8 +188,8 @@ myquux {fn} (
 
 assign {return} = ({RESULT_BITS})'({return}_adapted_to_module);
 ")]
-fn quux<RESULT_BITS:u32>(a:u32) -> uN[RESULT_BITS] {
-   a as uN[RESULT_BITS]
+fn quux<RESULT_BITS: u32>(a: u32) -> uN[RESULT_BITS] {
+    a as uN[RESULT_BITS]
 }
 ```
 

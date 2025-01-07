@@ -135,11 +135,11 @@ Simple examples:
 
 ```dslx
 fn ret3() -> u32 {
-   u32:3   // This function always returns 3.
+    u32:3  // This function always returns 3.
 }
 
 fn add1(x: u32) -> u32 {
-   x + u32:1  // Returns x + 1, but you knew that!
+    x + u32:1  // Returns x + 1, but you knew that!
 }
 ```
 
@@ -176,17 +176,11 @@ DSLX functions can be parameterized in terms of the types of its arguments and
 in terms of types derived from other parametric values. For instance:
 
 ```dslx
-fn double(n: u32) -> u32 {
-  n * u32:2
-}
+fn double(n: u32) -> u32 { n * u32:2 }
 
-fn self_append<A: u32, B: u32 = {double(A)}>(x: bits[A]) -> bits[B] {
-  x++x
-}
+fn self_append<A: u32, B: u32 = {double(A)}>(x: bits[A]) -> bits[B] { x ++ x }
 
-fn main() -> bits[10] {
-  self_append(u5:1)
-}
+fn main() -> bits[10] { self_append(u5:1) }
 ```
 
 In `self_append(bits[5]:1)`, we see that `A = 5` based off of formal argument
@@ -206,8 +200,8 @@ such as in the
 [`explicit_parametric_simple.x`](https://github.com/google/xls/tree/main/xls/dslx/tests/explicit_parametric_simple.x)
 test:
 
-```
-fn add_one<E:u32, F:u32, G:u32 = E+F>(lhs: bits[E]) -> bits[G] { ... }
+```dslx-snippet
+fn add_one<E: u32, F: u32, G: u32 = {E+F}>(lhs: bits[E]) -> bits[G] { ... }
 ```
 
 For this call to instantiable, both `E` and `F` must be specified. Since `F`
@@ -251,12 +245,9 @@ Function calls are expressions and look and feel just like one would expect from
 other languages. For example:
 
 ```dslx
-fn callee(x: bits[32], y: bits[32]) -> bits[32] {
-  x + y
-}
-fn caller() -> u32 {
-  callee(u32:2, u32:3)
-}
+fn callee(x: bits[32], y: bits[32]) -> bits[32] { x + y }
+
+fn caller() -> u32 { callee(u32:2, u32:3) }
 ```
 
 If more than one value should be returned by a function, a tuple type should be
@@ -324,9 +315,9 @@ fn p<S: bool, N: u32>() -> xN[S][N] { xN[S][N]:0 }
 
 #[test]
 fn test_parametric_signedness() {
-  assert_eq(p<false, u32:32>(), u32:0);
-  assert_eq(p<true, u32:32>(), s32:0);
-  assert_eq(p<true, u32:64>(), s64:0);
+    assert_eq(p<false, u32:32>(), u32:0);
+    assert_eq(p<true, u32:32>(), s32:0);
+    assert_eq(p<true, u32:64>(), s64:0);
 }
 ```
 
@@ -361,14 +352,12 @@ Characters can be used just as traditional bits:
 
 ```dslx
 fn add_to_null(input: u8) -> u8 {
-  let null:u8 = '\0';
-  input + null
+    let null: u8 = '\0';
+    input + null
 }
 
 #[test]
-fn test_main() {
-  assert_eq('a', add_to_null('a'))
-}
+fn test_main() { assert_eq('a', add_to_null('a')) }
 ```
 
 DSLX character constants support the
@@ -382,14 +371,12 @@ named constants that do not pollute the module namespace. For example:
 
 ```dslx
 enum Opcode : u3 {
-  FIRE_THE_MISSILES = 0,
-  BE_TIRED = 1,
-  TAKE_A_NAP = 2,
+    FIRE_THE_MISSILES = 0,
+    BE_TIRED = 1,
+    TAKE_A_NAP = 2,
 }
 
-fn get_my_favorite_opcode() -> Opcode {
-  Opcode::FIRE_THE_MISSILES
-}
+fn get_my_favorite_opcode() -> Opcode { Opcode::FIRE_THE_MISSILES }
 ```
 
 Note the use of the double-colon to reference the enum value. This code
@@ -399,7 +386,7 @@ value outside of the representable `u3` range will produce a compile time error.
 
 ```dslx-bad
 enum Opcode : u3 {
-  FOO = 8  // Causes compile time error!
+    FOO = 8  // Causes compile time error!
 }
 ```
 
@@ -407,20 +394,20 @@ Enums can be compared for equality/inequality, but they do not permit arithmetic
 operations, they must be cast to numerical types in order to perform arithmetic:
 
 ```dslx
-enum Opcode: u3 {
-  NOP = 0,
-  ADD = 1,
-  SUB = 2,
-  MUL = 3,
+enum Opcode : u3 {
+    NOP = 0,
+    ADD = 1,
+    SUB = 2,
+    MUL = 3,
 }
 
 fn same_opcode(x: Opcode, y: Opcode) -> bool {
-  x == y  // ok
+    x == y  // ok
 }
 
 fn next_in_sequence(x: Opcode, y: Opcode) -> bool {
-  // x+1 == y // does not work, arithmetic!
-  x as u3 + u3:1 == (y as u3)  // ok, casted first
+    // x+1 == y // does not work, arithmetic!
+    x as u3 + u3:1 == (y as u3)  // ok, casted first
 }
 ```
 
@@ -432,19 +419,17 @@ extension/truncation behavior.)
 
 ```dslx
 enum MySignedEnum : s3 {
-  LOW = -1,
-  ZERO = 0,
-  HIGH = 1,
+    LOW = -1,
+    ZERO = 0,
+    HIGH = 1,
 }
 
 fn extend_to_32b(x: MySignedEnum) -> u32 {
-  x as u32  // Sign-extends because the source type is signed.
+    x as u32  // Sign-extends because the source type is signed.
 }
 
 #[test]
-fn test_extend_to_32b() {
-  assert_eq(extend_to_32b(MySignedEnum::LOW), u32:0xffffffff)
-}
+fn test_extend_to_32b() { assert_eq(extend_to_32b(MySignedEnum::LOW), u32:0xffffffff) }
 ```
 
 Casting *to* an enum is also permitted. However, in most cases errors from
@@ -478,7 +463,7 @@ Example of a tuple type:
 //       the 1st element is of type u8
 //       the 2nd element is another tuple with 1 element of type u16
 //       the 3rd element is of type u8
-type MyTuple = (u32, (u8, (u16,), u8));
+type MyTuple = (u32, (u8, (u16), u8));
 ```
 
 To access individual tuple elements use simple indices, starting at 0. For
@@ -487,8 +472,8 @@ example, to access the second element of a tuple (index 1):
 ```dslx
 #[test]
 fn test_tuple_access() {
-  let t = (u32:2, u8:3);
-  assert_eq(u8:3, t.1)
+    let t = (u32:2, u8:3);
+    assert_eq(u8:3, t.1)
 }
 ```
 
@@ -547,26 +532,20 @@ positions), and we introduce a new type.
 The following syntax is used to define a struct:
 
 ```dslx
-struct Point {
-  x: u32,
-  y: u32
-}
+struct Point { x: u32, y: u32 }
 ```
 
 Once a struct is defined it can be constructed by naming the fields in any
 order:
 
 ```dslx
-struct Point {
-  x: u32,
-  y: u32,
-}
+struct Point { x: u32, y: u32 }
 
 #[test]
 fn test_struct_equality() {
-  let p0 = Point { x: u32:42, y: u32:64 };
-  let p1 = Point { y: u32:64, x: u32:42 };
-  assert_eq(p0, p1)
+    let p0 = Point { x: u32:42, y: u32:64 };
+    let p1 = Point { y: u32:64, x: u32:42 };
+    assert_eq(p0, p1)
 }
 ```
 
@@ -574,38 +553,29 @@ There is a simple syntax when creating a struct whose field names match the
 names of in-scope values:
 
 ```dslx
-struct Point { x: u32, y: u32, }
+struct Point { x: u32, y: u32 }
 
 #[test]
 fn test_struct_equality() {
-  let x = u32:42;
-  let y = u32:64;
-  let p0 = Point { x, y };
-  let p1 = Point { y, x };
-  assert_eq(p0, p1)
+    let x = u32:42;
+    let y = u32:64;
+    let p0 = Point { x, y };
+    let p1 = Point { y, x };
+    assert_eq(p0, p1)
 }
 ```
 
 Struct fields can also be accessed with "dot" syntax:
 
 ```dslx
-struct Point {
-  x: u32,
-  y: u32,
-}
+struct Point { x: u32, y: u32 }
 
-fn f(p: Point) -> u32 {
-  p.x + p.y
-}
+fn f(p: Point) -> u32 { p.x + p.y }
 
-fn main() -> u32 {
-  f(Point { x: u32:42, y: u32:64 })
-}
+fn main() -> u32 { f(Point { x: u32:42, y: u32:64 }) }
 
 #[test]
-fn test_main() {
-  assert_eq(u32:106, main())
-}
+fn test_main() { assert_eq(u32:106, main()) }
 ```
 
 Note that structs cannot be mutated "in place", the user must construct new
@@ -613,25 +583,19 @@ values by extracting the fields of the original struct mixed together with new
 field values, as in the following:
 
 ```dslx
-struct Point3 {
-  x: u32,
-  y: u32,
-  z: u32,
-}
+struct Point3 { x: u32, y: u32, z: u32 }
 
-fn update_y(p: Point3, new_y: u32) -> Point3 {
-  Point3 { x: p.x, y: new_y, z: p.z }
-}
+fn update_y(p: Point3, new_y: u32) -> Point3 { Point3 { x: p.x, y: new_y, z: p.z } }
 
 fn main() -> Point3 {
-  let p = Point3 { x: u32:42, y: u32:64, z: u32:256 };
-  update_y(p, u32:128)
+    let p = Point3 { x: u32:42, y: u32:64, z: u32:256 };
+    update_y(p, u32:128)
 }
 
 #[test]
 fn test_main() {
-  let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
-  assert_eq(want, main())
+    let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
+    assert_eq(want, main())
 }
 ```
 
@@ -641,19 +605,11 @@ The DSL has syntax for conveniently producing a new value with a subset of
 fields updated to reduce verbosity. The "struct update" syntax is:
 
 ```dslx
-struct Point3 {
-  x: u32,
-  y: u32,
-  z: u32,
-}
+struct Point3 { x: u32, y: u32, z: u32 }
 
-fn update_y(p: Point3) -> Point3 {
-  Point3 { y: u32:42, ..p }
-}
+fn update_y(p: Point3) -> Point3 { Point3 { y: u32:42, ..p } }
 
-fn update_x_and_y(p: Point3) -> Point3 {
-  Point3 { x: u32:42, y: u32:42, ..p }
-}
+fn update_x_and_y(p: Point3) -> Point3 { Point3 { x: u32:42, y: u32:42, ..p } }
 ```
 
 #### Parametric Structs
@@ -665,19 +621,14 @@ section.
 ```dslx
 fn double(n: u32) -> u32 { n * u32:2 }
 
-struct Point<N: u32, M: u32 = {double(N)}> {
-  x: bits[N],
-  y: bits[M],
-}
+struct Point<N: u32, M: u32 = {double(N)}> { x: bits[N], y: bits[M] }
 
-fn make_point<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
-  Point{ x, y }
-}
+fn make_point<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> { Point { x, y } }
 
 #[test]
 fn test_struct_construction() {
-  let p = make_point(u16:42, u32:42);
-  assert_eq(u16:42, p.x)
+    let p = make_point(u16:42, u32:42);
+    assert_eq(u16:42, p.x)
 }
 ```
 
@@ -691,30 +642,20 @@ when all the fields of two structures are identical, those structures are a
 different type when they have a different name).
 
 ```dslx
-struct Point {
-  x: u32,
-  y: u32,
-}
+struct Point { x: u32, y: u32 }
 
-struct Coordinate {
-  x: u32,
-  y: u32,
-}
+struct Coordinate { x: u32, y: u32 }
 
-fn f(p: Point) -> u32 {
-  p.x + p.y
-}
+fn f(p: Point) -> u32 { p.x + p.y }
 
 #[test]
-fn test_ok() {
-  assert_eq(f(Point { x: u32:42, y: u32:64 }), u32:106)
-}
+fn test_ok() { assert_eq(f(Point { x: u32:42, y: u32:64 }), u32:106) }
 ```
 
 ```dslx-bad
 #[test]
 fn test_type_checker_error() {
-  assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
+    assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
 }
 ```
 
@@ -725,18 +666,16 @@ array must have the same type. Arrays can be indexed with indexing notation
 (`a[i]`) to retrieve a single element.
 
 ```dslx
-fn main(a: u32[2], i: u1) -> u32 {
-  a[i]
-}
+fn main(a: u32[2], i: u1) -> u32 { a[i] }
 
 #[test]
 fn test_main() {
-  let x = u32:42;
-  let y = u32:64;
-  // Make an array with "bracket notation".
-  let my_array: u32[2] = [x, y];
-  assert_eq(main(my_array, u1:0), x);
-  assert_eq(main(my_array, u1:1), y);
+    let x = u32:42;
+    let y = u32:64;
+    // Make an array with "bracket notation".
+    let my_array: u32[2] = [x, y];
+    assert_eq(main(my_array, u1:0), x);
+    assert_eq(main(my_array, u1:1), y);
 }
 ```
 
@@ -747,14 +686,12 @@ fill, in order to use the ellipsis the type must be annotated explicitly as
 shown.
 
 ```dslx
-fn make_array(x: u32) -> u32[3] {
-  u32[3]:[u32:42, x, ...]
-}
+fn make_array(x: u32) -> u32[3] { u32[3]:[u32:42, x, ...] }
 
 #[test]
 fn test_make_array() {
-  assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
-  assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
+    assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
+    assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
 }
 ```
 
@@ -774,15 +711,13 @@ arrays of u8 elements. String constants can be used just as traditional arrays:
 
 ```dslx
 fn add_one<N: u32>(input: u8[N]) -> u8[N] {
-  for (i, result) : (u32, u8[N]) in u32:0..N {
-    update(result, i, result[i] + u8:1)
-  }(input)
+    for (i, result): (u32, u8[N]) in u32:0..N {
+        update(result, i, result[i] + u8:1)
+    }(input)
 }
 
 #[test]
-fn test_main() {
-  assert_eq("bcdef", add_one("abcde"))
-}
+fn test_main() { assert_eq("bcdef", add_one("abcde")) }
 ```
 
 DSLX string constants support the
@@ -794,14 +729,10 @@ words, the sequence `\u{10CB2F}` will result in an array with hexadecimal values
 Moreover, string can be composed of [characters](#character-constants).
 
 ```dslx
-fn string_composed_characters() -> u8[10] {
-  ['X', 'L', 'S', ' ', 'r', 'o', 'c', 'k', 's', '!']
-}
+fn string_composed_characters() -> u8[10] { ['X', 'L', 'S', ' ', 'r', 'o', 'c', 'k', 's', '!'] }
 
 #[test]
-fn test_main() {
-  assert_eq("XLS rocks!", string_composed_characters())
-}
+fn test_main() { assert_eq("XLS rocks!", string_composed_characters()) }
 ```
 
 ### Type Aliases
@@ -823,14 +754,12 @@ import xls.dslx.tests.mod_imported;
 
 type MyEnum = mod_imported::MyEnum;
 
-fn main(x: u8) -> MyEnum {
-  x as MyEnum
-}
+fn main(x: u8) -> MyEnum { x as MyEnum }
 
 #[test]
 fn test_main() {
-  assert_eq(main(u8:42), MyEnum::FOO);
-  assert_eq(main(u8:64), MyEnum::BAR);
+    assert_eq(main(u8:42), MyEnum::FOO);
+    assert_eq(main(u8:64), MyEnum::BAR);
 }
 ```
 
@@ -861,38 +790,38 @@ semantics.
 ```dslx
 #[test]
 fn test_narrow_cast() {
-  let twelve = u4:0b1100;
-  assert_eq(twelve as u2, u2:0)
+    let twelve = u4:0b1100;
+    assert_eq(twelve as u2, u2:0)
 }
 
 #[test]
 fn test_widen_cast() {
-  let three = u2:0b11;
-  assert_eq(three as u4, u4:3)
+    let three = u2:0b11;
+    assert_eq(three as u4, u4:3)
 }
 
 #[test]
 fn test_narrow_signed_cast() {
-  let negative_seven = s4:0b1001;
-  assert_eq(negative_seven as u2, u2:1)
+    let negative_seven = s4:0b1001;
+    assert_eq(negative_seven as u2, u2:1)
 }
 
 #[test]
 fn test_widen_signed_cast() {
-  let negative_one = s2:0b11;
-  assert_eq(negative_one as s4, s4:-1)
+    let negative_one = s2:0b11;
+    assert_eq(negative_one as s4, s4:-1)
 }
 
 #[test]
 fn test_widen_to_unsigned() {
-  let negative_one = s2:0b11;
-  assert_eq(negative_one as u3, u3:0b111)
+    let negative_one = s2:0b11;
+    assert_eq(negative_one as u3, u3:0b111)
 }
 
 #[test]
 fn test_widen_to_signed() {
-  let three = u2:0b11;
-  assert_eq(three as u3, u3:0b011)
+    let three = u2:0b11;
+    assert_eq(three as u3, u3:0b011)
 }
 ```
 
@@ -965,9 +894,7 @@ same type as its operands, `T`.
 Let's instantiate this rule in a function:
 
 ```dslx
-fn add_wrapper(x: bits[2], y: bits[2]) -> bits[2] {
-  x + y
-}
+fn add_wrapper(x: bits[2], y: bits[2]) -> bits[2] { x + y }
 ```
 
 This function wraps the '+' operator. It presents two arguments to the '+'
@@ -996,9 +923,7 @@ is also `bits[2]`. Qed.
 A **type error** would occur in the following:
 
 ```dslx-bad
-fn add_wrapper(x: bits[2], y: bits[3]) -> bits[2] {
-  x + y
-}
+fn add_wrapper(x: bits[2], y: bits[3]) -> bits[2] { x + y }
 ```
 
 Applying the type deduction rule for '+' finds an inconsistency. The left hand
@@ -1027,8 +952,8 @@ In this example, the result of the `let` expression is the return value --
 
 ```dslx
 fn main(y: u32) -> u64 {
-  let x: u64 = y as u64;
-  x + x
+    let x: u64 = y as u64;
+    x + x
 }
 ```
 
@@ -1106,14 +1031,10 @@ same module:
 import xls.dslx.tests.mod_imported;
 import xls.dslx.tests.mod_imported as mi;
 
-fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) || mi::my_lsb(x)
-}
+fn main(x: u3) -> u1 { mod_imported::my_lsb(x) || mi::my_lsb(x) }
 
 #[test]
-fn test_main() {
-  assert_eq(u1:0b1, main(u3:0b001))
-}
+fn test_main() { assert_eq(u1:0b1, main(u3:0b001)) }
 ```
 
 ### Public module members
@@ -1123,7 +1044,7 @@ module. To make a member public/visible to importing modules, the `pub` keyword
 must be added as a prefix; e.g.
 
 ```dslx
-const FOO = u32:42;      // Not accessible to importing modules.
+const FOO = u32:42;  // Not accessible to importing modules.
 pub const BAR = u32:64;  // Accessible to importing modules.
 ```
 
@@ -1135,13 +1056,12 @@ import xls.dslx.tests.mod_imported;
 import xls.dslx.tests.mod_imported as mi;
 
 fn main(x: u3) -> u1 {
-  mod_imported::my_lsb(x) || mi::my_lsb(x)
+    // Use function via both module names.
+    mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
 #[test]
-fn test_main() {
-  assert_eq(u1:0b1, main(u3:0b001))
-}
+fn test_main() { assert_eq(u1:0b1, main(u3:0b001)) }
 ```
 
 ### Module attributes
@@ -1171,32 +1091,32 @@ constants are usable anywhere a literal value can be used:
 const FOO = u8:42;
 
 fn match_const(x: u8) -> u8 {
-  match x {
-    FOO => u8:0,
-    _ => u8:42,
-  }
+    match x {
+        FOO => u8:0,
+        _ => u8:42,
+    }
 }
 
 #[test]
 fn test_match_const_not_binding() {
-  assert_eq(u8:42, match_const(u8:0));
-  assert_eq(u8:42, match_const(u8:1));
-  assert_eq(u8:0, match_const(u8:42));
+    assert_eq(u8:42, match_const(u8:0));
+    assert_eq(u8:42, match_const(u8:1));
+    assert_eq(u8:0, match_const(u8:42));
 }
 
 fn h(t: (u8, (u16, u32))) -> u32 {
-  match t {
-    (FOO, (x, y)) => (x as u32) + y,
-    (_, (y, u32:42)) => y as u32,
-    _ => u32:7,
-  }
+    match t {
+        (FOO, (x, y)) => (x as u32) + y,
+        (_, (y, u32:42)) => y as u32,
+        _ => u32:7,
+    }
 }
 
 #[test]
 fn test_match_nested() {
-  assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
-  assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
-  assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
+    assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
+    assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
+    assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
 }
 ```
 
@@ -1214,8 +1134,8 @@ DSLX supports initializing using binary, hex or decimal syntax:
 ```dslx
 #[test]
 fn test_literal_initialization() {
-  assert_eq(u8:12, u8:0b00001100);
-  assert_eq(u8:12, u8:0x0c);
+    assert_eq(u8:12, u8:0b00001100);
+    assert_eq(u8:12, u8:0x0c);
 }
 ```
 
@@ -1232,8 +1152,8 @@ integer cannot represent it. The following code offers a clue.
 ```dslx
 #[test]
 fn test_signed_literal_initialization() {
-  assert_eq(s8:128, s8:-128);
-  assert_eq(s8:128, s8:0b10000000);
+    assert_eq(s8:128, s8:-128);
+    assert_eq(s8:128, s8:0b10000000);
 }
 ```
 
@@ -1310,9 +1230,7 @@ operations is: `(xN[M], uN[N]) -> xN[M]`. If the right hand side is a literal
 value it does not need to be type annotated. For example:
 
 ```dslx
-fn shr_two(x: s32) -> s32 {
-  x >> 2
-}
+fn shr_two(x: s32) -> s32 { x >> 2 }
 ```
 
 Note that, as in Rust, the semantics of the shift-right (`>>`) operation depends
@@ -1346,11 +1264,11 @@ Concatenation operations may be chained together as shown:
 ```dslx
 #[test]
 fn test_bits_concat() {
-  assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
-  assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);
-  assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
-  assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
-  assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
+    assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
+    assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);
+    assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
+    assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
+    assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
 }
 ```
 
@@ -1358,10 +1276,10 @@ fn test_bits_concat() {
 
 Block expressions enable subordinate scopes to be defined, e.g.,:
 
-```
+```dslx-snippet
 let a = {
-  let b = u32:1;
-  b + u32:3
+    let b = u32:1;
+    b + u32:3
 };
 ```
 
@@ -1370,7 +1288,7 @@ Above, `a` is equal to `4`.
 The value of a block expression is that of its last contained expression, or
 `()` if a final expression is omitted:
 
-```
+```dslx-snippet
 let a = { let b = u32:1; };
 ```
 
@@ -1392,10 +1310,10 @@ values to identifiers for subsequent use. For example:
 
 ```dslx
 fn f(t: (u8, u32)) -> u32 {
-  match t {
-    (u8:42, y) => y,
-    (_, y) => y+u32:77
-  }
+    match t {
+        (u8:42, y) => y,
+        (_, y) => y + u32:77,
+    }
 }
 ```
 
@@ -1408,11 +1326,12 @@ constants. For example, consider this variation on the above:
 
 ```dslx
 const MY_FAVORITE_NUMBER = u8:42;
+
 fn f(t: (u8, u32)) -> u32 {
-  match t {
-    (MY_FAVORITE_NUMBER, y) => y,
-    (_, y) => y+u32:77
-  }
+    match t {
+        (MY_FAVORITE_NUMBER, y) => y,
+        (_, y) => y + u32:77,
+    }
 }
 ```
 
@@ -1420,12 +1339,13 @@ This also works with nested tuples; for example:
 
 ```dslx
 const MY_FAVORITE_NUMBER = u8:42;
+
 fn f(t: (u8, (u16, u32))) -> u32 {
-  match t {
-    (MY_FAVORITE_NUMBER, (y, z)) => y as u32 + z,
-    (_, (y, u32:42)) => y as u32,
-    _ => u32:7
-  }
+    match t {
+        (MY_FAVORITE_NUMBER, (y, z)) => y as u32 + z,
+        (_, (y, u32:42)) => y as u32,
+        _ => u32:7,
+    }
 }
 ```
 
@@ -1443,18 +1363,18 @@ We can also `match` on ranges of values using the "range" syntax:
 
 ```dslx
 fn f(x: u32) -> u32 {
-  match x {
-    u32:1..u32:3 => u32:0,
-    _ => x
-  }
+    match x {
+        u32:1..u32:3 => u32:0,
+        _ => x,
+    }
 }
 
 #[test]
 fn test_f() {
-  assert_eq(f(u32:1), u32:0);
-  assert_eq(f(u32:2), u32:0);
-  // Note: the limit of the range syntax is exclusive.
-  assert_eq(f(u32:3), u32:3);
+    assert_eq(f(u32:1), u32:0);
+    assert_eq(f(u32:2), u32:0);
+    // Note: the limit of the range syntax is exclusive.
+    assert_eq(f(u32:3), u32:3);
 }
 ```
 
@@ -1462,17 +1382,17 @@ Or on multiple patterns per arm using the `|` operator:
 
 ```dslx
 fn f(x: u32) -> u32 {
-  match x {
-    u32:1 | u32:3 => u32:0,
-    _ => x
-  }
+    match x {
+        u32:1 | u32:3 => u32:0,
+        _ => x,
+    }
 }
 
 #[test]
 fn test_f() {
-  assert_eq(f(u32:1), u32:0);
-  assert_eq(f(u32:2), u32:2);
-  assert_eq(f(u32:3), u32:0);
+    assert_eq(f(u32:1), u32:0);
+    assert_eq(f(u32:2), u32:2);
+    assert_eq(f(u32:3), u32:0);
 }
 ```
 
@@ -1484,11 +1404,11 @@ twice; e.g.,
 ```dslx-bad
 const FOO = u32:42;
 fn f(x: u32) -> u2 {
-  match x {
-    FOO => u2:0,
-    FOO => u2:1,  // Identical pattern!
-    _ => u2:2,
-  }
+    match x {
+        FOO => u2:0,
+        FOO => u2:1,  // Identical pattern!
+        _ => u2:2,
+    }
 }
 ```
 
@@ -1499,12 +1419,13 @@ not *syntactically identical* patterns will not be flagged in this way.
 ```dslx
 const FOO = u32:42;
 const BAR = u32:42;  // Compares `==` to `FOO`.
+
 fn f(x: u32) -> u2 {
-  match x {
-    FOO => u2:0,
-    BAR => u2:1,  // _Equivalent_ pattern, but not syntactically identical.
-    _ => u2:2,
-  }
+    match x {
+        FOO => u2:0,
+        BAR => u2:1,  // _Equivalent_ pattern, but not syntactically identical.
+        _ => u2:2,
+    }
 }
 ```
 
@@ -1712,24 +1633,24 @@ for semantics of numeric casts:
 ```dslx
 #[test]
 fn test_numerical_conversions() {
-  let s8_m2 = s8:-2;
-  let u8_m2 = u8:0xfe;
+    let s8_m2 = s8:-2;
+    let u8_m2 = u8:0xfe;
 
-  // Sign extension (source type is signed, and we widen it).
-  assert_eq(s32:-2, s8_m2 as s32);
-  assert_eq(u32:0xfffffffe, s8_m2 as u32);
-  assert_eq(s16:-2, s8_m2 as s16);
-  assert_eq(u16:0xfffe, s8_m2 as u16);
+    // Sign extension (source type is signed, and we widen it).
+    assert_eq(s32:-2, s8_m2 as s32);
+    assert_eq(u32:0xfffffffe, s8_m2 as u32);
+    assert_eq(s16:-2, s8_m2 as s16);
+    assert_eq(u16:0xfffe, s8_m2 as u16);
 
-  // Zero extension (source type is unsigned, and we widen it).
-  assert_eq(u32:0xfe, u8_m2 as u32);
-  assert_eq(s32:0xfe, u8_m2 as s32);
+    // Zero extension (source type is unsigned, and we widen it).
+    assert_eq(u32:0xfe, u8_m2 as u32);
+    assert_eq(s32:0xfe, u8_m2 as s32);
 
-  // Nop (bitwidth is unchanged).
-  assert_eq(s8:-2, s8_m2 as s8);
-  assert_eq(u8:0xfe, s8_m2 as u8);
-  assert_eq(u8:0xfe, u8_m2 as u8);
-  assert_eq(s8:-2, u8_m2 as s8);
+    // Nop (bitwidth is unchanged).
+    assert_eq(s8:-2, s8_m2 as s8);
+    assert_eq(u8:0xfe, s8_m2 as u8);
+    assert_eq(u8:0xfe, u8_m2 as u8);
+    assert_eq(s8:-2, u8_m2 as s8);
 }
 ```
 
@@ -1745,46 +1666,40 @@ the MSbs of the resulting value.
 All casts between arrays and bits must have the same total bit count.
 
 ```dslx
-fn cast_to_array(x: u6) -> u2[3] {
-  x as u2[3]
-}
+fn cast_to_array(x: u6) -> u2[3] { x as u2[3] }
 
-fn cast_from_array(a: u2[3]) -> u6 {
-  a as u6
-}
+fn cast_from_array(a: u2[3]) -> u6 { a as u6 }
 
-fn concat_arrays(a: u2[3], b: u2[3]) -> u2[6] {
-  a ++ b
-}
+fn concat_arrays(a: u2[3], b: u2[3]) -> u2[6] { a ++ b }
 
 #[test]
 fn test_cast_to_array() {
-  let a_value: u6 = u6:0b011011;
-  let a: u2[3] = cast_to_array(a_value);
-  let a_array = u2[3]:[1, 2, 3];
-  assert_eq(a, a_array);
-  // Note: converting back from array to bits gives the original value.
-  assert_eq(a_value, cast_from_array(a));
+    let a_value: u6 = u6:0b011011;
+    let a: u2[3] = cast_to_array(a_value);
+    let a_array = u2[3]:[1, 2, 3];
+    assert_eq(a, a_array);
+    // Note: converting back from array to bits gives the original value.
+    assert_eq(a_value, cast_from_array(a));
 
-  let b_value: u6 = u6:0b111001;
-  let b_array: u2[3] = u2[3]:[3, 2, 1];
-  let b: u2[3] = cast_to_array(b_value);
-  assert_eq(b, b_array);
-  assert_eq(b_value, cast_from_array(b));
+    let b_value: u6 = u6:0b111001;
+    let b_array: u2[3] = u2[3]:[3, 2, 1];
+    let b: u2[3] = cast_to_array(b_value);
+    assert_eq(b, b_array);
+    assert_eq(b_value, cast_from_array(b));
 
-  // Concatenation of bits is analogous to concatenation of their converted
-  // arrays. That is:
-  //
-  //  convert(concat(a, b)) == concat(convert(a), convert(b))
-  let concat_value: u12 = a_value ++ b_value;
-  let concat_array: u2[6] = concat_value as u2[6];
-  assert_eq(concat_array, concat_arrays(a_array, b_array));
+    // Concatenation of bits is analogous to concatenation of their converted
+    // arrays. That is:
+    //
+    //  convert(concat(a, b)) == concat(convert(a), convert(b))
+    let concat_value: u12 = a_value ++ b_value;
+    let concat_array: u2[6] = concat_value as u2[6];
+    assert_eq(concat_array, concat_arrays(a_array, b_array));
 
-  // Show a few classic "endianness" example using 8-bit array values.
-  let x = u32:0xdeadbeef;
-  assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
-  let y = u16:0xbeef;
-  assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
+    // Show a few classic "endianness" example using 8-bit array values.
+    let x = u32:0xdeadbeef;
+    assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
+    let y = u16:0xbeef;
+    assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
 }
 ```
 
@@ -1849,10 +1764,10 @@ bits) and `[-2:]` (the two most significant bits):
 ```dslx
 #[test]
 fn slice_into_two_pieces() {
-  let x = u5:0b11000;
-  let (lo, hi): (u3, u2) = (x[:-2], x[-2:]);
-  assert_eq(hi, u2:0b11);
-  assert_eq(lo, u3:0b000);
+    let x = u5:0b11000;
+    let (lo, hi): (u3, u2) = (x[:-2], x[-2:]);
+    assert_eq(hi, u2:0b11);
+    assert_eq(lo, u3:0b000);
 }
 ```
 
@@ -1875,59 +1790,59 @@ fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
 #[test]
 fn test_bit_slice_syntax() {
-  let x = u6:0b100111;
-  // Slice out two bits.
-  assert_eq(u2:0b11, x[0:2]);
-  assert_eq(u2:0b11, x[1:3]);
-  assert_eq(u2:0b01, x[2:4]);
-  assert_eq(u2:0b00, x[3:5]);
+    let x = u6:0b100111;
+    // Slice out two bits.
+    assert_eq(u2:0b11, x[0:2]);
+    assert_eq(u2:0b11, x[1:3]);
+    assert_eq(u2:0b01, x[2:4]);
+    assert_eq(u2:0b00, x[3:5]);
 
-  // Slice out three bits.
-  assert_eq(u3:0b111, x[0:3]);
-  assert_eq(u3:0b011, x[1:4]);
-  assert_eq(u3:0b001, x[2:5]);
-  assert_eq(u3:0b100, x[3:6]);
+    // Slice out three bits.
+    assert_eq(u3:0b111, x[0:3]);
+    assert_eq(u3:0b011, x[1:4]);
+    assert_eq(u3:0b001, x[2:5]);
+    assert_eq(u3:0b100, x[3:6]);
 
-  // Slice out from the end.
-  assert_eq(u1:0b1, x[-1:]);
-  assert_eq(u1:0b1, x[-1:6]);
-  assert_eq(u2:0b10, x[-2:]);
-  assert_eq(u2:0b10, x[-2:6]);
-  assert_eq(u3:0b100, x[-3:]);
-  assert_eq(u3:0b100, x[-3:6]);
-  assert_eq(u4:0b1001, x[-4:]);
-  assert_eq(u4:0b1001, x[-4:6]);
+    // Slice out from the end.
+    assert_eq(u1:0b1, x[-1:]);
+    assert_eq(u1:0b1, x[-1:6]);
+    assert_eq(u2:0b10, x[-2:]);
+    assert_eq(u2:0b10, x[-2:6]);
+    assert_eq(u3:0b100, x[-3:]);
+    assert_eq(u3:0b100, x[-3:6]);
+    assert_eq(u4:0b1001, x[-4:]);
+    assert_eq(u4:0b1001, x[-4:6]);
 
-  // Slice both relative to the end (MSb).
-  assert_eq(u2:0b01, x[-4:-2]);
-  assert_eq(u2:0b11, x[-6:-4]);
+    // Slice both relative to the end (MSb).
+    assert_eq(u2:0b01, x[-4:-2]);
+    assert_eq(u2:0b11, x[-6:-4]);
 
-  // Slice out from the beginning (LSb).
-  assert_eq(u5:0b00111, x[:-1]);
-  assert_eq(u4:0b0111, x[:-2]);
-  assert_eq(u3:0b111, x[:-3]);
-  assert_eq(u2:0b11, x[:-4]);
-  assert_eq(u1:0b1, x[:-5]);
+    // Slice out from the beginning (LSb).
+    assert_eq(u5:0b00111, x[:-1]);
+    assert_eq(u4:0b0111, x[:-2]);
+    assert_eq(u3:0b111, x[:-3]);
+    assert_eq(u2:0b11, x[:-4]);
+    assert_eq(u1:0b1, x[:-5]);
 
-  // Slicing past the end just means we hit the end (as in Python).
-  assert_eq(u1:0b1, x[5:7]);
-  assert_eq(u1:0b1, x[-7:1]);
-  assert_eq(bits[0]:0, x[-7:-6]);
-  assert_eq(bits[0]:0, x[-6:-6]);
-  assert_eq(bits[0]:0, x[6:6]);
-  assert_eq(bits[0]:0, x[6:7]);
-  assert_eq(u1:1, x[-6:-5]);
+    // Slicing past the end just means we hit the end (as in Python).
+    assert_eq(u1:0b1, x[5:7]);
+    assert_eq(u1:0b1, x[-7:1]);
+    assert_eq(bits[0]:0, x[-7:-6]);
+    assert_eq(bits[0]:0, x[-6:-6]);
+    assert_eq(bits[0]:0, x[6:6]);
+    assert_eq(bits[0]:0, x[6:7]);
+    assert_eq(u1:1, x[-6:-5]);
 
-  // Slice of a slice.
-  assert_eq(u2:0b11, x[:4][1:3]);
+    // Slice of a slice.
+    assert_eq(u2:0b11, x[:4][1:3]);
 
-  // Slice of an invocation.
-  assert_eq(u2:0b01, id(x)[2:4]);
+    // Slice of an invocation.
+    assert_eq(u2:0b01, id(x)[2:4]);
 
-  // Explicit-width slices.
-  assert_eq(u2:0b01, x[2+:u2]);
-  assert_eq(s3:0b100, x[3+:s3]);
-  assert_eq(u3:0b001, x[5+:u3]);
+    // Explicit-width slices.
+    assert_eq(u2:0b01, x[2+:u2]);
+    assert_eq(s3:0b100, x[3+:s3]);
+    assert_eq(u3:0b001, x[5+:u3]);
 }
 ```
 
@@ -1998,9 +1913,9 @@ As in Rust, unit tests are specified by the `test` directive, as seen below:
 ```dslx
 #[test]
 fn test_reverse() {
-  assert_eq(u1:1, rev(u1:1));
-  assert_eq(u2:0b10, rev(u2:0b01));
-  assert_eq(u2:0b00, rev(u2:0b00));
+    assert_eq(u1:1, rev(u1:1));
+    assert_eq(u2:0b10, rev(u2:0b01));
+    assert_eq(u2:0b00, rev(u2:0b00));
 }
 ```
 
@@ -2049,11 +1964,10 @@ framework. Here is an example that complements the unit testing of DSLX's `rev`
 implementation from above:
 
 ```dslx
-// Reversing a value twice gets you the original value.
-
 #[quickcheck]
 fn prop_double_bitreverse(x: u32) -> bool {
-  x == rev(rev(x))
+    // Check that when we reverse the bits twice we get the original value.
+    x == rev(rev(x))
 }
 ```
 
@@ -2067,7 +1981,7 @@ By default, the framework will run the function against 1000 sets of randomized
 inputs. This default may be changed by specifying the `test_count` key in the
 `quickcheck` directive before a particular test:
 
-```
+```dslx-snippet
 #[quickcheck(test_count=50000)]
 ```
 
@@ -2086,7 +2000,8 @@ For small domains the quickcheck directive can also be placed in exhaustive mode
 // `u8` space is small enough to check exhaustively.
 #[quickcheck(exhaustive)]
 fn prop_double_bitreverse(x: u8) -> bool {
-  x == rev(rev(x))
+    // Check that when we reverse the bits twice we get the original value.
+    x == rev(rev(x))
 }
 ```
 
@@ -2118,14 +2033,14 @@ This is a simple `proc`:
 proc CountUp {
     output_channel: chan<u32> out;
 
-    // Initial value for the state.
-    init { u32:0 }
-
     // Configuration -- we get the output channel when we're configured by an external `spawn`.
     // The last statement in a `config` should be a tuple that is used to initialize the proc
     // members; e.g. we give a single value in a tuple that initializes the `output_channel`
     // declared above.
     config(output_channel: chan<u32> out) { (output_channel,) }
+
+    // Initial value for the state.
+    init { u32:0 }
 
     // "Iterate in time" -- takes a state, does some work, and produces a new state.
     next(state: u32) {

@@ -16,9 +16,7 @@ Consider the simple example of a `umax` function -- similar to the `max` functio
 [in the DSLX standard library](https://github.com/google/xls/tree/main/xls/dslx/stdlib/std.x):
 
 ```dslx
-pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
-  if x > y { x } else { y }
-}
+pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
 ```
 
 Most of this function looks like other DSLX functions you may have seen, except
@@ -41,13 +39,9 @@ infer them:
 Explicit specification:
 
 ```dslx
-fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
-  if x > y { x } else { y }
-}
+fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
 
-fn foo(a: u32, b: u16) -> u64 {
-  umax<u32:64>(a as u64, b as u64)
-}
+fn foo(a: u32, b: u16) -> u64 { umax<u32:64>(a as u64, b as u64) }
 ```
 
 Here, the user has directly told the language what the values of all parametrics
@@ -56,13 +50,9 @@ are.
 Parametric inference:
 
 ```dslx
-fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
-  if x > y { x } else { y }
-}
+fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { if x > y { x } else { y } }
 
-fn foo(a: u32, b: u16) -> u64 {
-  umax(a as u64, b as u64)
-}
+fn foo(a: u32, b: u16) -> u64 { umax(a as u64, b as u64) }
 ```
 
 Here, though, the language is able to determine that `N` is 64, since that
@@ -72,9 +62,9 @@ exist parametrics that aren't referenced in the argument list:
 
 ```dslx
 fn my_parametric_sum<N: u32>(a: u32, b: u32) -> uN[N] {
-  let a_mod = a as uN[N];
-  let b_mod = a as uN[N];
-  a_mod + b_mod
+    let a_mod = a as uN[N];
+    let b_mod = a as uN[N];
+    a_mod + b_mod
 }
 ```
 
@@ -92,8 +82,8 @@ done as follows:
 
 ```dslx-snippet
 fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = EXP_SZ + u32:1>(
-    exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
-  exp as sN[SIGNED_EXP_SZ] - sN[SIGNED_EXP_SZ]:???
+      exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
+    exp as sN[SIGNED_EXP_SZ] - sN[SIGNED_EXP_SZ]:???
 }
 ```
 
@@ -111,12 +101,12 @@ This is a bit unwieldy in practice, so we can wrap it in a function:
 
 ```dslx
 fn bias_scaler<N: u32, WIDE_N: u32 = {N + u32:1}>() -> sN[WIDE_N] {
-  (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
+    (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
 }
 
-fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>(
-    exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
-  exp as sN[SIGNED_EXP_SZ] - bias_scaler<EXP_SZ>()
+fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>
+    (exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
+    exp as sN[SIGNED_EXP_SZ] - bias_scaler<EXP_SZ>()
 }
 ```
 
@@ -133,16 +123,10 @@ such conversions - even to floating-point formats we haven't considered!
 The first step in such a parameterization is to have a working single-typed
 example, which we take from the previous codelab:
 
-```dslx
-pub struct float32 {
-  sign: u1,
-  bexp: u8,
-  fraction: u23,
-}
+```dslx-snippet
+pub struct float32 { sign: u1, bexp: u8, fraction: u23 }
 
-fn unbias_exponent(exp: u8) -> s9 {
-  exp as s9 - s9:127
-}
+fn unbias_exponent(exp: u8) -> s9 { exp as s9 - s9:127 }
 
 pub fn float_to_int(x: float32) -> s32 {
   let exp = unbias_exponent(x.bexp);
@@ -178,9 +162,9 @@ Thus, the struct declaration and function signature will be:
 
 ```dslx-snippet
 pub struct float<EXP_SZ: u32, FRACTION_SZ: u32> {
-  sign: u1,
-  bexp: uN[EXP_SZ],
-  fraction: uN[FRACTION_SZ],
+    sign: u1,
+    bexp: uN[EXP_SZ],
+    fraction: uN[FRACTION_SZ],
 }
 
 pub fn float_to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32>(
@@ -194,41 +178,43 @@ the original implementation with the parameterized ones in the signature:
 
 ```dslx
 pub struct float<EXP_SZ: u32, FRACTION_SZ: u32> {
-  sign: u1,
-  bexp: uN[EXP_SZ],
-  fraction: uN[FRACTION_SZ],
+    sign: u1,
+    bexp: uN[EXP_SZ],
+    fraction: uN[FRACTION_SZ],
 }
 
 fn bias_scaler<N: u32, WIDE_N: u32 = {N + u32:1}>() -> sN[WIDE_N] {
-  (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
+    (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
 }
 
-fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>(
-    exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
-  exp as sN[SIGNED_EXP_SZ] - bias_scaler<EXP_SZ>()
+fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>
+    (exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
+    exp as sN[SIGNED_EXP_SZ] - bias_scaler<EXP_SZ>()
 }
 
-pub fn float_to_int<
-    EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32,
-    WIDE_EXP_SZ: u32 = {EXP_SZ + u32:1},
-    WIDE_FRACTION_SZ: u32 = {FRACTION_SZ + u32:1}>(
-    x: float<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
-  let exp = unbias_exponent(x.bexp);
+pub fn float_to_int
+    <EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32, WIDE_EXP_SZ: u32 = {EXP_SZ + u32:1},
+     WIDE_FRACTION_SZ: u32 = {FRACTION_SZ + u32:1}>
+    (x: float<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
+    let exp = unbias_exponent(x.bexp);
 
-  let fraction = uN[WIDE_FRACTION_SZ]:1 << FRACTION_SZ |
-      (x.fraction as uN[WIDE_FRACTION_SZ]);
+    let fraction = uN[WIDE_FRACTION_SZ]:1 << FRACTION_SZ | (x.fraction as uN[WIDE_FRACTION_SZ]);
 
-  let fraction =
-      if (exp as u32) < FRACTION_SZ { fraction >> (FRACTION_SZ - (exp as u32)) }
-      else { fraction };
+    let fraction = if (exp as u32) < FRACTION_SZ {
+        fraction >> (FRACTION_SZ - (exp as u32))
+    } else {
+        fraction
+    };
 
-  let fraction =
-      if (exp as u32) > FRACTION_SZ { fraction << ((exp as u32) - FRACTION_SZ) }
-      else { fraction };
+    let fraction = if (exp as u32) > FRACTION_SZ {
+        fraction << ((exp as u32) - FRACTION_SZ)
+    } else {
+        fraction
+    };
 
-  let result = fraction as sN[RESULT_SZ];
-  let result = if x.sign { -result } else { result };
-  result
+    let result = fraction as sN[RESULT_SZ];
+    let result = if x.sign { -result } else { result };
+    result
 }
 ```
 
