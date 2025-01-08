@@ -96,7 +96,7 @@ proc RefillingShiftBufferInternal<
 
     reader_req_s: chan<MemReaderReq> out;
     reader_resp_r: chan<MemReaderResp> in;
-    start_req_r: chan<RefillStart> in;
+    start_req_r: chan<StartReq> in;
     stop_flush_req_r: chan<()> in;
     buffer_data_in_s: chan<RSBInput> out;
     buffer_data_out_s: chan<RSBOutput> out;
@@ -108,7 +108,7 @@ proc RefillingShiftBufferInternal<
     config(
         reader_req_s: chan<MemReaderReq> out,
         reader_resp_r: chan<MemReaderResp> in,
-        start_req_r: chan<RefillStart> in,
+        start_req_r: chan<StartReq> in,
         stop_flush_req_r: chan<()> in,
         buffer_ctrl_r: chan<RSBCtrl> in,
         buffer_data_out_s: chan<RSBOutput> out,
