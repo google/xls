@@ -68,11 +68,10 @@ struct SequenceDecoderState<ADDR_W: u32> {
     conf_resp: sequence_conf_dec::SequenceConfDecoderResp,
 }
 
-struct FseLookupCtrlReq<AXI_ADDR_W: u32> {
+struct FseLookupCtrlReq {
     ll: bool,
     ml: bool,
     of: bool,
-    addr: uN[AXI_ADDR_W],
 }
 
 type AccuracyLog = common::FseAccuracyLog;
@@ -82,20 +81,19 @@ struct FseLookupCtrlResp {
     of_accuracy_log: AccuracyLog,
 }
 
-struct FseLookupCtrlState<AXI_ADDR_W: u32> {
+struct FseLookupCtrlState {
     decode: bool[3],
     decode_valid: bool,
-    addr: uN[AXI_ADDR_W],
     resp: FseLookupCtrlResp,
     cnt: u2,
 }
 
-pub proc FseLookupCtrl<AXI_ADDR_W: u32> {
-    type Req = FseLookupCtrlReq<AXI_ADDR_W>;
+pub proc FseLookupCtrl {
+    type Req = FseLookupCtrlReq;
     type Resp = FseLookupCtrlResp;
-    type State = FseLookupCtrlState<AXI_ADDR_W>;
+    type State = FseLookupCtrlState;
 
-    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq<AXI_ADDR_W>;
+    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
     type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
 
     req_r: chan<Req> in;
@@ -135,7 +133,6 @@ pub proc FseLookupCtrl<AXI_ADDR_W: u32> {
                 decode: bool[3]:[req.ll, req.of, req.ml],
                 decode_valid: true,
                 cnt: u2:0,
-                addr: req.addr,
                 ..zero!<State>()
             }
         } else {
@@ -159,14 +156,11 @@ pub proc FseLookupCtrl<AXI_ADDR_W: u32> {
             } else {};
             // trace_fmt!("Received response from demux");
 
-            let fld_req = FseLookupDecoderReq { addr: state.addr };
-            let tok3 = send_if(tok2, fld_req_s, do_set, fld_req);
+            let tok3 = send_if(tok2, fld_req_s, do_set, FseLookupDecoderReq {});
             if do_set {
-                trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Sent FseLookupDecoder req {:#x}", fld_req);
+                trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Sent FseLookupDecoder req");
             } else {};
 
-            // FIXME: Extract RefillingShiftBuffer from the FseLookupDecoder
-            // to support decoding multiple FSE Tables
             let (tok4, fld_resp) = recv_if(tok3, fld_resp_r, do_set, zero!<FseLookupDecoderResp>());
             if do_set {
                 trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Received FseLookupDecoder resp {:#x}", fld_resp);
@@ -191,13 +185,11 @@ pub proc FseLookupCtrl<AXI_ADDR_W: u32> {
     }
 }
 
-const INST_AXI_ADDR_W = u32:32;
-
 pub proc FseLookupCtrlInst {
-    type Req = FseLookupCtrlReq<INST_AXI_ADDR_W>;
+    type Req = FseLookupCtrlReq;
     type Resp = FseLookupCtrlResp;
 
-    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq<INST_AXI_ADDR_W>;
+    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
     type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
 
     init { }
@@ -212,7 +204,7 @@ pub proc FseLookupCtrlInst {
         demux_req_s: chan<u2> out,
         demux_resp_r: chan<()> in,
     ) {
-         spawn FseLookupCtrl<INST_AXI_ADDR_W>(
+         spawn FseLookupCtrl(
             req_r, resp_s,
             fld_req_s, fld_resp_r,
             demux_req_s, demux_resp_r,
@@ -232,7 +224,7 @@ const TEST_FLC_AXI_ADDR_W = u32:32;
 //
 //    type Addr = uN[TEST_FLC_AXI_ADDR_W];
 //
-//    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq<TEST_FLC_AXI_ADDR_W>;
+//    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
 //    type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
 //    type FseLookupDecoderStatus = fse_lookup_dec::FseLookupDecoderStatus;
 //
@@ -390,7 +382,7 @@ pub proc SequenceDecoderCtrl<
     type SequenceConfDecoderReq = sequence_conf_dec::SequenceConfDecoderReq<AXI_ADDR_W>;
     type SequenceConfDecoderResp = sequence_conf_dec::SequenceConfDecoderResp;
 
-    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq<AXI_ADDR_W>;
+    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
     type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
 
     type RefillingShiftBufferStart = refilling_shift_buffer::RefillStart<AXI_ADDR_W>;
@@ -423,6 +415,10 @@ pub proc SequenceDecoderCtrl<
     fd_rsb_stop_flush_req_s: chan<()> out;
     fd_rsb_flushing_done_r: chan<()> in;
 
+    fld_rsb_start_req_s: chan<RefillingShiftBufferStart> out;
+    fld_rsb_stop_flush_req_s: chan<()> out;
+    fld_rsb_flushing_done_r: chan<()> in;
+
     fd_ctrl_s: chan<FseDecoderCtrl> out;
     fd_finish_r: chan<FseDecoderFinish> in;
 
@@ -454,6 +450,10 @@ pub proc SequenceDecoderCtrl<
         fd_rsb_stop_flush_req_s: chan<()> out,
         fd_rsb_flushing_done_r: chan<()> in,
 
+        fld_rsb_start_req_s: chan<RefillingShiftBufferStart> out,
+        fld_rsb_stop_flush_req_s: chan<()> out,
+        fld_rsb_flushing_done_r: chan<()> in,
+
         fd_ctrl_s: chan<FseDecoderCtrl> out,
         fd_finish_r: chan<FseDecoderFinish> in,
     ) {
@@ -462,7 +462,7 @@ pub proc SequenceDecoderCtrl<
         let (flc_req_s, flc_req_r) = chan<FseLookupCtrlReq, CHANNEL_DEPTH>("flc_req");
         let (flc_resp_s, flc_resp_r) = chan<FseLookupCtrlResp, CHANNEL_DEPTH>("flc_resp");
 
-        spawn FseLookupCtrl<AXI_ADDR_W>(
+        spawn FseLookupCtrl(
             flc_req_r, flc_resp_s,
             fld_req_s, fld_resp_r,
             fld_demux_req_s, fld_demux_resp_r,
@@ -476,6 +476,7 @@ pub proc SequenceDecoderCtrl<
             of_demux_req_s, of_demux_resp_r,
             ml_demux_req_s, ml_demux_resp_r,
             fd_rsb_start_req_s, fd_rsb_stop_flush_req_s, fd_rsb_flushing_done_r,
+            fld_rsb_start_req_s, fld_rsb_stop_flush_req_s, fld_rsb_flushing_done_r,
             fd_ctrl_s, fd_finish_r,
         )
     }
@@ -502,9 +503,13 @@ pub proc SequenceDecoderCtrl<
            assert!(conf_resp.header.offset_mode != CompressionMode::RLE, "unsupported_fse_table_mode");
         } else {};
 
+        // Start RefillingShiftBuffer for decoding lookups
+        let tok_dec_lookup = send(tok_recv_scd, fld_rsb_start_req_s, RefillingShiftBufferStart {
+            start_addr: req.start_addr + conf_resp.length as Addr,
+        });
+
         // Request decoding lookups
         let flc_req = FseLookupCtrlReq {
-            addr: req.start_addr + conf_resp.length as Addr,
             ll: (conf_resp.header.literals_mode == CompressionMode::COMPRESSED),
             ml: (conf_resp.header.match_mode == CompressionMode::COMPRESSED),
             of: (conf_resp.header.offset_mode == CompressionMode::COMPRESSED),
@@ -515,8 +520,12 @@ pub proc SequenceDecoderCtrl<
             trace_fmt!("[SequenceDecoderCtrl]: Sent FseLookupCtrl request: {:#x}", flc_req);
         } else {};
 
-        // Receive response about deoded lookups
+        // Receive response about decoded lookups
         let (tok_recv_ctrl, flc_resp) = recv_if(tok_send_ctrl, flc_resp_r, !zero_sequences, zero!<FseLookupCtrlResp>());
+
+        // We've finished decoding lookups - flush the corresponding refilling shift buffer
+        let tok_fld_rsb_flush = send(tok_recv_ctrl, fld_rsb_stop_flush_req_s, ());
+        let (tok_fld_rsb_flush_done, ()) = recv(tok_fld_rsb_flush, fld_rsb_flushing_done_r);
 
         // Set proper LL lookup through demux
         let ll_demux_sel = (conf_resp.header.literals_mode != CompressionMode::PREDEFINED);
@@ -559,11 +568,13 @@ pub proc SequenceDecoderCtrl<
 
         let tok_rsb_flush = send_if(tok_fse_dec, fd_rsb_stop_flush_req_s, !zero_sequences, ());
         trace_fmt!("[SequenceDecoderCtrl]: Send flush request");
-        let (tok_rsb_flush_done, _) = recv_if(tok_rsb_flush, fd_rsb_flushing_done_r, !zero_sequences, ());
+        let (tok_rsb_flush_done, ()) = recv_if(tok_rsb_flush, fd_rsb_flushing_done_r, !zero_sequences, ());
         trace_fmt!("[SequenceDecoderCtrl]: Flush done");
 
+        // Send response once both refilling shift buffers have been flushed
         let resp = SequenceDecoderResp { status: Status::OK };
-        send(tok_rsb_flush_done, sd_resp_s, resp);
+        let tok_flush_done = join(tok_fld_rsb_flush_done, tok_rsb_flush_done);
+        send(tok_flush_done, sd_resp_s, resp);
     }
 }
 
@@ -587,7 +598,7 @@ const SDC_TEST_REFILLING_SB_LENGTH_W = refilling_shift_buffer::length_width(SDC_
 //    type SequenceConfDecoderResp = sequence_conf_dec::SequenceConfDecoderResp;
 //    type SequenceConfDecoderStatus = sequence_conf_dec::SequenceConfDecoderStatus;
 //
-//    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq<SDC_TEST_AXI_ADDR_W>;
+//    type FseLookupDecoderReq = fse_lookup_dec::FseLookupDecoderReq;
 //    type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
 //    type FseLookupDecoderStatus = fse_lookup_dec::FseLookupDecoderStatus;
 //
@@ -745,6 +756,7 @@ pub proc SequenceDecoder<
     AXI_ADDR_W: u32, AXI_DATA_W: u32, AXI_DEST_W: u32, AXI_ID_W: u32,
     DPD_RAM_ADDR_W: u32, DPD_RAM_DATA_W: u32, DPD_RAM_NUM_PARTITIONS: u32,
     TMP_RAM_ADDR_W: u32, TMP_RAM_DATA_W: u32, TMP_RAM_NUM_PARTITIONS: u32,
+    TMP2_RAM_ADDR_W: u32, TMP2_RAM_DATA_W: u32, TMP2_RAM_NUM_PARTITIONS: u32,
     FSE_RAM_ADDR_W: u32, FSE_RAM_DATA_W: u32, FSE_RAM_NUM_PARTITIONS: u32,
 
     AXI_DATA_W_DIV8: u32 = {AXI_DATA_W / u32:8},
@@ -767,7 +779,7 @@ pub proc SequenceDecoder<
     type SequenceConfDecoderReq = sequence_conf_dec::SequenceConfDecoderReq<AXI_ADDR_W>;
     type SequenceConfDecoderResp = sequence_conf_dec::SequenceConfDecoderResp;
 
-    type FseLookupDecoderReq =  fse_lookup_dec::FseLookupDecoderReq<AXI_ADDR_W>;
+    type FseLookupDecoderReq =  fse_lookup_dec::FseLookupDecoderReq;
     type FseLookupDecoderResp = fse_lookup_dec::FseLookupDecoderResp;
 
     type FseDecoderCtrl = fse_dec::FseDecoderCtrl;
@@ -788,6 +800,11 @@ pub proc SequenceDecoder<
     type TmpRamWrReq = ram::WriteReq<TMP_RAM_ADDR_W, TMP_RAM_DATA_W, TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWrResp = ram::WriteResp;
 
+    type Tmp2RamRdReq = ram::ReadReq<TMP2_RAM_ADDR_W, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamRdResp = ram::ReadResp<TMP2_RAM_DATA_W>;
+    type Tmp2RamWrReq = ram::WriteReq<TMP2_RAM_ADDR_W, TMP2_RAM_DATA_W, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWrResp = ram::WriteResp;
+
     type FseRamRdReq = ram::ReadReq<FSE_RAM_ADDR_W, FSE_RAM_NUM_PARTITIONS>;
     type FseRamRdResp = ram::ReadResp<FSE_RAM_DATA_W>;
     type FseRamWrReq = ram::WriteReq<FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS>;
@@ -801,13 +818,15 @@ pub proc SequenceDecoder<
     fd_rsb_ctrl_r: chan<RefillingShiftBufferCtrl> in;
     fd_rsb_data_s: chan<RefillingShiftBufferOutput> out;
 
-    ll_wr_req_s: chan<FseRamWrReq> out;
-    ll_wr_resp_s: chan<FseRamWrResp> in;
-    ml_wr_req_s: chan<FseRamWrReq> out;
-    ml_wr_resp_s: chan<FseRamWrResp> in;
-    of_wr_req_s: chan<FseRamWrReq> out;
-    of_wr_resp_s: chan<FseRamWrResp> in;
+    dummy_ll_wr_req_s: chan<FseRamWrReq> out;
+    dummy_ll_wr_resp_r: chan<FseRamWrResp> in;
+    dummy_ml_wr_req_s: chan<FseRamWrReq> out;
+    dummy_ml_wr_resp_r: chan<FseRamWrResp> in;
+    dummy_of_wr_req_s: chan<FseRamWrReq> out;
+    dummy_of_wr_resp_r: chan<FseRamWrResp> in;
 
+    dummy_fse_rd_req_s: chan<FseRamRdReq> out;
+    dummy_fse_rd_resp_r: chan<FseRamRdResp> in;
     dummy_ll_fse_rd_req_r: chan<FseRamRdReq> in;
     dummy_ll_fse_rd_resp_s: chan<FseRamRdResp> out;
     dummy_ll_fse_wr_req_r: chan<FseRamWrReq> in;
@@ -852,6 +871,11 @@ pub proc SequenceDecoder<
         tmp_wr_req_s: chan<TmpRamWrReq> out,
         tmp_wr_resp_r: chan<TmpRamWrResp> in,
 
+        tmp2_rd_req_s: chan<Tmp2RamRdReq> out,
+        tmp2_rd_resp_r: chan<Tmp2RamRdResp> in,
+        tmp2_wr_req_s: chan<Tmp2RamWrReq> out,
+        tmp2_wr_resp_r: chan<Tmp2RamWrResp> in,
+
         ll_def_fse_rd_req_s: chan<FseRamRdReq> out,
         ll_def_fse_rd_resp_r: chan<FseRamRdResp> in,
         ll_def_fse_wr_req_s: chan<FseRamWrReq> out,
@@ -883,7 +907,7 @@ pub proc SequenceDecoder<
         of_fse_wr_resp_r: chan<FseRamWrResp> in,
     ) {
         const CHANNEL_DEPTH = u32:1;
-        const READ_BACKWORD = true;
+        const READ_BACKWARD = true;
 
         // Sequence Section Decoder
 
@@ -916,34 +940,64 @@ pub proc SequenceDecoder<
         let (fld_req_s, fld_req_r) = chan<FseLookupDecoderReq, CHANNEL_DEPTH>("fse_req");
         let (fld_resp_s, fld_resp_r) = chan<FseLookupDecoderResp, CHANNEL_DEPTH>("fse_resp");
 
-        let (fse_rd_req_s, fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("fse_rd_req");
-        let (fse_rd_resp_s, fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("fse_rd_resp");
+        // FseLookupDecoder is not expected to read anything from the lookup
+        let (dummy_fse_rd_req_s, dummy_fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("dummy_fse_rd_req");
+        let (dummy_fse_rd_resp_s, dummy_fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("dummy_fse_rd_resp");
         let (fse_wr_req_s, fse_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("fse_wr_req");
         let (fse_wr_resp_s, fse_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("fse_wr_resp");
+        let (fld_rsb_start_req_s, fld_rsb_start_req_r) = chan<RefillingShiftBufferStart, CHANNEL_DEPTH>("start_req");
+        let (fld_rsb_stop_flush_req_s, fld_rsb_stop_flush_req_r) = chan<(), CHANNEL_DEPTH>("stop_flush_req");
+        let (fld_rsb_buffer_ctrl_s, fld_rsb_buffer_ctrl_r) = chan<RefillingShiftBufferCtrl, CHANNEL_DEPTH>("buffer_ctrl");
+        let (fld_rsb_buffer_data_out_s, fld_rsb_buffer_data_out_r) = chan<RefillingShiftBufferOutput, CHANNEL_DEPTH>("buffer_data_out");
+        let (fld_rsb_flushing_done_s, fld_rsb_flushing_done_r) = chan<(), CHANNEL_DEPTH>("flushing_done");
 
         spawn fse_lookup_dec::FseLookupDecoder<
-            AXI_DATA_W, AXI_ADDR_W,
+            AXI_DATA_W,
             DPD_RAM_DATA_W, DPD_RAM_ADDR_W, DPD_RAM_NUM_PARTITIONS,
             TMP_RAM_DATA_W, TMP_RAM_ADDR_W, TMP_RAM_NUM_PARTITIONS,
+            TMP2_RAM_DATA_W, TMP2_RAM_ADDR_W, TMP2_RAM_NUM_PARTITIONS,
             FSE_RAM_DATA_W, FSE_RAM_ADDR_W, FSE_RAM_NUM_PARTITIONS,
         >(
             fld_req_r, fld_resp_s,
-            fld_mem_rd_req_s, fld_mem_rd_resp_r,
             dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,
             tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
-            fse_rd_req_s, fse_rd_resp_r, fse_wr_req_s, fse_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
+            fse_wr_req_s, fse_wr_resp_r,
+            fld_rsb_buffer_ctrl_s, fld_rsb_buffer_data_out_r,
+        );
+
+        spawn refilling_shift_buffer::RefillingShiftBuffer<AXI_DATA_W, AXI_ADDR_W>(
+            fld_mem_rd_req_s, fld_mem_rd_resp_r,
+            fld_rsb_start_req_r, fld_rsb_stop_flush_req_r,
+            fld_rsb_buffer_ctrl_r, fld_rsb_buffer_data_out_s,
+            fld_rsb_flushing_done_s,
         );
 
         // RamDemux3
+
+        // Dummy channels
+        let (dummy_ll_fse_rd_req_s, dummy_ll_fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("dummy_ll_fse_rd_req");
+        let (dummy_ll_fse_rd_resp_s, dummy_ll_fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("dummy_ll_fse_rd_resp");
+        let (dummy_ll_fse_wr_req_s, dummy_ll_fse_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ll_fse_wr_req");
+        let (dummy_ll_fse_wr_resp_s, dummy_ll_fse_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ll_fse_wr_resp");
+        let (dummy_ml_fse_rd_req_s, dummy_ml_fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("dummy_ml_fse_rd_req");
+        let (dummy_ml_fse_rd_resp_s, dummy_ml_fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("dummy_ml_fse_rd_resp");
+        let (dummy_ml_fse_wr_req_s, dummy_ml_fse_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ml_fse_wr_req");
+        let (dummy_ml_fse_wr_resp_s, dummy_ml_fse_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ml_fse_wr_resp");
+        let (dummy_of_fse_rd_req_s, dummy_of_fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("dummy_of_fse_rd_req");
+        let (dummy_of_fse_rd_resp_s, dummy_of_fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("dummy_of_fse_rd_resp");
+        let (dummy_of_fse_wr_req_s, dummy_of_fse_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_of_fse_wr_req");
+        let (dummy_of_fse_wr_resp_s, dummy_of_fse_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_of_fse_wr_resp");
+
         let (fse_demux_req_s, fse_demux_req_r) = chan<u2, CHANNEL_DEPTH>("fse_demux_req");
         let (fse_demux_resp_s, fse_demux_resp_r) = chan<(), CHANNEL_DEPTH>("fse_demux_resp");
 
         spawn ram_demux3::RamDemux3<FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS>(
             fse_demux_req_r, fse_demux_resp_s,
-            fse_rd_req_r, fse_rd_resp_s, fse_wr_req_r, fse_wr_resp_s,
-            ll_fse_rd_req_s, ll_fse_rd_resp_r, ll_fse_wr_req_s, ll_fse_wr_resp_r,
-            of_fse_rd_req_s, of_fse_rd_resp_r, of_fse_wr_req_s, of_fse_wr_resp_r,
-            ml_fse_rd_req_s, ml_fse_rd_resp_r, ml_fse_wr_req_s, ml_fse_wr_resp_r,
+            dummy_fse_rd_req_r, dummy_fse_rd_resp_s, fse_wr_req_r, fse_wr_resp_s,
+            dummy_ll_fse_rd_req_s, dummy_ll_fse_rd_resp_r, ll_fse_wr_req_s, ll_fse_wr_resp_r,
+            dummy_of_fse_rd_req_s, dummy_of_fse_rd_resp_r, of_fse_wr_req_s, of_fse_wr_resp_r,
+            dummy_ml_fse_rd_req_s, dummy_ml_fse_rd_resp_r, ml_fse_wr_req_s, ml_fse_wr_resp_r,
         );
 
         let (ll_demux_req_s, ll_demux_req_r) = chan<u1, CHANNEL_DEPTH>("ll_demux_req");
@@ -951,21 +1005,16 @@ pub proc SequenceDecoder<
 
         let (ll_rd_req_s, ll_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("ll_rd_req");
         let (ll_rd_resp_s, ll_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("ll_rd_resp");
-        let (ll_wr_req_s, ll_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("ll_wr_req");
-        let (ll_wr_resp_s, ll_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("ll_wr_resp");
-
-        let (dummy_ll_fse_rd_req_s, dummy_ll_fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("dummy_ll_fse_rd_req");
-        let (dummy_ll_fse_rd_resp_s, dummy_ll_fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("dummy_ll_fse_rd_resp");
-        let (dummy_ll_fse_wr_req_s, dummy_ll_fse_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ll_fse_wr_req");
-        let (dummy_ll_fse_wr_resp_s, dummy_ll_fse_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ll_fse_wr_resp");
+        let (dummy_ll_wr_req_s, dummy_ll_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ll_wr_req");
+        let (dummy_ll_wr_resp_s, dummy_ll_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ll_wr_resp");
 
         spawn ram_demux::RamDemux<
-            FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS
+            FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS, u32:1
         > (
             ll_demux_req_r, ll_demux_resp_s,
-            ll_rd_req_r, ll_rd_resp_s, ll_wr_req_r, ll_wr_resp_s,
+            ll_rd_req_r, ll_rd_resp_s, dummy_ll_wr_req_r, dummy_ll_wr_resp_s,
             ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
-            dummy_ll_fse_rd_req_s, dummy_ll_fse_rd_resp_r, dummy_ll_fse_wr_req_s, dummy_ll_fse_wr_resp_r,
+            ll_fse_rd_req_s, ll_fse_rd_resp_r, dummy_ll_fse_wr_req_s, dummy_ll_fse_wr_resp_r,
         );
 
         let (ml_demux_req_s, ml_demux_req_r) = chan<u1, CHANNEL_DEPTH>("ml_demux_req");
@@ -973,21 +1022,16 @@ pub proc SequenceDecoder<
 
         let (ml_rd_req_s, ml_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("ml_rd_req");
         let (ml_rd_resp_s, ml_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("ml_rd_resp");
-        let (ml_wr_req_s, ml_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("ml_wr_req");
-        let (ml_wr_resp_s, ml_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("ml_wr_resp");
-
-        let (dummy_ml_fse_rd_req_s, dummy_ml_fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("dummy_ml_fse_rd_req");
-        let (dummy_ml_fse_rd_resp_s, dummy_ml_fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("dummy_ml_fse_rd_resp");
-        let (dummy_ml_fse_wr_req_s, dummy_ml_fse_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ml_fse_wr_req");
-        let (dummy_ml_fse_wr_resp_s, dummy_ml_fse_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ml_fse_wr_resp");
+        let (dummy_ml_wr_req_s, dummy_ml_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_ml_wr_req");
+        let (dummy_ml_wr_resp_s, dummy_ml_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_ml_wr_resp");
 
         spawn ram_demux::RamDemux<
-            FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS
+            FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS, u32:2
         > (
             ml_demux_req_r, ml_demux_resp_s,
-            ml_rd_req_r, ml_rd_resp_s, ml_wr_req_r, ml_wr_resp_s,
+            ml_rd_req_r, ml_rd_resp_s, dummy_ml_wr_req_r, dummy_ml_wr_resp_s,
             ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
-            dummy_ml_fse_rd_req_s, dummy_ml_fse_rd_resp_r, dummy_ml_fse_wr_req_s, dummy_ml_fse_wr_resp_r,
+            ml_fse_rd_req_s, ml_fse_rd_resp_r, dummy_ml_fse_wr_req_s, dummy_ml_fse_wr_resp_r,
         );
 
         let (of_demux_req_s, of_demux_req_r) = chan<u1, CHANNEL_DEPTH>("of_demux_req");
@@ -995,21 +1039,16 @@ pub proc SequenceDecoder<
 
         let (of_rd_req_s, of_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("of_rd_req");
         let (of_rd_resp_s, of_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("of_rd_resp");
-        let (of_wr_req_s, of_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("of_wr_req");
-        let (of_wr_resp_s, of_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("of_wr_resp");
-
-        let (dummy_of_fse_rd_req_s, dummy_of_fse_rd_req_r) = chan<FseRamRdReq, CHANNEL_DEPTH>("dummy_of_fse_rd_req");
-        let (dummy_of_fse_rd_resp_s, dummy_of_fse_rd_resp_r) = chan<FseRamRdResp, CHANNEL_DEPTH>("dummy_of_fse_rd_resp");
-        let (dummy_of_fse_wr_req_s, dummy_of_fse_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_of_fse_wr_req");
-        let (dummy_of_fse_wr_resp_s, dummy_of_fse_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_of_fse_wr_resp");
+        let (dummy_of_wr_req_s, dummy_of_wr_req_r) = chan<FseRamWrReq, CHANNEL_DEPTH>("dummy_of_wr_req");
+        let (dummy_of_wr_resp_s, dummy_of_wr_resp_r) = chan<FseRamWrResp, CHANNEL_DEPTH>("dummy_of_wr_resp");
 
         spawn ram_demux::RamDemux<
-            FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS
+            FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS, u32:3
         > (
             of_demux_req_r, of_demux_resp_s,
-            of_rd_req_r, of_rd_resp_s, of_wr_req_r, of_wr_resp_s,
+            of_rd_req_r, of_rd_resp_s, dummy_of_wr_req_r, dummy_of_wr_resp_s,
             of_def_fse_rd_req_s, of_def_fse_rd_resp_r, of_def_fse_wr_req_s, of_def_fse_wr_resp_r,
-            dummy_of_fse_rd_req_s, dummy_of_fse_rd_resp_r, dummy_of_fse_wr_req_s, dummy_of_fse_wr_resp_r,
+            of_fse_rd_req_s, of_fse_rd_resp_r, dummy_of_fse_wr_req_s, dummy_of_fse_wr_resp_r,
         );
 
         let (fd_mem_rd_req_s,  fd_mem_rd_req_r) = chan<MemReaderReq, CHANNEL_DEPTH>("fd_mem_rd_req");
@@ -1026,7 +1065,7 @@ pub proc SequenceDecoder<
         let (fd_rsb_data_s, fd_rsb_data_r) = chan<RefillingShiftBufferOutput, CHANNEL_DEPTH>("fd_rsb_data");
         let (fd_rsb_flushing_done_s, fd_rsb_flushing_done_r) = chan<(), CHANNEL_DEPTH>("fd_rsb_flushing_done");
 
-        spawn refilling_shift_buffer::RefillingShiftBuffer<AXI_DATA_W, AXI_ADDR_W, READ_BACKWORD, u32:0xFF> (
+        spawn refilling_shift_buffer::RefillingShiftBuffer<AXI_DATA_W, AXI_ADDR_W, READ_BACKWARD, u32:0xFF> (
             fd_mem_rd_req_s, fd_mem_rd_resp_r,
             fd_rsb_start_req_r, fd_rsb_stop_flush_req_r,
             fd_rsb_ctrl_r, fd_rsb_data_s,
@@ -1056,16 +1095,22 @@ pub proc SequenceDecoder<
             of_demux_req_s, of_demux_resp_r,
             ml_demux_req_s, ml_demux_resp_r,
             fd_rsb_start_req_s, fd_rsb_stop_flush_req_s, fd_rsb_flushing_done_r,
+            fld_rsb_start_req_s, fld_rsb_stop_flush_req_s, fld_rsb_flushing_done_r,
             fd_ctrl_s, fd_finish_r,
         );
 
         (
             fd_ctrl_s, fd_finish_r,
             fd_rsb_ctrl_r, fd_rsb_data_s,
-            ll_wr_req_s, ll_wr_resp_r,
-            ml_wr_req_s, ml_wr_resp_r,
-            of_wr_req_s, of_wr_resp_r,
-             dummy_ll_fse_rd_req_r,
+            dummy_ll_wr_req_s,
+            dummy_ll_wr_resp_r,
+            dummy_ml_wr_req_s,
+            dummy_ml_wr_resp_r,
+            dummy_of_wr_req_s,
+            dummy_of_wr_resp_r,
+            dummy_fse_rd_req_s,
+            dummy_fse_rd_resp_r,
+            dummy_ll_fse_rd_req_r,
             dummy_ll_fse_rd_resp_s,
             dummy_ll_fse_wr_req_r,
             dummy_ll_fse_wr_resp_s,
@@ -1077,30 +1122,31 @@ pub proc SequenceDecoder<
             dummy_of_fse_rd_resp_s,
             dummy_of_fse_wr_req_r,
             dummy_of_fse_wr_resp_s,
-
         )
     }
 
     next(state: ()) {
-        send_if(join(), ll_wr_req_s, false, zero!<FseRamWrReq>());
-        recv_if(join(), ll_wr_resp_s, false, zero!<FseRamWrResp>());
-        send_if(join(), ml_wr_req_s, false, zero!<FseRamWrReq>());
-        recv_if(join(), ml_wr_resp_s, false, zero!<FseRamWrResp>());
-        send_if(join(), of_wr_req_s, false, zero!<FseRamWrReq>());
-        recv_if(join(), of_wr_resp_s, false, zero!<FseRamWrResp>());
-
-        recv_if(join(), dummy_ll_fse_rd_req_r, false, zero!<FseRamRdReq>());
-        send_if(join(), dummy_ll_fse_rd_resp_s, false, zero!<FseRamRdResp>());
-        recv_if(join(), dummy_ll_fse_wr_req_r, false, zero!<FseRamWrReq>());
-        send_if(join(), dummy_ll_fse_wr_resp_s, false, zero!<FseRamWrResp>());
-        recv_if(join(), dummy_ml_fse_rd_req_r, false, zero!<FseRamRdReq>());
-        send_if(join(), dummy_ml_fse_rd_resp_s, false, zero!<FseRamRdResp>());
-        recv_if(join(), dummy_ml_fse_wr_req_r, false, zero!<FseRamWrReq>());
-        send_if(join(), dummy_ml_fse_wr_resp_s, false, zero!<FseRamWrResp>());
-        recv_if(join(), dummy_of_fse_rd_req_r, false, zero!<FseRamRdReq>());
-        send_if(join(), dummy_of_fse_rd_resp_s, false, zero!<FseRamRdResp>());
-        recv_if(join(), dummy_of_fse_wr_req_r, false, zero!<FseRamWrReq>());
-        send_if(join(), dummy_of_fse_wr_resp_s, false, zero!<FseRamWrResp>());
+        let tok = join();
+        send_if(tok, dummy_ll_wr_req_s, false, zero!<FseRamWrReq>());
+        recv_if(tok, dummy_ll_wr_resp_r, false, zero!<FseRamWrResp>());
+        send_if(tok, dummy_ml_wr_req_s, false, zero!<FseRamWrReq>());
+        recv_if(tok, dummy_ml_wr_resp_r, false, zero!<FseRamWrResp>());
+        send_if(tok, dummy_of_wr_req_s, false, zero!<FseRamWrReq>());
+        recv_if(tok, dummy_of_wr_resp_r, false, zero!<FseRamWrResp>());
+        send_if(tok, dummy_fse_rd_req_s, false, zero!<FseRamRdReq>());
+        recv_if(tok, dummy_fse_rd_resp_r, false, zero!<FseRamRdResp>());
+        recv_if(tok, dummy_ll_fse_rd_req_r, false, zero!<FseRamRdReq>());
+        send_if(tok, dummy_ll_fse_rd_resp_s, false, zero!<FseRamRdResp>());
+        recv_if(tok, dummy_ll_fse_wr_req_r, false, zero!<FseRamWrReq>());
+        send_if(tok, dummy_ll_fse_wr_resp_s, false, zero!<FseRamWrResp>());
+        recv_if(tok, dummy_ml_fse_rd_req_r, false, zero!<FseRamRdReq>());
+        send_if(tok, dummy_ml_fse_rd_resp_s, false, zero!<FseRamRdResp>());
+        recv_if(tok, dummy_ml_fse_wr_req_r, false, zero!<FseRamWrReq>());
+        send_if(tok, dummy_ml_fse_wr_resp_s, false, zero!<FseRamWrResp>());
+        recv_if(tok, dummy_of_fse_rd_req_r, false, zero!<FseRamRdReq>());
+        send_if(tok, dummy_of_fse_rd_resp_s, false, zero!<FseRamRdResp>());
+        recv_if(tok, dummy_of_fse_wr_req_r, false, zero!<FseRamWrReq>());
+        send_if(tok, dummy_of_fse_wr_resp_s, false, zero!<FseRamWrResp>());
     }
 }
 
@@ -1125,9 +1171,9 @@ const TEST_DPD_RAM_WORD_PARTITION_SIZE = TEST_DPD_RAM_DATA_W;
 const TEST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_DPD_RAM_WORD_PARTITION_SIZE, TEST_DPD_RAM_DATA_W);
 
 const TEST_FSE_RAM_DATA_W = u32:32;
-const TEST_FSE_RAM_SIZE = u32:256;
+const TEST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
 const TEST_FSE_RAM_ADDR_W = std::clog2(TEST_FSE_RAM_SIZE);
-const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_W / u32:3;
+const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_W;
 const TEST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_FSE_RAM_WORD_PARTITION_SIZE, TEST_FSE_RAM_DATA_W);
 const TEST_FSE_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 
@@ -1137,151 +1183,340 @@ const TEST_TMP_RAM_ADDR_W = std::clog2(TEST_TMP_RAM_SIZE);
 const TEST_TMP_RAM_WORD_PARTITION_SIZE = TEST_TMP_RAM_DATA_W;
 const TEST_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP_RAM_WORD_PARTITION_SIZE, TEST_TMP_RAM_DATA_W);
 
-const TEST_RAM_DATA = u64[40]:[
-    u64:0x0, u64:0x0,        // 0x000
-    u64:0x0, u64:0x0,        // 0x010
-    u64:0x0, u64:0x0,        // 0x020
-    u64:0x0, u64:0x0,        // 0x030
-    u64:0x0, u64:0x0,        // 0x040
-    u64:0x0, u64:0x0,        // 0x050
-    u64:0x0, u64:0x0,        // 0x060
-    u64:0x0, u64:0x0,        // 0x070
-    u64:0x0, u64:0x0,        // 0x080
-    u64:0x0, u64:0x0,        // 0x090
-    u64:0x0, u64:0x0,        // 0x0A0
-    u64:0x0, u64:0x0,        // 0x0B0
-    u64:0x0, u64:0x0,        // 0x0C0
-    u64:0x0, u64:0x0,        // 0x0D0
-    u64:0x0, u64:0x0,        // 0x0E0
-    u64:0x0, u64:0x0,        // 0x0F0
-    u64:0x0016A400E6C3000A,  // 0x100
-    u64:0x225100295B0012D6,  // 0x138
-    u64:0x1E00123CB813DB80,  // 0x140
-    u64:0x1026064002C4800A,  // 0x148
-    u64:0x0, ...
-];
+const TEST_TMP2_RAM_DATA_W = u32:8;
+const TEST_TMP2_RAM_SIZE = u32:512;
+const TEST_TMP2_RAM_ADDR_W = std::clog2(TEST_TMP2_RAM_SIZE);
+const TEST_TMP2_RAM_WORD_PARTITION_SIZE = TEST_TMP2_RAM_DATA_W;
+const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP2_RAM_WORD_PARTITION_SIZE, TEST_TMP2_RAM_DATA_W);
 
-const EXPECTED_OUTPUT = SequenceExecutorPacket[20]:[
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0000,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x001c,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x000a,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x0389,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0000,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x013c,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0000,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x0479,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0009,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x001d,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0001,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x024a,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0001,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x032b,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0001,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x02b5,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0002,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0003,
-        content: u64:0x03a9,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::LITERAL,
-        length: u64:0x0,
-        content: u64:0x0,
-        last: false,
-    },
-    SequenceExecutorPacket {
-        msg_type: SequenceExecutorMessageType::SEQUENCE,
-        length: u64:0x0004,
-        content: u64:0x06c3,
-        last: true,
-    },
+// testcase format:
+// - sequences section length
+// - sequences section as it appears in memory
+// - expected output size
+// - expected output
+const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[2] = [
+    // Test case 0
+    // raw literals with sequences with 3 predefined tables
+    // ./decodecorpus -pdata2.out -odata2.in -s35304 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
+    (
+        u32:17,
+        u64[32]:[
+            u64:0x0, u64:0x0,
+            u64:0xBC7C2BA0B0430006,
+            u64:0x2157643002EA92AA,
+            u64:0x0000000000000002,
+            u64:0x0, ...
+        ],
+        u32:12,
+        SequenceExecutorPacket[64]:[
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0004,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0005,
+                content: u64:0x000b,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0004,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0006,
+                content: u64:0x0001,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0005,
+                content: u64:0x0032,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0006,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0009,
+                content: u64:0x003e,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0009,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0006,
+                content: u64:0x003d,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x001a,
+                content: u64:0x0043,
+                last: true,
+            },
+            zero!<SequenceExecutorPacket>(), ...
+        ]
+    ),
+    // testcase 1
+    // 2 custom tables with accuracy log 5 and 5, 1 predefined table
+    (
+        u32:32,
+        u64[32]:[
+            u64:0x0, u64:0x0,
+            u64:0x3D2321013010280D,
+            u64:0x6B3F7AC0F0D11F40,
+            u64:0xE80100C6012D0310,
+            u64:0x6CBFAEE1A0DDEF00,
+            u64:0x0, ...
+        ],
+        u32:26,
+        SequenceExecutorPacket[64]:[
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0001,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0003,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0001,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x000e,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x0023,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0001,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x00de,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x003a,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0110,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x00b0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x00da,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x0044,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x013f,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0001,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x001b,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x0003,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x0031,
+                last: true,
+            },
+            zero!<SequenceExecutorPacket>(), ...
+        ]
+    ),
+    // Test case 2 (WARNING: long test running time)
+    // 3 custom lookup tables with accuracy log 9, 8 and 9
+    // decodecorpus -pdata.out -odata.in -s58745 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
+    // (
+    //     u32:32,
+    //     u64[32]:[
+    //         u64:0x0, u64:0x0,
+    //         u64:0xFC0502602814A804,
+    //         u64:0x505040131FF60604,
+    //         u64:0xFE01C080140FE030,
+    //         u64:0x4040E65B84521B01,
+    //         u64:0x0, ...
+    //     ],
+    //     u32:7,
+    //     SequenceExecutorPacket[64]:[
+    //         SequenceExecutorPacket {
+    //             msg_type: SequenceExecutorMessageType::LITERAL,
+    //             length: u64:0x0005,
+    //             content: u64:0x0,
+    //             last: false,
+    //         },
+    //         SequenceExecutorPacket {
+    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
+    //             length: u64:0x0004,
+    //             content: u64:0x0006,
+    //             last: false,
+    //         },
+    //         SequenceExecutorPacket {
+    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
+    //             length: u64:0x0004,
+    //             content: u64:0x0002,
+    //             last: false,
+    //         },
+    //         SequenceExecutorPacket {
+    //             msg_type: SequenceExecutorMessageType::LITERAL,
+    //             length: u64:0x0011,
+    //             content: u64:0x0,
+    //             last: false,
+    //         },
+    //         SequenceExecutorPacket {
+    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
+    //             length: u64:0x0004,
+    //             content: u64:0x000a,
+    //             last: false,
+    //         },
+    //         SequenceExecutorPacket {
+    //             msg_type: SequenceExecutorMessageType::LITERAL,
+    //             length: u64:0x002b,
+    //             content: u64:0x0,
+    //             last: false,
+    //         },
+    //         SequenceExecutorPacket {
+    //             msg_type: SequenceExecutorMessageType::SEQUENCE,
+    //             length: u64:0x0006,
+    //             content: u64:0x0023,
+    //             last: true,
+    //         },
+    //         zero!<SequenceExecutorPacket>(), ...
+    //     ]
+    // ),
 ];
 
 type Base = u16;
@@ -1483,6 +1718,11 @@ proc SequenceDecoderTest {
     type TmpRamWrReq = ram::WriteReq<TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWrResp = ram::WriteResp;
 
+    type Tmp2RamRdReq = ram::ReadReq<TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamRdResp = ram::ReadResp<TEST_TMP2_RAM_DATA_W>;
+    type Tmp2RamWrReq = ram::WriteReq<TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWrResp = ram::WriteResp;
+
     type FseAddr = uN[TEST_FSE_RAM_ADDR_W];
     type FseData = uN[TEST_FSE_RAM_DATA_W];
     type FseMask = uN[TEST_FSE_RAM_NUM_PARTITIONS];
@@ -1563,6 +1803,17 @@ proc SequenceDecoderTest {
             TEST_TMP_RAM_SIZE,
             TEST_TMP_RAM_WORD_PARTITION_SIZE
         >(tmp_rd_req_r, tmp_rd_resp_s, tmp_wr_req_r, tmp_wr_resp_s);
+
+        let (tmp2_rd_req_s, tmp2_rd_req_r) = chan<Tmp2RamRdReq>("tmp2_rd_req");
+        let (tmp2_rd_resp_s, tmp2_rd_resp_r) = chan<Tmp2RamRdResp>("tmp2_rd_resp");
+        let (tmp2_wr_req_s, tmp2_wr_req_r) = chan<Tmp2RamWrReq>("tmp2_wr_req");
+        let (tmp2_wr_resp_s, tmp2_wr_resp_r) = chan<Tmp2RamWrResp>("tmp2_wr_resp");
+
+        spawn ram::RamModel<
+            TEST_TMP2_RAM_DATA_W,
+            TEST_TMP2_RAM_SIZE,
+            TEST_TMP2_RAM_WORD_PARTITION_SIZE
+        >(tmp2_rd_req_r, tmp2_rd_resp_s, tmp2_wr_req_r, tmp2_wr_resp_s);
 
         // RAM with default FSE lookup for Literal Lengths
 
@@ -1803,6 +2054,7 @@ proc SequenceDecoderTest {
            TEST_AXI_ADDR_W, TEST_AXI_DATA_W, TEST_AXI_DEST_W, TEST_AXI_ID_W,
            TEST_DPD_RAM_ADDR_W, TEST_DPD_RAM_DATA_W, TEST_DPD_RAM_NUM_PARTITIONS,
            TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS,
+           TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_NUM_PARTITIONS,
            TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS,
        > (
            ss_axi_ar_s, ss_axi_r_r,
@@ -1814,6 +2066,7 @@ proc SequenceDecoderTest {
 
            dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,
            tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
+           tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
 
            ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
            ll_fse_rd_req_s, ll_fse_rd_resp_r, ll_fse_wr_req_s, ll_fse_wr_resp_r,
@@ -1847,22 +2100,6 @@ proc SequenceDecoderTest {
 
     next(state: ()) {
         let tok = join();
-
-        // FILL THE TEST DATA
-        let tok = unroll_for! (i, tok): (u32, token) in range(u32:0, array_size(TEST_RAM_DATA)) {
-            let req = InputRamWrReq {
-                addr: i as InputAddr,
-                data: TEST_RAM_DATA[i] as InputData,
-                mask: !InputMask:0,
-            };
-            let tok = send(tok, input0_wr_req_s, req);
-            let (tok, _) = recv(tok, input0_wr_resp_r);
-            let tok = send(tok, input1_wr_req_s, req);
-            let (tok, _) = recv(tok, input1_wr_resp_r);
-            let tok = send(tok, input2_wr_req_s, req);
-            let (tok, _) = recv(tok, input2_wr_resp_r);
-            tok
-        }(tok);
 
         // FILL THE LL DEFAULT RAM
         let tok = send(tok, ll_sel_test_s, u1:0);
@@ -1906,68 +2143,109 @@ proc SequenceDecoderTest {
         }(tok);
         let tok = send(tok, ml_sel_test_s, u1:1);
 
-        // START DECODING
-        let tok = send(tok, req_s, Req {
-            sync: BlockSyncData {
-                id: u32:0,
-                last_block: false,
-            },
-            start_addr: uN[TEST_AXI_ADDR_W]:0x100,
-            end_addr: uN[TEST_AXI_ADDR_W]:0x120,
-            literals_count: u20:24,
-        });
+        // LOAD TESTCASES
+        let tok = unroll_for! (test_i, tok): (u32, token) in range(u32:0, array_size(SEQ_DEC_TESTCASES)) {
+            let (seq_len, seq_data, expected_len, expected_data) = SEQ_DEC_TESTCASES[test_i];
+            let ADDR_OFFSET = uN[TEST_AXI_ADDR_W]:0x10;
+            let seq_len_words = std::ceil_div(seq_len + ADDR_OFFSET, u32:8);
+            // FILL THE TEST DATA
+            let tok = for (i, tok): (u32, token) in range(u32:0, seq_len_words) {
+                let req = InputRamWrReq {
+                    addr: i as InputAddr,
+                    data: seq_data[i] as InputData,
+                    mask: !InputMask:0,
+                };
+                let tok = send(tok, input0_wr_req_s, req);
+                let (tok, _) = recv(tok, input0_wr_resp_r);
+                let tok = send(tok, input1_wr_req_s, req);
+                let (tok, _) = recv(tok, input1_wr_resp_r);
+                let tok = send(tok, input2_wr_req_s, req);
+                let (tok, _) = recv(tok, input2_wr_resp_r);
+                tok
+            }(tok);
 
-        let tok = for ((i, output), tok): ((u32, SequenceExecutorPacket), token) in enumerate(EXPECTED_OUTPUT) {
+            // COUNT THE AMOUNT OF LITERALS
+            let (tok, literals_count) = for (i, (tok, literals_count)): (u32, (token, u20)) in range(u32:0, expected_len) {
+                let literals_count = match expected_data[i].msg_type {
+                    SequenceExecutorMessageType::SEQUENCE => literals_count,
+                    SequenceExecutorMessageType::LITERAL => literals_count + expected_data[i].length as u20,
+                };
+                (tok, literals_count)
+            }((tok, u20:0));
+
+            // START DECODING
+            let tok = send(tok, req_s, Req {
+                sync: BlockSyncData {
+                    id: u32:0,
+                    last_block: false,
+                },
+                start_addr: ADDR_OFFSET,
+                end_addr: ADDR_OFFSET + seq_len as uN[TEST_AXI_ADDR_W],
+                literals_count: literals_count,
+            });
+
+            let tok = for (i, tok): (u32, token) in range(u32:0, expected_len) {
+                let output = expected_data[i];
+                let (tok, recv_output) = recv(tok, fd_command_r);
+                trace_fmt!("[{}]: Expected: {:#x}\nGot: {:#x}\n", i, output, recv_output);
+                assert_eq(output, recv_output.data);
+                tok
+            }(tok);
+
+            let (tok, resp) = recv(tok, resp_r);
+            assert_eq(resp, Resp {
+                status: SequenceDecoderStatus::OK
+            });
+            trace_fmt!("DECODE RESPONSE");
+
+            // START DECODING - ask for more literals - expecting additional empty output packet with
+            // last set
+            let ADDITIONAL_LITERALS = u20:123;
+            let tok = send(tok, req_s, Req {
+                sync: BlockSyncData {
+                    id: u32:0,
+                    last_block: false,
+                },
+                start_addr: ADDR_OFFSET,
+                end_addr: ADDR_OFFSET + seq_len as uN[TEST_AXI_ADDR_W],
+                literals_count: literals_count + ADDITIONAL_LITERALS,
+            });
+
+            // Don't read the last output packet from the expected output array
+            let tok = for (i, tok): (u32, token) in range(u32:0, expected_len - u32:1) {
+                let output = expected_data[i];
+                let (tok, recv_output) = recv(tok, fd_command_r);
+                trace_fmt!("[{}]: Expected: {:#x}\nGot: {:#x}\n", i, output, recv_output);
+                assert_eq(output, recv_output.data);
+                tok
+            }(tok);
+
+            // The last packet from the expected output array is now expected to have last not set
+            let expected = SequenceExecutorPacket {
+                last: false,
+                ..expected_data[expected_len - u32:1]
+            };
             let (tok, recv_output) = recv(tok, fd_command_r);
-            trace_fmt!("[{}]: Expected: {:#x}\nGot: {:#x}\n", i, output, recv_output);
-            assert_eq(output, recv_output.data);
+            trace_fmt!("[LAST-1]: Expected: {:#x}\nGot: {:#x}\n", expected, recv_output);
+            assert_eq(expected, recv_output.data);
+
+            // This is the actual last output packet
+            let expected = SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: ADDITIONAL_LITERALS as u64,
+                content: u64:0x0,
+                last: true,
+            };
+            let (tok, recv_output) = recv(tok, fd_command_r);
+            trace_fmt!("[LAST]: Expected: {:#x}\nGot: {:#x}\n", expected, recv_output);
+            assert_eq(expected, recv_output.data);
+
+            let (tok, resp) = recv(tok, resp_r);
+            assert_eq(resp, Resp {
+                status: SequenceDecoderStatus::OK
+            });
             tok
         }(tok);
-
-        let (tok, _) = recv(tok, resp_r);
-
-        // START DECODING - ask for more literals - expecting additional empty output packet with
-        // last set
-        let tok = send(tok, req_s, Req {
-            sync: BlockSyncData {
-                id: u32:0,
-                last_block: false,
-            },
-            start_addr: uN[TEST_AXI_ADDR_W]:0x100,
-            end_addr: uN[TEST_AXI_ADDR_W]:0x120,
-            literals_count: u20:26,
-        });
-
-        // Don't read the last output packet from the expected output array
-        let tok = for (i, tok): (u32, token) in u32:0..(array_size(EXPECTED_OUTPUT) - u32:1) {
-            let output = EXPECTED_OUTPUT[i];
-            let (tok, recv_output) = recv(tok, fd_command_r);
-            trace_fmt!("[{}]: Expected: {:#x}\nGot: {:#x}\n", i, output, recv_output);
-            assert_eq(output, recv_output.data);
-            tok
-        }(tok);
-
-        // The last packet from the expected output array is now expected to have last not set
-        let expected = SequenceExecutorPacket {
-            last: false,
-            ..EXPECTED_OUTPUT[array_size(EXPECTED_OUTPUT) - u32:1]
-        };
-        let (tok, recv_output) = recv(tok, fd_command_r);
-        trace_fmt!("[LAST-1]: Expected: {:#x}\nGot: {:#x}\n", expected, recv_output);
-        assert_eq(expected, recv_output.data);
-
-        // This is the actual last output packet
-        let expected = SequenceExecutorPacket {
-            msg_type: SequenceExecutorMessageType::LITERAL,
-            length: u64:0x2,
-            content: u64:0x0,
-            last: true,
-        };
-        let (tok, recv_output) = recv(tok, fd_command_r);
-        trace_fmt!("[LAST]: Expected: {:#x}\nGot: {:#x}\n", expected, recv_output);
-        assert_eq(expected, recv_output.data);
-
-        let (tok, _) = recv(tok, resp_r);
 
         send(tok, terminator, true);
    }
