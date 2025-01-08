@@ -1238,6 +1238,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "comp_block_dec_dslx_test",
     library = ":comp_block_dec_dslx",
+    size = "large",
     tags = ["manual"],
 )
 
@@ -1471,7 +1472,7 @@ xls_dslx_verilog(
     library = ":fse_table_creator_dslx",
     opt_ir_args = {
         "inline_procs": "true",
-        "top": "__fse_table_creator__FseTableCreatorInst__FseTableCreator_0__8_16_1_8_32_4_8_16_1_next",
+        "top": "__fse_table_creator__FseTableCreatorInst__FseTableCreator_0__8_16_1_9_32_1_9_8_1_8_16_1_next",
     },
     verilog_file = "fse_table_creator.v",
     tags = ["manual"],
@@ -1651,7 +1652,7 @@ xls_dslx_verilog(
     library = ":ram_demux_dslx",
     opt_ir_args = {
         "inline_procs": "true",
-        "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_8_5_next",
+        "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_0_8_5_next",
     },
     verilog_file = "ram_demux.v",
     tags = ["manual"],
@@ -1661,7 +1662,7 @@ xls_benchmark_ir(
     name = "ram_demux_opt_ir_benchmark",
     src = "ram_demux_verilog.opt.ir",
     benchmark_ir_args = {
-        "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_8_5_next",
+        "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_0_8_5_next",
     },
     codegen_args = {
         "pipeline_stages": "10",
@@ -2014,7 +2015,7 @@ xls_dslx_verilog(
         "multi_proc": "true",
     },
     opt_ir_args = {
-        "top": "__sequence_dec__FseLookupCtrlInst__FseLookupCtrl_0__32_next"
+        "top": "__sequence_dec__FseLookupCtrlInst__FseLookupCtrl_0_next"
     },
     dslx_top = "FseLookupCtrlInst",
     library = ":sequence_dec_dslx",
