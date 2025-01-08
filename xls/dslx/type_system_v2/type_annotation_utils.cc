@@ -15,14 +15,18 @@
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -149,6 +153,39 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
   absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
       GetSignednessAndBitCount(annotation);
   return !signedness_and_bit_count.ok() ? array_annotation : nullptr;
+}
+
+std::optional<StructOrProcDef> GetStructOrProcDef(
+    const TypeAnnotation* annotation) {
+  const auto* type_ref_annotation =
+      dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
+  if (type_ref_annotation == nullptr) {
+    return std::nullopt;
+  }
+  const TypeDefinition& def =
+      type_ref_annotation->type_ref()->type_definition();
+  return absl::visit(
+      Visitor{[](TypeAlias* alias) -> std::optional<StructOrProcDef> {
+                return GetStructOrProcDef(&alias->type_annotation());
+              },
+              [](StructDef* struct_def) -> std::optional<StructOrProcDef> {
+                return struct_def;
+              },
+              [](ProcDef* proc_def) -> std::optional<StructOrProcDef> {
+                return proc_def;
+              },
+              [](ColonRef* colon_ref) -> std::optional<StructOrProcDef> {
+                if (std::holds_alternative<TypeRefTypeAnnotation*>(
+                        colon_ref->subject())) {
+                  return GetStructOrProcDef(
+                      std::get<TypeRefTypeAnnotation*>(colon_ref->subject()));
+                }
+                return std::nullopt;
+              },
+              [](EnumDef*) -> std::optional<StructOrProcDef> {
+                return std::nullopt;
+              }},
+      def);
 }
 
 }  // namespace xls::dslx

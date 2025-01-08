@@ -14,13 +14,17 @@
 
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <stack>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -28,6 +32,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
@@ -170,6 +176,54 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // Annotate the whole tuple expression as (var:M0, var:M1, ...).
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, module_.Make<TupleTypeAnnotation>(node->span(), member_types)));
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleStructInstance(const StructInstance* node) override {
+    // As far as we're concerned here, type-checking a struct instance is like
+    // type-checking a function invocation (see `HandleFreeFunctionInvocation`),
+    // but with named arguments instead of parallel ordering. The naming of
+    // arguments creates additional pitfalls, like erroneously naming two
+    // different arguments the same thing.
+    VLOG(5) << "HandleStructInstance: " << node->ToString();
+
+    std::optional<StructOrProcDef> struct_or_proc_def =
+        GetStructOrProcDef(node->struct_ref());
+    if (!struct_or_proc_def.has_value()) {
+      return TypeInferenceErrorStatusForAnnotation(
+          node->span(), node->struct_ref(),
+          absl::Substitute(
+              "Attempted to instantiate non-struct type `$0` as a struct.",
+              node->struct_ref()->ToString()),
+          file_table_);
+    }
+    if (!std::holds_alternative<const StructDef*>(*struct_or_proc_def)) {
+      return TypeInferenceErrorStatusForAnnotation(
+          node->span(), node->struct_ref(),
+          "Impl-style procs are a work in progress and cannot yet be "
+          "instantiated.",
+          file_table_);
+    }
+
+    const StructDef* struct_def =
+        std::get<const StructDef*>(*struct_or_proc_def);
+    XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(*node, *struct_def));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, node->struct_ref()));
+    std::vector<std::pair<std::string, Expr*>> members =
+        node->GetOrderedMembers(struct_def);
+    for (int i = 0; i < members.size(); i++) {
+      const auto& [name, actual_member] = members[i];
+      const StructMemberNode* formal_member = struct_def->members()[i];
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* member_type_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(actual_member),
+              GenerateInternalTypeVariableName(formal_member, actual_member)));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(actual_member, member_type_variable));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(actual_member, formal_member->type()));
+    }
     return DefaultHandler(node);
   }
 
@@ -558,6 +612,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return absl::StrCat("internal_type_actual_arg_", formal_param->identifier(),
                         "_at_", actual_arg->span().ToString(file_table_));
   }
+  // Variant for an actual struct member expr.
+  std::string GenerateInternalTypeVariableName(
+      const StructMemberNode* formal_member, const Expr* actual_member) {
+    return absl::StrCat("internal_type_actual_member_", formal_member->name(),
+                        "_at_", actual_member->span().ToString(file_table_));
+  }
 
   // Propagates the type from the def for `ref`, to `ref` itself in the
   // inference table. This may result in a `TypeAnnotation` being added to the
@@ -623,6 +683,51 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       }
     }
     return annotation;
+  }
+
+  // Ensures that a `StructInstance` nodes provides exprs for all the names in a
+  // struct definition, with no extraneous or duplicate names.
+  absl::Status ValidateStructInstanceMemberNames(const StructInstance& instance,
+                                                 const StructDefBase& def) {
+    std::vector<std::string> formal_name_vector = def.GetMemberNames();
+    absl::btree_set<std::string> formal_names(formal_name_vector.begin(),
+                                              formal_name_vector.end());
+    absl::btree_set<std::string> actual_names;
+    for (const auto& [name, expr] : instance.GetUnorderedMembers()) {
+      if (!formal_names.contains(name)) {
+        return TypeInferenceErrorStatus(
+            expr->span(), nullptr,
+            absl::Substitute("Struct `$0` has no member `$1`, but it was "
+                             "provided by this instance.",
+                             def.identifier(), name),
+            file_table_);
+      }
+      if (!actual_names.insert(name).second) {
+        return TypeInferenceErrorStatus(
+            expr->span(), nullptr,
+            absl::Substitute(
+                "Duplicate value seen for `$0` in this `$1` struct instance.",
+                name, def.identifier()),
+            file_table_);
+      }
+    }
+    if (actual_names.size() != formal_names.size()) {
+      absl::btree_set<std::string> missing_set;
+      absl::c_set_difference(formal_names, actual_names,
+                             std::inserter(missing_set, missing_set.begin()));
+      std::vector<std::string> missing(missing_set.begin(), missing_set.end());
+      return TypeInferenceErrorStatus(
+          instance.span(), nullptr,
+          absl::Substitute(
+              "Instance of struct `$0` is missing member(s): $1",
+              def.identifier(),
+              absl::StrJoin(missing, ", ",
+                            [](std::string* out, const std::string& piece) {
+                              absl::StrAppendFormat(out, "`%s`", piece);
+                            })),
+          file_table_);
+    }
+    return absl::OkStatus();
   }
 
   Module& module_;

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_NODE_ITERATOR_H_
-#define XLS_IR_NODE_ITERATOR_H_
+#ifndef XLS_IR_TOPO_SORT_H_
+#define XLS_IR_TOPO_SORT_H_
 
 #include <optional>
 #include <vector>
@@ -47,4 +47,4 @@ std::vector<Node*> ReverseTopoSort(
 
 }  // namespace xls
 
-#endif  // XLS_IR_NODE_ITERATOR_H_
+#endif  // XLS_IR_TOPO_SORT_H_

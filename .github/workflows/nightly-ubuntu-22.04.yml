@@ -61,6 +61,10 @@ jobs:
           [[ ${CODEGEN_MAIN_VERSION} = ${VERSION} ]]
           PROTO_TO_DSLX_MAIN_VERSION=$(./proto_to_dslx_main --version)
           [[ ${PROTO_TO_DSLX_MAIN_VERSION} = ${VERSION} ]]
+          DSLX_FMT_VERSION=$(./dslx_fmt --version)
+          [[ ${DSLX_FMT_VERSION} = ${VERSION} ]]
+          DSLX_LS_VERSION=$(./dslx_ls --version)
+          [[ ${DSLX_LS_VERSION} = ${VERSION} ]]
 
       - name: Test stdlib import
         run: |

@@ -110,15 +110,6 @@ fn max_test_unsigned() {
 // Returns the minimum of two (signed or unsigned) integers.
 pub fn min<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> xN[S][N] { if x < y { x } else { y } }
 
-// TODO(meheff): Remove when all uses have been ported to std::min/std::max.
-pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { max(x, y) }
-
-pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N] { min(x, y) }
-
-pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { max(x, y) }
-
-pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] { min(x, y) }
-
 #[test]
 fn min_test_unsigned() {
     assert_eq(u1:0, min(u1:1, u1:0));

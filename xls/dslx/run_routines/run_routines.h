@@ -15,8 +15,8 @@
 // Routines for "running" DSLX files; i.e. parsing and testing all of the tests
 // contained inside.
 
-#ifndef XLS_DSLX_RUN_ROUTINES_H_
-#define XLS_DSLX_RUN_ROUTINES_H_
+#ifndef XLS_DSLX_RUN_ROUTINES_RUN_ROUTINES_H_
+#define XLS_DSLX_RUN_ROUTINES_RUN_ROUTINES_H_
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
@@ -299,4 +299,4 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_RUN_ROUTINES_H_
+#endif  // XLS_DSLX_RUN_ROUTINES_RUN_ROUTINES_H_

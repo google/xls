@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_TOOLS_TESTBENCH_BUILDER_H_
-#define XLS_TOOLS_TESTBENCH_BUILDER_H_
+#ifndef XLS_TESTS_TESTBENCH_BUILDER_H_
+#define XLS_TESTS_TESTBENCH_BUILDER_H_
 
 // Builder classes for XLS Testbench objects.
 // Often, much of the functionality of a Testbench doesn't need to be
@@ -277,4 +277,4 @@ Testbench<InputT, ResultT> TestbenchBuilder<
 
 }  // namespace xls
 
-#endif  // XLS_TOOLS_TESTBENCH_BUILDER_H_
+#endif  // XLS_TESTS_TESTBENCH_BUILDER_H_

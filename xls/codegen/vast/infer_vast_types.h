@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_INFER_VAST_TYPES_H_
-#define XLS_CODEGEN_INFER_VAST_TYPES_H_
+#ifndef XLS_CODEGEN_VAST_INFER_VAST_TYPES_H_
+#define XLS_CODEGEN_VAST_INFER_VAST_TYPES_H_
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
@@ -45,4 +45,4 @@ absl::StatusOr<absl::flat_hash_map<Expression*, DataType*>> InferVastTypes(
 }  // namespace verilog
 }  // namespace xls
 
-#endif  // XLS_CODEGEN_INFER_VAST_TYPES_H_
+#endif  // XLS_CODEGEN_VAST_INFER_VAST_TYPES_H_

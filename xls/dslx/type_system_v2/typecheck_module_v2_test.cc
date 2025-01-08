@@ -584,6 +584,184 @@ TEST(TypecheckV2Test, GlobalArrayConstantEmptyWithAnnotation) {
   EXPECT_THAT("const X: u32[0] = [];", TopNodeHasType("uN[32][0]"));
 }
 
+TEST(TypecheckV2Test, GlobalEmptyStructConstant) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S {}
+const X = S { };
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string, HasSubstr("node: `X`, type: S {}"));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithIntegerMember) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S { field: u32 }
+const X = S { field: 5 };
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasSubstr("node: `5`, type: uN[32]"),
+                    HasSubstr("node: `X`, type: S { field: uN[32] }")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithMultipleMembers) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S {
+  foo: u32,
+  bar: sN[4][3],
+  baz: (s24, bool)
+}
+const X = S { baz: (1, false), foo: 5, bar: [1, 2, 3] };
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasSubstr("node: `(1, false)`, type: (sN[24], uN[1])"),
+                    HasSubstr("node: `5`, type: uN[32]"),
+                    HasSubstr("node: `[1, 2, 3]`, type: sN[4][3]"),
+                    HasSubstr("node: `X`, type: S { foo: uN[32], bar: "
+                              "sN[4][3], baz: (sN[24], uN[1]) }")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalStructConstantWithIntegerMemberSignednessMismatchFails) {
+  EXPECT_THAT(R"(
+struct S { field: u32 }
+const X = S { field: s32:5 };
+)",
+              TypecheckFails(HasSignednessMismatch("s32", "u32")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithIntegerMemberSizeMismatchFails) {
+  EXPECT_THAT(R"(
+struct S { field: u32 }
+const X = S { field: u64:5 };
+)",
+              TypecheckFails(HasSizeMismatch("u64", "u32")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithIntegerMemberTypeMismatchFails) {
+  EXPECT_THAT(R"(
+struct S { field: u32 }
+const X = S { field: [u32:1, u32:2] };
+)",
+              TypecheckFails(HasTypeMismatch("uN[32][2]", "u32")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithMemberDuplicatedFails) {
+  EXPECT_THAT(R"(
+struct S { x: u32 }
+const X = S { x: u32:1, x: u32:2 };
+)",
+              TypecheckFails(HasSubstr(
+                  "Duplicate value seen for `x` in this `S` struct instance")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithMemberMissingFails) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+const X = S {};
+)",
+      TypecheckFails(
+          HasSubstr("Instance of struct `S` is missing member(s): `x`")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithExtraneousMemberFails) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+const X = S { x: 1, y: u32:2};
+)",
+      TypecheckFails(HasSubstr("Struct `S` has no member `y`, but it was "
+                               "provided by this instance")));
+}
+
+TEST(TypecheckV2Test, GlobalStructInstancePropagation) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S { field: u32 }
+const X = S { field: 5 };
+const Y = X;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string,
+              AllOf(HasSubstr("node: `5`, type: uN[32]"),
+                    HasSubstr("node: `Y`, type: S { field: uN[32] }")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalStructConstantEqualsWrongKindOfStructInstanceFails) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+struct T { x: u32 }
+const X: S = T { x: 1 };
+)",
+      TypecheckFails(HasTypeMismatch("S", "T")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalStructConstantEqualsWrongKindOfStructConstantFails) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+struct T { x: u32 }
+const X = S { x: 1 };
+const Y: T = X;
+)",
+      TypecheckFails(HasTypeMismatch("T", "S")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantEqualsNonStructFails) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+const X: S = u32:1;
+)",
+      TypecheckFails(HasTypeMismatch("S", "u32")));
+}
+
+TEST(TypecheckV2Test, StructFunctionArgument) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S { field: u32 }
+fn f(s: S) {}
+fn g() {
+  f(S { field: 2 })
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `2`, type: uN[32]"),
+            HasSubstr("node: `S { field: 2 }`, type: S { field: uN[32] }")));
+}
+
+TEST(TypecheckV2Test, StructFunctionReturnValue) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+struct S { field: u32 }
+fn f(value: u32) -> S {
+  S { field: value }
+}
+const X = f(2);
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(
+      type_info_string,
+      AllOf(HasSubstr("node: `const X = f(2);`, type: S { field: uN[32] }")));
+}
+
+TEST(TypecheckV2Test, InstantiationOfNonStruct) {
+  EXPECT_THAT(
+      "const X = u32 { foo: 1 };",
+      TypecheckFails(HasSubstr(
+          "Attempted to instantiate non-struct type `u32` as a struct.")));
+}
+
 TEST(TypecheckV2Test, FunctionCallReturningNothing) {
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
 fn foo() { () }

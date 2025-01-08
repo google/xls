@@ -42,9 +42,9 @@ information and critical-path.
 ## Ir Evaluation
 
 There are two different programs that can be used to simulate XLS designs
-depending on the type of design. `eval_ir_main` is used to simulate `fn`
-designs and `eval_proc_main` is used to simulate `proc` and `block` irs. Both
-binaries support running using the JIT to simulate at high performance.
+depending on the type of design. `eval_ir_main` is used to simulate `fn` designs
+and `eval_proc_main` is used to simulate `proc` and `block` irs. Both binaries
+support running using the JIT to simulate at high performance.
 
 ### [`eval_ir_main`](https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc)
 
@@ -81,28 +81,23 @@ used to validate transformations and gain insights into how the code performs.
 
 ## Jit Inspection {#jit-inspect}
 
-One can use the `jit:dump_llvm_artifacts` tool to inspect the jit code produced
-by our function and proc jit.
-
-One simply provides a directory to place the resulting artifacts and an ir file.
+One can use the `jit:aot_compiler_main` to inspect the jit code produced by our
+jits.
 
 ```sh
-$ bazel run xls/jit:dump_llvm_artifacts -- --out_dir=/tmp/muladd --ir=/tmp/muladd.ir
-Generating XLS artifacts
-Can't generate a test-main without an input & result
-$ ls /tmp/muladd
-result.asm             result.entrypoints.txtpb  result.o
-result.entrypoints.pb  result.ll                 result.opt.ll
+% bazel-bin/xls/jit/aot_compiler_main \
+              --input=code.ir \
+              --output_asm code.asm \
+              --output_llvm_ir code_llvm.ll \
+              --output_llvm_opt_ir code_llvm.opt.ll \
+              --output_object code.o \
+              --llvm_opt_level=3 \
+              --top=top
 ```
 
-This generates a number of files.
-
--   `result.ll`: The unoptimized llvm ir that our JIT/aot produces
--   `result.opt.ll`: The optimized llvm ir that our JIT/aot actually compiles.
--   `result.asm`: Result of compiling the `result.opt.ll` as assembly
--   `result.o`: Result of compiling the `result.opt.ll` as object code
--   `result.entrypoints.{txt,}pb`: The AotPackageEntrypointsProto describing the
-    compiled code in both text and binary format.
+This produces files containing the assembly code, the LLVM IR, the LLVM IR after
+optimization, and the object file. If the llvm optimizer is crashing try passing
+`--llvm_op_level=0` to disable it.
 
 Note: LLVM can change significantly and bytecode is not always compatible
 between versions. If possible, LLVM tools built at the same commit as the JIT

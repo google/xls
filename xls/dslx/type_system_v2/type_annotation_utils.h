@@ -16,6 +16,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_
 
 #include <cstdint>
+#include <optional>
 #include <variant>
 
 #include "absl/status/statusor.h"
@@ -24,6 +25,8 @@
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
+
+using StructOrProcDef = std::variant<const StructDef*, const ProcDef*>;
 
 // Creates an annotation for `uN[bit_count]` or `sN[bit_count]` depending on the
 // value of `is_signed`.
@@ -62,6 +65,11 @@ TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span);
 // succeeds if the annotation is for a true array, as opposed to a bits-like
 // type expressed as an array (e.g. `uN` or `xN`).
 const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
+    const TypeAnnotation* annotation);
+
+// Gets the `StructDef` or `ProcDef` for the type referenced by `annotation`, if
+// it is indeed a struct or impl-style proc type.
+std::optional<StructOrProcDef> GetStructOrProcDef(
     const TypeAnnotation* annotation);
 
 }  // namespace xls::dslx

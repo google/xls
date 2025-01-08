@@ -191,13 +191,16 @@ Operation  | Opcode          | Semantics
 ### Variadic bitwise operations
 
 Performs a bit-wise operation on one-or-more identically-typed bits operands. If
-only a single argument is provided the operation is a no-op.
+only a single argument is provided, the operations `and`, `or`, and `xor` are a no-op,
+while `nand` and `nor` act as a bit-wise not.
 
 **Syntax**
 
 ```
 result = and(operand_{0}, ..., operand_{N-1})
+result = nand(operand_{0}, ..., operand_{N-1})
 result = or(operand_{0}, ..., operand_{N-1})
+result = nor(operand_{0}, ..., operand_{N-1})
 result = xor(operand_{0}, ..., operand_{N-1})
 ```
 
@@ -210,11 +213,43 @@ Value         | Type
 
 **Operations**
 
-Operation | Opcode     | Semantics
---------- | ---------- | ----------------------------
-`and`     | `Op::kAnd` | `result = lhs & rhs & ...`
-`or`      | `Op::kOr`  | `result = lhs \| rhs \| ...`
-`xor`     | `Op::kXor` | `result = lhs ^ rhs ^ ...`
+Operation | Opcode      | Semantics
+--------- | ----------- | ------------------------------
+`and`     | `Op::kAnd`  | `result = lhs & rhs & ...`
+`nand`    | `Op::kNand` | `result = ~(lhs & rhs & ...)`
+`or`      | `Op::kOr`   | `result = lhs \| rhs \| ...`
+`nor`     | `Op::kNor`  | `result = ~(lhs \| rhs \| ...)`
+`xor`     | `Op::kXor`  | `result = lhs ^ rhs ^ ...`
+
+### Bitwise Reduction Operations
+
+Performs a bit-wise reduction operation on all bits of a single bits-typed
+operand, producing a single bit. For an operand of width 1, they act as no-ops.
+
+
+**Syntax**
+
+```
+result = and_reduce(operand)
+result = or_reduce(operand)
+result = xor_reduce(operand)
+```
+
+**Types**
+
+Value     | Type
+--------- | ---------
+`operand` | `bits[N]`
+`result`  | `bits[1]`
+
+
+**Operations**
+
+Operation    | Opcode           | Semantics
+------------ | ---------------- | ------------------------------------------
+`and_reduce` | `Op::kAndReduce` | `result = operand[0] & operand[1] & ...`
+`or_reduce`  | `Op::kOrReduce`  | `result = operand[0] \| operand[1] \| ...`
+`xor_reduce` | `Op::kXorReduce` | `result = operand[0] ^ operand[1] ^ ...`
 
 ### Arithmetic unary operations
 
@@ -302,17 +337,42 @@ the right operand is zero the result is zero.
 both elements having the same type. The outputs are not fully constrained; the
 operations are free to return any values that sum to the product `lhs * rhs`.
 
-### Comparison operations
+### Equality comparison operations
 
-Performs a comparison on a pair of identically-typed bits operands. Unsigned
-operations are prefixed with a 'u', and signed operations are prefixed with a
-'s'. Produces a result of bits[1] type.
+Performs an equality comparison on a pair of identically-typed operands.
+Produces a result of bits[1] type.
 
 **Syntax**
 
 ```
 result = eq(lhs, rhs)
 result = ne(lhs, rhs)
+```
+
+**Types**
+
+Value    | Type
+-------- | ---------
+`lhs`    | `T`
+`rhs`    | `T`
+`result` | `bits[1]`
+
+**Operations**
+
+Operation | Opcode     | Semantics
+--------- | ---------- | ---------------------
+`eq`      | `Op::kEq`  | `result = lhs == rhs`
+`ne`      | `Op::kNe`  | `result = lhs != rhs`
+
+### Numeric comparison operations
+
+Performs a numeric comparison on a pair of identically-typed bits operands.
+Unsigned operations are prefixed with a 'u', and signed operations are prefixed
+with a 's'. Produces a result of bits[1] type.
+
+**Syntax**
+
+```
 result = sge(lhs, rhs)
 result = sgt(lhs, rhs)
 result = sle(lhs, rhs)
@@ -335,8 +395,6 @@ Value    | Type
 
 Operation | Opcode     | Semantics
 --------- | ---------- | ---------------------
-`eq`      | `Op::kEq`  | `result = lhs == rhs`
-`ne`      | `Op::kNe`  | `result = lhs != rhs`
 `sge`     | `Op::kSGe` | `result = lhs >= rhs`
 `sgt`     | `Op::kSGt` | `result = lhs > rhs`
 `sle`     | `Op::kSLe` | `result = lhs <= rhs`

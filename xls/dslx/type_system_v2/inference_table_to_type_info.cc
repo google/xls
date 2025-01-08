@@ -453,6 +453,27 @@ class InferenceTableConverter {
       return std::make_unique<ArrayType>(std::move(element_type),
                                          TypeDim(InterpValue::MakeS64(size)));
     }
+    if (std::optional<StructOrProcDef> struct_or_proc =
+            GetStructOrProcDef(annotation);
+        struct_or_proc.has_value()) {
+      const StructDefBase* struct_def_base =
+          dynamic_cast<const StructDefBase*>(ToAstNode(*struct_or_proc));
+      CHECK(struct_def_base != nullptr);
+      std::vector<std::unique_ptr<Type>> member_types;
+      member_types.reserve(struct_def_base->members().size());
+      for (const StructMemberNode* member : struct_def_base->members()) {
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
+                             Concretize(member->type(), parametric_invocation));
+        member_types.push_back(std::move(concrete_member_type));
+      }
+      if (std::holds_alternative<const StructDef*>(*struct_or_proc)) {
+        return std::make_unique<StructType>(
+            std::move(member_types),
+            *std::get<const StructDef*>(*struct_or_proc));
+      }
+      return std::make_unique<ProcType>(
+          std::move(member_types), *std::get<const ProcDef*>(*struct_or_proc));
+    }
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(annotation);
     if (!signedness_and_bit_count.ok()) {
@@ -768,6 +789,22 @@ class InferenceTableConverter {
       }
       return UnifyArrayTypeAnnotations(parametric_invocation, array_annotations,
                                        span);
+    }
+    if (std::optional<StructOrProcDef> first_struct_or_proc =
+            GetStructOrProcDef(annotations[0]);
+        first_struct_or_proc.has_value()) {
+      const StructDefBase* struct_def_base =
+          dynamic_cast<const StructDefBase*>(ToAstNode(*first_struct_or_proc));
+      for (const TypeAnnotation* annotation : annotations) {
+        std::optional<StructOrProcDef> next_struct_or_proc =
+            GetStructOrProcDef(annotation);
+        if (!next_struct_or_proc.has_value() ||
+            ToAstNode(*next_struct_or_proc) != struct_def_base) {
+          return TypeMismatchErrorWithParametricResolution(
+              parametric_invocation, annotations[0], annotation);
+        }
+      }
+      return annotations[0];
     }
     std::optional<bool> unified_signedness;
     std::optional<SizeValue> unified_bit_count;

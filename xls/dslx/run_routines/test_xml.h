@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TEST_XML_H_
-#define XLS_DSLX_TEST_XML_H_
+#ifndef XLS_DSLX_RUN_ROUTINES_TEST_XML_H_
+#define XLS_DSLX_RUN_ROUTINES_TEST_XML_H_
 
 // Simple layer for building XML-serializable objects that test-reporting
 // infrastructure wants.
@@ -206,4 +206,4 @@ std::string XmlRootToString(const XmlNode& root);
 
 }  // namespace xls::dslx::test_xml
 
-#endif  // XLS_DSLX_TEST_XML_H_
+#endif  // XLS_DSLX_RUN_ROUTINES_TEST_XML_H_
