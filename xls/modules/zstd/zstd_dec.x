@@ -946,6 +946,7 @@ pub proc ZstdDecoder<
 
     DPD_RAM_ADDR_W: u32, DPD_RAM_DATA_W: u32, DPD_RAM_NUM_PARTITIONS: u32,
     TMP_RAM_ADDR_W: u32, TMP_RAM_DATA_W: u32, TMP_RAM_NUM_PARTITIONS: u32,
+    TMP2_RAM_ADDR_W: u32, TMP2_RAM_DATA_W: u32, TMP2_RAM_NUM_PARTITIONS: u32,
     FSE_RAM_ADDR_W: u32, FSE_RAM_DATA_W: u32, FSE_RAM_NUM_PARTITIONS: u32,
 
     HISTORY_BUFFER_SIZE_KB: u32,
@@ -1028,6 +1029,11 @@ pub proc ZstdDecoder<
     type TmpRamWrReq = ram::WriteReq<TMP_RAM_ADDR_W, TMP_RAM_DATA_W, TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWrResp = ram::WriteResp;
 
+    type Tmp2RamRdReq = ram::ReadReq<TMP2_RAM_ADDR_W, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamRdResp = ram::ReadResp<TMP2_RAM_DATA_W>;
+    type Tmp2RamWrReq = ram::WriteReq<TMP2_RAM_ADDR_W, TMP2_RAM_DATA_W, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWrResp = ram::WriteResp;
+
     type FseRamRdReq = ram::ReadReq<FSE_RAM_ADDR_W, FSE_RAM_NUM_PARTITIONS>;
     type FseRamRdResp = ram::ReadResp<FSE_RAM_DATA_W>;
     type FseRamWrReq = ram::WriteReq<FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS>;
@@ -1084,6 +1090,11 @@ pub proc ZstdDecoder<
         tmp_rd_resp_r: chan<TmpRamRdResp> in,
         tmp_wr_req_s: chan<TmpRamWrReq> out,
         tmp_wr_resp_r: chan<TmpRamWrResp> in,
+
+        tmp2_rd_req_s: chan<Tmp2RamRdReq> out,
+        tmp2_rd_resp_r: chan<Tmp2RamRdResp> in,
+        tmp2_wr_req_s: chan<Tmp2RamWrReq> out,
+        tmp2_wr_resp_r: chan<Tmp2RamWrResp> in,
 
         fse_rd_req_s: chan<FseRamRdReq>[u32:6] out,
         fse_rd_resp_r: chan<FseRamRdResp>[u32:6] in,
@@ -1257,6 +1268,7 @@ pub proc ZstdDecoder<
             // FSE lookup table RAMs
             DPD_RAM_ADDR_W, DPD_RAM_DATA_W, DPD_RAM_NUM_PARTITIONS,
             TMP_RAM_ADDR_W, TMP_RAM_DATA_W, TMP_RAM_NUM_PARTITIONS,
+            TMP2_RAM_ADDR_W, TMP2_RAM_DATA_W, TMP2_RAM_NUM_PARTITIONS,
             FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS,
         >(
             // MAIN IOs
@@ -1272,6 +1284,7 @@ pub proc ZstdDecoder<
             comp_axi_ram_ar_s[2], comp_axi_ram_r_r[2],
             dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,
             tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
             fse_rd_req_s[0], fse_rd_resp_r[0], fse_wr_req_s[0], fse_wr_resp_r[0],
             fse_rd_req_s[1], fse_rd_resp_r[1], fse_wr_req_s[1], fse_wr_resp_r[1],
             fse_rd_req_s[2], fse_rd_resp_r[2], fse_wr_req_s[2], fse_wr_resp_r[2],
@@ -1408,7 +1421,7 @@ const INST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
 const INST_FSE_RAM_DATA_W = u32:32;
 const INST_FSE_RAM_SIZE = u32:256;
 const INST_FSE_RAM_ADDR_W = std::clog2(INST_FSE_RAM_SIZE);
-const INST_FSE_RAM_WORD_PARTITION_SIZE = INST_FSE_RAM_DATA_W / u32:3;
+const INST_FSE_RAM_WORD_PARTITION_SIZE = INST_FSE_RAM_DATA_W;
 const INST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
     INST_FSE_RAM_WORD_PARTITION_SIZE, INST_FSE_RAM_DATA_W);
 
@@ -1418,6 +1431,13 @@ const INST_TMP_RAM_ADDR_W = std::clog2(INST_TMP_RAM_SIZE);
 const INST_TMP_RAM_WORD_PARTITION_SIZE = INST_TMP_RAM_DATA_W;
 const INST_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(
     INST_TMP_RAM_WORD_PARTITION_SIZE, INST_TMP_RAM_DATA_W);
+
+const INST_TMP2_RAM_DATA_W = u32:8;
+const INST_TMP2_RAM_SIZE = u32:512;
+const INST_TMP2_RAM_ADDR_W = std::clog2(INST_TMP2_RAM_SIZE);
+const INST_TMP2_RAM_WORD_PARTITION_SIZE = INST_TMP2_RAM_DATA_W;
+const INST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
+    INST_TMP2_RAM_WORD_PARTITION_SIZE, INST_TMP2_RAM_DATA_W);
 
 const HUFFMAN_WEIGHTS_RAM_ADDR_W: u32 = huffman_literals_dec::WEIGHTS_ADDR_WIDTH;
 const HUFFMAN_WEIGHTS_RAM_DATA_W: u32 = huffman_literals_dec::WEIGHTS_DATA_WIDTH;
@@ -1550,6 +1570,11 @@ proc ZstdDecoderInst {
     type TmpRamWrReq = ram::WriteReq<INST_TMP_RAM_ADDR_W, INST_TMP_RAM_DATA_W, INST_TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWrResp = ram::WriteResp;
 
+    type Tmp2RamRdReq = ram::ReadReq<INST_TMP2_RAM_ADDR_W, INST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamRdResp = ram::ReadResp<INST_TMP2_RAM_DATA_W>;
+    type Tmp2RamWrReq = ram::WriteReq<INST_TMP2_RAM_ADDR_W, INST_TMP2_RAM_DATA_W, INST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWrResp = ram::WriteResp;
+
     type FseRamRdReq = ram::ReadReq<INST_FSE_RAM_ADDR_W, INST_FSE_RAM_NUM_PARTITIONS>;
     type FseRamRdResp = ram::ReadResp<INST_FSE_RAM_DATA_W>;
     type FseRamWrReq = ram::WriteReq<INST_FSE_RAM_ADDR_W, INST_FSE_RAM_DATA_W, INST_FSE_RAM_NUM_PARTITIONS>;
@@ -1603,6 +1628,11 @@ proc ZstdDecoderInst {
         tmp_rd_resp_r: chan<TmpRamRdResp> in,
         tmp_wr_req_s: chan<TmpRamWrReq> out,
         tmp_wr_resp_r: chan<TmpRamWrResp> in,
+
+        tmp2_rd_req_s: chan<Tmp2RamRdReq> out,
+        tmp2_rd_resp_r: chan<Tmp2RamRdResp> in,
+        tmp2_wr_req_s: chan<Tmp2RamWrReq> out,
+        tmp2_wr_resp_r: chan<Tmp2RamWrResp> in,
 
         fse_rd_req_s: chan<FseRamRdReq>[u32:6] out,
         fse_rd_resp_r: chan<FseRamRdResp>[u32:6] in,
@@ -1674,6 +1704,7 @@ proc ZstdDecoderInst {
             INST_HB_ADDR_W, INST_HB_DATA_W, INST_HB_NUM_PARTITIONS, INST_HB_SIZE_KB,
             INST_DPD_RAM_ADDR_W, INST_DPD_RAM_DATA_W, INST_DPD_RAM_NUM_PARTITIONS,
             INST_TMP_RAM_ADDR_W, INST_TMP_RAM_DATA_W, INST_TMP_RAM_NUM_PARTITIONS,
+            INST_TMP2_RAM_ADDR_W, INST_TMP2_RAM_DATA_W, INST_TMP2_RAM_NUM_PARTITIONS,
             INST_FSE_RAM_ADDR_W, INST_FSE_RAM_DATA_W, INST_FSE_RAM_NUM_PARTITIONS,
             INST_HISTORY_BUFFER_SIZE_KB,
             INST_AXI_CHAN_N,
@@ -1687,6 +1718,8 @@ proc ZstdDecoderInst {
             dpd_wr_req_s, dpd_wr_resp_r,
             tmp_rd_req_s, tmp_rd_resp_r,
             tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r,
+            tmp2_wr_req_s, tmp2_wr_resp_r,
             fse_rd_req_s, fse_rd_resp_r,
             fse_wr_req_s, fse_wr_resp_r,
             litbuf_rd_req_s, litbuf_rd_resp_r,

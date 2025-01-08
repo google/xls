@@ -38,6 +38,7 @@ pub proc RamDemux<
     ADDR_WIDTH: u32,
     DATA_WIDTH: u32,
     NUM_PARTITIONS: u32,
+    INSTANCE: u32 = {u32:0},
     INIT_SEL: u1 = {u1:0},
     QUEUE_LEN: u32 = {u32:5}
 > {
@@ -120,6 +121,7 @@ pub proc RamDemux<
         // is less or equal to queue length)
         let (tok1_0, rd_req, rd_req_valid) = recv_non_blocking(tok, rd_req_r, zero!<ReadReq>());
         let (sel_q_rd_end, sel_q_rd) = if rd_req_valid {
+            trace_fmt!("[{:x} Received read request: {:#x}", INSTANCE, rd_req);
             (sel_q_rd_end << u32:1, (sel_q_rd << u32:1) | ((sel as Queue) << u32:1))
         } else {
             (sel_q_rd_end, sel_q_rd)
@@ -127,6 +129,7 @@ pub proc RamDemux<
 
         let (tok1_1, wr_req, wr_req_valid) = recv_non_blocking(tok, wr_req_r, zero!<WriteReq>());
         let (sel_q_wr_end, sel_q_wr) = if wr_req_valid {
+            trace_fmt!("[{:x} Received write request: {:#x}", INSTANCE, wr_req);
             (sel_q_wr_end << u32:1, (sel_q_wr << u32:1) | ((sel as Queue) << u32:1))
         } else {
             (sel_q_wr_end, sel_q_wr)
@@ -135,16 +138,28 @@ pub proc RamDemux<
         // send requests to output channel 0
         let rd_req0_cond = ((sel_q_rd >> u32:1) as u1 == u1:0 && rd_req_valid);
         let tok1_2 = send_if(tok, rd_req0_s, rd_req0_cond, rd_req);
+        if rd_req0_cond {
+            trace_fmt!("[{:x} Sent read request to channel 0: {:#x}", INSTANCE, rd_req);
+        } else {};
 
         let wr_req0_cond = ((sel_q_wr >> u32:1) as u1 == u1:0 && wr_req_valid);
         let tok1_3 = send_if(tok, wr_req0_s, wr_req0_cond, wr_req);
+        if wr_req0_cond {
+            trace_fmt!("[{:x} Sent write request to channel 0: {:#x}", INSTANCE, wr_req);
+        } else {};
 
         // send requests to output channel 1
         let rd_req1_cond = ((sel_q_rd >> u32:1) as u1 == u1:1 && rd_req_valid);
         let tok1_4 = send_if(tok, rd_req1_s, rd_req1_cond, rd_req);
+        if rd_req1_cond {
+            trace_fmt!("[{:x} Sent read request to channel 1: {:#x}", INSTANCE, rd_req);
+        } else {};
 
         let wr_req1_cond = ((sel_q_wr >> u32:1) as u1 == u1:1 && wr_req_valid);
         let tok1_5 = send_if(tok, wr_req1_s, wr_req1_cond, wr_req);
+        if wr_req1_cond {
+            trace_fmt!("[{:x} Sent write request to channel 1: {:#x}", INSTANCE, wr_req);
+        } else {};
 
         // join tokens
         let tok1 = join(tok1_0, tok1_1, tok1_2, tok1_3, tok1_4, tok1_5);
@@ -156,15 +171,28 @@ pub proc RamDemux<
         // receive responses from output channel 0
         let (tok2_0, rd_resp0, rd_resp0_valid) =
             recv_if_non_blocking(tok1, rd_resp0_r, rd_resp_ch == u1:0, zero!<ReadResp>());
+        if rd_resp0_valid {
+            trace_fmt!("[{:x} Received read response on channel 0: {:#x}", INSTANCE, rd_resp0);
+        } else {};
         let (tok2_1, wr_resp0, wr_resp0_valid) =
             recv_if_non_blocking(tok1, wr_resp0_r, wr_resp_ch == u1:0, zero!<WriteResp>());
-
+        if wr_resp0_valid {
+            trace_fmt!("[{:x} Received write response on channel 0: {:#x}", INSTANCE, wr_resp0);
+        } else {};
+    
         // receive responses from output channel 1
         let (tok2_2, rd_resp1, rd_resp1_valid) =
             recv_if_non_blocking(tok1, rd_resp1_r, rd_resp_ch == u1:1, zero!<ReadResp>());
+        if rd_resp1_valid {
+            trace_fmt!("[{:x} Received read response on channel 1: {:#x}", INSTANCE, rd_resp1);
+        } else {};
+    
         let (tok2_3, wr_resp1, wr_resp1_valid) =
             recv_if_non_blocking(tok1, wr_resp1_r, wr_resp_ch == u1:1, zero!<WriteResp>());
-
+        if wr_resp1_valid {
+            trace_fmt!("[{:x} Received write response on channel 1: {:#x}", INSTANCE, wr_resp1);
+        } else {};
+    
         // prepare read output values
         let (rd_resp, rd_resp_valid) = if rd_resp_ch == u1:0 {
             (rd_resp0, rd_resp0_valid)
@@ -181,15 +209,29 @@ pub proc RamDemux<
 
         // send responses to input channel
         let tok2_4 = send_if(tok1, rd_resp_s, rd_resp_valid, rd_resp);
+        if rd_resp_valid {
+            trace_fmt!("[{:x} Sent read response: {:#x}", INSTANCE, rd_resp);
+        } else {};
+
         let sel_q_rd_end = if rd_resp_valid { sel_q_rd_end >> u32:1 } else { sel_q_rd_end };
 
         let tok2_5 = send_if(tok1, wr_resp_s, wr_resp_valid, wr_resp);
+        if wr_resp_valid {
+            trace_fmt!("[{:x} Sent write response: {:#x}", INSTANCE, wr_resp);
+        } else {};
+
         let sel_q_wr_end = if wr_resp_valid { sel_q_wr_end >> u32:1 } else { sel_q_wr_end };
 
         // handle select
         let (tok1_6, sel, sel_valid) = recv_non_blocking(tok, sel_req_r, sel);
+        if sel_valid {
+            trace_fmt!("[{:x} Received select: {:#x}", INSTANCE, sel);
+        } else {};
 
         let tok1_7 = send_if(tok1_6, sel_resp_s, sel_valid, ());
+        if sel_valid {
+            trace_fmt!("[{:x} Sent select response", INSTANCE);
+        } else {};
 
         RamDemuxState<QUEUE_LEN> { sel, sel_q_rd, sel_q_wr, sel_q_rd_end, sel_q_wr_end }
     }
@@ -261,7 +303,7 @@ proc RamDemuxTest {
         let (wr_resp1_s, wr_resp1_r) = chan<TestWriteResp>("wr_resp1");
 
         spawn RamDemux<
-            TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH, TEST_RAM_NUM_PARTITIONS,
+            TEST_RAM_ADDR_WIDTH, TEST_RAM_DATA_WIDTH, TEST_RAM_NUM_PARTITIONS, u32:0,
             TEST_DEMUX_INIT_SEL, TEST_DEMUX_QUEUE_LEN
         >(
             sel_req_r, sel_resp_s,
