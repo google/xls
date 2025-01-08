@@ -44,7 +44,7 @@ enum Status : u4 {
 struct FseTableCreatorState {
     status: Status,
     req: bool,
-    idx: u8,
+    idx: u10,
     // TODO: num_symbs is u8, possibly other fields as well
     num_symbs: u8,
     curr_symbol: u8,
@@ -94,6 +94,7 @@ pub proc FseTableCreator<
     FSE_RAM_DATA_WIDTH: u32, FSE_RAM_ADDR_WIDTH: u32, FSE_RAM_NUM_PARTITIONS: u32,
     // Temp RAM parameters
     TMP_RAM_DATA_WIDTH: u32, TMP_RAM_ADDR_WIDTH: u32, TMP_RAM_NUM_PARTITIONS: u32,
+    TMP2_RAM_DATA_WIDTH: u32, TMP2_RAM_ADDR_WIDTH: u32, TMP2_RAM_NUM_PARTITIONS: u32,
 > {
     type State = FseTableCreatorState;
 
@@ -102,13 +103,18 @@ pub proc FseTableCreator<
 
     type FseRamWriteReq = ram::WriteReq<FSE_RAM_ADDR_WIDTH, FSE_RAM_DATA_WIDTH, FSE_RAM_NUM_PARTITIONS>;
     type FseRamWriteResp = ram::WriteResp;
-    type FseRamReadReq = ram::ReadReq<FSE_RAM_ADDR_WIDTH, FSE_RAM_NUM_PARTITIONS>;
-    type FseRamReadResp = ram::ReadResp<FSE_RAM_DATA_WIDTH>;
 
     type TmpRamWriteReq = ram::WriteReq<TMP_RAM_ADDR_WIDTH, TMP_RAM_DATA_WIDTH, TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWriteResp = ram::WriteResp;
     type TmpRamReadReq = ram::ReadReq<TMP_RAM_ADDR_WIDTH, TMP_RAM_NUM_PARTITIONS>;
     type TmpRamReadResp = ram::ReadResp<TMP_RAM_DATA_WIDTH>;
+
+    type Tmp2RamWriteReq = ram::WriteReq<TMP2_RAM_ADDR_WIDTH, TMP2_RAM_DATA_WIDTH, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWriteResp = ram::WriteResp;
+    type Tmp2RamReadReq = ram::ReadReq<TMP2_RAM_ADDR_WIDTH, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamReadResp = ram::ReadResp<TMP2_RAM_DATA_WIDTH>;
+
+    type TestRamWriteResp = ram::WriteResp;
 
     type IterCtrl = common::FseTableCreatorCtrl;
     type IterIndex = common::FseTableIndex;
@@ -121,8 +127,6 @@ pub proc FseTableCreator<
     // a response with information that the table has been saved to RAM
     fse_table_finish_s: chan<()> out;
 
-    fse_rd_req_s: chan<FseRamReadReq> out;
-    fse_rd_resp_r: chan<FseRamReadResp> in;
     fse_wr_req_s: chan<FseRamWriteReq> out;
     fse_wr_resp_r: chan<FseRamWriteResp> in;
 
@@ -130,6 +134,11 @@ pub proc FseTableCreator<
     tmp_rd_resp_r: chan<TmpRamReadResp> in;
     tmp_wr_req_s: chan<TmpRamWriteReq> out;
     tmp_wr_resp_r: chan<TmpRamWriteResp> in;
+
+    tmp2_rd_req_s: chan<Tmp2RamReadReq> out;
+    tmp2_rd_resp_r: chan<Tmp2RamReadResp> in;
+    tmp2_wr_req_s: chan<Tmp2RamWriteReq> out;
+    tmp2_wr_resp_r: chan<Tmp2RamWriteResp> in;
 
     it_ctrl_s: chan<IterCtrl> out;
     it_index_r: chan<IterIndex> in;
@@ -143,15 +152,18 @@ pub proc FseTableCreator<
         dpd_rd_resp_r: chan<DpdRamReadResp> in,
 
         // Ram with FSE decoding table
-        fse_rd_req_s: chan<FseRamReadReq> out,
-        fse_rd_resp_r: chan<FseRamReadResp> in,
         fse_wr_req_s: chan<FseRamWriteReq> out,
         fse_wr_resp_r: chan<FseRamWriteResp> in,
 
         tmp_rd_req_s: chan<TmpRamReadReq> out,
         tmp_rd_resp_r: chan<TmpRamReadResp> in,
         tmp_wr_req_s: chan<TmpRamWriteReq> out,
-        tmp_wr_resp_r: chan<TmpRamWriteResp> in
+        tmp_wr_resp_r: chan<TmpRamWriteResp> in,
+
+        tmp2_rd_req_s: chan<Tmp2RamReadReq> out,
+        tmp2_rd_resp_r: chan<Tmp2RamReadResp> in,
+        tmp2_wr_req_s: chan<Tmp2RamWriteReq> out,
+        tmp2_wr_resp_r: chan<Tmp2RamWriteResp> in,
     ) {
         let (it_ctrl_s, it_ctrl_r) = chan<IterCtrl, u32:1>("it_ctrl");
         let (it_index_s, it_index_r) = chan<IterIndex, u32:1>("it_index");
@@ -160,8 +172,9 @@ pub proc FseTableCreator<
         (
             dpd_rd_req_s, dpd_rd_resp_r,
             fse_table_start_r, fse_table_finish_s,
-            fse_rd_req_s, fse_rd_resp_r, fse_wr_req_s, fse_wr_resp_r,
+            fse_wr_req_s, fse_wr_resp_r,
             tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
             it_ctrl_s, it_index_r
         )
     }
@@ -173,15 +186,7 @@ pub proc FseTableCreator<
         const FSE_RAM_REQ_MASK_ALL = std::unsigned_max_value<FSE_RAM_NUM_PARTITIONS>();
         const FSE_RAM_REQ_MASK_SYMBOL = uN[FSE_RAM_NUM_PARTITIONS]:1;
         const TMP_RAM_REQ_MASK_ALL = std::unsigned_max_value<TMP_RAM_NUM_PARTITIONS>();
-
-        // Type definitions repeated because of https://github.com/google/xls/issues/1368
-        type DpdRamReadReq = ram::ReadReq<DPD_RAM_ADDR_WIDTH, DPD_RAM_NUM_PARTITIONS>;
-        type FseRamWriteReq = ram::WriteReq<FSE_RAM_ADDR_WIDTH, FSE_RAM_DATA_WIDTH, FSE_RAM_NUM_PARTITIONS>;
-        type FseRamWriteResp = ram::WriteResp;
-        type FseRamReadReq = ram::ReadReq<FSE_RAM_ADDR_WIDTH, FSE_RAM_NUM_PARTITIONS>;
-        type TmpRamWriteReq = ram::WriteReq<TMP_RAM_ADDR_WIDTH, TMP_RAM_DATA_WIDTH, TMP_RAM_NUM_PARTITIONS>;
-        type TestRamWriteResp = ram::WriteResp;
-        type TmpRamReadReq = ram::ReadReq<TMP_RAM_ADDR_WIDTH, TMP_RAM_NUM_PARTITIONS>;
+        const TMP2_RAM_REQ_MASK_ALL = std::unsigned_max_value<TMP2_RAM_NUM_PARTITIONS>();
 
         let tok0 = join();
 
@@ -193,9 +198,14 @@ pub proc FseTableCreator<
                            state.status == Status::HANDLE_POSITIVE_PROB;
 
         let send_dpd_req = get_dpd_data && state.req;
+        let addr = if send_dpd_req {
+            checked_cast<uN[DPD_RAM_ADDR_WIDTH]>(state.idx)
+        } else {
+            uN[DPD_RAM_ADDR_WIDTH]:0
+        };
         let tok_dpd_req = send_if(tok0, dpd_rd_req_s, send_dpd_req,
             DpdRamReadReq {
-                addr: checked_cast<uN[DPD_RAM_ADDR_WIDTH]>(state.idx),
+                addr: addr,
                 mask: DPD_RAM_REQ_MASK_ALL
             });
         let get_dpd_resp = get_dpd_data && !state.req;
@@ -203,37 +213,41 @@ pub proc FseTableCreator<
 
         let handle_negative_prob_req = state.status == Status::HANDLE_NEGATIVE_PROB;
         let decreased_high_threshold = state.high_threshold - u16:1;
-        let index_as_symbol_record = FseTableRecord {
-            symbol: state.idx,
-            num_of_bits: u8:0,
-            base: u16:0
-        };
-        let fse_record_as_bits = fse_record_to_bits(index_as_symbol_record);
         let fse_wr_req = if handle_negative_prob_req {
-            FseRamWriteReq {
-                addr: checked_cast<uN[FSE_RAM_ADDR_WIDTH]>(decreased_high_threshold),
-                data: checked_cast<uN[FSE_RAM_DATA_WIDTH]>(fse_record_as_bits),
-                mask: FSE_RAM_REQ_MASK_SYMBOL
+            Tmp2RamWriteReq {
+                addr: checked_cast<uN[TMP2_RAM_ADDR_WIDTH]>(decreased_high_threshold),
+                data: checked_cast<uN[TMP2_RAM_DATA_WIDTH]>(state.idx),
+                mask: TMP2_RAM_REQ_MASK_ALL,
             }
         } else {
-            zero!<FseRamWriteReq>()
+            zero!<Tmp2RamWriteReq>()
         };
-        let tok3 = send_if(tok0, fse_wr_req_s, handle_negative_prob_req, fse_wr_req);
+        let tok3 = send_if(tok0, tmp2_wr_req_s, handle_negative_prob_req, fse_wr_req);
         let handle_negative_prob_resp = (state.status == Status::HANDLE_NEGATIVE_PROB);
-        let (tok3, _) = recv_if(tok3, fse_wr_resp_r, handle_negative_prob_resp, FseRamWriteResp {});
+        let (tok3, _) = recv_if(tok3, tmp2_wr_resp_r, handle_negative_prob_resp, FseRamWriteResp {});
 
+        let addr = if handle_negative_prob_req {
+            checked_cast<uN[TMP_RAM_ADDR_WIDTH]>(state.idx)
+        } else {
+            uN[TMP_RAM_ADDR_WIDTH]:0
+        };
         let tok5 = send_if(tok0, tmp_wr_req_s, handle_negative_prob_req,
             TmpRamWriteReq {
-                addr: checked_cast<uN[TMP_RAM_ADDR_WIDTH]>(state.idx),
+                addr: addr,
                 data: checked_cast<uN[TMP_RAM_DATA_WIDTH]>(u16:1),
                 mask: TMP_RAM_REQ_MASK_ALL
             });
         let (tok5, _) = recv_if(tok5, tmp_wr_resp_r, handle_negative_prob_resp, TestRamWriteResp {});
 
         let handle_positive_prob_write_state_desc = (state.status == Status::HANDLE_POSITIVE_PROB_WRITE_STATE_DESC);
+        let addr = if handle_positive_prob_write_state_desc {
+            checked_cast<uN[TMP_RAM_ADDR_WIDTH]>(state.idx)
+        } else {
+            uN[TMP_RAM_ADDR_WIDTH]:0
+        };
         let tok6 = send_if(tok0, tmp_wr_req_s, handle_positive_prob_write_state_desc,
             TmpRamWriteReq {
-                addr: checked_cast<uN[TMP_RAM_ADDR_WIDTH]>(state.idx),
+                addr: addr,
                 data: checked_cast<uN[TMP_RAM_DATA_WIDTH]>(state.dpd_data),
                 mask: TMP_RAM_REQ_MASK_ALL
             }
@@ -252,25 +266,30 @@ pub proc FseTableCreator<
         let (_, pos) = recv_if(tok0, it_index_r, inner_for_get_pos, zero!<IterIndex>());
 
         let inner_for_write_sym = state.status == Status::INNER_FOR_WRITE_SYM;
-        let tok4 = send_if( tok0, fse_wr_req_s, inner_for_write_sym,
-            FseRamWriteReq {
-                addr: checked_cast<uN[FSE_RAM_ADDR_WIDTH]>(state.pos),
-                data: checked_cast<uN[FSE_RAM_DATA_WIDTH]>(fse_record_as_bits),
-                mask: FSE_RAM_REQ_MASK_SYMBOL
+        let idx = if inner_for_write_sym {
+            checked_cast<uN[TMP2_RAM_DATA_WIDTH]>(state.idx)
+        } else {
+            uN[TMP2_RAM_DATA_WIDTH]:0
+        };
+        let tok4 = send_if( tok0, tmp2_wr_req_s, inner_for_write_sym,
+            Tmp2RamWriteReq {
+                addr: checked_cast<uN[TMP2_RAM_ADDR_WIDTH]>(state.pos),
+                data: idx,
+                mask: TMP2_RAM_REQ_MASK_ALL,
             }
         );
 
-        let (tok4, _) = recv_if(tok4, fse_wr_resp_r, inner_for_write_sym, FseRamWriteResp {});
+        let (tok4, _) = recv_if(tok4, tmp2_wr_resp_r, inner_for_write_sym, FseRamWriteResp {});
 
         let last_for = state.status == Status::LAST_FOR;
-        let tok8 = send_if(tok0, fse_rd_req_s, last_for,
-            FseRamReadReq {
-                addr: checked_cast<uN[FSE_RAM_ADDR_WIDTH]>(state.idx),
-                mask: FSE_RAM_REQ_MASK_SYMBOL
+        let tok8 = send_if(tok0, tmp2_rd_req_s, last_for,
+            Tmp2RamReadReq {
+                addr: checked_cast<uN[TMP2_RAM_ADDR_WIDTH]>(state.idx),
+                mask: TMP2_RAM_REQ_MASK_ALL,
             }
         );
-        let (tok8, fse_resp) = recv_if(tok8, fse_rd_resp_r, last_for, zero!<FseRamReadResp>());
-        let fse_record = bits_to_fse_record(fse_resp.data);
+        let (tok8, fse_resp) = recv_if(tok8, tmp2_rd_resp_r, last_for, zero!<Tmp2RamReadResp>());
+        let fse_record_symbol = fse_resp.data;
 
         let get_state_desc = state.status == Status::GET_STATE_DESC;
         let symbol = state.curr_symbol;
@@ -314,7 +333,7 @@ pub proc FseTableCreator<
         let send_finish = state.status == Status::SEND_FINISH;
         let tok11 = send_if(tok0, fse_table_finish_s, send_finish, ());
 
-        trace_fmt!("fse lookup state: {:#x}", state);
+        // trace_fmt!("fse lookup state: {:#x}", state);
 
         if state.req && (
                state.status == Status::TEST_NEGATIVE_PROB ||
@@ -337,21 +356,21 @@ pub proc FseTableCreator<
                     if dpd_resp.data == s16:-1 as u16 {
                         State { status: Status::HANDLE_NEGATIVE_PROB, ..state }
                     } else {
-                        let next_idx = state.idx + u8:1;
-                        if next_idx < state.num_symbs {
+                        let next_idx = state.idx + u10:1;
+                        if next_idx < checked_cast<u10>(state.num_symbs) {
                             State { status: Status::TEST_NEGATIVE_PROB, req: true, idx: next_idx, ..state }
                         } else {
-                            State { status: Status::START_ITERATING_POS, req: true, idx: u8:0, ..state }
+                            State { status: Status::START_ITERATING_POS, req: true, idx: u10:0, ..state }
                         }
                     }
                 },
                 Status::HANDLE_NEGATIVE_PROB => {
                     // https://github.com/facebook/zstd/blob/9f42fa0a043aa389534cf10ff086976c4c6b10a6/doc/educational_decoder/zstd_decompress.c#L2143-L2146
-                    let next_idx = state.idx + u8:1;
-                    if next_idx < state.num_symbs {
+                    let next_idx = state.idx + u10:1;
+                    if next_idx < checked_cast<u10>(state.num_symbs) {
                         State { status: Status::TEST_NEGATIVE_PROB, req: true, idx: next_idx, high_threshold: decreased_high_threshold, ..state }
                     } else {
-                        State { status: Status::START_ITERATING_POS, req: true, idx: u8:0, high_threshold: decreased_high_threshold, ..state }
+                        State { status: Status::START_ITERATING_POS, req: true, idx: u10:0, high_threshold: decreased_high_threshold, ..state }
                     }
                 },
                 Status::START_ITERATING_POS => {
@@ -361,11 +380,11 @@ pub proc FseTableCreator<
                     if dpd_resp.data as s16 > s16:0 {
                         State { status: Status::HANDLE_POSITIVE_PROB, req: true, ..state }
                     } else {
-                        let next_idx = state.idx + u8:1;
-                        if next_idx < state.num_symbs {
+                        let next_idx = state.idx + u10:1;
+                        if next_idx < checked_cast<u10>(state.num_symbs) {
                             State { status: Status::TEST_POSITIVE_PROB, req: true, idx: next_idx, ..state }
                         } else {
-                            State { status: Status::LAST_FOR, idx: u8:0, ..state }
+                            State { status: Status::LAST_FOR, idx: u10:0, ..state }
                         }
                     }
                 },
@@ -386,24 +405,24 @@ pub proc FseTableCreator<
                         State { status: Status::INNER_FOR_GET_POS, inner_for_idx: next_idx, ..state }
                     } else {
                         assert!(pos == IterIndex:0, "corruption_detected_while_decompressing");
-                        let next_idx = state.idx + u8:1;
-                        if next_idx < state.num_symbs {
+                        let next_idx = state.idx + u10:1;
+                        if next_idx < checked_cast<u10>(state.num_symbs) {
                             State { status: Status::TEST_POSITIVE_PROB, req: true, idx: next_idx, ..state }
                         } else {
-                            State { status: Status::LAST_FOR, idx: u8:0, ..state }
+                            State { status: Status::LAST_FOR, idx: u10:0, ..state }
                         }
                     }
                 },
                 Status::LAST_FOR => {
                     // https://github.com/facebook/zstd/blob/9f42fa0a043aa389534cf10ff086976c4c6b10a6/doc/educational_decoder/zstd_decompress.c#L2183
-                    State { status: Status::GET_STATE_DESC, curr_symbol: fse_record.symbol, ..state }
+                    State { status: Status::GET_STATE_DESC, curr_symbol: fse_record_symbol, ..state }
                 },
                 Status::GET_STATE_DESC => {
                     // https://github.com/facebook/zstd/blob/9f42fa0a043aa389534cf10ff086976c4c6b10a6/doc/educational_decoder/zstd_decompress.c#L2184
                     State { status: Status::SET_STATE_DESC, state_desc_for_symbol: tmp_resp.data, ..state }
                 },
                 Status::SET_STATE_DESC => {
-                    let next_idx = state.idx + u8:1;
+                    let next_idx = state.idx + u10:1;
                     if next_idx as u16 < size {
                         State { status: Status::LAST_FOR, idx: next_idx, ..state }
                     } else {
@@ -425,9 +444,9 @@ const TEST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_DPD_RAM_WORD_PARTITION_SIZE, TEST_DPD_RAM_DATA_WIDTH);
 
 const TEST_FSE_RAM_DATA_WIDTH = u32:32;
-const TEST_FSE_RAM_SIZE = u32:256;
+const TEST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
 const TEST_FSE_RAM_ADDR_WIDTH = std::clog2(TEST_FSE_RAM_SIZE);
-const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_WIDTH / u32:3;
+const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_WIDTH;
 const TEST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_FSE_RAM_WORD_PARTITION_SIZE, TEST_FSE_RAM_DATA_WIDTH);
 
@@ -437,6 +456,13 @@ const TEST_TMP_RAM_ADDR_WIDTH = std::clog2(TEST_TMP_RAM_SIZE);
 const TEST_TMP_RAM_WORD_PARTITION_SIZE = TEST_TMP_RAM_DATA_WIDTH;
 const TEST_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_TMP_RAM_WORD_PARTITION_SIZE, TEST_TMP_RAM_DATA_WIDTH);
+
+const TEST_TMP2_RAM_DATA_WIDTH = u32:8;
+const TEST_TMP2_RAM_SIZE = u32:512;
+const TEST_TMP2_RAM_ADDR_WIDTH = std::clog2(TEST_TMP2_RAM_SIZE);
+const TEST_TMP2_RAM_WORD_PARTITION_SIZE = TEST_TMP2_RAM_DATA_WIDTH;
+const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
+    TEST_TMP2_RAM_WORD_PARTITION_SIZE, TEST_TMP2_RAM_DATA_WIDTH);
 
 proc FseTableCreatorInst {
     type DpdRamReadReq = ram::ReadReq<TEST_DPD_RAM_ADDR_WIDTH, TEST_DPD_RAM_NUM_PARTITIONS>;
@@ -452,6 +478,11 @@ proc FseTableCreatorInst {
     type TmpRamReadReq = ram::ReadReq<TEST_TMP_RAM_ADDR_WIDTH, TEST_TMP_RAM_NUM_PARTITIONS>;
     type TmpRamReadResp = ram::ReadResp<TEST_TMP_RAM_DATA_WIDTH>;
 
+    type Tmp2RamWriteReq = ram::WriteReq<TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_DATA_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWriteResp = ram::WriteResp;
+    type Tmp2RamReadReq = ram::ReadReq<TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamReadResp = ram::ReadResp<TEST_TMP2_RAM_DATA_WIDTH>;
+
     config(
         fse_table_start_r: chan<FseStartMsg> in,
         fse_table_finish_s: chan<()> out,
@@ -459,25 +490,30 @@ proc FseTableCreatorInst {
         dpd_rd_req_s: chan<DpdRamReadReq> out,
         dpd_rd_resp_r: chan<DpdRamReadResp> in,
 
-        fse_rd_req_s: chan<FseRamReadReq> out,
-        fse_rd_resp_r: chan<FseRamReadResp> in,
         fse_wr_req_s: chan<FseRamWriteReq> out,
         fse_wr_resp_r: chan<FseRamWriteResp> in,
 
         tmp_rd_req_s: chan<TmpRamReadReq> out,
         tmp_rd_resp_r: chan<TmpRamReadResp> in,
         tmp_wr_req_s: chan<TmpRamWriteReq> out,
-        tmp_wr_resp_r: chan<TmpRamWriteResp> in
+        tmp_wr_resp_r: chan<TmpRamWriteResp> in,
+
+        tmp2_rd_req_s: chan<Tmp2RamReadReq> out,
+        tmp2_rd_resp_r: chan<Tmp2RamReadResp> in,
+        tmp2_wr_req_s: chan<Tmp2RamWriteReq> out,
+        tmp2_wr_resp_r: chan<Tmp2RamWriteResp> in,
     ) {
         spawn FseTableCreator<
             TEST_DPD_RAM_DATA_WIDTH, TEST_DPD_RAM_ADDR_WIDTH, TEST_DPD_RAM_NUM_PARTITIONS,
             TEST_FSE_RAM_DATA_WIDTH, TEST_FSE_RAM_ADDR_WIDTH, TEST_FSE_RAM_NUM_PARTITIONS,
             TEST_TMP_RAM_DATA_WIDTH, TEST_TMP_RAM_ADDR_WIDTH, TEST_TMP_RAM_NUM_PARTITIONS,
+            TEST_TMP2_RAM_DATA_WIDTH, TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS,
         >(
             fse_table_start_r, fse_table_finish_s,
             dpd_rd_req_s, dpd_rd_resp_r,
-            fse_rd_req_s, fse_rd_resp_r, fse_wr_req_s, fse_wr_resp_r,
-            tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r
+            fse_wr_req_s, fse_wr_resp_r,
+            tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s,tmp2_wr_resp_r,
         );
     }
 
@@ -538,6 +574,11 @@ proc FseTableCreatorTest {
     type TmpRamWriteReq = ram::WriteReq<TEST_TMP_RAM_ADDR_WIDTH, TEST_TMP_RAM_DATA_WIDTH, TEST_TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWriteResp = ram::WriteResp;
 
+    type Tmp2RamWriteReq = ram::WriteReq<TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_DATA_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWriteResp = ram::WriteResp;
+    type Tmp2RamReadReq = ram::ReadReq<TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamReadResp = ram::ReadResp<TEST_TMP2_RAM_DATA_WIDTH>;
+
     terminator: chan<bool> out;
     fse_table_start_s: chan<FseStartMsg> out;
     fse_table_finish_r: chan<()> in;
@@ -576,6 +617,15 @@ proc FseTableCreatorTest {
             TEST_TMP_RAM_DATA_WIDTH, TEST_TMP_RAM_SIZE, TEST_TMP_RAM_WORD_PARTITION_SIZE>(
             tmp_rd_req_r, tmp_rd_resp_s, tmp_wr_req_r, tmp_wr_resp_s);
 
+        let (tmp2_rd_req_s, tmp2_rd_req_r) = chan<Tmp2RamReadReq>("tmp2_rd_req");
+        let (tmp2_rd_resp_s, tmp2_rd_resp_r) = chan<Tmp2RamReadResp>("tmp2_rd_resp");
+        let (tmp2_wr_req_s, tmp2_wr_req_r) = chan<Tmp2RamWriteReq>("tmp2_wr_req");
+        let (tmp2_wr_resp_s, tmp2_wr_resp_r) = chan<Tmp2RamWriteResp>("tmp2_wr_resp");
+
+        spawn ram::RamModel<
+            TEST_TMP2_RAM_DATA_WIDTH, TEST_TMP2_RAM_SIZE, TEST_TMP2_RAM_WORD_PARTITION_SIZE>(
+            tmp2_rd_req_r, tmp2_rd_resp_s, tmp2_wr_req_r, tmp2_wr_resp_s);
+
         let (fse_table_start_s, fse_table_start_r) = chan<FseStartMsg>("fse_table_start");
         let (fse_table_finish_s, fse_table_finish_r) = chan<()>("fse_table_finish");
 
@@ -583,11 +633,13 @@ proc FseTableCreatorTest {
             TEST_DPD_RAM_DATA_WIDTH, TEST_DPD_RAM_ADDR_WIDTH, TEST_DPD_RAM_NUM_PARTITIONS,
             TEST_FSE_RAM_DATA_WIDTH, TEST_FSE_RAM_ADDR_WIDTH, TEST_FSE_RAM_NUM_PARTITIONS,
             TEST_TMP_RAM_DATA_WIDTH, TEST_TMP_RAM_ADDR_WIDTH, TEST_TMP_RAM_NUM_PARTITIONS,
+            TEST_TMP2_RAM_DATA_WIDTH, TEST_TMP2_RAM_ADDR_WIDTH, TEST_TMP2_RAM_NUM_PARTITIONS,
         >(
             fse_table_start_r, fse_table_finish_s,
             dpd_rd_req_s, dpd_rd_resp_r,
-            fse_rd_req_s, fse_rd_resp_r, fse_wr_req_s, fse_wr_resp_r,
-            tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r
+            fse_wr_req_s, fse_wr_resp_r,
+            tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r
         );
 
         (
