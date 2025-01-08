@@ -1276,15 +1276,10 @@ DocRef FmtTupleWithoutComments(const XlsTuple& n, Comments& comments,
              });
 }
 
-bool CommentsWithin(const Span& span, Comments& comments) {
-  std::vector<const CommentData*> items = comments.GetComments(span);
-  return !items.empty();
-}
-
 DocRef FmtTuple(const XlsTuple& n, Comments& comments, DocArena& arena) {
   Span tuple_span = n.span();
   // Detect if there are any comments in the span of the tuple.
-  bool any_comments = CommentsWithin(tuple_span, comments);
+  bool any_comments = comments.HasComments(tuple_span);
 
   if (!any_comments) {
     // Do it the old way.
@@ -1314,6 +1309,8 @@ DocRef FmtTuple(const XlsTuple& n, Comments& comments, DocArena& arena) {
         pieces.push_back(arena.comma());
         pieces.push_back(arena.space());
       }
+      // TODO: davidplass - if the previous comment is not on the same line as
+      // the previous element, insert a hard line before the comment.
       pieces.push_back(previous_comments.value());
       pieces.push_back(arena.hard_line());
     } else if (!first_element) {
@@ -1503,7 +1500,7 @@ DocRef Fmt(const StructInstance& n, Comments& comments, DocArena& arena) {
   // If there are comments within the span, we must go to break mode, because
   // newlines.
   DocRef on_break = FmtBreakRest(n, comments, arena);
-  if (CommentsWithin(n.span(), comments)) {
+  if (comments.HasComments(n.span())) {
     return arena.MakeConcat(leader, on_break);
   }
 

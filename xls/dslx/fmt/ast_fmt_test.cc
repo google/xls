@@ -3343,5 +3343,48 @@ struct Foo { a: u1, b: u1 }
 )");
 }
 
+TEST_F(ModuleFmtTest, TupleWithComment_GH_1678) {
+  DoFmt(R"(fn foo(bar: u32) {
+    let some_data_to_make_single_update_per_line = u32:0xabcdef;
+    (
+        bit_slice_update(
+            some_data_to_make_single_update_per_line, 1,
+            if bar > u32:0xdeadbeef { u1:1 } else { u1:0 }), // this is yet another comment
+    )
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, TupleWithMultipleComments_GH_1678) {
+  DoFmt(R"(fn foo(bar: u32) {
+    let some_data_to_make_single_update_per_line = u32:0xabcdef;
+    (
+        // TODO: davidplass - if the previous comment is not on the same line as
+        // the previous element, insert a hard line before the comment.
+        bit_slice_update(some_data_to_make_single_update_per_line, 0, u1:1),
+        // This is an important comment
+        bit_slice_update(
+            some_data_to_make_single_update_per_line, 1,
+            if bar > u32:0xdeadbeef { u1:1 } else { u1:0 }), // this is yet another comment
+        bit_slice_update(some_data_to_make_single_update_per_line, 2, u1:1)
+    )
+}
+)",
+        R"(fn foo(bar: u32) {
+    let some_data_to_make_single_update_per_line = u32:0xabcdef;
+    (
+        // TODO: davidplass - if the previous comment is not on the same line as
+        // the previous element, insert a hard line before the comment.
+        bit_slice_update(some_data_to_make_single_update_per_line, 0, u1:1), // This is an important
+        // comment
+        bit_slice_update(
+            some_data_to_make_single_update_per_line, 1,
+            if bar > u32:0xdeadbeef { u1:1 } else { u1:0 }), // this is yet another comment
+        bit_slice_update(some_data_to_make_single_update_per_line, 2, u1:1)
+    )
+}
+)");
+}
+
 }  // namespace
 }  // namespace xls::dslx

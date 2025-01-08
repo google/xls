@@ -46,16 +46,6 @@ namespace xls::dslx {
   return Comments{std::move(line_to_comment), last_data_limit};
 }
 
-bool Comments::HasComments(const Span& in_span) const {
-  for (int64_t i = in_span.start().lineno(); i <= in_span.limit().lineno();
-       ++i) {
-    if (auto it = line_to_comment_.find(i); it != line_to_comment_.end()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static bool InRange(const Span& node_span, const CommentData& comment) {
   // For multiline comments, consider in range if the comment start is within
   // the node span. Since all comments end on the line below the comment,
@@ -64,6 +54,19 @@ static bool InRange(const Span& node_span, const CommentData& comment) {
       (comment.span.limit().lineno() - 1 > comment.span.start().lineno()) &&
       node_span.Contains(comment.span.start());
   return overlapping_multiline || node_span.Contains(comment.span);
+}
+
+bool Comments::HasComments(const Span& in_span) const {
+  for (int64_t i = in_span.start().lineno(); i <= in_span.limit().lineno();
+       ++i) {
+    if (auto it = line_to_comment_.find(i); it != line_to_comment_.end()) {
+      const CommentData& cd = it->second;
+      if (InRange(in_span, cd)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 std::vector<const CommentData*> Comments::GetComments(
