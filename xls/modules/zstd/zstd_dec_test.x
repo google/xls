@@ -71,9 +71,9 @@ const TEST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_DPD_RAM_WORD_PARTITION_SIZE, TEST_DPD_RAM_DATA_W);
 
 const TEST_FSE_RAM_DATA_W = u32:32;
-const TEST_FSE_RAM_SIZE = u32:256;
+const TEST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
 const TEST_FSE_RAM_ADDR_W = std::clog2(TEST_FSE_RAM_SIZE);
-const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_W / u32:3;
+const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_W;
 const TEST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_FSE_RAM_WORD_PARTITION_SIZE, TEST_FSE_RAM_DATA_W);
 
@@ -83,6 +83,13 @@ const TEST_TMP_RAM_ADDR_W = std::clog2(TEST_TMP_RAM_SIZE);
 const TEST_TMP_RAM_WORD_PARTITION_SIZE = TEST_TMP_RAM_DATA_W;
 const TEST_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_TMP_RAM_WORD_PARTITION_SIZE, TEST_TMP_RAM_DATA_W);
+
+const TEST_TMP2_RAM_DATA_W = u32:8;
+const TEST_TMP2_RAM_SIZE = u32:512;
+const TEST_TMP2_RAM_ADDR_W = std::clog2(TEST_TMP2_RAM_SIZE);
+const TEST_TMP2_RAM_WORD_PARTITION_SIZE = TEST_TMP2_RAM_DATA_W;
+const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
+    TEST_TMP2_RAM_WORD_PARTITION_SIZE, TEST_TMP2_RAM_DATA_W);
 
 // Huffman weights memory parameters
 const HUFFMAN_WEIGHTS_RAM_SIZE: u32 = huffman_literals_dec::RAM_SIZE;
@@ -171,6 +178,11 @@ proc ZstdDecoderTest {
     type TmpRamRdResp = ram::ReadResp<TEST_TMP_RAM_DATA_W>;
     type TmpRamWrReq = ram::WriteReq<TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWrResp = ram::WriteResp;
+
+    type Tmp2RamRdReq = ram::ReadReq<TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamRdResp = ram::ReadResp<TEST_TMP2_RAM_DATA_W>;
+    type Tmp2RamWrReq = ram::WriteReq<TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWrResp = ram::WriteResp;
 
     type FseRamRdReq = ram::ReadReq<TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_NUM_PARTITIONS>;
     type FseRamRdResp = ram::ReadResp<TEST_FSE_RAM_DATA_W>;
@@ -381,6 +393,17 @@ proc ZstdDecoderTest {
             tmp_rd_req_r, tmp_rd_resp_s, tmp_wr_req_r, tmp_wr_resp_s,
         );
 
+        let (tmp2_rd_req_s, tmp2_rd_req_r) = chan<Tmp2RamRdReq>("tmp2_rd_req");
+        let (tmp2_rd_resp_s, tmp2_rd_resp_r) = chan<Tmp2RamRdResp>("tmp2_rd_resp");
+        let (tmp2_wr_req_s, tmp2_wr_req_r) = chan<Tmp2RamWrReq>("tmp2_wr_req");
+        let (tmp2_wr_resp_s, tmp2_wr_resp_r) = chan<Tmp2RamWrResp>("tmp2_wr_resp");
+        spawn ram::RamModel<
+            TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_SIZE, TEST_TMP2_RAM_WORD_PARTITION_SIZE,
+            TEST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, TEST_RAM_INITIALIZED
+        >(
+            tmp2_rd_req_r, tmp2_rd_resp_s, tmp2_wr_req_r, tmp2_wr_resp_s,
+        );
+
         // FSE RAMs
         let (fse_rd_req_s, fse_rd_req_r) = chan<FseRamRdReq>[u32:6]("fse_rd_req");
         let (fse_rd_resp_s, fse_rd_resp_r) = chan<FseRamRdResp>[u32:6]("fse_rd_resp");
@@ -476,6 +499,7 @@ proc ZstdDecoderTest {
             TEST_HB_ADDR_W, TEST_HB_DATA_W, TEST_HB_NUM_PARTITIONS, TEST_HB_SIZE_KB,
             TEST_DPD_RAM_ADDR_W, TEST_DPD_RAM_DATA_W, TEST_DPD_RAM_NUM_PARTITIONS,
             TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS,
+            TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_NUM_PARTITIONS,
             TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS,
             HISTORY_BUFFER_SIZE_KB, AXI_CHAN_N,
         >(
@@ -488,6 +512,8 @@ proc ZstdDecoderTest {
             dpd_wr_req_s, dpd_wr_resp_r,
             tmp_rd_req_s, tmp_rd_resp_r,
             tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r,
+            tmp2_wr_req_s, tmp2_wr_resp_r,
 
             // Channels for accessing FSE tables with muxed default FSE tables
             [ll_def_fse_rd_req_s, fse_rd_req_s[1], ml_def_fse_rd_req_s, fse_rd_req_s[3], of_def_fse_rd_req_s, fse_rd_req_s[5]],

@@ -58,6 +58,7 @@ pub proc CompressBlockDecoder<
     // FSE lookup table RAMs
     DPD_RAM_ADDR_W: u32, DPD_RAM_DATA_W: u32, DPD_RAM_NUM_PARTITIONS: u32,
     TMP_RAM_ADDR_W: u32, TMP_RAM_DATA_W: u32, TMP_RAM_NUM_PARTITIONS: u32,
+    TMP2_RAM_ADDR_W: u32, TMP2_RAM_DATA_W: u32, TMP2_RAM_NUM_PARTITIONS: u32,
     FSE_RAM_ADDR_W: u32, FSE_RAM_DATA_W: u32, FSE_RAM_NUM_PARTITIONS: u32,
 
     // for literals decoder
@@ -107,6 +108,11 @@ pub proc CompressBlockDecoder<
     type TmpRamRdResp = ram::ReadResp<TMP_RAM_DATA_W>;
     type TmpRamWrReq = ram::WriteReq<TMP_RAM_ADDR_W, TMP_RAM_DATA_W, TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWrResp = ram::WriteResp;
+
+    type Tmp2RamRdReq = ram::ReadReq<TMP2_RAM_ADDR_W, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamRdResp = ram::ReadResp<TMP2_RAM_DATA_W>;
+    type Tmp2RamWrReq = ram::WriteReq<TMP2_RAM_ADDR_W, TMP2_RAM_DATA_W, TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWrResp = ram::WriteResp;
 
     type FseRamRdReq = ram::ReadReq<FSE_RAM_ADDR_W, FSE_RAM_NUM_PARTITIONS>;
     type FseRamRdResp = ram::ReadResp<FSE_RAM_DATA_W>;
@@ -179,6 +185,11 @@ pub proc CompressBlockDecoder<
         tmp_rd_resp_r: chan<TmpRamRdResp> in,
         tmp_wr_req_s: chan<TmpRamWrReq> out,
         tmp_wr_resp_r: chan<TmpRamWrResp> in,
+
+        tmp2_rd_req_s: chan<Tmp2RamRdReq> out,
+        tmp2_rd_resp_r: chan<Tmp2RamRdResp> in,
+        tmp2_wr_req_s: chan<Tmp2RamWrReq> out,
+        tmp2_wr_resp_r: chan<Tmp2RamWrResp> in,
 
         ll_def_fse_rd_req_s: chan<FseRamRdReq> out,
         ll_def_fse_rd_resp_r: chan<FseRamRdResp> in,
@@ -330,6 +341,7 @@ pub proc CompressBlockDecoder<
             AXI_ADDR_W, AXI_DATA_W, AXI_DEST_W, AXI_ID_W,
             DPD_RAM_ADDR_W, DPD_RAM_DATA_W, DPD_RAM_NUM_PARTITIONS,
             TMP_RAM_ADDR_W, TMP_RAM_DATA_W, TMP_RAM_NUM_PARTITIONS,
+            TMP2_RAM_ADDR_W, TMP2_RAM_DATA_W, TMP2_RAM_NUM_PARTITIONS,
             FSE_RAM_ADDR_W, FSE_RAM_DATA_W, FSE_RAM_NUM_PARTITIONS,
         >(
             scd_axi_ar_s, scd_axi_r_r,
@@ -339,6 +351,7 @@ pub proc CompressBlockDecoder<
             seq_dec_command_s,
             dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,
             tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
             ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
             ll_fse_rd_req_s, ll_fse_rd_resp_r, ll_fse_wr_req_s, ll_fse_wr_resp_r,
             ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
@@ -436,9 +449,9 @@ const TEST_DPD_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_DPD_RAM_WORD_PARTITION_SIZE, TEST_DPD_RAM_DATA_W);
 
 const TEST_FSE_RAM_DATA_W = u32:32;
-const TEST_FSE_RAM_SIZE = u32:256;
+const TEST_FSE_RAM_SIZE = u32:1 << common::FSE_MAX_ACCURACY_LOG;
 const TEST_FSE_RAM_ADDR_W = std::clog2(TEST_FSE_RAM_SIZE);
-const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_W / u32:3;
+const TEST_FSE_RAM_WORD_PARTITION_SIZE = TEST_FSE_RAM_DATA_W;
 const TEST_FSE_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_FSE_RAM_WORD_PARTITION_SIZE, TEST_FSE_RAM_DATA_W);
 
@@ -448,6 +461,12 @@ const TEST_TMP_RAM_ADDR_W = std::clog2(TEST_TMP_RAM_SIZE);
 const TEST_TMP_RAM_WORD_PARTITION_SIZE = TEST_TMP_RAM_DATA_W;
 const TEST_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_TMP_RAM_WORD_PARTITION_SIZE, TEST_TMP_RAM_DATA_W);
+
+const TEST_TMP2_RAM_DATA_W = u32:8;
+const TEST_TMP2_RAM_SIZE = u32:512;
+const TEST_TMP2_RAM_ADDR_W = std::clog2(TEST_TMP2_RAM_SIZE);
+const TEST_TMP2_RAM_WORD_PARTITION_SIZE = TEST_TMP2_RAM_DATA_W;
+const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP2_RAM_WORD_PARTITION_SIZE, TEST_TMP2_RAM_DATA_W);
 
 const TEST_RAM_SIM_RW_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
 const TEST_RAM_INITIALIZED = true;
@@ -483,7 +502,7 @@ const COMP_BLOCK_DEC_TESTCASES: (u32, u64[64], u32, ExtendedPacket[128])[7] = [
         // raw literals (18) + sequences with 3 predefined tables (2)
         //
         // last block generated with:
-        // ./decodecorpus -pdata2.out -odata2.in -s7110  --block-type=2 --content-size iliteral-type=0 --max-block-size-log=5
+        // ./decodecorpus -pdata2.out -odata2.in -s7110  --block-type=2 --content-size --literal-type=0 --max-block-size-log=5
         u32:0x1C,
         u64[64]:[
             u64:0x0, u64:0x0,        // 0x000
@@ -1022,6 +1041,11 @@ proc CompressBlockDecoderTest {
     type TmpRamWrReq = ram::WriteReq<TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS>;
     type TmpRamWrResp = ram::WriteResp;
 
+    type Tmp2RamRdReq = ram::ReadReq<TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamRdResp = ram::ReadResp<TEST_TMP2_RAM_DATA_W>;
+    type Tmp2RamWrReq = ram::WriteReq<TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_NUM_PARTITIONS>;
+    type Tmp2RamWrResp = ram::WriteResp;
+
     type FseRamRdReq = ram::ReadReq<TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_NUM_PARTITIONS>;
     type FseRamRdResp = ram::ReadResp<TEST_FSE_RAM_DATA_W>;
     type FseRamWrReq = ram::WriteReq<TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS>;
@@ -1159,6 +1183,17 @@ proc CompressBlockDecoderTest {
             tmp_rd_req_r, tmp_rd_resp_s, tmp_wr_req_r, tmp_wr_resp_s,
         );
 
+        let (tmp2_rd_req_s, tmp2_rd_req_r) = chan<Tmp2RamRdReq>("tmp2_rd_req");
+        let (tmp2_rd_resp_s, tmp2_rd_resp_r) = chan<Tmp2RamRdResp>("tmp2_rd_resp");
+        let (tmp2_wr_req_s, tmp2_wr_req_r) = chan<Tmp2RamWrReq>("tmp2_wr_req");
+        let (tmp2_wr_resp_s, tmp2_wr_resp_r) = chan<Tmp2RamWrResp>("tmp2_wr_resp");
+        spawn ram::RamModel<
+            TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_SIZE, TEST_TMP2_RAM_WORD_PARTITION_SIZE,
+            TEST_RAM_SIM_RW_BEHAVIOR, TEST_RAM_INITIALIZED
+        >(
+            tmp2_rd_req_r, tmp2_rd_resp_s, tmp2_wr_req_r, tmp2_wr_resp_s,
+        );
+
         // FSE RAMs
         let (fse_rd_req_s, fse_rd_req_r) = chan<FseRamRdReq>[u32:6]("tmp_rd_req");
         let (fse_rd_resp_s, fse_rd_resp_r) = chan<FseRamRdResp>[u32:6]("tmp_rd_resp");
@@ -1253,6 +1288,7 @@ proc CompressBlockDecoderTest {
             // FSE lookup table RAMs
             TEST_DPD_RAM_ADDR_W, TEST_DPD_RAM_DATA_W, TEST_DPD_RAM_NUM_PARTITIONS,
             TEST_TMP_RAM_ADDR_W, TEST_TMP_RAM_DATA_W, TEST_TMP_RAM_NUM_PARTITIONS,
+            TEST_TMP2_RAM_ADDR_W, TEST_TMP2_RAM_DATA_W, TEST_TMP2_RAM_NUM_PARTITIONS,
             TEST_FSE_RAM_ADDR_W, TEST_FSE_RAM_DATA_W, TEST_FSE_RAM_NUM_PARTITIONS,
         >(
             req_r, resp_s,
@@ -1262,6 +1298,7 @@ proc CompressBlockDecoderTest {
             axi_ram_ar_s[2], axi_ram_r_r[2],
             dpd_rd_req_s, dpd_rd_resp_r, dpd_wr_req_s, dpd_wr_resp_r,
             tmp_rd_req_s, tmp_rd_resp_r, tmp_wr_req_s, tmp_wr_resp_r,
+            tmp2_rd_req_s, tmp2_rd_resp_r, tmp2_wr_req_s, tmp2_wr_resp_r,
             ll_def_fse_rd_req_s, ll_def_fse_rd_resp_r, ll_def_fse_wr_req_s, ll_def_fse_wr_resp_r,
             fse_rd_req_s[1], fse_rd_resp_r[1], fse_wr_req_s[1], fse_wr_resp_r[1],
             ml_def_fse_rd_req_s, ml_def_fse_rd_resp_r, ml_def_fse_wr_req_s, ml_def_fse_wr_resp_r,
