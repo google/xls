@@ -128,19 +128,19 @@ class DocumentationTest(parameterized.TestCase):
   def test_dslx_blocks_fmt(self, i: int, dslx_block: str) -> None:
     """Checks a DSLX block is canonically formatted."""
     example = strip_attributes(dslx_block)
-    input = example.dslx.lstrip()
+    input_contents = example.dslx.lstrip()
     x_file = self.create_tempfile(
-        file_path=f'doctest_fmt_{i}.x', content=input
+        file_path=f'doctest_fmt_{i}.x', content=input_contents
     )
     cmd = [_FMT_PATH, "--error_on_changes"] + example.flags + [x_file.full_path]
     print('Running command:', subp.list2cmdline(cmd), file=sys.stderr)
     p = subp.run(cmd, check=False, stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8')
     if p.returncode != 0:
       print('== diff:')
-      diff = difflib.unified_diff(input.splitlines(), p.stdout.splitlines())
+      diff = difflib.unified_diff(input_contents.splitlines(), p.stdout.splitlines())
       print('\n'.join(diff))
       print('== DSLX block:')
-      print(input)
+      print(input_contents)
       print('== stdout:')
       print(p.stdout)
       print('== stderr:')
