@@ -320,6 +320,25 @@ func.func @constant_scalar() -> i7 {
   return %0 : i7
 }
 
+// XLS-LABEL: complex_literal
+func.func @complex_literal() -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>> {
+  // XLS: ret {{.*}}: ((bits[1], bits[2], (bits[32], bits[32])), bits[3][2]) = literal(value=((1, 2, (10, 0)), [4, 5]),
+  %lit = xls.literal : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>> {
+    %0 = "xls.constant_scalar"() <{value = true}> : () -> i1
+    %1 = "xls.constant_scalar"() <{value = -2 : i2}> : () -> i2
+    %2 = "xls.constant_scalar"() <{value = 10 : i32}> : () -> i32
+    %3 = "xls.constant_scalar"() <{value = 0 : i32}> : () -> i32
+    %4 = "xls.tuple"(%2, %3) : (i32, i32) -> tuple<i32, i32>
+    %5 = "xls.tuple"(%0, %1, %4) : (i1, i2, tuple<i32, i32>) -> tuple<i1, i2, tuple<i32, i32>>
+    %6 = "xls.constant_scalar"() <{value = -4 : i3}> : () -> i3
+    %7 = "xls.constant_scalar"() <{value = -3 : i3}> : () -> i3
+    %8 = xls.array %6, %7 : (i3, i3) -> !xls.array<2 x i3>
+    %final = "xls.tuple"(%5, %8) : (tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>) -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+    xls.yield %final : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+  }
+  return %lit : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+}
+
 xls.chan @mychan : i32
 
 // XLS-LABEL: proc eproc({{.*}}: bits[32], {{.*}}: (bits[32], bits[1]), {{.*}}: bits[1], {{.*}}: (bits[1], bits[8], bits[7]), init={

@@ -740,9 +740,8 @@ BValue convertOp(CountedForOp counted_for_op, TranslationState& state,
   return ::xls::Bits(bits);
 }
 
-// Constant operation
-BValue convertConstantAttr(Attribute attr, const TranslationState& /*state*/,
-                           BuilderBase& fb) {
+// Constant Attribute
+::xls::Value convertConstantAttr(Attribute attr) {
   if (auto int_attr = dyn_cast<IntegerAttr>(attr)) {
     auto intType = dyn_cast<IntegerType>(int_attr.getType());
     unsigned bitWidth = intType ? intType.getWidth() : /*IndexType*/ 32u;
@@ -754,7 +753,7 @@ BValue convertConstantAttr(Attribute attr, const TranslationState& /*state*/,
       bits[i] = intVal[i];
     }
     // NOLINTNEXTLINE
-    return fb.Literal(::xls::Bits(bits));
+    ::xls::Value(::xls::Bits(bits));
   }
   if (auto float_attr = dyn_cast<FloatAttr>(attr)) {
     mlir::FloatType float_type = cast<mlir::FloatType>(float_attr.getType());
@@ -766,9 +765,11 @@ BValue convertConstantAttr(Attribute attr, const TranslationState& /*state*/,
     llvm::APInt sign = apint.getHiBits(1).trunc(1);
     llvm::APInt mantissa = apint.extractBits(mantissa_width, exponent_width);
     llvm::APInt exponent = apint.extractBits(exponent_width, 0);
-    return fb.Tuple({fb.Literal(convertAPInt(sign)),
-                     fb.Literal(convertAPInt(exponent)),
-                     fb.Literal(convertAPInt(mantissa))});
+    return ::xls::Value::Tuple({
+        ::xls::Value(convertAPInt(sign)),
+        ::xls::Value(convertAPInt(exponent)),
+        ::xls::Value(convertAPInt(mantissa)),
+    });
   }
   llvm::errs() << "Unsupported constant type: " << attr << "\n";
   return {};
@@ -783,11 +784,66 @@ BValue convertOp(ConstantScalarOp op, const TranslationState& state,
     auto int_val = int_attr.getValue().zextOrTrunc(int_type.getWidth());
     return fb.Literal(convertAPInt(int_val), state.getLoc(op));
   }
-  return convertConstantAttr(op.getValue(), state, fb);
+  return fb.Literal(convertConstantAttr(op.getValue()), state.getLoc(op));
 }
+
 BValue convertOp(arith::ConstantOp op, const TranslationState& state,
                  BuilderBase& fb) {
-  return convertConstantAttr(op.getValue(), state, fb);
+  return fb.Literal(convertConstantAttr(op.getValue()), state.getLoc(op));
+}
+
+::xls::Value convertLiteralRegion(Block& body, const TranslationState& state,
+                                  BuilderBase& fb) {
+  std::function<::xls::Value(Operation * op)> convert_op;
+  convert_op = [&](Operation* op) {
+    return TypeSwitch<Operation*, ::xls::Value>(op)
+        .Case<ConstantScalarOp>([&](ConstantScalarOp t) {
+          if (auto int_attr = dyn_cast<IntegerAttr>(t.getValue())) {
+            // TODO(jmolloy): ConstantScalarOp always has I64Attr regardless of
+            // the type, so we need special handling here.
+            auto int_type = cast<IntegerType>(t.getType());
+            auto int_val = int_attr.getValue().zextOrTrunc(int_type.getWidth());
+            return ::xls::Value(convertAPInt(int_val));
+          }
+          return convertConstantAttr(t.getValue());
+        })
+        .Case<AfterAllOp>([&](AfterAllOp t) {
+          assert(t.getOperands().empty() &&
+                 "Only empty after_all permitted in literal");
+          return ::xls::Value::Token();
+        })
+        .Case<TupleOp, ArrayOp>([&](Operation* t) {
+          std::vector<::xls::Value> values;
+          for (auto v : t->getOperands()) {
+            auto value = convert_op(v.getDefiningOp());
+            if (value.kind() == ::xls::ValueKind::kInvalid) {
+              return ::xls::Value{};
+            }
+            values.push_back(value);
+          }
+          if (isa<TupleOp>(op)) {
+            return ::xls::Value::Tuple(values);
+          } else {
+            auto array = ::xls::Value::Array(values);
+            if (!array.ok()) {
+              return ::xls::Value{};
+            } else {
+              return array.value();
+            }
+          }
+        })
+        .Default([&](auto op) {
+          llvm::errs() << "Op not supported inside literal: " << *op << "\n";
+          return ::xls::Value();
+        });
+  };
+
+  return convert_op(body.getTerminator()->getOperand(0).getDefiningOp());
+}
+
+BValue convertOp(LiteralOp op, const TranslationState& state, BuilderBase& fb) {
+  auto value = convertLiteralRegion(op.getInitializerBlock(), state, fb);
+  return fb.Literal(value, state.getLoc(op));
 }
 
 // Bitcasts
@@ -1112,7 +1168,7 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
             // Control-oriented operations
             SelOp, OneHotSelOp, PrioritySelOp,
             // Constants
-            ConstantScalarOp, arith::ConstantOp,
+            ConstantScalarOp, arith::ConstantOp, LiteralOp,
             // Control flow
             mlir::func::CallOp, CountedForOp, MapOp,
             // Casts
@@ -1155,6 +1211,13 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
     if (op == xls_region) {
       return WalkResult::skip();
     }
+
+    // TODO(schilkp): is there a cleaner way of doing this? Prevents ops inside
+    // literal init blocks from getting getting converted individually.
+    if (op->getParentOp() && isa<LiteralOp>(op->getParentOp())) {
+      return WalkResult::skip();
+    }
+
     // Receives and partial products have multiple results but are explicitly
     // supported.
     if (!isa<BlockingReceiveOp, NonblockingReceiveOp, UmulpOp, SmulpOp>(op)) {
