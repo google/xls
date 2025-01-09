@@ -3343,6 +3343,62 @@ struct Foo { a: u1, b: u1 }
 )");
 }
 
+TEST_F(ModuleFmtTest, BetterBreaksOnTupleTypes_GH1685) {
+  DoFmt(R"(fn foo() {
+    const NUM_ELEMENTS = u32:82;
+    let (points_per_game, foo_bar, foo_bar_valid) =
+        for (game_idx, (points_per_game, foo_bar, foo_bar_valid)): (u32, (bits[NUM_ELEMENTS], bits[NUM_ELEMENTS
+        ][NUM_ELEMENTS
+        ], bits[NUM_ELEMENTS])) in range(u32:0, NUM_ELEMENTS) {
+
+
+        }(zero!<(bits[NUM_ELEMENTS], bits[NUM_ELEMENTS][NUM_ELEMENTS], bits[NUM_ELEMENTS])>());
+})",
+        R"(fn foo() {
+    const NUM_ELEMENTS = u32:82;
+    let (points_per_game, foo_bar, foo_bar_valid) =
+        for (game_idx, (points_per_game, foo_bar, foo_bar_valid)): (
+            u32, (bits[NUM_ELEMENTS], bits[NUM_ELEMENTS][NUM_ELEMENTS], bits[NUM_ELEMENTS])
+        ) in range(u32:0, NUM_ELEMENTS) {
+
+
+        }(zero!<(bits[NUM_ELEMENTS], bits[NUM_ELEMENTS][NUM_ELEMENTS], bits[NUM_ELEMENTS])>());
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, BetterBreaksOnTupleTypesNested_GH1685) {
+  DoFmt(R"(fn foo() {
+    const NUM_ELEMENTS = u32:82;
+    let (points_per_game, foo_bar, foo_bar_valid) =
+        for (game_idx, (points_per_game, foo_bar, foo_bar_valid, foo_bar_invalid)): (u32, (bits[NUM_ELEMENTS
+        ], bits[NUM_ELEMENTS][NUM_ELEMENTS], bits[NUM_ELEMENTS], bits[NUM_ELEMENTS])) in
+            range(u32:0, NUM_ELEMENTS) {
+
+
+        }(zero!<(bits[NUM_ELEMENTS], bits[NUM_ELEMENTS][NUM_ELEMENTS], bits[NUM_ELEMENTS], bits[NUM_ELEMENTS
+        ])>());
+})",
+        R"(fn foo() {
+    const NUM_ELEMENTS = u32:82;
+    let (points_per_game, foo_bar, foo_bar_valid) =
+        for (game_idx, (points_per_game, foo_bar, foo_bar_valid, foo_bar_invalid)): (
+            u32,
+            (
+                bits[NUM_ELEMENTS], bits[NUM_ELEMENTS][NUM_ELEMENTS], bits[NUM_ELEMENTS],
+                bits[NUM_ELEMENTS]
+            )
+        ) in range(u32:0, NUM_ELEMENTS) {
+
+
+        }(zero!<(
+            bits[NUM_ELEMENTS], bits[NUM_ELEMENTS][NUM_ELEMENTS], bits[NUM_ELEMENTS],
+            bits[NUM_ELEMENTS]
+        )>());
+}
+)");
+}
+
 TEST_F(ModuleFmtTest, TupleWithComment_GH_1678) {
   DoFmt(R"(fn foo(bar: u32) {
     let some_data_to_make_single_update_per_line = u32:0xabcdef;

@@ -303,11 +303,8 @@ DocRef Fmt(const ArrayTypeAnnotation& n, Comments& comments, DocArena& arena) {
   DocRef elem = Fmt(*n.element_type(), comments, arena);
   DocRef dim = Fmt(*n.dim(), comments, arena);
 
-  // We want to break0 before the closing bracket in case the contents took us
-  // right up to the last available character.
-  DocRef closer = arena.MakeConcat(arena.break0(), arena.cbracket());
-  return ConcatNGroup(arena,
-                      {elem, arena.obracket(), arena.MakeAlign(dim), closer});
+  return ConcatNGroup(
+      arena, {elem, arena.obracket(), arena.MakeAlign(dim), arena.cbracket()});
 }
 
 DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n, Comments& comments,
@@ -317,11 +314,23 @@ DocRef FmtTypeAnnotationPtr(const TypeAnnotation* n, Comments& comments,
 }
 
 DocRef Fmt(const TupleTypeAnnotation& n, Comments& comments, DocArena& arena) {
-  std::vector<DocRef> pieces = {arena.oparen()};
-  pieces.push_back(FmtJoin<const TypeAnnotation*>(
-      n.members(), Joiner::kCommaSpace, FmtTypeAnnotationPtr, comments, arena));
-  pieces.push_back(arena.cparen());
-  return ConcatNGroup(arena, pieces);
+  DocRef guts = FmtJoin<const TypeAnnotation*>(
+      n.members(), Joiner::kCommaBreak1AsGroupNoTrailingComma,
+      FmtTypeAnnotationPtr, comments, arena);
+
+  return ConcatNGroup(
+      arena, {
+                 arena.oparen(),
+                 arena.MakeFlatChoice(
+                     /*on_flat=*/guts,
+                     /*on_break=*/ConcatNGroup(arena,
+                                               {
+                                                   arena.hard_line(),
+                                                   arena.MakeNest(guts),
+                                                   arena.hard_line(),
+                                               })),
+                 arena.cparen(),
+             });
 }
 
 DocRef Fmt(const TypeRef& n, Comments& comments, DocArena& arena) {
