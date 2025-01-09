@@ -484,6 +484,33 @@ Type getI1TypeOf(Type type) {
 
 namespace mlir::xls {
 
+LogicalResult LiteralOp::verifyRegions() {
+  Block& b = getInitializerBlock();
+
+  // Verify return op & typing:
+  auto ret = dyn_cast<YieldOp>(b.getTerminator());
+  if (!ret) {
+    return emitOpError(
+        "initializer region must be terminated by an xls.yield op");
+  }
+  if (ret->getNumOperands() != 1) {
+    return emitOpError("initializer region must return exactly one value");
+  }
+  if (ret->getOperand(0).getType() != getType()) {
+    return emitOpError("initializer region type ")
+           << ret->getOperand(0).getType() << " does not match literal type "
+           << getType();
+  }
+  // Verify that operations inside are allowed inside a literal region:
+  for (Operation& op : b) {
+    auto iface = dyn_cast<LiteralMemberOpInterface>(op);
+    if (!iface || !iface.isPermissibleInsideLiteral()) {
+      return op.emitError() << "op not permissible inside literal region";
+    }
+  }
+  return success();
+}
+
 LogicalResult TupleOp::inferReturnTypes(
     MLIRContext* context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
