@@ -63,10 +63,11 @@ struct IrEvaluatorTestParam {
 
   IrEvaluatorTestParam(EvaluatorFnT evaluator_in,
                        KwargsEvaluatorFnT kwargs_evaluator_in,
-                       bool supports_observer)
+                       bool supports_observer, std::string name)
       : evaluator(std::move(evaluator_in)),
         kwargs_evaluator(std::move(kwargs_evaluator_in)),
-        supports_observer(supports_observer) {}
+        supports_observer(supports_observer),
+        name(name) {}
 
   // Function to execute a function and return a Value.
   EvaluatorFnT evaluator;
@@ -75,6 +76,13 @@ struct IrEvaluatorTestParam {
   KwargsEvaluatorFnT kwargs_evaluator;
 
   bool supports_observer;
+
+  std::string name;
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const IrEvaluatorTestParam& p) {
+    absl::Format(&sink, "%s", p.name);
+  }
 };
 
 // Public face of the suite of tests to run against IR evaluators

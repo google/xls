@@ -59,7 +59,8 @@ INSTANTIATE_TEST_SUITE_P(
            std::optional<EvaluationObserver*> obs) {
           return InterpretFunctionKwargs(function, kwargs, obs);
         },
-        true)));
+        true, "IrInterpreter")),
+    testing::PrintToStringParamName());
 
 // Fixture for IrInterpreter-only tests (i.e., those that aren't common to all
 // IR evaluators).

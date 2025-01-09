@@ -86,51 +86,59 @@ using ::testing::Values;
 // TODO(https://github.com/google/xls/issues/506): 2021-10-12 Replace the empty
 // events returned by the JIT evaluator with a entry point that includes the
 // collected events (once they are supported by the JIT).
+auto MakeJitWithOptLevel(bool with_observers, int64_t opt_level) {
+  return IrEvaluatorTestParam(
+      [=](Function* function, absl::Span<const Value> args,
+          std::optional<EvaluationObserver*> obs)
+          -> absl::StatusOr<InterpreterResult<Value>> {
+        XLS_ASSIGN_OR_RETURN(
+            auto jit, FunctionJit::Create(
+                          function, /*opt_level=*/opt_level,
+                          /*include_observer_callbacks=*/obs.has_value()));
+        std::optional<RuntimeEvaluationObserverAdapter> run_obs;
+        if (obs) {
+          run_obs.emplace(
+              *obs,
+              [](uint64_t idx) -> Node* {
+                return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
+              },
+              jit->runtime());
+          XLS_EXPECT_OK(jit->SetRuntimeObserver(&*run_obs));
+        }
+        return jit->Run(args);
+      },
+      [=](Function* function,
+          const absl::flat_hash_map<std::string, Value>& kwargs,
+          std::optional<EvaluationObserver*> obs)
+          -> absl::StatusOr<InterpreterResult<Value>> {
+        XLS_ASSIGN_OR_RETURN(
+            auto jit, FunctionJit::Create(
+                          function, /*opt_level=*/opt_level,
+                          /*include_observer_callbacks=*/obs.has_value()));
+        std::optional<RuntimeEvaluationObserverAdapter> run_obs;
+        if (obs) {
+          run_obs.emplace(
+              *obs,
+              [](uint64_t idx) -> Node* {
+                return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
+              },
+              jit->runtime());
+          XLS_EXPECT_OK(jit->SetRuntimeObserver(&*run_obs));
+        }
+        return jit->Run(kwargs);
+      },
+      with_observers,
+      absl::StrFormat("JitOpt%d%s", opt_level,
+                      with_observers ? "WithObservers" : "NoObservers"));
+}
 INSTANTIATE_TEST_SUITE_P(
     FunctionJitTest, IrEvaluatorTestBase,
-    Values(IrEvaluatorTestParam(
-        [](Function* function, absl::Span<const Value> args,
-           std::optional<EvaluationObserver*> obs)
-            -> absl::StatusOr<InterpreterResult<Value>> {
-          XLS_ASSIGN_OR_RETURN(
-              auto jit,
-              FunctionJit::Create(
-                  function, /*opt_level=*/LlvmCompiler::kDefaultOptLevel,
-                  /*include_observer_callbacks=*/obs.has_value()));
-          std::optional<RuntimeEvaluationObserverAdapter> run_obs;
-          if (obs) {
-            run_obs.emplace(
-                *obs,
-                [](uint64_t idx) -> Node* {
-                  return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
-                },
-                jit->runtime());
-            XLS_EXPECT_OK(jit->SetRuntimeObserver(&*run_obs));
-          }
-          return jit->Run(args);
-        },
-        [](Function* function,
-           const absl::flat_hash_map<std::string, Value>& kwargs,
-           std::optional<EvaluationObserver*> obs)
-            -> absl::StatusOr<InterpreterResult<Value>> {
-          XLS_ASSIGN_OR_RETURN(
-              auto jit,
-              FunctionJit::Create(
-                  function, /*opt_level=*/LlvmCompiler::kDefaultOptLevel,
-                  /*include_observer_callbacks=*/obs.has_value()));
-          std::optional<RuntimeEvaluationObserverAdapter> run_obs;
-          if (obs) {
-            run_obs.emplace(
-                *obs,
-                [](uint64_t idx) -> Node* {
-                  return reinterpret_cast<Node*>(static_cast<intptr_t>(idx));
-                },
-                jit->runtime());
-            XLS_EXPECT_OK(jit->SetRuntimeObserver(&*run_obs));
-          }
-          return jit->Run(kwargs);
-        },
-        false)));
+    Values(MakeJitWithOptLevel(/*with_observers=*/true,
+                               LlvmCompiler::kDefaultOptLevel),
+           MakeJitWithOptLevel(/*with_observers=*/false,
+                               LlvmCompiler::kDefaultOptLevel),
+           MakeJitWithOptLevel(/*with_observers=*/false, 0)),
+    testing::PrintToStringParamName());
 
 absl::StatusOr<Value> RunJitNoEvents(FunctionJit* jit,
                                      absl::Span<const Value> args) {
