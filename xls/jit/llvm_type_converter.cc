@@ -48,12 +48,9 @@ LlvmTypeConverter::LlvmTypeConverter(llvm::LLVMContext* context,
     : context_(*context), data_layout_(data_layout) {}
 
 int64_t LlvmTypeConverter::GetLlvmBitCount(int64_t xls_bit_count) const {
-  // LLVM does not accept 0-bit types, and we want to be able to JIT-compile
-  // unoptimized IR, so for the time being we make a dummy 1-bit value.
-  // See https://github.com/google/xls/issues/76
-  if (xls_bit_count <= 1) {
-    return 1;
-  }
+  // LLVM does not accept 0-bit types and < 8 bit types often have issues, and
+  // we want to be able to JIT-compile unoptimized IR, so for the time being we
+  // make a dummy 8-bit value.  See https://github.com/google/xls/issues/76
   if (xls_bit_count <= 8) {
     return 8;
   }
@@ -213,9 +210,14 @@ llvm::Value* LlvmTypeConverter::AsSignedValue(
     std::optional<llvm::Type*> dest_type) const {
   CHECK(xls_type->IsBits());
   int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
+  int64_t llvm_bit_count = GetLlvmBitCount(xls_bit_count);
   llvm::Value* signed_value;
-  if (xls_bit_count <= 1) {
+  if (llvm_bit_count == xls_bit_count || xls_bit_count == 0) {
     signed_value = value;
+  } else if (xls_bit_count == 1) {
+    // Just for this one case we don't need to do a shift.
+    signed_value = builder.CreateICmpNE(
+        value, llvm::ConstantInt::get(value->getType(), 0));
   } else {
     llvm::Value* sign_bit = builder.CreateTrunc(
         builder.CreateLShr(
@@ -225,7 +227,7 @@ llvm::Value* LlvmTypeConverter::AsSignedValue(
         sign_bit,
         builder.CreateOr(InvertedPaddingMask(xls_type, builder), value), value);
   }
-  return dest_type.has_value()
+  return dest_type.has_value() && dest_type.value() != signed_value->getType()
              ? builder.CreateSExt(signed_value, dest_type.value())
              : signed_value;
 }

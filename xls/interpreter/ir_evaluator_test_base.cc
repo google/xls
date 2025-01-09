@@ -1794,6 +1794,71 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotSelect2DArray) {
                   "[[bits[4]:12, bits[4]:14], [bits[4]:9, bits[4]:6]]")));
 }
 
+TEST_P(IrEvaluatorTestBase, OneBitSignExtend) {
+  Package package("my_package");
+
+  // 1-bit values are handled somewhat specially.
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+fn __sample__main(x1: bits[4] id=1) -> (bits[24], bits[20][1]) {
+  or_reduce.328: bits[1] = or_reduce(x1, id=328)
+  not.335: bits[1] = not(or_reduce.328, id=335)
+  x16: bits[24] = sign_ext(not.335, new_bit_count=24, id=333)
+  x17: bits[20][1] = literal(value=[0], id=326, pos=[(0,28,36)])
+  ret tuple.308: (bits[24], bits[20][1]) = tuple(x16, x17, id=308, pos=[(0,38,8)])
+}
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value expected0,
+      ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0xffffff, 24)),
+                           ValueBuilder::SBitsArray({0}, 20)})
+          .Build());
+  EXPECT_THAT(RunWithNoEvents(function, {Value(UBits(0, 4))}),
+              IsOkAndHolds(Value(expected0)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value expected_other,
+      ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0x0, 24)),
+                           ValueBuilder::SBitsArray({0}, 20)})
+          .Build());
+  EXPECT_THAT(RunWithNoEvents(function, {Value(UBits(1, 4))}),
+              IsOkAndHolds(Value(expected_other)));
+}
+
+TEST_P(IrEvaluatorTestBase, InterpretPrioritySelectBus) {
+  Package package("my_package");
+  // This was found to cause a bus error on jit.
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+fn __sample__main(x1: bits[4] id=1) -> (bits[24], bits[20][1]) {
+  literal.299: (bits[1], bits[24]) = literal(value=(0, 0), id=299, pos=[(0,24,45)])
+  literal.170: (bits[1], bits[24]) = literal(value=(1, 16777215), id=170, pos=[(0,26,17)])
+  literal.141: bits[20][7] = literal(value=[0, 0, 0, 0, 0, 0, 0], id=141)
+
+  priority_sel.71: (bits[1], bits[24]) = priority_sel(x1, cases=[literal.299, literal.299, literal.299, literal.299], default=literal.170, id=71)
+
+  x15: bits[1] = tuple_index(priority_sel.71, index=0, id=72, pos=[(0,22,13)])
+  x16: bits[24] = tuple_index(priority_sel.71, index=1, id=73, pos=[(0,22,18)])
+  x17: bits[20][1] = array_slice(literal.141, x15, width=1, id=77, pos=[(0,28,36)])
+
+  ret tuple.308: (bits[24], bits[20][1]) = tuple(x16, x17, id=308, pos=[(0,38,8)])
+}
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value expected0,
+      ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0xffffff, 24)),
+                           ValueBuilder::SBitsArray({0}, 20)})
+          .Build());
+  EXPECT_THAT(RunWithNoEvents(function, {Value(UBits(0, 4))}),
+              IsOkAndHolds(Value(expected0)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value expected_other,
+      ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0x0, 24)),
+                           ValueBuilder::SBitsArray({0}, 20)})
+          .Build());
+  EXPECT_THAT(RunWithNoEvents(function, {Value(UBits(1, 4))}),
+              IsOkAndHolds(Value(expected_other)));
+}
+
 TEST_P(IrEvaluatorTestBase, InterpretPrioritySelect) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,

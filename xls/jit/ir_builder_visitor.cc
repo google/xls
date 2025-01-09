@@ -684,6 +684,16 @@ absl::StatusOr<llvm::Function*> CreateLlvmFunction(
           .getCallee());
 }
 
+// Get the truthiness of the given value (0 is falsy, all other values are
+// truty).
+llvm::Value* Truthiness(llvm::Value* value, llvm::IRBuilder<>& builder) {
+  CHECK(value->getType()->isIntegerTy());
+  return builder.CreateICmpNE(
+      value, llvm::ConstantInt::get(value->getType(), 0),
+      value->hasName() ? absl::StrFormat("%s_truthiness", value->getName())
+                       : "");
+}
+
 // Abstraction gathering together the necessary context for emitting the LLVM IR
 // for a given node. This data structure decouples IR generation for the
 // top-level function from the IR generation of each node. This enables, for
@@ -1081,8 +1091,19 @@ void NodeIrContext::FinalizeWithValue(
     std::optional<Type*> return_type) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &entry_builder();
-  result = type_converter().ClearPaddingBits(
-      result, return_type.value_or(node()->GetType()), *b);
+  // Special case 0 & 1 bit values to automatically extend them since using them
+  // as a boolean within ssa registers is a common pattern.
+  if (result->getType()->isIntegerTy(1)) {
+    CHECK(node()->GetType()->IsBits() &&
+          node()->GetType()->GetFlatBitCount() == 1)
+        << node();
+    CHECK_EQ(type_converter().GetLlvmBitCount(node()->GetType()->AsBitsOrDie()),
+             8);
+    result = b->CreateZExt(result, b->getInt8Ty());
+  } else {
+    result = type_converter().ClearPaddingBits(
+        result, return_type.value_or(node()->GetType()), *b);
+  }
   if (GetOutputPtrs().empty()) {
     b->CreateRet(b->getFalse());
     return;
@@ -1396,7 +1417,9 @@ absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
     llvm::IRBuilder<> current_step_builder(current_step);
     llvm::IRBuilder<> reset_selected_builder(*reset_selected);
     XLS_ASSIGN_OR_RETURN(int64_t op_idx, write->reset_operand_number());
-    auto reset_state = node_context.LoadOperand(op_idx, &current_step_builder);
+    auto reset_state =
+        Truthiness(node_context.LoadOperand(op_idx, &current_step_builder),
+                   current_step_builder);
     if (write->GetRegister()->reset()->active_low) {
       // current_step_builder.CreateCondBr(reset_state, *reset_selected,
       //                                   no_reset_selected);
@@ -1424,8 +1447,10 @@ absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
         llvm::BasicBlock::Create(ctx(), "load_enabled", function);
     llvm::IRBuilder<> no_load_enable_builder(*no_load_enable_selected);
     llvm::IRBuilder<> current_step_builder(current_step);
-    auto load_enable_state = node_context.LoadOperand(
-        write->load_enable_operand_number().value(), &current_step_builder);
+    auto load_enable_state = Truthiness(
+        node_context.LoadOperand(write->load_enable_operand_number().value(),
+                                 &current_step_builder),
+        current_step_builder);
     // the original value is at operand_count+1
     XLS_ASSIGN_OR_RETURN(
         no_load_enable_value,
@@ -1548,8 +1573,9 @@ absl::Status IrBuilderVisitor::HandleAssert(Assert* assert_op) {
 
   fail_builder.CreateBr(after_block);
 
-  b.CreateCondBr(node_context.LoadOperand(Assert::kConditionOperand), ok_block,
-                 fail_block);
+  b.CreateCondBr(
+      Truthiness(node_context.LoadOperand(Assert::kConditionOperand), b),
+      ok_block, fail_block);
 
   auto after_builder = std::make_unique<llvm::IRBuilder<>>(after_block);
   llvm::Value* token = type_converter()->GetToken();
@@ -1594,7 +1620,7 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
           /*include_wrapper_args=*/true));
 
   llvm::IRBuilder<>& b = node_context.entry_builder();
-  llvm::Value* condition = node_context.LoadOperand(1);
+  llvm::Value* condition = Truthiness(node_context.LoadOperand(1), b);
   llvm::Value* events_ptr = node_context.GetInterpreterEventsArg();
   llvm::Value* jit_runtime_ptr = node_context.GetJitRuntimeArg();
 
@@ -2341,7 +2367,7 @@ absl::Status IrBuilderVisitor::HandleGate(Gate* gate) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(gate, {"condition", "data"}));
   llvm::IRBuilder<>& b = node_context.entry_builder();
-  llvm::Value* condition = node_context.LoadOperand(0);
+  llvm::Value* condition = Truthiness(node_context.LoadOperand(0), b);
   llvm::Value* data = node_context.LoadOperand(1);
 
   // TODO(meheff): 2022/09/09 Replace with a if/then/else block which does a
@@ -2660,7 +2686,7 @@ absl::Status IrBuilderVisitor::HandleNext(Next* next) {
   }
 
   // If the predicate is true, emulate the `next_value` node's effects.
-  llvm::Value* predicate = node_context.LoadOperand(2);
+  llvm::Value* predicate = Truthiness(node_context.LoadOperand(2), b);
   LlvmIfThen if_then = CreateIfThen(predicate, b, next->GetName());
 
   LlvmMemcpy(node_context.GetOutputPtr(0), value_ptr,
@@ -3353,7 +3379,8 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
       LlvmTypeConverter::ZeroOfType(data_type), data_buffer);
 
   if (recv->predicate().has_value()) {
-    llvm::Value* predicate = node_context.LoadOperand(1);
+    llvm::Value* predicate =
+        Truthiness(node_context.LoadOperand(1), node_context.entry_builder());
 
     // First, declare the join block (so the case blocks can refer to it).
     llvm::BasicBlock* join_block =
@@ -3459,7 +3486,7 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
       jit_context_.GetOrAllocateQueueIndex(send->channel_name());
 
   if (send->predicate().has_value()) {
-    llvm::Value* predicate = node_context.LoadOperand(2);
+    llvm::Value* predicate = Truthiness(node_context.LoadOperand(2), b);
 
     // First, declare the join block (so the case blocks can refer to it).
     llvm::BasicBlock* join_block =
