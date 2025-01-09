@@ -12,7 +12,8 @@ void {{aot.extern_fn}}(const uint8_t* const* inputs,
                        uint8_t* const* outputs,
                        uint8_t* temp_buffer,
                        void* events,
-                       void* unused,
+                       void* unused,   // instance_context
+                       void* unused2,  // jit_runtime
                        int64_t continuation_point);
 {% if aot.write_result %}
 int write(int fd, void* v, size_t s);
@@ -54,7 +55,7 @@ int main(int argc, char** argv) {
   {{aot.extern_fn}}(
         arg_buffers, result_buffers, temp_buffer,
         /*interpreter_events=*/nullptr, /*callbacks=*/nullptr,
-        /*continuation_point=*/0);
+        /*runtime=*/nullptr, /*continuation_point=*/0);
   {% if aot.write_result %}
   write(1, result_buf, sizeof(result_buf));
   {% endif %}
