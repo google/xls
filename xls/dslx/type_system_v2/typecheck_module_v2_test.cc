@@ -203,6 +203,43 @@ const Z = 1 + 2 + 3 + 4 + X;
             HasSubstr("node: `const Z = 1 + 2 + 3 + 4 + X;`, type: uN[32]")));
 }
 
+TEST(TypecheckV2Test, GlobalIntegerConstantWithCoercionOfAutoToSigned) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const Z = 1 + s2:1;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string, AllOf(HasSubstr("node: `1`, type: sN[2]"),
+                                      HasSubstr("node: `Z`, type: sN[2]")));
+}
+
+TEST(TypecheckV2Test, GlobalIntegerConstantWithCoercionOfByAnotherAuto) {
+  // Promote [auto u2, auto s2] to auto s3 due to the extra bit needed to fit
+  // `2` in a signed value. The `s3:0` term then just avoids the prohibition on
+  // a constant defined with a completely implicit type.
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+const Z = 2 + -1 + s3:0;
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
+                           TypeInfoToString(result.tm));
+  EXPECT_THAT(type_info_string, AllOf(HasSubstr("node: `2`, type: sN[3]"),
+                                      HasSubstr("node: `Z`, type: sN[3]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalIntegerConstantWithImpossibleAutoByAutoPromotionFails) {
+  // Promote [auto u2, auto s2] to auto s3 due to the extra bit needed to fit
+  // `2` in a signed value, and verify that it breaks the limit imposed by an
+  // explicit s2.
+  EXPECT_THAT("const Z = 2 + -1 + s2:0;",
+              TypecheckFails(HasSizeMismatch("s2", "sN[3]")));
+}
+
+TEST(TypecheckV2Test, ImpossibleCoercionOfAutoToSignedFails) {
+  EXPECT_THAT("const Z = 3 + s2:1;",
+              TypecheckFails(HasSizeMismatch("s2", "sN[3]")));
+}
+
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantAndTupleFails) {
   EXPECT_THAT(R"(
 const X = u32:3;
@@ -387,7 +424,7 @@ TEST(TypecheckV2Test, GlobalBoolConstantAssignedToIntegerFails) {
 
 TEST(TypecheckV2Test, GlobalBoolConstantWithSignednessConflictFails) {
   EXPECT_THAT("const X: s2 = bool:false;",
-              TypecheckFails(HasSignednessMismatch("bool", "s2")));
+              TypecheckFails(HasSizeMismatch("bool", "s2")));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantWithBitCountConflictFails) {
@@ -522,7 +559,7 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithTypeViolation) {
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithTypeConflict) {
   EXPECT_THAT("const X: u32[2] = [s24:1, s24:2];",
-              TypecheckFails(HasSignednessMismatch("sN[24]", "u32")));
+              TypecheckFails(HasSizeMismatch("sN[24]", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantReferencingIntegerConstant) {

@@ -63,55 +63,13 @@
 namespace xls::dslx {
 namespace {
 
-// A size value that may be a minimum or an exact size. This is useful as an
-// intermediate object during unification of type annotations.
-struct SizeValue {
+// A size and signedness with a flag for whether it is automatic. Automatic
+// values have more flexible unification rules.
+struct SignednessAndSize {
+  bool is_auto;
+  bool is_signed;
   int64_t size;
-  bool size_is_min;
 };
-
-// Helper for `UnifySizeValues` for when a min value is unified with an exact
-// value.
-absl::StatusOr<SizeValue> UnifyMinAndExactSize(const SizeValue& min,
-                                               const SizeValue& exact) {
-  CHECK(min.size_is_min);
-  CHECK(!exact.size_is_min);
-  if (exact.size >= min.size) {
-    return exact;
-  }
-  return absl::OutOfRangeError(absl::Substitute(
-      "Min size $0 is greater than exact size $1", min.size, exact.size));
-}
-
-// Returns a `SizeValue` that agrees with the two given `SizeValue` objects if
-// possible. `x` is optional for convenience of invoking this in a loop where
-// the first call has no preceding value. The possible errors are:
-// - Invalid argument, if neither `x` nor `y` has the `size_is_min` flag, and
-//   their sizes don't agree.
-// - Out of range, if a min size value is contradicted by an exact value lower
-//   than that.
-// The errors are expected to be wrapped or replaced with contextual info by the
-// caller before being shown to a user.
-absl::StatusOr<SizeValue> UnifySizeValues(const std::optional<SizeValue>& x,
-                                          const SizeValue& y) {
-  if (!x.has_value()) {
-    return y;
-  }
-  if (x->size_is_min && y.size_is_min) {
-    return SizeValue{.size = std::max(x->size, y.size), .size_is_min = true};
-  }
-  if (x->size_is_min) {
-    return UnifyMinAndExactSize(*x, y);
-  }
-  if (y.size_is_min) {
-    return UnifyMinAndExactSize(y, *x);
-  }
-  if (x->size != y.size) {
-    return absl::InvalidArgumentError(
-        absl::Substitute("Cannot unify sizes: $0 and $1", x->size, y.size));
-  }
-  return *x;
-}
 
 // Represents a step in `TypeInfo` conversion order where the `ParametricEnv`
 // for a parametric invocation is converted.
@@ -129,6 +87,13 @@ struct NodeConversion {
 
 using TypeInfoConversionStep =
     std::variant<ParametricEnvConversion, NodeConversion>;
+
+const TypeAnnotation* SignednessAndSizeToAnnotation(
+    Module& module, const SignednessAndSize& signedness_and_size,
+    const Span& span) {
+  return CreateUnOrSnAnnotation(module, span, signedness_and_size.is_signed,
+                                signedness_and_size.size);
+}
 
 // Traverses an AST and flattens it into a `vector` in the order the `TypeInfo`
 // needs to be built such that prerequisites will be present in `TypeInfo` when
@@ -806,8 +771,7 @@ class InferenceTableConverter {
       }
       return annotations[0];
     }
-    std::optional<bool> unified_signedness;
-    std::optional<SizeValue> unified_bit_count;
+    std::optional<SignednessAndSize> unified_signedness_and_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
       const TypeAnnotation* current_annotation = annotations[i];
       VLOG(5) << "Annotation " << i << ": " << current_annotation->ToString();
@@ -830,37 +794,26 @@ class InferenceTableConverter {
           int64_t current_annotation_raw_bit_count,
           EvaluateS64OrExpr(effective_parametric_invocation,
                             signedness_and_bit_count->bit_count));
-      SizeValue current_annotation_bit_count{
-          .size = current_annotation_raw_bit_count,
-          .size_is_min = current_annotation_is_auto};
+      SignednessAndSize current_annotation_signedness_and_bit_count{
+          .is_auto = current_annotation_is_auto,
+          .is_signed = current_annotation_signedness,
+          .size = current_annotation_raw_bit_count};
 
-      // Unify the signedness. Currently there must be strict agreement, except
-      // for auto literals. Auto literals can be coerced to signed but can't be
-      // coerced to unsigned.
-      if (!unified_signedness.has_value()) {
-        unified_signedness = current_annotation_signedness;
-      } else if (current_annotation_signedness != *unified_signedness &&
-                 (!current_annotation_is_auto ||
-                  current_annotation_signedness)) {
-        return SignednessMismatchErrorWithParametricResolution(
-            parametric_invocation, current_annotation, annotations[i - 1]);
-      }
-
-      absl::StatusOr<SizeValue> new_unified_bit_count =
-          UnifySizeValues(unified_bit_count, current_annotation_bit_count);
-      if (!new_unified_bit_count.ok()) {
-        return BitCountMismatchErrorWithParametricResolution(
-            parametric_invocation, current_annotation, annotations[i - 1]);
-      }
-      unified_bit_count = *new_unified_bit_count;
-      VLOG(5) << "Unified type so far has signedness: " << *unified_signedness
-              << " and bit count: " << unified_bit_count->size;
+      XLS_ASSIGN_OR_RETURN(
+          unified_signedness_and_bit_count,
+          UnifySignednessAndSize(parametric_invocation,
+                                 unified_signedness_and_bit_count,
+                                 current_annotation_signedness_and_bit_count,
+                                 annotations[0], current_annotation));
+      VLOG(5) << "Unified type so far has signedness: "
+              << unified_signedness_and_bit_count->is_signed
+              << " and bit count: " << unified_signedness_and_bit_count->size;
     }
-    const TypeAnnotation* result = CreateUnOrSnAnnotation(
-        module_, span, *unified_signedness, unified_bit_count->size);
+    const TypeAnnotation* result = SignednessAndSizeToAnnotation(
+        module_, *unified_signedness_and_bit_count, span);
     // An annotation we fabricate as a unification of a bunch of auto
     // annotations, is also considered an auto annotation itself.
-    if (unified_bit_count->size_is_min) {
+    if (unified_signedness_and_bit_count->is_auto) {
       auto_literal_annotations_.insert(result);
     }
     return result;
@@ -896,7 +849,7 @@ class InferenceTableConverter {
       std::optional<const ParametricInvocation*> parametric_invocation,
       std::vector<const ArrayTypeAnnotation*> annotations, const Span& span) {
     std::vector<const TypeAnnotation*> element_type_annotations;
-    std::optional<SizeValue> unified_dim;
+    std::optional<SignednessAndSize> unified_dim;
     for (int i = 0; i < annotations.size(); i++) {
       const ArrayTypeAnnotation* annotation = annotations[i];
       std::optional<const ParametricInvocation*> effective_invocation =
@@ -905,14 +858,23 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(
           int64_t current_dim,
           EvaluateS64OrExpr(effective_invocation, annotation->dim()));
-      absl::StatusOr<SizeValue> new_unified_dim = UnifySizeValues(
-          unified_dim, SizeValue{.size = current_dim,
-                                 .size_is_min = annotation->dim_is_min()});
+      // This flag indicates we are unifying one min dim with one explicit dim,
+      // which warrants a possible different error message than other scenarios.
+      const bool is_min_vs_explicit =
+          unified_dim.has_value() &&
+          (unified_dim->is_auto ^ annotation->dim_is_min());
+      absl::StatusOr<SignednessAndSize> new_unified_dim =
+          UnifySignednessAndSize(
+              parametric_invocation, unified_dim,
+              SignednessAndSize{.is_auto = annotation->dim_is_min(),
+                                .is_signed = false,
+                                .size = current_dim},
+              annotations[0], annotations[i]);
       if (!new_unified_dim.ok()) {
         // We can only get here when i >= 1, because the 0th annotation can't be
         // a contradiction of preceding info.
         CHECK_GE(i, 1);
-        if (new_unified_dim.status().code() == absl::StatusCode::kOutOfRange) {
+        if (is_min_vs_explicit) {
           return TypeInferenceErrorStatus(
               span, /*type=*/nullptr,
               "Annotated array size is too small for explicit element count.",
@@ -923,7 +885,7 @@ class InferenceTableConverter {
       }
       unified_dim = *new_unified_dim;
     }
-    if (unified_dim->size_is_min) {
+    if (unified_dim->is_auto) {
       // This means the only type annotation for the array was fabricated
       // based on an elliptical RHS.
       return TypeInferenceErrorStatus(
@@ -1157,6 +1119,82 @@ class InferenceTableConverter {
               return vars.GetFreeVariableCount() > 0;
             }),
         annotations.end());
+  }
+
+  // Returns a `SignednessAndSize` that agrees with the two given
+  // `SignednessAndSize` objects if possible. `x` is optional for convenience of
+  // invoking this in a loop where the first call has no preceding value.
+  //
+  // Any error returned is a size or signedness mismatch error suitable for
+  // display to the user. The `parametric_invocation` and the passed in type
+  // annotations are used only for the purpose of generating errors. It is
+  // assumed that `y_annotation` should be mentioned first in errors.
+  absl::StatusOr<SignednessAndSize> UnifySignednessAndSize(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<SignednessAndSize> x, SignednessAndSize y,
+      const TypeAnnotation* x_annotation, const TypeAnnotation* y_annotation) {
+    if (!x.has_value()) {
+      return y;
+    }
+    if (x->is_auto && y.is_auto) {
+      return SignednessAndSize{
+          .is_auto = true,
+          .is_signed = x->is_signed || y.is_signed,
+          // If we are coercing one of 2 auto annotations to signed, the one
+          // being coerced needs an extra bit to keep fitting the value it was
+          // sized to.
+          .size = x->size == y.size && x->is_signed != y.is_signed
+                      ? x->size + 1
+                      : std::max(x->size, y.size)};
+    }
+    // Converts `annotation` into one that reflects `signedness_and_size`, for
+    // error purposes, if it is auto. If it is explicit, then we would not have
+    // modified `signedness_and_size`, and we want to display `annotation`'s
+    // original formulation, which may not be canonical. Note that
+    // `signedness_and_size` may have been modified by a prior call to
+    // `UnifySignednessAndSize`, and not necessarily the current call.
+    auto update_annotation = [&](const SignednessAndSize& signedness_and_size,
+                                 const TypeAnnotation* annotation) {
+      return signedness_and_size.is_auto
+                 ? SignednessAndSizeToAnnotation(module_, signedness_and_size,
+                                                 annotation->span())
+                 : annotation;
+    };
+    auto signedness_mismatch_error = [&] {
+      return SignednessMismatchErrorWithParametricResolution(
+          parametric_invocation, update_annotation(y, y_annotation),
+          update_annotation(*x, x_annotation));
+    };
+    auto bit_count_mismatch_error = [&] {
+      return BitCountMismatchErrorWithParametricResolution(
+          parametric_invocation, update_annotation(y, y_annotation),
+          update_annotation(*x, x_annotation));
+    };
+    if (x->is_auto || y.is_auto) {
+      SignednessAndSize& auto_value = x->is_auto ? *x : y;
+      SignednessAndSize& explicit_value = x->is_auto ? y : *x;
+      if (auto_value.is_signed && !explicit_value.is_signed) {
+        return signedness_mismatch_error();
+      }
+      if (!auto_value.is_signed && explicit_value.is_signed) {
+        // An auto value being coerced to be signed needs to be extended for the
+        // same reason as above.
+        auto_value.is_signed = true;
+        ++auto_value.size;
+      }
+      if (explicit_value.size >= auto_value.size) {
+        return explicit_value;
+      }
+      return bit_count_mismatch_error();
+    }
+    // They are both explicit and must match.
+    if (x->size != y.size) {
+      return bit_count_mismatch_error();
+    }
+    if (x->is_signed != y.is_signed) {
+      return signedness_mismatch_error();
+    }
+    return *x;
   }
 
   const InferenceTable& table_;
