@@ -717,7 +717,7 @@ BValue BuilderBase::Decode(BValue arg, std::optional<int64_t> width,
   if (!width.has_value() && arg_width > 16) {
     return SetError(
         absl::StrFormat(
-            "Decode argument width be no greater than 32-bits; is %d bits",
+            "Decode argument width be no greater than 16-bits; is %d bits",
             arg_width),
         loc);
   }
