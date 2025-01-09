@@ -822,6 +822,22 @@ LogicalResult SSendOp::verify() {
                                         getData().getType());
 }
 
+LogicalResult NextValueOp::verify() {
+  auto types = getValues().getTypes();
+  if (types.empty()) {
+    return emitOpError()
+           << "at least one type-predicate tuple must be present";
+  }
+  if (!llvm::all_of(types, [&](Type elem) { return elem == types.front(); })) {
+    return emitOpError() << "all input values must have the same type";
+  }
+  if (types.front() != getResult().getType()) {
+    return emitOpError()
+           << "the type of the input values and return type must match";
+  }
+  return success();
+}
+
 Region& EprocOp::getBodyRegion() { return getBody(); }
 ::llvm::StringRef EprocOp::getName() { return getSymName(); }
 Operation* EprocOp::buildTerminator(Location loc, OpBuilder& builder,
