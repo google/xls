@@ -60,6 +60,26 @@ absl::StatusOr<Node*> MakeOrWithResetNode(
     Node* src_node, std::string_view result_name,
     const std::optional<xls::Reset>& reset_behavior, Block* block);
 
+// Returns or makes a node that is 1 when the block is under reset, if said
+// reset signal exists.
+//
+//   - If no reset exists, std::nullopt is returned
+//   - Active low reset signals are inverted.
+//
+// See also MakeOrWithResetNode() or ResetNotAsserted().
+absl::StatusOr<std::optional<Node*>> ResetAsserted(
+    const std::optional<xls::Reset>& reset_behavior, Block* block);
+
+// Returns or makes a node that is 1 when the block is not under reset, if said
+// reset signal exists.
+//
+//   - If no reset exists, std::nullopt is returned
+//   - Active high reset signals are inverted.
+//
+// See also ResetAsserted().
+absl::StatusOr<std::optional<Node*>> ResetNotAsserted(
+    const std::optional<xls::Reset>& reset_behavior, Block* block);
+
 // If options specify it, adds and returns an input for a reset signal.
 absl::Status MaybeAddResetPort(Block* block, const CodegenOptions& options);
 

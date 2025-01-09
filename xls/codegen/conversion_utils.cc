@@ -196,14 +196,32 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
 //   - Active low reset signals are inverted.
 //
 // See also MakeOrWithResetNode()
-static absl::StatusOr<std::optional<Node*>> MaybeGetOrMakeResetNode(
+absl::StatusOr<std::optional<Node*>> ResetAsserted(
     const std::optional<xls::Reset>& reset_behavior, Block* block) {
+  XLS_RET_CHECK_EQ(block->GetResetPort().has_value(),
+                   reset_behavior.has_value());
   if (!block->GetResetPort().has_value()) {
     return std::nullopt;
   }
 
   Node* reset_node = block->GetResetPort().value();
   if (reset_behavior->active_low) {
+    return block->MakeNode<UnOp>(/*loc=*/SourceInfo(), reset_node, Op::kNot);
+  }
+
+  return reset_node;
+}
+
+absl::StatusOr<std::optional<Node*>> ResetNotAsserted(
+    const std::optional<xls::Reset>& reset_behavior, Block* block) {
+  XLS_RET_CHECK_EQ(block->GetResetPort().has_value(),
+                   reset_behavior.has_value());
+  if (!block->GetResetPort().has_value()) {
+    return std::nullopt;
+  }
+
+  Node* reset_node = block->GetResetPort().value();
+  if (!reset_behavior->active_low) {
     return block->MakeNode<UnOp>(/*loc=*/SourceInfo(), reset_node, Op::kNot);
   }
 
@@ -226,7 +244,7 @@ absl::StatusOr<Node*> MakeOrWithResetNode(
   Node* result = src_node;
 
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> maybe_reset_node,
-                       MaybeGetOrMakeResetNode(reset_behavior, block));
+                       ResetAsserted(reset_behavior, block));
 
   if (maybe_reset_node.has_value()) {
     Node* reset_node = maybe_reset_node.value();

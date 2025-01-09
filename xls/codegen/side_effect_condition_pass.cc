@@ -15,7 +15,6 @@
 #include "xls/codegen/side_effect_condition_pass.h"
 
 #include <cstdint>
-#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <variant>
@@ -28,11 +27,14 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/conversion_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/register.h"
 #include "xls/ir/source_location.h"
 
 namespace xls::verilog {
@@ -82,25 +84,36 @@ absl::StatusOr<int64_t> GetConditionOperandNumber(Node* node) {
   }
 }
 
-absl::StatusOr<Node*> MakeGuardedConditionForOp(Op op, Node* condition,
-                                                Node* stage_guard,
-                                                Block* block) {
+absl::StatusOr<Node*> MakeGuardedConditionForOp(
+    Op op, Node* condition, Node* stage_guard, Block* block,
+    std::optional<xls::Reset> reset_behavior) {
   XLS_RET_CHECK(stage_guard->GetType()->IsBits() &&
                 stage_guard->GetType()->AsBitsOrDie()->bit_count() == 1);
+  std::optional<Node*> reset_port = block->GetResetPort();
+  XLS_RET_CHECK_EQ(reset_behavior.has_value(), reset_port.has_value());
   switch (op) {
-    case Op::kAssert: {  // Asserts are !stage_guard || condition
+    case Op::kAssert: {  // Asserts are !stage_guard || condition [||
+                         // asserted(reset)]
       XLS_ASSIGN_OR_RETURN(Node * not_stage_guard,
                            block->MakeNode<xls::UnOp>(/*loc=*/SourceInfo(),
                                                       stage_guard, Op::kNot));
-      return block->MakeNode<xls::NaryOp>(
-          /*loc=*/SourceInfo(),
-          std::initializer_list<Node*>{not_stage_guard, condition}, Op::kOr);
+      std::vector<Node*> new_conditions = {not_stage_guard, condition};
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> reset_asserted,
+                           ResetAsserted(reset_behavior, block));
+      if (reset_asserted.has_value()) {
+        new_conditions.push_back(*reset_asserted);
+      }
+      return NaryOrIfNeeded(block, new_conditions);
     }
     case Op::kCover:    // Cover and trace have the same condition guard:
-    case Op::kTrace: {  // stage_guard && condition
-      return block->MakeNode<xls::NaryOp>(
-          /*loc=*/SourceInfo(),
-          std::initializer_list<Node*>{stage_guard, condition}, Op::kAnd);
+    case Op::kTrace: {  // stage_guard && condition [&& !asserted(reset)]
+      std::vector<Node*> new_conditions = {stage_guard, condition};
+      XLS_ASSIGN_OR_RETURN(std::optional<Node*> reset_not_asserted,
+                           ResetNotAsserted(reset_behavior, block));
+      if (reset_not_asserted.has_value()) {
+        new_conditions.push_back(*reset_not_asserted);
+      }
+      return NaryAndIfNeeded(block, new_conditions);
     }
     default:
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -172,10 +185,11 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
           "Stage guard not found for stage %d.", condition_stage);
       XLS_ASSIGN_OR_RETURN(int64_t condition_operand,
                            GetConditionOperandNumber(node));
-      XLS_ASSIGN_OR_RETURN(Node * guarded_condition,
-                           MakeGuardedConditionForOp(
-                               node->op(), node->operand(condition_operand),
-                               *stage_guard, block.get()));
+      XLS_ASSIGN_OR_RETURN(
+          Node * guarded_condition,
+          MakeGuardedConditionForOp(
+              node->op(), node->operand(condition_operand), *stage_guard,
+              block.get(), options.codegen_options.ResetBehavior()));
       XLS_RETURN_IF_ERROR(
           node->ReplaceOperandNumber(condition_operand, guarded_condition));
       changed = true;
