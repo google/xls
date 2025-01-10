@@ -62,13 +62,13 @@ xls_dslx_library(
 xls_dslx_ir(
     name = "design_ir",
     dslx_top = "design_top",
-    ir_file = "desing.ir",
+    ir_file = "design.ir",
     library = "design_lib",
 )
 
 xls_ir_opt_ir(
     name = "design_opt_ir",
-    src = "desing.ir",
+    src = "design.ir",
     top = "__design__design_top",
 )
 
