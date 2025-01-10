@@ -520,8 +520,8 @@ DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
 dumping values to stdout.
 
 Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging,
-enabled by adding the '--alsologtostderr' flag to the command line (among
-other means). For example, running:
+which can be enabled by adding the `--alsologtostderr` flag to the command line.
+For example, running:
 
 ```
 bazel run -c opt //xls/dslx:interpreter_main /path/to/dslx/file.x -- --alsologtostderr
