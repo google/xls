@@ -315,6 +315,16 @@ LogicalResult ArrayIndexOp::canonicalize(ArrayIndexOp op,
   return LogicalResult::failure();
 }
 
+LogicalResult TupleIndexOp::canonicalize(TupleIndexOp op,
+                                         PatternRewriter& rewriter) {
+  // tuple_index(tuple($x1, $x2, ...), index=N) = $xN
+  if (auto defining_op = op.getOperand().getDefiningOp<TupleOp>()) {
+    rewriter.replaceAllOpUsesWith(op, defining_op->getOperand(op.getIndex()));
+    return success();
+  }
+  return failure();
+}
+
 LogicalResult InstantiateEprocOp::verifySymbolUses(
     SymbolTableCollection& symbolTable) {
   // Check that the callee references a valid function.
