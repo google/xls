@@ -517,14 +517,19 @@ fn f() -> MyStruct { MyStruct { foo: u1:1, ..all_ones!<MyStruct>() } }
 ### `trace_fmt!`
 
 DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
-dumping values to stdout. For example:
+dumping values to stdout.
+
+Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging,
+enabled by adding the '--alsologtostderr' flag to the command line (among
+other means). For example, running:
+
+```
+bazel run -c opt //xls/dslx:interpreter_main /path/to/dslx/file.x -- --alsologtostderr
+```
+
+with this sample code:
 
 ```dslx
-// Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging,
-// enabled by adding the '--alsologtostderr' flag to the command line (among
-// other means). For example:
-// bazel run -c opt //xls/dslx:interpreter_main  /path/to/dslx/file.x -- --alsologtostderr
-
 fn shifty(x: u8, y: u3) -> u8 {
     trace_fmt!("x: {:x} y: {}", x, y);
     // Note: y looks different as a negative number when the high bit is set.
