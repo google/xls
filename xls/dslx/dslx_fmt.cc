@@ -46,6 +46,9 @@
 // Note: we attempt to keep our command line interface similar to clang-format.
 ABSL_FLAG(bool, i, false, "whether to modify the given path argument in-place");
 
+ABSL_FLAG(bool, error_on_changes, false,
+          "whether to error if the formatting changes the file contents");
+
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(std::string, mode, "autofmt",
@@ -129,6 +132,11 @@ absl::Status RealMain(std::string_view input_path,
   } else {
     std::cout << formatted << std::flush;
   }
+
+  if (absl::GetFlag(FLAGS_error_on_changes) && formatted != contents) {
+    return absl::InternalError("Formatting changed the file contents.");
+  }
+
   return absl::OkStatus();
 }
 

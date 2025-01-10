@@ -89,6 +89,7 @@ py_test(
     data = [
         "//docs_src:dslx_documentation_files",
         "//docs_src/tutorials:all_files",
+        "//xls/dslx:dslx_fmt",
         "//xls/dslx:interpreter_main",
         "//xls/dslx/tests:mod_imported_file",
     ],

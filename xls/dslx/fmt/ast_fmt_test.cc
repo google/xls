@@ -2027,6 +2027,13 @@ fn f() -> bool { true }
 )");
 }
 
+TEST_F(ModuleFmtTest, QuickCheckExhaustive) {
+  DoFmt(
+      R"(#[quickcheck(exhaustive)]
+fn f(x: u1) -> bool { true }
+)");
+}
+
 TEST_F(ModuleFmtTest, SimplePublicFunction) {
   DoFmt(
       R"(pub fn id(x: u32) -> u32 { x }

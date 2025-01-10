@@ -14,6 +14,7 @@
 """Tests that DSLX blocks in reference documentation are valid."""
 
 import dataclasses
+import difflib
 import re
 import subprocess as subp
 import sys
@@ -29,6 +30,7 @@ from xls.common import runfiles
 _DSLX_RE = re.compile('^```dslx$(.*?)^```$', re.MULTILINE | re.DOTALL)
 
 _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
+_FMT_PATH = runfiles.get_path('xls/dslx/dslx_fmt')
 
 _INPUT_FILES = [
     'docs_src/dslx_ffi.md',
@@ -118,6 +120,33 @@ class DocumentationTest(parameterized.TestCase):
     if p.returncode != 0:
       print('== DSLX block:')
       print(example.dslx)
+      print('== stderr:')
+      print(p.stderr)
+    self.assertEqual(p.returncode, 0)
+
+  @parameterized.named_parameters(get_examples())
+  def test_dslx_blocks_fmt(self, i: int, dslx_block: str) -> None:
+    """Checks a DSLX block is canonically formatted."""
+    example = strip_attributes(dslx_block)
+    input_contents = example.dslx.lstrip()
+    x_file = self.create_tempfile(
+        file_path=f'doctest_fmt_{i}.x', content=input_contents
+    )
+    cmd = [_FMT_PATH, '--error_on_changes'] + example.flags + [x_file.full_path]
+    print('Running command:', subp.list2cmdline(cmd), file=sys.stderr)
+    p = subp.run(
+        cmd, check=False, stdout=subp.PIPE, stderr=subp.PIPE, encoding='utf-8'
+    )
+    if p.returncode != 0:
+      print('== diff:')
+      diff = difflib.unified_diff(
+          input_contents.splitlines(), p.stdout.splitlines()
+      )
+      print('\n'.join(diff))
+      print('== DSLX block:')
+      print(input_contents)
+      print('== stdout:')
+      print(p.stdout)
       print('== stderr:')
       print(p.stderr)
     self.assertEqual(p.returncode, 0)

@@ -19,7 +19,7 @@ the entry function. If you recall, a IEEE binary32 (the C `float` type) has 1
 sign bit, 8 [biased] exponent bits, and 23 fractional bits. These values can be
 packed into a tuple, and so, the signature of our function can be defined as:
 
-```dslx
+```dslx-snippet
 pub fn float_to_int(
     x: (u1, u8, u23))
     -> s32 {
@@ -66,15 +66,9 @@ Anyway...the tuple representation of our input is a bit cumbersome, so let's
 define our floating-point number as a struct instead:
 
 ```dslx
-pub struct float32 {
-  sign: u1,
-  bexp: u8,
-  fraction: u23,
-}
+pub struct float32 { sign: u1, bexp: u8, fraction: u23 }
 
-pub fn float_to_int(x: float32) -> s32 {
-  s32:0xbeef
-}
+pub fn float_to_int(x: float32) -> s32 { s32:0xbeef }
 ```
 
 Finally, let's write a quick test to make sure things work. Add the following
@@ -83,13 +77,13 @@ code to your file.
 ```dslx-snippet
 #[test]
 fn float_to_int_test() {
-  // 0xbeef in float32.
-  let test_input = float32 {
-    sign: u1:0x0,
-    bexp: u8:0x8e,
-    fraction: u23:0x3eef00
-  };
-  assert_eq(s32:0xbeef, float_to_int(test_input))
+    // 0xbeef in float32.
+    let test_input = float32 {
+      sign: u1:0x0,
+      bexp: u8:0x8e,
+      fraction: u23:0x3eef00
+    };
+    assert_eq(s32:0xbeef, float_to_int(test_input))
 }
 ```
 
@@ -126,9 +120,7 @@ we need to subtract 127 from that value to get the actual exponent. Let's write
 a function to do just that:
 
 ```dslx
-fn unbias_exponent(exp: u8) -> s9 {
-  exp as s9 - s9:127
-}
+fn unbias_exponent(exp: u8) -> s9 { exp as s9 - s9:127 }
 ```
 
 Notice that we need to expand the exponent to add on the sign bit before the
@@ -144,36 +136,26 @@ fractional part into its proper location in the final integer. Here's what that
 looks like when we add that to our original function:
 
 ```dslx
-pub struct float32 {
-  sign: u1,
-  bexp: u8,
-  fraction: u23,
-}
+pub struct float32 { sign: u1, bexp: u8, fraction: u23 }
 
-fn unbias_exponent(exp: u8) -> s9 {
-  exp as s9 - s9:127
-}
+fn unbias_exponent(exp: u8) -> s9 { exp as s9 - s9:127 }
 
 pub fn float_to_int(x: float32) -> s32 {
-  let exp = unbias_exponent(x.bexp);
+    let exp = unbias_exponent(x.bexp);
 
-  // Add the implicit leading one.
-  // Note that we need to add one bit to the fraction to hold it.
-  let fraction = u33:1 << 23 | (x.fraction as u33);
+    // Add the implicit leading one.
+    // Note that we need to add one bit to the fraction to hold it.
+    let fraction = u33:1 << 23 | (x.fraction as u33);
 
-  // Shift the result to the right if the exponent is less than 23.
-  let fraction =
-      if (exp as u8) < u8:23 { fraction >> (u8:23 - (exp as u8)) }
-      else { fraction };
+    // Shift the result to the right if the exponent is less than 23.
+    let fraction = if (exp as u8) < u8:23 { fraction >> (u8:23 - (exp as u8)) } else { fraction };
 
-  // Shift the result to the left if the exponent is greater than 23.
-  let fraction =
-      if (exp as u8) > u8:23 { fraction << ((exp as u8) - u8:23) }
-      else { fraction };
+    // Shift the result to the left if the exponent is greater than 23.
+    let fraction = if (exp as u8) > u8:23 { fraction << ((exp as u8) - u8:23) } else { fraction };
 
-  let result = fraction as s32;
-  let result = if x.sign { -result } else { result };
-  result
+    let result = fraction as s32;
+    let result = if x.sign { -result } else { result };
+    result
 }
 ```
 

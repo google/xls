@@ -44,7 +44,8 @@ the following:
 
 ```dslx
 fn hello_xls(hello_string: u8[11]) {
-  trace!(hello_string);
+    // Trace the value to stderr as output.
+    trace!(hello_string);
 }
 ```
 
@@ -55,7 +56,8 @@ Let's go over this, line-by-line:
     returns no value (the return type would be specified after the argument
     list's closing parenthesis and before the function-opening curly brace, if
     the function returned a value).
-2.  This second line invokes the built-in `trace!` directive, passing it the
+2.  A comment line.
+3.  This second line invokes the built-in `trace!` directive, passing it the
     function's input string, and throws away the result.
 
 ## 3. Say hello, XLS!

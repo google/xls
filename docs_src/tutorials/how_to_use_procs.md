@@ -27,28 +27,26 @@ import float32;
 type F32 = float32::F32;
 
 proc Fmac {
-  input_a_consumer: chan<F32> in;
-  input_b_consumer: chan<F32> in;
-  output_producer: chan<F32> out;
+    input_a_consumer: chan<F32> in;
+    input_b_consumer: chan<F32> in;
+    output_producer: chan<F32> out;
 
-  init {
-    float32::zero(false)
-  }
+    config(input_a_consumer: chan<F32> in, input_b_consumer: chan<F32> in,
+           output_producer: chan<F32> out) {
+        (input_a_consumer, input_b_consumer, output_producer)
+    }
 
-  config(input_a_consumer: chan<F32> in, input_b_consumer: chan<F32> in,
-         output_producer: chan<F32> out) {
-    (input_a_consumer, input_b_consumer, output_producer)
-  }
+    init { zero!<F32>() }
 
-  next(state: F32) {
-    let tok = join();
-    let (tok_a, input_a) = recv(tok, input_a_consumer);
-    let (tok_b, input_b) = recv(tok, input_b_consumer);
-    let result = float32::fma(input_a, input_b, state);
-    let tok = join(tok_a, tok_b);
-    let tok = send(tok, output_producer, result);
-    result
-  }
+    next(state: F32) {
+        let tok = join();
+        let (tok_a, input_a) = recv(tok, input_a_consumer);
+        let (tok_b, input_b) = recv(tok, input_b_consumer);
+        let result = float32::fma(input_a, input_b, state);
+        let tok = join(tok_a, tok_b);
+        let tok = send(tok, output_producer, result);
+        result
+    }
 }
 ```
 
