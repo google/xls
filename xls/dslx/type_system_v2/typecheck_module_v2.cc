@@ -124,8 +124,27 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // should have a type that was set when its parent was visited.
     const NameRef* type_variable = *table_.GetTypeVariable(node);
     if (GetBinopSameTypeKinds().contains(node->binop_kind())) {
+      // In the example `const C = a + b;`, the `ConstantDef` establishes a type
+      // variable that is just propagated down to `a` and `b` here, meaning that
+      // `a`, `b`, and the result must ultimately be the same type.
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), type_variable));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), type_variable));
+    } else if (GetBinopComparisonKinds().contains(node->binop_kind())) {
+      // In a comparison example, like `const C = a > b;`, the `>` establishes a
+      // new type variable for `a` and `b` (meaning the two of them must be the
+      // same type), and attaches a bool annotation to the overall expression,
+      // which will then be assumed by the type variable for the `ConstantDef`.
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, CreateBoolAnnotation(module_, node->span())));
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* operand_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Binop*>(node),
+              GenerateInternalTypeVariableName(node)));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(node->lhs(), operand_variable));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(node->rhs(), operand_variable));
     } else {
       return absl::UnimplementedError(
           absl::StrCat("Type inference version 2 is a work in progress and "
@@ -527,6 +546,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleParametricInvocation: " << node->ToString()
             << ", fn: " << fn.identifier();
     CHECK(fn.IsParametric());
+    const std::vector<ParametricBinding*>& bindings = fn.parametric_bindings();
+    const std::vector<ExprOrType>& explicit_parametrics =
+        node->explicit_parametrics();
     const std::optional<const Function*> caller = GetCurrentFunction();
     current_function_stack_.push(&fn);
     const bool function_processed_before =
@@ -537,8 +559,40 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       // The bindings need to be defined in the table up front, because the rest
       // of the header may depend on them, and we can't even create a
       // `ParametricInvocation` without them being registered.
-      for (const ParametricBinding* binding : fn.parametric_bindings()) {
+      for (const ParametricBinding* binding : bindings) {
         XLS_RETURN_IF_ERROR(binding->Accept(this));
+      }
+    }
+
+    if (explicit_parametrics.size() > bindings.size()) {
+      return ArgCountMismatchErrorStatus(
+          node->span(),
+          absl::Substitute(
+              "Too many parametric values supplied; limit: $0 given: $1",
+              bindings.size(), explicit_parametrics.size()),
+          file_table_);
+    }
+
+    // Type-check the subtrees for any explicit parametric values. Note that the
+    // addition of the invocation above will have verified that a valid number
+    // of explicit parametrics was passed in.
+    for (int i = 0; i < explicit_parametrics.size(); i++) {
+      ExprOrType explicit_parametric = explicit_parametrics[i];
+      const ParametricBinding* formal_parametric = bindings[i];
+      if (std::holds_alternative<Expr*>(explicit_parametric)) {
+        const Expr* parametric_value_expr =
+            std::get<Expr*>(explicit_parametric);
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* type_variable,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType,
+                const_cast<Expr*>(parametric_value_expr),
+                GenerateInternalTypeVariableName(parametric_value_expr)));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeVariable(parametric_value_expr, type_variable));
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            parametric_value_expr, formal_parametric->type_annotation()));
+        XLS_RETURN_IF_ERROR(parametric_value_expr->Accept(this));
       }
     }
 
@@ -548,11 +602,11 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         const ParametricInvocation* parametric_invocation,
         table_.AddParametricInvocation(*node, fn, caller,
                                        GetCurrentParametricInvocation()));
-    parametric_invocation_stack_.push(parametric_invocation);
 
     // We don't need to process the entire function multiple times, if it's
     // used in multiple contexts. Only the invocation nodes in it need to be
     // dealt with multiple times.
+    parametric_invocation_stack_.push(parametric_invocation);
     if (function_processed_before) {
       VLOG(5) << "Reprocessing outbound invocations in this context from: "
               << fn.identifier();
@@ -617,6 +671,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       const StructMemberNode* formal_member, const Expr* actual_member) {
     return absl::StrCat("internal_type_actual_member_", formal_member->name(),
                         "_at_", actual_member->span().ToString(file_table_));
+  }
+  // Variant for operands of a binary operator.
+  std::string GenerateInternalTypeVariableName(const Binop* binop) {
+    return absl::StrCat("internal_type_operand_",
+                        BinopKindToString(binop->binop_kind()), "_at_",
+                        binop->span().ToString(file_table_));
   }
 
   // Propagates the type from the def for `ref`, to `ref` itself in the

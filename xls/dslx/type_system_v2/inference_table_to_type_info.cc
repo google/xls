@@ -211,6 +211,12 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleParametricBindingExprsInternal(
       const ParametricInvocation* parametric_invocation) {
+    for (ExprOrType explicit_parametric :
+         parametric_invocation->node().explicit_parametrics()) {
+      if (std::holds_alternative<Expr*>(explicit_parametric)) {
+        XLS_RETURN_IF_ERROR(std::get<Expr*>(explicit_parametric)->Accept(this));
+      }
+    }
     parametric_invocation_stack_.push(parametric_invocation);
     for (const ParametricBinding* binding :
          parametric_invocation->callee().parametric_bindings()) {

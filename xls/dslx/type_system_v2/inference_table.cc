@@ -196,14 +196,7 @@ class InferenceTableImpl : public InferenceTable {
         callee.parametric_bindings();
     const std::vector<ExprOrType>& explicit_parametrics =
         node.explicit_parametrics();
-    if (explicit_parametrics.size() > bindings.size()) {
-      return ArgCountMismatchErrorStatus(
-          node.span(),
-          absl::Substitute(
-              "Too many parametric values supplied; limit: $0 given: $1",
-              callee.parametric_bindings().size(), explicit_parametrics.size()),
-          file_table_);
-    }
+    CHECK(explicit_parametrics.size() <= bindings.size());
     absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr> values;
     for (int i = 0; i < bindings.size(); i++) {
       const ParametricBinding* binding = bindings[i];

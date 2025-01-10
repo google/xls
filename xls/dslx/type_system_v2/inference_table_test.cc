@@ -364,34 +364,5 @@ TEST_F(InferenceTableTest, ParametricVariableWithUnsupportedAnnotation) {
                HasSubstr("Inference variables of type T are not supported")));
 }
 
-TEST_F(InferenceTableTest, TooManyParametricsInInvocation) {
-  ParseAndInitModuleAndTable(R"(
-    fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
-    fn bar() {
-      foo<u32:4, u32:5>(u4:1);
-    }
-)");
-
-  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
-                           module_->GetMemberOrError<Function>("foo"));
-  ASSERT_EQ(foo->parametric_bindings().size(), 1);
-  ASSERT_EQ(foo->params().size(), 1);
-  XLS_ASSERT_OK(
-      table_->DefineParametricVariable(*foo->parametric_bindings()[0]));
-  for (const Param* param : foo->params()) {
-    XLS_ASSERT_OK(table_->SetTypeAnnotation(param, param->type_annotation()));
-  }
-  XLS_ASSERT_OK_AND_ASSIGN(const Function* bar,
-                           module_->GetMemberOrError<Function>("bar"));
-  ASSERT_EQ(bar->body()->statements().size(), 1);
-  const Invocation* invocation = down_cast<const Invocation*>(
-      ToAstNode(bar->body()->statements().at(0)->wrapped()));
-  EXPECT_THAT(
-      table_->AddParametricInvocation(*invocation, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Too many parametric values supplied")));
-}
-
 }  // namespace
 }  // namespace xls::dslx
