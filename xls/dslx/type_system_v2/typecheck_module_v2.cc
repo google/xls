@@ -171,13 +171,17 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     //   -----------------------------------------------
     //   FOO                (u32, (s8, u32))    T0
     //   (4, (-2, 5))       (var:M0, var:M1)    T0
-    //   4                                      M0
-    //   (-2, 5)                                M1
+    //   4                  u32                 M0
+    //   (-2, 5)            (s8, u32)           M1
     //
     // Recursive descent will ultimately put auto annotations for the literals
     // in the table. Upon conversion of the table to type info, unification of
     // the LHS annotation with the variable-based RHS annotation will be
     // attempted.
+
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const TupleTypeAnnotation*> tuple_annotation,
+        GetDeclarationTypeAnnotation<TupleTypeAnnotation>(node));
 
     // Create the M0, M1, ... variables and apply them to the members.
     std::vector<TypeAnnotation*> member_types;
@@ -189,6 +193,10 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                InferenceVariableKind::kType, member,
                                GenerateInternalTypeVariableName(member)));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(member, member_variable));
+      if (tuple_annotation.has_value()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            member, (*tuple_annotation)->members()[i]));
+      }
       member_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(member_variable));
     }
@@ -272,6 +280,10 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // this unification will fail if the array is inadequately annotated (e.g.
     // no explicit annotation on a zero-size or elliptical array).
 
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const ArrayTypeAnnotation*> array_annotation,
+        GetDeclarationTypeAnnotation<ArrayTypeAnnotation>(node));
+
     // An empty array can't end with an ellipsis, even if unification is
     // possible.
     if (node->has_ellipsis() && node->members().empty()) {
@@ -298,6 +310,10 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     for (Expr* member : node->members()) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(member, element_type_variable));
+      if (array_annotation.has_value()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            member, (*array_annotation)->element_type()));
+      }
     }
     Expr* element_count = module_.Make<Number>(
         node->span(), absl::StrCat(node->members().size()), NumberKind::kOther,
@@ -788,6 +804,31 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           file_table_);
     }
     return absl::OkStatus();
+  }
+
+  // Gets the explicit type annotation (of type `T`) for a node by querying the
+  // type variable that it shares with a declaration, if any. This must be done
+  // before imposing any synthetic type annotation on the value.
+  template <typename T>
+  absl::StatusOr<std::optional<const T*>> GetDeclarationTypeAnnotation(
+      const AstNode* node) {
+    std::optional<const NameRef*> type_variable = table_.GetTypeVariable(node);
+    if (!type_variable.has_value()) {
+      return std::nullopt;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<const TypeAnnotation*> annotations,
+        table_.GetTypeAnnotationsForTypeVariable(*type_variable));
+    if (annotations.empty()) {
+      return std::nullopt;
+    }
+    // If > 1, the caller is ignoring the "before imposing an annotation on the
+    // RHS" precondition.
+    CHECK_EQ(annotations.size(), 1);
+    if (const auto* result = dynamic_cast<const T*>(annotations[0])) {
+      return result;
+    }
+    return std::nullopt;
   }
 
   Module& module_;

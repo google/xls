@@ -29,6 +29,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -593,20 +594,22 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const TypeAnnotation*> actual_arg_annotations,
           table_.GetTypeAnnotationsForTypeVariable(*actual_arg_type_var));
-      XLS_RETURN_IF_ERROR(
-          ResolveVariableTypeAnnotations(invocation, actual_arg_annotations));
       TypeInfo* actual_arg_ti = base_type_info_;
       if (invocation->caller_invocation().has_value()) {
         actual_arg_ti =
             invocation_type_info_.at(*invocation->caller_invocation());
       }
+
       // The type variable for the actual argument should have at least one
       // annotation associated with it that came from the formal argument and is
       // therefore dependent on the parametric we are solving for. Let's unify
       // just the independent annotations(s) for the purposes of solving for the
       // variable.
-      RemoveAnnotationsReferringToNamesWithoutTypeInfo(actual_arg_ti,
-                                                       actual_arg_annotations);
+      auto accept_predicate = [&](const TypeAnnotation* annotation) {
+        return !HasAnyReferencesWithMissingTypeInfo(actual_arg_ti, annotation);
+      };
+      XLS_RETURN_IF_ERROR(ResolveVariableTypeAnnotations(
+          invocation, actual_arg_annotations, accept_predicate));
       if (actual_arg_annotations.empty()) {
         VLOG(5) << "The actual argument type variable: "
                 << (*actual_arg_type_var)->ToString()
@@ -693,15 +696,21 @@ class InferenceTableConverter {
   // type annotations that have been associated with the given type variable. If
   // the information has unreconcilable conflicts, returns an error. The given
   // `parametric_invocation` argument is used as a context for the evaluation of
-  // any expressions inside the type annotations.
+  // any expressions inside the type annotations. If an `accept_predicate` is
+  // specified, then annotations not accepted by the predicate are ignored.
   absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
       std::optional<const ParametricInvocation*> parametric_invocation,
-      const NameRef* type_variable, const Span& span) {
+      const NameRef* type_variable, const Span& span,
+      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
+          accept_predicate = std::nullopt) {
     VLOG(5) << "Unifying type annotations for variable "
             << type_variable->ToString();
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations,
         table_.GetTypeAnnotationsForTypeVariable(type_variable));
+    if (accept_predicate.has_value()) {
+      FilterAnnotations(annotations, *accept_predicate);
+    }
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* result,
         UnifyTypeAnnotations(parametric_invocation, annotations, span));
@@ -913,10 +922,14 @@ class InferenceTableConverter {
   // Returns `annotation` with any `TypeVariableTypeAnnotation`s replaced with
   // the unifications of the corresponding variables. The original `annotation`
   // is returned if there is nothing to replace, preserving the ability to look
-  // it up in `auto_literal_annotations_`.
+  // it up in `auto_literal_annotations_`. If `accept_predicate` is specified,
+  // then it is used to filter the annotations associated with encountered type
+  // variables (the predicate is not applied to the input `annotation` itself).
   absl::StatusOr<const TypeAnnotation*> ResolveVariableTypeAnnotations(
       std::optional<const ParametricInvocation*> parametric_invocation,
-      const TypeAnnotation* annotation) {
+      const TypeAnnotation* annotation,
+      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
+          accept_predicate = std::nullopt) {
     bool replaced_anything = false;
     XLS_ASSIGN_OR_RETURN(
         AstNode * clone,
@@ -931,7 +944,7 @@ class InferenceTableConverter {
                     UnifyTypeAnnotations(
                         parametric_invocation,
                         variable_type_annotation->type_variable(),
-                        annotation->span()));
+                        annotation->span(), accept_predicate));
                 replaced_anything = true;
                 return const_cast<TypeAnnotation*>(unified);
               }
@@ -946,15 +959,25 @@ class InferenceTableConverter {
   }
 
   // Variant that deeply resolves all `TypeVariableTypeAnnotation`s within a
-  // vector of annotations.
+  // vector of annotations. If `accept_predicate` is specified, then any
+  // annotations not accepted by the predicate are filtered from both
+  // `annotations` and the expansions of any encountered type variables.
   absl::Status ResolveVariableTypeAnnotations(
       std::optional<const ParametricInvocation*> parametric_invocation,
-      std::vector<const TypeAnnotation*>& annotations) {
-    for (int i = 0; i < annotations.size(); i++) {
-      XLS_ASSIGN_OR_RETURN(annotations[i],
-                           ResolveVariableTypeAnnotations(parametric_invocation,
-                                                          annotations[i]));
+      std::vector<const TypeAnnotation*>& annotations,
+      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
+          accept_predicate = std::nullopt) {
+    std::vector<const TypeAnnotation*> result;
+    for (const TypeAnnotation* annotation : annotations) {
+      if (!accept_predicate.has_value() || (*accept_predicate)(annotation)) {
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* resolved_annotation,
+            ResolveVariableTypeAnnotations(parametric_invocation, annotation,
+                                           accept_predicate));
+        result.push_back(resolved_annotation);
+      }
     }
+    annotations = std::move(result);
     return absl::OkStatus();
   }
 
@@ -1095,36 +1118,39 @@ class InferenceTableConverter {
     return context_invocation;
   }
 
-  // Removes any annotations in the given vector that contain any `NameRef`
-  // whose type info has not (yet) been generated. The effective `TypeInfo` for
-  // each annotation is either `default_ti`; or, for invocation-scoped
-  // annotations, the `TypeInfo` for the relevant parametric invocation.
-  void RemoveAnnotationsReferringToNamesWithoutTypeInfo(
-      TypeInfo* default_ti, std::vector<const TypeAnnotation*>& annotations) {
-    annotations.erase(
-        std::remove_if(
-            annotations.begin(), annotations.end(),
-            [&](const TypeAnnotation* annotation) {
-              TypeInfo* ti = default_ti;
-              const auto it =
-                  invocation_scoped_type_annotations_.find(annotation);
-              if (it != invocation_scoped_type_annotations_.end()) {
-                ti = invocation_type_info_.at(it->second);
-              }
-              FreeVariables vars =
-                  GetFreeVariablesByLambda(annotation, [&](const NameRef& ref) {
-                    if (!std::holds_alternative<const NameDef*>(
-                            ref.name_def())) {
-                      return false;
-                    }
-                    const NameDef* name_def =
-                        std::get<const NameDef*>(ref.name_def());
-                    return !ti->GetItem(name_def).has_value() &&
-                           !ti->IsKnownConstExpr(name_def);
-                  });
-              return vars.GetFreeVariableCount() > 0;
-            }),
-        annotations.end());
+  // Removes any annotations in the given vector for which `accept_predicate`
+  // returns false.
+  void FilterAnnotations(
+      std::vector<const TypeAnnotation*>& annotations,
+      absl::FunctionRef<bool(const TypeAnnotation*)> accept_predicate) {
+    annotations.erase(std::remove_if(annotations.begin(), annotations.end(),
+                                     [&](const TypeAnnotation* annotation) {
+                                       return !accept_predicate(annotation);
+                                     }),
+                      annotations.end());
+  }
+
+  // Returns true if `annotation` contains any `NameRef` whose type info has not
+  // (yet) been generated. The effective `TypeInfo` is either `default_ti`; or,
+  // for invocation-scoped annotations, the `TypeInfo` for the relevant
+  // parametric invocation.
+  bool HasAnyReferencesWithMissingTypeInfo(TypeInfo* default_ti,
+                                           const TypeAnnotation* annotation) {
+    TypeInfo* ti = default_ti;
+    const auto it = invocation_scoped_type_annotations_.find(annotation);
+    if (it != invocation_scoped_type_annotations_.end()) {
+      ti = invocation_type_info_.at(it->second);
+    }
+    FreeVariables vars =
+        GetFreeVariablesByLambda(annotation, [&](const NameRef& ref) {
+          if (!std::holds_alternative<const NameDef*>(ref.name_def())) {
+            return false;
+          }
+          const NameDef* name_def = std::get<const NameDef*>(ref.name_def());
+          return !ti->GetItem(name_def).has_value() &&
+                 !ti->IsKnownConstExpr(name_def);
+        });
+    return vars.GetFreeVariableCount() > 0;
   }
 
   // Returns a `SignednessAndSize` that agrees with the two given

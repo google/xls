@@ -39,6 +39,14 @@ absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program) {
   return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program));
 }
 
+// Verifies that a type info string contains the given node string and type
+// string combo.
+MATCHER_P2(HasNodeWithType, node, type, "") {
+  return ExplainMatchResult(
+      HasSubstr(absl::Substitute("node: `$0`, type: $1", node, type)), arg,
+      result_listener);
+}
+
 // Verifies the type produced by `TypecheckV2`, for the topmost node only, in a
 // simple AST (typically a one-liner). The `arg` is the DSLX code and `expected`
 // is the type string.
@@ -55,9 +63,8 @@ MATCHER_P(TopNodeHasType, expected, "") {
                      << type_info_string.status();
     return false;
   }
-  bool matched = ExplainMatchResult(
-      HasSubstr(absl::Substitute("node: `$0`, type: $1", arg, expected)),
-      *type_info_string, result_listener);
+  bool matched = ExplainMatchResult(HasNodeWithType(arg, expected),
+                                    *type_info_string, result_listener);
   if (!matched) {
     *result_listener << "Type info: " << *type_info_string;
   }
@@ -112,6 +119,29 @@ MATCHER_P(TypecheckFails, matcher, "") {
       result_listener);
 }
 
+// Verifies that `TypecheckV2` succeeds for the given DSLX code and the
+// resulting type info string satisfies the given `matcher`.
+MATCHER_P(TypecheckSucceeds, matcher, "") {
+  absl::StatusOr<TypecheckResult> result = TypecheckV2(arg);
+  if (!result.ok()) {
+    *result_listener << "Failed to typecheck: `" << arg
+                     << "`; status: " << result.status();
+    return false;
+  }
+  absl::StatusOr<std::string> type_info_string = TypeInfoToString(result->tm);
+  if (!type_info_string.ok()) {
+    *result_listener << "Failed to convert type info to string; status: "
+                     << type_info_string.status();
+    return false;
+  }
+  bool matched =
+      ExplainMatchResult(matcher, *type_info_string, result_listener);
+  if (!matched) {
+    *result_listener << "Type info: " << *type_info_string;
+  }
+  return matched;
+}
+
 TEST(TypecheckV2Test, GlobalIntegerConstantWithNoTypeAnnotations) {
   EXPECT_THAT("const X = 3;",
               TypecheckFails(AllOf(HasSubstr("A variable or constant cannot be "
@@ -144,15 +174,13 @@ TEST(TypecheckV2Test, GlobalIntegerConstantWithSignednessConflictFails) {
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsAnotherConstant) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 const X = u2:3;
 const Y = X;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = u2:3;`, type: uN[2]"),
-                    HasSubstr("node: `const Y = X;`, type: uN[2]")));
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("const X = u2:3;", "uN[2]"),
+                              HasNodeWithType("const Y = X;", "uN[2]"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfLiterals) {
@@ -176,54 +204,44 @@ TEST(TypecheckV2Test,
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X + 1 + Y + 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X + 1 + Y + 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X + 1 + Y + 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsSumOfAscendingAutoSizes) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:1;
 const Z = 1 + 2 + 3 + 4 + X;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:1;`, type: uN[32]"),
-            HasSubstr("node: `const Z = 1 + 2 + 3 + 4 + X;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:1;", "uN[32]"),
+                  HasNodeWithType("const Z = 1 + 2 + 3 + 4 + X;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithCoercionOfAutoToSigned) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const Z = 1 + s2:1;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string, AllOf(HasSubstr("node: `1`, type: sN[2]"),
-                                      HasSubstr("node: `Z`, type: sN[2]")));
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("1", "sN[2]"),
+                                      HasNodeWithType("Z", "sN[2]"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithCoercionOfByAnotherAuto) {
   // Promote [auto u2, auto s2] to auto s3 due to the extra bit needed to fit
   // `2` in a signed value. The `s3:0` term then just avoids the prohibition on
   // a constant defined with a completely implicit type.
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const Z = 2 + -1 + s3:0;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string, AllOf(HasSubstr("node: `2`, type: sN[3]"),
-                                      HasSubstr("node: `Z`, type: sN[3]")));
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("2", "sN[3]"),
+                                      HasNodeWithType("Z", "sN[3]"))));
 }
 
 TEST(TypecheckV2Test,
@@ -257,113 +275,92 @@ TEST(TypecheckV2Test, GlobalIntegerConstantWithTupleAnnotationOnLiteral) {
 
 TEST(TypecheckV2Test,
      GlobalIntegerConstantEqualsDifferenceOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X - 1 - Y - 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X - 1 - Y - 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X - 1 - Y - 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      GlobalIntegerConstantEqualsProductOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X * 1 * Y * 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X * 1 * Y * 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X * 1 * Y * 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      GlobalIntegerConstantEqualsQuotientOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X / 1 / Y / 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X / 1 / Y / 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X / 1 / Y / 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      GlobalIntegerConstantEqualsBitwiseAndOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X & 1 & Y & 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X & 1 & Y & 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X & 1 & Y & 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      GlobalIntegerConstantEqualsBitwiseOrOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X | 1 | Y | 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X | 1 | Y | 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X | 1 | Y | 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      GlobalIntegerConstantEqualsBitwiseXorOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X ^ 1 ^ Y ^ 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X ^ 1 ^ Y ^ 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X ^ 1 ^ Y ^ 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsModOfConstantsAndLiterals) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y: u32 = 4;
 const Z = X % 1 % Y % 2;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = u32:3;`, type: uN[32]"),
-            HasSubstr("node: `const Y: u32 = 4;`, type: uN[32]"),
-            HasSubstr("node: `const Z = X % 1 % Y % 2;`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = u32:3;", "uN[32]"),
+                  HasNodeWithType("const Y: u32 = 4;", "uN[32]"),
+                  HasNodeWithType("const Z = X % 1 % Y % 2;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsComparisonOfUntypedLiterals) {
@@ -379,65 +376,53 @@ TEST(TypecheckV2Test, GlobalBoolConstantEqualsComparisonOfLiteralsWithOneType) {
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsComparisonOfVariables) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y = u32:4;
 const Z = Y >= X;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string, HasSubstr("node: `Z`, type: uN[1]"));
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[1]")));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsComparisonOfExprs) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = s24:3;
 const Y = s24:4;
 const Z = (Y + X * 2) == (1 - Y);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `(Y + X * 2)`, type: sN[24]"),
-                    HasSubstr("node: `(1 - Y)`, type: sN[24]"),
-                    HasSubstr("node: `Z`, type: uN[1]")));
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("(Y + X * 2)", "sN[24]"),
+                                      HasNodeWithType("(1 - Y)", "sN[24]"),
+                                      HasNodeWithType("Z", "uN[1]"))));
 }
 
 TEST(TypecheckV2Test, ComparisonAsFunctionArgument) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo(a: bool) -> bool { a }
 const Y = foo(1 != 2);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string, AllOf(HasSubstr("node: `1 != 2`, type: uN[1]"),
-                                      HasSubstr("node: `1`, type: uN[2]"),
-                                      HasSubstr("node: `2`, type: uN[2]")));
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("1 != 2", "uN[1]"),
+                                      HasNodeWithType("1", "uN[2]"),
+                                      HasNodeWithType("2", "uN[2]"))));
 }
 
 TEST(TypecheckV2Test, ComparisonOfReturnValues) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo(a: u32) -> u32 { a }
 const Y = foo(1) > foo(2);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `Y`, type: uN[1]"),
-                    HasSubstr("node: `foo(1)`, type: uN[32]"),
-                    HasSubstr("node: `foo(2)`, type: uN[32]")));
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("Y", "uN[1]"),
+                                      HasNodeWithType("foo(1)", "uN[32]"),
+                                      HasNodeWithType("foo(2)", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, ComparisonAsParametricArgument) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const Y = foo<{2 > 1}>(s32:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string, AllOf(HasSubstr("node: `Y`, type: sN[32]"),
-                                      HasSubstr("node: `2`, type: uN[2]"),
-                                      HasSubstr("node: `1`, type: uN[2]")));
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("Y", "sN[32]"),
+                                      HasNodeWithType("2", "uN[2]"),
+                                      HasNodeWithType("1", "uN[2]"))));
 }
 
 TEST(TypecheckV2Test, ComparisonAsParametricArgumentWithConflictFails) {
@@ -485,15 +470,13 @@ TEST(TypecheckV2Test,
 
 TEST(TypecheckV2Test,
      GlobalIntegerConstantEqualsAnotherConstantWithAnnotationOnName) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 const X: u32 = 3;
 const Y = X;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X: u32 = 3;`, type: uN[32]"),
-                    HasSubstr("node: `const Y = X;`, type: uN[32]")));
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("const X: u32 = 3;", "uN[32]"),
+                              HasNodeWithType("const Y = X;", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantRefWithSignednessConflictFails) {
@@ -505,17 +488,15 @@ const Y:s32 = X;
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantWithTwoLevelsOfReferences) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 const X: s20 = 3;
 const Y = X;
 const Z = Y;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X: s20 = 3;`, type: sN[20]"),
-                    HasSubstr("node: `const Y = X;`, type: sN[20]"),
-                    HasSubstr("node: `const Z = Y;`, type: sN[20]")));
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("const X: s20 = 3;", "sN[20]"),
+                              HasNodeWithType("const Y = X;", "sN[20]"),
+                              HasNodeWithType("const Z = Y;", "sN[20]"))));
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantWithNoTypeAnnotations) {
@@ -551,15 +532,13 @@ TEST(TypecheckV2Test, GlobalBoolConstantWithBitCountConflictFails) {
 }
 
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsAnotherConstant) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 const X = true;
 const Y = X;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = true;`, type: uN[1]"),
-                    HasSubstr("node: `const Y = X;`, type: uN[1]")));
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("const X = true;", "uN[1]"),
+                              HasNodeWithType("const Y = X;", "uN[1]"))));
 }
 
 TEST(TypecheckV2Test, GlobalIntegerConstantEqualsBoolConstantFails) {
@@ -593,7 +572,9 @@ TEST(TypecheckV2Test, GlobalTupleConstantWithAnnotatedIntegerLiterals) {
 
 TEST(TypecheckV2Test, GlobalTupleConstantAnnotatedWithBareIntegerLiterals) {
   EXPECT_THAT("const X: (u32, u32) = (1, 2);",
-              TopNodeHasType("(uN[32], uN[32])"));
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[32], uN[32])"),
+                                      HasNodeWithType("1", "uN[32]"),
+                                      HasNodeWithType("2", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithIntegerAnnotationFails) {
@@ -602,8 +583,13 @@ TEST(TypecheckV2Test, GlobalTupleConstantWithIntegerAnnotationFails) {
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTuple) {
-  EXPECT_THAT("const X: (u32, (s24, u32)) = (1, (-3, 2));",
-              TopNodeHasType("(uN[32], (sN[24], uN[32])"));
+  EXPECT_THAT(
+      "const X: (u32, (s24, u32)) = (1, (-3, 2));",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[32], (sN[24], uN[32])"),
+                              HasNodeWithType("1", "uN[32]"),
+                              HasNodeWithType("(-3, 2)", "(sN[24], uN[32])"),
+                              HasNodeWithType("-3", "sN[24]"),
+                              HasNodeWithType("2", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeViolationFails) {
@@ -617,28 +603,21 @@ TEST(TypecheckV2Test, GlobalTupleConstantWithNestedTupleAndTypeConflict) {
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantReferencingIntegerConstant) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X: u32 = 3;
 const Y = (X, s24:-1);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      HasSubstr("node: `const Y = (X, s24:-1);`, type: (uN[32], sN[24])"));
+)",
+              TypecheckSucceeds(HasNodeWithType("const Y = (X, s24:-1);",
+                                                "(uN[32], sN[24])")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantReferencingTupleConstant) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = (u32:3, s24:-1);
 const Y = (X, u32:4);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      HasSubstr(
-          "node: `const Y = (X, u32:4);`, type: ((uN[32], sN[24]), uN[32])"));
+)",
+              TypecheckSucceeds(HasNodeWithType("const Y = (X, u32:4);",
+                                                "((uN[32], sN[24]), uN[32])")));
 }
 
 TEST(TypecheckV2Test, GlobalTupleConstantWithArrays) {
@@ -647,11 +626,17 @@ TEST(TypecheckV2Test, GlobalTupleConstantWithArrays) {
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithAnnotatedIntegerLiterals) {
-  EXPECT_THAT("const X = [u32:1, u32:2];", TopNodeHasType("uN[32][2]"));
+  EXPECT_THAT("const X = [u32:1, u32:2];",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][2]"),
+                                      HasNodeWithType("u32:1", "uN[32]"),
+                                      HasNodeWithType("u32:2", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithBareIntegerLiterals) {
-  EXPECT_THAT("const X: u32[2] = [1, 2];", TopNodeHasType("uN[32][2]"));
+  EXPECT_THAT("const X: u32[2] = [1, 3];",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][2]"),
+                                      HasNodeWithType("1", "uN[32]"),
+                                      HasNodeWithType("3", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithTuples) {
@@ -661,7 +646,7 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithTuples) {
 
 TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithTooSmallSizeFails) {
   EXPECT_THAT("const X: u32[2] = [1, 2, 3];",
-              TypecheckFails(HasTypeMismatch("uN[2][3]", "u32[2]")));
+              TypecheckFails(HasTypeMismatch("uN[32][3]", "u32[2]")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithIntegerAnnotationFails) {
@@ -676,29 +661,25 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithTypeViolation) {
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithTypeConflict) {
   EXPECT_THAT("const X: u32[2] = [s24:1, s24:2];",
-              TypecheckFails(HasSizeMismatch("sN[24]", "u32")));
+              TypecheckFails(HasSizeMismatch("s24", "u32")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantReferencingIntegerConstant) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 const X: u32 = 3;
 const Y = [X, X];
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const Y = [X, X];`, type: uN[32][2]"));
+)",
+      TypecheckSucceeds(HasNodeWithType("const Y = [X, X];", "uN[32][2]")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantReferencingArrayConstant) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 const X = [u32:3, u32:4];
 const Y = [X, X];
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const Y = [X, X];`, type: uN[32][2][2]"));
+)",
+      TypecheckSucceeds(HasNodeWithType("const Y = [X, X];", "uN[32][2][2]")));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantCombiningArrayAndIntegerFails) {
@@ -707,12 +688,16 @@ TEST(TypecheckV2Test, GlobalArrayConstantCombiningArrayAndIntegerFails) {
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsis) {
-  EXPECT_THAT("const X: u32[5] = [3, 4, ...];", TopNodeHasType("uN[32][5]"));
+  EXPECT_THAT("const X: u32[5] = [3, 4, ...];",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][5]"),
+                                      HasNodeWithType("3", "uN[32]"),
+                                      HasNodeWithType("4", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithNestedEllipsis) {
   EXPECT_THAT("const X: u32[5][2] = [[5, ...], ...];",
-              TopNodeHasType("uN[32][5][2]"));
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][5][2]"),
+                                      HasNodeWithType("5", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, GlobalArrayConstantWithEllipsisAndTooSmallSizeFails) {
@@ -739,44 +724,39 @@ TEST(TypecheckV2Test, GlobalArrayConstantEmptyWithAnnotation) {
 }
 
 TEST(TypecheckV2Test, GlobalEmptyStructConstant) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 struct S {}
 const X = S { };
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string, HasSubstr("node: `X`, type: S {}"));
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "S {}")));
 }
 
 TEST(TypecheckV2Test, GlobalStructConstantWithIntegerMember) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 struct S { field: u32 }
 const X = S { field: 5 };
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `5`, type: uN[32]"),
-                    HasSubstr("node: `X`, type: S { field: uN[32] }")));
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("5", "uN[32]"),
+                              HasNodeWithType("X", "S { field: uN[32] }"))));
 }
 
 TEST(TypecheckV2Test, GlobalStructConstantWithMultipleMembers) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 struct S {
   foo: u32,
   bar: sN[4][3],
   baz: (s24, bool)
 }
 const X = S { baz: (1, false), foo: 5, bar: [1, 2, 3] };
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `(1, false)`, type: (sN[24], uN[1])"),
-                    HasSubstr("node: `5`, type: uN[32]"),
-                    HasSubstr("node: `[1, 2, 3]`, type: sN[4][3]"),
-                    HasSubstr("node: `X`, type: S { foo: uN[32], bar: "
-                              "sN[4][3], baz: (sN[24], uN[1]) }")));
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("(1, false)", "(sN[24], uN[1])"),
+          HasNodeWithType("5", "uN[32]"),
+          HasNodeWithType("[1, 2, 3]", "sN[4][3]"),
+          HasNodeWithType(
+              "X", "S { foo: uN[32], bar: sN[4][3], baz: (sN[24], uN[1]) }"))));
 }
 
 TEST(TypecheckV2Test,
@@ -834,16 +814,37 @@ const X = S { x: 1, y: u32:2};
 }
 
 TEST(TypecheckV2Test, GlobalStructInstancePropagation) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 struct S { field: u32 }
 const X = S { field: 5 };
 const Y = X;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `5`, type: uN[32]"),
-                    HasSubstr("node: `Y`, type: S { field: uN[32] }")));
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("5", "uN[32]"),
+                              HasNodeWithType("Y", "S { field: uN[32] }"))));
+}
+
+TEST(TypecheckV2Test, GlobalStructInstanceContainingStructInstance) {
+  EXPECT_THAT(R"(
+struct S { field: u32 }
+struct T { s: S }
+const X = T { s: S { field: 5 } };
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("X", "T { s: S { field: uN[32] } }"),
+                        HasNodeWithType("5", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, GlobalStructInstanceContainingArray) {
+  EXPECT_THAT(
+      R"(
+struct S { arr: u24[3] }
+const X = S { arr: [10, 11, 12] };
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "S { arr: uN[24][3] }"),
+                              HasNodeWithType("10", "uN[24]"),
+                              HasNodeWithType("11", "uN[24]"),
+                              HasNodeWithType("12", "uN[24]"))));
 }
 
 TEST(TypecheckV2Test,
@@ -879,34 +880,28 @@ const X: S = u32:1;
 }
 
 TEST(TypecheckV2Test, StructFunctionArgument) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 struct S { field: u32 }
 fn f(s: S) {}
 fn g() {
   f(S { field: 2 })
 }
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `2`, type: uN[32]"),
-            HasSubstr("node: `S { field: 2 }`, type: S { field: uN[32] }")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("2", "uN[32]"),
+                  HasNodeWithType("S { field: 2 }", "S { field: uN[32] }"))));
 }
 
 TEST(TypecheckV2Test, StructFunctionReturnValue) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 struct S { field: u32 }
 fn f(value: u32) -> S {
   S { field: value }
 }
 const X = f(2);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = f(2);`, type: S { field: uN[32] }")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = f(2);", "S { field: uN[32] }"))));
 }
 
 TEST(TypecheckV2Test, InstantiationOfNonStruct) {
@@ -917,91 +912,76 @@ TEST(TypecheckV2Test, InstantiationOfNonStruct) {
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningNothing) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo() { () }
 const Y = foo();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("()", "()"),
-                    HasSubstr("node: `const Y = foo();`, type: ()")));
+)",
+      TypecheckSucceeds(AllOf(HasOneLineBlockWithType("()", "()"),
+                              HasNodeWithType("const Y = foo();", "()"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningUnitTupleExplicitly) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo() -> () { () }
 const Y = foo();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("()", "()"),
-                    HasSubstr("node: `const Y = foo();`, type: ()")));
+)",
+      TypecheckSucceeds(AllOf(HasOneLineBlockWithType("()", "()"),
+                              HasNodeWithType("const Y = foo();", "()"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningInteger) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo() -> u32 { 3 }
 const Y = foo();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("3", "uN[32]"),
-                    HasSubstr("node: `const Y = foo();`, type: uN[32]")));
+)",
+      TypecheckSucceeds(AllOf(HasOneLineBlockWithType("3", "uN[32]"),
+                              HasNodeWithType("const Y = foo();", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningBool) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo() -> bool { true }
 const Y = foo();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("true", "uN[1]"),
-                    HasSubstr("node: `const Y = foo();`, type: uN[1]")));
+)",
+      TypecheckSucceeds(AllOf(HasOneLineBlockWithType("true", "uN[1]"),
+                              HasNodeWithType("const Y = foo();", "uN[1]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningArray) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo() -> s8[3] { [1, 2, 3] }
 const Y = foo();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("[1, 2, 3]", "sN[8][3]"),
-                    HasSubstr("node: `const Y = foo();`, type: sN[8][3]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasOneLineBlockWithType("[1, 2, 3]", "sN[8][3]"),
+                        HasNodeWithType("const Y = foo();", "sN[8][3]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningTuple) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo() -> (s8, (u32, u24)) { (1, (2, 3)) }
 const Y = foo();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasOneLineBlockWithType("(1, (2, 3))", "(sN[8], (uN[32], uN[24]))"),
-            HasSubstr(
-                "node: `const Y = foo();`, type: (sN[8], (uN[32], uN[24]))")));
+)",
+      TypecheckSucceeds(AllOf(
+          HasOneLineBlockWithType("(1, (2, 3))", "(sN[8], (uN[32], uN[24]))"),
+          HasNodeWithType("const Y = foo();", "(sN[8], (uN[32], uN[24]))"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningFunctionCall) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn bar() -> s32 { 123 }
 fn foo() -> s32 { bar() }
 const Y = foo();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("123", "sN[32]"),
-                    HasOneLineBlockWithType("bar()", "sN[32]"),
-                    HasSubstr("node: `const Y = foo();`, type: sN[32]")));
+)",
+      TypecheckSucceeds(AllOf(HasOneLineBlockWithType("123", "sN[32]"),
+                              HasOneLineBlockWithType("bar()", "sN[32]"),
+                              HasNodeWithType("const Y = foo();", "sN[32]"))));
 }
 
 TEST(TypecheckV2Test, FunctionReturningMismatchingIntegerAutoTypeFails) {
@@ -1040,82 +1020,67 @@ const Y = foo();
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningPassedInInteger) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo(a: u32) -> u32 { a }
 const Y = foo(4);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("a", "uN[32]"),
-                    HasSubstr("node: `const Y = foo(4);`, type: uN[32]")));
+)",
+      TypecheckSucceeds(AllOf(HasOneLineBlockWithType("a", "uN[32]"),
+                              HasNodeWithType("const Y = foo(4);", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningPassedInTuple) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo(a: (u32, s4)) -> (u32, s4) { a }
 const Y = foo((4, -1));
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(
+)",
+      TypecheckSucceeds(AllOf(
           HasOneLineBlockWithType("a", "(uN[32], sN[4])"),
-          HasSubstr("node: `const Y = foo((4, -1));`, type: (uN[32], sN[4])")));
+          HasNodeWithType("const Y = foo((4, -1));", "(uN[32], sN[4])"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningPassedInArray) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo(a: u32[2]) -> u32[2] { a }
 const Y = foo([4, 5]);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasOneLineBlockWithType("a", "uN[32][2]"),
-            HasSubstr("node: `const Y = foo([4, 5]);`, type: uN[32][2]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasOneLineBlockWithType("a", "uN[32][2]"),
+                  HasNodeWithType("const Y = foo([4, 5]);", "uN[32][2]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningSumOfPassedInIntegers) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo(a: u32, b: u32) -> u32 { a + b }
 const Y = foo(4, 5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("a + b", "uN[32]"),
-                    HasSubstr("node: `const Y = foo(4, 5);`, type: uN[32]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasOneLineBlockWithType("a + b", "uN[32]"),
+                        HasNodeWithType("const Y = foo(4, 5);", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallPassingInFunctionCalls) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo(a: u32, b: u32) -> u32 { a + b }
 const Y = foo(foo(3, 2), foo(4, 5));
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasOneLineBlockWithType("a + b", "uN[32]"),
-            HasSubstr(
-                "node: `const Y = foo(foo(3, 2), foo(4, 5));`, type: uN[32]")));
+)",
+      TypecheckSucceeds(AllOf(
+          HasOneLineBlockWithType("a + b", "uN[32]"),
+          HasNodeWithType("const Y = foo(foo(3, 2), foo(4, 5));", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallPassingInSum) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X: u32 = 4;
 const Z: u32 = 5;
 fn foo(a: u32) -> u32 { a }
 const Y = foo(X + Z);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasOneLineBlockWithType("a", "uN[32]"),
-                    HasSubstr("node: `const Y = foo(X + Z);`, type: uN[32]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasOneLineBlockWithType("a", "uN[32]"),
+                        HasNodeWithType("const Y = foo(X + Z);", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, FunctionCallPassingInTooManyArgumentsFails) {
@@ -1193,83 +1158,69 @@ const X = foo<3, 4>();
 }
 
 TEST(TypecheckV2Test, ParametricFunctionReturningIntegerParameter) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>() -> u32 { N }
 const X = foo<3>();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = foo<3>();`, type: uN[32]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = foo<3>();", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfParameterSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>() -> uN[N] { 5 }
 const X = foo<16>();
 const Y = foo<17>();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = foo<16>();`, type: uN[16]"),
-                    HasSubstr("node: `const Y = foo<17>();`, type: uN[17]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = foo<16>();", "uN[16]"),
+                        HasNodeWithType("const Y = foo<17>();", "uN[17]"))));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfParameterSignedness) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<S: bool>() -> xN[S][32] { 5 }
 const X = foo<false>();
 const Y = foo<true>();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = foo<false>();`, type: uN[32]"),
-                    HasSubstr("node: `const Y = foo<true>();`, type: sN[32]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = foo<false>();", "uN[32]"),
+                        HasNodeWithType("const Y = foo<true>();", "sN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionReturningIntegerOfParameterSignednessAndSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<S: bool, N: u32>() -> xN[S][N] { 5 }
 const X = foo<false, 10>();
 const Y = foo<true, 11>();
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = foo<false, 10>();`, type: uN[10]"),
-            HasSubstr("node: `const Y = foo<true, 11>();`, type: sN[11]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = foo<false, 10>();", "uN[10]"),
+                  HasNodeWithType("const Y = foo<true, 11>();", "sN[11]"))));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionTakingIntegerOfParameterizedSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = foo<10>(u10:5);
 const Y = foo<11>(u11:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = foo<10>(u10:5);`, type: uN[10]"),
-            HasSubstr("node: `const Y = foo<11>(u11:5);`, type: uN[11]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = foo<10>(u10:5);", "uN[10]"),
+                  HasNodeWithType("const Y = foo<11>(u11:5);", "uN[11]"))));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfImplicitParameterizedSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = foo(u10:5);
 const Y = foo(u11:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = foo(u10:5);`, type: uN[10]"),
-                    HasSubstr("node: `const Y = foo(u11:5);`, type: uN[11]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = foo(u10:5);", "uN[10]"),
+                        HasNodeWithType("const Y = foo(u11:5);", "uN[11]"))));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionWithNonInferrableParametric) {
@@ -1282,97 +1233,81 @@ const X = foo(u10:5);
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfParameterizedSignedness) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const X = foo<false>(u32:5);
 const Y = foo<true>(s32:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = foo<false>(u32:5);`, type: uN[32]"),
-            HasSubstr("node: `const Y = foo<true>(s32:5);`, type: sN[32]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = foo<false>(u32:5);", "uN[32]"),
+                  HasNodeWithType("const Y = foo<true>(s32:5);", "sN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfImplicitParameterizedSignedness) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const X = foo(u32:5);
 const Y = foo(s32:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = foo(u32:5);`, type: uN[32]"),
-                    HasSubstr("node: `const Y = foo(s32:5);`, type: sN[32]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = foo(u32:5);", "uN[32]"),
+                        HasNodeWithType("const Y = foo(s32:5);", "sN[32]"))));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfParameterizedSignednessAndSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
 const X = foo<false, 10>(u10:5);
 const Y = foo<true, 11>(s11:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(
-          HasSubstr("node: `const X = foo<false, 10>(u10:5);`, type: uN[10]"),
-          HasSubstr("node: `const Y = foo<true, 11>(s11:5);`, type: sN[11]")));
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("const X = foo<false, 10>(u10:5);", "uN[10]"),
+                HasNodeWithType("const Y = foo<true, 11>(s11:5);", "sN[11]"))));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfImplicitParameterizedSignednessAndSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
 const X = foo(u10:5);
 const Y = foo(s11:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              AllOf(HasSubstr("node: `const X = foo(u10:5);`, type: uN[10]"),
-                    HasSubstr("node: `const Y = foo(s11:5);`, type: sN[11]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = foo(u10:5);", "uN[10]"),
+                        HasNodeWithType("const Y = foo(s11:5);", "sN[11]"))));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfDefaultParameterizedSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo<N: u32 = {10}>(a: uN[N]) -> uN[N] { a }
 const X = foo(u10:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo(u10:5);`, type: uN[10]"));
+)",
+      TypecheckSucceeds(HasNodeWithType("const X = foo(u10:5);", "uN[10]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfOverriddenDefaultParameterizedSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32 = {10}>(a: uN[N]) -> uN[N] { a }
 const X = foo<11>(u11:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo<11>(u11:5);`, type: uN[11]"));
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const X = foo<11>(u11:5);", "uN[11]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerWithDependentDefaultParametric) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<M: u32, N: u32 = {M + 1}>(a: uN[N]) -> uN[N] { a }
 const X = foo<11>(u12:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo<11>(u12:5);`, type: uN[12]"));
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const X = foo<11>(u12:5);", "uN[12]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionWithDefaultImplicitlyOverriddenFails) {
@@ -1387,91 +1322,83 @@ const X = foo<11>(u20:5);
 
 TEST(TypecheckV2Test,
      ParametricFunctionWithDefaultDependingOnInferredParametric) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo<M: u32, N: u32 = {M + M}>(a: uN[M]) -> uN[M] { a }
 const X = foo(u10:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo(u10:5);`, type: uN[10]"));
+)",
+      TypecheckSucceeds(HasNodeWithType("const X = foo(u10:5);", "uN[10]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionWithInferredThenDefaultThenInferredParametric) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo<A: u32, B: u32 = {A + 1}, C: u32>(x: uN[A], y: uN[C][B]) -> uN[A] {
    x
 }
 const X = foo(u3:1, [u24:6, u24:7, u24:8, u24:9]);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo(u3:1, [u24:6, u24:7, u24:8, "
-                        "u24:9]);`, type: uN[3]"));
+)",
+      TypecheckSucceeds(HasNodeWithType(
+          "const X = foo(u3:1, [u24:6, u24:7, u24:8, u24:9]);", "uN[3]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfParameterizedSignednessAndSizeWithSum) {
   // The point here is to make sure that the uN[N] type annotation being
   // propagated onto a complex subtree in global scope is correctly dealt with.
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y = u32:4;
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const Z = foo<32>(X + Y + X + 50);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      HasSubstr("node: `const Z = foo<32>(X + Y + X + 50);`, type: uN[32]"));
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "const Z = foo<32>(X + Y + X + 50);", "uN[32]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionTakingIntegerOfImplicitSignednessAndSizeWithSum) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 const Y = u32:4;
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const Z = foo(X + Y + X + 50);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      HasSubstr("node: `const Z = foo(X + Y + X + 50);`, type: uN[32]"));
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const Z = foo(X + Y + X + 50);", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionTakingArrayOfParameterizedSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
-fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
-const X = foo<3>([1, 2, 3]);
-const Y = foo<4>([1, 2, 3, 4]);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
   EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = foo<3>([1, 2, 3]);`, type: uN[32][3]"),
-            HasSubstr(
-                "node: `const Y = foo<4>([1, 2, 3, 4]);`, type: uN[32][4]")));
+      R"(
+fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
+const X = foo<3>([5, 6, 7]);
+const Y = foo<4>([8, 9, 10, 11]);
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("const X = foo<3>([5, 6, 7]);", "uN[32][3]"),
+          HasNodeWithType("const Y = foo<4>([8, 9, 10, 11]);", "uN[32][4]"),
+          HasNodeWithType("5", "uN[32]"), HasNodeWithType("6", "uN[32]"),
+          HasNodeWithType("7", "uN[32]"), HasNodeWithType("8", "uN[32]"),
+          HasNodeWithType("9", "uN[32]"), HasNodeWithType("10", "uN[32]"),
+          HasNodeWithType("11", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionTakingArrayOfImplicitSize) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
 const X = foo([1, 2, 3]);
-const Y = foo([1, 2, 3, 4]);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(
-          HasSubstr("node: `const X = foo([1, 2, 3]);`, type: uN[32][3]"),
-          HasSubstr("node: `const Y = foo([1, 2, 3, 4]);`, type: uN[32][4]")));
+const Y = foo([4, 5, 6, 7]);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("const X = foo([1, 2, 3]);", "uN[32][3]"),
+                HasNodeWithType("const Y = foo([4, 5, 6, 7]);", "uN[32][4]"),
+                HasNodeWithType("1", "uN[32]"), HasNodeWithType("2", "uN[32]"),
+                HasNodeWithType("3", "uN[32]"), HasNodeWithType("4", "uN[32]"),
+                HasNodeWithType("5", "uN[32]"), HasNodeWithType("6", "uN[32]"),
+                HasNodeWithType("7", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test,
@@ -1501,187 +1428,148 @@ const X = foo<3>([u32:1, u32:2, u32:3, u32:4]);
 }
 
 TEST(TypecheckV2Test, ParametricFunctionCallingAnotherParametricFunction) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn bar<A: u32>(a: uN[A]) -> uN[A] { a + 1 }
 fn foo<A: u32, B: u32>(a: uN[A]) -> uN[B] { bar<B>(2) }
 const X = foo<24, 23>(4);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo<24, 23>(4);`, type: uN[23]"));
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const X = foo<24, 23>(4);", "uN[23]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionImplicitParameterPropagation) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn bar<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A] { a + 1 }
 fn foo<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[B] { bar(b, a) }
 const X = foo(u23:4, u17:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo(u23:4, u17:5);`, type: uN[17]"));
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const X = foo(u23:4, u17:5);", "uN[17]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionImplicitParameterExplicitPropagation) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn bar<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A] { a + 1 }
 fn foo<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[B] { bar<B, A>(b, a) }
 const X = foo(u23:4, u17:5);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo(u23:4, u17:5);`, type: uN[17]"));
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const X = foo(u23:4, u17:5);", "uN[17]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionInvocationNesting) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
 const X = foo<24>(foo<24>(4) + foo<24>(5));
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      HasSubstr(
-          "node: `const X = foo<24>(foo<24>(4) + foo<24>(5));`, type: uN[24]"));
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "const X = foo<24>(foo<24>(4) + foo<24>(5));", "uN[24]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionImplicitInvocationNesting) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
 const X = foo(foo(u24:4) + foo(u24:5));
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      HasSubstr(
-          "node: `const X = foo(foo(u24:4) + foo(u24:5));`, type: uN[24]"));
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "const X = foo(foo(u24:4) + foo(u24:5));", "uN[24]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionImplicitInvocationNestingWithExplicitOuter) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
 const X = foo<24>(foo(u24:4 + foo(u24:6)) + foo(u24:5));
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const X = foo<24>(foo(u24:4 + foo(u24:6)) + "
-                        "foo(u24:5));`, type: uN[24]"));
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "const X = foo<24>(foo(u24:4 + foo(u24:6)) + foo(u24:5));",
+                  "uN[24]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionImplicitInvocationNestingWithExplicitInner) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
 const X = foo(foo<24>(4) + foo<24>(5));
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      HasSubstr(
-          "node: `const X = foo(foo<24>(4) + foo<24>(5));`, type: uN[24]"));
+)",
+              TypecheckSucceeds(HasNodeWithType(
+                  "const X = foo(foo<24>(4) + foo<24>(5));", "uN[24]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionUsingGlobalConstantInParametricDefault) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 const X = u32:3;
 fn foo<M: u32, N: u32 = {M + X}>(a: uN[N]) -> uN[N] { a }
 const Z = foo<12>(u15:1);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const Z = foo<12>(u15:1);`, type: uN[15]"));
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const Z = foo<12>(u15:1);", "uN[15]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionCallUsingGlobalConstantInParametricArgument) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(
+      R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = u32:3;
 const Z = foo<X>(u3:1);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const Z = foo<X>(u3:1);`, type: uN[3]"));
+)",
+      TypecheckSucceeds(HasNodeWithType("const Z = foo<X>(u3:1);", "uN[3]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionCallUsingGlobalConstantInImplicitParametricArgument) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = u3:1;
 const Z = foo(X);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const Z = foo(X);`, type: uN[3]"));
+)",
+              TypecheckSucceeds(HasNodeWithType("const Z = foo(X);", "uN[3]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionCallFollowedByTypePropagation) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const Y = foo<15>(u15:1);
 const Z = Y + 1;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const Z = Y + 1;`, type: uN[15]"));
+)",
+              TypecheckSucceeds(HasNodeWithType("const Z = Y + 1;", "uN[15]")));
 }
 
 TEST(TypecheckV2Test,
      ParametricFunctionCallWithImplicitParameterFollowedByTypePropagation) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const Y = foo(u15:1);
 const Z = Y + 1;
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(type_info_string,
-              HasSubstr("node: `const Z = Y + 1;`, type: uN[15]"));
+)",
+              TypecheckSucceeds(HasNodeWithType("const Z = Y + 1;", "uN[15]")));
 }
 
 TEST(TypecheckV2Test, GlobalConstantUsingParametricFunction) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = foo<32>(u32:3);
 const Y = foo<X>(u3:1);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = foo<32>(u32:3);`, type: uN[32]"),
-            HasSubstr("node: `const Y = foo<X>(u3:1);`, type: uN[3]")));
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = foo<32>(u32:3);", "uN[32]"),
+                        HasNodeWithType("const Y = foo<X>(u3:1);", "uN[3]"))));
 }
 
 TEST(TypecheckV2Test, GlobalConstantUsingAndUsedByParametricFunction) {
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+  EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = foo<32>(u32:3);
 const Y = foo<X>(u3:1);
 fn bar<N: u32>(a: uN[N]) -> uN[N] { a + Y + foo<3>(Y) }
 const Z = bar<X>(u3:1 + Y);
-)"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string type_info_string,
-                           TypeInfoToString(result.tm));
-  EXPECT_THAT(
-      type_info_string,
-      AllOf(HasSubstr("node: `const X = foo<32>(u32:3);`, type: uN[32]"),
-            HasSubstr("node: `const Y = foo<X>(u3:1);`, type: uN[3]"),
-            HasSubstr("node: `const Z = bar<X>(u3:1 + Y);`, type: uN[3]")));
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("const X = foo<32>(u32:3);", "uN[32]"),
+                  HasNodeWithType("const Y = foo<X>(u3:1);", "uN[3]"),
+                  HasNodeWithType("const Z = bar<X>(u3:1 + Y);", "uN[3]"))));
 }
 
 }  // namespace
