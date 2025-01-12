@@ -231,6 +231,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bit_push_buffer",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:events",
         "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
