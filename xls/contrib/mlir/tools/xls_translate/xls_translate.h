@@ -1,4 +1,3 @@
-#include "xls/tools/opt.h"
 // Copyright 2024 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,10 +21,13 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "llvm/include/llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/opt.h"
 #include "xls/tools/scheduling_options_flags.h"
 #include "xls/tools/scheduling_options_flags.pb.h"
 
@@ -89,9 +91,14 @@ struct MlirXlsToXlsTranslateOptions {
       DieUnlessOk(::xls::GetSchedulingOptionsFlagsProto());
 };
 
+// Callback for reporting codegen metrics.
+using MetricsReporter = llvm::function_ref<void(
+    const ::xls::Package&, const ::xls::verilog::BlockMetricsProto&)>;
+
 // Translates an operation with XLS dialect to DSLX.
 LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
-                                    MlirXlsToXlsTranslateOptions options = {});
+                                    MlirXlsToXlsTranslateOptions options = {},
+                                    MetricsReporter metrics_reporter = nullptr);
 
 }  // namespace mlir::xls
 

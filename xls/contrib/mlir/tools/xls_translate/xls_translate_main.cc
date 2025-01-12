@@ -64,6 +64,12 @@ llvm::cl::opt<bool> privatizeAndDceFunctions(
                    "SymbolDCE first"),
     llvm::cl::init(false));
 
+// NOLINTNEXTLINE
+llvm::cl::opt<bool> dumpCodegenMetrics(
+    "dump-codegen-metrics",
+    llvm::cl::desc("Whether to dump XLS codegen metric"),
+    llvm::cl::init(false));
+
 void registerInputDialects(DialectRegistry& registry) {
   // TODO(jpienaar): Registering all as start/prototyping.
   mlir::registerAllDialects(registry);
@@ -71,6 +77,23 @@ void registerInputDialects(DialectRegistry& registry) {
   registerXlsDialect(registry);
   registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
                   mlir::tensor::TensorDialect>();
+}
+
+static void printCodegenMetrics(
+    const ::xls::Package& package,
+    const ::xls::verilog::BlockMetricsProto& metrics) {
+  llvm::errs() << "Generated XLS metrics:\n";
+  llvm::errs() << "  xls_node count: " << package.GetFunctionNodeCount()
+               << "\n";
+  llvm::errs() << "  xls_flop count: " << metrics.flop_count() << "\n";
+  llvm::errs() << "  xls_max_input_to_reg_delay_ps: "
+               << metrics.max_input_to_reg_delay_ps() << "\n";
+  llvm::errs() << "  xls_max_reg_to_reg_delay_ps: "
+               << metrics.max_reg_to_reg_delay_ps() << "\n";
+  llvm::errs() << "  xls_max_reg_to_output_delay_ps: "
+               << metrics.max_reg_to_output_delay_ps() << "\n";
+  llvm::errs() << "  xls_max_feedthrough_path_delay_ps: "
+               << metrics.max_feedthrough_path_delay_ps() << "\n";
 }
 
 LogicalResult mlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output) {
@@ -90,6 +113,9 @@ LogicalResult mlirXlsToVerilogTranslate(Operation* op,
   options.optimize_ir = optimizeIr;
   options.dslx_search_path = dslxSearchPath;
   options.generate_verilog = true;
+  if (dumpCodegenMetrics) {
+    return MlirXlsToXlsTranslate(op, output, options, printCodegenMetrics);
+  }
   return MlirXlsToXlsTranslate(op, output, options);
 }
 
