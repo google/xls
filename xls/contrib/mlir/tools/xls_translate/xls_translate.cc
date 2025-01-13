@@ -817,7 +817,7 @@ BValue convertOp(BlockingReceiveOp op, TranslationState& state,
                  BuilderBase& fb) {
   ProcBuilder* pb = dynamic_cast<ProcBuilder*>(&fb);
   if (!pb) {
-    llvm::errs() << "SendOp only supported in procs\n";
+    llvm::errs() << "BlockingReceiveOp only supported in procs\n";
     return BValue();
   }
   ::xls::Channel* channel = getChannel(op, state);
@@ -841,7 +841,7 @@ BValue convertOp(NonblockingReceiveOp op, TranslationState& state,
                  BuilderBase& fb) {
   ProcBuilder* pb = dynamic_cast<ProcBuilder*>(&fb);
   if (!pb) {
-    llvm::errs() << "SendOp only supported in procs\n";
+    llvm::errs() << "NonblockingReceiveOp only supported in procs\n";
     return BValue();
   }
   ::xls::Channel* channel = getChannel(op, state);
