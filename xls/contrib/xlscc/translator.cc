@@ -1087,6 +1087,11 @@ absl::Status Translator::GenerateIR_SubBlockStub(
     const FunctionInProgress& header) {
   const xls::SourceInfo body_loc = GetLoc(*funcdecl);
 
+  if (!funcdecl->getReturnType()->isVoidType()) {
+    return absl::UnimplementedError(ErrorMessage(
+        body_loc, "Returns from sub-block functions are not yet supported."));
+  }
+
   XLS_ASSIGN_OR_RETURN(std::optional<int64_t> depth_specified,
                        GetAnnotationWithNonNegativeIntegerParam(
                            *funcdecl, "hls_control_channel_depth", body_loc));

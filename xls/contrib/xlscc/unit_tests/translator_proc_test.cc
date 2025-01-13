@@ -9177,6 +9177,58 @@ TEST_P(TranslatorProcTest, MultiBlockIRSim) {
   }
 }
 
+TEST_P(TranslatorProcTest, MultiBlockReturn) {
+  const std::string content = R"(
+    #pragma hls_design block
+    bool block_a(__xls_channel<int, __xls_channel_dir_In>& in,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int a = in.read();
+      xfer.write(a + 1);
+      return a == 1;
+    }
+
+    #pragma hls_design block
+    void block_b(__xls_channel<int, __xls_channel_dir_Out>& out,
+                 __xls_channel<int, __xls_channel_dir_InOut>& xfer) {
+      int b = xfer.read();
+      out.write(b * 10);
+    }
+
+    #pragma hls_top
+    void foo(__xls_channel<int, __xls_channel_dir_In>& in,
+             __xls_channel<int, __xls_channel_dir_Out>& out) {
+      static __xls_channel<int, __xls_channel_dir_InOut> xfer;
+      (void)block_a(in, xfer);
+      block_b(out, xfer);
+    }
+  )";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  ASSERT_THAT(
+      translator_->GenerateIR_Block(package_.get(), block_spec).status(),
+      absl_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Returns from sub-block functions")));
+}
+
 }  // namespace
 
 }  // namespace xlscc
