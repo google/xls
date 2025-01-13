@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -24,17 +25,22 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
+#include "xls/ir/value.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 
@@ -113,6 +119,85 @@ absl::StatusOr<bool> LegalizeStateReadPredicates(
   return changed;
 }
 
+absl::StatusOr<bool> AddMutualExclusionAssert(
+    Proc* proc, StateElement* state_element,
+    const SchedulingPassOptions& options) {
+  const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
+      proc->next_values(proc->GetStateRead(state_element));
+  if (next_values.size() < 2) {
+    return false;
+  }
+
+  std::string label = absl::StrCat("__", state_element->name(),
+                                   "__at_most_one_next_value_assert");
+  if (proc->HasNode(label)) {
+    return absl::InternalError(absl::StrFormat(
+        "Mutual exclusion assert already exists for state "
+        "element '%s'; was this pass run twice? assert label: %s",
+        state_element->name(), label));
+  }
+
+  std::vector<Node*> predicate_list;
+  for (Next* next : next_values) {
+    XLS_RET_CHECK(next->predicate().has_value());
+    predicate_list.push_back(*next->predicate());
+  }
+  XLS_ASSIGN_OR_RETURN(
+      Node * predicates,
+      proc->MakeNodeWithName<Concat>(SourceInfo(), predicate_list,
+                                     absl::StrCat("__", state_element->name(),
+                                                  "__next_value_predicates")));
+
+  // Get a version of `predicates` with at most one bit set, by taking the
+  // one-hot value and slicing off the all-zero bit.
+  XLS_ASSIGN_OR_RETURN(
+      Node * one_hot_predicates,
+      proc->MakeNode<OneHot>(SourceInfo(), predicates, LsbOrMsb::kLsb));
+  XLS_ASSIGN_OR_RETURN(Node * at_most_one_predicate,
+                       proc->MakeNode<BitSlice>(
+                           SourceInfo(), one_hot_predicates, /*start=*/0,
+                           /*width=*/one_hot_predicates->BitCountOrDie() - 1));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * at_most_one_next_value,
+      proc->MakeNodeWithName<CompareOp>(
+          SourceInfo(), predicates, at_most_one_predicate, Op::kEq,
+          absl::StrCat("__", state_element->name(),
+                       "__at_most_one_next_value")));
+
+  XLS_ASSIGN_OR_RETURN(Node * tkn,
+                       proc->MakeNode<Literal>(SourceInfo(), Value::Token()));
+  XLS_RETURN_IF_ERROR(
+      proc->MakeNodeWithName<Assert>(
+              SourceInfo(), tkn,
+              /*condition=*/at_most_one_next_value,
+              /*message=*/
+              absl::StrCat("More than one next_value fired for state element: ",
+                           state_element->name()),
+              /*label=*/label,
+              /*original_label=*/std::nullopt,
+              /*name=*/label)
+          .status());
+  return true;
+}
+
+absl::StatusOr<bool> AddMutualExclusionAsserts(
+    Proc* proc, const SchedulingPassOptions& options) {
+  bool changed = false;
+
+  for (StateElement* state_element : proc->StateElements()) {
+    XLS_ASSIGN_OR_RETURN(bool asserts_added, AddMutualExclusionAssert(
+                                                 proc, state_element, options));
+    if (asserts_added) {
+      VLOG(4) << "Added mutual exclusion assert for state element: "
+              << state_element->name();
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
                                          StateElement* state_element,
                                          const SchedulingPassOptions& options) {
@@ -128,7 +213,7 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
   }
 
   if (predicates.empty()) {
-    // No explicit `next_value` node; leave the state parameter unchanged by
+    // No explicit `next_value` node; leave the state element unchanged by
     // default.
     XLS_RETURN_IF_ERROR(proc->MakeNodeWithName<Next>(
                                 state_read->loc(), /*state_read=*/state_read,
@@ -207,8 +292,8 @@ absl::StatusOr<bool> AddDefaultNextValue(Proc* proc,
     }
   }
 
-  // Explicitly mark the param as unchanged when no other `next_value` node is
-  // active.
+  // Explicitly mark the state element as unchanged when no other `next_value`
+  // node is active.
   XLS_ASSIGN_OR_RETURN(
       Node * default_predicate,
       NaryNorIfNeeded(proc, std::vector(predicates.begin(), predicates.end()),
@@ -235,9 +320,9 @@ absl::StatusOr<bool> AddDefaultNextValues(
   bool changed = false;
 
   for (StateElement* state_element : proc->StateElements()) {
-    XLS_ASSIGN_OR_RETURN(bool param_changed,
+    XLS_ASSIGN_OR_RETURN(bool state_changed,
                          AddDefaultNextValue(proc, state_element, options));
-    if (param_changed) {
+    if (state_changed) {
       VLOG(4) << "Added default next_value for state element: "
               << state_element->name();
       changed = true;
@@ -266,9 +351,15 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnFunctionBaseInternal(
     changed = true;
   }
 
-  XLS_ASSIGN_OR_RETURN(bool default_nexts_added,
+  XLS_ASSIGN_OR_RETURN(bool asserts_added,
+                       AddMutualExclusionAsserts(proc, options));
+  if (asserts_added) {
+    changed = true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool defaults_added,
                        AddDefaultNextValues(proc, options));
-  if (default_nexts_added) {
+  if (defaults_added) {
     changed = true;
   }
 

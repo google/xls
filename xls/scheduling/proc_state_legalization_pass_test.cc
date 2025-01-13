@@ -14,10 +14,13 @@
 
 #include "xls/scheduling/proc_state_legalization_pass.h"
 
+#include <iterator>
 #include <optional>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
@@ -25,6 +28,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/passes/cse_pass.h"
@@ -40,6 +44,10 @@ namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::testing::_;
+using ::testing::Contains;
+using ::testing::Each;
+using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 
 class SimplificationPass : public OptimizationCompoundPass {
@@ -81,6 +89,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithUnchangingState) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({x, y}));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+  EXPECT_THAT(proc->nodes(), Each(Not(m::Assert())));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
@@ -91,6 +100,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithChangingState) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({y, x}));
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+  EXPECT_THAT(proc->nodes(), Each(Not(m::Assert())));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithUnconditionalNextValue) {
@@ -119,6 +129,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValue) {
               UnorderedElementsAre(
                   m::Next(x.node(), incremented.node(), predicate.node()),
                   m::Next(x.node(), x.node(), m::Not(predicate.node()))));
+  EXPECT_THAT(proc->nodes(), Not(Contains(m::Assert())));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
@@ -131,7 +142,20 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedNextValueAndDefault) {
   pb.Next(x, x, pb.Not(predicate));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(
+                  m::Next(x.node(), incremented.node(), predicate.node()),
+                  m::Next(x.node(), x.node(), m::Not(predicate.node()))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(m::Assert(
+          _, m::Eq(m::Concat(predicate.node(), m::Not(predicate.node())),
+                   m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
@@ -154,6 +178,14 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithMultiplePredicatedNextValues) {
                   m::Next(x.node(), decremented.node(), predicate2.node()),
                   m::Next(x.node(), x.node(),
                           m::Nor(predicate1.node(), predicate2.node()))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(asserts,
+              UnorderedElementsAre(m::Assert(
+                  _, m::Eq(m::Concat(predicate1.node(), predicate2.node()),
+                           m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -170,7 +202,25 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(x, decremented, predicate2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_THAT(proc->next_values(),
+              UnorderedElementsAre(
+                  m::Next(x.node(), incremented.node(), predicate1.node()),
+                  m::Next(x.node(), decremented.node(), predicate2.node()),
+                  m::Next(x.node(), x.node(),
+                          m::Nor(predicate2.node(), predicate1.node(),
+                                 predicate2.node()))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(m::Assert(
+          _, m::Eq(m::Concat(m::Nor(predicate2.node(), predicate1.node(),
+                                    predicate2.node()),
+                             predicate1.node(), predicate2.node()),
+                   m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -188,7 +238,20 @@ TEST_F(ProcStateLegalizationPassTest,
   ASSERT_THAT(
       Run(proc, {.scheduling_options =
                      SchedulingOptions().default_next_value_z3_rlimit(5000)}),
-      IsOkAndHolds(false));
+      IsOkAndHolds(true));
+  EXPECT_THAT(
+      proc->next_values(),
+      UnorderedElementsAre(
+          m::Next(x.node(), x.node(), positive_predicate.node()),
+          m::Next(x.node(), incremented.node(), negative_predicate.node())));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(asserts, UnorderedElementsAre(m::Assert(
+                           _, m::Eq(m::Concat(positive_predicate.node(),
+                                              negative_predicate.node()),
+                                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -213,6 +276,14 @@ TEST_F(ProcStateLegalizationPassTest,
           m::Next(
               x.node(), x.node(),
               m::Nor(positive_predicate.node(), negative_predicate.node()))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(asserts, UnorderedElementsAre(m::Assert(
+                           _, m::Eq(m::Concat(positive_predicate.node(),
+                                              negative_predicate.node()),
+                                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -234,6 +305,7 @@ TEST_F(ProcStateLegalizationPassTest,
               UnorderedElementsAre(
                   m::Next(x.node(), incremented.node(), predicate.node()),
                   m::Next(x.node(), x.node(), m::Not(predicate.node()))));
+  EXPECT_THAT(proc->nodes(), Not(Contains(m::Assert())));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -261,6 +333,14 @@ TEST_F(ProcStateLegalizationPassTest,
           m::Next(
               x.node(), x.node(),
               m::Nor(positive_predicate.node(), negative_predicate.node()))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(asserts, UnorderedElementsAre(m::Assert(
+                           _, m::Eq(m::Concat(positive_predicate.node(),
+                                              negative_predicate.node()),
+                                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
@@ -299,6 +379,8 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
                                      m::Literal(0))),
                          m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
                                       m::Literal(0)))))));
+
+  EXPECT_THAT(proc->nodes(), Each(Not(m::Assert())));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -317,7 +399,31 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(y, y, x_not_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
-  ASSERT_THAT(Run(proc), IsOkAndHolds(false));
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+      Optional(
+          m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
+                m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                             m::Literal(0))))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
+      UnorderedElementsAre(
+          m::Next(
+              m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
+              m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
+          m::Next(m::StateRead("y"), m::StateRead("y"),
+                  m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                               m::Literal(0))))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(asserts, UnorderedElementsAre(m::Assert(
+                           _, m::Eq(m::Concat(x_multiple_of_3.node(),
+                                              x_not_multiple_of_3.node()),
+                                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -355,6 +461,14 @@ TEST_F(ProcStateLegalizationPassTest,
           m::Next(m::StateRead("y"), m::StateRead("y"),
                   m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
                                m::Literal(0))))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(asserts, UnorderedElementsAre(m::Assert(
+                           _, m::Eq(m::Concat(x_multiple_of_3.node(),
+                                              x_not_multiple_of_3.node()),
+                                    m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 }  // namespace

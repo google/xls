@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -108,7 +109,7 @@ absl::StatusOr<Node*> FunctionBase::GetNodeById(int64_t id) const {
   return absl::NotFoundError(absl::StrFormat("No node found with id %d.", id));
 }
 
-absl::StatusOr<Node*> FunctionBase::GetNode(
+std::optional<Node*> FunctionBase::MaybeGetNode(
     std::string_view standard_node_name) const {
   for (Node* node : nodes()) {
     if (node->GetName() == standard_node_name) {
@@ -119,6 +120,14 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
     if (param->As<Param>()->name() == standard_node_name) {
       return param;
     }
+  }
+  return std::nullopt;
+}
+
+absl::StatusOr<Node*> FunctionBase::GetNode(
+    std::string_view standard_node_name) const {
+  if (auto node = MaybeGetNode(standard_node_name); node.has_value()) {
+    return *node;
   }
   return absl::NotFoundError(
       absl::StrFormat("GetNode(%s) failed.", standard_node_name));
