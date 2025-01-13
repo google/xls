@@ -1074,6 +1074,7 @@ llvm::Value* NodeIrContext::GetOperandPtr(int64_t i,
     }
     llvm::Value* alloca =
         b.CreateAlloca(type_converter().ConvertToLlvmType(operand->GetType()));
+    alloca->setName(operand->GetName());
     b.CreateStore(
         type_converter()
             .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
