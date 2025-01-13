@@ -2902,16 +2902,15 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
 
   // Sel is implemented by a cascading series of select ops, e.g.,
   // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
+  // Fallthough is the default value.
   llvm::Value* llvm_sel = default_value;
   for (int i = cases.size() - 1; i >= 0; i--) {
-    llvm::Value* current_index = llvm::ConstantInt::get(selector->getType(), i);
+    llvm::Value* current_index =
+        llvm::ConstantInt::get(selected_index->getType(), i);
     llvm::Value* cmp = b.CreateICmpEQ(selected_index, current_index);
     llvm_sel = b.CreateSelect(cmp, cases.at(i), llvm_sel);
   }
 
-  llvm::Value* selector_is_zero =
-      b.CreateICmpEQ(selector, llvm::ConstantInt::get(selector->getType(), 0));
-  llvm_sel = b.CreateSelect(selector_is_zero, default_value, llvm_sel);
   return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
                                                  llvm_sel);
 }
