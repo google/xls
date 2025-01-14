@@ -2158,6 +2158,19 @@ TEST_F(ParserTest, ArrayTypeAnnotation) {
   EXPECT_EQ(array_type->element_type()->ToString(), "u8");
 }
 
+TEST_F(ParserTest, UnsizedArrayTypeAnnotation) {
+  const std::string kProgram = "u8[]";
+  scanner_.emplace(file_table_, Fileno(0), kProgram);
+  parser_.emplace("test", &*scanner_);
+  Bindings bindings;
+  absl::StatusOr<TypeAnnotation*> ta =
+      ParseTypeAnnotation(parser_.value(), bindings);
+  ASSERT_FALSE(ta.ok());
+  EXPECT_THAT(ta.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unsized arrays are not supported")));
+}
+
 // Tests parsing of a type annotation made from the `xN` bits constructor.
 TEST_F(ParserTest, xNTypeAnnotation) {
   std::string s = "xN[false][128]";

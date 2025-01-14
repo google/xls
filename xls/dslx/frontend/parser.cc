@@ -2965,6 +2965,14 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
                                                      Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token obrack, PopTokenOrError(TokenKind::kOBrack));
+
+  XLS_ASSIGN_OR_RETURN(bool peek_is_cbrack, PeekTokenIs(TokenKind::kCBrack));
+  if (peek_is_cbrack) {
+    return ParseErrorStatus(
+        obrack.span(),
+        "Unsized arrays are not supported, a (constant) size is required.");
+  }
+
   XLS_ASSIGN_OR_RETURN(Expr * first_dim,
                        ParseConditionalExpression(bindings, kNoRestrictions));
 
