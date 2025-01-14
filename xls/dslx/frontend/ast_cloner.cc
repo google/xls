@@ -1148,8 +1148,8 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,
                                                     CloneReplacer replacer) {
   auto new_module = std::make_unique<Module>(module.name(), module.fs_path(),
                                              *module.file_table());
-  for (const ModuleAnnotation& ann : module.annotations()) {
-    new_module->AddAnnotation(ann);
+  for (const ModuleDirective& dir : module.directives()) {
+    new_module->AddDirective(dir);
   }
   AstCloner cloner(new_module.get(), std::move(replacer));
   XLS_RETURN_IF_ERROR(module.Accept(&cloner));

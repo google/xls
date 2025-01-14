@@ -248,9 +248,9 @@ absl::Status Parser::ParseModuleDirective() {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     if (feature == "use_syntax") {
-      module_->AddAnnotation(ModuleAnnotation::kAllowUseSyntax);
+      module_->AddDirective(ModuleDirective::kAllowUseSyntax);
     } else if (feature == "type_inference_v2") {
-      module_->AddAnnotation(ModuleAnnotation::kTypeInferenceVersion2);
+      module_->AddDirective(ModuleDirective::kTypeInferenceVersion2);
     } else {
       return ParseErrorStatus(
           directive_span,
@@ -266,10 +266,10 @@ absl::Status Parser::ParseModuleDirective() {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   XLS_ASSIGN_OR_RETURN(std::string to_allow, PopIdentifierOrError());
   if (to_allow == "nonstandard_constant_naming") {
-    module_->AddAnnotation(ModuleAnnotation::kAllowNonstandardConstantNaming);
+    module_->AddDirective(ModuleDirective::kAllowNonstandardConstantNaming);
   }
   if (to_allow == "nonstandard_member_naming") {
-    module_->AddAnnotation(ModuleAnnotation::kAllowNonstandardMemberNaming);
+    module_->AddDirective(ModuleDirective::kAllowNonstandardMemberNaming);
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
@@ -449,8 +449,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kImport: {
-        if (module_->annotations().contains(
-                ModuleAnnotation::kAllowUseSyntax)) {
+        if (module_->directives().contains(ModuleDirective::kAllowUseSyntax)) {
           return ParseErrorStatus(
               peek->span(),
               "`import` syntax is disabled for this module via "
@@ -461,8 +460,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kUse: {
-        if (!module_->annotations().contains(
-                ModuleAnnotation::kAllowUseSyntax)) {
+        if (!module_->directives().contains(ModuleDirective::kAllowUseSyntax)) {
           return ParseErrorStatus(
               peek->span(),
               "`use` syntax is not enabled for this module; enable with "

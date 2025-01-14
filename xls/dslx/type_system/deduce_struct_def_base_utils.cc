@@ -57,8 +57,8 @@ void WarnOnInappropriateMemberName(std::string_view member_name,
                                    const Span& span, const Module& module,
                                    DeduceCtx* ctx) {
   if (!IsAcceptablySnakeCase(member_name) &&
-      !module.annotations().contains(
-          ModuleAnnotation::kAllowNonstandardMemberNaming)) {
+      !module.directives().contains(
+          ModuleDirective::kAllowNonstandardMemberNaming)) {
     ctx->warnings()->Add(
         span, WarningKind::kMemberNaming,
         absl::StrFormat("Standard style is snake_case for struct member names; "

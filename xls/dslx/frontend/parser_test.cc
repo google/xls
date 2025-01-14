@@ -2958,23 +2958,23 @@ TEST_F(ParserTest, ParseAllowNonstandardConstantNamingAnnotation) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
                            parser.ParseModule());
   EXPECT_THAT(
-      module->annotations(),
-      testing::ElementsAre(ModuleAnnotation::kAllowNonstandardConstantNaming));
+      module->directives(),
+      testing::ElementsAre(ModuleDirective::kAllowNonstandardConstantNaming));
 }
 
 TEST_F(ParserTest, NoAttributeForTypeInferenceVersion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
 fn f() { () }
 )"));
-  EXPECT_THAT(module->annotations(), testing::IsEmpty());
+  EXPECT_THAT(module->directives(), testing::IsEmpty());
 }
 
 TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue2) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
 #![feature(type_inference_v2)]
 )"));
-  EXPECT_THAT(module->annotations(),
-              testing::ElementsAre(ModuleAnnotation::kTypeInferenceVersion2));
+  EXPECT_THAT(module->directives(),
+              testing::ElementsAre(ModuleDirective::kTypeInferenceVersion2));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the

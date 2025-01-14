@@ -62,7 +62,7 @@ Pos GetPos(const ModuleMember& module_member);
 
 std::string_view GetModuleMemberTypeName(const ModuleMember& module_member);
 
-enum class ModuleAnnotation : uint8_t {
+enum class ModuleDirective : uint8_t {
   // Suppresses the "constant naming" warning.
   kAllowNonstandardConstantNaming,
 
@@ -262,14 +262,14 @@ class Module : public AstNode {
   // Finds all the AST nodes that fall within the given span.
   std::vector<const AstNode*> FindContained(const Span& target) const;
 
-  // Tags this module as having the given module-level annotation "annotation".
-  void AddAnnotation(ModuleAnnotation annotation) {
-    annotations_.insert(annotation);
+  // Tags this module as having the given module-level directive "directive".
+  void AddDirective(ModuleDirective directive) {
+    directives_.insert(directive);
   }
 
-  // Returns all the module-level annotation tags.
-  const absl::btree_set<ModuleAnnotation>& annotations() const {
-    return annotations_;
+  // Returns all the module-level directive tags.
+  const absl::btree_set<ModuleDirective>& directives() const {
+    return directives_;
   }
 
   FileTable* file_table() const { return file_table_; }
@@ -330,7 +330,7 @@ class Module : public AstNode {
   // having many definition nodes of the same builtin thing floating around.
   absl::flat_hash_map<std::string, BuiltinNameDef*> builtin_name_defs_;
 
-  absl::btree_set<ModuleAnnotation> annotations_;
+  absl::btree_set<ModuleDirective> directives_;
 
   // The span of the module is only known once parsing has completed.
   //

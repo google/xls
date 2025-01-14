@@ -70,22 +70,22 @@ std::string Module::ToString() const {
         absl::StrAppend(out, ToAstNode(member)->ToString());
       });
 
-  if (!annotations().empty()) {
-    // Make an annotation block above the module contents if there are
-    // annotations.
+  if (!directives().empty()) {
+    // Make an directive block above the module contents if there are
+    // directives.
     std::string header = absl::StrJoin(
-        annotations(), "\n", [](std::string* out, ModuleAnnotation annotation) {
-          switch (annotation) {
-            case ModuleAnnotation::kAllowNonstandardConstantNaming:
+        directives(), "\n", [](std::string* out, ModuleDirective directive) {
+          switch (directive) {
+            case ModuleDirective::kAllowNonstandardConstantNaming:
               absl::StrAppend(out, "#![allow(nonstandard_constant_naming)]");
               break;
-            case ModuleAnnotation::kAllowNonstandardMemberNaming:
+            case ModuleDirective::kAllowNonstandardMemberNaming:
               absl::StrAppend(out, "#![allow(nonstandard_member_naming)]");
               break;
-            case ModuleAnnotation::kTypeInferenceVersion2:
+            case ModuleDirective::kTypeInferenceVersion2:
               absl::StrAppend(out, "#![feature(type_inference_v2)]");
               break;
-            case ModuleAnnotation::kAllowUseSyntax:
+            case ModuleDirective::kAllowUseSyntax:
               absl::StrAppend(out, "#![feature(use_syntax)]");
               break;
           }

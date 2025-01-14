@@ -2893,24 +2893,24 @@ static int NumHardLinesAfter(const AstNode* node, const ModuleMember& member,
 absl::StatusOr<DocRef> Formatter::Format(const Module& n) {
   std::vector<DocRef> pieces;
 
-  if (!n.annotations().empty()) {
-    for (ModuleAnnotation annotation : n.annotations()) {
+  if (!n.directives().empty()) {
+    for (ModuleDirective annotation : n.directives()) {
       switch (annotation) {
-        case ModuleAnnotation::kAllowNonstandardConstantNaming:
+        case ModuleDirective::kAllowNonstandardConstantNaming:
           pieces.push_back(
               arena_.MakeText("#![allow(nonstandard_constant_naming)]"));
           pieces.push_back(arena_.hard_line());
           break;
-        case ModuleAnnotation::kAllowNonstandardMemberNaming:
+        case ModuleDirective::kAllowNonstandardMemberNaming:
           pieces.push_back(
               arena_.MakeText("#![allow(nonstandard_member_naming)]"));
           pieces.push_back(arena_.hard_line());
           break;
-        case ModuleAnnotation::kTypeInferenceVersion2:
+        case ModuleDirective::kTypeInferenceVersion2:
           pieces.push_back(arena_.MakeText("#![feature(type_inference_v2)]"));
           pieces.push_back(arena_.hard_line());
           break;
-        case ModuleAnnotation::kAllowUseSyntax:
+        case ModuleDirective::kAllowUseSyntax:
           pieces.push_back(arena_.MakeText("#![feature(use_syntax)]"));
           pieces.push_back(arena_.hard_line());
           break;
