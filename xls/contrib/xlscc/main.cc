@@ -147,6 +147,10 @@ ABSL_FLAG(bool, debug_ir_trace_loop_control, false,
 ABSL_FLAG(bool, debug_print_fsm_states, false,
           "Print FSM states to XLS_LOG (try --alsologtostderr).");
 
+ABSL_FLAG(
+    bool, print_optimization_warnings, false,
+    "Print optimization warnings / hints to XLS_LOG (try --alsologtostderr).");
+
 namespace xlscc {
 
 static absl::Status Run(std::string_view cpp_path) {
@@ -184,6 +188,10 @@ static absl::Status Run(std::string_view cpp_path) {
   if (absl::GetFlag(FLAGS_debug_print_fsm_states)) {
     ir_trace_flags = static_cast<DebugIrTraceFlags>(
         ir_trace_flags | DebugIrTraceFlags_FSMStates);
+  }
+  if (absl::GetFlag(FLAGS_print_optimization_warnings)) {
+    ir_trace_flags = static_cast<DebugIrTraceFlags>(
+        ir_trace_flags | DebugIrTraceFlags_OptimizationWarnings);
   }
 
   xlscc::Translator translator(

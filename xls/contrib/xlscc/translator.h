@@ -1116,7 +1116,8 @@ enum DebugIrTraceFlags {
   DebugIrTraceFlags_LoopContext = 1,
   DebugIrTraceFlags_LoopControl = 2,
   DebugIrTraceFlags_FSMStates = 4,
-  DebugIrTraceFlags_PrevStateIOReferences = 8
+  DebugIrTraceFlags_PrevStateIOReferences = 8,
+  DebugIrTraceFlags_OptimizationWarnings = 16,
 };
 
 class Translator {
@@ -1938,19 +1939,18 @@ class Translator {
       clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
-  absl::Status GenerateIR_UnrolledLoop(bool always_first_iter,
-                                       const clang::Stmt* init,
-                                       const clang::Expr* cond_expr,
-                                       const clang::Stmt* inc,
-                                       const clang::Stmt* body,
-                                       clang::ASTContext& ctx,
-                                       const xls::SourceInfo& loc);
+  absl::Status GenerateIR_UnrolledLoop(
+      bool always_first_iter, bool warn_inferred_loop_type,
+      const clang::Stmt* init, const clang::Expr* cond_expr,
+      const clang::Stmt* inc, const clang::Stmt* body, clang::ASTContext& ctx,
+      const xls::SourceInfo& loc);
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_PipelinedLoop(
-      bool always_first_iter, const clang::Stmt* init,
-      const clang::Expr* cond_expr, const clang::Stmt* inc,
-      const clang::Stmt* body, int64_t initiation_interval_arg,
-      bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
+      bool always_first_iter, bool warn_inferred_loop_type,
+      const clang::Stmt* init, const clang::Expr* cond_expr,
+      const clang::Stmt* inc, const clang::Stmt* body,
+      int64_t initiation_interval_arg, bool schedule_asap,
+      clang::ASTContext& ctx, const xls::SourceInfo& loc);
 
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
