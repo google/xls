@@ -105,9 +105,9 @@ proc AxiRamReaderRequester<
 
         // validate bundle
         let ar_bundle_ok = ar_bundle_valid && ((ar_bundle.size as u32 + u32:3) <= AXI_DATA_W_LOG2);
-        if ar_bundle_valid {
-            trace_fmt!("{:#x}", ar_bundle);
-        } else {};
+        //if ar_bundle_valid {
+        //    trace_fmt!("{:#x}", ar_bundle);
+        //} else {};
         let tok = send_if(tok, sync_s, ar_bundle_valid && !ar_bundle_ok, Sync {
             id: ar_bundle.id,
             resp: AxiReadResp::SLVERR,
@@ -680,9 +680,9 @@ proc AxiRamReaderTest {
             tok
         }(tok);
 
-        let tok = for ((i, axi_ar_bundle), tok): ((u32, TestAxiAr), token) in enumerate(TEST_AXI_AR_BUNDLES) {
+        let tok = for ((_i, axi_ar_bundle), tok): ((u32, TestAxiAr), token) in enumerate(TEST_AXI_AR_BUNDLES) {
             let tok = send(tok, axi_ar_s, axi_ar_bundle);
-            trace_fmt!("Sent bundle #{} {:#x}", i + u32:1, axi_ar_bundle);
+            // trace_fmt!("Sent bundle #{} {:#x}", i + u32:1, axi_ar_bundle);
 
             let size_valid = (u32:1 << (axi_ar_bundle.size as u32 + u32:3)) <= TEST_AXI_DATA_W;
 
