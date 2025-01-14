@@ -77,6 +77,42 @@ def GenerateDataStruct():
     f"}}\n"
   )
 
+def main2():
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+    "input",
+    help="Filename of the decodecorpus input",
+    type=Path,
+  )
+  parser.add_argument(
+    "output",
+    help="Filename of the DSLX output file",
+    type=Path,
+  )
+  parser.add_argument(
+    "--bytes-per-word",
+    help="Width of a word in memory, in bytes",
+    type=int,
+    default=8,
+  )
+
+  args = parser.parse_args()
+
+  with open(args.input, "rb") as fd:
+    byte_frames = [fd.read()]
+
+  with open(args.output, "w") as dslx_output:
+    dslx_output.write(GenerateDataStruct())
+
+    dslx_frames = Bytes2DSLX(byte_frames, args.bytes_per_word, "FRAMES")
+    dslx_output.write(dslx_frames)
+
+    byte_frames_decompressed = list(map(DecompressFrame, byte_frames))
+    dslx_frames_decompressed = Bytes2DSLX(
+      byte_frames_decompressed, args.bytes_per_word, "DECOMPRESSED_FRAMES"
+    )
+    dslx_output.write(dslx_frames_decompressed)
+
 
 def main():
   parser = argparse.ArgumentParser()

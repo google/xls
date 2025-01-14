@@ -1265,7 +1265,7 @@ genrule(
     name = "zstd_test_frames_generate",
     srcs = [],
     outs = ["zstd_frame_testcases.x"],
-    cmd = "$(location :zstd_test_frames_generator) -n 2 --btype RAW RLE -o $@",
+    cmd = "$(location :zstd_test_frames_generator) -n 3 --btype RAW RLE COMPRESSED -o $@",
     tools = [":zstd_test_frames_generator"],
 )
 
@@ -1279,7 +1279,11 @@ zstd_dec_deps = [
     ":frame_header_dec_dslx",
     ":raw_block_dec_dslx",
     ":rle_block_dec_dslx",
+    ":comp_block_dec_dslx",
     ":sequence_executor_dslx",
+    ":huffman_literals_dec_dslx",
+    ":literals_buffer_dslx",
+    ":parallel_rams_dslx",
     "//xls/examples:ram_dslx",
     "//xls/modules/zstd/memory:mem_reader_dslx",
     "//xls/modules/zstd/memory:mem_writer_dslx",
@@ -1299,7 +1303,8 @@ xls_dslx_test(
     srcs = [
         "zstd_dec.x",
         "zstd_dec_test.x",
-        "zstd_frame_testcases.x",
+        # "zstd_frame_testcases.x",
+        "comp_frame.x",
     ],
     tags = ["manual"],
     deps = zstd_dec_deps,
@@ -1308,9 +1313,10 @@ xls_dslx_test(
 zstd_dec_codegen_args = common_codegen_args | {
     "module_name": "ZstdDecoder",
     "clock_period_ps": "0",
-    "pipeline_stages": "10",
+    "pipeline_stages": "16",
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
+    "worst_case_throughput": "2",
 }
 
 xls_dslx_verilog(
@@ -1412,11 +1418,11 @@ place_and_route(
     clock_period = CLOCK_PERIOD_PS,
     core_padding_microns = 2,
     min_pin_distance = "0.4",
-    placement_density = "0.30",
+    placement_density = "0.1",
     stop_after_step = "global_routing",
     synthesized_rtl = ":zstd_dec_synth_asap7",
     tags = ["manual"],
-    target_die_utilization_percentage = "10",
+    target_die_utilization_percentage = "1",
 )
 
 py_test(
