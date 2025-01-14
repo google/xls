@@ -62,6 +62,7 @@ pub struct ExtendedBlockDataPacket {
 
 pub struct SequenceExecutorPacket<DATA_W: u32> {
     msg_type: SequenceExecutorMessageType,
+    // TODO: this should be max(8, clog2(maximum match value))
     length: CopyOrMatchLength, // Literal length or match length
     content: uN[DATA_W * u32:8], // Literal data or match offset
     last: bool, // Last packet in frame
