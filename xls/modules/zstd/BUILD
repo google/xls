@@ -169,6 +169,7 @@ cc_library(
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
     ],
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -614,6 +615,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "parallel_rams_dslx_test",
     library = ":parallel_rams_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -895,6 +897,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "ram_wr_handler_dslx_test",
     library = ":ram_wr_handler_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -912,6 +915,7 @@ xls_dslx_verilog(
         "top": "__ram_wr_handler__RamWrRespHandlerInst__RamWrRespHandler_0__32_next",
     },
     verilog_file = "ram_rw_handler.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -921,6 +925,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "delay_model": "asap7",
     },
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -928,6 +933,7 @@ verilog_library(
     srcs = [
         ":ram_rw_handler.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -937,11 +943,13 @@ synthesize_rtl(
     deps = [
         ":ram_rw_handler_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "ram_rw_handler_benchmark_synth",
     synth_target = ":ram_rw_handler_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -953,6 +961,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":ram_rw_handler_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -970,6 +979,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "fse_proba_freq_dec_dslx_test",
     library = ":fse_proba_freq_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -997,6 +1007,7 @@ xls_dslx_verilog(
         "top": "__fse_proba_freq_dec__FseProbaFreqDecoderInst__FseProbaFreqDecoder_0__64_7_8_10_1_next",
     },
     verilog_file = "fse_proba_freq_dec.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1016,11 +1027,13 @@ xls_benchmark_ir(
         #    wr_resp = "fse_proba_freq_dec__wr_resp_r",
         #),
     },
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "fse_proba_freq_dec_verilog_benchmark",
     verilog_target = "fse_proba_freq_dec_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -1028,6 +1041,7 @@ verilog_library(
     srcs = [
         ":fse_proba_freq_dec.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -1037,11 +1051,13 @@ synthesize_rtl(
     deps = [
         ":fse_proba_freq_dec_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "fse_proba_freq_dec_benchmark_synth",
     synth_target = ":fse_proba_freq_dec_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -1053,6 +1069,7 @@ place_and_route(
     stop_after_step = "detailed_routing",
     synthesized_rtl = ":fse_proba_freq_dec_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -1067,6 +1084,7 @@ xls_dslx_test(
     name = "literals_block_header_dec_dslx_test",
     dslx_test_args = {"compare": "jit"},
     library = ":literals_block_header_dec_dslx",
+    tags = ["manual"],
 )
 
 
@@ -1103,6 +1121,7 @@ xls_dslx_test(
     name = "sequence_conf_dec_dslx_test",
     dslx_test_args = {"compare": "jit"},
     library = ":sequence_conf_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1154,6 +1173,7 @@ xls_dslx_test(
     name = "refilling_shift_buffer_dslx_test",
     dslx_test_args = {"compare": "jit"},
     library = ":refilling_shift_buffer_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1338,6 +1358,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "fse_lookup_dec_dslx_test",
     library = ":fse_lookup_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -1351,6 +1372,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "fse_table_iterator_dslx_test",
     library = ":fse_table_iterator_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1365,6 +1387,7 @@ xls_dslx_verilog(
     dslx_top = "FseTableIterator",
     library = ":fse_table_iterator_dslx",
     verilog_file = "fse_table_iterator.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1374,6 +1397,7 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "delay_model": "asap7",
     },
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -1381,6 +1405,7 @@ verilog_library(
     srcs = [
         ":fse_table_iterator.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -1390,11 +1415,13 @@ synthesize_rtl(
     deps = [
         ":fse_table_iterator_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "fse_table_iterator_benchmark_synth",
     synth_target = ":fse_table_iterator_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -1406,6 +1433,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":fse_table_iterator_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -1422,6 +1450,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "fse_table_creator_dslx_test",
     library = ":fse_table_creator_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1450,11 +1479,13 @@ xls_benchmark_ir(
         "pipeline_stages": "10",
         "delay_model": "asap7",
     },
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "fse_table_creator_verilog_benchmark",
     verilog_target = "fse_table_creator_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -1462,6 +1493,7 @@ verilog_library(
     srcs = [
         ":fse_table_creator.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -1471,11 +1503,13 @@ synthesize_rtl(
     deps = [
         ":fse_table_creator_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "fse_table_creator_benchmark_synth",
     synth_target = ":fse_table_creator_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -1487,6 +1521,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":fse_table_creator_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -1501,6 +1536,7 @@ xls_dslx_test(
     name = "command_constructor_dslx_test",
     dslx_test_args = {"compare": "none"},
     library = ":command_constructor_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1515,6 +1551,7 @@ xls_dslx_verilog(
     dslx_top = "CommandConstructor",
     library = ":command_constructor_dslx",
     verilog_file = "command_constructor.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1524,11 +1561,13 @@ xls_benchmark_ir(
         "pipeline_stages": "8",
         "delay_model": "asap7",
     },
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "command_constructor_verilog_benchmark",
     verilog_target = "command_constructor_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -1536,6 +1575,7 @@ verilog_library(
     srcs = [
         ":command_constructor.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -1545,11 +1585,13 @@ synthesize_rtl(
     deps = [
         ":command_constructor_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "command_constructor_benchmark_synth",
     synth_target = ":command_constructor_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -1561,6 +1603,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":command_constructor_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -1575,6 +1618,7 @@ xls_dslx_test(
     name = "ram_demux_dslx_test",
     dslx_test_args = {"compare": "none"},
     library = ":ram_demux_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1605,6 +1649,7 @@ xls_dslx_verilog(
         "top": "__ram_demux__RamDemuxInst__RamDemux_0__5_8_0_8_5_next",
     },
     verilog_file = "ram_demux.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1616,6 +1661,7 @@ xls_benchmark_ir(
     codegen_args = {
         "pipeline_stages": "10",
     },
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -1623,6 +1669,7 @@ verilog_library(
     srcs = [
         ":ram_demux.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -1632,11 +1679,13 @@ synthesize_rtl(
     deps = [
         ":ram_demux_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "ram_demux_benchmark_synth",
     synth_target = ":ram_demux_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -1648,6 +1697,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":ram_demux_synth_asap7",
     target_die_utilization_percentage = "5",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1677,6 +1727,7 @@ xls_dslx_verilog(
         "top": "__ram_demux__RamDemuxNaiveInst__RamDemuxNaive_0__5_8_0_8_next",
     },
     verilog_file = "ram_demux_naive.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1688,6 +1739,7 @@ xls_benchmark_ir(
     codegen_args = {
         "pipeline_stages": "10",
     },
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -1695,6 +1747,7 @@ verilog_library(
     srcs = [
         ":ram_demux_naive.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -1704,11 +1757,13 @@ synthesize_rtl(
     deps = [
         ":ram_demux_naive_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "ram_demux_naive_benchmark_synth",
     synth_target = ":ram_demux_naive_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -1720,6 +1775,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":ram_demux_naive_synth_asap7",
     target_die_utilization_percentage = "5",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -1818,6 +1874,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "ram_demux3_dslx_test",
     library = ":ram_demux3_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1845,6 +1902,7 @@ xls_dslx_verilog(
     dslx_top = "RamDemux3Inst",
     library = ":ram_demux3_dslx",
     verilog_file = "ram_demux3.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1920,6 +1978,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "sequence_dec_dslx_test",
     library = ":sequence_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1939,6 +1998,7 @@ xls_dslx_verilog(
     dslx_top = "FseLookupCtrlInst",
     library = ":sequence_dec_dslx",
     verilog_file = "fse_lookup_ctrl.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -1966,6 +2026,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "rle_literals_dec_dslx_test",
     library = ":rle_literals_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -1995,6 +2056,7 @@ xls_benchmark_ir(
         "pipeline_stages": "2",
         "delay_model": "asap7",
     },
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -2002,6 +2064,7 @@ verilog_library(
     srcs = [
         ":rle_literals_dec.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -2011,11 +2074,13 @@ synthesize_rtl(
     deps = [
         ":rle_literals_dec_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "rle_literals_dec_benchmark_synth",
     synth_target = ":rle_literals_dec_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -2027,6 +2092,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":rle_literals_dec_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -2041,6 +2107,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "raw_literals_dec_dslx_test",
     library = ":raw_literals_dec_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -2083,6 +2150,7 @@ verilog_library(
     srcs = [
         ":raw_literals_dec.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -2129,6 +2197,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "literals_buffer_dslx_test",
     library = ":literals_buffer_dslx",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -2159,6 +2228,7 @@ xls_dslx_verilog(
         "top": "__literals_buffer__LiteralsBufferInst__LiteralsBuffer_0__LiteralsBufferReader_0__64_0_0_0_13_8192_65536_next"
     },
     verilog_file = "literals_buffer.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -2168,11 +2238,13 @@ xls_benchmark_ir(
         "pipeline_stages": "6",
         "delay_model": "asap7",
     },
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "literals_buffer_verilog_benchmark",
     verilog_target = "literals_buffer_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -2180,6 +2252,7 @@ verilog_library(
     srcs = [
         ":literals_buffer.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -2189,11 +2262,13 @@ synthesize_rtl(
     deps = [
         ":literals_buffer_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "literals_buffer_benchmark_synth",
     synth_target = ":literals_buffer_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -2205,6 +2280,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":literals_buffer_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -2231,6 +2307,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "literals_decoder_dslx_test",
     library = ":literals_decoder_dslx",
+    tags = ["manual"],
 )
 
 literals_decoder_ctrl_codegen_args = common_codegen_args | {
@@ -2257,6 +2334,7 @@ xls_benchmark_ir(
 		"multi_proc": "true",
 	    "inline_procs": "false",
 	},
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -2264,6 +2342,7 @@ verilog_library(
     srcs = [
         ":literals_decoder_ctrl.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -2273,11 +2352,13 @@ synthesize_rtl(
     deps = [
         ":literals_decoder_ctrl_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "literals_decoder_ctrl_benchmark_synth",
     synth_target = ":literals_decoder_ctrl_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -2289,6 +2370,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":literals_decoder_ctrl_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_verilog(
@@ -2319,6 +2401,7 @@ xls_dslx_verilog(
         "top": "__xls_modules_zstd_literals_buffer__LiteralsDecoderInst__LiteralsDecoder_0__LiteralsBuffer_0__LiteralsBufferReader_0__64_0_0_0_13_8192_65536_next",
     },
     verilog_file = "literals_decoder.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
@@ -2345,6 +2428,7 @@ verilog_library(
     srcs = [
         ":literals_decoder.v",
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -2354,11 +2438,13 @@ synthesize_rtl(
     deps = [
         ":literals_decoder_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "literals_decoder_benchmark_synth",
     synth_target = ":literals_decoder_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -2370,6 +2456,7 @@ place_and_route(
     stop_after_step = "global_routing",
     synthesized_rtl = ":literals_decoder_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -2396,6 +2483,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "huffman_prescan_dslx_test",
     library = ":huffman_prescan_dslx",
+    tags = ["manual"],
 )
 
 prescan_codegen_args = common_codegen_args | {
@@ -2418,17 +2506,20 @@ xls_dslx_verilog(
     dslx_top = "WeightPreScan",
     library = ":huffman_prescan_dslx",
     verilog_file = "huffman_prescan.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
     name = "huffman_prescan_opt_ir_benchmark",
     src = ":huffman_prescan_verilog.opt.ir",
     benchmark_ir_args = prescan_codegen_args,
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "huffman_prescan_verilog_benchmark",
     verilog_target = "huffman_prescan_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -2437,6 +2528,7 @@ verilog_library(
         ":huffman_prescan.v",
         "fifo.v"
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -2446,11 +2538,13 @@ synthesize_rtl(
     deps = [
         ":huffman_prescan_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "huffman_prescan_benchmark_synth",
     synth_target = ":huffman_prescan_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -2461,6 +2555,7 @@ place_and_route(
     placement_density = "0.30",
     synthesized_rtl = ":huffman_prescan_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
@@ -2479,6 +2574,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "huffman_code_builder_dslx_test",
     library = ":huffman_code_builder_dslx",
+    tags = ["manual"],
 )
 
 huffman_code_builder_codegen_args = common_codegen_args | {
@@ -2496,17 +2592,20 @@ xls_dslx_verilog(
     dslx_top = "WeightCodeBuilder",
     library = ":huffman_code_builder_dslx",
     verilog_file = "huffman_code_builder.v",
+    tags = ["manual"],
 )
 
 xls_benchmark_ir(
     name = "huffman_code_builder_opt_ir_benchmark",
     src = ":huffman_code_builder_verilog.opt.ir",
     benchmark_ir_args = huffman_code_builder_codegen_args,
+    tags = ["manual"],
 )
 
 xls_benchmark_verilog(
     name = "huffman_code_builder_verilog_benchmark",
     verilog_target = "huffman_code_builder_verilog",
+    tags = ["manual"],
 )
 
 verilog_library(
@@ -2515,6 +2614,7 @@ verilog_library(
         ":huffman_code_builder.v",
         "fifo.v"
     ],
+    tags = ["manual"],
 )
 
 synthesize_rtl(
@@ -2524,11 +2624,13 @@ synthesize_rtl(
     deps = [
         ":huffman_code_builder_verilog_lib",
     ],
+    tags = ["manual"],
 )
 
 benchmark_synth(
     name = "huffman_code_builder_benchmark_synth",
     synth_target = ":huffman_code_builder_synth_asap7",
+    tags = ["manual"],
 )
 
 place_and_route(
@@ -2539,6 +2641,7 @@ place_and_route(
     placement_density = "0.30",
     synthesized_rtl = ":huffman_code_builder_synth_asap7",
     target_die_utilization_percentage = "10",
+    tags = ["manual"],
 )
 
 xls_dslx_library(
