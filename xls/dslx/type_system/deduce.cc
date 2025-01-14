@@ -1314,6 +1314,14 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceIndex(const Index* node,
         ctx->file_table());
   }
 
+  std::optional<BitsLikeProperties> bits_like = GetBitsLike(*lhs_type);
+  if (bits_like.has_value()) {
+    return TypeInferenceErrorStatus(
+        node->span(), lhs_type.get(),
+        "Bits-like value cannot be indexed, value to index is not an array.",
+        ctx->file_table());
+  }
+
   auto* array_type = dynamic_cast<ArrayType*>(lhs_type.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(node->span(), lhs_type.get(),

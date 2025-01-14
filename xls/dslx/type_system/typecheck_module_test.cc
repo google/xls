@@ -1961,18 +1961,28 @@ fn f() -> u32 {
 }
 
 TEST(TypecheckTest, Index) {
+  // Indexing a 4-element bit-constructed array with a constant index.
   XLS_EXPECT_OK(Typecheck("fn f(x: uN[32][4]) -> u32 { x[u32:0] }"));
+
+  // Indexing a 5-element array with a dynamic index.
   XLS_EXPECT_OK(Typecheck("fn f(x: u32[5], i: u8) -> u32 { x[i] }"));
+
+  // Indexing a bit value is not allowed, only arrays.
   EXPECT_THAT(
       Typecheck("fn f(x: u32, i: u8) -> u32 { x[i] }"),
       StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not an array")));
 
-  // Use an array as an index.
+  // Indexing a parametric-signedness bit value is not allowed.
+  EXPECT_THAT(
+      Typecheck("fn f(x: xN[false][5], i: u8) -> u1 { x[i] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("not an array")));
+
+  // Cannot use an array as an index.
   EXPECT_THAT(Typecheck("fn f(x: u32[5], i: u8[5]) -> u32 { x[i] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Index is not bits typed")));
 
-  // Use a signed number as an index.
+  // Cannot use a signed number as an index.
   EXPECT_THAT(Typecheck("fn f(x: u32[5], i: s8) -> u32 { x[i] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Index is not unsigned-bits typed")));
