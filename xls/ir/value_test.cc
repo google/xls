@@ -702,7 +702,40 @@ void ProtoValueRoundTripWorks(const ValueProto& v) {
 FUZZ_TEST(ValueProto, ProtoValueRoundTripWorks)
     .WithDomains(fuzztest::Arbitrary<ValueProto>());
 
+bool HasBitCountLargerThan(const ValueProto& vp, int64_t bit_count) {
+  switch (vp.variant_case()) {
+    case ValueProto::VARIANT_NOT_SET:
+      return false;
+    case ValueProto::kToken:
+      return false;
+    case ValueProto::kBits:
+      return vp.bits().bit_count() > bit_count;
+    case ValueProto::kTuple: {
+      for (const auto& element : vp.tuple().elements()) {
+        if (HasBitCountLargerThan(element, bit_count)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case ValueProto::kArray: {
+      for (const auto& element : vp.array().elements()) {
+        if (HasBitCountLargerThan(element, bit_count)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    default:
+      LOG(FATAL) << "Unhandled variant case: " << vp.variant_case();
+  }
+}
+
 void RoundTripFlattenToPopulateFrom(const ValueProto& vp) {
+  // Reject over-long bit counts they take too much time in allocation.
+  if (HasBitCountLargerThan(vp, 1 << 16)) {
+    return;
+  }
   absl::StatusOr<Value> v = Value::FromProto(vp);
   if (!v.ok()) {
     // Don't bother with invalid values.
@@ -715,18 +748,35 @@ void RoundTripFlattenToPopulateFrom(const ValueProto& vp) {
     return;
   }
 
+  VLOG(1) << "Original value: " << v->ToString();
+
   BitPushBuffer push_buffer;
   v->FlattenTo(&push_buffer);
   InlineBitmap bitmap = push_buffer.ToBitmap();
 
+  VLOG(1) << "Bitmap: " << Bits::FromBitmap(bitmap).ToDebugString();
+
   Value round_trip = ZeroOfType(type);
   ASSERT_TRUE(round_trip.SameTypeAs(v.value()));
   XLS_ASSERT_OK(round_trip.PopulateFrom(BitmapView(bitmap)));
+  VLOG(1) << "Round-trip value: " << round_trip.ToString();
   EXPECT_EQ(v.value(), round_trip);
 }
 
 FUZZ_TEST(ValueProto, RoundTripFlattenToPopulateFrom)
     .WithDomains(fuzztest::Arbitrary<ValueProto>());
+
+TEST(ValueProto, RoundTripFlattenToPopulateFromRegression) {
+  ValueProto proto;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(
+      R"pb(array {
+             elements { bits { bit_count: 1 data: "\1" } }
+             elements { bits { bit_count: 1 data: "\0" } }
+           }
+      )pb",
+      &proto));
+  RoundTripFlattenToPopulateFrom(proto);
+}
 
 }  // namespace
 

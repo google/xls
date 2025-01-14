@@ -259,12 +259,22 @@ absl::Status Value::PopulateFrom(BitmapView bitmap) {
       return absl::OkStatus();
     case ValueKind::kTuple:
     case ValueKind::kArray: {
+      // Note: when we were pushing bits into the BitPushBuffer in FlattenTo()
+      // we were making the 0th element the most significant bits. That means
+      // that here we have to slice from the most significant bits for element 0
+      // and least significant bits for the last element.
+      //
+      // Here we iterate through values in reverse order so that the bit slicing
+      // can ascend from least significant bit up to most significant bit.
+      auto& values = std::get<std::vector<Value>>(payload_);
       int64_t bit_index = 0;
-      for (Value& element : std::get<std::vector<Value>>(payload_)) {
-        XLS_RETURN_IF_ERROR(element.PopulateFrom(
-            bitmap.Slice(bit_index, element.GetFlatBitCount())));
-        bit_index += element.GetFlatBitCount();
+      for (int64_t i = values.size() - 1; i >= 0; --i) {
+        int64_t element_bit_count = values[i].GetFlatBitCount();
+        XLS_RETURN_IF_ERROR(
+            values[i].PopulateFrom(bitmap.Slice(bit_index, element_bit_count)));
+        bit_index += element_bit_count;
       }
+      XLS_RET_CHECK_EQ(bit_index, bitmap.bit_count());
       return absl::OkStatus();
     }
     case ValueKind::kToken:

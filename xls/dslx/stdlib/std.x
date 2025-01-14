@@ -288,25 +288,43 @@ fn iterative_div_test() {
 pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] { if x == uN[N]:0 { x } else { x - uN[N]:1 } }
 
 // Extracts the LSb (least significant bit) from the value `x` and returns it.
-pub fn lsb<N: u32>(x: uN[N]) -> u1 { x as u1 }
+pub fn lsb<S: bool, N: u32>(x: xN[S][N]) -> u1 { x as u1 }
 
 #[test]
 fn lsb_test() {
+    // unsigned values
     assert_eq(u1:0, lsb(u2:0b00));
     assert_eq(u1:1, lsb(u2:0b01));
     assert_eq(u1:1, lsb(u2:0b11));
     assert_eq(u1:0, lsb(u2:0b10));
+    assert_eq(u1:1, lsb(u2:0b11));
+
+    // signed values
+    assert_eq(u1:0, lsb(s2:0b00));
+    assert_eq(u1:1, lsb(s2:0b01));
+    assert_eq(u1:1, lsb(s2:0b11));
+    assert_eq(u1:0, lsb(s2:0b10));
+    assert_eq(u1:1, lsb(s2:0b11));
 }
 
 // Extracts the MSb (most significant bit) from the value `x` and returns it.
-pub fn msb<N: u32>(x: uN[N]) -> u1 { x[-1:] }
+pub fn msb<S: bool, N: u32>(x: xN[S][N]) -> u1 { (x as uN[N])[-1:] }
 
 #[test]
 fn msb_test() {
+    // unsigned values
     assert_eq(u1:0, msb(u2:0b00));
     assert_eq(u1:0, msb(u2:0b01));
     assert_eq(u1:1, msb(u2:0b11));
     assert_eq(u1:1, msb(u2:0b10));
+    assert_eq(u1:1, msb(u2:0b11));
+
+    // signed values
+    assert_eq(u1:0, msb(s2:0b00));
+    assert_eq(u1:0, msb(s2:0b01));
+    assert_eq(u1:1, msb(s2:0b11));
+    assert_eq(u1:1, msb(s2:0b10));
+    assert_eq(u1:1, msb(s2:0b11));
 }
 
 // Returns the absolute value of x as a signed number.
