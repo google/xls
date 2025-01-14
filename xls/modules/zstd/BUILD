@@ -1146,23 +1146,6 @@ xls_benchmark_ir(
     tags = ["manual"],
 )
 
-#xls_dslx_library(
-#    name = "comp_block_dec_dslx",
-#    srcs = ["comp_block_dec.x"],
-#    deps = [
-#        "//xls/examples:ram_dslx",
-#        "//xls/modules/zstd/memory:mem_reader_dslx",
-#        "//xls/modules/zstd/memory:axi_ram_dslx",
-#        ":fse_proba_freq_dec_dslx",
-#        ":literals_block_header_dec_dslx",
-#    ],
-#)
-#
-#xls_dslx_test(
-#    name = "comp_block_dec_dslx_test",
-#    library = ":comp_block_dec_dslx",
-#)
-
 xls_dslx_library(
     name = "refilling_shift_buffer_dslx",
     srcs = ["refilling_shift_buffer.x"],
@@ -1236,14 +1219,30 @@ place_and_route(
     target_die_utilization_percentage = "10",
 )
 
-#xls_dslx_verilog(
-#    name = "refilling_shift_buffer_verilog",
-#    codegen_args = common_codegen_args,
-#    dslx_top = "RefillingShiftBufferInst",
-#    library = ":refilling_shift_buffer_dslx",
-#    tags = ["manual"],
-#    verilog_file = "refilling_shift_buffer.v",
-#)
+xls_dslx_library(
+    name = "comp_block_dec_dslx",
+    srcs = ["comp_block_dec.x"],
+    deps = [
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+        ":fse_proba_freq_dec_dslx",
+        ":literals_block_header_dec_dslx",
+        ":common_dslx",
+        ":huffman_literals_dec_dslx",
+        ":parallel_rams_dslx",
+        ":literals_buffer_dslx",
+        ":sequence_dec_dslx",
+        ":literals_decoder_dslx",
+        ":command_constructor_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "comp_block_dec_dslx_test",
+    library = ":comp_block_dec_dslx",
+    tags = ["manual"],
+)
 
 py_binary(
     name = "zstd_test_frames_generator",
