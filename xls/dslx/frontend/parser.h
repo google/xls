@@ -614,14 +614,14 @@ class Parser : public TokenParser {
   // Parses the test count configuration for a quickcheck directive.
   absl::StatusOr<QuickCheckTestCases> ParseQuickCheckConfig();
 
-  // Parses a module-level attribute -- cursor should be over the open bracket.
+  // Parses a module-level directive -- cursor should be over the open bracket.
   //
-  // Side-effect: module_ is tagged with the parsed attribute on success.
-  absl::Status ParseModuleAttribute();
+  // Side-effect: module_ is tagged with the parsed directive on success.
+  absl::Status ParseModuleDirective();
 
-  // Parses DSLX attributes, analogous to Rust's attributes.
+  // Parses DSLX directives, analogous to Rust's attributes.
   //
-  // This accepts the following attributes:
+  // This accepts the following:
   // #[test] Expects a 'fn', returns TestFunction*
   // #[extern_verilog(...)] Expects a fn, returns Function*
   // #[test_proc] Expects a proc, returns TestProc*
@@ -629,7 +629,7 @@ class Parser : public TokenParser {
   // #[sv_type(...)] Expects a TypeDefinition, returns TypeDefinition
   absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                               TypeDefinition, std::nullptr_t>>
-  ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
+  ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings& bindings, const Pos& hash_pos);
 
   // Parses a "spawn" statement, which creates & initializes a proc.

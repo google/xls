@@ -1064,9 +1064,9 @@ fn main(x: u3) -> u1 {
 fn test_main() { assert_eq(u1:0b1, main(u3:0b001)) }
 ```
 
-### Module attributes
+### Module directives
 
-A limited number of attributes may be applied at module scope (currently just
+A limited number of directives may be applied at module scope (currently just
 one), using the following syntax, which is conventionally placed at the top of
 the module (`.x` file):
 

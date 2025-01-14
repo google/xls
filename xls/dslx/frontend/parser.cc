@@ -237,12 +237,12 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   return f;
 }
 
-absl::Status Parser::ParseModuleAttribute() {
+absl::Status Parser::ParseModuleDirective() {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
-  Span identifier_span;
-  XLS_ASSIGN_OR_RETURN(std::string identifier,
-                       PopIdentifierOrError(&identifier_span));
-  if (identifier == "feature") {
+  Span directive_span;
+  XLS_ASSIGN_OR_RETURN(std::string directive,
+                       PopIdentifierOrError(&directive_span));
+  if (directive == "feature") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(std::string feature, PopIdentifierOrError());
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
@@ -253,15 +253,15 @@ absl::Status Parser::ParseModuleAttribute() {
       module_->AddAnnotation(ModuleAnnotation::kTypeInferenceVersion2);
     } else {
       return ParseErrorStatus(
-          identifier_span,
+          directive_span,
           absl::StrFormat("Unsupported feature: `%s`", feature));
     }
     return absl::OkStatus();
   }
-  if (identifier != "allow") {
-    return ParseErrorStatus(identifier_span,
+  if (directive != "allow") {
+    return ParseErrorStatus(directive_span,
                             "Only 'allow' and 'type_inference_version' are "
-                            "supported as module-level attributes");
+                            "supported as module-level directives");
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   XLS_ASSIGN_OR_RETURN(std::string to_allow, PopIdentifierOrError());
@@ -382,13 +382,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     if (hash.has_value()) {
       XLS_ASSIGN_OR_RETURN(bool dropped_bang, TryDropToken(TokenKind::kBang));
       if (dropped_bang) {
-        XLS_RETURN_IF_ERROR(ParseModuleAttribute());
+        XLS_RETURN_IF_ERROR(ParseModuleDirective());
         continue;
       }
 
       XLS_ASSIGN_OR_RETURN(
           auto attribute,
-          ParseAttribute(&name_to_fn, *bindings, hash->span().start()));
+          ParseDirective(&name_to_fn, *bindings, hash->span().start()));
       XLS_RETURN_IF_ERROR(absl::visit(
           Visitor{
               [&](auto* t) { return module_->AddTop(t, make_collision_error); },
@@ -529,7 +529,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
 absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                             TypeDefinition, std::nullptr_t>>
-Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
+Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings& bindings, const Pos& hash_pos) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
   // a use for inner vs. outer attributes, but that day will likely come.

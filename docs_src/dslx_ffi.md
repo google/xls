@@ -42,7 +42,7 @@ mapped to the return of the DSLX function:
 fn foo(a: u32) -> u32 { a + u32:1 }
 ```
 
-You can now add an annotation `#[extern_verilog("...")]` to the DSLX function
+You can now add a directive `#[extern_verilog("...")]` to the DSLX function
 that contains a textual template for the instantiation that should happen. There
 are placeholders in `{...}`-braces that will be replaced with the actual values
 at code-generation time:
