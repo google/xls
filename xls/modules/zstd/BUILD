@@ -2083,6 +2083,22 @@ place_and_route(
 )
 
 xls_dslx_library(
+    name = "ram_mux_dslx",
+    srcs = [
+        "ram_mux.x"
+    ],
+    deps = [
+        "//xls/examples:ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "ram_mux_dslx_test",
+    library = ":ram_mux_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
     name = "sequence_dec_dslx",
     srcs = [
         "sequence_dec.x"
