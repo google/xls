@@ -111,6 +111,11 @@ struct Condition {
     }
     return *range == *other.range;
   }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const Condition& c) {
+    return H::combine(std::move(h), c.node, c.value, c.range);
+  }
 };
 
 // A comparison functor for ordering Conditions. The functor orders conditions
@@ -160,12 +165,24 @@ class ConditionSet {
   void Intersect(const ConditionSet& other) {
     ConditionVector original = std::move(conditions_);
     conditions_.clear();
-    std::set_intersection(other.conditions_.begin(), other.conditions_.end(),
-                          original.begin(), original.end(),
-                          std::inserter(conditions_, conditions_.begin()),
-                          condition_cmp_);
+    absl::c_set_intersection(other.conditions_, original,
+                             std::inserter(conditions_, conditions_.begin()),
+                             condition_cmp_);
     // Intersection should not increase set size.
     CHECK_LE(conditions_.size(), kMaxConditions);
+  }
+
+  // Perform a set union with this set and `other` and assign the result to this
+  // set.
+  void Union(const ConditionSet& other) {
+    ConditionVector original = std::move(conditions_);
+    conditions_.clear();
+    absl::c_set_union(other.conditions_, original,
+                      std::inserter(conditions_, conditions_.begin()),
+                      condition_cmp_);
+    while (conditions_.size() > kMaxConditions) {
+      conditions_.pop_back();
+    }
   }
 
   // Adds a condition to the set.  Note: it is possible to add conflicting
@@ -191,94 +208,6 @@ class ConditionSet {
       conditions_.pop_back();
     }
     CHECK_LE(conditions_.size(), kMaxConditions);
-  }
-
-  void AddImpliedConditions(const Condition& condition,
-                            QueryEngine& query_engine) {
-    AddCondition(condition);
-
-    if (condition.node->op() == Op::kNot &&
-        !ternary_ops::AllUnknown(condition.value) &&
-        !condition.node->operand(0)->Is<Literal>()) {
-      Node* operand = condition.node->operand(0);
-
-      VLOG(4) << "Lifting a known negated value: not(" << operand->GetName()
-              << ") == " << xls::ToString(condition.value);
-
-      TernaryVector negated = condition.value;
-      for (int64_t i = 0; i < negated.size(); ++i) {
-        if (negated[i] == TernaryValue::kKnownOne) {
-          negated[i] = TernaryValue::kKnownZero;
-        } else if (negated[i] == TernaryValue::kKnownZero) {
-          negated[i] = TernaryValue::kKnownOne;
-        }
-      }
-      AddCondition(Condition{.node = operand, .value = negated});
-    }
-
-    if (condition.node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
-      TernaryVector lifted_value = condition.node->OpIn({Op::kNand, Op::kNor})
-                                       ? ternary_ops::Not(condition.value)
-                                       : condition.value;
-      TernaryValue lifted_bit = condition.node->OpIn({Op::kAnd, Op::kNand})
-                                    ? TernaryValue::kKnownOne
-                                    : TernaryValue::kKnownZero;
-      TernaryValue non_lifted_bit = ternary_ops::Not(lifted_bit);
-
-      if (absl::c_contains(lifted_value, lifted_bit)) {
-        for (int64_t i = 0; i < lifted_value.size(); ++i) {
-          if (lifted_value[i] == non_lifted_bit) {
-            lifted_value[i] = TernaryValue::kUnknown;
-          }
-        }
-        VLOG(4) << "Lifting known bits; " << OpToString(condition.node->op())
-                << "("
-                << absl::StrJoin(condition.node->operands(), ", ",
-                                 [](std::string* out, Node* node) {
-                                   absl::StrAppend(out, node->GetName());
-                                 })
-                << ") == " << xls::ToString(condition.value)
-                << ", so all operands must match: "
-                << xls::ToString(lifted_value);
-        for (Node* operand : condition.node->operands()) {
-          if (operand->Is<Literal>()) {
-            continue;
-          }
-          AddImpliedConditions(
-              Condition{.node = operand, .value = lifted_value}, query_engine);
-        }
-      }
-    }
-
-    if ((condition.node->op() == Op::kEq &&
-         ternary_ops::IsKnownOne(condition.value)) ||
-        (condition.node->op() == Op::kNe &&
-         ternary_ops::IsKnownZero(condition.value))) {
-      Node* lhs = condition.node->operand(0);
-      Node* rhs = condition.node->operand(1);
-
-      VLOG(4) << "Converting a known equality to direct conditions: "
-              << lhs->GetName() << " == " << rhs->GetName();
-
-      if (std::optional<SharedLeafTypeTree<TernaryVector>> lhs_ternary =
-              query_engine.GetTernary(lhs);
-          !rhs->Is<Literal>() && rhs->GetType()->IsBits() &&
-          lhs_ternary.has_value() &&
-          !ternary_ops::AllUnknown(lhs_ternary->Get({}))) {
-        AddImpliedConditions(
-            Condition{.node = rhs, .value = lhs_ternary->Get({})},
-            query_engine);
-      }
-      if (std::optional<SharedLeafTypeTree<TernaryVector>> rhs_ternary =
-              query_engine.GetTernary(rhs);
-          !lhs->Is<Literal>() && lhs->GetType()->IsBits() &&
-          rhs_ternary.has_value() &&
-          !ternary_ops::AllUnknown(rhs_ternary->Get({}))) {
-        AddImpliedConditions(
-            Condition{.node = lhs, .value = rhs_ternary->Get({})},
-            query_engine);
-      }
-    }
   }
 
   absl::Span<const Condition> conditions() const { return conditions_; }
@@ -476,6 +405,11 @@ class ConditionMap {
   // are the same as the node.
   absl::flat_hash_map<std::pair<Node*, int64_t>, std::unique_ptr<ConditionSet>>
       edge_conditions_;
+
+  // A cache of the set of conditions implied by a given condition. Avoids the
+  // need to recompute this each time we rederive the same condition.
+  absl::flat_hash_map<Condition, std::unique_ptr<ConditionSet>>
+      implied_conditions_;
 };
 
 // Returns the value for node logically implied by the given conditions if a
@@ -724,6 +658,120 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
   return NaryAndIfNeeded(node->function_base(), match_checks);
 }
 
+class ImpliedConditionCache {
+ public:
+  ImpliedConditionCache(FunctionBase* f, QueryEngine* query_engine)
+      : query_engine_(query_engine) {
+    std::vector<Node*> topo_sort = TopoSort(f);
+    for (int64_t i = 0; i < topo_sort.size(); ++i) {
+      topo_index_[topo_sort[i]] = i;
+    }
+  }
+
+  const ConditionSet& GetImplied(const Condition& condition) {
+    if (auto it = cache_.find(condition); it != cache_.end()) {
+      return *it->second;
+    }
+    auto [it, _] =
+        cache_.emplace(condition, std::make_unique<ConditionSet>(topo_index_));
+    ConditionSet& implied_conditions = *it->second;
+
+    implied_conditions.AddCondition(condition);
+
+    if (condition.node->op() == Op::kNot &&
+        !ternary_ops::AllUnknown(condition.value) &&
+        !condition.node->operand(0)->Is<Literal>()) {
+      Node* operand = condition.node->operand(0);
+
+      VLOG(4) << "Lifting a known negated value: not(" << operand->GetName()
+              << ") == " << xls::ToString(condition.value);
+
+      TernaryVector negated = condition.value;
+      for (int64_t i = 0; i < negated.size(); ++i) {
+        if (negated[i] == TernaryValue::kKnownOne) {
+          negated[i] = TernaryValue::kKnownZero;
+        } else if (negated[i] == TernaryValue::kKnownZero) {
+          negated[i] = TernaryValue::kKnownOne;
+        }
+      }
+      implied_conditions.Union(
+          GetImplied(Condition{.node = operand, .value = negated}));
+    }
+
+    if (condition.node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
+      TernaryVector lifted_value = condition.node->OpIn({Op::kNand, Op::kNor})
+                                       ? ternary_ops::Not(condition.value)
+                                       : condition.value;
+      TernaryValue lifted_bit = condition.node->OpIn({Op::kAnd, Op::kNand})
+                                    ? TernaryValue::kKnownOne
+                                    : TernaryValue::kKnownZero;
+      TernaryValue non_lifted_bit = ternary_ops::Not(lifted_bit);
+
+      if (absl::c_contains(lifted_value, lifted_bit)) {
+        for (int64_t i = 0; i < lifted_value.size(); ++i) {
+          if (lifted_value[i] == non_lifted_bit) {
+            lifted_value[i] = TernaryValue::kUnknown;
+          }
+        }
+        VLOG(4) << "Lifting known bits; " << OpToString(condition.node->op())
+                << "("
+                << absl::StrJoin(condition.node->operands(), ", ",
+                                 [](std::string* out, Node* node) {
+                                   absl::StrAppend(out, node->GetName());
+                                 })
+                << ") == " << xls::ToString(condition.value)
+                << ", so all operands must match: "
+                << xls::ToString(lifted_value);
+        for (Node* operand : condition.node->operands()) {
+          if (operand->Is<Literal>()) {
+            continue;
+          }
+          implied_conditions.Union(
+              GetImplied(Condition{.node = operand, .value = lifted_value}));
+        }
+      }
+    }
+
+    if ((condition.node->op() == Op::kEq &&
+         ternary_ops::IsKnownOne(condition.value)) ||
+        (condition.node->op() == Op::kNe &&
+         ternary_ops::IsKnownZero(condition.value))) {
+      Node* lhs = condition.node->operand(0);
+      Node* rhs = condition.node->operand(1);
+
+      VLOG(4) << "Converting a known equality to direct conditions: "
+              << lhs->GetName() << " == " << rhs->GetName();
+
+      if (std::optional<SharedLeafTypeTree<TernaryVector>> lhs_ternary =
+              query_engine_->GetTernary(lhs);
+          !rhs->Is<Literal>() && rhs->GetType()->IsBits() &&
+          lhs_ternary.has_value() &&
+          !ternary_ops::AllUnknown(lhs_ternary->Get({}))) {
+        implied_conditions.Union(
+            GetImplied(Condition{.node = rhs, .value = lhs_ternary->Get({})}));
+      }
+      if (std::optional<SharedLeafTypeTree<TernaryVector>> rhs_ternary =
+              query_engine_->GetTernary(rhs);
+          !lhs->Is<Literal>() && lhs->GetType()->IsBits() &&
+          rhs_ternary.has_value() &&
+          !ternary_ops::AllUnknown(rhs_ternary->Get({}))) {
+        implied_conditions.Union(
+            GetImplied(Condition{.node = lhs, .value = rhs_ternary->Get({})}));
+      }
+    }
+
+    return implied_conditions;
+  }
+
+ private:
+  QueryEngine* query_engine_;
+
+  // Index of each node in the function base in a topological sort.
+  absl::flat_hash_map<Node*, int64_t> topo_index_;
+
+  absl::flat_hash_map<Condition, std::unique_ptr<ConditionSet>> cache_;
+};
+
 }  // namespace
 
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
@@ -740,6 +788,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   ConditionMap condition_map(f);
+  ImpliedConditionCache condition_cache(f, &query_engine);
 
   std::optional<absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
       affected_by;
@@ -831,13 +880,11 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           ConditionSet edge_set = set;
           // If this case is selected, we know the selector is exactly
           // `case_no`.
-          edge_set.AddImpliedConditions(
-              Condition{
-                  .node = select->selector(),
-                  .value = ternary_ops::BitsToTernary(
-                      UBits(case_no, select->selector()->BitCountOrDie())),
-              },
-              query_engine);
+          edge_set.Union(condition_cache.GetImplied(Condition{
+              .node = select->selector(),
+              .value = ternary_ops::BitsToTernary(
+                  UBits(case_no, select->selector()->BitCountOrDie())),
+          }));
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
         }
@@ -853,12 +900,10 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           TernaryVector selector_value(select->selector()->BitCountOrDie(),
                                        TernaryValue::kUnknown);
           selector_value[case_no] = TernaryValue::kKnownOne;
-          edge_set.AddImpliedConditions(
-              Condition{
-                  .node = select->selector(),
-                  .value = selector_value,
-              },
-              query_engine);
+          edge_set.Union(condition_cache.GetImplied(Condition{
+              .node = select->selector(),
+              .value = selector_value,
+          }));
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
         }
@@ -876,26 +921,22 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           known_bits.SetRange(0, case_no + 1);
           Bits known_bits_values =
               Bits::PowerOfTwo(case_no, select->selector()->BitCountOrDie());
-          edge_set.AddImpliedConditions(
-              Condition{
-                  .node = select->selector(),
-                  .value =
-                      ternary_ops::FromKnownBits(known_bits, known_bits_values),
-              },
-              query_engine);
+          edge_set.Union(condition_cache.GetImplied(Condition{
+              .node = select->selector(),
+              .value =
+                  ternary_ops::FromKnownBits(known_bits, known_bits_values),
+          }));
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
         }
         ConditionSet edge_set = set;
         // If the default value is selected, we know all the bits of the
         // selector are zero.
-        edge_set.AddImpliedConditions(
-            Condition{
-                .node = select->selector(),
-                .value = TernaryVector(select->selector()->BitCountOrDie(),
-                                       TernaryValue::kKnownZero),
-            },
-            query_engine);
+        edge_set.Union(condition_cache.GetImplied(Condition{
+            .node = select->selector(),
+            .value = TernaryVector(select->selector()->BitCountOrDie(),
+                                   TernaryValue::kKnownZero),
+        }));
         condition_map.SetEdgeConditionSet(node, select->cases().size() + 1,
                                           std::move(edge_set));
       }
@@ -917,16 +958,14 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
         // ArrayUpdate is a no-op if any index is out of range; as such, it only
         // cares about the update value if all indices are in range.
-        edge_set.AddImpliedConditions(
-            Condition{
-                .node = index,
-                .value = TernaryVector(index->BitCountOrDie(),
-                                       TernaryValue::kUnknown),
-                .range = IntervalSet::Of({Interval::RightOpen(
-                    UBits(0, index->BitCountOrDie()),
-                    UBits(array_size, index->BitCountOrDie()))}),
-            },
-            query_engine);
+        edge_set.Union(condition_cache.GetImplied(Condition{
+            .node = index,
+            .value =
+                TernaryVector(index->BitCountOrDie(), TernaryValue::kUnknown),
+            .range = IntervalSet::Of({Interval::RightOpen(
+                UBits(0, index->BitCountOrDie()),
+                UBits(array_size, index->BitCountOrDie()))}),
+        }));
 
         array_type = array_type->AsArrayOrDie()->element_type();
       }
@@ -950,9 +989,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           node->GetName(), predicate->GetName(), send->data()->GetName());
 
       ConditionSet edge_set = set;
-      edge_set.AddImpliedConditions(
-          Condition{.node = predicate, .value = {TernaryValue::kKnownOne}},
-          query_engine);
+      edge_set.Union(condition_cache.GetImplied(
+          Condition{.node = predicate, .value = {TernaryValue::kKnownOne}}));
       condition_map.SetEdgeConditionSet(node, Send::kDataOperand,
                                         std::move(edge_set));
     }
@@ -974,9 +1012,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           node->GetName(), predicate->GetName(), next->value()->GetName());
 
       ConditionSet edge_set = set;
-      edge_set.AddImpliedConditions(
-          Condition{.node = predicate, .value = {TernaryValue::kKnownOne}},
-          query_engine);
+      edge_set.Union(condition_cache.GetImplied(
+          Condition{.node = predicate, .value = {TernaryValue::kKnownOne}}));
       condition_map.SetEdgeConditionSet(node, Next::kStateReadOperand,
                                         edge_set);
       condition_map.SetEdgeConditionSet(node, Next::kValueOperand,
