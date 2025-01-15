@@ -238,6 +238,14 @@ func.func @tensor_empty() -> tensor<4xi32> attributes {xls = true} {
   return %0 : tensor<4xi32>
 }
 
+// CHECK-LABEL: @comparison_ops
+// CHECK: xls.sge %{{.*}}, %{{.*}} : (i32, i32) -> i1
+// CHECK: xls.sge %{{.*}}, %{{.*}} : (i32, i32) -> i1
+func.func @comparison_ops(%arg1: tensor<2xi32>, %arg2: tensor<2xi32>) -> tensor<2xi1> attributes {xls = true} {
+  %0 = xls.sge %arg1, %arg2 : (tensor<2xi32>, tensor<2xi32>) -> tensor<2xi1>
+  return %0 : tensor<2xi1>
+}
+
 // CHECK-LABEL: @array_index
 // CHECK: "xls.array_index"(%arg0, %arg1) : (!xls.array<2 x !xls.array<2 x i32>>, i32) -> !xls.array<2 x i32>
 func.func @array_index(%arg: !xls.array<2 x tensor<2xi32>>, %idx: i32) -> tensor<2xi32> attributes {xls = true} {
