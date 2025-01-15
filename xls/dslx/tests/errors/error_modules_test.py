@@ -1278,6 +1278,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         "Want argument 0 to 'update' to be an array; got uN[32]", stderr
     )
 
+  def test_unsized_array_type(self):
+    stderr = self._run('xls/dslx/tests/errors/unsized_array_type.x')
+    self.assertIn('ParseError:', stderr)
+    self.assertIn(
+        'Unsized arrays are not supported, a (constant) size is required.',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
