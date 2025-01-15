@@ -73,8 +73,8 @@ func.func @umod(%arg0: i8, %arg1: i8) -> i8 {
 }
 
 
-func.func @eq(%arg0: i8, %arg1: i8) -> i1 {
-  %0 = xls.eq %arg0, %arg1 : (i8, i8) -> i1
+func.func @eq(%arg0: tuple<i8, i8>, %arg1: tuple<i8, i8>) -> i1 {
+  %0 = xls.eq %arg0, %arg1 : (tuple<i8, i8>, tuple<i8, i8>) -> i1
   return %0 : i1
 }
 
