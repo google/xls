@@ -248,9 +248,9 @@ func.func @array_slice(%arg0: !xls.array<4 x i8>, %arg1: i32) -> !xls.array<1 x 
   return %0 : !xls.array<1 x i8>
 }
 
-func.func @array_update(%arg0: !xls.array<4 x i8>, %arg1: i8, %arg2: i32) -> !xls.array<4 x i8> {
-  %0 = "xls.array_update"(%arg0, %arg1, %arg2) : (!xls.array<4 x i8>, i8, i32) -> !xls.array<4 x i8>
-  return %0 : !xls.array<4 x i8>
+func.func @array_update(%arg0: !xls.array<4 x tuple<i1, i2>>, %arg1: tuple<i1, i2>, %arg2: i32) -> !xls.array<4 x tuple<i1, i2>> {
+  %0 = "xls.array_update"(%arg0, %arg1, %arg2) : (!xls.array<4 x tuple<i1, i2>>, tuple<i1, i2>, i32) -> !xls.array<4 x tuple<i1, i2>>
+  return %0 : !xls.array<4 x tuple<i1, i2>>
 }
 
 func.func @trace(%arg0: i32, %tkn: !xls.token) -> !xls.token {
