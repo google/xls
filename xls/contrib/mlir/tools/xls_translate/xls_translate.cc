@@ -1244,13 +1244,13 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
           os << '.' << name << "({" << name << "}), ";
         }
         if (func.getResultTypes().front().isInteger()) {
-          os << ".return({return}) )";
+          os << ".out({return}) )";
         } else {
           // Float is expanded to tuple of 3 ints. We don't yet support more
           // general than that.
-          os << ".return.0({return.0}), "
-             << ".return.1({return.1}), "
-             << ".return.2({return.2}) )";
+          os << ".out$0({return.0}), "
+             << ".out$1({return.1}), "
+             << ".out$2({return.2}) )";
         }
         absl::StatusOr<::xls::ForeignFunctionData> ffd =
             ::xls::ForeignFunctionDataCreateFromTemplate(codeTemplate);
