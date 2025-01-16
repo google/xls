@@ -5,17 +5,17 @@ pub struct DataArray<BITS_PER_WORD: u32, LENGTH: u32>{
 }
 pub const FRAMES:DataArray<
   u32:64,
-  u32:5
->[1] = [DataArray<64, 5>{
-  length: u32:33,
-  array_length: u32:5,
-  data: uN[64][5]:[uN[64]:0x001a3384fd2fb528, uN[64]:0xc1d3500000850000, uN[64]:0xdcf0529b98db8a06, uN[64]:0x308fa3120a430001, uN[64]:0x50]
+  u32:7
+>[1] = [DataArray<64, 7>{
+  length: u32:51,
+  array_length: u32:7,
+  data: uN[64][7]:[uN[64]:0x00504784fd2fb528, uN[64]:0xcf95700001150000, uN[64]:0xe17d50b989ac93c4, uN[64]:0x0daf000895a6e608, uN[64]:0xb96010b86f7602a4, uN[64]:0x05b0e051238666e8, uN[64]:0x8470e3]
 }];
 pub const DECOMPRESSED_FRAMES:DataArray<
   u32:64,
-  u32:4
->[1] = [DataArray<64, 4>{
-  length: u32:26,
-  array_length: u32:4,
-  data: uN[64][4]:[uN[64]:0x529b98db8a06c1d3, uN[64]:0x529b98db8a06dcf0, uN[64]:0x529b98db8a06dcf0, uN[64]:0xdcf0]
+  u32:10
+>[1] = [DataArray<64, 10>{
+  length: u32:80,
+  array_length: u32:10,
+  data: uN[64][10]:[uN[64]:0xc4c4cf95cf95cf95, uN[64]:0x93c4c4c4c4c4c4c4, uN[64]:0xacc493c493c493c4, uN[64]:0xc493c493c493c489, uN[64]:0x93c493c489acc493, uN[64]:0x08e17d50b9c493c4, uN[64]:0xc4c4c4cf9595a6e6, uN[64]:0x93c493c4c4c4c4c4, uN[64]:0xc489acc493c493c4, uN[64]:0xc493c493c493c493]
 }];
