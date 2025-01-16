@@ -443,9 +443,20 @@ pub fn sequence_packet_to_read_reqs<
     type ReadReq = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
     type Packet = SequenceExecutorPacket<RAM_DATA_WIDTH>;
 
-    let max_len = std::umin(seq.length as u32, std::umin(RAM_NUM, hb_len as u32));
+    let max_len = std::min(seq.length as u32, std::min(RAM_NUM, std::min(hb_len as u32, seq.content as u32)));
 
     let (curr_seq, next_seq, next_seq_valid) = if seq.length > max_len as CopyOrMatchLength {
+        (
+            seq,
+            Packet {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length:  seq.length - max_len as CopyOrMatchLength,
+                content: seq.content,
+                last: false,
+            },
+            true,
+        )
+    } else if seq.length > seq.content as CopyOrMatchLength {
         (
             Packet {
                 msg_type: SequenceExecutorMessageType::SEQUENCE,
@@ -545,7 +556,7 @@ fn test_sequence_packet_to_read_reqs() {
         RamReadLen:8,
         Packet {
             msg_type: SequenceExecutorMessageType::SEQUENCE,
-            content: CopyOrMatchContent:18,
+            content: CopyOrMatchContent:10,
             length: CopyOrMatchLength:1,
             last: false
         }, true,
