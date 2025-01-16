@@ -135,50 +135,40 @@ pub fn handle_repeated_offset_for_sequences<RAM_DATA_WIDTH: u32 = {u32:8}>
     -> (SequenceExecutorPacket, Offset[3]) {
     type Packet = SequenceExecutorPacket;
     type Content = uN[RAM_DATA_WIDTH * u32:8];
-    let modified_repeat_offsets = if repeat_req {
-        Offset[3]:[repeat_offsets[1], repeat_offsets[2], repeat_offsets[0] - Offset:1]
+
+    let (offset, repeat_offsets) = if (seq.content <= Content:3) {
+        let idx = (seq.content - Content:1) as u32;
+        let idx = if (repeat_req) {
+            idx + u32:1
+        } else { idx };
+
+        if (idx == u32:0) {
+            (repeat_offsets[0], repeat_offsets)
+        } else {
+            let offset = if idx < u32:3 { repeat_offsets[idx] } else { repeat_offsets[0] - Offset:1 };
+
+            let repeat_offsets = if idx > u32:1 {
+                update(repeat_offsets, u32:2, repeat_offsets[1])
+            } else {repeat_offsets};
+            let repeat_offsets = update(repeat_offsets, u32:1, repeat_offsets[0]);
+            let repeat_offsets = update(repeat_offsets, u32:0, offset);
+
+            (offset, repeat_offsets)
+        }
     } else {
-        repeat_offsets
+        let offset = (seq.content - Content:3) as Offset;
+
+        let repeat_offsets = update(repeat_offsets, u32:2, repeat_offsets[1]);
+        let repeat_offsets = update(repeat_offsets, u32:1, repeat_offsets[0]);
+        let repeat_offsets = update(repeat_offsets, u32:0, offset);
+
+        (offset, repeat_offsets)
     };
 
-    let (seq, final_repeat_offsets) = if seq.content == Content:0 {
-        fail!(
-            "match_offset_zero_not_allowed",
-            (zero!<Packet>(), Offset[3]:[Offset:0, ...]))
-    } else if seq.content == Content:1 {
-        let offset = modified_repeat_offsets[0];
-        (
-            Packet { content: offset as Content, ..seq },
-            Offset[3]:[
-                offset, repeat_offsets[1], repeat_offsets[2],
-            ],
-        )
-    } else if seq.content == CopyOrMatchContent:2 {
-        let offset = modified_repeat_offsets[1];
-        (
-            Packet { content: offset as Content, ..seq },
-            Offset[3]:[
-                offset, repeat_offsets[0], repeat_offsets[2],
-            ],
-        )
-    } else if seq.content == CopyOrMatchContent:3 {
-        let offset = modified_repeat_offsets[2];
-        (
-            Packet { content: offset as Content, ..seq },
-            Offset[3]:[
-                offset, repeat_offsets[0], repeat_offsets[1],
-            ],
-        )
-    } else {
-        let offset = seq.content as Offset - Offset:3;
-        (
-            Packet { content: offset as Content, ..seq },
-            Offset[3]:[
-                offset, repeat_offsets[0], repeat_offsets[1],
-            ],
-        )
-    };
-    (seq, final_repeat_offsets)
+    (
+        Packet { content: offset as Content, ..seq },
+        repeat_offsets,
+    )
 }
 
 pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
@@ -318,6 +308,9 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
                             state.status != Status::SEQUENCE_WRITE;
         let (tok1_0, input_packet, input_packet_valid) =
             recv_if_non_blocking(tok0, input_r, do_recv_input, zero!<Packet>());
+        if input_packet_valid {
+            trace_fmt!("[SequenceExecutor]: received input: {:#x}", input_packet);
+        } else {};
 
         // ... or our own sequences from the looped channel
         let do_recv_ram = (
@@ -351,6 +344,9 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
         } else {
             (state.packet, state.packet_valid)
         };
+        if packet_valid {
+            trace_fmt!("Handling packet {:#x} in {}", packet, state.status);
+        } else {};
 
         // if we are in the IDLE state and have a valid packet stored in the state,
         // or we have a new packet from the input go to the corresponding
@@ -494,7 +490,9 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
 
         let do_write_output = do_write || (packet.last && packet.msg_type == SequenceExecutorMessageType::LITERAL);
         let output_mem_wr_data_in = decode_literal_packet<AXI_ADDR_W, AXI_DATA_W>(packet);
-        if do_write_output { trace_fmt!("Sending output MemWriter data: {:#x}", output_mem_wr_data_in); } else {  };
+        if do_write_output {
+            trace_fmt!("*** Sending output MemWriter data: {:#x}", output_mem_wr_data_in);
+        } else { };
         let tok2_10_1 = send_if(tok1, output_mem_wr_data_in_s, do_write_output, output_mem_wr_data_in);
 
         // Ask for response
@@ -1040,64 +1038,196 @@ proc SequenceExecutorSequenceTest {
     next(state: ()) {
         let tok = join();
 
-        // Print RAM content
-        // let tok = send(tok, print_start_s, ());
-        // let (tok, _) = recv(tok, print_finish_r);
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 0 -----------------------");
 
         let tok = send(tok, input_s, SequenceExecutorPacket {
-            msg_type: SequenceExecutorMessageType::LITERAL,
-            length: CopyOrMatchLength:1,
-            content: CopyOrMatchContent:0x31,
-            last: false
-        });
-        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
-        assert_eq(recv_data, TestMemWriterDataPacket {
-            data: uN[TEST_DATA_W]:0x31,
-            length: uN[TEST_ADDR_W]:1,
-            last: false
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x2,
+            content: CopyOrMatchContent:0xcf95,
+            last: false,
         });
 
         let tok = send(tok, print_start_s, ());
         let (tok, _) = recv(tok, print_finish_r);
 
+        trace_fmt!("----------------------- Packet 1 -----------------------");
+
         let tok = send(tok, input_s, SequenceExecutorPacket {
-            msg_type: SequenceExecutorMessageType::SEQUENCE,
-            length: CopyOrMatchLength:3,
-            content: CopyOrMatchContent:4,
-            last: false
-        });
-        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
-        assert_eq(recv_data, TestMemWriterDataPacket {
-            data: uN[TEST_DATA_W]:0x31,
-            length: uN[TEST_ADDR_W]:1,
-            last: false
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x4,
+            content: CopyOrMatchContent:0x5,
+            last: false,
         });
 
         let tok = send(tok, print_start_s, ());
         let (tok, _) = recv(tok, print_finish_r);
 
+        trace_fmt!("----------------------- Packet 2 -----------------------");
 
-        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
-        assert_eq(recv_data, TestMemWriterDataPacket {
-            data: uN[TEST_DATA_W]:0x3131,
-            length: uN[TEST_ADDR_W]:2,
-            last: false
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x1,
+            content: CopyOrMatchContent:0xc4,
+            last: false,
         });
 
         let tok = send(tok, print_start_s, ());
         let (tok, _) = recv(tok, print_finish_r);
 
+        trace_fmt!("----------------------- Packet 3 -----------------------");
+
         let tok = send(tok, input_s, SequenceExecutorPacket {
-            msg_type: SequenceExecutorMessageType::SEQUENCE,
-            length: CopyOrMatchLength:3,
-            content: CopyOrMatchContent:7,
-            last: false
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x8,
+            content: CopyOrMatchContent:0x4,
+            last: false,
         });
-        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
-        assert_eq(recv_data, TestMemWriterDataPacket {
-            data: uN[TEST_DATA_W]:0x313131,
-            length: uN[TEST_ADDR_W]:3,
-            last: false
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 4 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x1,
+            content: CopyOrMatchContent:0x93,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 5 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x7,
+            content: CopyOrMatchContent:0x2,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 6 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x2,
+            content: CopyOrMatchContent:0x89ac,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 7 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x5,
+            content: CopyOrMatchContent:0xc,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 8 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x0,
+            content: CopyOrMatchContent:0x0,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 9 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x8,
+            content: CopyOrMatchContent:0xe,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 10 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x0,
+            content: CopyOrMatchContent:0x0,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 11 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x5,
+            content: CopyOrMatchContent:0x2,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 12 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x8,
+            content: CopyOrMatchContent:0x95a6_e608_e17d_50b9,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 13 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x3,
+            content: CopyOrMatchContent:0x32,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 14 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::LITERAL,  // u1:0,
+            length: CopyOrMatchLength:0x0,
+            content: CopyOrMatchContent:0x0,
+            last: false,
+        });
+
+        let tok = send(tok, print_start_s, ());
+        let (tok, _) = recv(tok, print_finish_r);
+
+        trace_fmt!("----------------------- Packet 15 -----------------------");
+
+        let tok = send(tok, input_s, SequenceExecutorPacket {
+            msg_type: SequenceExecutorMessageType::SEQUENCE,  // u1:1,
+            length: CopyOrMatchLength:0x1a,
+            content: CopyOrMatchContent:0x3,
+            last: true
         });
 
         let tok = send(tok, print_start_s, ());
