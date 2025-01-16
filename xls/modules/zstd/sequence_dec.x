@@ -495,6 +495,13 @@ pub proc SequenceDecoderCtrl<
         let (tok_recv_scd, conf_resp) = recv(tok_send_scd, scd_resp_r);
         trace_fmt!("[SequenceDecoderCtrl]: Received decoded Sequence header: {:#x}", conf_resp);
 
+        let zero_sequences = (conf_resp.header.sequence_count == u17:0);
+        if !zero_sequences {
+           assert!(conf_resp.header.literals_mode != CompressionMode::RLE, "unsupported_fse_table_mode");
+           assert!(conf_resp.header.match_mode != CompressionMode::RLE, "unsupported_fse_table_mode");
+           assert!(conf_resp.header.offset_mode != CompressionMode::RLE, "unsupported_fse_table_mode");
+        } else {};
+
         // Request decoding lookups
         let flc_req = FseLookupCtrlReq {
             addr: req.start_addr + conf_resp.length as Addr,
@@ -503,7 +510,6 @@ pub proc SequenceDecoderCtrl<
             of: (conf_resp.header.offset_mode == CompressionMode::COMPRESSED),
         };
 
-        let zero_sequences = (conf_resp.header.sequence_count == u17:0);
         let tok_send_ctrl = send_if(tok_recv_scd, flc_req_s, !zero_sequences, flc_req);
         if !zero_sequences {
             trace_fmt!("[SequenceDecoderCtrl]: Sent FseLookupCtrl request: {:#x}", flc_req);
@@ -1155,7 +1161,13 @@ const TEST_RAM_DATA = u64[40]:[
     u64:0x0, ...
 ];
 
-const EXPECTED_OUTPUT = SequenceExecutorPacket[16]:[
+const EXPECTED_OUTPUT = SequenceExecutorPacket[20]:[
+    SequenceExecutorPacket {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: u64:0x0000,
+        content: u64:0x0,
+        last: false,
+    },
     SequenceExecutorPacket {
         msg_type: SequenceExecutorMessageType::SEQUENCE,
         length: u64:0x0003,
@@ -1175,9 +1187,21 @@ const EXPECTED_OUTPUT = SequenceExecutorPacket[16]:[
         last: false,
     },
     SequenceExecutorPacket {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: u64:0x0000,
+        content: u64:0x0,
+        last: false,
+    },
+    SequenceExecutorPacket {
         msg_type: SequenceExecutorMessageType::SEQUENCE,
         length: u64:0x0003,
         content: u64:0x013c,
+        last: false,
+    },
+    SequenceExecutorPacket {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: u64:0x0000,
+        content: u64:0x0,
         last: false,
     },
     SequenceExecutorPacket {
@@ -1244,6 +1268,12 @@ const EXPECTED_OUTPUT = SequenceExecutorPacket[16]:[
         msg_type: SequenceExecutorMessageType::SEQUENCE,
         length: u64:0x0003,
         content: u64:0x03a9,
+        last: false,
+    },
+    SequenceExecutorPacket {
+        msg_type: SequenceExecutorMessageType::LITERAL,
+        length: u64:0x0,
+        content: u64:0x0,
         last: false,
     },
     SequenceExecutorPacket {

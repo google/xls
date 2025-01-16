@@ -343,13 +343,13 @@ pub proc FseDecoder<
             }
         };
         let do_send_command = (
-            (command_data.length != CopyOrMatchLength:0) &&
             (
                 state.fsm == FseDecoderFSM::SEND_COMMAND_LITERAL ||
                 state.fsm == FseDecoderFSM::SEND_COMMAND_SEQUENCE ||
                 state.fsm == FseDecoderFSM::SEND_LEFTOVER_LITERALS_REQ
             )
         );
+
         let command = CommandConstructorData {
             sync: state.ctrl.sync,
             data: command_data,
