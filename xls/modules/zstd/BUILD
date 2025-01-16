@@ -1304,9 +1304,10 @@ xls_dslx_test(
     srcs = [
         "zstd_dec.x",
         "zstd_dec_test.x",
-        # "zstd_frame_testcases.x",
-        # "comp_frame.x",
+        "zstd_frame_testcases.x",
+        "comp_frame.x",
         "comp_frame_huffman.x",
+        "comp_frame_fse_comp.x",
     ],
     tags = ["manual"],
     deps = zstd_dec_deps,
