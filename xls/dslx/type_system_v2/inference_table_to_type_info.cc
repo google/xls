@@ -378,7 +378,7 @@ class InferenceTableConverter {
           &import_data_, ti, &warning_collector_, ParametricEnv(),
           constant_def->value(), type.get());
       if (value.ok()) {
-        VLOG(5) << "Constnat def: " << constant_def->ToString()
+        VLOG(5) << "Constant def: " << constant_def->ToString()
                 << " has value: " << value->ToString();
         ti->NoteConstExpr(constant_def, *value);
         ti->NoteConstExpr(constant_def->value(), *value);
@@ -1009,6 +1009,13 @@ class InferenceTableConverter {
       return TypeInferenceErrorStatus(
           binop->span(), type,
           "Binary operations can only be applied to bits-typed operands.",
+          file_table_);
+    }
+    if (const auto* unop = dynamic_cast<const Unop*>(node);
+        unop != nullptr && !IsBitsLike(*type)) {
+      return TypeInferenceErrorStatus(
+          unop->span(), type,
+          "Unary operations can only be applied to bits-typed operands.",
           file_table_);
     }
     return absl::OkStatus();

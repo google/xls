@@ -1572,5 +1572,78 @@ const Z = bar<X>(u3:1 + Y);
                   HasNodeWithType("const Z = bar<X>(u3:1 + Y);", "uN[3]"))));
 }
 
+TEST(TypecheckV2Test, InvertUnaryOperator) {
+  EXPECT_THAT(
+      R"(
+const X = false;
+const Y = !X;
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("const X = false;", "uN[1]"),
+                              HasNodeWithType("const Y = !X;", "uN[1]"))));
+}
+
+TEST(TypecheckV2Test, NegateUnaryOperator) {
+  EXPECT_THAT(
+      R"(
+const X = u32:5;
+const Y = -X;
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("const X = u32:5;", "uN[32]"),
+                              HasNodeWithType("const Y = -X;", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, UnaryOperatorWithExplicitType) {
+  EXPECT_THAT(
+      R"(
+const X = false;
+const Y:bool = !X;
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("const X = false;", "uN[1]"),
+                HasNodeWithType("const Y: bool = !X;", "uN[1]"))));
+}
+
+TEST(TypecheckV2Test, UnaryOperatorOnInvalidType) {
+  EXPECT_THAT(
+      R"(
+const X = (u32:1, u5:2);
+const Y = -X;
+)",
+      TypecheckFails(HasSubstr(
+          "Unary operations can only be applied to bits-typed operands.")));
+}
+
+TEST(TypecheckV2Test, UnaryOperatorWithWrongType) {
+  EXPECT_THAT(
+      R"(
+const X = false;
+const Y:u32 = !X;
+)",
+      TypecheckFails(HasSizeMismatch("bool", "u32")));
+}
+
+TEST(TypecheckV2Test, UnaryOperatorInFunction) {
+  EXPECT_THAT(
+      R"(
+fn foo(y: bool) -> bool {
+  !y
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("!y", "uN[1]")));
+}
+
+TEST(TypecheckV2Test, UnaryOperatorOnInvalidTypeInFunction) {
+  EXPECT_THAT(
+      R"(
+fn foo(y: (u32, u3)) -> (u32, u3) {
+  !y
+}
+
+const F = foo((u32:5, u3:0));
+)",
+      TypecheckFails(HasSubstr(
+          "Unary operations can only be applied to bits-typed operands.")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

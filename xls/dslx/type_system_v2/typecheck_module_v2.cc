@@ -154,6 +154,17 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleUnop(const Unop* node) override {
+    VLOG(5) << "HandleUnop: " << node->ToString();
+
+    // Any `Unop` should be a descendant of some context-setting node and
+    // should have a type that was set when its parent was visited.
+    const NameRef* type_variable = *table_.GetTypeVariable(node);
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->operand(), type_variable));
+
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleXlsTuple(const XlsTuple* node) override {
     VLOG(5) << "HandleXlsTuple: " << node->ToString();
 
