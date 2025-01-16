@@ -489,8 +489,6 @@ proc ZstdDecoderInternal<
                         block_addr + block_length
                     };
 
-                    trace_fmt!("bh_addr: {:#x}", bh_addr);
-
                     (block_addr, block_length, bh_resp.header.last, block_rle_symbol, bh_addr)
                 } else {
                     (state.block_addr, state.block_length, state.block_last, state.block_rle_symbol, state.bh_addr)
@@ -595,8 +593,8 @@ proc ZstdDecoderInternal<
                     (   _,      _,      _) => Fsm::DECODE_COMPRESSED_BLOCK,
                 };
 
-                let req_sent = if !raw_resp_valid && !error { true } else { false };
-                let block_id = if raw_resp_valid { state.block_id + u32:1} else {state.block_id };
+                let req_sent = if !cmp_resp_valid && !error { true } else { false };
+                let block_id = if cmp_resp_valid { state.block_id + u32:1} else {state.block_id };
 
                 let state = State {fsm, block_id, csr_wr_req, csr_wr_req_valid, req_sent, ..state};
                 if fsm == Fsm::DECODE_BLOCK_HEADER {
@@ -630,7 +628,7 @@ proc ZstdDecoderInternal<
             },
 
             Fsm::FINISH => {
-                // trace_fmt!("[FINISH]");
+                trace_fmt!("[FINISH]");
                 let csr_wr_req_valid = true;
                 let csr_wr_req = CsrWrReq {
                     csr: csr<LOG2_REGS_N>(Csr::STATUS),
@@ -1051,11 +1049,6 @@ pub proc ZstdDecoder<
     type LitBufRamWrReq = ram::WriteReq<LITERALS_BUFFER_RAM_ADDR_W, LITERALS_BUFFER_RAM_DATA_W, LITERALS_BUFFER_RAM_NUM_PARTITIONS>;
     type LitBufRamWrResp = ram::WriteResp;
 
-    // Complex Block Decoder
-    cmp_output_s: chan<ExtendedBlockDataPacket> out;
-    comp_block_req_s: chan<CompressBlockDecoderReq> out;
-    comp_block_resp_r: chan<CompressBlockDecoderResp> in;
-
     init {}
 
     config(
@@ -1384,12 +1377,10 @@ pub proc ZstdDecoder<
         //     fse_dec_axi_ar_s, fse_dec_axi_r_r,
         // );
 
-        (cmd_output_s, comp_block_req_s, comp_block_resp_r)
+        ()
     }
 
-    next (state: ()) {
-        send_if(join(), cmp_output_s, false, zero!<ExtendedBlockDataPacket>());
-    }
+    next (state: ()) { }
 }
 
 const INST_AXI_DATA_W = u32:64;
