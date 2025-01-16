@@ -852,10 +852,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     if (lhs->BitCountOrDie() != rhs->BitCountOrDie()) {
       return NoChange();
     }
-
-    int64_t common_leading_zeros =
-        std::min(CountLeadingKnownZeros(lhs, /*user=*/add),
-                 CountLeadingKnownZeros(rhs, /*user=*/add));
+    int64_t lhs_lead_zero = CountLeadingKnownZeros(lhs, /*user=*/add);
+    int64_t rhs_lead_zero = CountLeadingKnownZeros(rhs, /*user=*/add);
+    int64_t common_leading_zeros = std::min(lhs_lead_zero, rhs_lead_zero);
 
     auto make_narrow_add = [&](Node* lhs, Node* rhs, int64_t width,
                                Op extend) -> absl::Status {
@@ -887,6 +886,25 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       }
       int64_t narrowed_bit_count = bit_count - common_leading_zeros + 1;
       return make_narrow_add(lhs, rhs, narrowed_bit_count, Op::kZeroExt);
+    }
+
+    // Possibly this is a subtraction (addition of a signed positive and signed
+    // negative integer).
+    if (common_leading_zeros == 0) {
+      // Addition is commutative. Make sure that 'lhs' is always the one with
+      // the larger number of leading zeros.
+      Node* positive = lhs_lead_zero >= rhs_lead_zero ? lhs : rhs;
+      Node* maybe_negative = lhs_lead_zero >= rhs_lead_zero ? rhs : lhs;
+      int64_t pos_lead_zero = std::max(lhs_lead_zero, rhs_lead_zero);
+      int64_t neg_lead_ones =
+          CountLeadingKnownOnes(maybe_negative, /*user=*/add);
+      if (pos_lead_zero > 1 && neg_lead_ones > 1) {
+        // This is a subtraction. LHS - RHS. We can narrow to the common width
+        // and then sign extend.
+        int64_t common_leading = std::min(pos_lead_zero, neg_lead_ones);
+        return make_narrow_add(positive, maybe_negative,
+                               bit_count - common_leading + 1, Op::kSignExt);
+      }
     }
 
     if (analysis_ == AnalysisType::kTernary) {
