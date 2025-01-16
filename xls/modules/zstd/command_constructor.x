@@ -27,7 +27,7 @@ type CopyOrMatchContent = common::CopyOrMatchContent;
 type CopyOrMatchLength = common::CopyOrMatchLength;
 
 type SequenceExecutorPacket = common::SequenceExecutorPacket<common::SYMBOL_WIDTH>;
-type LiteralsBufferCtrl = common::LiteralsBufferCtrl; 
+type LiteralsBufferCtrl = common::LiteralsBufferCtrl;
 type CommandConstructorData = common::CommandConstructorData;
 type ExtendedBlockDataPacket = common::ExtendedBlockDataPacket;
 type BlockSyncData = common::BlockSyncData;
@@ -42,7 +42,7 @@ struct State {
     status: Status,
     received_literals: CopyOrMatchLength,
     literals_to_receive: CopyOrMatchLength,
-    sync: BlockSyncData,
+    command: CommandConstructorData,
 }
 
 pub proc CommandConstructor {
@@ -64,24 +64,29 @@ pub proc CommandConstructor {
         let tok0 = join();
 
         let recv_command = state.status == Status::RECV_COMMAND;
-        let (tok1_0, command) =
-            recv_if(tok0, sequence_decoder_r, recv_command, zero!<CommandConstructorData>());
+        let (tok1_0, command) = recv_if(tok0, sequence_decoder_r, recv_command, state.command);
+        if recv_command {
+            trace_fmt!("[CommandConstructor] Received command: {:#x}", command);
+        } else {};
 
         let recv_literals = state.status == Status::RECV_LITERALS;
-        let (tok1_1, literals) =
-            recv_if(tok0, literals_buffer_resp_r, recv_literals, zero!<SequenceExecutorPacket>());
+        let (tok1_1, literals) = recv_if(tok0, literals_buffer_resp_r, recv_literals, zero!<SequenceExecutorPacket>());
+        if recv_literals {
+            trace_fmt!("[CommandConstructor] Received literals: {:#x}", literals);
+        } else {};
 
         let tok1 = join(tok1_0, tok1_1);
 
         let (new_state, do_send_command, do_send_literals_req) = match (state.status) {
             Status::RECV_COMMAND => {
-                if command.data.msg_type == SequenceExecutorMessageType::LITERAL {
+                if (command.data.msg_type == SequenceExecutorMessageType::LITERAL) &&
+                   (command.data.length != CopyOrMatchLength:0) {
                     (
                         State {
                             status: Status::RECV_LITERALS,
                             received_literals: CopyOrMatchLength:0,
                             literals_to_receive: command.data.length,
-                            sync: command.sync,
+                            command: command,
                         }, false, true,
                     )
                 } else {
@@ -108,7 +113,7 @@ pub proc CommandConstructor {
         let resp = match(state.status) {
             // sent only if the original message was of type SEQUENCE
             Status::RECV_COMMAND => ExtendedBlockDataPacket {
-                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                msg_type: command.data.msg_type,
                 packet: BlockDataPacket {
                     last: command.data.last,
                     last_block: command.sync.last_block,
@@ -120,9 +125,9 @@ pub proc CommandConstructor {
             Status::RECV_LITERALS => ExtendedBlockDataPacket {
                 msg_type: SequenceExecutorMessageType::LITERAL,
                 packet: BlockDataPacket {
-                    last: literals.last,
-                    last_block: state.sync.last_block,
-                    id: state.sync.id,
+                    last: literals.last & command.data.last,
+                    last_block: command.sync.last_block,
+                    id: command.sync.id,
                     data: literals.content,
                     length: literals.length as u32, // FIXME: remove cast after unifying types of 'length' fields
                 }
@@ -130,6 +135,9 @@ pub proc CommandConstructor {
             _ => fail!("resp_match_unreachable", zero!<ExtendedBlockDataPacket>())
         };
         send_if(tok1, command_aggregator_s, do_send_command, resp);
+        if do_send_command {
+            trace_fmt!("[CommandConstructor] Sending command: {:#x}", resp);
+        } else {};
 
         new_state
     }
@@ -179,7 +187,7 @@ proc FakeLiteralsBuffer {
                 )
                 },
             FakeLiteralsBufferStatus::SEND => {
-                let length = std::umin(state.literals_left_to_send, CopyOrMatchLength:64);
+                let length = std::min(state.literals_left_to_send, CopyOrMatchLength:64);
                 let next_left_to_send = state.literals_left_to_send - length;
                 let last = next_left_to_send == CopyOrMatchLength:0;
                 let resp = SequenceExecutorPacket {
