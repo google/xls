@@ -41,6 +41,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "cppitertools/filter.hpp"
+#include "cppitertools/imap.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
@@ -48,6 +50,8 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/proc_id.h"
@@ -373,6 +377,32 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
   return conv.DumpIr();
 }
 
+// Perform basic checks that the proc can be the top converted proc and create
+// an appropriate error message if the proc is unacceptable.
+//
+// To be acceptable the proc must only have channels as its config arguments.
+absl::Status CheckAcceptableTopProc(Proc* proc) {
+  auto is_not_channel_param = [&](const Param* param) {
+    return dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) ==
+           nullptr;
+  };
+  auto it = absl::c_find_if(proc->config().params(), is_not_channel_param);
+  if (it != proc->config().params().end()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot convert proc '%s' due to non-channel config arguments: %s",
+        proc->identifier(),
+        absl::StrJoin(
+            iter::imap(
+                [](const Param* nd) -> std::string {
+                  return absl::StrCat("'", nd->ToInlineString(), "'");
+                },
+                iter::filter(is_not_channel_param, proc->config().params())),
+            ", ")));
+  }
+
+  return absl::OkStatus();
+}
+
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     Module* module, BlockT* block, ImportData* import_data,
@@ -412,6 +442,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
   absl::StatusOr<Proc*> proc =
       module->GetMemberOrError<Proc>(entry_function_name);
   if (proc.ok()) {
+    XLS_RETURN_IF_ERROR(CheckAcceptableTopProc(*proc));
     return ConvertOneFunctionIntoPackageInternal(module, *proc, import_data,
                                                  parametric_env, options, conv);
   }
@@ -427,6 +458,7 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
     absl::StatusOr<TestProc*> test_proc =
         module->GetTestProc(entry_function_name);
     if (test_proc.ok()) {
+      XLS_RETURN_IF_ERROR(CheckAcceptableTopProc((*test_proc)->proc()));
       return ConvertOneFunctionIntoPackageInternal(module, (*test_proc)->proc(),
                                                    import_data, parametric_env,
                                                    options, conv);

@@ -21,6 +21,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -37,6 +38,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/module.h"
@@ -577,7 +579,13 @@ absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(Module* module,
   // All non-parametric procs that are not spawned are top level.
   std::vector<Proc*> results;
   for (Proc* proc : module->GetProcs()) {
-    if (!proc->IsParametric() && !spawned.contains(proc)) {
+    if (!proc->IsParametric() && !spawned.contains(proc) &&
+        absl::c_all_of(proc->config().params(),
+                       [&](const Param* param) -> bool {
+                         // param is a channel.
+                         return dynamic_cast<ChannelTypeAnnotation*>(
+                                    param->type_annotation()) != nullptr;
+                       })) {
       // Proc is not parametric and not spawned, thus top level.
       results.push_back(proc);
     }

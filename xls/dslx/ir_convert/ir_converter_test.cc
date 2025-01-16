@@ -3167,5 +3167,62 @@ fn main() -> u8 {
   EXPECT_TRUE(printed_error);
 }
 
+TEST(IrConverterTest, ProcWithNonConstArgumentInConfigIsNotConverted) {
+  constexpr std::string_view program =
+      R"(
+proc Generator {
+  out_ch: chan<u32> out;
+  val: u32;
+
+  init {
+    ()
+  }
+
+  config(out_ch: chan<u32> out, val: u32) {
+    (out_ch, val)
+  }
+
+  next(state: ()) {
+    send(join(), out_ch, val);
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  // No actual code since no top procs have a convertible config
+  EXPECT_EQ(converted, "package test_module\n");
+}
+
+TEST(IrConverterTest, ProcWithUnconvertibleConfigGivesUsefulError) {
+  constexpr std::string_view program =
+      R"(
+proc Generator {
+  out_ch: chan<u32> out;
+  val: u32;
+
+  init {
+    ()
+  }
+
+  config(out_ch: chan<u32> out, val: u32, val2: u32) {
+    (out_ch, val + val2)
+  }
+
+  next(state: ()) {
+    send(join(), out_ch, val);
+  }
+}
+)";
+
+  EXPECT_THAT(
+      ConvertOneFunctionForTest(program, "Generator",
+                                ConvertOptions{.emit_positions = false}),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot convert proc 'Generator' due to non-channel "
+                         "config arguments: 'val: u32', 'val2: u32'")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
