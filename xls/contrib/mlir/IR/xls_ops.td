@@ -755,6 +755,7 @@ def Xls_TupleIndexOp : Xls_Op<"tuple_index", [Pure, TensorArrayTypeFungible]> {
             operand, $_builder.getI64IntegerAttr(index));
     }]>
   ];
+  let hasCanonicalizeMethod = 1;
 }
 
 //===----------------------------------------------------------------------===//
