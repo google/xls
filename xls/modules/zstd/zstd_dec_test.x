@@ -763,6 +763,7 @@ proc ZstdDecoderTest {
             assert_eq(final_transfered_bytes, DECOMPRESSED_BYTES);
             assert_eq(final_output_memory_id, decomp_frame.array_length);
             for (memory_id, _): (u32, ()) in range(u32:0, decomp_frame.array_length) {
+                trace_fmt!("Comparing {} output packet: {:#x} ?= {:#x}", memory_id,  final_output_memory[memory_id], decomp_frame.data[memory_id]);
                 assert_eq(final_output_memory[memory_id], decomp_frame.data[memory_id]);
             }(());
 
