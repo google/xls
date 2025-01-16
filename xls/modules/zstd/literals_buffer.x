@@ -709,7 +709,7 @@ proc LiteralsBufferReader<
             last: ctrl_last,
         };
 
-        let (read_reqs, read_start, read_len, packet, _) = parallel_rams::sequence_packet_to_read_reqs<
+        let (read_reqs, read_start, read_len, _, _) = parallel_rams::sequence_packet_to_read_reqs<
             HISTORY_BUFFER_SIZE_KB, RAM_ADDR_WIDTH, RAM_DATA_WIDTH
         >(
             state.hyp_ptr, packet, state.hb_len
