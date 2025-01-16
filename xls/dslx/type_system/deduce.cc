@@ -1721,6 +1721,25 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceArrayTypeAnnotation(
   return result;
 }
 
+// Helper that returns the type of `struct_def`'s `i`-th parametric binding.
+static const Type& GetTypeOfParametric(const StructDef* struct_def, int64_t i,
+                                       DeduceCtx* ctx) {
+  const ParametricBinding* parametric_binding =
+      struct_def->parametric_bindings()[i];
+  TypeInfo* type_info =
+      ctx->import_data()
+          ->GetRootTypeInfoForNode(parametric_binding->type_annotation())
+          .value();
+  std::optional<const Type*> type =
+      type_info->GetItem(parametric_binding->type_annotation());
+  CHECK(type.has_value()) << absl::StreamFormat(
+      "Expected parametric binding `%s` @ %s to have a type",
+      parametric_binding->ToString(),
+      parametric_binding->span().ToString(ctx->file_table()));
+  const MetaType& meta_type = type.value()->AsMeta();
+  return *meta_type.wrapped();
+}
+
 // Returns concretized struct type using the provided bindings.
 //
 // For example, if we have a struct defined as `struct Foo<N: u32, M: u32>`,
@@ -1760,11 +1779,16 @@ static absl::StatusOr<std::unique_ptr<Type>> ConcretizeStructAnnotation(
         struct_def->parametric_bindings()[i];
     ExprOrType eot = type_annotation->parametrics()[i];
     XLS_RET_CHECK(std::holds_alternative<Expr*>(eot));
-    Expr* annotated_parametric = std::get<Expr*>(eot);
-    VLOG(5) << "annotated_parametric: " << annotated_parametric->ToString();
 
-    XLS_ASSIGN_OR_RETURN(TypeDim ctd,
-                         DimToConcreteUsize(annotated_parametric, ctx));
+    const Type& parametric_expr_type = GetTypeOfParametric(struct_def, i, ctx);
+
+    Expr* annotated_parametric = std::get<Expr*>(eot);
+    VLOG(5) << absl::StreamFormat(
+        "ConcreteStructAnnotation; annotated_parametric expr: `%s`",
+        annotated_parametric->ToString());
+
+    XLS_ASSIGN_OR_RETURN(TypeDim ctd, DimToConcrete(annotated_parametric,
+                                                    parametric_expr_type, ctx));
     type_dim_map.Insert(defined_parametric->identifier(), std::move(ctd));
   }
 
@@ -2244,6 +2268,8 @@ absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
 
 absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
                                            DeduceCtx* ctx) {
+  VLOG(10) << "DimToConcreteUsize; dim_expr: `" << dim_expr->ToString() << "`";
+
   std::unique_ptr<BitsType> u32 = BitsType::MakeU32();
   auto validate_high_bit = [ctx, &u32](const Span& span, uint32_t value) {
     if ((value >> 31) == 0) {
@@ -2337,6 +2363,34 @@ absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
       absl::StrFormat(
           "Could not evaluate dimension expression `%s` to a constant value.",
           dim_expr->ToString()),
+      ctx->file_table());
+}
+
+absl::StatusOr<TypeDim> DimToConcrete(const Expr* dim_expr, const Type& type,
+                                      DeduceCtx* ctx) {
+  std::optional<BitsLikeProperties> bits_like_type = GetBitsLike(type);
+  if (!bits_like_type.has_value()) {
+    return TypeInferenceErrorStatus(
+        dim_expr->span(), &type,
+        absl::StrFormat("Expected dimension expression `%s` to be a bits-like "
+                        "type; got: %s",
+                        dim_expr->ToString(), type.ToString()),
+        ctx->file_table());
+  }
+
+  if (IsKnownU1(bits_like_type.value())) {
+    return DimToConcreteBool(dim_expr, ctx);
+  }
+  if (IsKnownU32(bits_like_type.value())) {
+    return DimToConcreteUsize(dim_expr, ctx);
+  }
+
+  return TypeInferenceErrorStatus(
+      dim_expr->span(), &type,
+      absl::StrFormat("Expected dimension expression `%s` to be a `bool` or "
+                      "`u32` type; got: %s i.e. %s",
+                      dim_expr->ToString(), type.ToString(),
+                      ToTypeString(bits_like_type.value())),
       ctx->file_table());
 }
 

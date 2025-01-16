@@ -47,6 +47,12 @@ absl::StatusOr<std::unique_ptr<Type>> Deduce(const AstNode* node,
 absl::StatusOr<TypeDim> DimToConcreteUsize(const Expr* dim_expr,
                                            DeduceCtx* ctx);
 
+// Evaluates a dimension expression to a `TypeDim` value of the given `type`.
+//
+// Note that right now this is limited to evaluating only `bool` and `u32` values.
+absl::StatusOr<TypeDim> DimToConcrete(const Expr* dim_expr, const Type& type,
+                                      DeduceCtx* ctx);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_H_

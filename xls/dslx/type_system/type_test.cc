@@ -482,5 +482,35 @@ TEST(TypeDimTest, TestGetAs64BitsParametricSymbol) {
                        HasSubstr("Can't evaluate a ParametricExpression")));
 }
 
+TEST(TypeTest, TestEqualityOfBitsConstructorType) {
+  BitsConstructorType bct_unsigned0(TypeDim::CreateBool(false));
+  BitsConstructorType bct_unsigned1(TypeDim::CreateBool(false));
+  BitsConstructorType bct_signed0(TypeDim::CreateBool(true));
+  BitsConstructorType bct_signed1(TypeDim::CreateBool(true));
+  EXPECT_EQ(bct_unsigned0, bct_unsigned1);
+  EXPECT_EQ(bct_signed0, bct_signed1);
+  EXPECT_NE(bct_unsigned0, bct_signed0);
+  EXPECT_NE(bct_unsigned1, bct_signed1);
+}
+
+TEST(TypeTest, TestEqualityOfBitsConstructorTypeArrays) {
+  BitsConstructorType bct_unsigned0(TypeDim::CreateBool(false));
+  BitsConstructorType bct_unsigned1(TypeDim::CreateBool(false));
+
+  BitsConstructorType bct_signed0(TypeDim::CreateBool(true));
+  BitsConstructorType bct_signed1(TypeDim::CreateBool(true));
+
+  ArrayType array_u8_0(bct_unsigned0.CloneToUnique(), TypeDim::CreateU32(8));
+  ArrayType array_s8_0(bct_signed0.CloneToUnique(), TypeDim::CreateU32(8));
+
+  ArrayType array_u8_1(bct_unsigned1.CloneToUnique(), TypeDim::CreateU32(8));
+  ArrayType array_s8_1(bct_signed1.CloneToUnique(), TypeDim::CreateU32(8));
+
+  EXPECT_EQ(array_u8_0, array_u8_1);
+  EXPECT_EQ(array_s8_0, array_s8_1);
+  EXPECT_NE(array_u8_0, array_s8_0);
+  EXPECT_NE(array_u8_1, array_s8_1);
+}
+
 }  // namespace
 }  // namespace xls::dslx
