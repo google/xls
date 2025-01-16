@@ -1446,10 +1446,10 @@ def Xls_NextValueOp : Xls_Op<"next_value", [Pure, SameVariadicOperandSize]> {
   }];
   let arguments = (ins
     Variadic<I1>:$predicates,
-    Variadic<Xls_Bits>:$values
+    Variadic<Xls_BitsOrTuple>:$values
   );
   let results = (outs
-    Xls_Bits:$result
+    Xls_BitsOrTuple:$result
   );
   // TODO(jpienaar): The verifier should be made stricter (check element type
   // matches).
