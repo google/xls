@@ -130,7 +130,7 @@ pub proc DecoderMux {
                  (((state.raw_data.packet.id == (state.prev_id + u32:1)) && state.prev_last) ||
                   ((state.raw_data.packet.id == state.prev_id) && !state.prev_last))) {
                     assert!(!state.raw_data_valid_next_frame, "raw_packet_valid_in_current_and_next_frame");
-                    (true,
+                    ((state.raw_data.packet.length as CopyOrMatchLength) != CopyOrMatchLength:0,
                      SequenceExecutorPacket {
                          msg_type: state.raw_data.msg_type,
                          length: state.raw_data.packet.length as CopyOrMatchLength,
@@ -153,7 +153,7 @@ pub proc DecoderMux {
                         (((state.rle_data.packet.id == (state.prev_id + u32:1)) && state.prev_last) ||
                          ((state.rle_data.packet.id == state.prev_id) && !state.prev_last))) {
                     assert!(!state.rle_data_valid_next_frame, "rle_packet_valid_in_current_and_next_frame");
-                    (true,
+                    ((state.rle_data.packet.length as CopyOrMatchLength) != CopyOrMatchLength:0,
                      SequenceExecutorPacket {
                          msg_type: state.rle_data.msg_type,
                          length: state.rle_data.packet.length as CopyOrMatchLength,
@@ -282,9 +282,7 @@ proc DecoderMuxEmptyRawBlocksTest {
 
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
 
     send(tok, terminator, true);
   }
@@ -320,9 +318,7 @@ proc DecoderMuxEmptyRleBlocksTest {
 
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
 
     send(tok, terminator, true);
   }
@@ -361,7 +357,6 @@ proc DecoderMuxEmptyBlockBetweenRegularBlocksOnTheSameInputChannelTest {
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:4 });
@@ -403,7 +398,6 @@ proc DecoderMuxEmptyBlockBetweenRegularBlocksOnDifferentInputChannelsTest {
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x11111111, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x22222222, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x33333333, length: CopyOrMatchLength:4 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0,        length: CopyOrMatchLength:0  });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xAAAAAAAA, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0xBBBBBBBB, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x00000000, length: CopyOrMatchLength:4 });
@@ -474,19 +468,9 @@ proc DecoderMuxMultipleFramesTest {
     // Frame #2
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x44444444, length: CopyOrMatchLength:4 });
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
+    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
     // Frame #3
     let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x55555555, length: CopyOrMatchLength:4 });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: false, msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
-    let (tok, data) = recv(tok, output_r); assert_eq(data, SequenceExecutorPacket {last: bool: true,  msg_type: SequenceExecutorMessageType::LITERAL, content: CopyOrMatchContent:0x0       , length: CopyOrMatchLength:0  });
 
     send(tok, terminator, true);
   }
