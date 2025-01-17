@@ -142,9 +142,9 @@ proc RefillingShiftBufferInternal<
         let flush_amount_bits = std::min(DATA_W as BufferSize, state.bits_to_flush);
         // send "flushing done" notification once we complete it
         send_if(tok, flushing_done_s, flushing && flushing_end, ());
-        // if (flushing && flushing_end) {
-        //     trace_fmt!("Sent done on the flushing done channel");
-        // } else {};
+        if (flushing && flushing_end) {
+            trace_fmt!("Sent done on the flushing done channel");
+        } else {};
 
         // snooping logic for the ShiftBuffer control channel
         // recv and immediately send out control packets heading for ShiftBuffer,
@@ -161,9 +161,9 @@ proc RefillingShiftBufferInternal<
         };
         let do_send_ctrl = (flushing && flush_amount_bits > BufferSize:0) || snoop_ctrl_valid;
         send_if(tok, snoop_ctrl_s, do_send_ctrl, ctrl_packet);
-        // if do_send_ctrl {
-        //     trace_fmt!("Sent snooped/injected control packet: {:#x}", ctrl_packet);
-        // } else {};
+        if do_send_ctrl {
+            trace_fmt!("Sent snooped/injected control packet: {:#x}", ctrl_packet);
+        } else {};
 
         // snoop data output packet (for keeping track how many bits in ShiftBuffer are occupied)
         let (_, snoop_data, snoop_data_valid) = recv_non_blocking(tok, snoop_data_out_r, zero!<SBOutput>());
@@ -184,14 +184,14 @@ proc RefillingShiftBufferInternal<
             length: REFILL_SIZE,
         };
         send_if(tok, reader_req_s, do_refill_cycle, mem_req);
-        // if (do_refill_cycle) {
-        //     trace_fmt!("[{:#x}] Sent request for data to memory: {:#x}", INSTANCE, mem_req);
-        // } else {};
+        if (do_refill_cycle) {
+            trace_fmt!("[{:#x}] Sent request for data to memory: {:#x}", INSTANCE, mem_req);
+        } else {};
         // receive data from memory
         let (_, reader_resp, reader_resp_valid) = recv_non_blocking(tok, reader_resp_r, zero!<MemReaderResp>());
-        // if reader_resp_valid {
-        //     trace_fmt!("[{:#x}] Received data from memory: {:#x}", INSTANCE, reader_resp);
-        // } else {};
+        if reader_resp_valid {
+            trace_fmt!("[{:#x}] Received data from memory: {:#x}", INSTANCE, reader_resp);
+        } else {};
         // always send some data regardless of the reader_resp.status to allow for all requests
         // to complete (possibly with invalid data) since the response channel queue must be empty for
         // flushing to work correctly
@@ -205,9 +205,9 @@ proc RefillingShiftBufferInternal<
         // ShiftBuffer fast enough, apart from that since part of the condition `do_buffer_refill`
         // is `buf_will_have_enough_space` it should not block
         send_if(tok, buffer_data_in_s, do_buffer_refill, data_packet);
-        // if (do_buffer_refill) {
-        //     trace_fmt!("Sent data to the ShiftBuffer: {:#x}", data_packet);
-        // } else {};
+        if (do_buffer_refill) {
+            trace_fmt!("Sent data to the ShiftBuffer: {:#x}", data_packet);
+        } else {};
 
         // length of additional data that will be inserted into the ShiftBuffer *in the future*
         // once all pending memory requests are served
@@ -272,9 +272,9 @@ proc RefillingShiftBufferInternal<
             length: snoop_data.length,
             error: axi_error && reads_error_bits,
         });
-        // if forward_snooped_data {
-        //     trace_fmt!("[{:#x}] Forwarded snooped data output packet: {:#x}", INSTANCE, snoop_data);
-        // } else {};
+        if forward_snooped_data {
+            trace_fmt!("[{:#x}] Forwarded snooped data output packet: {:#x}", INSTANCE, snoop_data);
+        } else {};
 
         // FSM
         let next_state = match (state.fsm) {
