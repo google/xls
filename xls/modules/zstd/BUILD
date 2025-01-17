@@ -3051,6 +3051,10 @@ xls_dslx_library(
     ],
     deps = [
         "//xls/modules/zstd:huffman_prescan_dslx",
+        "//xls/modules/zstd:refilling_shift_buffer_dslx",
+        "//xls/modules/zstd:fse_lookup_dec_dslx",
+        "//xls/modules/zstd:fse_table_creator_dslx",
+        "//xls/modules/zstd:math_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
         "//xls/modules/zstd/memory:axi_ram_dslx",
         "//xls/examples:ram_dslx",
