@@ -176,7 +176,7 @@ pub struct FseTableCreatorCtrl {
     negative_proba_count: FseSymbolCount
 }
 
-pub fn highest_set_bit<N: u32>(num: uN[N]) -> u16 { std::flog2<N>(num) }
+pub fn highest_set_bit<N: u32>(num: uN[N]) -> uN[N] { std::flog2<N>(num) }
 
 // SequenceDecoder
 
