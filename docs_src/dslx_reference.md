@@ -1064,9 +1064,9 @@ fn main(x: u3) -> u1 {
 fn test_main() { assert_eq(u1:0b1, main(u3:0b001)) }
 ```
 
-### Module directives
+### Module attributes
 
-A limited number of directives may be applied at module scope (currently just
+A limited number of attributes may be applied at module scope (currently just
 one), using the following syntax, which is conventionally placed at the top of
 the module (`.x` file):
 
@@ -1900,7 +1900,7 @@ unary `-` `!`               | n/a
 ## Testing and Debugging
 
 DSLX allows specifying tests right in the implementation file via the `test` and
-`quickcheck` directives.
+`quickcheck` attributes.
 
 Having test code in the implementation file serves two purposes. It helps to
 ensure the code behaves as expected. Additionally, it serves as 'executable'
@@ -1908,7 +1908,7 @@ documentation, similar in spirit to Python docstrings.
 
 ### Unit Tests
 
-As in Rust, unit tests are specified by the `test` directive, as seen below:
+As in Rust, unit tests are specified by the `test` attribute, as seen below:
 
 ```dslx
 #[test]
@@ -1920,7 +1920,7 @@ fn test_reverse() {
 ```
 
 The DSLX interpreter will execute all functions that are proceeded by a `test`
-directive. These functions should be non-parametric, take no arguments, and
+attribute. These functions should be non-parametric, take no arguments, and
 should return a unit-type.
 
 Unless otherwise specified in the implementation's build configs, functions
@@ -1959,7 +1959,7 @@ QuickCheck is a [testing framework concept][hughes-paper] founded on
 property-based testing. Instead of specifying expected and test values,
 QuickCheck asks for properties of the implementation that should hold true
 against any input of the specified type(s). In DSLX, we use the `quickcheck`
-directive to designate functions to be run via the toolchain's QuickCheck
+attribute to designate functions to be run via the toolchain's QuickCheck
 framework. Here is an example that complements the unit testing of DSLX's `rev`
 implementation from above:
 
@@ -1972,14 +1972,14 @@ fn prop_double_bitreverse(x: u32) -> bool {
 ```
 
 The DSLX interpreter will execute all functions that are preceded by a
-`quickcheck` directive. These functions should be non-parametric and return a
+`quickcheck` attribute. These functions should be non-parametric and return a
 `bool`. The framework will provide randomized input based on the types of the
 arguments to the function (e.g., above, the framework will provided randomized
 `u32`'s as `x`).
 
 By default, the framework will run the function against 1000 sets of randomized
 inputs. This default may be changed by specifying the `test_count` key in the
-`quickcheck` directive before a particular test:
+`quickcheck` attribute before a particular test:
 
 ```dslx-snippet
 #[quickcheck(test_count=50000)]
@@ -1994,7 +1994,7 @@ For determinism, the DSLX interpreter should be run with the `seed` flag:
 
 #### Exhaustive QuickCheck
 
-For small domains the quickcheck directive can also be placed in exhaustive mode via the `exhaustive` directive:
+For small domains the quickcheck attribute can also be placed in exhaustive mode via the `exhaustive` attribute:
 
 ```dslx
 // `u8` space is small enough to check exhaustively.

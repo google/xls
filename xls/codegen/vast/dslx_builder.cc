@@ -719,13 +719,13 @@ absl::StatusOr<std::string> DslxBuilder::FormatModule() {
     if (std::holds_alternative<dslx::ConstantDef*>(member)) {
       // Allow non-standard constant names, because we do not canonicalize the
       // original SV names to SCREAMING_SNAKE_CASE in the conversion process.
-      module_.AddDirective(
-          dslx::ModuleDirective::kAllowNonstandardConstantNaming);
+      module_.AddAttribute(
+          dslx::ModuleAttribute::kAllowNonstandardConstantNaming);
 
       // Similar for members, they are not in SV going to be consistency named
       // in `snake_case` convention.
-      module_.AddDirective(
-          dslx::ModuleDirective::kAllowNonstandardMemberNaming);
+      module_.AddAttribute(
+          dslx::ModuleAttribute::kAllowNonstandardMemberNaming);
       break;
     }
   }

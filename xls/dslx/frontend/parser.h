@@ -597,7 +597,7 @@ class Parser : public TokenParser {
 
   // Returns TestFunction AST node by parsing new-style unit test construct.
   absl::StatusOr<TestFunction*> ParseTestFunction(Bindings& bindings,
-                                                  const Span& directive_span);
+                                                  const Span& attribute_span);
 
   absl::StatusOr<TestProc*> ParseTestProc(Bindings& bindings);
 
@@ -611,15 +611,15 @@ class Parser : public TokenParser {
       absl::flat_hash_map<std::string, Function*>* name_to_fn,
       Bindings& bindings, const Pos& hash_pos);
 
-  // Parses the test count configuration for a quickcheck directive.
+  // Parses the test count configuration for a quickcheck attribute.
   absl::StatusOr<QuickCheckTestCases> ParseQuickCheckConfig();
 
-  // Parses a module-level directive -- cursor should be over the open bracket.
+  // Parses a module-level attribute -- cursor should be over the open bracket.
   //
-  // Side-effect: module_ is tagged with the parsed directive on success.
-  absl::Status ParseModuleDirective();
+  // Side-effect: module_ is tagged with the parsed attribute on success.
+  absl::Status ParseModuleAttribute();
 
-  // Parses DSLX directives, analogous to Rust's attributes.
+  // Parses DSLX attributes, analogous to Rust's attributes.
   //
   // This accepts the following:
   // #[test] Expects a 'fn', returns TestFunction*
@@ -629,7 +629,7 @@ class Parser : public TokenParser {
   // #[sv_type(...)] Expects a TypeDefinition, returns TypeDefinition
   absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                               TypeDefinition, std::nullptr_t>>
-  ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
+  ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings& bindings, const Pos& hash_pos);
 
   // Parses a "spawn" statement, which creates & initializes a proc.

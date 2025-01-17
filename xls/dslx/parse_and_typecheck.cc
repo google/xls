@@ -97,7 +97,7 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
   WarningCollector warnings(import_data->enabled_warnings());
   XLS_ASSIGN_OR_RETURN(
       TypeInfo * type_info,
-      module->directives().contains(ModuleDirective::kTypeInferenceVersion2)
+      module->attributes().contains(ModuleAttribute::kTypeInferenceVersion2)
           ? TypecheckModuleV2(module.get(), import_data, &warnings)
           : TypecheckModule(module.get(), import_data, &warnings));
   TypecheckedModule result{module.get(), type_info, std::move(warnings)};

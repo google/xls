@@ -210,7 +210,7 @@ of designs simply by adjusting a few parametric values.
 The DSLX interpreter supports testing procs via the *test_proc* construct. A
 test proc is very similar to a normal proc with the following changes:
 
-*   A test proc is preceded by the `#[test_proc]` directive. This directive, as
+*   A test proc is preceded by the `#[test_proc]` attribute. This attribute, as
     one might expect, notifies the interpreter that the following proc is a test
     proc.
 *   A test proc's `config` function must accept a single argument: a boolean

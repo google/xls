@@ -34,8 +34,6 @@ namespace xls::dslx {
 
 // Implements formatter disabling via "dsl-fmt::off" and "dsl-fmt::on" comments.
 //
-// Used by the auto-formatter to implement the directives.
-//
 // NOTE: this class is stateful and should only be used once per module.
 class FormatDisabler {
  public:

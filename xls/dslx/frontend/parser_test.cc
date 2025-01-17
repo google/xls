@@ -2406,14 +2406,14 @@ TEST_F(ParserTest, EllipsisNotInTrailingLeading) {
                            "Ellipsis may only be in trailing position.")));
 }
 
-TEST_F(ParserTest, QuickCheckDirective) {
+TEST_F(ParserTest, QuickCheckAttribute) {
   RoundTrip(R"(#[quickcheck]
 fn foo(x: u5) -> bool {
     true
 })");
 }
 
-TEST_F(ParserTest, QuickCheckDirectiveWithTestCount) {
+TEST_F(ParserTest, QuickCheckAttributeWithTestCount) {
   RoundTrip(R"(#[quickcheck(test_count=1024)]
 fn foo(x: u5) -> bool {
     true
@@ -2971,23 +2971,23 @@ TEST_F(ParserTest, ParseAllowNonstandardConstantNamingAnnotation) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
                            parser.ParseModule());
   EXPECT_THAT(
-      module->directives(),
-      testing::ElementsAre(ModuleDirective::kAllowNonstandardConstantNaming));
+      module->attributes(),
+      testing::ElementsAre(ModuleAttribute::kAllowNonstandardConstantNaming));
 }
 
 TEST_F(ParserTest, NoAttributeForTypeInferenceVersion) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
 fn f() { () }
 )"));
-  EXPECT_THAT(module->directives(), testing::IsEmpty());
+  EXPECT_THAT(module->attributes(), testing::IsEmpty());
 }
 
 TEST_F(ParserTest, ParseTypeInferenceVersionAttributeWithValue2) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module, Parse(R"(
 #![feature(type_inference_v2)]
 )"));
-  EXPECT_THAT(module->directives(),
-              testing::ElementsAre(ModuleDirective::kTypeInferenceVersion2));
+  EXPECT_THAT(module->attributes(),
+              testing::ElementsAre(ModuleAttribute::kTypeInferenceVersion2));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the
@@ -3255,7 +3255,7 @@ TEST(ParserErrorTest, BadTestTarget) {
               IsPosError("ParseError", HasSubstr("Invalid test type: let")));
 }
 
-TEST(ParserErrorTest, BadDirectiveTokenType) {
+TEST(ParserErrorTest, BadAttributeTokenType) {
   constexpr std::string_view kProgram = R"(#[3])";
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
@@ -3266,14 +3266,14 @@ TEST(ParserErrorTest, BadDirectiveTokenType) {
       IsPosError("ParseError", HasSubstr("Expected attribute identifier")));
 }
 
-TEST(ParserErrorTest, BadDirective) {
+TEST(ParserErrorTest, BadAttribute) {
   constexpr std::string_view kProgram = R"(#[foo])";
   FileTable file_table;
   Scanner s{file_table, Fileno(0), std::string(kProgram)};
   Parser parser{"test", &s};
   absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
   EXPECT_THAT(module.status(),
-              IsPosError("ParseError", HasSubstr("Unknown directive: 'foo'")));
+              IsPosError("ParseError", HasSubstr("Unknown attribute: 'foo'")));
 }
 
 TEST(ParserErrorTest, FailLabelVerilogIdentifierConstraintReported) {

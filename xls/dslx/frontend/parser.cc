@@ -237,39 +237,39 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   return f;
 }
 
-absl::Status Parser::ParseModuleDirective() {
+absl::Status Parser::ParseModuleAttribute() {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
-  Span directive_span;
-  XLS_ASSIGN_OR_RETURN(std::string directive,
-                       PopIdentifierOrError(&directive_span));
-  if (directive == "feature") {
+  Span attribute_span;
+  XLS_ASSIGN_OR_RETURN(std::string attribute,
+                       PopIdentifierOrError(&attribute_span));
+  if (attribute == "feature") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(std::string feature, PopIdentifierOrError());
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     if (feature == "use_syntax") {
-      module_->AddDirective(ModuleDirective::kAllowUseSyntax);
+      module_->AddAttribute(ModuleAttribute::kAllowUseSyntax);
     } else if (feature == "type_inference_v2") {
-      module_->AddDirective(ModuleDirective::kTypeInferenceVersion2);
+      module_->AddAttribute(ModuleAttribute::kTypeInferenceVersion2);
     } else {
       return ParseErrorStatus(
-          directive_span,
+          attribute_span,
           absl::StrFormat("Unsupported feature: `%s`", feature));
     }
     return absl::OkStatus();
   }
-  if (directive != "allow") {
-    return ParseErrorStatus(directive_span,
+  if (attribute != "allow") {
+    return ParseErrorStatus(attribute_span,
                             "Only 'allow' and 'type_inference_version' are "
-                            "supported as module-level directives");
+                            "supported as module-level attributes");
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
   XLS_ASSIGN_OR_RETURN(std::string to_allow, PopIdentifierOrError());
   if (to_allow == "nonstandard_constant_naming") {
-    module_->AddDirective(ModuleDirective::kAllowNonstandardConstantNaming);
+    module_->AddAttribute(ModuleAttribute::kAllowNonstandardConstantNaming);
   }
   if (to_allow == "nonstandard_member_naming") {
-    module_->AddDirective(ModuleDirective::kAllowNonstandardMemberNaming);
+    module_->AddAttribute(ModuleAttribute::kAllowNonstandardMemberNaming);
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
@@ -382,13 +382,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     if (hash.has_value()) {
       XLS_ASSIGN_OR_RETURN(bool dropped_bang, TryDropToken(TokenKind::kBang));
       if (dropped_bang) {
-        XLS_RETURN_IF_ERROR(ParseModuleDirective());
+        XLS_RETURN_IF_ERROR(ParseModuleAttribute());
         continue;
       }
 
       XLS_ASSIGN_OR_RETURN(
           auto attribute,
-          ParseDirective(&name_to_fn, *bindings, hash->span().start()));
+          ParseAttribute(&name_to_fn, *bindings, hash->span().start()));
       XLS_RETURN_IF_ERROR(absl::visit(
           Visitor{
               [&](auto* t) { return module_->AddTop(t, make_collision_error); },
@@ -449,7 +449,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kImport: {
-        if (module_->directives().contains(ModuleDirective::kAllowUseSyntax)) {
+        if (module_->attributes().contains(ModuleAttribute::kAllowUseSyntax)) {
           return ParseErrorStatus(
               peek->span(),
               "`import` syntax is disabled for this module via "
@@ -460,7 +460,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kUse: {
-        if (!module_->directives().contains(ModuleDirective::kAllowUseSyntax)) {
+        if (!module_->attributes().contains(ModuleAttribute::kAllowUseSyntax)) {
           return ParseErrorStatus(
               peek->span(),
               "`use` syntax is not enabled for this module; enable with "
@@ -527,18 +527,18 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
 absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
                             TypeDefinition, std::nullptr_t>>
-Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
+Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings& bindings, const Pos& hash_pos) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
   // a use for inner vs. outer attributes, but that day will likely come.
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
   XLS_ASSIGN_OR_RETURN(
-      Token directive_tok,
+      Token attribute_tok,
       PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
                       "Expected attribute identifier"));
-  const std::string& directive_name = directive_tok.GetStringValue();
+  const std::string& attribute_name = attribute_tok.GetStringValue();
 
-  if (directive_name == "test") {
+  if (attribute_name == "test") {
     XLS_ASSIGN_OR_RETURN(Token cbrack, PopTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(Keyword::kFn)) {
@@ -548,7 +548,7 @@ Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     return ParseErrorStatus(
         peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
   }
-  if (directive_name == "extern_verilog") {
+  if (attribute_name == "extern_verilog") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     Pos template_start = GetPos();
     Pos template_limit;
@@ -577,19 +577,19 @@ Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     f->set_extern_verilog_module(*parsed_ffi_annotation);
     return f;
   }
-  if (directive_name == "test_proc") {
+  if (attribute_name == "test_proc") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     return ParseTestProc(bindings);
   }
-  if (directive_name == "quickcheck") {
+  if (attribute_name == "quickcheck") {
     return ParseQuickCheck(name_to_fn, bindings, hash_pos);
   }
-  if (directive_name == "sv_type") {
+  if (attribute_name == "sv_type") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     Pos ident_limit;
     XLS_ASSIGN_OR_RETURN(
         Token sv_type_id,
-        PopTokenOrError(TokenKind::kString, /*start=*/&directive_tok,
+        PopTokenOrError(TokenKind::kString, /*start=*/&attribute_tok,
                         "sv_type identifier", &ident_limit));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
@@ -619,13 +619,13 @@ Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
       enum_def->set_extern_type_name(sv_type_id.GetStringValue());
       return enum_def;
     }
-    return ParseErrorStatus(directive_tok.span(),
+    return ParseErrorStatus(attribute_tok.span(),
                             "#[sv_type(\"name\")] is only valid on type-alias, "
                             "struct or enum definitions");
   }
   return ParseErrorStatus(
-      directive_tok.span(),
-      absl::StrFormat("Unknown directive: '%s'", directive_name));
+      attribute_tok.span(),
+      absl::StrFormat("Unknown attribute: '%s'", attribute_name));
 }
 
 absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
@@ -1715,7 +1715,7 @@ absl::StatusOr<QuickCheckTestCases> Parser::ParseQuickCheckConfig() {
   }
   return ParseErrorStatus(tok.span(),
                           "Expected 'exhaustive' or 'test_count' in "
-                          "quickcheck directive");
+                          "quickcheck attribute");
 }
 
 absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
@@ -3618,7 +3618,7 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
 }
 
 absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
-    Bindings& bindings, const Span& directive_span) {
+    Bindings& bindings, const Span& attribute_span) {
   XLS_ASSIGN_OR_RETURN(
       Function * f,
       ParseFunctionInternal(GetPos(), /*is_public=*/false, bindings));
@@ -3632,7 +3632,7 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
             f->identifier(),
             ToAstNode(**member)->GetSpan()->ToString(file_table())));
   }
-  Span tf_span(directive_span.start(), f->span().limit());
+  Span tf_span(attribute_span.start(), f->span().limit());
   TestFunction* tf = module_->Make<TestFunction>(tf_span, *f);
   tf->SetParentage();  // Ensure the function has its parent marked.
   return tf;

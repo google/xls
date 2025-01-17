@@ -190,7 +190,7 @@ Some names can be set at codegen via the following flags:
     `--streaming_channel_valid_suffix=_vld` for a channel named `ABC` would
     result in a valid port called `ABC_vld`.
 -   `--[no]emit_sv_types` sets whether the sv type names set for DSLX structures
-    by the `#[sv_type(NAME)]` directive are honored or not.
+    by the `#[sv_type(NAME)]` attribute are honored or not.
 
 # Reset Signal Configuration
 

@@ -234,8 +234,8 @@ static void WarnOnInappropriateConstantName(std::string_view identifier,
                                             const Module& module,
                                             DeduceCtx* ctx) {
   if (!IsScreamingSnakeCase(identifier) &&
-      !module.directives().contains(
-          ModuleDirective::kAllowNonstandardConstantNaming)) {
+      !module.attributes().contains(
+          ModuleAttribute::kAllowNonstandardConstantNaming)) {
     ctx->warnings()->Add(
         span, WarningKind::kConstantNaming,
         absl::StrFormat("Standard style is SCREAMING_SNAKE_CASE for constant "

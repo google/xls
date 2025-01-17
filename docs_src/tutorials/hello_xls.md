@@ -57,7 +57,7 @@ Let's go over this, line-by-line:
     list's closing parenthesis and before the function-opening curly brace, if
     the function returned a value).
 2.  A comment line.
-3.  This second line invokes the built-in `trace!` directive, passing it the
+3.  This second line invokes the built-in `trace!` attribute, passing it the
     function's input string, and throws away the result.
 
 ## 3. Say hello, XLS!
@@ -96,7 +96,7 @@ fn hello_test() {
 
 Again, going line-by-line:
 
-1.  This directive tells the interpreter that the next function is a test
+1.  This attribute tells the interpreter that the next function is a test
     function, meaning that it shouldn't be passed down the synthesis chain and
     that it should be executed by the interpreter.
 2.  This line declares the [test] function `hello_test`, which takes no args and
