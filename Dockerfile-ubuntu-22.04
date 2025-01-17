@@ -23,7 +23,7 @@ RUN chmod +x bazelisk-linux-amd64 && mv bazelisk-linux-amd64 /usr/bin/bazel
 
 
 # Install dependencies
-RUN apt-get -y install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential libxml2-dev liblapack-dev libblas-dev gfortran
+RUN apt-get -y install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential libxml2-dev liblapack-dev libblas-dev gfortran zip
 
 # Install development tools
 RUN apt-get install -y git vim
@@ -36,6 +36,6 @@ ADD --chown=xls-developer . /home/xls-developer/xls/
 WORKDIR /home/xls-developer/xls/
 
 
-# Test everything (opt), exclude xlscc for now due to increased build time when
-# we add Clang.
-RUN bazel test -c opt -- //xls/... -//xls/contrib/xlscc/...
+# Test everything (opt), exclude contrib (including xlscc) for now due to
+# increased build time when we add Clang.
+RUN bazel test -c opt --test_summary=terse --test_verbose_timeout_warnings -- //xls/... -//xls/contrib/... -//xls/dev_tools/...
