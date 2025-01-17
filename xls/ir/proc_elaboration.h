@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -253,6 +254,10 @@ class ProcElaboration {
   absl::Span<ChannelInstance* const> GetInstancesOfChannelReference(
       ChannelReference* channel_reference) const;
 
+  // Returns whether the given channel reference binds to a channel on the top
+  // interface.
+  bool IsTopInterfaceChannel(ChannelInstance* channel) const;
+
   // Return the unique instance of the given proc/channel. Returns an error if
   // there is not exactly one instance associated with the IR object.
   absl::StatusOr<ProcInstance*> GetUniqueInstance(Proc* proc) const;
@@ -304,6 +309,7 @@ class ProcElaboration {
 
   // Channel instances for the interface channels.
   std::vector<std::unique_ptr<ChannelInstance>> interface_channel_instances_;
+  absl::flat_hash_set<ChannelInstance*> interface_channel_instance_set_;
 
   // All proc instances in the elaboration indexed by instantiation path.
   absl::flat_hash_map<ProcInstantiationPath, ProcInstance*>

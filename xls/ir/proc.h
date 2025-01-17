@@ -334,6 +334,10 @@ class Proc : public FunctionBase {
   // than `channel_ref` in the interface are shifted down.
   absl::Status RemoveInterfaceChannel(ChannelReference* channel_ref);
 
+  // Returns true if the given ChannelReference refers to an element of the
+  // interface of the proc.
+  bool IsInterfaceChannel(ChannelReference* channel_ref);
+
   // Add an input/output channel to the interface of the proc. Only can be
   // called for new style procs.
   absl::StatusOr<ReceiveChannelReference*> AddInputChannelReference(

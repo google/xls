@@ -15,6 +15,7 @@
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -23,6 +24,8 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
+#include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -51,6 +54,16 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
 
   XLS_ASSIGN_OR_RETURN(std::vector<FunctionBase*> schedulable_functions,
                        unit->GetSchedulableFunctions());
+
+  // Scheduling of procs with proc-scoped channels requires an elaboration.
+  std::optional<ProcElaboration> elab;
+  if (unit->GetPackage()->ChannelsAreProcScoped() &&
+      !schedulable_functions.empty() &&
+      schedulable_functions.front()->IsProc()) {
+    XLS_ASSIGN_OR_RETURN(Proc * top, unit->GetPackage()->GetTopAsProc());
+    XLS_ASSIGN_OR_RETURN(elab, ProcElaboration::Elaborate(top));
+  }
+
   for (FunctionBase* f : schedulable_functions) {
     if (f->ForeignFunctionData().has_value()) {
       continue;
@@ -68,8 +81,12 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
 
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        RunPipelineSchedule(f, *options.delay_estimator, scheduling_options,
-                            options.synthesizer));
+        options.synthesizer == nullptr
+            ? RunPipelineSchedule(f, *options.delay_estimator,
+                                  scheduling_options, elab)
+            : RunPipelineScheduleWithFdo(f, *options.delay_estimator,
+                                         scheduling_options,
+                                         *options.synthesizer, elab));
 
     // Compute `changed` before moving schedule into unit->schedules.
     changed = changed || (schedule_cycle_map_before != schedule.GetCycleMap());

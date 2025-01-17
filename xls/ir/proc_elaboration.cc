@@ -280,9 +280,11 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
         std::make_unique<ChannelInstance>(ChannelInstance{
             .channel = elaboration.interface_channels_.back().get(),
             .path = std::nullopt}));
+    ChannelInstance* channel_instance =
+        elaboration.interface_channel_instances_.back().get();
+    elaboration.interface_channel_instance_set_.insert(channel_instance);
     interface_bindings.push_back(ChannelBinding{
-        .instance = elaboration.interface_channel_instances_.back().get(),
-        .parent_reference = std::nullopt});
+        .instance = channel_instance, .parent_reference = std::nullopt});
   }
   XLS_ASSIGN_OR_RETURN(
       elaboration.top_,
@@ -435,6 +437,10 @@ ProcElaboration::GetInstancesOfChannelReference(
     return {};
   }
   return instances_of_channel_reference_.at(channel_reference);
+}
+
+bool ProcElaboration::IsTopInterfaceChannel(ChannelInstance* channel) const {
+  return interface_channel_instance_set_.contains(channel);
 }
 
 absl::StatusOr<ProcInstance*> ProcElaboration::GetUniqueInstance(

@@ -179,6 +179,11 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
   EXPECT_THAT(elab.GetChannelInstance("the_ch", "top_proc"),
               IsOkAndHolds(elab.top()->channels().front().get()));
 
+  EXPECT_TRUE(elab.IsTopInterfaceChannel(
+      elab.GetChannelInstance("in_ch", "top_proc").value()));
+  EXPECT_FALSE(elab.IsTopInterfaceChannel(
+      elab.GetChannelInstance("the_ch", "top_proc").value()));
+
   ProcInstance* leaf_instance = elab.top()->instantiated_procs().front().get();
   EXPECT_THAT(elab.GetProcInstance("top_proc::leaf_inst->leaf"),
               IsOkAndHolds(leaf_instance));
@@ -186,9 +191,12 @@ TEST_F(ElaborationTest, ProcInstantiatingProc) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * leaf_ch0_instance,
                            leaf_instance->GetChannelInstance("leaf_ch0"));
   EXPECT_EQ(leaf_ch0_instance->channel->name(), "the_ch");
+  EXPECT_FALSE(elab.IsTopInterfaceChannel(leaf_ch0_instance));
+
   XLS_ASSERT_OK_AND_ASSIGN(ChannelInstance * leaf_ch1_instance,
                            leaf_instance->GetChannelInstance("leaf_ch1"));
   EXPECT_EQ(leaf_ch1_instance->channel->name(), "in_ch");
+  EXPECT_TRUE(elab.IsTopInterfaceChannel(leaf_ch1_instance));
 
   EXPECT_THAT(
       elab.GetChannelInstance("leaf_ch0", leaf_instance->path().value()),

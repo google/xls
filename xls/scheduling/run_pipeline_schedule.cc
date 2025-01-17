@@ -54,6 +54,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/proc_elaboration.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -331,11 +332,41 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
   return min_worst_case_throughput;
 }
 
-}  // namespace
+// Returns true if the given node communicates via a channel which is on the
+// interface of the top-level proc.
+// TODO(meheff): Revisit whether this is the right thing to do.  This will
+// return true if any instance of the proc has the channel as an I/O. With
+// multiple instantiations, this could lead to unexpected behavior.
+bool IsExternalIoNode(ChannelNode* node,
+                      const std::optional<ProcElaboration>& elab) {
+  Proc* proc = node->function_base()->AsProcOrDie();
+  if (proc->is_new_style_proc()) {
+    // Channels are proc-scoped.
+    absl::StatusOr<ChannelReference*> channel_reference =
+        proc->GetChannelReference(
+            node->As<ChannelNode>()->channel_name(),
+            node->Is<Send>() ? Direction::kSend : Direction::kReceive);
+    CHECK_OK(channel_reference.status());
+    CHECK(elab.has_value());
+    for (ChannelInstance* channel_instance :
+         elab->GetInstancesOfChannelReference(channel_reference.value())) {
+      if (elab->IsTopInterfaceChannel(channel_instance)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
+  // Channels are globally scoped.
+  absl::StatusOr<Channel*> chan = GetChannelUsedByNode(node);
+  CHECK_OK(chan.status());
+  return (*chan)->supported_ops() != ChannelOps::kSendReceive;
+}
+
+absl::StatusOr<PipelineSchedule> RunPipelineScheduleInternal(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options,
+    const std::optional<ProcElaboration>& elab,
     const synthesis::Synthesizer* synthesizer) {
   if (!options.pipeline_stages().has_value() &&
       !options.clock_period_ps().has_value()) {
@@ -344,6 +375,13 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
         "--clock_period_ps to be specified; see "
         "https://google.github.io/xls/codegen_options/"
         "#pipelining-and-scheduling-options for details.");
+  }
+
+  if (f->IsProc() && f->AsProcOrDie()->is_new_style_proc() &&
+      !elab.has_value()) {
+    return absl::InvalidArgumentError(
+        "Pipeline scheduling of a proc with proc-scoped channels requires an "
+        "elaboration.");
   }
 
   int64_t input_delay = options.additional_input_delay_ps().value_or(0);
@@ -356,19 +394,10 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
   DecoratingDelayEstimator io_delay_added(
       "io_delay_added", delay_estimator, [&](Node* node, int64_t base_delay) {
         if (node->Is<ChannelNode>()) {
-          if (options.schedule_all_procs()) {
-            // If we are scheduling all procs, don't add any delay to internal
-            // send/receive operations.
-            // TODO: google/xls#1804 - ideally, we'd constrain (send,recv) pairs
-            // on internal channels such that the scheduler can trade off delay
-            // across procs.
-            absl::StatusOr<Channel*> chan = GetChannelUsedByNode(node);
-            CHECK_OK(chan.status());
-            if ((*chan)->supported_ops() == ChannelOps::kSendReceive) {
-              return base_delay;
-            }
+          if (IsExternalIoNode(node->As<ChannelNode>(), elab)) {
+            return base_delay + max_io_delay;
           }
-          return base_delay + max_io_delay;
+          return base_delay;
         }
         if (node->function_base()->IsFunction()) {
           if (node->Is<Param>()) {
@@ -684,6 +713,24 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
   XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
   return schedule;
+}
+
+}  // namespace
+
+absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
+    FunctionBase* f, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options,
+    const std::optional<ProcElaboration>& elab) {
+  return RunPipelineScheduleInternal(f, delay_estimator, options, elab,
+                                     /*synthesizer=*/nullptr);
+}
+
+absl::StatusOr<PipelineSchedule> RunPipelineScheduleWithFdo(
+    FunctionBase* f, const DelayEstimator& delay_estimator,
+    const SchedulingOptions& options, const synthesis::Synthesizer& synthesizer,
+    const std::optional<ProcElaboration>& elab) {
+  return RunPipelineScheduleInternal(f, delay_estimator, options, elab,
+                                     &synthesizer);
 }
 
 }  // namespace xls

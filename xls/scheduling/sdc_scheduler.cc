@@ -38,11 +38,9 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
-#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
@@ -371,8 +369,7 @@ absl::Status SDCSchedulingModel::AddIOConstraint(
   absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
   for (Node* node : topo_sort_) {
     if (node->Is<Receive>() || node->Is<Send>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      channel_to_nodes[channel->name()].push_back(node);
+      channel_to_nodes[node->As<ChannelNode>()->channel_name()].push_back(node);
     }
   }
 

@@ -370,8 +370,7 @@ absl::Status PipelineSchedule::VerifyConstraints(
   int64_t last_cycle = 0;
   for (Node* node : TopoSort(function_base_)) {
     if (node->Is<Receive>() || node->Is<Send>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      channel_to_nodes[channel->name()].push_back(node);
+      channel_to_nodes[node->As<ChannelNode>()->channel_name()].push_back(node);
     }
     last_cycle = std::max(last_cycle, cycle_map_.at(node));
 

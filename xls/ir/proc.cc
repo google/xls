@@ -849,6 +849,11 @@ absl::Status Proc::RemoveInterfaceChannel(ChannelReference* channel_ref) {
   return absl::OkStatus();
 }
 
+bool Proc::IsInterfaceChannel(ChannelReference* channel_ref) {
+  return std::find(interface_.begin(), interface_.end(), channel_ref) !=
+         interface_.end();
+}
+
 absl::StatusOr<ProcInstantiation*> Proc::AddProcInstantiation(
     std::string_view name, absl::Span<ChannelReference* const> channel_args,
     Proc* proc) {
