@@ -1501,17 +1501,17 @@ benchmark_synth(
     tags = ["manual"],
 )
 
-place_and_route(
-    name = "zstd_dec_place_and_route",
-    clock_period = CLOCK_PERIOD_PS,
-    core_padding_microns = 2,
-    min_pin_distance = "0.4",
-    placement_density = "0.1",
-    stop_after_step = "global_routing",
-    synthesized_rtl = ":zstd_dec_synth_asap7",
-    tags = ["manual"],
-    target_die_utilization_percentage = "1",
-)
+#place_and_route(
+#    name = "zstd_dec_place_and_route",
+#    clock_period = CLOCK_PERIOD_PS,
+#    core_padding_microns = 2,
+#    min_pin_distance = "0.4",
+#    placement_density = "0.1",
+#    stop_after_step = "global_routing",
+#    synthesized_rtl = ":zstd_dec_synth_asap7",
+#    tags = ["manual"],
+#    target_die_utilization_percentage = "1",
+#)
 
 py_test(
     name = "zstd_dec_cocotb_test",
