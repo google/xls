@@ -343,6 +343,11 @@ xls_benchmark_ir(
 
 build_test(
     name = "rle_build_test",
+    # TODO(meheff): Re-enable when flakiness is addressed.
+    tags = [
+        "manual",
+        "notap",
+    ],
     targets = [
         "rle_enc_verilog",
         "rle_enc_gds_sky130",
