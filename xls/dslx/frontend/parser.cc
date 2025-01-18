@@ -1562,7 +1562,9 @@ absl::StatusOr<UseTreeEntry*> Parser::ParseUseTreeEntry(Bindings& bindings) {
     // subsequent level.
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
     bindings.Add(name_def->identifier(), name_def);
-    return module_->Make<UseTreeEntry>(name_def, tok.span());
+    auto* use_tree_entry = module_->Make<UseTreeEntry>(name_def, tok.span());
+    name_def->set_definer(use_tree_entry);
+    return use_tree_entry;
   }
 
   // If we've gotten here we know there's a next level, we're just looking to

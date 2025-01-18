@@ -250,9 +250,49 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
                                         imported->type_info());
             return absl::OkStatus();
           },
-          [](Use* use) -> absl::Status {
-            return absl::UnimplementedError(
-                "`use` statements are not yet supported for typechecking");
+          [import_data, ctx](Use* use) -> absl::Status {
+            std::vector<UseSubject> subjects = use->LinearizeToSubjects();
+            for (UseSubject& subject : subjects) {
+              XLS_ASSIGN_OR_RETURN(
+                  UseImportResult result,
+                  DoImportViaUse(
+                      /*ftypecheck=*/ctx->typecheck_module(),
+                      /*subject=*/subject,
+                      /*import_data=*/import_data,
+                      /*name_def_span=*/subject.name_def().span(),
+                      /*file_table=*/import_data->file_table(),
+                      /*vfs=*/import_data->vfs()));
+
+              ctx->type_info()->AddImport(&subject.use_tree_entry(),
+                                          &result.imported_module->module(),
+                                          result.imported_module->type_info());
+
+              if (result.imported_member != nullptr) {
+                AstNode* imported_member = ToAstNode(*result.imported_member);
+                XLS_RET_CHECK_EQ(imported_member->owner(),
+                                 &result.imported_module->module());
+                std::optional<Type*> type =
+                    result.imported_module->type_info()->GetItem(
+                        imported_member);
+                // Note that, e.g. parametric, have no type in the type info.
+                // TODO(cdleary): 2024-12-31 It would probably be better to have
+                // a sentinel indicating an uninstantiated parametric that
+                // indicates where that parametric function exists.
+                if (type.has_value()) {
+                  ctx->type_info()->SetItem(&subject.name_def(), *type.value());
+                }
+              } else {
+                // TODO(cdleary): 2024-12-31 If somebody imports a module as a
+                // name and then refers to it via colon-refs, we probably want
+                // to have a "module type" to tag the used `NameDef` with.
+                return TypeInferenceErrorStatus(
+                    subject.name_def().span(), nullptr,
+                    "Only importing members from modules is currently "
+                    "supported.",
+                    ctx->file_table());
+              }
+            }
+            return absl::OkStatus();
           },
           [ctx](ConstantDef* member) -> absl::Status {
             return ctx->Deduce(ToAstNode(member)).status();

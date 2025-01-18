@@ -169,6 +169,22 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "document_symbols_test",
+    srcs = ["document_symbols_test.cc"],
+    deps = [
+        ":document_symbols",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "@com_google_googletest//:gtest",
+        "@verible//verible/common/lsp:lsp-protocol",
+        "@verible//verible/common/lsp:lsp-protocol-enums",
+    ],
+)
+
 cc_library(
     name = "import_sensitivity",
     srcs = ["import_sensitivity.cc"],

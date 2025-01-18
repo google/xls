@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -89,6 +90,32 @@ class UniformContentFilesystem : public VirtualizableFilesystem {
  private:
   std::string file_content_;
   std::optional<std::string_view> expect_path_;
+};
+
+// Fake filesystem for use in tests that just resolves paths in directly against
+// a given map.
+//
+// `cwd` is used to resolve relative paths to absolute paths before lookup in
+// the `files` map.
+class FakeFilesystem : public VirtualizableFilesystem {
+ public:
+  FakeFilesystem(absl::flat_hash_map<std::filesystem::path, std::string> files,
+                 std::filesystem::path cwd);
+
+  ~FakeFilesystem() override = default;
+
+  absl::Status FileExists(const std::filesystem::path& path) override;
+
+  absl::StatusOr<std::string> GetFileContents(
+      const std::filesystem::path& path) override;
+
+  absl::StatusOr<std::filesystem::path> GetCurrentDirectory() override {
+    return cwd_;
+  }
+
+ private:
+  absl::flat_hash_map<std::filesystem::path, std::string> files_;
+  std::filesystem::path cwd_;
 };
 
 // A fake filesystem that always returns errors, useful in testing when we don't

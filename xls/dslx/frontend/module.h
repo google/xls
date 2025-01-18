@@ -172,7 +172,7 @@ class Module : public AstNode {
     }
 
     return absl::NotFoundError(
-        absl::StrFormat("No %s in module %s with name \"%s\"",
+        absl::StrFormat("No %s in module `%s` with name `%s`",
                         T::GetDebugTypeName(), name_, target_name));
   }
 

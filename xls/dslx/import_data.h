@@ -70,6 +70,10 @@ class ModuleInfo {
 // Hashable (usable in a flat hash map).
 class ImportTokens {
  public:
+  static ImportTokens FromSpan(absl::Span<const std::string> identifiers) {
+    return ImportTokens(
+        std::vector<std::string>(identifiers.begin(), identifiers.end()));
+  }
   static absl::StatusOr<ImportTokens> FromString(std::string_view module_name);
 
   explicit ImportTokens(std::vector<std::string> pieces)
@@ -230,7 +234,8 @@ class ImportData {
       const std::filesystem::path&, absl::Span<const std::filesystem::path>,
       WarningKindSet);
 
-  friend ImportData CreateImportDataForTest();
+  friend ImportData CreateImportDataForTest(
+      std::unique_ptr<VirtualizableFilesystem> vfs);
   friend std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 
   ImportData(std::filesystem::path stdlib_path,

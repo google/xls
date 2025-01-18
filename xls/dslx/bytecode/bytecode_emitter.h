@@ -122,8 +122,14 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleLet(const Let* node) override;
   absl::Status HandleMatch(const Match* node) override;
   absl::Status HandleNameRef(const NameRef* node) override;
+
   absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
   HandleNameRefInternal(const NameRef* node);
+
+  absl::StatusOr<InterpValue> HandleExternRef(const NameRef& name_ref,
+                                              const NameDef& name_def,
+                                              UseTreeEntry& use_tree_entry);
+
   absl::Status HandleNumber(const Number* node) override;
   struct FormattedInterpValue {
     InterpValue value;

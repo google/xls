@@ -958,6 +958,25 @@ fn test() -> Foo<u32:5> {
   ExpectIr(converted, TestName());
 }
 
+// This is an example where we use an externally-defined parametric function
+// into module scope and invoke it at module scope.
+TEST(IrConverterTest, UseOfClog2InModuleScopedConstantDefinition) {
+  const char* kProgram = R"(#![feature(use_syntax)]
+use std::clog2;
+
+const MAX_BITS: u32 = clog2(u32:256);
+
+fn main() -> u32 {
+    MAX_BITS
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, UnrollForSimple) {
   const char* kProgram = R"(
 fn test() -> u32 {

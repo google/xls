@@ -138,9 +138,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::Deduce(const AstNode* node) {
   XLS_RET_CHECK(!fn_stack().empty());
   XLS_RET_CHECK(deduce_function_ != nullptr);
   XLS_RET_CHECK_EQ(node->owner(), type_info()->module())
-      << "node: `" << node->ToString() << "` from module "
+      << "node: `" << node->ToString() << "` is from module "
       << node->owner()->name()
-      << " vs type info module: " << type_info()->module()->name();
+      << " vs type info is for module: " << type_info()->module()->name();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> result,
                        deduce_function_(node, this));
 

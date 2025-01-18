@@ -102,6 +102,9 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 
  private:
+  absl::Status HandleExternRef(const NameRef* name_ref, const NameDef* name_def,
+                               UseTreeEntry* use_tree_entry);
+
   ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
                      WarningCollector* warning_collector,
                      ParametricEnv bindings, const Type* type)

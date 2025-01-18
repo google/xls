@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>  // NOLINT
 #include <iostream>
+#include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -561,6 +564,29 @@ proc Bar {
       ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data));
 }
 
+TEST(TypecheckTest, UseOfConstant) {
+  constexpr std::string_view kImported = R"(
+pub const MY_CONSTANT: u32 = u32:42;
+)";
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use imported::MY_CONSTANT;
+
+fn f() -> u32 {
+  MY_CONSTANT
+}
+)";
+  absl::flat_hash_map<std::filesystem::path, std::string> files = {
+      {std::filesystem::path("/imported.x"), std::string(kImported)},
+      {std::filesystem::path("/fake_main_path.x"), std::string(kProgram)},
+  };
+  auto vfs = std::make_unique<FakeFilesystem>(
+      files, /*cwd=*/std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  absl::StatusOr<TypecheckedModule> main_module =
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data);
+  XLS_EXPECT_OK(main_module.status()) << main_module.status();
+}
+
 TEST(TypecheckTest, FailsOnProcWithImplAsImportedStructMember) {
   constexpr std::string_view kImported = R"(
 pub proc Foo {
@@ -984,6 +1010,18 @@ fn f() -> u32 {
   for (_, accum) in range(u32:0, std::clog2(MOL)) {
     accum
   }(u32:0)
+}
+)"));
+}
+
+TEST(TypecheckTest, UseOfClog2InModuleScopedConstantDefinition) {
+  XLS_EXPECT_OK(Typecheck(R"(#![feature(use_syntax)]
+use std::clog2;
+
+const MAX_BITS: u32 = clog2(u32:256);
+
+fn main() -> u32 {
+    MAX_BITS
 }
 )"));
 }
@@ -4031,7 +4069,7 @@ proc t {
       IsPosError(
           "TypeInferenceError",
           HasSubstr("Cannot resolve callee `result_in` to a function; No "
-                    "function in module fake with name \"result_in\"")));
+                    "function in module `fake` with name `result_in`")));
 }
 
 TEST(TypecheckErrorTest, ReferenceToBuiltinFunctionInNext) {

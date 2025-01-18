@@ -471,6 +471,20 @@ ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
 absl::StatusOr<Function*> ResolveFunction(Expr* callee,
                                           const TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
+    // If the definer is a UseTreeEntry, we need to resolve the function from
+    // the module that the UseTreeEntry is in.
+    if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+      const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
+      if (auto* use_tree_entry =
+              dynamic_cast<UseTreeEntry*>(name_def->definer());
+          use_tree_entry != nullptr) {
+        XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                             type_info->GetImportedOrError(use_tree_entry));
+        return imported_info->module->GetMemberOrError<Function>(
+            name_ref->identifier());
+      }
+    }
+
     return name_ref->owner()->GetMemberOrError<Function>(
         name_ref->identifier());
   }
