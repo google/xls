@@ -580,7 +580,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
                          import_data_->GetRootTypeInfo(f.owner()));
   }
 
-  return cache->GetOrCreateBytecodeFunction(f, callee_type_info,
+  return cache->GetOrCreateBytecodeFunction(*import_data(), f, callee_type_info,
                                             callee_bindings);
 }
 
