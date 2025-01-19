@@ -1143,4 +1143,29 @@ std::optional<BitsLikeProperties> GetBitsLike(const Type& t) {
   return std::nullopt;
 }
 
+static std::optional<bool> GetKnownSignedness(
+    const BitsLikeProperties& properties) {
+  const TypeDim& is_signed = properties.is_signed;
+  if (is_signed.IsParametric()) {
+    return std::nullopt;
+  }
+  CHECK(std::get<InterpValue>(is_signed.value()).IsBool());
+  return is_signed.GetAsBool().value();
+}
+
+static std::optional<int64_t> GetKnownBitCount(
+    const BitsLikeProperties& properties) {
+  const TypeDim& size = properties.size;
+  if (size.IsParametric()) {
+    return std::nullopt;
+  }
+  return size.GetAsInt64().value();
+}
+
+bool IsKnownU1(const BitsLikeProperties& properties) {
+  std::optional<bool> signedness = GetKnownSignedness(properties);
+  std::optional<int64_t> bit_count = GetKnownBitCount(properties);
+  return signedness == false && bit_count == 1;
+}
+
 }  // namespace xls::dslx

@@ -1114,6 +1114,10 @@ struct BitsLikeProperties {
   TypeDim size;
 };
 
+// Returns true iff both the signedness and size of the `properties` are known
+// constants and they indicate that the type is a `u1` AKA `bool`.
+bool IsKnownU1(const BitsLikeProperties& properties);
+
 // Returns a string representation of the BitsLikeProperties that looks similar
 // to a corresponding BitsType.
 std::string ToTypeString(const BitsLikeProperties& properties);
