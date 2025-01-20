@@ -517,10 +517,10 @@ proc ZstdDecoderTest {
             tmp2_wr_req_s, tmp2_wr_resp_r,
 
             // Channels for accessing FSE tables with muxed default FSE tables
-            [ll_def_fse_rd_req_s, fse_rd_req_s[1], ml_def_fse_rd_req_s, fse_rd_req_s[3], of_def_fse_rd_req_s, fse_rd_req_s[5]],
-            [ll_def_fse_rd_resp_r, fse_rd_resp_r[1], ml_def_fse_rd_resp_r, fse_rd_resp_r[3], of_def_fse_rd_resp_r, fse_rd_resp_r[5]],
-            [ll_def_fse_wr_req_s, fse_wr_req_s[1], ml_def_fse_wr_req_s, fse_wr_req_s[3], of_def_fse_wr_req_s, fse_wr_req_s[5]],
-            [ll_def_fse_wr_resp_r, fse_wr_resp_r[1], ml_def_fse_wr_resp_r, fse_wr_resp_r[3], of_def_fse_wr_resp_r, fse_wr_resp_r[5]],
+            ll_def_fse_rd_req_s, fse_rd_req_s[1], ml_def_fse_rd_req_s, fse_rd_req_s[3], of_def_fse_rd_req_s, fse_rd_req_s[5],
+            ll_def_fse_rd_resp_r, fse_rd_resp_r[1], ml_def_fse_rd_resp_r, fse_rd_resp_r[3], of_def_fse_rd_resp_r, fse_rd_resp_r[5],
+            ll_def_fse_wr_req_s, fse_wr_req_s[1], ml_def_fse_wr_req_s, fse_wr_req_s[3], of_def_fse_wr_req_s, fse_wr_req_s[5],
+            ll_def_fse_wr_resp_r, fse_wr_resp_r[1], ml_def_fse_wr_resp_r, fse_wr_resp_r[3], of_def_fse_wr_resp_r, fse_wr_resp_r[5],
 
             litbuf_rd_req_s, litbuf_rd_resp_r,
             litbuf_wr_req_s, litbuf_wr_resp_r,
