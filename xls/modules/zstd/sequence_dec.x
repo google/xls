@@ -540,7 +540,7 @@ pub proc SequenceDecoderCtrl<
         let (tok_ml_demux, _) = recv_if(tok_ml_demux, ml_demux_resp_r, !zero_sequences, ());
 
         // Set proper OF lookup through demux
-        let of_demux_sel = (conf_resp.header.match_mode != CompressionMode::PREDEFINED);
+        let of_demux_sel = (conf_resp.header.offset_mode != CompressionMode::PREDEFINED);
         let tok_of_demux = send_if(tok_recv_scd, of_demux_req_s, !zero_sequences, of_demux_sel);
         // Receive response from OF lookup demux
         let (tok_of_demux, _) = recv_if(tok_of_demux, of_demux_resp_r, !zero_sequences, ());
@@ -1194,7 +1194,7 @@ const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP2_RAM_WORD_PART
 // - sequences section as it appears in memory
 // - expected output size
 // - expected output
-const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[2] = [
+const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[3] = [
     // Test case 0
     // raw literals with sequences with 3 predefined tables
     // ./decodecorpus -pdata2.out -odata2.in -s35304 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
@@ -1457,7 +1457,144 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[2] = [
             zero!<SequenceExecutorPacket>(), ...
         ]
     ),
-    // Test case 2 (WARNING: long test running time)
+    // test case 2
+    // LL - compressed, OF - predefined, ML - compressed
+    (
+        u32:25,
+        u64[32]:[
+            u64:0x0, u64:0x0,
+            u64:0xDEF00EB70AB0880A,
+            u64:0xE428228113B02D01,
+            u64:0x748A16EBB16B9BEC,
+            u64:0x000000000000003E,
+            u64:0x0, ...
+        ],
+        u32:20,
+        SequenceExecutorPacket[64]:[
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0002,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0005,
+                content: u64:0x0004,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0003,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x000d,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0000,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0002,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0003,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x000d,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0002,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x0017,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0000,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0019,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0000,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x0021,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0001,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0020,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0006,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x001b,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0000,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0004,
+                content: u64:0x000d,
+                last: true,
+            },
+            zero!<SequenceExecutorPacket>(), ...
+        ]
+    ),
+    // Test case 3 (WARNING: long test running time)
     // 3 custom lookup tables with accuracy log 9, 8 and 9
     // decodecorpus -pdata.out -odata.in -s58745 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
     // (
