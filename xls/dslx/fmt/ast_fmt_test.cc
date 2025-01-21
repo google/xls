@@ -3210,6 +3210,43 @@ TEST_F(ModuleFmtTest, DisableFmtAroundTestFn) {
 )");
 }
 
+TEST_F(ModuleFmtTest, DisableFmtViaFnAttribute) {
+  DoFmt(R"(#[dslx_format_disable]
+fn
+test() -> u32 
+    {
+// first line
+        u32:1
+}
+)");
+}
+
+TEST_F(ModuleFmtTest, DisableFmtViaFnAttributeOnlyAppliesToCurrentFn) {
+  DoFmt(R"(#[dslx_format_disable]
+fn test() -> u32 
+    {
+// first line
+        u32:1
+}
+
+// This one will be formatted:
+fn test2() -> 
+u32 {
+    u32:1
+}
+)",
+        R"(#[dslx_format_disable]
+fn test() -> u32 
+    {
+// first line
+        u32:1
+}
+
+// This one will be formatted:
+fn test2() -> u32 { u32:1 }
+)");
+}
+
 TEST_F(ModuleFmtTest, CommentBeforeFirstItemStructLiteral) {
   DoFmt(R"(struct Foo { a: u1, b: u1 }
 

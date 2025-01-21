@@ -60,6 +60,27 @@ absl::StatusOr<std::optional<AstNode *>> FormatDisabler::operator()(
   }
   seen_nodes_.insert(node);
 
+  const Function *f = dynamic_cast<const Function *>(node);
+  if (f != nullptr && f->disable_format()) {
+    Span unformatted_span(f->span());
+    XLS_ASSIGN_OR_RETURN(std::string text, GetTextInSpan(unformatted_span));
+    // Just like when disabling formatting with a comment, we need to terminate
+    // the VerbatimNode with a newline. This may be relaxed when
+    // https://github.com/google/xls/issues/1782 is fixed.
+    text.append("\n");
+    VerbatimNode *verbatim_node =
+        node->owner()->Make<VerbatimNode>(unformatted_span, text);
+
+    comments_.RemoveComments(unformatted_span);
+    unformatted_end_ = unformatted_span.limit();
+
+    previous_node_ = node;
+
+    VLOG(5) << "Function with disable_format set, replacing "
+            << node->ToString() << " with VerbatimNode";
+    return verbatim_node;
+  }
+
   if (node == nullptr || !node->GetSpan().has_value()) {
     // If there's no node, or no span, we can't know if it's in the unformatted
     // range, so just return nullopt to indicate it should be unchanged.

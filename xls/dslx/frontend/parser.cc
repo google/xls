@@ -548,6 +548,14 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     return ParseErrorStatus(
         peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
   }
+  if (attribute_name == "dslx_format_disable") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    XLS_ASSIGN_OR_RETURN(bool is_public, TryDropKeyword(Keyword::kPub));
+    XLS_ASSIGN_OR_RETURN(Function * fn, ParseFunction(hash_pos, is_public,
+                                                      bindings, name_to_fn));
+    fn->set_disable_format(true);
+    return fn;
+  }
   if (attribute_name == "extern_verilog") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     Pos template_start = GetPos();

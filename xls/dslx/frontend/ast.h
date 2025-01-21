@@ -1959,6 +1959,10 @@ class Function : public AstNode {
       const {
     return extern_verilog_module_;
   }
+  void set_disable_format(bool disable_format) {
+    disable_format_ = disable_format;
+  }
+  bool disable_format() const { return disable_format_; }
 
   FunctionTag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
@@ -1986,6 +1990,7 @@ class Function : public AstNode {
 
   const bool is_public_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
+  bool disable_format_ = false;
 };
 
 // Represents a single arm in a match expression.
