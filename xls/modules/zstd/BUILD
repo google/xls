@@ -1320,7 +1320,83 @@ zstd_dec_codegen_args = common_codegen_args | {
     "pipeline_stages": "16",
     "flop_inputs_kind": "skid",
     "flop_outputs_kind": "skid",
-    "worst_case_throughput": "2",
+    "worst_case_throughput": "6",
+    "ram_configurations":
+        ",".join([
+            ",".join([
+                "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                    latency = 5,
+                    ram_name = "history_buffer_ram{}".format(num),
+                    rd_req = "zstd_dec__ram_rd_req_{}_s".format(num),
+                    rd_resp = "zstd_dec__ram_rd_resp_{}_r".format(num),
+                    wr_req = "zstd_dec__ram_wr_req_{}_s".format(num),
+                    wr_resp = "zstd_dec__ram_wr_resp_{}_r".format(num),
+                )
+                for num in range(8)
+            ]),
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "dpd_ram",
+                rd_req = "zstd_dec__dpd_rd_req_s",
+                rd_resp = "zstd_dec__dpd_rd_resp_r",
+                wr_req = "zstd_dec__dpd_wr_req_s",
+                wr_resp = "zstd_dec__dpd_wr_resp_r",
+            ),
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "fse_tmp_ram",
+                rd_req = "zstd_dec__tmp_rd_req_s",
+                rd_resp = "zstd_dec__tmp_rd_resp_r",
+                wr_req = "zstd_dec__tmp_wr_req_s",
+                wr_resp = "zstd_dec__tmp_wr_resp_r",
+            ),
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "fse_tmp2_ram",
+                rd_req = "zstd_dec__tmp2_rd_req_s",
+                rd_resp = "zstd_dec__tmp2_rd_resp_r",
+                wr_req = "zstd_dec__tmp2_wr_req_s",
+                wr_resp = "zstd_dec__tmp2_wr_resp_r",
+            ),
+            ",".join([
+                "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                    latency = 5,
+                    ram_name = "fse_lookup_ram{}".format(num),
+                    rd_req = "zstd_dec__fse_rd_req_s__{}".format(num),
+                    rd_resp = "zstd_dec__fse_rd_resp_r__{}".format(num),
+                    wr_req = "zstd_dec__fse_wr_req_s__{}".format(num),
+                    wr_resp = "zstd_dec__fse_wr_resp_r__{}".format(num),
+                )
+                for num in range(6)
+            ]),
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "huffman_literals_prescan_ram",
+                rd_req = "zstd_dec__huffman_lit_prescan_mem_rd_req_s",
+                rd_resp = "zstd_dec__huffman_lit_prescan_mem_rd_resp_r",
+                wr_req = "zstd_dec__huffman_lit_prescan_mem_wr_req_s",
+                wr_resp = "zstd_dec__huffman_lit_prescan_mem_wr_resp_r",
+            ),
+            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                latency = 5,
+                ram_name = "huffman_literals_weights_ram",
+                rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
+                rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
+                wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
+                wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
+            ),
+            ",".join([
+                "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+                    latency = 5,
+                    ram_name = "literals_buffer_ram{}".format(num),
+                    rd_req = "zstd_dec__litbuf_rd_req_s__{}".format(num),
+                    rd_resp = "zstd_dec__litbuf_rd_resp_r__{}".format(num),
+                    wr_req = "zstd_dec__litbuf_wr_req_s__{}".format(num),
+                    wr_resp = "zstd_dec__litbuf_wr_resp_r__{}".format(num),
+                )
+                for num in range(8)
+            ]),
+        ]),
 }
 
 xls_dslx_verilog(
