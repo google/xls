@@ -2015,7 +2015,11 @@ class Translator {
                                              const xls::SourceInfo& loc);
   absl::StatusOr<xls::BValue> GenBoolConvert(CValue const& in,
                                              const xls::SourceInfo& loc);
-
+  absl::StatusOr<CValue> HandleConstructors(const clang::CXXConstructExpr* ctor,
+                                            const xls::SourceInfo& loc);
+  absl::StatusOr<xls::BValue> BuildCArrayTypeValue(std::shared_ptr<CType> t,
+                                                   xls::BValue elem_val,
+                                                   const xls::SourceInfo& loc);
   absl::StatusOr<CValue> CreateDefaultCValue(const std::shared_ptr<CType>& t,
                                              const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> CreateDefaultRawValue(std::shared_ptr<CType> t,

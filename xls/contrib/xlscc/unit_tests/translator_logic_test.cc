@@ -5260,6 +5260,138 @@ TEST_F(TranslatorLogicTest, ErrorOnUninitializedDefaultMember) {
                                      testing::HasSubstr("not init")));
 }
 
+TEST_F(TranslatorLogicTest, CtorInArray) {
+  std::string_view content = R"(
+    struct DefaultUnrollInner {
+        DefaultUnrollInner() {
+            x = 10;
+        }
+        int x;
+    };
+
+    struct DefaultUnroll {
+    public:
+        DefaultUnrollInner i[4];
+    };
+
+    #pragma hls_top
+    int foo() {
+      DefaultUnroll d;
+      return d.i[0].x;
+    }
+)";
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorLogicTest, NoCtorInArray) {
+  std::string_view content = R"(
+    struct DefaultUnrollInner {
+        int x;
+    };
+
+    struct DefaultUnroll {
+    public:
+        DefaultUnrollInner i[4];
+    };
+
+    #pragma hls_top
+    int foo() {
+      DefaultUnroll d;
+      return d.i[0].x;
+    }
+)";
+  Run({}, 0, content);
+}
+
+TEST_F(TranslatorLogicTest, CtorInMultidimensionalArray) {
+  std::string_view content = R"(
+    struct DefaultUnrollInner {
+        DefaultUnrollInner() {
+            x = 10;
+        }
+        int x;
+    };
+
+    struct DefaultUnroll {
+    public:
+        DefaultUnrollInner i[4][2];
+    };
+
+    #pragma hls_top
+    int foo() {
+      DefaultUnroll d;
+      return d.i[0][0].x;
+    }
+)";
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorLogicTest, DelegatingCtorInArray) {
+  std::string_view content = R"(
+    struct DefaultUnrollInner {
+        DefaultUnrollInner(int value) {
+          x = value; 
+        }
+        DefaultUnrollInner(): DefaultUnrollInner(10) {}
+        int x;
+    };
+
+    struct DefaultUnroll {
+    public:
+        DefaultUnrollInner i[4];
+    };
+
+    #pragma hls_top
+    int foo() {
+      DefaultUnroll d;
+      return d.i[0].x;
+    }
+)";
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorLogicTest, DelegatingCtor) {
+  std::string_view content = R"(
+    struct DefaultUnrollInner {
+        DefaultUnrollInner(int value) {
+          x = value;
+        }
+        DefaultUnrollInner(int value, bool b) : DefaultUnrollInner(value) {}
+        DefaultUnrollInner(): DefaultUnrollInner(10, true) {}
+        int x;
+    };
+
+    #pragma hls_top
+    int foo() {
+      DefaultUnrollInner d;
+      return d.x;
+    }
+)";
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorLogicTest, MixedCtorSettingValueAndBase) {
+  std::string_view content = R"(
+  class A {
+  public:
+    int x = 7;
+  };
+  class B : public A {
+  public:
+    int f;
+    B(A& a) : A(a), f(3) { }
+  };
+
+  #pragma hls_top
+    int foo() {
+      A d;
+      B b(d);
+      return b.x + b.f;
+    }
+)";
+  Run({}, 10, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
