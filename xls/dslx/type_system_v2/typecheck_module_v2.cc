@@ -123,7 +123,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // Any `Binop` should be a descendant of some context-setting node and
     // should have a type that was set when its parent was visited.
     const NameRef* type_variable = *table_.GetTypeVariable(node);
-    if (GetBinopSameTypeKinds().contains(node->binop_kind())) {
+    if (GetBinopSameTypeKinds().contains(node->binop_kind()) ||
+        GetBinopLogicalKinds().contains(node->binop_kind())) {
       // In the example `const C = a + b;`, the `ConstantDef` establishes a type
       // variable that is just propagated down to `a` and `b` here, meaning that
       // `a`, `b`, and the result must ultimately be the same type.

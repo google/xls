@@ -1003,13 +1003,21 @@ class InferenceTableConverter {
           "Non-bits type used to define a numeric literal.", file_table_);
     }
     if (const auto* binop = dynamic_cast<const Binop*>(node);
-        binop != nullptr &&
-        GetBinopSameTypeKinds().contains(binop->binop_kind()) &&
-        !IsBitsLike(*type)) {
-      return TypeInferenceErrorStatus(
-          binop->span(), type,
-          "Binary operations can only be applied to bits-typed operands.",
-          file_table_);
+        binop != nullptr) {
+      if (GetBinopSameTypeKinds().contains(binop->binop_kind()) &&
+          !IsBitsLike(*type)) {
+        return TypeInferenceErrorStatus(
+            binop->span(), type,
+            "Binary operations can only be applied to bits-typed operands.",
+            file_table_);
+      }
+      if (GetBinopLogicalKinds().contains(binop->binop_kind()) &&
+          !IsBitsLikeWithNBitsAndSignedness(*type, false, 1)) {
+        return TypeInferenceErrorStatus(binop->span(), type,
+                                        "Logical binary operations can only be "
+                                        "applied to boolean operands.",
+                                        file_table_);
+      }
     }
     if (const auto* unop = dynamic_cast<const Unop*>(node);
         unop != nullptr && !IsBitsLike(*type)) {

@@ -1645,5 +1645,79 @@ const F = foo((u32:5, u3:0));
           "Unary operations can only be applied to bits-typed operands.")));
 }
 
+TEST(TypecheckV2Test, GlobalConstantEqualsLogicalAndOfLiterals) {
+  EXPECT_THAT("const X = true && false;", TopNodeHasType("uN[1]"));
+}
+
+TEST(TypecheckV2Test, GlobalConstantLogicalAndWithWrongRhs) {
+  EXPECT_THAT(R"(
+const X = true;
+const Y: u32 = 4;
+const Z = X && Y;
+)",
+              TypecheckFails(HasSizeMismatch("uN[32]", "bool")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsAndOfBooleanConstants) {
+  EXPECT_THAT(R"(
+const X = true;
+const Y: bool = false;
+const Z = X && Y;
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("const X = true;", "uN[1]"),
+                        HasNodeWithType("const Y: bool = false;", "uN[1]"),
+                        HasNodeWithType("const Z = X && Y;", "uN[1]"))));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsLogicalOrOfLiterals) {
+  EXPECT_THAT("const X = bool:true || bool:false;", TopNodeHasType("uN[1]"));
+}
+
+TEST(TypecheckV2Test, GlobalConstantWithLogicalBinopOnWrongType) {
+  EXPECT_THAT("const X = u32:5 || u32:6;",
+              TypecheckFails(HasSubstr(
+                  "Logical binary operations can only be applied to boolean")));
+}
+
+TEST(TypecheckV2Test, LogicalBinopAsFnReturn) {
+  EXPECT_THAT(R"(
+fn foo(x: bool, y: bool) -> bool {
+  x || y
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x: bool", "uN[1]"),
+                                      HasNodeWithType("y: bool", "uN[1]"),
+                                      HasNodeWithType("x || y", "uN[1]"))));
+}
+
+TEST(TypecheckV2Test, LogicalBinopAsFnReturnWrongReturnType) {
+  EXPECT_THAT(
+      R"(
+fn foo(x: bool, y: bool) -> u32 {
+  x && y
+}
+)",
+      TypecheckFails(HasSizeMismatch("bool", "u32")));
+}
+
+TEST(TypecheckV2Test, LogicalBinopAsFnReturnWrongLhsType) {
+  EXPECT_THAT(R"(
+fn foo(x: u32, y: bool) -> bool {
+  x || y
+}
+)",
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2Test, LogicalBinopAsFnReturnWrongParameterTypes) {
+  EXPECT_THAT(R"(
+fn foo(x: u32, y: u32) -> bool {
+  x || y
+}
+)",
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
