@@ -119,6 +119,8 @@
   X(TupleTypeAnnotation)          \
   X(TypeRefTypeAnnotation)        \
   X(TypeVariableTypeAnnotation)   \
+  X(MemberTypeAnnotation)         \
+  X(ElementTypeAnnotation)        \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
@@ -129,6 +131,8 @@ inline constexpr int64_t kRustSpacesPerIndent = 4;
 #define FORWARD_DECL(__type) class __type;
 XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
 #undef FORWARD_DECL
+
+class StructDefBase;
 
 // Helper type (abstract base) for double dispatch on AST nodes.
 class AstNodeVisitor {
@@ -439,6 +443,77 @@ class TypeVariableTypeAnnotation : public TypeAnnotation {
 
  private:
   const NameRef* const type_variable_;
+};
+
+// Represents the type of a member of a struct, like
+// `decltype(SomeStruct<parametrics>.some_member)` in C++. This is used
+// internally in type inference to describe a member type when the concrete
+// rendition of the struct type and any parametric values have not yet been
+// determined.
+class MemberTypeAnnotation : public TypeAnnotation {
+ public:
+  MemberTypeAnnotation(Module* owner, const TypeAnnotation* struct_type,
+                       const StructDefBase* struct_def,
+                       const StructMemberNode* member);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleMemberTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "MemberTypeAnnotation";
+  }
+
+  const TypeAnnotation* struct_type() const { return struct_type_; }
+  const StructDefBase* struct_def() const { return struct_def_; }
+  const StructMemberNode* member() const { return member_; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return std::vector<AstNode*>{const_cast<TypeAnnotation*>(struct_type_)};
+  }
+
+  std::string ToString() const override;
+
+ private:
+  const TypeAnnotation* struct_type_;
+  const StructDefBase* struct_def_;
+  const StructMemberNode* member_;
+};
+
+// Represents the type of an element of an array or tuple, expressed in terms of
+// the array or tuple's type. This is similar to `MemberTypeAnnotation` but for
+// arrays and tuples. It is used internally in type inference to describe an
+// element type when the concrete rendition of the container's type is not yet
+// known. The `tuple_index` is only specified for tuple elements, since all
+// array elements are the same type.
+class ElementTypeAnnotation : public TypeAnnotation {
+ public:
+  ElementTypeAnnotation(
+      Module* owner, const TypeAnnotation* container_type,
+      std::optional<const Number*> tuple_index = std::nullopt);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleElementTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "ElementTypeAnnotation";
+  }
+
+  const TypeAnnotation* container_type() const { return container_type_; }
+  const std::optional<const Number*>& tuple_index() const {
+    return tuple_index_;
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return std::vector<AstNode*>{const_cast<TypeAnnotation*>(container_type_)};
+  }
+
+  std::string ToString() const override;
+
+ private:
+  const TypeAnnotation* container_type_;
+  const std::optional<const Number*> tuple_index_;
 };
 
 // Represents an array type annotation; e.g. `u32[5]`.
@@ -2685,6 +2760,8 @@ class StructDef : public StructDefBase {
  public:
   using StructDefBase::StructDefBase;
 
+  static std::string_view GetDebugTypeName() { return "struct"; }
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleStructDef(this);
   }
@@ -2716,6 +2793,8 @@ class StructDef : public StructDefBase {
 class ProcDef : public StructDefBase {
  public:
   using StructDefBase::StructDefBase;
+
+  static std::string_view GetDebugTypeName() { return "proc"; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleProcDef(this);

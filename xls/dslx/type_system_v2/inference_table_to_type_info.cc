@@ -425,11 +425,11 @@ class InferenceTableConverter {
       return std::make_unique<ArrayType>(std::move(element_type),
                                          TypeDim(InterpValue::MakeS64(size)));
     }
-    if (std::optional<StructOrProcDef> struct_or_proc =
-            GetStructOrProcDef(annotation);
+    if (std::optional<StructOrProcRef> struct_or_proc =
+            GetStructOrProcRef(annotation);
         struct_or_proc.has_value()) {
       const StructDefBase* struct_def_base =
-          dynamic_cast<const StructDefBase*>(ToAstNode(*struct_or_proc));
+          dynamic_cast<const StructDefBase*>(ToAstNode(struct_or_proc->def));
       CHECK(struct_def_base != nullptr);
       std::vector<std::unique_ptr<Type>> member_types;
       member_types.reserve(struct_def_base->members().size());
@@ -438,13 +438,14 @@ class InferenceTableConverter {
                              Concretize(member->type(), parametric_invocation));
         member_types.push_back(std::move(concrete_member_type));
       }
-      if (std::holds_alternative<const StructDef*>(*struct_or_proc)) {
+      if (std::holds_alternative<const StructDef*>(struct_or_proc->def)) {
         return std::make_unique<StructType>(
             std::move(member_types),
-            *std::get<const StructDef*>(*struct_or_proc));
+            *std::get<const StructDef*>(struct_or_proc->def));
       }
       return std::make_unique<ProcType>(
-          std::move(member_types), *std::get<const ProcDef*>(*struct_or_proc));
+          std::move(member_types),
+          *std::get<const ProcDef*>(struct_or_proc->def));
     }
     absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
         GetSignednessAndBitCount(annotation);
@@ -770,16 +771,16 @@ class InferenceTableConverter {
       return UnifyArrayTypeAnnotations(parametric_invocation, array_annotations,
                                        span);
     }
-    if (std::optional<StructOrProcDef> first_struct_or_proc =
-            GetStructOrProcDef(annotations[0]);
+    if (std::optional<StructOrProcRef> first_struct_or_proc =
+            GetStructOrProcRef(annotations[0]);
         first_struct_or_proc.has_value()) {
-      const StructDefBase* struct_def_base =
-          dynamic_cast<const StructDefBase*>(ToAstNode(*first_struct_or_proc));
+      const StructDefBase* struct_def_base = dynamic_cast<const StructDefBase*>(
+          ToAstNode(first_struct_or_proc->def));
       for (const TypeAnnotation* annotation : annotations) {
-        std::optional<StructOrProcDef> next_struct_or_proc =
-            GetStructOrProcDef(annotation);
+        std::optional<StructOrProcRef> next_struct_or_proc =
+            GetStructOrProcRef(annotation);
         if (!next_struct_or_proc.has_value() ||
-            ToAstNode(*next_struct_or_proc) != struct_def_base) {
+            ToAstNode(next_struct_or_proc->def) != struct_def_base) {
           return TypeMismatchErrorWithParametricResolution(
               parametric_invocation, annotations[0], annotation);
         }
@@ -919,12 +920,21 @@ class InferenceTableConverter {
                              /*type_annotation=*/nullptr));
   }
 
-  // Returns `annotation` with any `TypeVariableTypeAnnotation`s replaced with
-  // the unifications of the corresponding variables. The original `annotation`
-  // is returned if there is nothing to replace, preserving the ability to look
-  // it up in `auto_literal_annotations_`. If `accept_predicate` is specified,
-  // then it is used to filter the annotations associated with encountered type
-  // variables (the predicate is not applied to the input `annotation` itself).
+  // Returns `annotation` with any indirect annotations resolved into direct
+  // annotations. An indirect annotation is an internally-generated one that
+  // depends on the resolved type of another entity. This may be a
+  // `TypeVariableTypeAnnotation`, a `MemberTypeAnnotation`, or an
+  // `ElementTypeAnnotation`. The original `annotation` is returned if there is
+  // nothing to resolve, preserving the ability to look it up in
+  // `auto_literal_annotations_`.
+  //
+  // If `accept_predicate` is specified, then it is used to filter annotations
+  // for entities referred to by `annotation`. For example, the caller may be
+  // trying to solve for the value of an implicit parametric `N` by expanding a
+  // `TypeVariableTypeAnnotation` that has 2 associated annotations in the
+  // inference table: `u32` and `uN[N]`. In that case, the caller does not want
+  // attempted resolution of the `uN[N]` annotation by this function. The
+  // predicate is not applied to the input `annotation` itself.
   absl::StatusOr<const TypeAnnotation*> ResolveVariableTypeAnnotations(
       std::optional<const ParametricInvocation*> parametric_invocation,
       const TypeAnnotation* annotation,
@@ -935,27 +945,102 @@ class InferenceTableConverter {
         AstNode * clone,
         CloneAst(
             annotation,
-            [&](const AstNode* node)
-                -> absl::StatusOr<std::optional<AstNode*>> {
-              if (const auto* variable_type_annotation =
-                      dynamic_cast<const TypeVariableTypeAnnotation*>(node)) {
-                XLS_ASSIGN_OR_RETURN(
-                    const TypeAnnotation* unified,
-                    UnifyTypeAnnotations(
-                        parametric_invocation,
-                        variable_type_annotation->type_variable(),
-                        annotation->span(), accept_predicate));
-                replaced_anything = true;
-                return const_cast<TypeAnnotation*>(unified);
-              }
-              return std::nullopt;
-            }));
+            ChainCloneReplacers(
+                &PreserveTypeDefinitionsReplacer,
+                [&](const AstNode* node)
+                    -> absl::StatusOr<std::optional<AstNode*>> {
+                  if (const auto* variable_type_annotation =
+                          dynamic_cast<const TypeVariableTypeAnnotation*>(
+                              node)) {
+                    XLS_ASSIGN_OR_RETURN(
+                        const TypeAnnotation* unified,
+                        UnifyTypeAnnotations(
+                            parametric_invocation,
+                            variable_type_annotation->type_variable(),
+                            annotation->span(), accept_predicate));
+                    replaced_anything = true;
+                    return const_cast<TypeAnnotation*>(unified);
+                  }
+                  if (const auto* member_type =
+                          dynamic_cast<const MemberTypeAnnotation*>(node)) {
+                    replaced_anything = true;
+                    XLS_ASSIGN_OR_RETURN(
+                        const TypeAnnotation* result,
+                        ExpandMemberType(parametric_invocation, member_type,
+                                         accept_predicate));
+                    return const_cast<TypeAnnotation*>(result);
+                  }
+                  if (const auto* element_type =
+                          dynamic_cast<const ElementTypeAnnotation*>(node)) {
+                    replaced_anything = true;
+                    XLS_ASSIGN_OR_RETURN(
+                        const TypeAnnotation* result,
+                        ExpandElementType(parametric_invocation, element_type,
+                                          accept_predicate));
+                    return const_cast<TypeAnnotation*>(result);
+                  }
+                  return std::nullopt;
+                })));
     if (!replaced_anything) {
       return annotation;
     }
     const auto* result = dynamic_cast<const TypeAnnotation*>(clone);
     CHECK(result != nullptr);
     return result;
+  }
+
+  // Converts `member_type` into a regular `TypeAnnotation` that expresses the
+  // type of the given struct member independently of the struct type. For
+  // example, if `member_type` refers to `SomeStruct.foo`, and the type
+  // annotation of the referenced `foo` field is `u32[5]`, then the result will
+  // be the `u32[5]` annotation. The `accept_predicate` may be used to exclude
+  // type annotations dependent on an implicit parametric that this utility is
+  // being used to help infer.
+  absl::StatusOr<const TypeAnnotation*> ExpandMemberType(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const MemberTypeAnnotation* member_type,
+      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
+          accept_predicate = std::nullopt) {
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* struct_type,
+                         ResolveVariableTypeAnnotations(
+                             parametric_invocation, member_type->struct_type(),
+                             accept_predicate));
+    std::optional<StructOrProcRef> struct_or_proc_ref =
+        GetStructOrProcRef(struct_type);
+    CHECK(struct_or_proc_ref.has_value());
+    CHECK_EQ(ToAstNode(struct_or_proc_ref->def), member_type->struct_def());
+    return member_type->member()->type();
+  }
+
+  // Converts `element_type` into a regular `TypeAnnotation` that expresses the
+  // element type of the given array or tuple, independently of the array or
+  // tuple type. For example, if `element_type` refers to an array whose type is
+  // actually `u32[5]`, then the result will be a `u32` annotation. The
+  // `accept_predicate` may be used to exclude type annotations dependent on an
+  // implicit parametric that this utility is being used to help infer.
+  absl::StatusOr<const TypeAnnotation*> ExpandElementType(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const ElementTypeAnnotation* element_type,
+      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
+          accept_predicate = std::nullopt) {
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* container_type,
+                         ResolveVariableTypeAnnotations(
+                             parametric_invocation,
+                             element_type->container_type(), accept_predicate));
+    if (const auto* array_type =
+            dynamic_cast<const ArrayTypeAnnotation*>(container_type)) {
+      return array_type->element_type();
+    }
+    if (const auto* tuple_type =
+            dynamic_cast<const TupleTypeAnnotation*>(container_type)) {
+      CHECK(element_type->tuple_index().has_value());
+      XLS_ASSIGN_OR_RETURN(
+          uint64_t index,
+          (*element_type->tuple_index())->GetAsUint64(file_table_));
+      CHECK(index < tuple_type->members().size());
+      return tuple_type->members()[index];
+    }
+    return container_type;
   }
 
   // Variant that deeply resolves all `TypeVariableTypeAnnotation`s within a

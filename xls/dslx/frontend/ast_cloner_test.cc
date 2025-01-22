@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -1713,6 +1714,50 @@ struct Point {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, MemberAnnotation) {
+  constexpr std::string_view kProgram =
+      R"(
+struct Point {
+    x: u32,
+})";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(StructDef * point,
+                           module->GetMemberOrError<StructDef>("Point"));
+  const MemberTypeAnnotation* annotation = module->Make<MemberTypeAnnotation>(
+      module->Make<TypeRefTypeAnnotation>(
+          Span::Fake(), module->Make<TypeRef>(Span::Fake(), point),
+          /*parametrics=*/std::vector<ExprOrType>()),
+      point, point->members()[0]);
+
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
+  EXPECT_EQ(annotation->ToString(), clone->ToString());
+}
+
+TEST(AstClonerTest, ElementAnnotation) {
+  constexpr std::string_view kProgram =
+      R"(
+const X:(u32, u24, u16) = (u32:1, u24:2, u16:3);
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule(kProgram, "fake_path.x", "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(ConstantDef * x,
+                           module->GetMemberOrError<ConstantDef>("X"));
+  const ElementTypeAnnotation* annotation = module->Make<ElementTypeAnnotation>(
+      x->type_annotation(),
+      module->Make<Number>(Span::Fake(), "1", NumberKind::kOther,
+                           /*type=*/nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
+  EXPECT_EQ(annotation->ToString(), clone->ToString());
 }
 
 TEST(AstClonerTest, ExternVerilog) {

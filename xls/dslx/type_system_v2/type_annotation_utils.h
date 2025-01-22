@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <variant>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -27,6 +28,19 @@
 namespace xls::dslx {
 
 using StructOrProcDef = std::variant<const StructDef*, const ProcDef*>;
+
+struct StructOrProcRef {
+  StructOrProcDef def;
+  std::vector<ExprOrType> parametrics;
+};
+
+// The signedness and bit count extracted from a `TypeAnnotation`. The
+// `TypeAnnotation` may use primitive values or exprs; we convey the
+// representation as is.
+struct SignednessAndBitCountResult {
+  std::variant<bool, const Expr*> signedness;
+  std::variant<int64_t, const Expr*> bit_count;
+};
 
 // Creates an annotation for `uN[bit_count]` or `sN[bit_count]` depending on the
 // value of `is_signed`.
@@ -38,14 +52,6 @@ TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span);
 
 // Creates a `s64` type annotation.
 TypeAnnotation* CreateS64Annotation(Module& module, const Span& span);
-
-// The signedness and bit count extracted from a `TypeAnnotation`. The
-// `TypeAnnotation` may use primitive values or exprs; we convey the
-// representation as is.
-struct SignednessAndBitCountResult {
-  std::variant<bool, const Expr*> signedness;
-  std::variant<int64_t, const Expr*> bit_count;
-};
 
 // Returns the signedness and bit count from the given type annotation, if it is
 // a bits-like annotation; otherwise, returns an error.
@@ -67,9 +73,9 @@ TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span);
 const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
     const TypeAnnotation* annotation);
 
-// Gets the `StructDef` or `ProcDef` for the type referenced by `annotation`, if
-// it is indeed a struct or impl-style proc type.
-std::optional<StructOrProcDef> GetStructOrProcDef(
+// Resolves the definition and parametrics for the struct or proc type referred
+// to by `annotation`.
+std::optional<StructOrProcRef> GetStructOrProcRef(
     const TypeAnnotation* annotation);
 
 }  // namespace xls::dslx

@@ -996,6 +996,33 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleMemberTypeAnnotation(
+      const MemberTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_def()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->member()));
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_type()));
+    old_to_new_[n] = module_->Make<MemberTypeAnnotation>(
+        down_cast<const TypeAnnotation*>(old_to_new_[n->struct_type()]),
+        down_cast<const StructDef*>(old_to_new_[n->struct_def()]),
+        down_cast<const StructMemberNode*>(old_to_new_[n->member()]));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleElementTypeAnnotation(
+      const ElementTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->container_type()));
+    if (n->tuple_index().has_value()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(*n->tuple_index()));
+    }
+    old_to_new_[n] = module_->Make<ElementTypeAnnotation>(
+        down_cast<const TypeAnnotation*>(old_to_new_[n->container_type()]),
+        n->tuple_index().has_value()
+            ? std::make_optional(
+                  down_cast<const Number*>(old_to_new_[*n->tuple_index()]))
+            : std::nullopt);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleUnop(const Unop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] =

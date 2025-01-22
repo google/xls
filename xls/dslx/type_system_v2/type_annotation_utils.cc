@@ -34,6 +34,42 @@
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
+namespace {
+
+std::optional<StructOrProcDef> GetStructOrProcDef(
+    const TypeAnnotation* annotation) {
+  const auto* type_ref_annotation =
+      dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
+  if (type_ref_annotation == nullptr) {
+    return std::nullopt;
+  }
+  const TypeDefinition& def =
+      type_ref_annotation->type_ref()->type_definition();
+  return absl::visit(
+      Visitor{[](TypeAlias* alias) -> std::optional<StructOrProcDef> {
+                return GetStructOrProcDef(&alias->type_annotation());
+              },
+              [](StructDef* struct_def) -> std::optional<StructOrProcDef> {
+                return struct_def;
+              },
+              [](ProcDef* proc_def) -> std::optional<StructOrProcDef> {
+                return proc_def;
+              },
+              [](ColonRef* colon_ref) -> std::optional<StructOrProcDef> {
+                if (std::holds_alternative<TypeRefTypeAnnotation*>(
+                        colon_ref->subject())) {
+                  return GetStructOrProcDef(
+                      std::get<TypeRefTypeAnnotation*>(colon_ref->subject()));
+                }
+                return std::nullopt;
+              },
+              [](EnumDef*) -> std::optional<StructOrProcDef> {
+                return std::nullopt;
+              }},
+      def);
+}
+
+}  // namespace
 
 TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
                                        bool is_signed, int64_t bit_count) {
@@ -155,37 +191,19 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
   return !signedness_and_bit_count.ok() ? array_annotation : nullptr;
 }
 
-std::optional<StructOrProcDef> GetStructOrProcDef(
+std::optional<StructOrProcRef> GetStructOrProcRef(
     const TypeAnnotation* annotation) {
   const auto* type_ref_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
   if (type_ref_annotation == nullptr) {
     return std::nullopt;
   }
-  const TypeDefinition& def =
-      type_ref_annotation->type_ref()->type_definition();
-  return absl::visit(
-      Visitor{[](TypeAlias* alias) -> std::optional<StructOrProcDef> {
-                return GetStructOrProcDef(&alias->type_annotation());
-              },
-              [](StructDef* struct_def) -> std::optional<StructOrProcDef> {
-                return struct_def;
-              },
-              [](ProcDef* proc_def) -> std::optional<StructOrProcDef> {
-                return proc_def;
-              },
-              [](ColonRef* colon_ref) -> std::optional<StructOrProcDef> {
-                if (std::holds_alternative<TypeRefTypeAnnotation*>(
-                        colon_ref->subject())) {
-                  return GetStructOrProcDef(
-                      std::get<TypeRefTypeAnnotation*>(colon_ref->subject()));
-                }
-                return std::nullopt;
-              },
-              [](EnumDef*) -> std::optional<StructOrProcDef> {
-                return std::nullopt;
-              }},
-      def);
+  std::optional<StructOrProcDef> def = GetStructOrProcDef(type_ref_annotation);
+  if (!def.has_value()) {
+    return std::nullopt;
+  }
+  return StructOrProcRef{.def = *def,
+                         .parametrics = type_ref_annotation->parametrics()};
 }
 
 }  // namespace xls::dslx

@@ -2213,6 +2213,18 @@ class DeduceVisitor : public AstNodeVisitor {
     // none of them when using `type_system` for inference.
     return Fatal(n);
   }
+  absl::Status HandleMemberTypeAnnotation(
+      const MemberTypeAnnotation* n) override {
+    // These annotations are created by `type_system_v2`, so there should be
+    // none of them when using `type_system` for inference.
+    return Fatal(n);
+  }
+  absl::Status HandleElementTypeAnnotation(
+      const ElementTypeAnnotation* n) override {
+    // These annotations are created by `type_system_v2`, so there should be
+    // none of them when using `type_system` for inference.
+    return Fatal(n);
+  }
   absl::Status HandleFunctionRef(const FunctionRef* n) override {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> callee_type,
                          ctx_->Deduce(n->callee()));

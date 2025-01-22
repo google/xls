@@ -218,7 +218,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // attempted.
 
     XLS_ASSIGN_OR_RETURN(
-        std::optional<const TupleTypeAnnotation*> tuple_annotation,
+        std::optional<const TypeAnnotation*> tuple_annotation,
         GetDeclarationTypeAnnotation<TupleTypeAnnotation>(node));
 
     // Create the M0, M1, ... variables and apply them to the members.
@@ -233,7 +233,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(member, member_variable));
       if (tuple_annotation.has_value()) {
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            member, (*tuple_annotation)->members()[i]));
+            member,
+            module_.Make<ElementTypeAnnotation>(
+                *tuple_annotation,
+                module_.Make<Number>((*tuple_annotation)->span(),
+                                     absl::StrCat(i), NumberKind::kOther,
+                                     /*type_annotation=*/nullptr))));
       }
       member_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(member_variable));
@@ -252,9 +257,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // different arguments the same thing.
     VLOG(5) << "HandleStructInstance: " << node->ToString();
 
-    std::optional<StructOrProcDef> struct_or_proc_def =
-        GetStructOrProcDef(node->struct_ref());
-    if (!struct_or_proc_def.has_value()) {
+    std::optional<StructOrProcRef> struct_or_proc_ref =
+        GetStructOrProcRef(node->struct_ref());
+    if (!struct_or_proc_ref.has_value()) {
       return TypeInferenceErrorStatusForAnnotation(
           node->span(), node->struct_ref(),
           absl::Substitute(
@@ -262,7 +267,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
               node->struct_ref()->ToString()),
           file_table_);
     }
-    if (!std::holds_alternative<const StructDef*>(*struct_or_proc_def)) {
+    if (!std::holds_alternative<const StructDef*>(struct_or_proc_ref->def)) {
       return TypeInferenceErrorStatusForAnnotation(
           node->span(), node->struct_ref(),
           "Impl-style procs are a work in progress and cannot yet be "
@@ -271,7 +276,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     }
 
     const StructDef* struct_def =
-        std::get<const StructDef*>(*struct_or_proc_def);
+        std::get<const StructDef*>(struct_or_proc_ref->def);
     XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(*node, *struct_def));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, node->struct_ref()));
     std::vector<std::pair<std::string, Expr*>> members =
@@ -319,7 +324,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // no explicit annotation on a zero-size or elliptical array).
 
     XLS_ASSIGN_OR_RETURN(
-        std::optional<const ArrayTypeAnnotation*> array_annotation,
+        std::optional<const TypeAnnotation*> array_annotation,
         GetDeclarationTypeAnnotation<ArrayTypeAnnotation>(node));
 
     // An empty array can't end with an ellipsis, even if unification is
@@ -350,7 +355,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           table_.SetTypeVariable(member, element_type_variable));
       if (array_annotation.has_value()) {
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            member, (*array_annotation)->element_type()));
+            member, module_.Make<ElementTypeAnnotation>(*array_annotation)));
       }
     }
     Expr* element_count = module_.Make<Number>(
@@ -786,7 +791,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       return annotation;
     }
     VLOG(5) << "Scoping annotation " << annotation->ToString();
-    XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAst(annotation));
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * cloned,
+        CloneAst(annotation, &PreserveTypeDefinitionsReplacer));
     annotation = dynamic_cast<const TypeAnnotation*>(cloned);
     CHECK(annotation != nullptr);
     for (const AstNode* next : FlattenToSet(annotation)) {
@@ -844,12 +851,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  // Gets the explicit type annotation (of type `T`) for a node by querying the
-  // type variable that it shares with a declaration, if any. This must be done
-  // before imposing any synthetic type annotation on the value.
+  // Gets the explicit type annotation (expected to be of type `T` if it is
+  // direct) for a node by querying the type variable that it shares with a
+  // declaration, if any. This must be done before imposing any synthetic type
+  // annotation on the value.
   template <typename T>
-  absl::StatusOr<std::optional<const T*>> GetDeclarationTypeAnnotation(
-      const AstNode* node) {
+  absl::StatusOr<std::optional<const TypeAnnotation*>>
+  GetDeclarationTypeAnnotation(const AstNode* node) {
     std::optional<const NameRef*> type_variable = table_.GetTypeVariable(node);
     if (!type_variable.has_value()) {
       return std::nullopt;
@@ -863,8 +871,15 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // If > 1, the caller is ignoring the "before imposing an annotation on the
     // RHS" precondition.
     CHECK_EQ(annotations.size(), 1);
-    if (const auto* result = dynamic_cast<const T*>(annotations[0])) {
-      return result;
+
+    // Constraining the annotation type here improves error messages in
+    // situations where there is a type mismatch for an entire array/tuple.
+    // We allow indirect member/element annotations through at this point,
+    // because we can't yet prove whether they amount to something expected.
+    if (dynamic_cast<const T*>(annotations[0]) ||
+        dynamic_cast<const MemberTypeAnnotation*>(annotations[0]) ||
+        dynamic_cast<const ElementTypeAnnotation*>(annotations[0])) {
+      return annotations[0];
     }
     return std::nullopt;
   }

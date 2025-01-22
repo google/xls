@@ -39,6 +39,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -1028,6 +1029,40 @@ TypeVariableTypeAnnotation::TypeVariableTypeAnnotation(
 std::string TypeVariableTypeAnnotation::ToString() const {
   return absl::StrCat("TypeVariableTypeAnnotation: ",
                       type_variable_->ToString());
+}
+
+// -- class MemberTypeAnnotation
+
+MemberTypeAnnotation::MemberTypeAnnotation(Module* owner,
+                                           const TypeAnnotation* struct_type,
+                                           const StructDefBase* struct_def,
+                                           const StructMemberNode* member)
+    : TypeAnnotation(owner, struct_type->span()),
+      struct_type_(struct_type),
+      struct_def_(struct_def),
+      member_(member) {}
+
+std::string MemberTypeAnnotation::ToString() const {
+  return absl::Substitute("MemberTypeAnnotation: $0.$1",
+                          struct_type_->ToString(), member_->name());
+}
+
+// -- class ElementTypeAnnotation
+
+ElementTypeAnnotation::ElementTypeAnnotation(
+    Module* owner, const TypeAnnotation* container_type,
+    std::optional<const Number*> tuple_index)
+    : TypeAnnotation(owner, container_type->span()),
+      container_type_(container_type),
+      tuple_index_(tuple_index) {}
+
+std::string ElementTypeAnnotation::ToString() const {
+  return absl::StrCat(
+      "ElementTypeAnnotation: ",
+      tuple_index_.has_value()
+          ? absl::Substitute("$0.$1", container_type_->ToString(),
+                             (*tuple_index_)->ToStringNoType())
+          : container_type_->ToString());
 }
 
 // -- class ArrayTypeAnnotation
