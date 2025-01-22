@@ -1719,5 +1719,134 @@ fn foo(x: u32, y: u32) -> bool {
               TypecheckFails(HasSizeMismatch("u32", "bool")));
 }
 
+TEST(TypecheckV2Test, IfType) {
+  EXPECT_THAT("const X = if true { u32:1 } else { u32:0 };",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, IfTypeMismatch) {
+  EXPECT_THAT("const X: u31 = if true { u32:1 } else { u32:0 };",
+              TypecheckFails(HasSizeMismatch("u32", "u31")));
+}
+
+TEST(TypecheckV2Test, IfTestVariable) {
+  EXPECT_THAT("const Y = true; const X = if Y { u32:1 } else { u32:0 };",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, IfTestVariableNotVariable) {
+  EXPECT_THAT("const Y = true; const X = if Y { Y } else { !Y };",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[1]")));
+}
+
+TEST(TypecheckV2Test, IfTestVariables) {
+  EXPECT_THAT(R"(
+const Y = true;
+const Z = false;
+const X = if (Y && Z) {u32:1} else { u32:2 };
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("Y", "uN[1]"),
+                                      HasNodeWithType("Z", "uN[1]"),
+                                      HasNodeWithType("X", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, IfTestBadVariable) {
+  EXPECT_THAT("const Y = u32:1; const X = if Y { u32:1 } else { u32:0 };",
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2Test, IfTestFnCall) {
+  EXPECT_THAT(R"(
+fn f() -> bool { true }
+const X = if f() { u32:1 } else { u32:0 };
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, IfTestBadFnCall) {
+  EXPECT_THAT(R"(
+fn f() -> u32 { u32:1 }
+const X = if f() { u32:1 } else { u32:0 };
+)",
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2Test, FnReturnsIf) {
+  EXPECT_THAT(R"(
+fn f(x:u10) -> u32 { if x>u10:0 { u32:1 } else { u32:0 } }
+const X = f(u10:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, CallFnWithIf) {
+  EXPECT_THAT(R"(
+fn f(x:u32) -> u32 { x }
+const X = f(if true { u32:1 } else { u32:0 });
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, IfTestInt) {
+  EXPECT_THAT("const X = if u32:1 { u32:1 } else { u32:0 };",
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2Test, IfAlternativeWrongType) {
+  EXPECT_THAT("const X = if true { u32:1 } else { u31:0 };",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2Test, IfElseIf) {
+  EXPECT_THAT(R"(
+const X = if false {
+    u32:1
+} else if true {
+    u32:2
+} else {
+    u32:3
+};)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, ElseIfMismatch) {
+  EXPECT_THAT(R"(
+const X = if false {
+    u32:1
+} else if true {
+    u31:2
+} else {
+    u32:3
+};)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2Test, ElseIfNotBool) {
+  EXPECT_THAT(R"(const X = if false {
+    u32:1
+} else if u32:1 {
+    u32:2
+} else {
+    u32:3
+};)",
+              TypecheckFails(HasSizeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2Test, IfParametricVariable) {
+  EXPECT_THAT(R"(
+fn f<N:u32>(x: uN[N]) -> u32 { if true { N } else { N }}
+const Y = f(u10:256);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, IfParametricType) {
+  EXPECT_THAT(R"(
+fn f<N:u32>(x: uN[N]) -> uN[N] { if true { x } else { x }}
+const Y = f(u10:256);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

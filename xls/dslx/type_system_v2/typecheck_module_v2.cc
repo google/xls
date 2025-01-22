@@ -166,6 +166,32 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleConditional(const Conditional* node) override {
+    VLOG(5) << "HandleConditional: " << node->ToString();
+    // In the example `const D = if (a) {b} else {c};`, the `ConstantDef`
+    // establishes a type variable that is just propagated down to `b` and
+    // `c` here, meaning that `b`, `c`, and the result must ultimately be
+    // the same type as 'D'. The test 'a' must be a bool, so we annotate it as
+    // such.
+    const NameRef* type_variable = *table_.GetTypeVariable(node);
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->consequent(), type_variable));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(ToAstNode(node->alternate()), type_variable));
+
+    // Mark the test as bool.
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->test(), CreateBoolAnnotation(module_, node->test()->span())));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* test_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->test()),
+            GenerateInternalTypeVariableName(node->test())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->test(), test_variable));
+
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleXlsTuple(const XlsTuple* node) override {
     VLOG(5) << "HandleXlsTuple: " << node->ToString();
 
