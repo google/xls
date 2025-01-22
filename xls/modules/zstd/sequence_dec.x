@@ -35,6 +35,7 @@ type SequenceExecutorMessageType = common::SequenceExecutorMessageType;
 
 type BlockSyncData = common::BlockSyncData;
 type CommandConstructorData = common::CommandConstructorData;
+type CompressionMode = common::CompressionMode;
 
 enum SequenceDecoderStatus: u3 {
     OK = 0,
@@ -69,23 +70,23 @@ struct SequenceDecoderState<ADDR_W: u32> {
 }
 
 struct FseLookupCtrlReq {
-    ll: bool,
-    ml: bool,
-    of: bool,
+    ll_mode: CompressionMode,
+    ml_mode: CompressionMode,
+    of_mode: CompressionMode,
 }
 
 type AccuracyLog = common::FseAccuracyLog;
 struct FseLookupCtrlResp {
-    ll_accuracy_log: AccuracyLog,
-    ml_accuracy_log: AccuracyLog,
-    of_accuracy_log: AccuracyLog,
+    ll_accuracy_log: u7,
+    ml_accuracy_log: u7,
+    of_accuracy_log: u7,
 }
 
 struct FseLookupCtrlState {
-    decode: bool[3],
-    decode_valid: bool,
-    resp: FseLookupCtrlResp,
+    mode: CompressionMode[3],
+    mode_valid: bool,
     cnt: u2,
+    accuracy_logs: u7[3],
 }
 
 pub proc FseLookupCtrl {
@@ -125,18 +126,26 @@ pub proc FseLookupCtrl {
     }
 
     next(state: State) {
+        const PREDEFINED_ACURACY_LOG = u7[3]:[u7:6, u7:5, u7:6];
+
         let tok0 = join();
 
-        if !state.decode_valid {
+        if !state.mode_valid {
             let (tok1_0, req) = recv(tok0, req_r);
             State {
-                decode: bool[3]:[req.ll, req.of, req.ml],
-                decode_valid: true,
+                mode: CompressionMode[3]:[req.ll_mode, req.of_mode, req.ml_mode],
+                mode_valid: true,
                 cnt: u2:0,
                 ..zero!<State>()
             }
         } else {
-            let do_set = state.decode[state.cnt];
+            let is_rle = (state.mode[state.cnt] == CompressionMode::RLE);
+            let is_compressed = (state.mode[state.cnt] == CompressionMode::COMPRESSED);
+            let is_predefined = (state.mode[state.cnt] == CompressionMode::PREDEFINED);
+            let is_repeated = (state.mode[state.cnt] == CompressionMode::REPEAT);
+
+            let do_set = is_rle || is_compressed;
+
             match(state.cnt) {
                 u2:0 => trace_fmt!("Handling LL"),
                 u2:1 => trace_fmt!("Handling OF"),
@@ -156,7 +165,7 @@ pub proc FseLookupCtrl {
             } else {};
             // trace_fmt!("Received response from demux");
 
-            let tok3 = send_if(tok2, fld_req_s, do_set, FseLookupDecoderReq {});
+            let tok3 = send_if(tok2, fld_req_s, do_set, FseLookupDecoderReq { is_rle });
             if do_set {
                 trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Sent FseLookupDecoder req");
             } else {};
@@ -166,20 +175,28 @@ pub proc FseLookupCtrl {
                 trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: Received FseLookupDecoder resp {:#x}", fld_resp);
             } else {};
 
-            let resp = match(state.cnt) {
-                u2:0 => FseLookupCtrlResp { ll_accuracy_log: fld_resp.accuracy_log, ..state.resp},
-                u2:1 => FseLookupCtrlResp { of_accuracy_log: fld_resp.accuracy_log, ..state.resp},
-                u2:2 => FseLookupCtrlResp { ml_accuracy_log: fld_resp.accuracy_log, ..state.resp},
-                _ => fail!("impossible_cnt", zero!<FseLookupCtrlResp>()),
+            let accuracy_log = if is_predefined {
+                PREDEFINED_ACURACY_LOG[state.cnt]
+            } else if is_repeated {
+                state.accuracy_logs[state.cnt]
+            } else if is_rle || is_compressed {
+                fld_resp.accuracy_log as u7
+            } else {
+                fail!("impossible_case", u7:0)
             };
 
-            // trace_fmt!("Received response from from FseLookupDecoder {:#x}", fld_resp);
+            let accuracy_logs = update(state.accuracy_logs, state.cnt, accuracy_log);
+            trace_fmt!("[SequenceDecoderCtrl/FseLookupCtrl]: accuracy_log: {:#x}, accuracy_logs: {:#x}", accuracy_log, accuracy_logs);
 
             if state.cnt >= u2:2 {
-                let tok5 = send(tok4, resp_s, resp);
-                zero!<State>()
+                let tok5 = send(tok4, resp_s, FseLookupCtrlResp {
+                    ll_accuracy_log: accuracy_logs[0],
+                    of_accuracy_log: accuracy_logs[1],
+                    ml_accuracy_log: accuracy_logs[2],
+                });
+                State { accuracy_logs, ..zero!<State>() }
             } else {
-                State { cnt: state.cnt + u2:1, resp, ..state}
+                State { accuracy_logs, cnt: state.cnt + u2:1, ..state}
             }
         }
     }
@@ -496,12 +513,6 @@ pub proc SequenceDecoderCtrl<
         let (tok_recv_scd, conf_resp) = recv(tok_send_scd, scd_resp_r);
         trace_fmt!("[SequenceDecoderCtrl]: Received decoded Sequence header: {:#x}", conf_resp);
 
-        let zero_sequences = (conf_resp.header.sequence_count == u17:0);
-        if !zero_sequences {
-           assert!(conf_resp.header.literals_mode != CompressionMode::RLE, "unsupported_fse_table_mode");
-           assert!(conf_resp.header.match_mode != CompressionMode::RLE, "unsupported_fse_table_mode");
-           assert!(conf_resp.header.offset_mode != CompressionMode::RLE, "unsupported_fse_table_mode");
-        } else {};
 
         // Start RefillingShiftBuffer for decoding lookups
         let tok_dec_lookup = send(tok_recv_scd, fld_rsb_start_req_s, RefillingShiftBufferStart {
@@ -510,11 +521,12 @@ pub proc SequenceDecoderCtrl<
 
         // Request decoding lookups
         let flc_req = FseLookupCtrlReq {
-            ll: (conf_resp.header.literals_mode == CompressionMode::COMPRESSED),
-            ml: (conf_resp.header.match_mode == CompressionMode::COMPRESSED),
-            of: (conf_resp.header.offset_mode == CompressionMode::COMPRESSED),
+            ll_mode: conf_resp.header.literals_mode,
+            ml_mode: conf_resp.header.match_mode,
+            of_mode: conf_resp.header.offset_mode,
         };
 
+        let zero_sequences = (conf_resp.header.sequence_count == u17:0);
         let tok_send_ctrl = send_if(tok_recv_scd, flc_req_s, !zero_sequences, flc_req);
         if !zero_sequences {
             trace_fmt!("[SequenceDecoderCtrl]: Sent FseLookupCtrl request: {:#x}", flc_req);
@@ -529,21 +541,24 @@ pub proc SequenceDecoderCtrl<
 
         // Set proper LL lookup through demux
         let ll_demux_sel = (conf_resp.header.literals_mode != CompressionMode::PREDEFINED);
-        let tok_ll_demux = send_if(tok_recv_scd, ll_demux_req_s, !zero_sequences, ll_demux_sel);
+        let ll_demux_do_send = !zero_sequences && (conf_resp.header.literals_mode != CompressionMode::REPEAT);
+        let tok_ll_demux = send_if(tok_recv_scd, ll_demux_req_s, ll_demux_do_send, ll_demux_sel);
         // Receive response from LL lookup demux
-        let (tok_ll_demux, _) = recv_if(tok_ll_demux, ll_demux_resp_r, !zero_sequences, ());
+        let (tok_ll_demux, _) = recv_if(tok_ll_demux, ll_demux_resp_r, ll_demux_do_send, ());
 
         // Set proper ML lookup through demux
         let ml_demux_sel = (conf_resp.header.match_mode != CompressionMode::PREDEFINED);
-        let tok_ml_demux = send_if(tok_recv_scd, ml_demux_req_s, !zero_sequences, ml_demux_sel);
+        let ml_demux_do_send = !zero_sequences && (conf_resp.header.match_mode != CompressionMode::REPEAT);
+        let tok_ml_demux = send_if(tok_recv_scd, ml_demux_req_s, ml_demux_do_send, ml_demux_sel);
         // Receive response from ML lookup demux
-        let (tok_ml_demux, _) = recv_if(tok_ml_demux, ml_demux_resp_r, !zero_sequences, ());
+        let (tok_ml_demux, _) = recv_if(tok_ml_demux, ml_demux_resp_r, ml_demux_do_send, ());
 
         // Set proper OF lookup through demux
         let of_demux_sel = (conf_resp.header.offset_mode != CompressionMode::PREDEFINED);
-        let tok_of_demux = send_if(tok_recv_scd, of_demux_req_s, !zero_sequences, of_demux_sel);
+        let of_demux_do_send = !zero_sequences && (conf_resp.header.offset_mode != CompressionMode::REPEAT);
+        let tok_of_demux = send_if(tok_recv_scd, of_demux_req_s, of_demux_do_send, of_demux_sel);
         // Receive response from OF lookup demux
-        let (tok_of_demux, _) = recv_if(tok_of_demux, of_demux_resp_r, !zero_sequences, ());
+        let (tok_of_demux, _) = recv_if(tok_of_demux, of_demux_resp_r, of_demux_do_send, ());
 
         let tok_demux = join(tok_ll_demux, tok_ml_demux, tok_of_demux);
 
@@ -557,9 +572,9 @@ pub proc SequenceDecoderCtrl<
             sync: req.sync,
             sequences_count: conf_resp.header.sequence_count as u24,
             literals_count: req.literals_count,
-            ll_acc_log: if (conf_resp.header.literals_mode == CompressionMode::PREDEFINED) { u7:6 } else { flc_resp.ll_accuracy_log as u7 },
-            of_acc_log: if (conf_resp.header.offset_mode == CompressionMode::PREDEFINED) { u7:5 } else { flc_resp.of_accuracy_log as u7 },
-            ml_acc_log: if (conf_resp.header.match_mode == CompressionMode::PREDEFINED) { u7:6 } else { flc_resp.ml_accuracy_log as u7 },
+            ll_acc_log: flc_resp.ll_accuracy_log as u7,
+            of_acc_log: flc_resp.of_accuracy_log as u7,
+            ml_acc_log: flc_resp.ml_accuracy_log as u7,
         };
 
         let tok_fse_dec = send(tok_demux, fd_ctrl_s, fd_ctrl);
@@ -1194,10 +1209,10 @@ const TEST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(TEST_TMP2_RAM_WORD_PART
 // - sequences section as it appears in memory
 // - expected output size
 // - expected output
-const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[3] = [
-    // Test case 0
-    // raw literals with sequences with 3 predefined tables
-    // ./decodecorpus -pdata2.out -odata2.in -s35304 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
+const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[4] = [
+//    // Test case 0
+//    // raw literals with sequences with 3 predefined tables
+//    // ./decodecorpus -pdata2.out -odata2.in -s35304 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
     (
         u32:17,
         u64[32]:[
@@ -1594,7 +1609,131 @@ const SEQ_DEC_TESTCASES: (u32, u64[32], u32, SequenceExecutorPacket[64])[3] = [
             zero!<SequenceExecutorPacket>(), ...
         ]
     ),
-    // Test case 3 (WARNING: long test running time)
+    // Test case 3
+    // LL - compressed, OF - compressed, ML - RLE
+    (
+        u32:0x17,
+        u64[32]:[
+            u64:0x0, u64:0x0,
+            u64:0x39fb5432a90a409,
+            u64:0x6b2940007b74a10,
+            u64:0xaca57e409b057,
+            u64:0x0, ...
+        ],
+        u32:18,
+        SequenceExecutorPacket[64]:[
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0002,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0004,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0000,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0007,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0001,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0009,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0005,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0009,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0000,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x000b,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0011,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0012,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0004,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0023,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0002,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x000a,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::LITERAL,
+                length: u64:0x0002,
+                content: u64:0x0,
+                last: false,
+            },
+            SequenceExecutorPacket {
+                msg_type: SequenceExecutorMessageType::SEQUENCE,
+                length: u64:0x0003,
+                content: u64:0x0034,
+                last: true,
+            },
+            zero!<SequenceExecutorPacket>(), ...
+        ]
+    ),
+    // Test case N (WARNING: long test running time)
     // 3 custom lookup tables with accuracy log 9, 8 and 9
     // decodecorpus -pdata.out -odata.in -s58745 --block-type=2 --content-size --literal-type=0 --max-block-size-log=7
     // (
