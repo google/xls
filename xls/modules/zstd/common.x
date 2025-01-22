@@ -297,3 +297,14 @@ pub struct LiteralsBufferCtrl {
     last: bool,
 }
 
+pub enum LookupDecoderStatus: u1 {
+    OK = u1:0,
+    ERROR = u1:1,
+}
+
+pub struct LookupDecoderReq {}
+
+pub struct LookupDecoderResp {
+    status: LookupDecoderStatus,
+    accuracy_log: FseAccuracyLog,
+}
