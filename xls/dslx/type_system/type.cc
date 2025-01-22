@@ -206,6 +206,14 @@ absl::StatusOr<std::unique_ptr<Type>> Type::FromInterpValue(
 TypeDim::TypeDim(const TypeDim& other)
     : value_(std::move(other.Clone().value_)) {}
 
+TypeDim::TypeDim(std::variant<InterpValue, OwnedParametric> value)
+    : value_(std::move(value)) {
+  if (std::holds_alternative<OwnedParametric>(value_)) {
+    const OwnedParametric& parametric = std::get<OwnedParametric>(value_);
+    CHECK(!parametric->const_value().has_value());
+  }
+}
+
 TypeDim TypeDim::Clone() const {
   if (std::holds_alternative<InterpValue>(value_)) {
     return TypeDim(std::get<InterpValue>(value_));
@@ -234,8 +242,38 @@ std::string TypeDim::ToString() const {
   return BitsToString(std::get<InterpValue>(value_).GetBitsOrDie());
 }
 
+static std::string VariantToString(
+    const std::variant<InterpValue, const ParametricExpression*>& variant) {
+  return absl::visit(Visitor{[](const InterpValue& value) {
+                               return absl::StrFormat("InterpValue{%s}",
+                                                      value.ToString());
+                             },
+                             [](const ParametricExpression* pe) {
+                               return absl::StrFormat(
+                                   "ParametricExpression{%s}", pe->ToString());
+                             }},
+                     variant);
+}
+
+static std::string VariantToString(
+    const std::variant<InterpValue, TypeDim::OwnedParametric>& variant) {
+  return absl::visit(Visitor{[](const InterpValue& value) {
+                               return absl::StrFormat("InterpValue{%s}",
+                                                      value.ToString());
+                             },
+                             [](const TypeDim::OwnedParametric& pe) {
+                               return absl::StrFormat(
+                                   "ParametricExpression{%s}", pe->ToString());
+                             }},
+                     variant);
+}
+
+std::string TypeDim::ToDebugString() const { return VariantToString(value_); }
+
 bool TypeDim::operator==(
     const std::variant<InterpValue, const ParametricExpression*>& other) const {
+  VLOG(10) << "TypeDim::operator==; this: " << VariantToString(value_)
+           << " other variant: " << VariantToString(other);
   return absl::visit(
       Visitor{
           [this](const InterpValue& other_value) {
@@ -255,13 +293,18 @@ bool TypeDim::operator==(
 }
 
 bool TypeDim::operator==(const TypeDim& other) const {
-  if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_) &&
-      std::holds_alternative<std::unique_ptr<ParametricExpression>>(
-          other.value_)) {
-    return *std::get<std::unique_ptr<ParametricExpression>>(value_) ==
-           *std::get<std::unique_ptr<ParametricExpression>>(other.value_);
-  }
-  return value_ == other.value_;
+  // Extracts the variant from "other" and delegates to the variant-based
+  // equality comparison.
+  using VariantT = std::variant<InterpValue, const ParametricExpression*>;
+  VariantT other_variant = absl::visit(
+      Visitor{
+          [](const InterpValue& v) -> VariantT { return v; },
+          [](const std::unique_ptr<ParametricExpression>& p) -> VariantT {
+            return p.get();
+          },
+      },
+      other.value_);
+  return *this == other_variant;
 }
 
 absl::StatusOr<TypeDim> TypeDim::Mul(const TypeDim& rhs) const {
@@ -482,7 +525,21 @@ MetaType::~MetaType() = default;
 // -- BitsConstructorType
 
 BitsConstructorType::BitsConstructorType(TypeDim is_signed)
-    : is_signed_(std::move(is_signed)) {}
+    : is_signed_(std::move(is_signed)) {
+  VLOG(10) << "BitsConstructorType constructor; is_signed: "
+           << is_signed_.ToDebugString();
+
+  // Validate that if we hold a parametric it is not just wrapping a concrete
+  // value -- that should always be represented with just the concrete value
+  // directly.
+  if (!is_signed_.IsParametric()) {
+    // Check that the InterpValue is a boolean.
+    const InterpValue& value = std::get<InterpValue>(is_signed_.value());
+    CHECK(value.IsBool())
+        << "BitsConstructorType is_signed must be a boolean; got: "
+        << value.ToString();
+  }
+}
 
 BitsConstructorType::~BitsConstructorType() = default;
 
@@ -493,6 +550,13 @@ absl::Status BitsConstructorType::Accept(TypeVisitor& v) const {
 absl::StatusOr<std::unique_ptr<Type>> BitsConstructorType::MapSize(
     const MapFn& f) const {
   XLS_ASSIGN_OR_RETURN(TypeDim new_is_signed, f(is_signed_));
+  if (!new_is_signed.IsParametric()) {
+    // Check that the concrete value that we got for signedness is a boolean.
+    const InterpValue& value = std::get<InterpValue>(new_is_signed.value());
+    XLS_RET_CHECK(value.IsBool())
+        << "Bits constructor `is_signed` value must be a boolean; got: "
+        << value.ToString();
+  }
   return std::make_unique<BitsConstructorType>(std::move(new_is_signed));
 }
 
@@ -500,7 +564,9 @@ bool BitsConstructorType::operator==(const Type& other) const {
   VLOG(10) << "BitsConstructorType::operator==; this: " << *this
            << " other: " << other;
   if (auto* t = dynamic_cast<const BitsConstructorType*>(&other)) {
-    return t->is_signed_ == is_signed_;
+    bool result = t->is_signed_ == is_signed_;
+    VLOG(10) << "BitsConstructorType::operator==; result: " << result;
+    return result;
   }
   if (auto* b = dynamic_cast<const BitsType*>(&other)) {
     return TypeDim::CreateBool(b->is_signed()) == is_signed_ &&
@@ -1141,6 +1207,37 @@ std::optional<BitsLikeProperties> GetBitsLike(const Type& t) {
                               .size = array->size()};
   }
   return std::nullopt;
+}
+
+static std::optional<bool> GetKnownSignedness(
+    const BitsLikeProperties& properties) {
+  const TypeDim& is_signed = properties.is_signed;
+  if (is_signed.IsParametric()) {
+    return std::nullopt;
+  }
+  CHECK(std::get<InterpValue>(is_signed.value()).IsBool());
+  return is_signed.GetAsBool().value();
+}
+
+static std::optional<int64_t> GetKnownBitCount(
+    const BitsLikeProperties& properties) {
+  const TypeDim& size = properties.size;
+  if (size.IsParametric()) {
+    return std::nullopt;
+  }
+  return size.GetAsInt64().value();
+}
+
+bool IsKnownU1(const BitsLikeProperties& properties) {
+  std::optional<bool> signedness = GetKnownSignedness(properties);
+  std::optional<int64_t> bit_count = GetKnownBitCount(properties);
+  return signedness == false && bit_count == 1;
+}
+
+bool IsKnownU32(const BitsLikeProperties& properties) {
+  std::optional<bool> signedness = GetKnownSignedness(properties);
+  std::optional<int64_t> bit_count = GetKnownBitCount(properties);
+  return signedness == false && bit_count == 32;
 }
 
 }  // namespace xls::dslx

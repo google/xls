@@ -83,8 +83,7 @@ class TypeDim {
     return TypeDim(InterpValue::MakeBool(value));
   }
 
-  explicit TypeDim(std::variant<InterpValue, OwnedParametric> value)
-      : value_(std::move(value)) {}
+  explicit TypeDim(std::variant<InterpValue, OwnedParametric> value);
 
   TypeDim(const TypeDim& other);
   TypeDim(TypeDim&& other) = default;
@@ -100,6 +99,10 @@ class TypeDim {
   // Returns a string representation of this dimension, which is either the
   // integral string or the parametric expression string conversion.
   std::string ToString() const;
+
+  // Returns a string representation of this dimension with more internal
+  // details, suitable for debugging.
+  std::string ToDebugString() const;
 
   bool operator==(const TypeDim& other) const;
   bool operator==(const std::variant<InterpValue, const ParametricExpression*>&
@@ -1113,6 +1116,14 @@ struct BitsLikeProperties {
   TypeDim is_signed;
   TypeDim size;
 };
+
+// Returns true iff both the signedness and size of the `properties` are known
+// constants and they indicate that the type is a `u1` AKA `bool`.
+bool IsKnownU1(const BitsLikeProperties& properties);
+
+// Returns true iff both the signedness and size of the `properties` are known
+// constants and they indicate that the type is a `u32`.
+bool IsKnownU32(const BitsLikeProperties& properties);
 
 // Returns a string representation of the BitsLikeProperties that looks similar
 // to a corresponding BitsType.

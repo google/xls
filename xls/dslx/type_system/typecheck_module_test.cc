@@ -305,6 +305,21 @@ fn main() -> bool[44] {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+// Various samples of actual-argument compatibility with an `xN` field within a
+// struct via a struct instantiation expression.
+TEST(TypecheckTest, StructInstantiateParametricXnField) {
+  constexpr std::string_view kProgram = R"(
+struct XnWrapper<S: bool, N: u32> {
+  field: xN[S][N]
+}
+fn f() -> XnWrapper<false, u32:8> { XnWrapper<false, u32:8> { field: u8:0 } }
+fn g() -> XnWrapper<true, u32:8> { XnWrapper<true, u32:8> { field: s8:1 } }
+fn h() -> XnWrapper<false, u32:8> { XnWrapper<false, u32:8> { field: xN[false][8]:2 } }
+fn i() -> XnWrapper<true, u32:8> { XnWrapper<true, u32:8> { field: xN[true][8]:3 } }
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckTest, ParametricPlusGlobal) {
   constexpr std::string_view kProgram = R"(
 const GLOBAL = u32:4;

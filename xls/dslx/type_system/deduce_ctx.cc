@@ -46,6 +46,8 @@ namespace {
 
 absl::StatusOr<std::unique_ptr<Type>> ResolveViaEnv(
     const Type& type, const ParametricEnv& parametric_env) {
+  VLOG(10) << "ResolveViaEnv; type: " << type.ToString()
+           << " parametric_env: " << parametric_env.ToString();
   ParametricExpression::Env env;
   for (const auto& [k, v] : parametric_env.bindings()) {
     env[k] = v;
@@ -197,6 +199,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::Resolve(
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceCtx::DeduceAndResolve(
     const AstNode* node) {
+  VLOG(10) << "DeduceAndResolve; node: `" << node->ToString() << "`";
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> deduced, Deduce(node));
   return Resolve(*deduced);
 }
