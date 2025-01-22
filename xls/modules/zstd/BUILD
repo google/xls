@@ -1242,6 +1242,12 @@ xls_dslx_test(
     tags = ["manual"],
 )
 
+xls_dslx_library(
+    name = "ram_merge_dslx",
+    srcs = ["ram_merge.x"],
+    deps = ["//xls/examples:ram_dslx"],
+)
+
 zstd_dec_deps = [
     ":axi_csr_accessor_dslx",
     ":block_header_dec_dslx",
@@ -1257,6 +1263,7 @@ zstd_dec_deps = [
     ":huffman_literals_dec_dslx",
     ":literals_buffer_dslx",
     ":parallel_rams_dslx",
+    ":ram_merge_dslx",
     "//xls/examples:ram_dslx",
     "//xls/modules/zstd/memory:mem_reader_dslx",
     "//xls/modules/zstd/memory:mem_writer_dslx",
