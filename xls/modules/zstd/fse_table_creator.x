@@ -321,13 +321,13 @@ pub proc FseTableCreator<
             base: new_state_base
         };
         let complete_record_as_bits = fse_record_to_bits(complete_record);
-        let tok10 = send_if(tok8, fse_wr_req_s, set_state_desc,
-            FseRamWriteReq {
+
+        let fse_wr_req = FseRamWriteReq {
                 addr: checked_cast<uN[FSE_RAM_ADDR_WIDTH]>(state.idx),
                 data: checked_cast<uN[FSE_RAM_DATA_WIDTH]>(complete_record_as_bits),
                 mask: FSE_RAM_REQ_MASK_ALL
-            }
-        );
+        };
+        let tok10 = send_if(tok8, fse_wr_req_s, set_state_desc, fse_wr_req);
         let (tok10, _) = recv_if(tok10, fse_wr_resp_r, set_state_desc, FseRamWriteResp {});
 
         let send_finish = state.status == Status::SEND_FINISH;
