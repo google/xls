@@ -1308,6 +1308,7 @@ xls_dslx_test(
         "comp_frame.x",
         "comp_frame_huffman.x",
         "comp_frame_fse_comp.x",
+        "comp_frame_fse_repeated.x",
     ],
     tags = ["manual"],
     deps = zstd_dec_deps,
