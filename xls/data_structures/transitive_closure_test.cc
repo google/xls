@@ -14,6 +14,7 @@
 
 #include "xls/data_structures/transitive_closure.h"
 
+#include <cstdint>
 #include <random>
 #include <string>
 #include <vector>
@@ -25,11 +26,16 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
+#include "absl/random/random.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
+#include "xls/common/math_util.h"
+#include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::UnorderedElementsAre;
 
 using V = std::string;
@@ -47,6 +53,24 @@ TEST(TransitiveClosureTest, Simple) {
   EXPECT_THAT(tc.at("bar"), UnorderedElementsAre("baz", "qux"));
   EXPECT_THAT(tc.at("baz"), UnorderedElementsAre("qux"));
   EXPECT_FALSE(tc.contains("qux"));
+}
+
+TEST(TransitiveClosureTest, SimpleDense) {
+  std::vector<InlineBitmap> rel{
+      InlineBitmap::FromBitsLsbIs0({false, false, true, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, false, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, true, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({true, false, false, false, false}),
+      InlineBitmap::FromBitsLsbIs0({false, true, false, false, true}),
+  };
+  std::vector<InlineBitmap> tc = TransitiveClosure(rel);
+  EXPECT_THAT(
+      tc, ElementsAre(
+              InlineBitmap::FromBitsLsbIs0({false, true, true, false, false}),
+              InlineBitmap::FromBitsLsbIs0({false, false, false, false, false}),
+              InlineBitmap::FromBitsLsbIs0({false, true, false, false, false}),
+              InlineBitmap::FromBitsLsbIs0({true, true, true, false, false}),
+              InlineBitmap::FromBitsLsbIs0({false, true, false, false, true})));
 }
 
 HashRelation<V> RandomRelation(std::vector<V> nodes, double p,
@@ -79,5 +103,36 @@ void BM_RandomRelation(benchmark::State& state) {
 }
 BENCHMARK(BM_RandomRelation)->Range(5, 500);
 
+std::vector<InlineBitmap> RandomDenseRelation(int64_t node_cnt,
+                                              absl::BitGenRef rng) {
+  int64_t byte_cnt = CeilOfRatio(node_cnt, int64_t{8});
+  std::vector<InlineBitmap> res;
+  res.reserve(node_cnt);
+  for (int64_t i = 0; i < node_cnt; ++i) {
+    std::vector<uint8_t> bytes;
+    bytes.reserve(byte_cnt);
+    for (int64_t j = 0; j < byte_cnt; ++j) {
+      bytes.push_back(absl::Uniform<uint8_t>(rng));
+    }
+    res.push_back(InlineBitmap::FromBytes(node_cnt, bytes));
+  }
+  return res;
+}
+
+void BM_RandomDenseRelation(benchmark::State& state) {
+  absl::BitGen rng;
+  for (auto _ : state) {
+    state.PauseTiming();
+    // Avoid the copy being counted, since it is a non-trivial part of the
+    // timing.
+    std::vector<InlineBitmap> rel = RandomDenseRelation(state.range(0), rng);
+    absl::Span<InlineBitmap> span = absl::MakeSpan(rel);
+    state.ResumeTiming();
+    span = TransitiveClosure(span);
+    benchmark::DoNotOptimize(span);
+    benchmark::DoNotOptimize(rel);
+  }
+}
+BENCHMARK(BM_RandomDenseRelation)->Range(500, 10000);
 }  // namespace
 }  // namespace xls
