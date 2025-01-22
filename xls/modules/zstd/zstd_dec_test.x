@@ -31,6 +31,7 @@ import xls.modules.zstd.ram_mux;
 // import xls.modules.zstd.zstd_frame_testcases as comp_frame;
 // import xls.modules.zstd.comp_frame_huffman as comp_frame;
 // import xls.modules.zstd.comp_frame_fse_comp as comp_frame;
+// import xls.modules.zstd.comp_frame_fse_repeated as comp_frame;
 import xls.modules.zstd.comp_frame;
 
 const TEST_WINDOW_LOG_MAX = u32:30;
