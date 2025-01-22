@@ -132,7 +132,7 @@ void HandleError(TestResultData& result, const absl::Status& status,
 absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
                                  Module* module, TestFunction* tf,
                                  const BytecodeInterpreterOptions& options) {
-  auto cache = std::make_unique<BytecodeCache>(import_data);
+  auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
@@ -149,7 +149,7 @@ absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
 absl::Status RunDslxTestProc(ImportData* import_data, TypeInfo* type_info,
                              Module* module, TestProc* tp,
                              const BytecodeInterpreterOptions& options) {
-  auto cache = std::make_unique<BytecodeCache>(import_data);
+  auto cache = std::make_unique<BytecodeCache>();
   import_data->SetBytecodeCache(std::move(cache));
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * ti,

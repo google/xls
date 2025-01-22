@@ -34,7 +34,7 @@ ImportData CreateImportData(
     WarningKindSet warnings, std::unique_ptr<VirtualizableFilesystem> vfs) {
   ImportData import_data(stdlib_path, additional_search_paths, warnings,
                          std::move(vfs));
-  import_data.SetBytecodeCache(std::make_unique<BytecodeCache>(&import_data));
+  import_data.SetBytecodeCache(std::make_unique<BytecodeCache>());
   return import_data;
 }
 
@@ -46,7 +46,7 @@ ImportData CreateImportDataForTest(
   absl::Span<const std::filesystem::path> additional_search_paths = {};
   ImportData import_data(xls::kDefaultDslxStdlibPath, additional_search_paths,
                          kDefaultWarningsSet, std::move(vfs));
-  import_data.SetBytecodeCache(std::make_unique<BytecodeCache>(&import_data));
+  import_data.SetBytecodeCache(std::make_unique<BytecodeCache>());
   return import_data;
 }
 
@@ -55,8 +55,7 @@ std::unique_ptr<ImportData> CreateImportDataPtrForTest() {
       new ImportData(xls::kDefaultDslxStdlibPath,
                      /*additional_search_paths=*/{}, kDefaultWarningsSet,
                      std::make_unique<RealFilesystem>()));
-  import_data->SetBytecodeCache(
-      std::make_unique<BytecodeCache>(import_data.get()));
+  import_data->SetBytecodeCache(std::make_unique<BytecodeCache>());
   return import_data;
 }
 
