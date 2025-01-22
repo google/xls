@@ -1881,6 +1881,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/data_structures:inline_bitmap",
         "//xls/data_structures:leaf_type_tree",
+        "//xls/data_structures:transitive_closure",
         "//xls/data_structures:union_find",
         "//xls/ir",
         "//xls/ir:bits",
@@ -1901,6 +1902,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@cppitertools",
     ],
 )
 

@@ -56,8 +56,16 @@ void AbslStringify(Sink& sink, NextValueType e) {
                                                       : "NextValueNodes");
 }
 
+class BaseProcStateOptimizationPassTest : public IrTestBase {
+ protected:
+  absl::StatusOr<bool> Run(Package* p) {
+    PassResults results;
+    return ProcStateOptimizationPass().Run(p, OptimizationPassOptions(),
+                                           &results);
+  }
+};
 class ProcStateOptimizationPassTest
-    : public IrTestBase,
+    : public BaseProcStateOptimizationPassTest,
       public testing::WithParamInterface<NextValueType> {
  protected:
   ProcStateOptimizationPassTest() = default;
@@ -94,12 +102,6 @@ class ProcStateOptimizationPassTest
     }
     ABSL_UNREACHABLE();
   }
-
-  absl::StatusOr<bool> Run(Package* p) {
-    PassResults results;
-    return ProcStateOptimizationPass().Run(p, OptimizationPassOptions(),
-                                           &results);
-  }
 };
 
 TEST_P(ProcStateOptimizationPassTest, StatelessProc) {
@@ -124,6 +126,7 @@ TEST_P(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, BuildProc(pb, {pb.Not(x), pb.Not(y)}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
+  ScopedRecordIr sri(p.get());
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(proc->GetStateElementCount(), 2);
 }
@@ -379,6 +382,27 @@ TEST_P(ProcStateOptimizationPassTest, ProcWithImplicitlyConstantStateElements) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(proc->StateElements(),
               UnorderedElementsAre(m::StateElement("not_constant")));
+}
+
+TEST_F(BaseProcStateOptimizationPassTest, ProcWithWriteNoReads) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * chan, p->CreateStreamingChannel(
+                                               "chan", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue live = pb.StateElement("live", UBits(0, 1));
+  BValue dead = pb.Not(live);
+  BValue val = pb.StateElement("chan_val", UBits(0, 32));
+  BValue nv = pb.ReceiveIf(chan, pb.Literal(Value::Token()), live);
+  pb.Next(val, pb.TupleIndex(nv, 1), live);
+  pb.Next(val, val, dead);
+  pb.Next(live, dead);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->StateElements(), ElementsAre(m::StateElement("live")));
 }
 
 TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {

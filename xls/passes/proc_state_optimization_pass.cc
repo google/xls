@@ -35,11 +35,13 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
+#include "xls/data_structures/transitive_closure.h"
 #include "xls/data_structures/union_find.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/nodes.h"
@@ -241,8 +243,8 @@ ComputeStateDependencies(Proc* proc) {
   for (Node* node : proc->nodes()) {
     state_dependencies.insert({node, visitor.FlattenNodeBitmaps(node)});
   }
-  if (VLOG_IS_ON(3)) {
-    VLOG(3) << "State dependencies (** side-effecting operation):";
+  if (VLOG_IS_ON(5)) {
+    VLOG(5) << "State dependencies (** side-effecting operation):";
     for (Node* node : TopoSort(proc)) {
       std::vector<std::string> dependent_elements;
       for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
@@ -250,7 +252,7 @@ ComputeStateDependencies(Proc* proc) {
           dependent_elements.push_back(proc->GetStateRead(i)->GetName());
         }
       }
-      VLOG(3) << absl::StrFormat("  %s : {%s}%s", node->GetName(),
+      VLOG(5) << absl::StrFormat("  %s : {%s}%s", node->GetName(),
                                  absl::StrJoin(dependent_elements, ", "),
                                  OpIsSideEffecting(node->op()) ? "**" : "");
     }
@@ -262,97 +264,57 @@ ComputeStateDependencies(Proc* proc) {
 //   (1) a side-effecting operation depends on X, OR
 //   (2) the next-state value of an observable state element depends on X.
 absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
+  if (proc->GetStateElementCount() == 0) {
+    return false;
+  }
   absl::flat_hash_map<Node*, InlineBitmap> state_dependencies;
   XLS_ASSIGN_OR_RETURN(state_dependencies, ComputeStateDependencies(proc));
 
-  // Map from node to the state element indices for which the node can affect
-  // the next state value.
-  absl::flat_hash_map<Node*, absl::flat_hash_set<int64_t>> next_state_indices;
-  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    next_state_indices[proc->GetNextStateElement(i)].insert(i);
-    for (Next* next : proc->next_values(proc->GetStateRead(i))) {
-      next_state_indices[next->value()].insert(i);
+  // Compute an adjacency matrix for which state elements affect each other.
+  //
+  // The last element is the side-effecting nodes (all merged together).
+  std::vector<InlineBitmap> state_dependencies_matrix(
+      proc->GetStateElementCount() + 1,
+      InlineBitmap(proc->GetStateElementCount()));
+  for (auto [elem, adj] :
+       iter::zip(proc->StateElements(), state_dependencies_matrix)) {
+    for (Next* next : proc->next_values(proc->GetStateRead(elem))) {
+      adj.Union(state_dependencies.at(next->value()));
       if (next->predicate().has_value()) {
-        next_state_indices[*next->predicate()].insert(i);
+        adj.Union(state_dependencies.at(*next->predicate()));
       }
     }
+    // Avoid a copy of each state element's bitmap by extending after doing all
+    // the unions.
+    adj = std::move(adj).WithSize(proc->GetStateElementCount() + 1);
   }
 
-  // The equivalence classes of state element indices. State element X is in the
-  // same class as Y if the next-state value of X depends on Y or vice versa.
-  UnionFind<int64_t> state_components;
-  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    state_components.Insert(i);
-  }
-
-  // At the end, the union-find data structure will have one equivalence class
-  // corresponding to the set of all observable state indices. This value is
-  // always either `std::nullopt` or an element of that equivalence class. We
-  // won't have a way to represent the equivalence class until it contains at
-  // least one value, so we use `std::optional`.
-  std::optional<int64_t> observable_state_index;
-
-  // Merge state elements which depend on each other and identify observable
-  // state indices.
+  // Add all the side-effecting nodes as additional edges which depend on their
+  // living state elements.
   for (Node* node : proc->nodes()) {
-    if (OpIsSideEffecting(node->op()) && !node->Is<StateRead>()) {
-      // `node` is side-effecting. All state elements that `node` is dependent
-      // on are observable, except if the only side effect is to change the
-      // state element.
-      for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-        if (!state_dependencies.at(node).Get(i)) {
-          continue;
-        }
-        if (node->Is<Next>() &&
-            node->As<Next>()->state_read() == proc->GetStateRead(i)) {
-          // The only side-effect is to change this state element, so this
-          // doesn't make the element observable.
-          continue;
-        }
-        VLOG(4) << absl::StreamFormat(
-            "State element `%s` (%d) is observable because side-effecting node "
-            "`%s` depends on it",
-            proc->GetStateRead(i)->GetName(), i, node->GetName());
-        if (!observable_state_index.has_value()) {
-          observable_state_index = i;
-        } else {
-          state_components.Union(i, observable_state_index.value());
-        }
-      }
+    if (!OpIsSideEffecting(node->op()) ||
+        node->OpIn({Op::kStateRead, Op::kNext, Op::kGate})) {
+      continue;
     }
-    if (next_state_indices.contains(node)) {
-      for (int64_t next_state_index : next_state_indices.at(node)) {
-        // `node` is the next state node for state element with index
-        // `next_state_index`. Union `next_state_index` with each state index
-        // that `node` is dependent on.
-        for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-          if (state_dependencies.at(node).Get(i)) {
-            VLOG(4) << absl::StreamFormat(
-                "Unioning state elements `%s` (%d) and `%s` (%d) because next "
-                "state of `%s` (node `%s`) depends on `%s`",
-                proc->GetStateElement(next_state_index)->name(),
-                next_state_index, proc->GetStateElement(i)->name(), i,
-                proc->GetStateElement(next_state_index)->name(),
-                node->GetName(), proc->GetStateElement(i)->name());
-            state_components.Union(i, next_state_index);
-          }
-        }
-      }
-    }
+    state_dependencies_matrix.back().Union(state_dependencies.at(node));
   }
-  if (observable_state_index.has_value()) {
-    // Set to the representative value of the union-find data structure.
-    observable_state_index =
-        state_components.Find(observable_state_index.value());
-  }
+  state_dependencies_matrix.back() =
+      std::move(state_dependencies_matrix.back())
+          .WithSize(proc->GetStateElementCount() + 1);
 
+  // Set of state elements which each state element affects.
+  state_dependencies_matrix =
+      TransitiveClosure(std::move(state_dependencies_matrix));
+
+  // Figure out which state elements are observable.
+  const InlineBitmap& observed = state_dependencies_matrix.back();
   // Gather unobservable state element indices into `to_remove`.
   std::vector<int64_t> to_remove;
   to_remove.reserve(proc->GetStateElementCount());
+
   VLOG(3) << "Observability of state elements:";
   for (int64_t i = proc->GetStateElementCount() - 1; i >= 0; --i) {
-    if (!observable_state_index.has_value() ||
-        state_components.Find(i) != observable_state_index.value()) {
+    if (!observed.Get(i)) {
       to_remove.push_back(i);
       VLOG(3) << absl::StrFormat("  %s (%d) : NOT observable",
                                  proc->GetStateElement(i)->name(), i);
