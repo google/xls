@@ -15,6 +15,7 @@
 #include "xls/codegen/block_conversion.h"
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -683,7 +684,21 @@ absl::StatusOr<CodegenPassUnit> PackageToPipelinedBlocks(
   FunctionBase* top = *package->GetTop();
   absl::btree_map<FunctionBase*, PipelineSchedule,
                   struct FunctionBase::NameLessThan>
-      sorted_schedules(schedules.begin(), schedules.end());
+      sorted_schedules;
+  if (top->IsFunction()) {
+    // We only support a top-level function, which can't call into procs or
+    // blocks; all other functions must already be inlined into `top`.
+    sorted_schedules.emplace(top, schedules.at(top));
+  } else {
+    absl::c_copy_if(schedules,
+                    std::inserter(sorted_schedules, sorted_schedules.end()),
+                    [](const auto& entry) {
+                      // Our top-level entity isn't a function - so all
+                      // functions must be inlined into their users already. Any
+                      // residual functions don't need to be generated.
+                      return !entry.first->IsFunction();
+                    });
+  }
   // Make `unit` optional because we haven't created the top block yet. We will
   // create it on the first iteration and emplace `unit`.
   std::string module_name(

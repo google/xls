@@ -427,7 +427,8 @@ class ProcConversionTestFixture : public BlockConversionTest {
         "Unsupported SignalType %d for %s", signal_type, signal_name));
   }
 
-  absl::StatusOr<std::unique_ptr<Package>> CreateMultiProcPackage() {
+  absl::StatusOr<std::unique_ptr<Package>> CreateMultiProcPackage(
+      bool with_functions = false) {
     auto p = CreatePackage();
     Type* u32 = p->GetBitsType(32);
     XLS_ASSIGN_OR_RETURN(
@@ -453,6 +454,18 @@ class ProcConversionTestFixture : public BlockConversionTest {
     BValue rcv1 = pb1.Receive(ch_internal, pb1.Literal(Value::Token()));
     pb1.Send(ch_out, pb1.TupleIndex(rcv1, 0), pb1.TupleIndex(rcv1, 1));
     XLS_RET_CHECK_OK(pb1.Build().status());
+
+    if (with_functions) {
+      FunctionBuilder fb0("f0", p.get());
+      BValue x0 = fb0.Param("x", p->GetBitsType(32));
+      BValue y0 = fb0.Param("y", p->GetBitsType(32));
+      XLS_RET_CHECK_OK(fb0.BuildWithReturnValue(fb0.Add(x0, y0)).status());
+
+      FunctionBuilder fb1("f1", p.get());
+      BValue x1 = fb1.Param("x", p->GetBitsType(32));
+      BValue y1 = fb1.Param("y", p->GetBitsType(32));
+      XLS_RET_CHECK_OK(fb1.BuildWithReturnValue(fb1.Subtract(x1, y1)).status());
+    }
 
     return p;
   }
@@ -6454,6 +6467,144 @@ TEST_F(ProcConversionTestFixture, SimpleMultiProcConversion) {
           << absl::StrFormat("Cycle %d, expected rst==0", i);
     }
   }
+}
+
+TEST_F(ProcConversionTestFixture,
+       SimpleMultiProcConversionWithFunctionsPresent) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           CreateMultiProcPackage(/*with_functions=*/true));
+  SchedulingOptionsFlagsProto scheduling_options;
+  scheduling_options.set_pipeline_stages(2);
+  scheduling_options.set_delay_model("unit");
+  scheduling_options.set_multi_proc(true);
+
+  CodegenFlagsProto codegen_options;
+  codegen_options.set_flop_inputs(false);
+  codegen_options.set_flop_outputs(false);
+  codegen_options.set_reset("rst");
+  codegen_options.set_streaming_channel_data_suffix("_data");
+  codegen_options.set_streaming_channel_valid_suffix("_valid");
+  codegen_options.set_streaming_channel_ready_suffix("_ready");
+  codegen_options.set_module_name("p");
+  codegen_options.set_register_merge_strategy(
+      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
+  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenResult result,
+      ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
+                         /*with_delay_model=*/true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      0, 9, {{"rst", 1}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      10, 15, {{"rst", 0}, {"in_valid", 0}, {"in_data", 1}, {"out_ready", 1}},
+      inputs));
+
+  // Cycle 16: Blocked on input, stage 1 has valid so still not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      16, 16, {{"rst", 0}, {"in_valid", 0}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 17-18: Blocked on input, stage 1 no longer has valid so idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      17, 18, {{"rst", 0}, {"in_valid", 0}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 19: No longer blocked, so not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      19, 19, {{"rst", 0}, {"in_valid", 1}, {"in_data", 2}, {"out_ready", 1}},
+      inputs));
+  // Cycle 20: Blocked on input, again, but not idle
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      20, 20, {{"rst", 0}, {"in_valid", 0}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      21, 21, {{"rst", 0}, {"in_valid", 1}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      22, 22, {{"rst", 0}, {"in_valid", 1}, {"in_data", 3}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      23, 23, {{"rst", 0}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      24, 24, {{"rst", 0}, {"in_valid", 0}, {"in_data", 0}, {"out_ready", 1}},
+      inputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                           InterpretSequentialBlock(top_block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"in_data", SignalType::kInput},
+                              {"in_valid", SignalType::kInput},
+                              {"in_ready", SignalType::kOutput},
+                              {"out_data", SignalType::kOutput},
+                              {"out_valid", SignalType::kOutput},
+                              {"out_ready", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    if (i < 10) {
+      EXPECT_EQ(inputs[i]["rst"], 1)
+          << absl::StrFormat("Cycle %d, expected rst==1", i);
+    } else if (i == 17 || i == 18) {
+      EXPECT_EQ(inputs[i]["rst"], 0)
+          << absl::StrFormat("Cycle %d, expected rst==0", i);
+    } else {
+      EXPECT_EQ(inputs[i]["rst"], 0)
+          << absl::StrFormat("Cycle %d, expected rst==0", i);
+    }
+  }
+}
+
+TEST_F(ProcConversionTestFixture, SimpleFunctionWithProcsPresent) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           CreateMultiProcPackage(/*with_functions=*/true));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f0, p->GetFunction("f0"));
+  XLS_ASSERT_OK(p->SetTop(f0));
+
+  SchedulingOptionsFlagsProto scheduling_options;
+  scheduling_options.set_pipeline_stages(1);
+  scheduling_options.set_delay_model("unit");
+  scheduling_options.set_multi_proc(true);
+
+  CodegenFlagsProto codegen_options;
+  codegen_options.set_flop_inputs(false);
+  codegen_options.set_flop_outputs(false);
+  codegen_options.set_reset("rst");
+  codegen_options.set_streaming_channel_data_suffix("_data");
+  codegen_options.set_streaming_channel_valid_suffix("_valid");
+  codegen_options.set_streaming_channel_ready_suffix("_ready");
+  codegen_options.set_module_name("p");
+  codegen_options.set_register_merge_strategy(
+      xls::RegisterMergeStrategyProto::STRATEGY_DONT_MERGE);
+  codegen_options.set_generator(GeneratorKind::GENERATOR_KIND_PIPELINE);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenResult result,
+      ScheduleAndCodegen(p.get(), scheduling_options, codegen_options,
+                         /*with_delay_model=*/true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("p"));
+
+  EXPECT_EQ(top_block->name(), "p");
+  EXPECT_EQ(top_block->GetPorts().size(), 5);
+
+  EXPECT_THAT(
+      GetOutputPort(top_block),
+      m::OutputPort("out", m::Add(m::InputPort("x"), m::InputPort("y"))));
 }
 
 }  // namespace
