@@ -83,4 +83,3 @@ proc test {
       let tok = send(tok, terminator, true);
   }
 }
-

@@ -66,4 +66,3 @@ fn dot_product_float32_test() {
    let result = dot_product_float32(a, b);
    assert_eq(result, float32::cast_from_fixed_using_rne(s32:70));
 }
-

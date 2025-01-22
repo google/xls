@@ -914,4 +914,3 @@ output, so the MSB can safely be replaced with a 0 bit. Note: This approach
 assumes that IR nodes do not have any side effects. When IR nodes with side
 effects are introduced (i.e. channels) the analysis for this optimization will
 have to be adjusted slightly to account for this.
-

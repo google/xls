@@ -491,4 +491,3 @@ proc DecoderMuxMultipleFramesTest {
     send(tok, terminator, true);
   }
 }
-

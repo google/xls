@@ -49,5 +49,3 @@ proc producer {
     let tok = send(tok, terminator, true);
   }
 }
-
-

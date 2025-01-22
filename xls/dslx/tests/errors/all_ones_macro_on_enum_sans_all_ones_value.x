@@ -26,4 +26,3 @@ fn main() -> HasNoAllOnesValue {
 fn test_main() {
   assert_eq(main(), HasNoAllOnesValue::ZERO)
 }
-

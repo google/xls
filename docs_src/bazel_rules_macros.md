@@ -1158,5 +1158,3 @@ Recognized metrics from OpenSTA log:
 | <a id="xls_synthesis_metrics-name"></a>name |  Output "DesignStats" textproto will be `<name>.textproto`   |  none |
 | <a id="xls_synthesis_metrics-srcs"></a>srcs |  Targets from which log files will be scanned. For post-synth, use "synthesize_rtl" and "run_opensta" targets.   |  none |
 | <a id="xls_synthesis_metrics-kwargs"></a>kwargs |  Accepts add'l keyword arguments. Passed to native.genrule().   |  none |
-
-
