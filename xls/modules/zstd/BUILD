@@ -1469,9 +1469,9 @@ py_test(
 )
 
 xls_dslx_library(
-    name = "fse_lookup_dec_dslx",
+    name = "comp_lookup_dec_dslx",
     srcs = [
-        "fse_lookup_dec.x",
+        "comp_lookup_dec.x",
     ],
     deps = [
         "//xls/examples:ram_dslx",
@@ -1482,6 +1482,45 @@ xls_dslx_library(
         "//xls/modules/zstd:refilling_shift_buffer_dslx",
         "//xls/modules/zstd:fse_proba_freq_dec_dslx",
         "//xls/modules/shift_buffer:shift_buffer_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "comp_lookup_dec_dslx_test",
+    library = ":comp_lookup_dec_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
+    name = "rle_lookup_dec_dslx",
+    srcs = [
+        "rle_lookup_dec.x",
+    ],
+    deps = [
+        ":common_dslx",
+        "//xls/examples:ram_dslx",
+        "//xls/modules/zstd:refilling_shift_buffer_dslx",
+        "//xls/modules/zstd:fse_table_creator_dslx",
+    ]
+)
+
+xls_dslx_test(
+    name = "rle_lookup_dec_dslx_test",
+    library = ":rle_lookup_dec_dslx",
+    tags = ["manual"],
+)
+
+xls_dslx_library(
+    name = "fse_lookup_dec_dslx",
+    srcs = [
+        "fse_lookup_dec.x",
+    ],
+    deps = [
+        ":comp_lookup_dec_dslx",
+        ":rle_lookup_dec_dslx",
+        ":ram_mux_dslx",
+        ":refilling_shift_buffer_dslx",
+        ":refilling_shift_buffer_mux_dslx",
     ]
 )
 
@@ -2108,12 +2147,13 @@ xls_dslx_library(
     ],
     deps = [
         ":sequence_conf_dec_dslx",
-        ":fse_lookup_dec_dslx",
+        ":comp_lookup_dec_dslx",
         ":ram_demux3_dslx",
         ":common_dslx",
         ":fse_dec_dslx",
         ":ram_mux_dslx",
         ":fse_table_creator_dslx",
+        ":fse_lookup_dec_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
         "//xls/modules/zstd/memory:axi_ram_dslx",
         "//xls/modules/zstd:refilling_shift_buffer_dslx",
@@ -3288,4 +3328,19 @@ place_and_route(
     synthesized_rtl = ":huffman_literals_dec_synth_asap7",
     tags = ["manual"],
     target_die_utilization_percentage = "10",
+)
+
+xls_dslx_library(
+    name = "refilling_shift_buffer_mux_dslx",
+    srcs = [
+        "refilling_shift_buffer_mux.x"
+    ],
+    deps = [
+        ":refilling_shift_buffer_dslx"
+    ]
+)
+
+xls_dslx_test(
+    name = "refilling_shift_buffer_mux_dslx_test",
+    library = ":refilling_shift_buffer_mux_dslx",
 )
