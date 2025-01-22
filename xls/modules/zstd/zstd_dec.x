@@ -35,6 +35,7 @@ import xls.modules.zstd.sequence_executor;
 import xls.modules.zstd.huffman_literals_dec;
 import xls.modules.zstd.literals_buffer;
 import xls.modules.zstd.parallel_rams;
+import xls.modules.zstd.ram_merge;
 
 type BlockSize = common::BlockSize;
 type BlockType = common::BlockType;
@@ -1286,6 +1287,11 @@ pub proc ZstdDecoder<
 
         let (cmd_output_s, cmd_output_r) = chan<ExtendedBlockDataPacket, CHANNEL_DEPTH>("cmd_output");
 
+        let (huffman_lit_weights_read_side_rd_req_s, huffman_lit_weights_read_side_rd_req_r) = chan<HuffmanWeightsReadReq, u32:10>("huffman_lit_weights_read_side_rd_req");
+        let (huffman_lit_weights_read_side_rd_resp_s, huffman_lit_weights_read_side_rd_resp_r) = chan<HuffmanWeightsReadResp, u32:10>("huffman_lit_weights_read_side_rd_resp");
+        let (huffman_lit_weights_write_side_wr_req_s, huffman_lit_weights_write_side_wr_req_r) = chan<HuffmanWeightsWriteReq, u32:10>("huffman_lit_weights_write_side_wr_req");
+        let (huffman_lit_weights_write_side_wr_resp_s, huffman_lit_weights_write_side_wr_resp_r) = chan<HuffmanWeightsWriteResp, u32:10>("huffman_lit_weights_write_side_wr_resp");
+
         spawn comp_block_dec::CompressBlockDecoder<
             AXI_DATA_W, AXI_ADDR_W, AXI_ID_W, AXI_DEST_W,
             // FSE lookup table RAMs
@@ -1333,10 +1339,20 @@ pub proc ZstdDecoder<
             litbuf_wr_req_s[4], litbuf_wr_req_s[5], litbuf_wr_req_s[6], litbuf_wr_req_s[7],
             litbuf_wr_resp_r[0], litbuf_wr_resp_r[1], litbuf_wr_resp_r[2], litbuf_wr_resp_r[3],
             litbuf_wr_resp_r[4], litbuf_wr_resp_r[5], litbuf_wr_resp_r[6], litbuf_wr_resp_r[7],
-            huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_resp_r,
-            huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_resp_r,
+            huffman_lit_weights_read_side_rd_req_s, huffman_lit_weights_read_side_rd_resp_r,
+            huffman_lit_weights_write_side_wr_req_s, huffman_lit_weights_write_side_wr_resp_r,
             huffman_lit_prescan_mem_rd_req_s, huffman_lit_prescan_mem_rd_resp_r,
             huffman_lit_prescan_mem_wr_req_s, huffman_lit_prescan_mem_wr_resp_r,
+        );
+
+        spawn ram_merge::RamMerge<HUFFMAN_WEIGHTS_RAM_ADDR_W, HUFFMAN_WEIGHTS_RAM_DATA_W, HUFFMAN_WEIGHTS_RAM_NUM_PARTITIONS>(
+            // Read side
+            huffman_lit_weights_read_side_rd_req_r, huffman_lit_weights_read_side_rd_resp_s,
+            // Write side
+            huffman_lit_weights_write_side_wr_req_r, huffman_lit_weights_write_side_wr_resp_s,
+            // Merge side
+            huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_resp_r,
+            huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_resp_r,
         );
 
         // Collecting Packets
