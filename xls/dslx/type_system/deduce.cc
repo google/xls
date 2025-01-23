@@ -681,35 +681,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnrollFor(const UnrollFor* node,
   return std::move(loop_types.accumulator_type);
 }
 
-// Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
-// should not cause a type error to occur).
-static bool IsAcceptableCast(const Type& from, const Type& to) {
-  auto is_enum = [](const Type& ct) -> bool {
-    return dynamic_cast<const EnumType*>(&ct) != nullptr;
-  };
-  auto is_bits_array = [&](const Type& ct) -> bool {
-    const ArrayType* at = dynamic_cast<const ArrayType*>(&ct);
-    if (at == nullptr) {
-      return false;
-    }
-    if (IsBitsLike(at->element_type())) {
-      return true;
-    }
-    return false;
-  };
-  if ((is_bits_array(from) && IsBitsLike(to)) ||
-      (IsBitsLike(from) && is_bits_array(to))) {
-    return from.GetTotalBitCount() == to.GetTotalBitCount();
-  }
-  if ((IsBitsLike(from) || is_enum(from)) && IsBitsLike(to)) {
-    return true;
-  }
-  if (IsBitsLike(from) && is_enum(to)) {
-    return true;
-  }
-  return false;
-}
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceCast(const Cast* node,
                                                  DeduceCtx* ctx) {
   VLOG(5) << "DeduceCast: " << node->ToString();

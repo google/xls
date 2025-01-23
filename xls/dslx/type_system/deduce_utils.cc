@@ -804,4 +804,33 @@ absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
   return sd.GetImplFunction(attr->attr());
 }
 
+bool IsAcceptableCast(const Type& from, const Type& to) {
+  auto is_enum = [](const Type& ct) -> bool {
+    return dynamic_cast<const EnumType*>(&ct) != nullptr;
+  };
+  auto is_bits_array = [&](const Type& ct) -> bool {
+    const ArrayType* at = dynamic_cast<const ArrayType*>(&ct);
+    if (at == nullptr) {
+      return false;
+    }
+    if (IsBitsLike(at->element_type())) {
+      return true;
+    }
+    return false;
+  };
+  if ((is_bits_array(from) && IsBitsLike(to)) ||
+      (IsBitsLike(from) && is_bits_array(to))) {
+    TypeDim from_total_bit_count = from.GetTotalBitCount().value();
+    TypeDim to_total_bit_count = to.GetTotalBitCount().value();
+    return from_total_bit_count == to_total_bit_count;
+  }
+  if ((IsBitsLike(from) || is_enum(from)) && IsBitsLike(to)) {
+    return true;
+  }
+  if (IsBitsLike(from) && is_enum(to)) {
+    return true;
+  }
+  return false;
+}
+
 }  // namespace xls::dslx

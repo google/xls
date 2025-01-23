@@ -562,8 +562,9 @@ absl::StatusOr<InterpValue> InterpValue::Mul(const InterpValue& other) const {
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
   if (lhs.bit_count() != rhs.bit_count()) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot mul different width values: lhs %d bits, rhs %d bits",
-        lhs.bit_count(), rhs.bit_count()));
+        "Cannot mul different width values: lhs `%s` vs rhs `%s`",
+        BitsToString(lhs, FormatPreference::kDefault, true),
+        BitsToString(rhs, FormatPreference::kDefault, true)));
   }
   return InterpValue(tag_, bits_ops::UMul(lhs, rhs).Slice(0, lhs.bit_count()));
 }

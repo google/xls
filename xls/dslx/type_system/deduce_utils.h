@@ -204,6 +204,10 @@ absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
 absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
     const Attr* attr, const TypeInfo* type_info);
 
+// Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
+// should not cause a type error to occur).
+bool IsAcceptableCast(const Type& from, const Type& to);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

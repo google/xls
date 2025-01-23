@@ -89,6 +89,16 @@ MATCHER_P2(HasSizeMismatch, type1, type2, "") {
                             arg, result_listener);
 }
 
+// Verifies that a failed `TypecheckV2` status message indicates a cast error
+// between the given two types in string format.
+MATCHER_P2(HasCastError, from_type, to_type, "") {
+  return ExplainMatchResult(
+      ContainsRegex(absl::Substitute("Cannot cast from type `$0` to type `$1`",
+                                     RE2::QuoteMeta(from_type),
+                                     RE2::QuoteMeta(to_type))),
+      arg, result_listener);
+}
+
 // Verifies that a failed `TypecheckV2` status message indicates a signedness
 // mismatch between the given two types in string format.
 MATCHER_P2(HasSignednessMismatch, type1, type2, "") {
@@ -2176,6 +2186,83 @@ fn foo(x: u32, y: u32) -> bool {
 }
 )",
               TypecheckFails(HasSizeMismatch("u32", "bool")));
+}
+
+TEST(TypecheckV2Test, CastU32ToU32) {
+  EXPECT_THAT(R"(const X = u32:1;
+const Y: u32 = X as u32;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, CastU32ToU16) {
+  EXPECT_THAT(R"(const X = u32:1;
+const Y: u16 = X as u16;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                                      HasNodeWithType("Y", "uN[16]"))));
+}
+
+TEST(TypecheckV2Test, CastU16ToU32) {
+  EXPECT_THAT(R"(const X = u16:1;
+const Y: u32 = X as u32;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, CastS16ToU32) {
+  EXPECT_THAT(R"(const X = s16:1;
+const Y: u32 = X as u32;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "sN[16]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, CastU16ToS32) {
+  EXPECT_THAT(R"(const X = u16:1;
+const Y: s32 = X as s32;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
+                                      HasNodeWithType("Y", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, CastParametricBitCountToU32) {
+  EXPECT_THAT(R"(fn f<N:u32>(x: uN[N]) -> u32 { x as u32 }
+const X = f(u10:256);)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, CastTupleToU32) {
+  EXPECT_THAT(R"(const X = (u32:1, u32:2);
+const Y: u32 = X as u32;)",
+              TypecheckFails(HasCastError("(uN[32], uN[32])", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, CastBitsArray2xU16ToU32) {
+  EXPECT_THAT(R"(const X = [u16:1, u16:2];
+const Y: u32 = X as u32;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16][2]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, ParametricCastWrapper) {
+  EXPECT_THAT(R"(fn do_cast
+  <WANT_S:bool, WANT_BITS:u32, GOT_S:bool, GOT_BITS:u32>
+  (x: xN[GOT_S][GOT_BITS]) -> xN[WANT_S][WANT_BITS] {
+    x as xN[WANT_S][WANT_BITS]
+}
+const X: s4 = do_cast<true, 4>(u32:64);)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[4]")));
+}
+
+TEST(TypecheckV2Test, TestBitsArray2xU1ToU2) {
+  EXPECT_THAT(R"(const X = u1[2]:[u1:1, u1:0];
+const Y: u2 = X as u2;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[1][2]"),
+                                      HasNodeWithType("Y", "uN[2]"))));
+}
+
+TEST(TypecheckV2Test, TestBitsArray3xU1ToU4) {
+  EXPECT_THAT(R"(const X = u1[3]:[u1:1, u1:0, u1:1];
+const Y: u4 = X as u4;)",
+              TypecheckFails(HasCastError("uN[1][3]", "uN[4]")));
 }
 
 TEST(TypecheckV2Test, IfType) {
