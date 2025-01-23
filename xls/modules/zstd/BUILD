@@ -1384,14 +1384,15 @@ zstd_dec_codegen_args = common_codegen_args | {
                 wr_req = "zstd_dec__huffman_lit_prescan_mem_wr_req_s",
                 wr_resp = "zstd_dec__huffman_lit_prescan_mem_wr_resp_r",
             ),
-            "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
-                latency = 5,
-                ram_name = "huffman_literals_weights_ram",
-                rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
-                rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
-                wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
-                wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
-            ),
+            # FIXME: Enable once HuffmanLiteralsDecoder has states independent of data read from RAM
+            #"{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
+            #    latency = 5,
+            #    ram_name = "huffman_literals_weights_ram",
+            #    rd_req = "zstd_dec__huffman_lit_weights_mem_rd_req_s",
+            #    rd_resp = "zstd_dec__huffman_lit_weights_mem_rd_resp_r",
+            #    wr_req = "zstd_dec__huffman_lit_weights_mem_wr_req_s",
+            #    wr_resp = "zstd_dec__huffman_lit_weights_mem_wr_resp_r",
+            #),
             ",".join([
                 "{ram_name}:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_resp}:{latency}".format(
                     latency = 5,
