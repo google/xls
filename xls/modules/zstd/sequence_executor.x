@@ -14,6 +14,7 @@
 
 import std;
 import xls.modules.zstd.common as common;
+import xls.modules.zstd.memory.mem_writer as mem_writer;
 import xls.modules.zstd.ram_printer as ram_printer;
 import xls.examples.ram;
 
@@ -53,6 +54,8 @@ fn ram_addr_width(hb_size_kb: u32) -> u32 { std::clog2(ram_size(hb_size_kb)) }
 
 // RAM related constants common for tests
 const TEST_HISTORY_BUFFER_SIZE_KB = u32:1;
+const TEST_DATA_W = u32:64;
+const TEST_ADDR_W = u32:16;
 const TEST_RAM_SIZE = ram_size(TEST_HISTORY_BUFFER_SIZE_KB);
 const TEST_RAM_ADDR_WIDTH = ram_addr_width(TEST_HISTORY_BUFFER_SIZE_KB);
 pub const TEST_RAM_INITIALIZED = true;
@@ -112,6 +115,36 @@ fn test_decode_literal_packet() {
             length: length as BlockPacketLength,
             data: content, last
         })
+}
+
+fn convert_output_packet<ADDR_W: u32, DATA_W: u32>(packet: ZstdDecodedPacket) -> mem_writer::MemWriterDataPacket<DATA_W, ADDR_W> {
+    type MemWriterDataPacket  = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+    MemWriterDataPacket {
+        data: packet.data as uN[DATA_W],
+        length: std::div_pow2(packet.length, u32:8) as uN[ADDR_W],
+        last: packet.last
+    }
+}
+
+#[test]
+fn test_convert_output_packet() {
+    const DATA_W = u32:64;
+    const ADDR_W = u32:16;
+
+    type MemWriterDataPacket  = mem_writer::MemWriterDataPacket<DATA_W, ADDR_W>;
+
+    let packet = ZstdDecodedPacket {
+        data: CopyOrMatchContent:0xAA00BB11CC22DD33,
+        length: BlockPacketLength:64,
+        last: false
+    };
+    let expected = MemWriterDataPacket {
+        data: uN[DATA_W]:0xAA00BB11CC22DD33,
+        length: uN[ADDR_W]:8,
+        last: false
+    };
+
+    assert_eq(convert_output_packet<ADDR_W, DATA_W>(packet), expected)
 }
 
 fn round_up_to_pow2<Y: u32, N: u32, Y_CLOG2: u32 = {std::clog2(Y)}>(x: uN[N]) -> uN[N] {
@@ -808,14 +841,17 @@ fn handle_reapeated_offset_for_sequences
 }
 
 pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
+     AXI_DATA_W: u32, AXI_ADDR_W: u32,
      RAM_SIZE: u32 = {ram_size(HISTORY_BUFFER_SIZE_KB)},
      RAM_ADDR_WIDTH: u32 = {ram_addr_width(HISTORY_BUFFER_SIZE_KB)},
      INIT_HB_PTR_ADDR: u32 = {u32:0}, INIT_HB_PTR_RAM: u32 = {u32:0},
      INIT_HB_LENGTH: HistoryBufferLength = {HistoryBufferLength:0},
      RAM_SIZE_TOTAL: u32 = {RAM_SIZE * RAM_NUM}>
 {
+    type MemWriterDataPacket  = mem_writer::MemWriterDataPacket<AXI_DATA_W, AXI_ADDR_W>;
+
     input_r: chan<SequenceExecutorPacket> in;
-    output_s: chan<ZstdDecodedPacket> out;
+    output_mem_wr_data_in_s: chan<MemWriterDataPacket> out;
     ram_comp_input_s: chan<RamWrRespHandlerData<RAM_ADDR_WIDTH>> out;
     ram_comp_output_r: chan<HistoryBufferPtr<RAM_ADDR_WIDTH>> in;
     ram_resp_input_s: chan<RamRdRespHandlerData> out;
@@ -839,7 +875,7 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
 
     config(
            input_r: chan<SequenceExecutorPacket> in,
-           output_s: chan<ZstdDecodedPacket> out,
+           output_mem_wr_data_in_s: chan<MemWriterDataPacket> out,
            ram_resp_output_r: chan<SequenceExecutorPacket> in,
            ram_resp_output_s: chan<SequenceExecutorPacket> out,
            rd_req_m0_s: chan<ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
@@ -890,7 +926,7 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
             rd_resp_m3_r, rd_resp_m4_r, rd_resp_m5_r, rd_resp_m6_r, rd_resp_m7_r);
 
         (
-            input_r, output_s,
+            input_r, output_mem_wr_data_in_s,
             ram_comp_input_s, ram_comp_output_r,
             ram_resp_input_s, ram_resp_output_r,
             rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
@@ -1112,10 +1148,10 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
         } else { };
         let tok2_9 = send_if(tok1, ram_comp_input_s, do_write, wr_resp_handler_data);
 
-        let output_data = decode_literal_packet(packet);
         let do_write_output = do_write || (packet.last && packet.msg_type == SequenceExecutorMessageType::LITERAL);
-        if do_write_output { trace_fmt!("Sending output data: {:#x}", output_data); } else {  };
-        let tok2_10 = send_if(tok1, output_s, do_write_output, output_data);
+        let output_mem_wr_data_in = convert_output_packet<AXI_ADDR_W, AXI_DATA_W>(decode_literal_packet(packet));
+        if do_write_output { trace_fmt!("Sending output MemWriter data: {:#x}", output_mem_wr_data_in); } else {  };
+        let tok2_10_1 = send_if(tok1, output_mem_wr_data_in_s, do_write_output, output_mem_wr_data_in);
 
         // Ask for response
         let tok2_11 = send_if(tok1, rd_req_m0_s, (read_reqs[0]).mask != RAM_REQ_MASK_NONE, read_reqs[0]);
@@ -1140,16 +1176,19 @@ pub proc SequenceExecutor<HISTORY_BUFFER_SIZE_KB: u32,
 }
 
 pub const ZSTD_HISTORY_BUFFER_SIZE_KB: u32 = u32:64;
-const ZSTD_RAM_SIZE = ram_size(ZSTD_HISTORY_BUFFER_SIZE_KB);
+pub const ZSTD_RAM_SIZE = ram_size(ZSTD_HISTORY_BUFFER_SIZE_KB);
 pub const ZSTD_RAM_ADDR_WIDTH = ram_addr_width(ZSTD_HISTORY_BUFFER_SIZE_KB);
+const ZSTD_AXI_DATA_W = u32:64;
+const ZSTD_AXI_ADDR_W = u32:16;
 
 pub proc SequenceExecutorZstd {
+    type MemWriterDataPacket  = mem_writer::MemWriterDataPacket<ZSTD_AXI_DATA_W, ZSTD_AXI_ADDR_W>;
 
     init {  }
 
     config(
         input_r: chan<SequenceExecutorPacket> in,
-        output_s: chan<ZstdDecodedPacket> out,
+        output_mem_wr_data_in_s: chan<MemWriterDataPacket> out,
         looped_channel_r: chan<SequenceExecutorPacket> in,
         looped_channel_s: chan<SequenceExecutorPacket> out,
         rd_req_m0_s: chan<ram::ReadReq<ZSTD_RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>> out,
@@ -1185,8 +1224,9 @@ pub proc SequenceExecutorZstd {
         wr_resp_m6_r: chan<ram::WriteResp> in,
         wr_resp_m7_r: chan<ram::WriteResp> in
     ) {
-        spawn SequenceExecutor<ZSTD_HISTORY_BUFFER_SIZE_KB> (
-            input_r, output_s,
+        spawn SequenceExecutor<ZSTD_HISTORY_BUFFER_SIZE_KB,
+                               ZSTD_AXI_DATA_W, ZSTD_AXI_ADDR_W> (
+            input_r, output_mem_wr_data_in_s,
             looped_channel_r, looped_channel_s,
             rd_req_m0_s, rd_req_m1_s, rd_req_m2_s, rd_req_m3_s,
             rd_req_m4_s, rd_req_m5_s, rd_req_m6_s, rd_req_m7_s,
@@ -1298,10 +1338,11 @@ const LITERAL_TEST_MEMORY_CONTENT:(TestRamAddr, RamData)[3][RAM_NUM] = [
 
 #[test_proc]
 proc SequenceExecutorLiteralsTest {
+    type MemWriterDataPacket  = mem_writer::MemWriterDataPacket<TEST_DATA_W, TEST_ADDR_W>;
     terminator: chan<bool> out;
 
     input_s: chan<SequenceExecutorPacket<TEST_RAM_ADDR_WIDTH>> out;
-    output_r: chan<ZstdDecodedPacket> in;
+    output_mem_wr_data_in_r: chan<MemWriterDataPacket> in;
 
     print_start_s: chan<()> out;
     print_finish_r: chan<()> in;
@@ -1313,7 +1354,7 @@ proc SequenceExecutorLiteralsTest {
 
     config(terminator: chan<bool> out) {
         let (input_s,  input_r) = chan<SequenceExecutorPacket<TEST_RAM_ADDR_WIDTH>>("input");
-        let (output_s, output_r) = chan<ZstdDecodedPacket>("output");
+        let (output_mem_wr_data_in_s,  output_mem_wr_data_in_r) = chan<MemWriterDataPacket>("output_mem_wr_data_in");
 
         let (looped_channel_s, looped_channel_r) = chan<SequenceExecutorPacket>("looped_channels");
 
@@ -1328,11 +1369,12 @@ proc SequenceExecutorLiteralsTest {
         let INIT_HB_PTR_ADDR = u32:127;
         spawn SequenceExecutor<
             TEST_HISTORY_BUFFER_SIZE_KB,
+            TEST_DATA_W, TEST_ADDR_W,
             TEST_RAM_SIZE,
             TEST_RAM_ADDR_WIDTH,
             INIT_HB_PTR_ADDR,
         > (
-            input_r, output_s,
+            input_r, output_mem_wr_data_in_s,
             looped_channel_r, looped_channel_s,
             ram_rd_req_s[0], ram_rd_req_s[1], ram_rd_req_s[2], ram_rd_req_s[3],
             ram_rd_req_s[4], ram_rd_req_s[5], ram_rd_req_s[6], ram_rd_req_s[7],
@@ -1384,7 +1426,7 @@ proc SequenceExecutorLiteralsTest {
 
         (
             terminator,
-            input_s, output_r,
+            input_s, output_mem_wr_data_in_r,
             print_start_s, print_finish_r,
             ram_rd_req_s, ram_rd_resp_r,
             ram_wr_req_s, ram_wr_resp_r
@@ -1401,9 +1443,10 @@ proc SequenceExecutorLiteralsTest {
             if (LITERAL_TEST_INPUT_DATA[i].msg_type != SequenceExecutorMessageType::LITERAL ||
                 LITERAL_TEST_INPUT_DATA[i].length != CopyOrMatchLength:0 ||
                 LITERAL_TEST_INPUT_DATA[i].last) {
-                let (tok, recv_data) = recv(tok, output_r);
                 let expected = decode_literal_packet(LITERAL_TEST_INPUT_DATA[i]);
-                assert_eq(expected, recv_data);
+                let expected_mem_writer_data = convert_output_packet<TEST_ADDR_W, TEST_DATA_W>(expected);
+                let (tok, recv_mem_writer_data) = recv(tok, output_mem_wr_data_in_r);
+                assert_eq(expected_mem_writer_data, recv_mem_writer_data);
             } else {}
         }(());
 
@@ -1494,70 +1537,72 @@ const SEQUENCE_TEST_INPUT_SEQUENCES = SequenceExecutorPacket[11]: [
     },
 ];
 
-const SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS:ZstdDecodedPacket[11] = [
-    ZstdDecodedPacket {
-        data: BlockData:0x8C_7E_B8_B9_7C_A3_9D_AF,
-        length: BlockPacketLength:64,
+type TestMemWriterDataPacket = mem_writer::MemWriterDataPacket<TEST_DATA_W, TEST_ADDR_W>;
+const SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS:TestMemWriterDataPacket[11] = [
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0x8C_7E_B8_B9_7C_A3_9D_AF,
+        length: uN[TEST_ADDR_W]:8,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0x7D,
-        length: BlockPacketLength:8,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0x7D,
+        length: uN[TEST_ADDR_W]:1,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0xB8,
-        length: BlockPacketLength:8,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0xB8,
+        length: uN[TEST_ADDR_W]:1,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0xB8,
-        length: BlockPacketLength:8,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0xB8,
+        length: uN[TEST_ADDR_W]:1,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0xB8_B9_7C_A3_9D,
-        length: BlockPacketLength:40,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0xB8_B9_7C_A3_9D,
+        length: uN[TEST_ADDR_W]:5,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0xB9_7C_A3,
-        length: BlockPacketLength:24,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0xB9_7C_A3,
+        length: uN[TEST_ADDR_W]:3,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0xB8,
-        length: BlockPacketLength:8,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0xB8,
+        length: uN[TEST_ADDR_W]:1,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0x7C,
-        length: BlockPacketLength:8,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0x7C,
+        length: uN[TEST_ADDR_W]:1,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0xB9_7C_A3_B8_B9_7C_A3_9D,
-        length: BlockPacketLength:64,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0xB9_7C_A3_B8_B9_7C_A3_9D,
+        length: uN[TEST_ADDR_W]:8,
         last: false
     },
-    ZstdDecodedPacket {
-        data: BlockData:0x7C_B8,
-        length: BlockPacketLength:16,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0x7C_B8,
+        length: uN[TEST_ADDR_W]:2,
         last: true
     },
-    ZstdDecodedPacket {
-        data: BlockData:0x9D,
-        length: BlockPacketLength:8,
+    TestMemWriterDataPacket {
+        data: uN[TEST_DATA_W]:0x9D,
+        length: uN[TEST_ADDR_W]:1,
         last: false
     }
 ];
 
 #[test_proc]
 proc SequenceExecutorSequenceTest {
+    type MemWriterDataPacket  = mem_writer::MemWriterDataPacket<TEST_DATA_W, TEST_ADDR_W>;
     terminator: chan<bool> out;
 
     input_s: chan<SequenceExecutorPacket> out;
-    output_r: chan<ZstdDecodedPacket> in;
+    output_mem_wr_data_in_r: chan<MemWriterDataPacket> in;
 
     print_start_s: chan<()> out;
     print_finish_r: chan<()> in;
@@ -1569,7 +1614,7 @@ proc SequenceExecutorSequenceTest {
 
     config(terminator: chan<bool> out) {
         let (input_s, input_r) = chan<SequenceExecutorPacket>("input");
-        let (output_s, output_r) = chan<ZstdDecodedPacket>("output");
+        let (output_mem_wr_data_in_s,  output_mem_wr_data_in_r) = chan<MemWriterDataPacket>("output_mem_wr_data_in");
 
         let (looped_channel_s, looped_channel_r) = chan<SequenceExecutorPacket>("looped_channel");
 
@@ -1584,11 +1629,12 @@ proc SequenceExecutorSequenceTest {
         let INIT_HB_PTR_ADDR = u32:127;
         spawn SequenceExecutor<
             TEST_HISTORY_BUFFER_SIZE_KB,
+            TEST_DATA_W, TEST_ADDR_W,
             TEST_RAM_SIZE,
             TEST_RAM_ADDR_WIDTH,
             INIT_HB_PTR_ADDR,
         > (
-            input_r, output_s,
+            input_r, output_mem_wr_data_in_s,
             looped_channel_r, looped_channel_s,
             ram_rd_req_s[0], ram_rd_req_s[1], ram_rd_req_s[2], ram_rd_req_s[3],
             ram_rd_req_s[4], ram_rd_req_s[5], ram_rd_req_s[6], ram_rd_req_s[7],
@@ -1640,7 +1686,7 @@ proc SequenceExecutorSequenceTest {
 
         (
             terminator,
-            input_s, output_r,
+            input_s, output_mem_wr_data_in_r,
             print_start_s, print_finish_r,
             ram_rd_req_s, ram_rd_resp_r, ram_wr_req_s, ram_wr_resp_r
         )
@@ -1656,9 +1702,10 @@ proc SequenceExecutorSequenceTest {
             if (LITERAL_TEST_INPUT_DATA[i].msg_type != SequenceExecutorMessageType::LITERAL ||
                 LITERAL_TEST_INPUT_DATA[i].length != CopyOrMatchLength:0 ||
                 LITERAL_TEST_INPUT_DATA[i].last) {
-                let (tok, recv_data) = recv(tok, output_r);
                 let expected = decode_literal_packet(LITERAL_TEST_INPUT_DATA[i]);
-                assert_eq(expected, recv_data);
+                let expected_mem_writer_data = convert_output_packet<TEST_ADDR_W, TEST_DATA_W>(expected);
+                let (tok, recv_mem_writer_data) = recv(tok, output_mem_wr_data_in_r);
+                assert_eq(expected_mem_writer_data, recv_mem_writer_data);
             } else {}
         }(());
 
@@ -1667,45 +1714,45 @@ proc SequenceExecutorSequenceTest {
         let (tok, _) = recv(tok, print_finish_r);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[0]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[0], recv_data);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[1], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[1]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[2], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[2]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[3], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[3]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[4], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[4]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[5], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[5]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[6], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[6]);
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[7]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[7], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[8]);
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[9]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[8], recv_data);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[9], recv_data);
 
         let tok = send(tok, input_s, SEQUENCE_TEST_INPUT_SEQUENCES[10]);
-        let (tok, recv_data) = recv(tok, output_r);
+        let (tok, recv_data) = recv(tok, output_mem_wr_data_in_r);
         assert_eq(SEQUENCE_TEST_EXPECTED_SEQUENCE_RESULTS[10], recv_data);
 
         // Print RAM content
