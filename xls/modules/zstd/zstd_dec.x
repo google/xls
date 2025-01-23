@@ -1481,6 +1481,8 @@ const INST_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
 const HUFFMAN_WEIGHTS_RAM_ADDR_W: u32 = huffman_literals_dec::WEIGHTS_ADDR_WIDTH;
 const HUFFMAN_WEIGHTS_RAM_DATA_W: u32 = huffman_literals_dec::WEIGHTS_DATA_WIDTH;
 const HUFFMAN_WEIGHTS_RAM_NUM_PARTITIONS: u32 = huffman_literals_dec::WEIGHTS_NUM_PARTITIONS;
+const HUFFMAN_WEIGHTS_RAM_SIZE: u32 = huffman_literals_dec::RAM_SIZE;
+const HUFFMAN_WEIGHTS_RAM_PARTITION_WORD_SIZE: u32 = huffman_literals_dec::WEIGHTS_PARTITION_WORD_SIZE;
 // Huffman prescan memory parameters
 const HUFFMAN_PRESCAN_RAM_ADDR_W: u32 = huffman_literals_dec::PRESCAN_ADDR_WIDTH;
 const HUFFMAN_PRESCAN_RAM_DATA_W: u32 = huffman_literals_dec::PRESCAN_DATA_WIDTH;
@@ -1496,6 +1498,8 @@ const LITERALS_BUFFER_RAM_DATA_W: u32 = literals_buffer::RAM_DATA_WIDTH;
 const LITERALS_BUFFER_RAM_NUM_PARTITIONS: u32 = literals_buffer::RAM_NUM_PARTITIONS;
 const LITERALS_BUFFER_RAM_WORD_PARTITION_SIZE: u32 = LITERALS_BUFFER_RAM_DATA_W;
 
+const INST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR = ram::SimultaneousReadWriteBehavior::READ_BEFORE_WRITE;
+const INST_RAM_INITIALIZED = true;
 
 proc ZstdDecoderInternalInst {
     type State = ZstdDecoderInternalState;
@@ -1633,6 +1637,8 @@ proc ZstdDecoderInst {
     type HuffmanPrescanWriteReq   = ram::WriteReq<HUFFMAN_PRESCAN_RAM_ADDR_W, HUFFMAN_PRESCAN_RAM_DATA_W, HUFFMAN_PRESCAN_RAM_NUM_PARTITIONS>;
     type HuffmanPrescanWriteResp  = ram::WriteResp;
 
+    const CHANNEL_DEPTH = u32:1;
+
     init { }
 
     config(
@@ -1683,12 +1689,6 @@ proc ZstdDecoderInst {
         litbuf_wr_req_s: chan<LitBufRamWrReq>[u32:8] out,
         litbuf_wr_resp_r: chan<LitBufRamWrResp>[u32:8] in,
 
-        // Huffman weights memory
-        huffman_lit_weights_mem_rd_req_s: chan<HuffmanWeightsReadReq> out,
-        huffman_lit_weights_mem_rd_resp_r: chan<HuffmanWeightsReadResp> in,
-        huffman_lit_weights_mem_wr_req_s: chan<HuffmanWeightsWriteReq> out,
-        huffman_lit_weights_mem_wr_resp_r: chan<HuffmanWeightsWriteResp> in,
-
         // Huffman prescan memory
         huffman_lit_prescan_mem_rd_req_s: chan<HuffmanPrescanReadReq> out,
         huffman_lit_prescan_mem_rd_resp_r: chan<HuffmanPrescanReadResp> in,
@@ -1737,6 +1737,19 @@ proc ZstdDecoderInst {
         notify_s: chan<()> out,
         reset_s: chan<()> out,
     ) {
+        // FIXME: Remove inline Huffman Weights memory once HuffmanLiteralsDecoder's memory ports are able to be rewritten
+        let (huffman_lit_weights_mem_rd_req_s, huffman_lit_weights_mem_rd_req_r) = chan<HuffmanWeightsReadReq, CHANNEL_DEPTH>("huffman_lit_weights_mem_rd_req");
+        let (huffman_lit_weights_mem_rd_resp_s, huffman_lit_weights_mem_rd_resp_r) = chan<HuffmanWeightsReadResp, CHANNEL_DEPTH>("huffman_lit_weights_mem_rd_resp");
+        let (huffman_lit_weights_mem_wr_req_s, huffman_lit_weights_mem_wr_req_r) = chan<HuffmanWeightsWriteReq, CHANNEL_DEPTH>("huffman_lit_weights_mem_wr_req");
+        let (huffman_lit_weights_mem_wr_resp_s, huffman_lit_weights_mem_wr_resp_r) = chan<HuffmanWeightsWriteResp, CHANNEL_DEPTH>("huffman_lit_weights_mem_wr_resp");
+        spawn ram::RamModel<
+            HUFFMAN_WEIGHTS_RAM_DATA_W, HUFFMAN_WEIGHTS_RAM_SIZE, HUFFMAN_WEIGHTS_RAM_PARTITION_WORD_SIZE,
+            INST_RAM_SIMULTANEOUS_READ_WRITE_BEHAVIOR, INST_RAM_INITIALIZED
+        >(
+            huffman_lit_weights_mem_rd_req_r, huffman_lit_weights_mem_rd_resp_s,
+            huffman_lit_weights_mem_wr_req_r, huffman_lit_weights_mem_wr_resp_s,
+        );
+
         spawn ZstdDecoder<
             INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_ID_W, INST_AXI_DEST_W,
             INST_REGS_N, INST_WINDOW_LOG_MAX,
