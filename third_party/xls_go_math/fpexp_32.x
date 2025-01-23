@@ -209,4 +209,3 @@ fn fpexp_32_test() {
   let input = float32::unflatten(u32:0xf12d483f);
   assert_eq(float32::zero(u1:0), fpexp_32(input));
 }
-

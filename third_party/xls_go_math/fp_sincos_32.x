@@ -298,4 +298,3 @@ fn test_fp_cos_32() {
   assert_eq(fp_cos_32(float32::zero(u1:0)),
             float32::one(u1:0));
 }
-

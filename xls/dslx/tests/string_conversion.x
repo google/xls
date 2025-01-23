@@ -34,4 +34,3 @@ fn main_test() {
   let expected_result:u8[31] = "abcdefghijklmnopqrstuvwxyz\"_XLS";
   assert_eq(expected_result, main())
 }
-
