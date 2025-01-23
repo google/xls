@@ -92,6 +92,14 @@ TypeAnnotation* CreateS64Annotation(Module& module, const Span& span) {
       span, BuiltinType::kS64, module.GetOrCreateBuiltinNameDef("s64"));
 }
 
+TypeAnnotation* CreateStructAnnotation(
+    Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
+    std::optional<const StructInstance*> instantiator) {
+  return module.Make<TypeRefTypeAnnotation>(
+      def->span(), module.Make<TypeRef>(def->span(), def),
+      std::move(parametrics), instantiator);
+}
+
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(
     const TypeAnnotation* annotation) {
   if (const auto* builtin_annotation =
@@ -203,7 +211,8 @@ std::optional<StructOrProcRef> GetStructOrProcRef(
     return std::nullopt;
   }
   return StructOrProcRef{.def = *def,
-                         .parametrics = type_ref_annotation->parametrics()};
+                         .parametrics = type_ref_annotation->parametrics(),
+                         .instantiator = type_ref_annotation->instantiator()};
 }
 
 }  // namespace xls::dslx

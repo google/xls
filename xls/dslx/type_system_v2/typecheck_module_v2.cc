@@ -275,10 +275,48 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           file_table_);
     }
 
+    const NameRef* type_variable = *table_.GetTypeVariable(node);
+    const TypeAnnotation* struct_variable_type =
+        module_.Make<TypeVariableTypeAnnotation>(type_variable);
     const StructDef* struct_def =
         std::get<const StructDef*>(struct_or_proc_ref->def);
+    if (struct_def->IsParametric()) {
+      // Disallow too many parametrics.
+      if (struct_or_proc_ref->parametrics.size() >
+          struct_def->parametric_bindings().size()) {
+        return ArgCountMismatchErrorStatus(
+            node->span(),
+            absl::Substitute(
+                "Too many parametric values supplied; limit: $0 given: $1",
+                struct_def->parametric_bindings().size(),
+                struct_or_proc_ref->parametrics.size()),
+            file_table_);
+      }
+      // If any parametrics are explicitly specified, then they must all be
+      // explicit or defaulted. We technically could infer the rest, as with
+      // functions, but historically we choose not to.
+      if (!struct_or_proc_ref->parametrics.empty()) {
+        for (int i = 0; i < struct_def->parametric_bindings().size(); i++) {
+          const ParametricBinding* binding =
+              struct_def->parametric_bindings()[i];
+          if (i >= struct_or_proc_ref->parametrics.size() &&
+              struct_def->parametric_bindings()[i]->expr() == nullptr) {
+            return ArgCountMismatchErrorStatus(
+                node->span(),
+                absl::Substitute(
+                    "No parametric value provided for `$0` in `$1`",
+                    binding->identifier(), struct_def->identifier()),
+                file_table_);
+          }
+        }
+      }
+    }
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node,
+        CreateStructAnnotation(module_, const_cast<StructDef*>(struct_def),
+                               struct_or_proc_ref->parametrics, node)));
     XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(*node, *struct_def));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, node->struct_ref()));
+
     std::vector<std::pair<std::string, Expr*>> members =
         node->GetOrderedMembers(struct_def);
     for (int i = 0; i < members.size(); i++) {
@@ -291,8 +329,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
               GenerateInternalTypeVariableName(formal_member, actual_member)));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(actual_member, member_type_variable));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(actual_member, formal_member->type()));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          actual_member, module_.Make<MemberTypeAnnotation>(
+                             struct_variable_type, struct_def, formal_member)));
     }
     return DefaultHandler(node);
   }
@@ -901,8 +940,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
                                             ImportData* import_data,
                                             WarningCollector* warnings) {
-  std::unique_ptr<InferenceTable> table =
-      InferenceTable::Create(*module, import_data->file_table());
+  std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
   PopulateInferenceTableVisitor visitor(*module, *table,
                                         import_data->file_table());
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));

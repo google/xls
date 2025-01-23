@@ -434,8 +434,12 @@ class InferenceTableConverter {
       std::vector<std::unique_ptr<Type>> member_types;
       member_types.reserve(struct_def_base->members().size());
       for (const StructMemberNode* member : struct_def_base->members()) {
-        XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
-                             Concretize(member->type(), parametric_invocation));
+        XLS_ASSIGN_OR_RETURN(
+            const TypeAnnotation* parametric_free_member_type,
+            GetParametricFreeStructMemberType(*struct_or_proc, *member));
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<Type> concrete_member_type,
+            Concretize(parametric_free_member_type, parametric_invocation));
         member_types.push_back(std::move(concrete_member_type));
       }
       if (std::holds_alternative<const StructDef*>(struct_or_proc->def)) {
@@ -487,21 +491,31 @@ class InferenceTableConverter {
     if (scoped_expr.invocation().has_value()) {
       type_info = invocation_type_info_.at(*scoped_expr.invocation());
     }
+    return Evaluate(scoped_expr.invocation(), type_info,
+                    scoped_expr.type_annotation(), scoped_expr.expr());
+  }
+
+  // Variant that uses a specific `TypeInfo`. Use this directly when there is a
+  // need to target a temporary `TypeInfo` object, e.g. for `StructInstance`
+  // parametric values. When populating a real output `TypeInfo` object, prefer
+  // the variant that takes an `InvocationScopedExpr`.
+  absl::StatusOr<InterpValue> Evaluate(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      TypeInfo* type_info, const TypeAnnotation* type_annotation,
+      const Expr* expr) {
     // This is the type of the parametric binding we are talking about, which is
     // typically a built-in type, but the way we are concretizing it here would
     // support it being a complex type that even refers to other parametrics.
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<Type> type,
-        Concretize(scoped_expr.type_annotation(), scoped_expr.invocation()));
-    type_info->SetItem(scoped_expr.expr(), *type);
-    type_info->SetItem(scoped_expr.type_annotation(),
-                       MetaType(type->CloneToUnique()));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
+                         Concretize(type_annotation, parametric_invocation));
+    type_info->SetItem(expr, *type);
+    type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     // TODO: https://github.com/google/xls/issues/193 - The if-statement below
     // is here temporarily to enable easy testing of parametric variables in
     // inference_table_test. The equivalent is done by `TypecheckModuleV2`, and
     // that's where the logic belongs, but that doesn't yet deal with parametric
     // variables.
-    if (auto* number = dynamic_cast<const Number*>(scoped_expr.expr());
+    if (auto* number = dynamic_cast<const Number*>(expr);
         number != nullptr && number->type_annotation() != nullptr) {
       type_info->SetItem(number->type_annotation(),
                          MetaType(type->CloneToUnique()));
@@ -509,13 +523,12 @@ class InferenceTableConverter {
     // Note: the `ParametricEnv` is irrelevant here, because we have guaranteed
     // that any parametric that may be referenced by the expr has been noted as
     // a normal constexpr in `type_info`.
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue result,
-        ConstexprEvaluator::EvaluateToValue(
-            &import_data_, type_info, &warning_collector_, ParametricEnv(),
-            scoped_expr.expr(), /*type=*/nullptr));
-    VLOG(5) << "Evaluation result for: " << scoped_expr.expr()->ToString()
-            << " in context: " << ToString(scoped_expr.invocation())
+    XLS_ASSIGN_OR_RETURN(InterpValue result,
+                         ConstexprEvaluator::EvaluateToValue(
+                             &import_data_, type_info, &warning_collector_,
+                             ParametricEnv(), expr, /*type=*/nullptr));
+    VLOG(5) << "Evaluation result for: " << expr->ToString()
+            << " in context: " << ToString(parametric_invocation)
             << " value: " << result.ToString();
     return result;
   }
@@ -579,11 +592,42 @@ class InferenceTableConverter {
       absl::flat_hash_set<const ParametricBinding*> implicit_parametrics) {
     VLOG(5) << "Inferring " << implicit_parametrics.size()
             << " implicit parametrics for invocation: " << ToString(invocation);
-    absl::flat_hash_map<std::string, InterpValue> values;
     const absl::Span<Param* const> formal_args = invocation->callee().params();
     const absl::Span<Expr* const> actual_args = invocation->node().args();
     TypeInfo* ti = invocation_type_info_.at(invocation);
-    for (int i = 0; i < formal_args.size(); i++) {
+    std::vector<const TypeAnnotation*> formal_types;
+    formal_types.reserve(formal_args.size());
+    for (const Param* param : formal_args) {
+      formal_types.push_back(param->type_annotation());
+    }
+
+    TypeInfo* actual_arg_ti = base_type_info_;
+    if (invocation->caller_invocation().has_value()) {
+      actual_arg_ti =
+          invocation_type_info_.at(*invocation->caller_invocation());
+    }
+    return InferImplicitParametrics(
+        invocation, implicit_parametrics, formal_types, actual_args, ti,
+        actual_arg_ti, invocation->caller_invocation());
+  }
+
+  // Attempts to infer the values of the specified implicit parametrics in an
+  // invocation or struct instance, using the types of the regular arguments or
+  // members being passed. If not all of `implicit_parametrics` can be
+  // determined, this function returns an error.
+  absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
+  InferImplicitParametrics(
+      const std::optional<const ParametricInvocation*> invocation,
+      absl::flat_hash_set<const ParametricBinding*> implicit_parametrics,
+      absl::Span<const TypeAnnotation* const> formal_types,
+      absl::Span<Expr* const> actual_args, TypeInfo* output_ti,
+      TypeInfo* actual_arg_ti,
+      std::optional<const ParametricInvocation*> actual_arg_invocation,
+      absl::FunctionRef<bool(const TypeAnnotation*)> caller_accept_predicate =
+          [](const TypeAnnotation*) { return true; }) {
+    absl::flat_hash_map<std::string, InterpValue> values;
+    for (int i = 0; i < formal_types.size() && !implicit_parametrics.empty();
+         i++) {
       std::optional<const NameRef*> actual_arg_type_var =
           table_.GetTypeVariable(actual_args[i]);
       if (!actual_arg_type_var.has_value()) {
@@ -595,11 +639,6 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(
           std::vector<const TypeAnnotation*> actual_arg_annotations,
           table_.GetTypeAnnotationsForTypeVariable(*actual_arg_type_var));
-      TypeInfo* actual_arg_ti = base_type_info_;
-      if (invocation->caller_invocation().has_value()) {
-        actual_arg_ti =
-            invocation_type_info_.at(*invocation->caller_invocation());
-      }
 
       // The type variable for the actual argument should have at least one
       // annotation associated with it that came from the formal argument and is
@@ -607,7 +646,8 @@ class InferenceTableConverter {
       // just the independent annotations(s) for the purposes of solving for the
       // variable.
       auto accept_predicate = [&](const TypeAnnotation* annotation) {
-        return !HasAnyReferencesWithMissingTypeInfo(actual_arg_ti, annotation);
+        return caller_accept_predicate(annotation) &&
+               !HasAnyReferencesWithMissingTypeInfo(actual_arg_ti, annotation);
       };
       XLS_RETURN_IF_ERROR(ResolveVariableTypeAnnotations(
           invocation, actual_arg_annotations, accept_predicate));
@@ -622,7 +662,7 @@ class InferenceTableConverter {
           UnifyTypeAnnotations(invocation, actual_arg_annotations,
                                actual_args[i]->span()));
       std::optional<const ParametricInvocation*> effective_invocation =
-          GetEffectiveParametricInvocation(invocation->caller_invocation(),
+          GetEffectiveParametricInvocation(actual_arg_invocation,
                                            actual_arg_type);
       absl::flat_hash_map<const ParametricBinding*, InterpValue> resolved;
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
@@ -631,8 +671,7 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(
           resolved,
           SolveForParametrics(
-              actual_arg_type, formal_args[i]->type_annotation(),
-              implicit_parametrics,
+              actual_arg_type, formal_types[i], implicit_parametrics,
               [&](const TypeAnnotation* expected_type, const Expr* expr) {
                 return Evaluate(InvocationScopedExpr(effective_invocation,
                                                      expected_type, expr));
@@ -642,7 +681,7 @@ class InferenceTableConverter {
                 << " for binding: " << binding->identifier()
                 << " using function argument: `" << actual_args[i]->ToString()
                 << "` of actual type: " << actual_arg_type->ToString();
-        ti->NoteConstExpr(binding->name_def(), value);
+        output_ti->NoteConstExpr(binding->name_def(), value);
         implicit_parametrics.erase(binding);
         values.emplace(binding->identifier(), std::move(value));
       }
@@ -731,7 +770,8 @@ class InferenceTableConverter {
     XLS_RETURN_IF_ERROR(
         ResolveVariableTypeAnnotations(parametric_invocation, annotations));
     if (annotations.size() == 1 &&
-        !invocation_scoped_type_annotations_.contains(annotations[0])) {
+        !invocation_scoped_type_annotations_.contains(annotations[0]) &&
+        !GetStructOrProcRef(annotations[0]).has_value()) {
       // This is here mainly for preservation of shorthand annotations appearing
       // in the source code, in case they get put in subsequent error messages.
       // General unification would normalize the format.
@@ -774,18 +814,29 @@ class InferenceTableConverter {
     if (std::optional<StructOrProcRef> first_struct_or_proc =
             GetStructOrProcRef(annotations[0]);
         first_struct_or_proc.has_value()) {
-      const StructDefBase* struct_def_base = dynamic_cast<const StructDefBase*>(
-          ToAstNode(first_struct_or_proc->def));
+      const StructDef* struct_def =
+          dynamic_cast<const StructDef*>(ToAstNode(first_struct_or_proc->def));
+      std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
         std::optional<StructOrProcRef> next_struct_or_proc =
             GetStructOrProcRef(annotation);
         if (!next_struct_or_proc.has_value() ||
-            ToAstNode(next_struct_or_proc->def) != struct_def_base) {
+            ToAstNode(next_struct_or_proc->def) != struct_def) {
           return TypeMismatchErrorWithParametricResolution(
               parametric_invocation, annotations[0], annotation);
         }
+        if (struct_def->IsParametric()) {
+          annotations_to_unify.push_back(annotation);
+        }
       }
-      return annotations[0];
+      // A non-parametric struct is trivially unifiable, because nothing can
+      // validly vary between the annotations. A parametric struct needs to have
+      // its parameters unified.
+      return annotations_to_unify.empty()
+                 ? annotations[0]
+                 : UnifyParametricStructAnnotations(parametric_invocation,
+                                                    *struct_def,
+                                                    annotations_to_unify);
     }
     std::optional<SignednessAndSize> unified_signedness_and_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
@@ -920,6 +971,213 @@ class InferenceTableConverter {
                              /*type_annotation=*/nullptr));
   }
 
+  // Unifies multiple annotations for a parametric struct, and produces an
+  // annotation with all of the parametric bindings of the struct having
+  // explicit values. Values that can't be sourced from the annotations are
+  // inferred or defaulted. If this can't be done, or there is a disagreement on
+  // explicit values among the annotations, then this returns an error. Note
+  // that the explicit parametric values returned are not necessarily
+  // concretized to literals, but they are exprs without any references to
+  // other parametrics of the struct. Therefore, `Concretize()` should be able
+  // to operate on the returned annotation.
+  absl::StatusOr<const TypeAnnotation*> UnifyParametricStructAnnotations(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const StructDef& struct_def,
+      std::vector<const TypeAnnotation*> annotations) {
+    VLOG(5) << "Unifying parametric struct annotations; struct def: "
+            << struct_def.identifier();
+    std::vector<InterpValue> explicit_parametrics;
+    std::optional<const StructInstance*> instantiator;
+
+    // Go through the annotations, and check that they have no disagreement in
+    // their explicit parametric values. For example, one annotation may be
+    // `SomeStruct<32>` and one may be `SomeStruct<N>` where `N` is a parametric
+    // of the enclosing function. We are in a position now to decide if `N` is
+    // 32 or not.
+    for (const TypeAnnotation* annotation : annotations) {
+      std::optional<const ParametricInvocation*>
+          effective_parametric_invocation = GetEffectiveParametricInvocation(
+              parametric_invocation, annotation);
+      std::optional<StructOrProcRef> struct_or_proc_ref =
+          GetStructOrProcRef(annotation);
+      CHECK(struct_or_proc_ref.has_value());
+      if (struct_or_proc_ref->instantiator.has_value()) {
+        instantiator = struct_or_proc_ref->instantiator;
+      }
+      for (int i = 0; i < struct_or_proc_ref->parametrics.size(); i++) {
+        ExprOrType parametric = struct_or_proc_ref->parametrics[i];
+        const ParametricBinding* binding = struct_def.parametric_bindings()[i];
+        CHECK(std::holds_alternative<Expr*>(parametric));
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue value,
+            Evaluate(InvocationScopedExpr(effective_parametric_invocation,
+                                          binding->type_annotation(),
+                                          std::get<Expr*>(parametric))));
+        if (i == explicit_parametrics.size()) {
+          explicit_parametrics.push_back(value);
+        } else if (value != explicit_parametrics[i]) {
+          return absl::InvalidArgumentError(absl::Substitute(
+              "Value mismatch for parametric `$0` of struct `$1`: $2 vs. $3",
+              binding->identifier(), struct_def.identifier(), value.ToString(),
+              explicit_parametrics[i].ToString()));
+        }
+      }
+    }
+
+    // Now we can forget about the multiple annotations. We have the agreeing,
+    // computed explicit parametrics in `explicit_parametrics`. The goal now is
+    // to come up with a complete parametric value `Expr` vector, which has a
+    // value for every formal binding, by inferring or defaulting whichever ones
+    // are not explicit. The algorithm is the same as for parametric function
+    // invocations, and the differences are in the logistics. We build this as a
+    // map, `resolved_parametrics`, and convert it to a vector at the end.
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * instance_type_info,
+        import_data_.type_info_owner().New(
+            &module_, parametric_invocation.has_value()
+                          ? invocation_type_info_.at(*parametric_invocation)
+                          : base_type_info_));
+    absl::flat_hash_map<std::string, const ParametricBinding*> bindings;
+    absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
+    auto set_value = [&](const ParametricBinding* binding,
+                         InterpValue value) -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Type> binding_type,
+          Concretize(binding->type_annotation(), parametric_invocation));
+      instance_type_info->SetItem(binding->name_def(), *binding_type);
+      instance_type_info->NoteConstExpr(binding->name_def(), value);
+      resolved_parametrics.emplace(
+          binding->identifier(),
+          module_.Make<Number>(binding->span(),
+                               value.ToString(/*humanize=*/true),
+                               NumberKind::kOther, nullptr));
+      return absl::OkStatus();
+    };
+    absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
+    absl::flat_hash_map<std::string, int> indices;
+    std::vector<const TypeAnnotation*> formal_member_types;
+    std::vector<Expr*> actual_member_exprs;
+    for (const StructMemberNode* member : struct_def.members()) {
+      formal_member_types.push_back(member->type());
+    }
+    if (instantiator.has_value()) {
+      for (const auto& [name, expr] :
+           (*instantiator)->GetOrderedMembers(&struct_def)) {
+        actual_member_exprs.push_back(expr);
+      }
+      CHECK_EQ(actual_member_exprs.size(), formal_member_types.size());
+    }
+    auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
+      VLOG(5) << "Infer implicit parametrics: " << implicit_parametrics.size();
+      if (implicit_parametrics.empty()) {
+        return absl::OkStatus();
+      }
+      CHECK(instantiator.has_value());
+      absl::flat_hash_map<std::string, InterpValue> new_values;
+      XLS_ASSIGN_OR_RETURN(
+          new_values,
+          InferImplicitParametrics(
+              parametric_invocation, implicit_parametrics, formal_member_types,
+              actual_member_exprs, instance_type_info, instance_type_info,
+              parametric_invocation, /*caller_accept_predicate=*/
+              [&](const TypeAnnotation* annotation) {
+                // When inferring a parametric using a member of the actual
+                // struct, we may have e.g. a member with 2 annotations like
+                // `decltype(Foo<N>.x)` and `uN[32]`. The decltype one in this
+                // example is not useful for the inference of `N`, and more
+                // generally, any decltype-ish annotation that refers back to
+                // the struct we are processing is going to be unhelpful, so we
+                // weed those out here.
+                if (auto* element_annotation =
+                        dynamic_cast<const ElementTypeAnnotation*>(
+                            annotation)) {
+                  annotation = element_annotation->container_type();
+                }
+                if (auto* member_annotation =
+                        dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
+                  return member_annotation->struct_def() != &struct_def;
+                }
+                std::optional<StructOrProcRef> ref =
+                    GetStructOrProcRef(annotation);
+                return !ref.has_value() || ToAstNode(ref->def) != &struct_def;
+              }));
+      implicit_parametrics.clear();
+      for (const auto& [name, value] : new_values) {
+        XLS_RETURN_IF_ERROR(set_value(bindings.at(name), value));
+      }
+      return absl::OkStatus();
+    };
+    for (int i = 0; i < struct_def.parametric_bindings().size(); i++) {
+      const ParametricBinding* binding = struct_def.parametric_bindings()[i];
+      bindings.emplace(binding->identifier(), binding);
+      if (i < explicit_parametrics.size()) {
+        XLS_RETURN_IF_ERROR(set_value(binding, explicit_parametrics[i]));
+      } else if (binding->expr() != nullptr) {
+        XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue value,
+            Evaluate(parametric_invocation, instance_type_info,
+                     binding->type_annotation(), binding->expr()));
+        XLS_RETURN_IF_ERROR(set_value(binding, value));
+      } else {
+        implicit_parametrics.insert(binding);
+      }
+    }
+    XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
+    std::vector<ExprOrType> resolved_parametrics_vector;
+    resolved_parametrics_vector.reserve(
+        struct_def.parametric_bindings().size());
+    for (const ParametricBinding* binding : struct_def.parametric_bindings()) {
+      resolved_parametrics_vector.push_back(
+          resolved_parametrics.at(binding->identifier()));
+    }
+    return CreateStructAnnotation(module_, const_cast<StructDef*>(&struct_def),
+                                  resolved_parametrics_vector, instantiator);
+  }
+
+  // Converts the type of the given struct `member` into one that has any
+  // struct parametric `NameRef`s replaced with their values, sourced from
+  // `struct_or_proc_ref.parametrics`. For example, if the member type is
+  // `uN[N][C]`, where `N` is a parametric with the value 32, and `C` is a
+  // constant that is not a parametric of the struct, this would return
+  // `uN[32][C]`.
+  absl::StatusOr<const TypeAnnotation*> GetParametricFreeStructMemberType(
+      const StructOrProcRef& struct_or_proc_ref,
+      const StructMemberNode& member) {
+    absl::flat_hash_map<const NameDef*, Expr*> parametrics;
+    std::vector<ParametricBinding*> bindings =
+        dynamic_cast<const StructDefBase*>(ToAstNode(struct_or_proc_ref.def))
+            ->parametric_bindings();
+    CHECK_EQ(bindings.size(), struct_or_proc_ref.parametrics.size());
+    for (int i = 0; i < bindings.size(); i++) {
+      const ParametricBinding* binding = bindings[i];
+      const ExprOrType value_expr = struct_or_proc_ref.parametrics[i];
+      parametrics.emplace(binding->name_def(), std::get<Expr*>(value_expr));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        AstNode * clone,
+        CloneAst(
+            member.type(),
+            ChainCloneReplacers(
+                &PreserveTypeDefinitionsReplacer,
+                [&](const AstNode* node)
+                    -> absl::StatusOr<std::optional<AstNode*>> {
+                  if (const auto* ref = dynamic_cast<const NameRef*>(node);
+                      ref != nullptr &&
+                      std::holds_alternative<const NameDef*>(ref->name_def())) {
+                    const auto it = parametrics.find(
+                        std::get<const NameDef*>(ref->name_def()));
+                    if (it != parametrics.end()) {
+                      return it->second;
+                    }
+                  }
+                  return std::nullopt;
+                })));
+    const auto* result = dynamic_cast<const TypeAnnotation*>(clone);
+    CHECK(result != nullptr);
+    return result;
+  }
+
   // Returns `annotation` with any indirect annotations resolved into direct
   // annotations. An indirect annotation is an internally-generated one that
   // depends on the resolved type of another entity. This may be a
@@ -1009,7 +1267,8 @@ class InferenceTableConverter {
         GetStructOrProcRef(struct_type);
     CHECK(struct_or_proc_ref.has_value());
     CHECK_EQ(ToAstNode(struct_or_proc_ref->def), member_type->struct_def());
-    return member_type->member()->type();
+    return GetParametricFreeStructMemberType(*struct_or_proc_ref,
+                                             *member_type->member());
   }
 
   // Converts `element_type` into a regular `TypeAnnotation` that expresses the

@@ -28,7 +28,6 @@
 #include "absl/strings/substitute.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
-#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
@@ -143,8 +142,7 @@ class InferenceTable {
   virtual ~InferenceTable();
 
   // Creates an empty inference table for the given module.
-  static std::unique_ptr<InferenceTable> Create(Module& module,
-                                                const FileTable& file_table);
+  static std::unique_ptr<InferenceTable> Create(Module& module);
 
   // Defines an inference variable fabricated by the type inference system,
   // which has no direct representation in the DSLX source code that is being

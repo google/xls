@@ -33,10 +33,8 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
@@ -148,8 +146,7 @@ struct TypeConstraints {
 
 class InferenceTableImpl : public InferenceTable {
  public:
-  InferenceTableImpl(Module& module, const FileTable& file_table)
-      : module_(module), file_table_(file_table) {}
+  explicit InferenceTableImpl(Module& module) : module_(module) {}
 
   absl::StatusOr<const NameRef*> DefineInternalVariable(
       InferenceVariableKind kind, AstNode* definer,
@@ -356,7 +353,6 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   Module& module_;
-  const FileTable& file_table_;
   // The variables of all kinds that have been defined by the user or
   // internally.
   absl::flat_hash_map<const NameDef*, std::unique_ptr<InferenceVariable>>
@@ -383,9 +379,8 @@ class InferenceTableImpl : public InferenceTable {
 
 InferenceTable::~InferenceTable() = default;
 
-std::unique_ptr<InferenceTable> InferenceTable::Create(
-    Module& module, const FileTable& file_table) {
-  return std::make_unique<InferenceTableImpl>(module, file_table);
+std::unique_ptr<InferenceTable> InferenceTable::Create(Module& module) {
+  return std::make_unique<InferenceTableImpl>(module);
 }
 
 }  // namespace xls::dslx

@@ -383,10 +383,17 @@ class TupleTypeAnnotation : public TypeAnnotation {
 // parameters and return types are both type annotations (as are let bindings,
 // cast type targets, etc.) we wrap that up in the TypeAnnotation AST construct
 // using this type.
+//
+// If a `TypeRefTypeAnnotation` originates as the type of a `StructInstance`
+// node, then it may capture that node as its `instantiator`, indicating that
+// the types of the actual member expressions in that instance should be used to
+// infer any implicit parametrics.
 class TypeRefTypeAnnotation : public TypeAnnotation {
  public:
-  TypeRefTypeAnnotation(Module* owner, Span span, TypeRef* type_ref,
-                        std::vector<ExprOrType> parametrics);
+  TypeRefTypeAnnotation(
+      Module* owner, Span span, TypeRef* type_ref,
+      std::vector<ExprOrType> parametrics,
+      std::optional<const StructInstance*> instantiator = std::nullopt);
 
   ~TypeRefTypeAnnotation() override;
 
@@ -405,9 +412,14 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 
   const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
 
+  std::optional<const StructInstance*> instantiator() const {
+    return instantiator_;
+  }
+
  private:
   TypeRef* type_ref_;
   std::vector<ExprOrType> parametrics_;
+  std::optional<const StructInstance*> instantiator_;
 };
 
 // A type annotation that is a reference to a type variable created either by

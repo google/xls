@@ -879,6 +879,363 @@ const X: S = u32:1;
       TypecheckFails(HasTypeMismatch("S", "u32")));
 }
 
+TEST(TypecheckV2Test, GlobalParametricStructConstant) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+const X = S<u32:24>{ x: u24:5 };
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
+}
+
+TEST(TypecheckV2Test, GlobalParametricStructConstantWithInferredParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+const X = S{ x: u24:5 };
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
+}
+
+TEST(TypecheckV2Test, ParametricStructWithTooManyParametricsFails) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+const X = S<16, 8>{};
+)",
+              TypecheckFails(HasSubstr("Too many parametric values supplied")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructWithInsufficientExplicitParametricsFails) {
+  // In this case, N is inferrable, but we choose not to infer it.
+  EXPECT_THAT(
+      R"(
+struct S<M: u32, N: u32> {
+  x: uN[M],
+  y: uN[N]
+}
+const X = S<32>{x: u32:4, y: u32:5};
+)",
+      TypecheckFails(HasSubstr("No parametric value provided for `N` in `S`")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructWithOneExplicitAndOneDefaultedParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32, N: u32 = {M * 2}> {
+  x: uN[M],
+  y: uN[N]
+}
+const X = S<16>{x: u16:4, y: u32:5};
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[16], y: uN[32] }")));
+}
+
+TEST(TypecheckV2Test, GlobalParametricStructConstantWithNominalMismatchFails) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {}
+const X: S<24> = S<23> {};
+)",
+      TypecheckFails(
+          AllOf(HasSubstr("Value mismatch for parametric `N` of struct `S`"),
+                HasSubstr("u32:23 vs. u32:24"))));
+}
+
+TEST(TypecheckV2Test,
+     GlobalParametricStructConstantWithInferredAndDefaultParametrics) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32, S: bool = {N < 25}> {
+  x: uN[N],
+  y: xN[S][N]
+}
+const X = S{ x: u24:5, y: 6 };
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24], y: sN[24] }")));
+}
+
+TEST(TypecheckV2Test, ParametricStructAsFunctionArgument) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo(a: S<24>) -> S<24> { a }
+const X = foo(S<24> { x: u24:5 });
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
+}
+
+TEST(TypecheckV2Test, ParametricStructAsFunctionArgumentExplicitMismatchFails) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo(a: S<24>) -> S<24> { a }
+const X = foo(S<25> { x: u25:5 });
+)",
+      TypecheckFails(
+          AllOf(HasSubstr("Value mismatch for parametric `N` of struct `S`"),
+                HasSubstr("u32:25 vs. u32:24"))));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructAsFunctionArgumentWithImplicitParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo(a: S<24>) -> S<24> { a }
+const X = foo(S { x: u24:5 });
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructAsFunctionArgumentWithImplicitParametricMismatchFails) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo(a: S<24>) -> S<24> { a }
+const X = foo(S { x: u25:5 });
+)",
+      TypecheckFails(HasSizeMismatch("u25", "uN[24]")));
+}
+
+TEST(TypecheckV2Test, ParametricStructAsFunctionReturnValue) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo(x: u24) -> S<24> { S { x } }
+const X = foo(u24:5);
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("X", "S { x: uN[24] }"),
+                HasNodeWithType("S { x: x }", "S { x: uN[24] }"))));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructAsFunctionReturnValueWithExplicitismatchFails) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo(x: u24) -> S<24> { S<25> { x } }
+const X = foo(u24:5);
+)",
+      TypecheckFails(
+          AllOf(HasSubstr("Value mismatch for parametric `N` of struct `S`"),
+                HasSubstr("u32:25 vs. u32:24"))));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructAsFunctionReturnValueWithImplicitMismatchFails) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo() -> S<24> { S { x: u25:5 } }
+const X = foo();
+)",
+      TypecheckFails(HasSizeMismatch("u25", "uN[24]")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructAsParametricFunctionArgumentWithImplicitParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo<N: u32>(a: S<N>) -> S<N> { a }
+const X = foo(S { x: u24:5 });
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricFunctionWithImplicitParametricStructReturnExpr) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+fn foo<N: u32>(x: uN[N]) -> S<N> { S { x } }
+const X = foo(u24:5);
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }")));
+}
+
+// See https://github.com/google/xls/issues/1615
+TEST(TypecheckV2Test, ParametricStructWithWrongOrderParametricValues) {
+  EXPECT_THAT(R"(
+struct StructFoo<A: u32, B: u32> {
+  x: uN[A],
+  y: uN[B],
+}
+
+fn wrong_order<A: u32, B: u32>(x:uN[A], y:uN[B]) -> StructFoo<B, A> {
+  StructFoo<B, A>{x, y}
+}
+
+fn test() -> StructFoo<32, 33> {
+  wrong_order<32, 33>(2, 3)
+}
+)",
+              TypecheckFails(HasSizeMismatch("uN[32]", "uN[33]")));
+}
+
+TEST(TypecheckV2Test, ParametricStructWithCorrectReverseOrderParametricValues) {
+  EXPECT_THAT(
+      R"(
+struct StructFoo<A: u32, B: u32> {
+  x: uN[A],
+  y: uN[B],
+}
+
+fn wrong_order<A: u32, B: u32>(x:uN[A], y:uN[B]) -> StructFoo<B, A> {
+  StructFoo<B, A>{x:y, y:x}
+}
+
+fn test() -> StructFoo<33, 32> {
+  wrong_order<32, 33>(2, 3)
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("wrong_order<32, 33>(2, 3)",
+                                        "StructFoo { x: uN[33], y: uN[32] }")));
+}
+
+TEST(TypecheckV2Test, GlobalParametricStructArrayConstant) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+const X = [ S<u32:24>{ x: u24:5 }, S<u32:24>{ x: u24:6 } ];
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }[2]")));
+}
+
+TEST(TypecheckV2Test,
+     GlobalParametricStructArrayConstantWithImplicitParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+const X = [ S{ x: u24:5 }, S{ x: u24:6 } ];
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24] }[2]")));
+}
+
+TEST(TypecheckV2Test, GlobalNonUnifiableParametricStructArrayConstantFails) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: uN[N]
+}
+const X = [ S<u32:24>{ x: u24:5 }, S<u32:25>{ x: u25:6 } ];
+)",
+      TypecheckFails(
+          AllOf(HasSubstr("Value mismatch for parametric `N` of struct `S`"),
+                HasSubstr("u32:25 vs. u32:24"))));
+}
+
+TEST(TypecheckV2Test, ParametricStructWithParametricInferredFromArraySize) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {
+  x: u32[N]
+}
+const X = S { x: [1, 2, 3] };
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[32][3] }")));
+}
+
+TEST(TypecheckV2Test, ParametricStructWithParametricInferredFromArrayElement) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32, N: u32> {
+  x: uN[M][N]
+}
+const X = S { x: [u24:1, 2, 3] };
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24][3] }")));
+}
+
+TEST(TypecheckV2Test, ParametricStructWithParametricInferredFromTupleElement) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32, N: u32> {
+  x: (uN[M], uN[N])
+}
+const X = S { x: (u24:1, u32:2) };
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: (uN[24], uN[32]) }")));
+}
+
+TEST(TypecheckV2Test, ParametricStructWithTupleElementMismatchFails) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32, N: u32> {
+  x: (uN[M], uN[N])
+}
+const X = S<24, 32> { x: (u23:1, u32:2) };
+)",
+      TypecheckFails(HasSizeMismatch("u23", "uN[24]")));
+}
+
+TEST(TypecheckV2Test, ParametricStructWithConstantDimension) {
+  EXPECT_THAT(
+      R"(
+const N = u32:4;
+struct S<M: u32> {
+  x: uN[M][N]
+}
+const X = S { x: [u24:1, u24:2, u24:3, u24:4] };
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "S { x: uN[24][4] }")));
+}
+
+// Various samples of actual-argument compatibility with an `xN` field within a
+// struct via a struct instantiation expression (based on original
+// `typecheck_module_test`).
+TEST(TypecheckTest, StructInstantiateParametricXnField) {
+  EXPECT_THAT(
+      R"(
+struct XnWrapper<S: bool, N: u32> {
+  field: xN[S][N]
+}
+fn f() -> XnWrapper<false, u32:8> { XnWrapper<false, u32:8> { field: u8:0 } }
+fn g() -> XnWrapper<true, u32:8> { XnWrapper<true, u32:8> { field: s8:1 } }
+fn h() -> XnWrapper<false, u32:8> { XnWrapper<false, u32:8> { field: xN[false][8]:2 } }
+fn i() -> XnWrapper<true, u32:8> { XnWrapper<true, u32:8> { field: xN[true][8]:3 } }
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("XnWrapper<false, u32:8> { field: u8:0 }",
+                          "XnWrapper { field: uN[8] }"),
+          HasNodeWithType("XnWrapper<true, u32:8> { field: s8:1 }",
+                          "XnWrapper { field: sN[8] }"),
+          HasNodeWithType("XnWrapper<false, u32:8> { field: xN[false][8]:2 }",
+                          "XnWrapper { field: uN[8] }"),
+          HasNodeWithType("XnWrapper<true, u32:8> { field: xN[true][8]:3 }",
+                          "XnWrapper { field: sN[8] }"))));
+}
+
 TEST(TypecheckV2Test, StructFunctionArgument) {
   EXPECT_THAT(R"(
 struct S { field: u32 }

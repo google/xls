@@ -32,6 +32,7 @@ using StructOrProcDef = std::variant<const StructDef*, const ProcDef*>;
 struct StructOrProcRef {
   StructOrProcDef def;
   std::vector<ExprOrType> parametrics;
+  std::optional<const StructInstance*> instantiator;
 };
 
 // The signedness and bit count extracted from a `TypeAnnotation`. The
@@ -52,6 +53,12 @@ TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span);
 
 // Creates a `s64` type annotation.
 TypeAnnotation* CreateS64Annotation(Module& module, const Span& span);
+
+// Creates an annotation referring to the given struct definition with the given
+// parametric arguments.
+TypeAnnotation* CreateStructAnnotation(
+    Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
+    std::optional<const StructInstance*> instantiator);
 
 // Returns the signedness and bit count from the given type annotation, if it is
 // a bits-like annotation; otherwise, returns an error.
