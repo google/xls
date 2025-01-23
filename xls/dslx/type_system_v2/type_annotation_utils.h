@@ -54,6 +54,9 @@ TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span);
 // Creates a `s64` type annotation.
 TypeAnnotation* CreateS64Annotation(Module& module, const Span& span);
 
+// Creates a `u32` type annotation.
+TypeAnnotation* CreateU32Annotation(Module& module, const Span& span);
+
 // Creates an annotation referring to the given struct definition with the given
 // parametric arguments.
 TypeAnnotation* CreateStructAnnotation(

@@ -632,6 +632,108 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithAnnotatedIntegerLiterals) {
                                       HasNodeWithType("u32:2", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, GlobalConstantEqualsIndexOfTemporaryArray) {
+  EXPECT_THAT("const X = [u32:1, u32:2][0];",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsIndexOfTemporaryArrayUsingBinop) {
+  EXPECT_THAT(R"(
+const A = u32:1;
+const X = [u32:1, u32:2][0 + A];
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, IndexWithTooLargeIndexTypeFails) {
+  EXPECT_THAT("const X = [u32:1, u32:2][u64:0];",
+              TypecheckFails(HasSizeMismatch("u64", "u32")));
+}
+
+TEST(TypecheckV2Test, IndexWithSignedIndexTypeFails) {
+  EXPECT_THAT("const X = [u32:1, u32:2][s32:0];",
+              TypecheckFails(HasSignednessMismatch("s32", "u32")));
+}
+
+TEST(TypecheckV2Test, IndexWithNonBitsIndexTypeFails) {
+  EXPECT_THAT("const X = [u32:1, u32:2][[u32:0]];",
+              TypecheckFails(HasTypeMismatch("u32[1]", "u32")));
+}
+
+TEST(TypecheckV2Test, IndexOfConstantArray) {
+  EXPECT_THAT(R"(
+const X: s24[2] = [5, 4];
+const Y = X[0];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "sN[24]")));
+}
+
+TEST(TypecheckV2Test, IndexOfFunctionReturn) {
+  EXPECT_THAT(R"(
+fn foo() -> u24[3] { [1, 2, 3] }
+const Y = foo()[1];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[24]")));
+}
+
+TEST(TypecheckV2Test, IndexOfParametricFunctionReturn) {
+  EXPECT_THAT(R"(
+fn foo<N: u32>() -> uN[N][3] { [1, 2, 3] }
+const Y = foo<16>()[1];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, IndexOfParametricFunctionReturnUsedForInference) {
+  EXPECT_THAT(R"(
+fn foo<N: u32>() -> uN[N][3] { [1, 2, 3] }
+fn bar<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
+const Y = bar(foo<16>()[1]);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, IndexOfParametricFunctionArgument) {
+  EXPECT_THAT(R"(
+fn foo<N: u32>(a: uN[N][3], i: u32) -> uN[N] { a[i] }
+const Y = foo<16>([1, 2, 3], 1);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, IndexOfStructFails) {
+  EXPECT_THAT(R"(
+struct S {
+  x: u32
+}
+const Y = S{ x: 0 }[0];
+)",
+              TypecheckFails(HasSubstr("Value to index is not an array")));
+}
+
+TEST(TypecheckV2Test, IndexOfTupleFails) {
+  EXPECT_THAT(R"(
+const Y = (u32:1, u32:2)[0];
+)",
+              TypecheckFails(HasSubstr(
+                  "Tuples should not be indexed with array-style syntax.")));
+}
+
+TEST(TypecheckV2Test, IndexOfBitsFails) {
+  EXPECT_THAT(R"(
+const Y = (bits[32]:1)[0];
+)",
+              TypecheckFails(HasSubstr("Bits-like value cannot be indexed")));
+}
+
+TEST(TypecheckV2Test, IndexWithConstexprOutOfRangeFails) {
+  EXPECT_THAT(R"(
+const X = u32:2;
+const Y = [u32:1, u32:2][X];
+)",
+              TypecheckFails(HasSubstr("out of bounds of the array type")));
+}
+
 TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithBareIntegerLiterals) {
   EXPECT_THAT("const X: u32[2] = [1, 3];",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][2]"),
@@ -1214,7 +1316,7 @@ const X = S { x: [u24:1, u24:2, u24:3, u24:4] };
 // Various samples of actual-argument compatibility with an `xN` field within a
 // struct via a struct instantiation expression (based on original
 // `typecheck_module_test`).
-TEST(TypecheckTest, StructInstantiateParametricXnField) {
+TEST(TypecheckV2Test, StructInstantiateParametricXnField) {
   EXPECT_THAT(
       R"(
 struct XnWrapper<S: bool, N: u32> {

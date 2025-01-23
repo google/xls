@@ -426,6 +426,42 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleIndex(const Index* node) override {
+    if (std::holds_alternative<Slice*>(node->rhs()) ||
+        std::holds_alternative<WidthSlice*>(node->rhs())) {
+      return absl::UnimplementedError(
+          "Type inference version 2 is a work in progress and does not yet "
+          "support slices.");
+    }
+
+    // A node like `array[i]` is basically a binary operator with independent
+    // contexts on the LHS and RHS. The RHS is constrained to u32, while the LHS
+    // must be some kind of array. The "some kind of array" part is not
+    // capturable in the table, but readily verifiable at the end of type
+    // inference, so we defer that.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* lhs_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
+            GenerateInternalTypeVariableName(node->lhs())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
+    Expr* index = std::get<Expr*>(node->rhs());
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* rhs_variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<Expr*>(index),
+                                      GenerateInternalTypeVariableName(index)));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(index, rhs_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        index, CreateU32Annotation(module_, index->span())));
+
+    // The type of the entire expr is then ElementType(lhs_variable).
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, module_.Make<ElementTypeAnnotation>(
+                  module_.Make<TypeVariableTypeAnnotation>(lhs_variable))));
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleFunction(const Function* node) override {
     VLOG(5) << "HandleFunction: " << node->ToString()
             << ", parametric: " << node->IsParametric();

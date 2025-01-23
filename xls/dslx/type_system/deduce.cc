@@ -1306,28 +1306,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceIndex(const Index* node,
   }
   Expr* rhs = std::get<Expr*>(node->rhs());
 
-  if (auto* tuple_type = dynamic_cast<TupleType*>(lhs_type.get())) {
-    return TypeInferenceErrorStatus(
-        node->span(), tuple_type,
-        "Tuples should not be indexed with array-style syntax. "
-        "Use `tuple.<number>` syntax instead.",
-        ctx->file_table());
-  }
-
-  std::optional<BitsLikeProperties> bits_like = GetBitsLike(*lhs_type);
-  if (bits_like.has_value()) {
-    return TypeInferenceErrorStatus(
-        node->span(), lhs_type.get(),
-        "Bits-like value cannot be indexed, value to index is not an array.",
-        ctx->file_table());
-  }
-
-  auto* array_type = dynamic_cast<ArrayType*>(lhs_type.get());
-  if (array_type == nullptr) {
-    return TypeInferenceErrorStatus(node->span(), lhs_type.get(),
-                                    "Value to index is not an array.",
-                                    ctx->file_table());
-  }
+  XLS_RETURN_IF_ERROR(
+      ValidateArrayTypeForIndex(*node, *lhs_type, ctx->file_table()));
 
   ctx->set_in_typeless_number_ctx(true);
   absl::Cleanup cleanup = [ctx]() { ctx->set_in_typeless_number_ctx(false); };
@@ -1336,54 +1316,12 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceIndex(const Index* node,
                        ctx->Deduce(ToAstNode(rhs)));
   XLS_RET_CHECK(index_type != nullptr);
 
-  auto index_is_unsigned_bits_like = [&]() -> absl::StatusOr<bool> {
-    std::optional<BitsLikeProperties> index_bits_like =
-        GetBitsLike(*index_type);
-    if (!index_bits_like.has_value()) {
-      return TypeInferenceErrorStatus(node->span(), index_type.get(),
-                                      "Index is not bits typed.",
-                                      ctx->file_table());
-    }
-    XLS_ASSIGN_OR_RETURN(bool is_signed,
-                         index_bits_like->is_signed.GetAsBool());
-    return !is_signed;
-  };
+  XLS_RETURN_IF_ERROR(ValidateArrayIndex(*node, *lhs_type, *index_type,
+                                         *ctx->type_info(), ctx->file_table()));
 
-  XLS_ASSIGN_OR_RETURN(bool index_is_unsigned, index_is_unsigned_bits_like());
-  if (!index_is_unsigned) {
-    return TypeInferenceErrorStatus(node->span(), index_type.get(),
-                                    "Index is not unsigned-bits typed.",
-                                    ctx->file_table());
-  }
-
-  VLOG(10) << absl::StreamFormat("Index RHS: `%s` constexpr? %d",
-                                 rhs->ToString(),
-                                 ctx->type_info()->IsKnownConstExpr(rhs));
-
-  // If we know the array size concretely and the index is a constexpr
-  // expression, we can check it is in bounds.
-  //
-  // TODO(leary): 2024-02-29 Check this in the various slice forms that are not
-  // expressions.
-  if (!array_type->size().IsParametric() &&
-      ctx->type_info()->IsKnownConstExpr(rhs)) {
-    XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
-                         ctx->type_info()->GetConstExpr(rhs));
-    VLOG(10) << "Index RHS is known constexpr value: " << constexpr_value;
-    XLS_ASSIGN_OR_RETURN(uint64_t constexpr_index,
-                         constexpr_value.GetBitValueUnsigned());
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
-    if (constexpr_index >= array_size) {
-      return TypeInferenceErrorStatus(
-          node->span(), array_type,
-          absl::StrFormat("Index has a compile-time constant value %d that is "
-                          "out of bounds of the array type.",
-                          constexpr_index),
-          ctx->file_table());
-    }
-  }
-
-  return array_type->element_type().CloneToUnique();
+  return dynamic_cast<ArrayType*>(lhs_type.get())
+      ->element_type()
+      .CloneToUnique();
 }
 
 // Ensures that the name_def_tree bindings are aligned with the type "other"

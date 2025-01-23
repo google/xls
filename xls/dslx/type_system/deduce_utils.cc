@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
@@ -223,6 +224,80 @@ absl::Status TryEnsureFitsInBitsType(const Number& number,
   XLS_RET_CHECK(bits_like.has_value())
       << "bits type can always give bits-like properties";
   return TryEnsureFitsInType(number, bits_like.value(), type);
+}
+
+absl::Status ValidateArrayTypeForIndex(const Index& node, const Type& type,
+                                       const FileTable& file_table) {
+  if (const auto* tuple_type = dynamic_cast<const TupleType*>(&type)) {
+    return TypeInferenceErrorStatus(
+        node.span(), tuple_type,
+        "Tuples should not be indexed with array-style syntax. "
+        "Use `tuple.<number>` syntax instead.",
+        file_table);
+  }
+
+  std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+  if (bits_like.has_value()) {
+    return TypeInferenceErrorStatus(
+        node.span(), &type,
+        "Bits-like value cannot be indexed, value to index is not an array.",
+        file_table);
+  }
+
+  const auto* array_type = dynamic_cast<const ArrayType*>(&type);
+  if (array_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node.span(), &type, "Value to index is not an array.", file_table);
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
+                                const Type& index_type, const TypeInfo& ti,
+                                const FileTable& file_table) {
+  // Note that these 2 problems are not actually possible in v2 due to
+  // unification to u32 before conversion to `Type`.
+  std::optional<BitsLikeProperties> index_bits_like = GetBitsLike(index_type);
+  if (!index_bits_like.has_value()) {
+    return TypeInferenceErrorStatus(node.span(), &index_type,
+                                    "Index is not bits typed.", file_table);
+  }
+  XLS_ASSIGN_OR_RETURN(bool is_signed, index_bits_like->is_signed.GetAsBool());
+  if (is_signed) {
+    return TypeInferenceErrorStatus(node.span(), &index_type,
+                                    "Index is not unsigned-bits typed.",
+                                    file_table);
+  }
+
+  const Expr* rhs = std::get<Expr*>(node.rhs());
+  VLOG(10) << absl::StreamFormat("Index RHS: `%s` constexpr? %d",
+                                 rhs->ToString(), ti.IsKnownConstExpr(rhs));
+
+  // If we know the array size concretely and the index is a constexpr
+  // expression, we can check it is in bounds. Note that in v2, the size will
+  // never be parametric here, because v2 always resolves parametrics before
+  // producing a `Type`.
+  const auto& casted_array_type = dynamic_cast<const ArrayType&>(array_type);
+  if (casted_array_type.size().IsParametric() || !ti.IsKnownConstExpr(rhs)) {
+    return absl::OkStatus();
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value, ti.GetConstExpr(rhs));
+  VLOG(10) << "Index RHS is known constexpr value: " << constexpr_value;
+  XLS_ASSIGN_OR_RETURN(uint64_t constexpr_index,
+                       constexpr_value.GetBitValueUnsigned());
+  XLS_ASSIGN_OR_RETURN(int64_t array_size,
+                       casted_array_type.size().GetAsInt64());
+  if (constexpr_index >= array_size) {
+    return TypeInferenceErrorStatus(
+        node.span(), &array_type,
+        absl::StrFormat("Index has a compile-time constant value %d that is "
+                        "out of bounds of the array type.",
+                        constexpr_index),
+        file_table);
+  }
+  return absl::OkStatus();
 }
 
 void UseImplicitToken(DeduceCtx* ctx) {

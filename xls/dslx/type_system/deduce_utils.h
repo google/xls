@@ -59,6 +59,20 @@ absl::Status TryEnsureFitsInType(const Number& number, const Type& type);
 absl::Status TryEnsureFitsInBitsType(const Number& number,
                                      const BitsType& type);
 
+// Validates whether the purported array being indexed by an `Index` operation
+// is really a container that's allowed to be indexed like an array. Note that
+// the hard assumption that it must be an actual `ArrayType` is only in the v1
+// consumer of this function, which uses the `ArrayType` to produce the element
+// type.
+absl::Status ValidateArrayTypeForIndex(const Index& node, const Type& type,
+                                       const FileTable& file_table);
+
+// Validates the index expression for an array index operation that is actually
+// an index and not a slice.
+absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
+                                const Type& index_type, const TypeInfo& ti,
+                                const FileTable& file_table);
+
 // Record that the current function being checked has a side effect and will
 // require an implicit token when converted to IR.
 void UseImplicitToken(DeduceCtx* ctx);

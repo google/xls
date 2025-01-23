@@ -92,6 +92,11 @@ TypeAnnotation* CreateS64Annotation(Module& module, const Span& span) {
       span, BuiltinType::kS64, module.GetOrCreateBuiltinNameDef("s64"));
 }
 
+TypeAnnotation* CreateU32Annotation(Module& module, const Span& span) {
+  return module.Make<BuiltinTypeAnnotation>(
+      span, BuiltinType::kU32, module.GetOrCreateBuiltinNameDef("u32"));
+}
+
 TypeAnnotation* CreateStructAnnotation(
     Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
     std::optional<const StructInstance*> instantiator) {

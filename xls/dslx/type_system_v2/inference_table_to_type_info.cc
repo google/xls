@@ -96,6 +96,54 @@ const TypeAnnotation* SignednessAndSizeToAnnotation(
                                 signedness_and_size.size);
 }
 
+// A utility that flattens type annotation trees, with expansion of encountered
+// type variables, instead of unification of those variables. This is in
+// contrast to `ResolveVariableTypeAnnotations`, which converts encountered
+// variables to their unifications. The flattening + expansion behavior of this
+// visitor is useful for dependency analysis before we are ready to perform
+// unification.
+class VariableExpander : public AstNodeVisitorWithDefault {
+ public:
+  VariableExpander(const InferenceTable& table) : table_(table) {}
+
+  absl::Status HandleTypeVariableTypeAnnotation(
+      const TypeVariableTypeAnnotation* node) override {
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<const TypeAnnotation*> annotations_for_variable,
+        table_.GetTypeAnnotationsForTypeVariable(node->type_variable()));
+    for (const TypeAnnotation* annotation : annotations_for_variable) {
+      XLS_RETURN_IF_ERROR(annotation->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    if (std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
+        variable.has_value()) {
+      XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
+                           table_.GetTypeAnnotationsForTypeVariable(*variable));
+      for (const TypeAnnotation* annotation : annotations) {
+        XLS_RETURN_IF_ERROR(annotation->Accept(this));
+      }
+    }
+    if (const auto* annotation = dynamic_cast<const TypeAnnotation*>(node)) {
+      annotations_.push_back(annotation);
+    }
+    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+  const std::vector<const TypeAnnotation*>& annotations() const {
+    return annotations_;
+  }
+
+ private:
+  const InferenceTable& table_;
+  std::vector<const TypeAnnotation*> annotations_;
+};
+
 // Traverses an AST and flattens it into a `vector` in the order the `TypeInfo`
 // needs to be built such that prerequisites will be present in `TypeInfo` when
 // evaluations are done.
@@ -165,15 +213,12 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
         referenced_invocations.push_back(it->second);
       }
     }
-    if (std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
-        variable.has_value()) {
-      XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
-                           table_.GetTypeAnnotationsForTypeVariable(*variable));
-      for (const TypeAnnotation* annotation : annotations) {
-        const auto it = invocation_scoped_annotations_.find(annotation);
-        if (it != invocation_scoped_annotations_.end()) {
-          referenced_invocations.push_back(it->second);
-        }
+    VariableExpander expander(table_);
+    XLS_RETURN_IF_ERROR(node->Accept(&expander));
+    for (const TypeAnnotation* annotation : expander.annotations()) {
+      const auto it = invocation_scoped_annotations_.find(annotation);
+      if (it != invocation_scoped_annotations_.end()) {
+        referenced_invocations.push_back(it->second);
       }
     }
     // In a case like `foo(foo(...))` where `foo` is a parametric function, the
@@ -364,27 +409,14 @@ class InferenceTableConverter {
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          Concretize(*annotation, parametric_invocation));
-    XLS_RETURN_IF_ERROR(ValidateConcreteTypeForNode(node, type.get()));
+    XLS_RETURN_IF_ERROR(ValidateConcreteTypeForNode(node, type.get(), *ti));
     if (const auto* literal = dynamic_cast<const Number*>(node);
         literal != nullptr && literal->type_annotation() != nullptr) {
       ti->SetItem(literal->type_annotation(),
                   *std::make_unique<MetaType>(type->CloneToUnique()));
     }
     ti->SetItem(node, *type);
-    if (const auto* constant_def = dynamic_cast<const ConstantDef*>(node)) {
-      VLOG(5) << "Checking constant def value: " << constant_def->ToString()
-              << " with type: " << type->ToString();
-      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
-          &import_data_, ti, &warning_collector_, ParametricEnv(),
-          constant_def->value(), type.get());
-      if (value.ok()) {
-        VLOG(5) << "Constant def: " << constant_def->ToString()
-                << " has value: " << value->ToString();
-        ti->NoteConstExpr(constant_def, *value);
-        ti->NoteConstExpr(constant_def->value(), *value);
-        ti->NoteConstExpr(constant_def->name_def(), *value);
-      }
-    }
+    XLS_RETURN_IF_ERROR(NoteIfConstExpr(node, *type, ti));
     return absl::OkStatus();
   }
 
@@ -470,6 +502,36 @@ class InferenceTableConverter {
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
     return std::make_unique<BitsType>(signedness, bit_count);
+  }
+
+  // Helper that notes the constexpr value for `node` in `ti`, if applicable,
+  // once its concrete `type` has been determined.
+  absl::Status NoteIfConstExpr(const AstNode* node, const Type& type,
+                               TypeInfo* ti) {
+    if (const auto* constant_def = dynamic_cast<const ConstantDef*>(node)) {
+      VLOG(5) << "Checking constant def value: " << constant_def->ToString()
+              << " with type: " << type.ToString();
+      absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+          &import_data_, ti, &warning_collector_, ParametricEnv(),
+          constant_def->value(), &type);
+      if (value.ok()) {
+        VLOG(5) << "Constant def: " << constant_def->ToString()
+                << " has value: " << value->ToString();
+        ti->NoteConstExpr(constant_def, *value);
+        ti->NoteConstExpr(constant_def->value(), *value);
+        ti->NoteConstExpr(constant_def->name_def(), *value);
+      }
+    }
+    if (const auto* name_ref = dynamic_cast<const NameRef*>(node)) {
+      if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+        const NameDef* name_def =
+            std::get<const NameDef*>(name_ref->name_def());
+        if (ti->IsKnownConstExpr(name_def)) {
+          ti->NoteConstExpr(name_ref, *ti->GetConstExprOption(name_def));
+        }
+      }
+    }
+    return absl::OkStatus();
   }
 
   // Constexpr-evaluates the given expression, whose dependencies must already
@@ -1292,7 +1354,13 @@ class InferenceTableConverter {
     }
     if (const auto* tuple_type =
             dynamic_cast<const TupleTypeAnnotation*>(container_type)) {
-      CHECK(element_type->tuple_index().has_value());
+      if (!element_type->tuple_index().has_value()) {
+        return TypeInferenceErrorStatusForAnnotation(
+            tuple_type->span(), tuple_type,
+            "Tuples should not be indexed with array-style syntax. Use "
+            "`tuple.<number>` syntax instead.",
+            file_table_);
+      }
       XLS_ASSIGN_OR_RETURN(
           uint64_t index,
           (*element_type->tuple_index())->GetAsUint64(file_table_));
@@ -1329,7 +1397,8 @@ class InferenceTableConverter {
   // node, based on the intrinsic properties of the node, like being an add
   // operation or containing an embedded literal.
   absl::Status ValidateConcreteTypeForNode(const AstNode* node,
-                                           const Type* type) {
+                                           const Type* type,
+                                           const TypeInfo& ti) {
     if (type->IsMeta()) {
       XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
     }
@@ -1369,6 +1438,15 @@ class InferenceTableConverter {
           unop->span(), type,
           "Unary operations can only be applied to bits-typed operands.",
           file_table_);
+    }
+    if (const auto* index = dynamic_cast<const Index*>(node)) {
+      const Type& lhs_type = **ti.GetItem(index->lhs());
+      XLS_RETURN_IF_ERROR(
+          ValidateArrayTypeForIndex(*index, lhs_type, file_table_));
+      if (std::holds_alternative<Expr*>(index->rhs())) {
+        const Type& rhs_type = **ti.GetItem(std::get<Expr*>(index->rhs()));
+        return ValidateArrayIndex(*index, lhs_type, rhs_type, ti, file_table_);
+      }
     }
     return absl::OkStatus();
   }
