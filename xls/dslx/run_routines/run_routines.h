@@ -169,7 +169,7 @@ class TestResultData {
     test_cases_.push_back(std::move(test_case));
   }
 
-  std::vector<std::string> failures() {
+  std::vector<std::string> GetFailureMessages() const {
     std::vector<std::string> failures;
     for (const auto& test_case : test_cases_) {
       if (test_case.status == test_xml::RunStatus::kRun &&

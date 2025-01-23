@@ -529,7 +529,7 @@ proc tester_proc {
       TestResultData result,
       ParseAndTest(kProgram, "test_module", "test.x", options));
 
-  auto failures = result.failures();
+  std::vector<std::string> failures = result.GetFailureMessages();
   EXPECT_EQ(failures.size(), 1);
   if (GetParam() == RunnerType::kDslxInterpreter) {
     EXPECT_THAT(failures[0],
