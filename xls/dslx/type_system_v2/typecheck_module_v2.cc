@@ -192,6 +192,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleMatch(const Match* node) override {
+    VLOG(5) << "HandleMatch: " << node->ToString();
+
+    // Any `match` should be a descendant of some context-setting node and
+    // should have a type that was set when its parent was visited. Each
+    // arm of the `match` must match the type of the `match` itself.
+    const NameRef* arm_type = *table_.GetTypeVariable(node);
+    for (const MatchArm* arm : node->arms()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
+      // TODO: also set type variables on each arm's patterns from
+      // node->matched()'s type, but that depends on destructured let, which
+      // isn't implemented yet.
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleXlsTuple(const XlsTuple* node) override {
     VLOG(5) << "HandleXlsTuple: " << node->ToString();
 

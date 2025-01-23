@@ -2205,5 +2205,79 @@ const Y = f(u10:256);
               TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
 }
 
+TEST(TypecheckV2Test, MatchArm) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = u32:2;
+const Z = match X {
+  u32:1 => X,
+  _ => Y
+};
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, MatchArmFromFn) {
+  EXPECT_THAT(R"(
+fn f() -> u32 { u32:0 }
+const X = u32:1;
+const Y = u32:2;
+const Z = match X {
+  u32:1 => f(),
+  _ => Y
+};
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, MatchInFn) {
+  EXPECT_THAT(R"(
+fn f(a: u32) -> u32 {
+  match a {
+    u32:1 => a,
+    _ => u32:0
+  }
+}
+const Z = f(u32:1);
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, MatchArmTupleType) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = u31:2;
+const Z = match X {
+  u32:1 => (X, Y),
+  _ => (u32:0, Y)
+};
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "(uN[32], uN[31])")));
+}
+
+TEST(TypecheckV2Test, MatchArmMismatch) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = u31:2;
+const Z = match X {
+  u32:1 => X,
+  _ => Y
+};
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2Test, MatchMismatch) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = u32:2;
+const Z:u31 = match X {
+  u32:1 => X,
+  _ => Y
+};
+)",
+              TypecheckFails(HasSizeMismatch("u32", "u31")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
