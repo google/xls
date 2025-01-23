@@ -3,4 +3,4 @@ repos:
     rev: v5.0.0
     hooks:
       - id: end-of-file-fixer
-        exclude: '^(xls/contrib/.*|.*\.(sh|ir|txt|patch|csv))$'
+        exclude: '^(xls/contrib/.*|^fuzztest.bazelrc|.*\.(sh|ir|txt|patch|csv))$'
