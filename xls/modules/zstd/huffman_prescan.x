@@ -92,6 +92,8 @@ fn struct_to_bots_to_struct_qtest(x: WeightPreScanMetaData) -> bool {
 pub const RAM_SIZE = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH * u32:8 / WEIGHT_LOG;
 pub const RAM_ADDR_WIDTH = {std::clog2(RAM_SIZE)};
 pub const RAM_ACCESS_WIDTH = PARALLEL_ACCESS_WIDTH * WEIGHT_LOG;
+const RAM_PARTITION_SIZE = RAM_ACCESS_WIDTH / u32:8;
+const RAM_NUM_PARTITIONS = ram::num_partitions(RAM_PARTITION_SIZE, RAM_ACCESS_WIDTH);
 const MAX_RAM_ADDR = MAX_SYMBOL_COUNT/PARALLEL_ACCESS_WIDTH;
 
 enum WeightPreScanFSM: u2 {
@@ -124,7 +126,7 @@ pub proc WeightPreScan
 
     type OutData = WeightPreScanOutput;
 
-    type ReadReq  = ram::ReadReq<RAM_ADDR_WIDTH, u32:1>;
+    type ReadReq  = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
     type ReadResp = ram::ReadResp<RAM_ACCESS_WIDTH>;
 
     type InternalRamAddr = uN[RAM_ADDR_WIDTH];
@@ -241,7 +243,7 @@ pub proc WeightPreScan
 
         let external_ram_req = ReadReq {
             addr: addr,
-            mask: u1:1,
+            mask: !uN[RAM_NUM_PARTITIONS]:0,
         };
         let tok3 = send_if(tok, read_req_s, send_addr, external_ram_req);
         if send_addr {
@@ -323,9 +325,9 @@ proc Prescan_test{
 
     type PrescanOut    = WeightPreScanOutput;
 
-    type ReadReq  = ram::ReadReq<RAM_ADDR_WIDTH, u32:1>;
+    type ReadReq  = ram::ReadReq<RAM_ADDR_WIDTH, RAM_NUM_PARTITIONS>;
     type ReadResp = ram::ReadResp<RAM_ACCESS_WIDTH>;
-    type WriteReq  = ram::WriteReq<RAM_ADDR_WIDTH, RAM_ACCESS_WIDTH, u32:1>;
+    type WriteReq  = ram::WriteReq<RAM_ADDR_WIDTH, RAM_ACCESS_WIDTH, RAM_NUM_PARTITIONS>;
     type WriteResp = ram::WriteResp<>;
 
     type InternalReadReq  = ram::ReadReq<RAM_ADDR_WIDTH, u32:1>;
@@ -338,6 +340,7 @@ proc Prescan_test{
     external_ram_resp:  chan<WriteResp> in;
     start_prescan:      chan<bool> out;
     prescan_response:   chan<PrescanOut> in;
+
     init{()}
     config (terminator: chan<bool> out) {
         // Emulate external memory
@@ -345,7 +348,7 @@ proc Prescan_test{
         let (RAMExternalWriteResp_s, RAMExternalWriteResp_r) = chan<WriteResp>("Write_channel_resp");
         let (RAMExternalReadReq_s, RAMExternalReadReq_r) = chan<ReadReq>("Read_channel_req");
         let (RAMExternalReadResp_s, RAMExternalReadResp_r) = chan<ReadResp>("Read_channel_resp");
-        spawn ram::RamModel<RAM_ACCESS_WIDTH, RAM_SIZE, RAM_ACCESS_WIDTH>(
+        spawn ram::RamModel<RAM_ACCESS_WIDTH, RAM_SIZE, RAM_PARTITION_SIZE>(
             RAMExternalReadReq_r, RAMExternalReadResp_s, RAMExternalWriteReq_r, RAMExternalWriteResp_s
         );
 
@@ -379,7 +382,7 @@ proc Prescan_test{
             let external_w_req = WriteReq {
                 addr: i as uN[RAM_ADDR_WIDTH],
                 data: data_to_send,
-                mask: u1:1
+                mask: !uN[RAM_NUM_PARTITIONS]:0
             };
             send(tok, external_ram_req, external_w_req);
             recv(tok, external_ram_resp);
