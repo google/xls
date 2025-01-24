@@ -184,7 +184,7 @@ class Resolver {
                  signedness_and_bit_count.signedness));
     XLS_ASSIGN_OR_RETURN(
         int64_t bit_count,
-        Evaluate(CreateS64Annotation(*variable->owner(), variable->span()),
+        Evaluate(CreateU32Annotation(*variable->owner(), variable->span()),
                  signedness_and_bit_count.bit_count));
     return NoteValue(it->second,
                      is_signed ? InterpValue::MakeSBits(bit_count, value)

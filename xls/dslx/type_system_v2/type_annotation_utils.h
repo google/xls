@@ -51,10 +51,12 @@ TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
 // Creates a `bool` type annotation.
 TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span);
 
-// Creates a `s64` type annotation.
-TypeAnnotation* CreateS64Annotation(Module& module, const Span& span);
-
 // Creates a `u32` type annotation.
+//
+// TODO(https://github.com/google/xls/issues/450): 2025-01-23 In the future we
+// should perhaps be using "usize" instead to characterize the places we need
+// this, e.g. a type that we evaluate array dimensions and similar undecorated
+// values to.
 TypeAnnotation* CreateU32Annotation(Module& module, const Span& span);
 
 // Creates an annotation referring to the given struct definition with the given

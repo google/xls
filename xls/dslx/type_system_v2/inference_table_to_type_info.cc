@@ -450,12 +450,12 @@ class InferenceTableConverter {
     }
     if (const auto* array = CastToNonBitsArrayTypeAnnotation(annotation)) {
       XLS_ASSIGN_OR_RETURN(
-          int64_t size, EvaluateS64OrExpr(parametric_invocation, array->dim()));
+          int64_t size, EvaluateU32OrExpr(parametric_invocation, array->dim()));
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> element_type,
           Concretize(array->element_type(), parametric_invocation));
       return std::make_unique<ArrayType>(std::move(element_type),
-                                         TypeDim(InterpValue::MakeS64(size)));
+                                         TypeDim(InterpValue::MakeU32(size)));
     }
     if (std::optional<StructOrProcRef> struct_or_proc =
             GetStructOrProcRef(annotation);
@@ -497,7 +497,7 @@ class InferenceTableConverter {
                            signedness_and_bit_count->signedness));
     XLS_ASSIGN_OR_RETURN(
         int64_t bit_count,
-        EvaluateS64OrExpr(parametric_invocation,
+        EvaluateU32OrExpr(parametric_invocation,
                           signedness_and_bit_count->bit_count));
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
@@ -776,7 +776,7 @@ class InferenceTableConverter {
     return value.GetBitValueUnsigned();
   }
 
-  absl::StatusOr<int64_t> EvaluateS64OrExpr(
+  absl::StatusOr<int64_t> EvaluateU32OrExpr(
       std::optional<const ParametricInvocation*> parametric_invocation,
       std::variant<int64_t, const Expr*> value_or_expr) {
     if (std::holds_alternative<int64_t>(value_or_expr)) {
@@ -786,7 +786,7 @@ class InferenceTableConverter {
     std::optional<const TypeAnnotation*> type_annotation =
         table_.GetTypeAnnotation(expr);
     if (!type_annotation.has_value()) {
-      type_annotation = CreateS64Annotation(module_, expr->span());
+      type_annotation = CreateU32Annotation(module_, expr->span());
     }
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          Evaluate(InvocationScopedExpr(
@@ -921,7 +921,7 @@ class InferenceTableConverter {
                              signedness_and_bit_count->signedness));
       XLS_ASSIGN_OR_RETURN(
           int64_t current_annotation_raw_bit_count,
-          EvaluateS64OrExpr(effective_parametric_invocation,
+          EvaluateU32OrExpr(effective_parametric_invocation,
                             signedness_and_bit_count->bit_count));
       SignednessAndSize current_annotation_signedness_and_bit_count{
           .is_auto = current_annotation_is_auto,
@@ -986,7 +986,7 @@ class InferenceTableConverter {
       element_type_annotations.push_back(annotation->element_type());
       XLS_ASSIGN_OR_RETURN(
           int64_t current_dim,
-          EvaluateS64OrExpr(effective_invocation, annotation->dim()));
+          EvaluateU32OrExpr(effective_invocation, annotation->dim()));
       // This flag indicates we are unifying one min dim with one explicit dim,
       // which warrants a possible different error message than other scenarios.
       const bool is_min_vs_explicit =
@@ -1402,7 +1402,8 @@ class InferenceTableConverter {
     if (type->IsMeta()) {
       XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
     }
-    if (const auto* literal = dynamic_cast<const Number*>(node)) {
+    if (const auto* literal = dynamic_cast<const Number*>(node);
+        literal != nullptr) {
       // A literal can have its own explicit type annotation that ultimately
       // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
       // something more subtly wrong, like `uN[N]:0xffff`, where N proves to be
@@ -1448,6 +1449,26 @@ class InferenceTableConverter {
         return ValidateArrayIndex(*index, lhs_type, rhs_type, ti, file_table_);
       }
     }
+
+    // For a cast node we have to validate that the types being cast to/from are
+    // compatible via the `IsAcceptableCast` predicate.
+    if (const auto* cast = dynamic_cast<const Cast*>(node); cast != nullptr) {
+      // Retrieve the type of the operand from the TypeInfo.
+      std::optional<const Type*> from_type = ti.GetItem(cast->expr());
+      XLS_RET_CHECK(from_type.has_value());
+      XLS_RET_CHECK(from_type.value() != nullptr);
+      XLS_RET_CHECK(type != nullptr);
+
+      const Type& to_type = *type;
+      if (!IsAcceptableCast(*from_type.value(), to_type)) {
+        return TypeInferenceErrorStatus(
+            cast->span(), type,
+            absl::Substitute("Cannot cast from type `$0` to type `$1`",
+                             from_type.value()->ToString(), to_type.ToString()),
+            file_table_);
+      }
+    }
+
     return absl::OkStatus();
   }
 

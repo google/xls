@@ -87,11 +87,6 @@ TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span) {
       span, BuiltinType::kBool, module.GetOrCreateBuiltinNameDef("bool"));
 }
 
-TypeAnnotation* CreateS64Annotation(Module& module, const Span& span) {
-  return module.Make<BuiltinTypeAnnotation>(
-      span, BuiltinType::kS64, module.GetOrCreateBuiltinNameDef("s64"));
-}
-
 TypeAnnotation* CreateU32Annotation(Module& module, const Span& span) {
   return module.Make<BuiltinTypeAnnotation>(
       span, BuiltinType::kU32, module.GetOrCreateBuiltinNameDef("u32"));
