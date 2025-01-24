@@ -52,7 +52,7 @@ ABSL_FLAG(bool, error_on_changes, false,
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(std::string, mode, "autofmt",
-          "whether to use reflowing auto-formatter");
+          "whether to use reflowing auto-formatter; choices: autoformat|parse");
 ABSL_FLAG(
     bool, opportunistic_postcondition, false,
     "whether to check the autoformatter postcondition for debug purposes (not "
@@ -68,13 +68,19 @@ static constexpr std::string_view kUsage = R"(
 Formats the DSLX source code present inside of a `.x` file.
 )";
 
-absl::Status RealMain(std::string_view input_path,
-                      absl::Span<const std::filesystem::path> dslx_paths,
-                      bool in_place, bool opportunistic_postcondition,
-                      const std::string& mode) {
-  if (input_path == "-") {
-    input_path = "/dev/stdin";
-  }
+// Note: for "just typecheck the file" use the `typecheck_main` binary instead.
+enum class Mode {
+  // Uses the "simple AST autoformatter" that doesn't do reflow or anything
+  // smart, useful mostly for
+  // performance comparisons to the proper autoformatter.
+  kParse,
+  // Uses the proper autoformatter.
+  kAutofmt,
+};
+
+absl::Status RunOnOneFile(std::string_view input_path, bool in_place,
+                          bool error_on_changes,
+                          bool opportunistic_postcondition, Mode mode) {
   std::filesystem::path path = input_path;
 
   ImportData import_data =
@@ -87,29 +93,26 @@ absl::Status RealMain(std::string_view input_path,
                        import_data.vfs().GetFileContents(path));
 
   std::string formatted;
-  if (mode == "autofmt") {
-    std::vector<CommentData> comments_vec;
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                         ParseModule(contents, path.c_str(), module_name,
-                                     import_data.file_table(), &comments_vec));
-    Comments comments = Comments::Create(comments_vec);
-    XLS_ASSIGN_OR_RETURN(
-        formatted, AutoFmt(import_data.vfs(), *module, comments, contents));
-  } else if (mode == "typecheck") {
-    // Note: we don't flag any warnings in this binary as we're just formatting
-    // the text.
-    XLS_ASSIGN_OR_RETURN(
-        TypecheckedModule tm,
-        ParseAndTypecheck(contents, path.c_str(), module_name, &import_data));
-    formatted = tm.module->ToString();
-  } else if (mode == "parse") {
-    XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<Module> module,
-        ParseModule(contents, path.c_str(), module_name,
-                    import_data.file_table(), /*comments=*/nullptr));
-    formatted = module->ToString();
-  } else {
-    return absl::InvalidArgumentError(absl::StrCat("Invalid mode: ", mode));
+  switch (mode) {
+    case Mode::kAutofmt: {
+      std::vector<CommentData> comments_vec;
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Module> module,
+          ParseModule(contents, path.c_str(), module_name,
+                      import_data.file_table(), &comments_vec));
+      Comments comments = Comments::Create(comments_vec);
+      XLS_ASSIGN_OR_RETURN(
+          formatted, AutoFmt(import_data.vfs(), *module, comments, contents));
+      break;
+    }
+    case Mode::kParse: {
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<Module> module,
+          ParseModule(contents, path.c_str(), module_name,
+                      import_data.file_table(), /*comments=*/nullptr));
+      formatted = module->ToString();
+      break;
+    }
   }
 
   if (opportunistic_postcondition) {
@@ -133,8 +136,74 @@ absl::Status RealMain(std::string_view input_path,
     std::cout << formatted << std::flush;
   }
 
-  if (absl::GetFlag(FLAGS_error_on_changes) && formatted != contents) {
+  if (error_on_changes && formatted != contents) {
     return absl::InternalError("Formatting changed the file contents.");
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status RealMain(absl::Span<const std::string_view> input_paths,
+                      bool in_place, bool error_on_changes,
+                      bool opportunistic_postcondition,
+                      const std::string& mode_str) {
+  // Note notable restrictions we place on the CLI, to avoid confusing results /
+  // interactions:
+  //
+  // - If stdin is the input, it should be the only input.
+  // - If we're *not* doing in-place formatting, there should be only one input
+  // (otherwise things will be all jumbled together in stdout),
+  // - If we error-on-changes or use the opportunistic postcondition, there
+  //   should be only one input, to avoid semantic ambiguity when we're
+  //   side-effecting the formatting of files and when we flag the error.
+
+  bool has_stdin_arg =
+      std::any_of(input_paths.begin(), input_paths.end(),
+                  [](std::string_view path) { return path == "-"; });
+  std::optional<std::vector<std::string_view>> stdin_input;
+  if (has_stdin_arg) {
+    if (input_paths.size() != 1) {
+      return absl::InvalidArgumentError(
+          "Cannot have stdin along with file arguments.");
+    }
+    if (in_place) {
+      return absl::InvalidArgumentError(
+          "Cannot format stdin with in-place formatting.");
+    }
+    stdin_input = std::vector<std::string_view>{"/dev/stdin"};
+    input_paths = absl::MakeConstSpan(stdin_input.value());
+  }
+
+  if (error_on_changes && input_paths.size() > 1) {
+    return absl::InvalidArgumentError(
+        "Cannot have multiple input files when error-on-changes is enabled.");
+  }
+
+  if (opportunistic_postcondition && input_paths.size() > 1) {
+    return absl::InvalidArgumentError(
+        "Cannot have multiple input files when opportunistic-postcondition is "
+        "enabled.");
+  }
+
+  if (!in_place && input_paths.size() > 1) {
+    return absl::InvalidArgumentError(
+        "Cannot have multiple input files when in-place formatting is "
+        "disabled.");
+  }
+
+  Mode mode;
+  if (mode_str == "autofmt") {
+    mode = Mode::kAutofmt;
+  } else if (mode_str == "parse") {
+    mode = Mode::kParse;
+  } else {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Invalid mode: `", mode_str, "`"));
+  }
+
+  for (std::string_view input_path : input_paths) {
+    XLS_RETURN_IF_ERROR(RunOnOneFile(input_path, in_place, error_on_changes,
+                                     opportunistic_postcondition, mode));
   }
 
   return absl::OkStatus();
@@ -146,25 +215,19 @@ absl::Status RealMain(std::string_view input_path,
 int main(int argc, char* argv[]) {
   std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
-  if (args.size() != 1) {
-    LOG(QFATAL) << "Wrong number of command-line arguments; got " << args.size()
-                << ": `" << absl::StrJoin(args, " ") << "`; want " << argv[0]
-                << " <input-file>";
+  if (args.empty()) {
+    LOG(QFATAL) << "No command-line arguments to format; want " << argv[0]
+                << " <input-file>[, ...]";
   }
   std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   std::vector<std::string> dslx_path_strs = absl::StrSplit(dslx_path, ':');
 
-  std::vector<std::filesystem::path> dslx_paths;
-  dslx_paths.reserve(dslx_path_strs.size());
-  for (const auto& path : dslx_path_strs) {
-    dslx_paths.push_back(std::filesystem::path(path));
-  }
-
-  absl::Status status =
-      xls::dslx::RealMain(args[0], dslx_paths,
-                          /*in_place=*/absl::GetFlag(FLAGS_i),
-                          /*opportunistic_postcondition=*/
-                          absl::GetFlag(FLAGS_opportunistic_postcondition),
-                          /*mode=*/absl::GetFlag(FLAGS_mode));
+  absl::Status status = xls::dslx::RealMain(
+      args,
+      /*in_place=*/absl::GetFlag(FLAGS_i),
+      /*error_on_changes=*/absl::GetFlag(FLAGS_error_on_changes),
+      /*opportunistic_postcondition=*/
+      absl::GetFlag(FLAGS_opportunistic_postcondition),
+      /*mode=*/absl::GetFlag(FLAGS_mode));
   return xls::ExitStatus(status);
 }
