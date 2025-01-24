@@ -23,7 +23,6 @@
 #include <cerrno>
 #include <cstring>
 #include <filesystem>  // NOLINT
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>  // NOLINT
@@ -219,9 +218,7 @@ absl::Status ParseTextProto(std::string_view contents,
   google::protobuf::TextFormat::Parser parser;
   parser.RecordErrorsTo(&collector);
 
-  // Needed for this to compile in OSS, for some reason
-  std::string contents_owned(contents.begin(), contents.end());
-  const bool success = parser.ParseFromString(contents_owned, proto);
+  const bool success = parser.ParseFromString(contents, proto);
   DCHECK_EQ(success, collector.status().ok());
   return collector.status();
 }
@@ -238,9 +235,7 @@ absl::Status ParseProtobin(std::string_view contents,
   if (proto == nullptr) {
     return absl::FailedPreconditionError("Invalid pointer value.");
   }
-  std::string contents_owned(contents.begin(), contents.end());
-  std::stringstream contents_ss(contents_owned);
-  if (!proto->ParseFromIstream(&contents_ss)) {
+  if (!proto->ParseFromString(contents)) {
     return absl::FailedPreconditionError("Error with parsing file: " +
                                          file_name.string());
   }
