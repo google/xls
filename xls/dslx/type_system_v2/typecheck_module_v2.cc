@@ -395,8 +395,28 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           table_.SetTypeVariable(actual_member, member_type_variable));
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           actual_member, module_.Make<MemberTypeAnnotation>(
-                             struct_variable_type, struct_def, formal_member)));
+                             struct_variable_type, formal_member->name())));
     }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleAttr(const Attr* node) override {
+    // Establish a context for the unification of the struct type.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* struct_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
+            GenerateInternalTypeVariableName(node->lhs())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->lhs(), struct_type_variable));
+
+    // The type of the node itself is basically
+    // decltype(struct_type_variable.member).
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node,
+        module_.Make<MemberTypeAnnotation>(
+            module_.Make<TypeVariableTypeAnnotation>(struct_type_variable),
+            node->attr())));
     return DefaultHandler(node);
   }
 

@@ -1733,7 +1733,7 @@ struct Point {
       module->Make<TypeRefTypeAnnotation>(
           Span::Fake(), module->Make<TypeRef>(Span::Fake(), point),
           /*parametrics=*/std::vector<ExprOrType>()),
-      point, point->members()[0]);
+      "x");
 
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
   EXPECT_EQ(annotation->ToString(), clone->ToString());

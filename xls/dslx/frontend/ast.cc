@@ -1037,16 +1037,14 @@ std::string TypeVariableTypeAnnotation::ToString() const {
 
 MemberTypeAnnotation::MemberTypeAnnotation(Module* owner,
                                            const TypeAnnotation* struct_type,
-                                           const StructDefBase* struct_def,
-                                           const StructMemberNode* member)
+                                           std::string_view member_name)
     : TypeAnnotation(owner, struct_type->span()),
       struct_type_(struct_type),
-      struct_def_(struct_def),
-      member_(member) {}
+      member_name_(member_name) {}
 
 std::string MemberTypeAnnotation::ToString() const {
   return absl::Substitute("MemberTypeAnnotation: $0.$1",
-                          struct_type_->ToString(), member_->name());
+                          struct_type_->ToString(), member_name_);
 }
 
 // -- class ElementTypeAnnotation
@@ -1494,7 +1492,8 @@ StructDefBase::StructDefBase(
       parametric_bindings_(std::move(parametric_bindings)),
       members_(std::move(members)),
       public_(is_public) {
-  for (const auto* member : members_) {
+  for (StructMemberNode* member : members_) {
+    members_by_name_.emplace(member->name(), member);
     struct_members_.push_back(StructMember{
         .name_span = member->name_def()->span(),
         .name = member->name(),

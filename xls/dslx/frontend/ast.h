@@ -465,8 +465,7 @@ class TypeVariableTypeAnnotation : public TypeAnnotation {
 class MemberTypeAnnotation : public TypeAnnotation {
  public:
   MemberTypeAnnotation(Module* owner, const TypeAnnotation* struct_type,
-                       const StructDefBase* struct_def,
-                       const StructMemberNode* member);
+                       std::string_view member_name);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleMemberTypeAnnotation(this);
@@ -477,8 +476,7 @@ class MemberTypeAnnotation : public TypeAnnotation {
   }
 
   const TypeAnnotation* struct_type() const { return struct_type_; }
-  const StructDefBase* struct_def() const { return struct_def_; }
-  const StructMemberNode* member() const { return member_; }
+  std::string_view member_name() const { return member_name_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return std::vector<AstNode*>{const_cast<TypeAnnotation*>(struct_type_)};
@@ -488,8 +486,7 @@ class MemberTypeAnnotation : public TypeAnnotation {
 
  private:
   const TypeAnnotation* struct_type_;
-  const StructDefBase* struct_def_;
-  const StructMemberNode* member_;
+  std::string_view member_name_;
 };
 
 // Represents the type of an element of an array or tuple, expressed in terms of
@@ -2730,6 +2727,13 @@ class StructDefBase : public AstNode {
   }
   std::vector<std::string> GetMemberNames() const;
 
+  std::optional<StructMemberNode*> GetMemberByName(
+      std::string_view name) const {
+    const auto it = members_by_name_.find(name);
+    return it == members_by_name_.end() ? std::nullopt
+                                        : std::make_optional(it->second);
+  }
+
   int64_t size() const { return members_.size(); }
 
   std::optional<Span> GetParametricBindingsSpan() const {
@@ -2763,6 +2767,7 @@ class StructDefBase : public AstNode {
   std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<StructMemberNode*> members_;
   std::vector<StructMember> struct_members_;
+  absl::flat_hash_map<std::string, StructMemberNode*> members_by_name_;
   bool public_;
   std::optional<Impl*> impl_;
 };

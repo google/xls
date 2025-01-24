@@ -1161,18 +1161,7 @@ class InferenceTableConverter {
                 // generally, any decltype-ish annotation that refers back to
                 // the struct we are processing is going to be unhelpful, so we
                 // weed those out here.
-                if (auto* element_annotation =
-                        dynamic_cast<const ElementTypeAnnotation*>(
-                            annotation)) {
-                  annotation = element_annotation->container_type();
-                }
-                if (auto* member_annotation =
-                        dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
-                  return member_annotation->struct_def() != &struct_def;
-                }
-                std::optional<StructOrProcRef> ref =
-                    GetStructOrProcRef(annotation);
-                return !ref.has_value() || ToAstNode(ref->def) != &struct_def;
+                return !RefersToStruct(annotation, struct_def);
               }));
       implicit_parametrics.clear();
       for (const auto& [name, value] : new_values) {
@@ -1206,6 +1195,31 @@ class InferenceTableConverter {
     }
     return CreateStructAnnotation(module_, const_cast<StructDef*>(&struct_def),
                                   resolved_parametrics_vector, instantiator);
+  }
+
+  // Determines whether the given type annotation has any reference to the given
+  // `struct_def`, taking into consideration the expansions of any variable or
+  // indirect type annotations in the annotation tree.
+  bool RefersToStruct(const TypeAnnotation* annotation,
+                      const StructDef& struct_def) {
+    if (auto* element_annotation =
+            dynamic_cast<const ElementTypeAnnotation*>(annotation)) {
+      annotation = element_annotation->container_type();
+    }
+    if (auto* member_annotation =
+            dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
+      VariableExpander expander(table_);
+      CHECK_OK(member_annotation->Accept(&expander));
+      for (const TypeAnnotation* annotation : expander.annotations()) {
+        std::optional<StructOrProcRef> ref = GetStructOrProcRef(annotation);
+        if (ref.has_value() && ToAstNode(ref->def) == &struct_def) {
+          return true;
+        }
+      }
+      return false;
+    }
+    std::optional<StructOrProcRef> ref = GetStructOrProcRef(annotation);
+    return ref.has_value() && ToAstNode(ref->def) == &struct_def;
   }
 
   // Converts the type of the given struct `member` into one that has any
@@ -1338,10 +1352,21 @@ class InferenceTableConverter {
                              accept_predicate));
     std::optional<StructOrProcRef> struct_or_proc_ref =
         GetStructOrProcRef(struct_type);
-    CHECK(struct_or_proc_ref.has_value());
-    CHECK_EQ(ToAstNode(struct_or_proc_ref->def), member_type->struct_def());
-    return GetParametricFreeStructMemberType(*struct_or_proc_ref,
-                                             *member_type->member());
+    if (!struct_or_proc_ref.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "Invalid access of member `$0` of non-struct type: `$1`",
+          member_type->member_name(), struct_type->ToString()));
+    }
+    const auto* struct_def =
+        dynamic_cast<const StructDefBase*>(ToAstNode(struct_or_proc_ref->def));
+    std::optional<StructMemberNode*> member =
+        struct_def->GetMemberByName(member_type->member_name());
+    if (!member.has_value()) {
+      return absl::InvalidArgumentError(absl::Substitute(
+          "No member `$0` in struct `$1`.", member_type->member_name(),
+          struct_def->identifier()));
+    }
+    return GetParametricFreeStructMemberType(*struct_or_proc_ref, **member);
   }
 
   // Converts `element_type` into a regular `TypeAnnotation` that expresses the

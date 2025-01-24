@@ -991,6 +991,112 @@ const X: S = u32:1;
       TypecheckFails(HasTypeMismatch("S", "u32")));
 }
 
+TEST(TypecheckV2Test, AccessOfStructMember) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+const X = S { x: u32:5 }.x;
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, AccessOfNonexistentStructMemberFails) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+const X = S { x: u32:5 }.y;
+)",
+      TypecheckFails(HasSubstr("No member `y` in struct `S`")));
+}
+
+TEST(TypecheckV2Test, AccessOfMemberOfNonStructFails) {
+  EXPECT_THAT(
+      R"(
+const X = (u32:1).y;
+)",
+      TypecheckFails(
+          HasSubstr("Invalid access of member `y` of non-struct type: `u32`")));
+}
+
+TEST(TypecheckV2Test, AccessOfStructMemberArray) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32[2] }
+const X = S { x: [1, 2] }.x;
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32][2]")));
+}
+
+TEST(TypecheckV2Test, AccessOfStructMemberArrayElement) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32[2] }
+const X = S { x: [1, 2] }.x[0];
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, AccessOfParametricStructMemberArray) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32, N: u32> { x: uN[M][N] }
+const X = S { x: [u24:1, 2] }.x;
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[24][2]")));
+}
+
+TEST(TypecheckV2Test, AccessOfParametricStructMemberArrayElement) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32, N: u32> { x: uN[M][N] }
+const X = S { x: [u24:1, 2] }.x[1];
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[24]")));
+}
+
+TEST(TypecheckV2Test, SumOfStructMembers) {
+  EXPECT_THAT(
+      R"(
+struct S {
+  x: s16,
+  y: s16
+}
+const X = S { x: -1, y: -2 };
+const Y = X.x + X.y;
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "sN[16]")));
+}
+
+TEST(TypecheckV2Test, AccessOfStructMemberFromFunctionReturnValue) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u32 }
+fn f(a: u32) -> S { S { x: a } }
+const X = f(2).x;
+
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, AccessOfStructMemberUsedForParametricInference) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> { x: uN[N] }
+fn f<N: u32>(a: uN[N]) -> uN[N] { a }
+const X = f(S { x: u24:1 }.x);
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[24]")));
+}
+
+TEST(TypecheckV2Test, AccessOfStructMemberInArray) {
+  EXPECT_THAT(
+      R"(
+struct S { x: u24 }
+const X = [S { x: 1 }, S { x: 2 }][0].x;
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[24]")));
+}
+
 TEST(TypecheckV2Test, GlobalParametricStructConstant) {
   EXPECT_THAT(
       R"(

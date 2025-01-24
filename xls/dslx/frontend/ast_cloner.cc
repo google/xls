@@ -998,13 +998,10 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleMemberTypeAnnotation(
       const MemberTypeAnnotation* n) override {
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_def()));
-    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->member()));
     XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->struct_type()));
     old_to_new_[n] = module_->Make<MemberTypeAnnotation>(
         down_cast<const TypeAnnotation*>(old_to_new_[n->struct_type()]),
-        down_cast<const StructDef*>(old_to_new_[n->struct_def()]),
-        down_cast<const StructMemberNode*>(old_to_new_[n->member()]));
+        n->member_name());
     return absl::OkStatus();
   }
 
