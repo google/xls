@@ -1357,6 +1357,54 @@ fn Foo() {
 )"));
 }
 
+TEST(TypecheckTest, ZeroMacroSpecified) {
+  XLS_EXPECT_OK(Typecheck("const Y = zero!<u10>();"));
+}
+
+TEST(TypecheckTest, ZeroMacroFromParametric) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f<N:u32>() -> uN[N] { zero!<uN[N]>() }
+const Y = f<u32:10>();
+)"));
+}
+
+TEST(TypecheckTest, ZeroMacroFromParametricError) {
+  constexpr std::string_view kProgram = R"(
+fn f<N:u32>() -> uN[N] { zero!<N>() }
+const Y = f<u32:10>();
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected a type in zero! macro type")));
+}
+
+TEST(TypecheckTest, ZeroMacroFromStructConstError) {
+  constexpr std::string_view kProgram = R"(
+struct S{}
+impl S { const X = u32:10; }
+const Y = zero!<S::X>();
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected a type in zero! macro type")));
+}
+
+TEST(TypecheckTest, ZeroMacroImportedType) {
+  constexpr std::string_view kImported = R"(
+pub type foo_t = u32;
+)";
+  constexpr std::string_view kProgram = R"(
+import imported;
+const Y = zero!<imported::foo_t>();
+)";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  XLS_ASSERT_OK(
+      ParseAndTypecheck(kProgram, "fake_main_path.x.x", "main", &import_data));
+}
+
 TEST(TypecheckTest, DerivedParametricStructUsingNonDefault) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct StructFoo<A: u32, B:u32 = {A * u32:2}> {
