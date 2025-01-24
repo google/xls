@@ -417,6 +417,21 @@ inline absl::StatusOr<Node*> UnsignedUpperBoundLiteral(Node* v,
 // Check if all nodes are literals
 bool AreAllLiteral(absl::Span<Node* const> nodes);
 
+// Returns whether `a` is an ancestor of `b`; i.e., whether `b` could possibly
+// be affected by a change to `a`. Returns false if `a` and `b` are the same
+// node.
+bool IsAncestorOf(Node* a, Node* b);
+
+// Removes the given node from the given boolean expression, returning the
+// result. We guarantee that the result no longer depends on `to_remove`, and
+// that whenever `old_expression == favored_outcome`, `new_expression ==
+// favored_outcome`. Note that `new_expression` may be `favored_outcome` in more
+// cases than `old_expression`; if necessary, `new_expression` may always equal
+// `favored_outcome`.
+absl::StatusOr<Node*> RemoveNodeFromBooleanExpression(Node* to_remove,
+                                                      Node* expression,
+                                                      bool favored_outcome);
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_

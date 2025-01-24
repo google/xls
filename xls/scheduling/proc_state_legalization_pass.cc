@@ -68,7 +68,7 @@ absl::StatusOr<bool> LegalizeStateReadPredicate(
   predicates_set.reserve(next_values.size());
   for (Next* next : next_values) {
     if (next->state_read() == next->value()) {
-      // This is a no-op next_value; we can narrow it to the case where the
+      // This is a no-op next_value; we will narrow it to the case where the
       // state read is active instead.
       continue;
     }
@@ -78,8 +78,16 @@ absl::StatusOr<bool> LegalizeStateReadPredicate(
       return true;
     }
 
-    predicates.push_back(*next->predicate());
-    predicates_set.insert(*next->predicate());
+    // We can't just add the next-value predicate to the state read predicate
+    // directly, because it may create a cycle; the state read may be part of
+    // what decides whether the next-value is active. To fix this, we remove the
+    // state read from the predicate (erring on the side of reading too often).
+    XLS_ASSIGN_OR_RETURN(
+        Node * safe_predicate,
+        RemoveNodeFromBooleanExpression(state_read, *next->predicate(),
+                                        /*favored_outcome=*/true));
+    predicates.push_back(safe_predicate);
+    predicates_set.insert(safe_predicate);
   }
   if (predicates.empty()) {
     // There are no non-trivial next_value nodes; any predicate is fine.
@@ -143,13 +151,24 @@ absl::StatusOr<bool> LegalizeNoOpNextPredicate(
   Node* new_predicate = *state_read->predicate();
   if (next->predicate().has_value()) {
     Node* old_predicate = *next->predicate();
-    if (old_predicate == *state_read->predicate() ||
-        (old_predicate->op() == Op::kAnd &&
-         absl::c_contains(old_predicate->operands(),
-                          *state_read->predicate()))) {
-      // Already restricted to the case where the state read is active.
+
+    // Check if we're already trivially restricted to the case where the state
+    // read is active; i.e., taking A = `old_predicate` and B = `new_predicate`,
+    // we're already fine if we can verify that A -> B.
+    if (old_predicate == new_predicate) {
       return false;
     }
+    if (old_predicate->op() == Op::kAnd &&
+        absl::c_contains(old_predicate->operands(), new_predicate)) {
+      // A && X -> A, so we're already restricted.
+      return false;
+    }
+    if (new_predicate->op() == Op::kOr &&
+        absl::c_contains(new_predicate->operands(), old_predicate)) {
+      // A -> A || X, so we're already restricted.
+      return false;
+    }
+
     std::vector<Node*> predicates;
     if (old_predicate->op() == Op::kAnd) {
       predicates.reserve(1 + old_predicate->operands().size());
@@ -254,10 +273,85 @@ absl::StatusOr<bool> AddMutualExclusionAsserts(
   bool changed = false;
 
   for (StateElement* state_element : proc->StateElements()) {
-    XLS_ASSIGN_OR_RETURN(bool asserts_added, AddMutualExclusionAssert(
-                                                 proc, state_element, options));
-    if (asserts_added) {
+    XLS_ASSIGN_OR_RETURN(bool assert_added, AddMutualExclusionAssert(
+                                                proc, state_element, options));
+    if (assert_added) {
       VLOG(4) << "Added mutual exclusion assert for state element: "
+              << state_element->name();
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+absl::StatusOr<bool> AddWriteWithoutReadAsserts(
+    Proc* proc, StateElement* state_element,
+    const SchedulingPassOptions& options) {
+  StateRead* state_read = proc->GetStateRead(state_element);
+  if (!state_read->predicate().has_value()) {
+    return false;
+  }
+
+  const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
+      proc->next_values(proc->GetStateRead(state_element));
+  if (next_values.empty()) {
+    return false;
+  }
+
+  std::vector<Node*> predicate_list;
+  for (Next* next : next_values) {
+    XLS_RET_CHECK(next->predicate().has_value());
+    XLS_ASSIGN_OR_RETURN(
+        Node * next_not_triggered,
+        proc->MakeNodeWithName<UnOp>(
+            SourceInfo(), *next->predicate(), Op::kNot,
+            absl::StrCat("__", state_element->name(), "__next_", next->id(),
+                         "_not_triggered")));
+    XLS_ASSIGN_OR_RETURN(
+        Node * no_write_without_read,
+        proc->MakeNodeWithName<NaryOp>(
+            SourceInfo(),
+            absl::MakeConstSpan({*state_read->predicate(), next_not_triggered}),
+            Op::kOr,
+            absl::StrCat("__", state_element->name(), "__no_next_", next->id(),
+                         "_without_read")));
+    std::string label = absl::StrCat("__", state_element->name(), "__next_",
+                                     next->id(), "_without_read_assert");
+    if (proc->HasNode(label)) {
+      return absl::InternalError(absl::StrFormat(
+          "Write-without-read assert already exists for next_value node '%s'; "
+          "was this pass run twice? assert label: %s",
+          next->GetName(), label));
+    }
+
+    XLS_ASSIGN_OR_RETURN(Node * tkn,
+                         proc->MakeNode<Literal>(SourceInfo(), Value::Token()));
+    XLS_RETURN_IF_ERROR(
+        proc->MakeNodeWithName<Assert>(
+                SourceInfo(), tkn,
+                /*condition=*/no_write_without_read,
+                /*message=*/
+                absl::StrCat(next->GetName(),
+                             " fired while read disabled for state element: ",
+                             state_element->name()),
+                /*label=*/label,
+                /*original_label=*/std::nullopt,
+                /*name=*/label)
+            .status());
+  }
+  return true;
+}
+
+absl::StatusOr<bool> AddWriteWithoutReadAsserts(
+    Proc* proc, const SchedulingPassOptions& options) {
+  bool changed = false;
+
+  for (StateElement* state_element : proc->StateElements()) {
+    XLS_ASSIGN_OR_RETURN(bool assert_added, AddWriteWithoutReadAsserts(
+                                                proc, state_element, options));
+    if (assert_added) {
+      VLOG(4) << "Added write-without-read assert for state element: "
               << state_element->name();
       changed = true;
     }
@@ -425,9 +519,15 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnFunctionBaseInternal(
     changed = true;
   }
 
-  XLS_ASSIGN_OR_RETURN(bool asserts_added,
+  XLS_ASSIGN_OR_RETURN(bool mutex_asserts_added,
                        AddMutualExclusionAsserts(proc, options));
-  if (asserts_added) {
+  if (mutex_asserts_added) {
+    changed = true;
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool write_without_read_asserts_added,
+                       AddWriteWithoutReadAsserts(proc, options));
+  if (write_without_read_asserts_added) {
     changed = true;
   }
 

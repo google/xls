@@ -41,6 +41,7 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -823,6 +824,105 @@ absl::StatusOr<Node*> UnsignedBoundByLiterals(Node* v, int64_t low_bound,
 bool AreAllLiteral(absl::Span<Node* const> nodes) {
   // Check if all indices are literals
   return absl::c_all_of(nodes, [](Node* i) -> bool { return IsLiteral(i); });
+}
+
+namespace {
+
+class NodeSearch : public DfsVisitorWithDefault {
+ public:
+  explicit NodeSearch(Node* target) : target_(target) {}
+
+  absl::Status DefaultHandler(Node* node) override {
+    if (node == target_) {
+      // We've found our target, and can cancel the search. (This causes
+      // Node::Accept to return early, since we've already accomplished our
+      // goal.)
+      return absl::CancelledError();
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  Node* target_;
+};
+
+}  // namespace
+
+bool IsAncestorOf(Node* a, Node* b) {
+  CHECK_NE(a, nullptr);
+  CHECK_NE(b, nullptr);
+
+  if (a->function_base() != b->function_base()) {
+    return false;
+  }
+  if (a == b) {
+    return false;
+  }
+
+  NodeSearch visitor(a);
+  absl::Status visitor_status = b->Accept(&visitor);
+  CHECK(visitor_status.ok() || absl::IsCancelled(visitor_status));
+  return visitor.IsVisited(a);
+}
+
+absl::StatusOr<Node*> RemoveNodeFromBooleanExpression(Node* to_remove,
+                                                      Node* expression,
+                                                      bool favored_outcome) {
+  XLS_RET_CHECK(expression->GetType()->IsBits());
+  XLS_RET_CHECK_EQ(expression->GetType()->AsBitsOrDie()->bit_count(), 1)
+      << expression->ToString();
+
+  if (expression == to_remove) {
+    return expression->function_base()->MakeNode<Literal>(
+        expression->loc(), Value(UBits((favored_outcome ? 1 : 0), 1)));
+  }
+
+  if (expression->op() == Op::kNot) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * new_operand,
+        RemoveNodeFromBooleanExpression(to_remove, expression->operand(0),
+                                        /*favored_outcome=*/!favored_outcome));
+    if (new_operand == expression->operand(0)) {
+      // No change was necessary; apparently `to_remove` was not present.
+      return expression;
+    } else {
+      return expression->function_base()->MakeNode<UnOp>(expression->loc(),
+                                                         new_operand, Op::kNot);
+    }
+  }
+
+  if (expression->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
+    const bool favored_operand =
+        favored_outcome ^ expression->OpIn({Op::kNand, Op::kNor});
+
+    std::vector<Node*> new_operands;
+    new_operands.reserve(expression->operands().size());
+    bool changed = false;
+    for (Node* operand : expression->operands()) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * new_operand,
+          RemoveNodeFromBooleanExpression(to_remove, operand, favored_operand));
+      new_operands.push_back(new_operand);
+      if (new_operand != operand) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      return expression->function_base()->MakeNode<NaryOp>(
+          expression->loc(), new_operands, expression->op());
+    } else {
+      // No change was necessary; apparently `to_remove` was not present.
+      return expression;
+    }
+  }
+
+  if (IsAncestorOf(to_remove, expression)) {
+    // We're unable to remove `to_remove` from `expression` directly, but it is
+    // an ancestor; just replace the entire expression with a literal.
+    return expression->function_base()->MakeNode<Literal>(
+        expression->loc(), Value(UBits((favored_outcome ? 1 : 0), 1)));
+  }
+  return expression;
 }
 
 }  // namespace xls

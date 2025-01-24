@@ -357,6 +357,7 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
   pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))), x_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
+  ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
   EXPECT_EQ(proc->GetStateRead(*proc->GetStateElement("x"))->predicate(),
@@ -380,7 +381,87 @@ TEST_F(ProcStateLegalizationPassTest, ProcWithPredicatedStateRead) {
                          m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
                                       m::Literal(0)))))));
 
-  EXPECT_THAT(proc->nodes(), Each(Not(m::Assert())));
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(m::Assert(
+          _, m::Or(m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
+                               m::Literal(0)),
+                         m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                               m::Literal(0))),
+                   m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                m::Literal(0)))))));
+}
+
+TEST_F(ProcStateLegalizationPassTest,
+       ProcWithPredicatedStateReadAndPotentialCycle) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue x_even =
+      pb.Eq(pb.UMod(x, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
+  BValue x_multiple_of_3 =
+      pb.Eq(pb.UMod(x, pb.Literal(UBits(3, 32))), pb.Literal(UBits(0, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 32)),
+                             /*read_predicate=*/x_even);
+  BValue y_even =
+      pb.Eq(pb.UMod(y, pb.Literal(UBits(2, 32))), pb.Literal(UBits(0, 32)));
+  pb.Next(x, pb.Add(x, pb.Literal(UBits(1, 32))));
+  pb.Next(y, pb.Add(y, pb.Literal(UBits(1, 32))),
+          pb.And(x_multiple_of_3, y_even));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(proc), IsOkAndHolds(true));
+
+  EXPECT_EQ(proc->GetStateRead(*proc->GetStateElement("x"))->predicate(),
+            std::nullopt);
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+      Optional(m::Or(
+          m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
+          m::And(
+              m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
+              m::Literal(1)))));
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
+      UnorderedElementsAre(
+          m::Next(m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
+                  m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                               m::Literal(0)),
+                         m::Eq(m::UMod(m::StateRead("y"), m::Literal(2)),
+                               m::Literal(0)))),
+          m::Next(
+              m::StateRead("y"), m::StateRead("y"),
+              m::And(
+                  m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
+                              m::Literal(0)),
+                        m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                     m::Literal(0)),
+                               m::Literal(1))),
+                  m::Not(m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                      m::Literal(0)),
+                                m::Eq(m::UMod(m::StateRead("y"), m::Literal(2)),
+                                      m::Literal(0))))))));
+
+  std::vector<Node*> asserts;
+  absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
+                  [](Node* node) { return node->Is<Assert>(); });
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(m::Assert(
+          _,
+          m::Or(m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)),
+                            m::Literal(0)),
+                      m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                   m::Literal(0)),
+                             m::Literal(1))),
+                m::Not(m::And(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                    m::Literal(0)),
+                              m::Eq(m::UMod(m::StateRead("y"), m::Literal(2)),
+                                    m::Literal(0))))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -399,6 +480,7 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(y, y, x_not_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
+  ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
   const testing::Matcher<const Node*> expected_read_predicate = m::Or(
@@ -413,19 +495,26 @@ TEST_F(ProcStateLegalizationPassTest,
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
           m::Next(m::StateRead("y"), m::StateRead("y"),
-                  m::And(expected_read_predicate,
-                         m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                                      m::Literal(0)))))));
+                  m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                               m::Literal(0))))));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
                   [](Node* node) { return node->Is<Assert>(); });
-  EXPECT_THAT(asserts,
-              UnorderedElementsAre(m::Assert(
-                  _, m::Eq(m::Concat(x_multiple_of_3.node(),
-                                     m::And(expected_read_predicate,
-                                            x_not_multiple_of_3.node())),
-                           m::BitSlice(m::OneHot(m::Concat()))))));
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(
+          m::Assert(_, m::Eq(m::Concat(x_multiple_of_3.node(),
+                                       x_not_multiple_of_3.node()),
+                             m::BitSlice(m::OneHot(m::Concat())))),
+          m::Assert(
+              _, m::Or(expected_read_predicate,
+                       m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                    m::Literal(0))))),
+          m::Assert(_, m::Or(expected_read_predicate,
+                             m::Not(m::Not(m::Eq(
+                                 m::UMod(m::StateRead("x"), m::Literal(3)),
+                                 m::Literal(0))))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -445,13 +534,20 @@ TEST_F(ProcStateLegalizationPassTest,
   pb.Next(y, y, x_not_multiple_of_3);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
+  ScopedRecordIr sri(p.get());
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
-  const testing::Matcher<const Node*> expected_read_predicate =
+  const ::testing::Matcher<const Node*> match_x_even_or_threeven =
       m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
             m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)));
   EXPECT_THAT(proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
-              Optional(expected_read_predicate));
+              Optional(match_x_even_or_threeven));
+
+  const ::testing::Matcher<const Node*>
+      match_x_even_or_threeven_and_not_threeven =
+          m::And(match_x_even_or_threeven,
+                 m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                              m::Literal(0))));
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
       UnorderedElementsAre(
@@ -459,20 +555,25 @@ TEST_F(ProcStateLegalizationPassTest,
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
           m::Next(m::StateRead("y"), m::StateRead("y"),
-                  m::And(expected_read_predicate,
-                         m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                                      m::Literal(0)))))))
-      << p->DumpIr();
+                  match_x_even_or_threeven_and_not_threeven)));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
                   [](Node* node) { return node->Is<Assert>(); });
-  EXPECT_THAT(asserts,
-              UnorderedElementsAre(m::Assert(
-                  _, m::Eq(m::Concat(x_multiple_of_3.node(),
-                                     m::And(expected_read_predicate,
-                                            x_not_multiple_of_3.node())),
-                           m::BitSlice(m::OneHot(m::Concat()))))));
+  EXPECT_THAT(
+      asserts,
+      UnorderedElementsAre(
+          m::Assert(_,
+                    m::Eq(m::Concat(x_multiple_of_3.node(),
+                                    match_x_even_or_threeven_and_not_threeven),
+                          m::BitSlice(m::OneHot(m::Concat())))),
+          m::Assert(
+              _, m::Or(match_x_even_or_threeven,
+                       m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                    m::Literal(0))))),
+          m::Assert(_,
+                    m::Or(match_x_even_or_threeven,
+                          m::Not(match_x_even_or_threeven_and_not_threeven)))));
 }
 
 }  // namespace

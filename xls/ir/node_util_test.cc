@@ -656,5 +656,145 @@ TEST_F(NodeUtilTest, UnsignedBoundByLiterals) {
                            m::ULt(m::Param("foo2"), m::Literal(UBits(10, 10))),
                            {m::Literal(UBits(10, 10))}, m::Param("foo2")));
 }
+
+TEST_F(NodeUtilTest, IsAncestorOf) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(100));
+  BValue b = fb.Param("b", p->GetBitsType(100));
+  BValue c = fb.Param("c", p->GetBitsType(100));
+  BValue d = fb.Param("d", p->GetBitsType(100));
+  BValue a_or_b = fb.Or({a, b});
+  BValue a_or_b_or_d = fb.Or({a_or_b, d});
+  BValue c_plus_d = fb.Add(c, d);
+  BValue and_a_b_c = fb.And({a, b, c});
+  BValue big_or = fb.Or({and_a_b_c, c_plus_d});
+
+  EXPECT_FALSE(IsAncestorOf(a.node(), b.node()));
+  EXPECT_FALSE(IsAncestorOf(c.node(), c.node()));
+  EXPECT_FALSE(IsAncestorOf(d.node(), c.node()));
+
+  EXPECT_TRUE(IsAncestorOf(a.node(), a_or_b.node()));
+  EXPECT_TRUE(IsAncestorOf(b.node(), a_or_b.node()));
+  EXPECT_FALSE(IsAncestorOf(c.node(), a_or_b.node()));
+  EXPECT_FALSE(IsAncestorOf(d.node(), a_or_b.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b.node(), a_or_b.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b_or_d.node(), a_or_b.node()));
+  EXPECT_FALSE(IsAncestorOf(and_a_b_c.node(), a_or_b.node()));
+  EXPECT_FALSE(IsAncestorOf(c_plus_d.node(), a_or_b.node()));
+  EXPECT_FALSE(IsAncestorOf(big_or.node(), a_or_b.node()));
+
+  EXPECT_TRUE(IsAncestorOf(a.node(), a_or_b_or_d.node()));
+  EXPECT_TRUE(IsAncestorOf(b.node(), a_or_b_or_d.node()));
+  EXPECT_FALSE(IsAncestorOf(c.node(), a_or_b_or_d.node()));
+  EXPECT_TRUE(IsAncestorOf(d.node(), a_or_b_or_d.node()));
+  EXPECT_TRUE(IsAncestorOf(a_or_b.node(), a_or_b_or_d.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b_or_d.node(), a_or_b_or_d.node()));
+  EXPECT_FALSE(IsAncestorOf(and_a_b_c.node(), a_or_b_or_d.node()));
+  EXPECT_FALSE(IsAncestorOf(c_plus_d.node(), a_or_b_or_d.node()));
+  EXPECT_FALSE(IsAncestorOf(big_or.node(), a_or_b_or_d.node()));
+
+  EXPECT_FALSE(IsAncestorOf(a.node(), c_plus_d.node()));
+  EXPECT_FALSE(IsAncestorOf(b.node(), c_plus_d.node()));
+  EXPECT_TRUE(IsAncestorOf(c.node(), c_plus_d.node()));
+  EXPECT_TRUE(IsAncestorOf(d.node(), c_plus_d.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b.node(), c_plus_d.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b_or_d.node(), c_plus_d.node()));
+  EXPECT_FALSE(IsAncestorOf(and_a_b_c.node(), c_plus_d.node()));
+  EXPECT_FALSE(IsAncestorOf(c_plus_d.node(), c_plus_d.node()));
+  EXPECT_FALSE(IsAncestorOf(big_or.node(), c_plus_d.node()));
+
+  EXPECT_TRUE(IsAncestorOf(a.node(), and_a_b_c.node()));
+  EXPECT_TRUE(IsAncestorOf(b.node(), and_a_b_c.node()));
+  EXPECT_TRUE(IsAncestorOf(c.node(), and_a_b_c.node()));
+  EXPECT_FALSE(IsAncestorOf(d.node(), and_a_b_c.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b.node(), and_a_b_c.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b_or_d.node(), and_a_b_c.node()));
+  EXPECT_FALSE(IsAncestorOf(and_a_b_c.node(), and_a_b_c.node()));
+  EXPECT_FALSE(IsAncestorOf(c_plus_d.node(), and_a_b_c.node()));
+  EXPECT_FALSE(IsAncestorOf(big_or.node(), and_a_b_c.node()));
+
+  EXPECT_TRUE(IsAncestorOf(a.node(), big_or.node()));
+  EXPECT_TRUE(IsAncestorOf(b.node(), big_or.node()));
+  EXPECT_TRUE(IsAncestorOf(c.node(), big_or.node()));
+  EXPECT_TRUE(IsAncestorOf(d.node(), big_or.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b.node(), big_or.node()));
+  EXPECT_FALSE(IsAncestorOf(a_or_b_or_d.node(), big_or.node()));
+  EXPECT_TRUE(IsAncestorOf(and_a_b_c.node(), big_or.node()));
+  EXPECT_TRUE(IsAncestorOf(c_plus_d.node(), big_or.node()));
+  EXPECT_FALSE(IsAncestorOf(big_or.node(), big_or.node()));
+}
+
+TEST_F(NodeUtilTest, RemoveNodeFromBooleanExpression) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue a = fb.Param("a", p->GetBitsType(1));
+  BValue b = fb.Param("b", p->GetBitsType(1));
+  BValue c = fb.Param("c", p->GetBitsType(1));
+  BValue d = fb.Param("d", p->GetBitsType(1));
+  BValue a_or_b = fb.Or({a, b});
+  BValue a_or_b_or_d = fb.Or({a_or_b, d});
+  BValue c_plus_d = fb.Add(c, d);
+  BValue and_a_b_c = fb.And({a, b, c});
+  BValue big_nor = fb.Nor({and_a_b_c, c_plus_d});
+
+  EXPECT_THAT(RemoveNodeFromBooleanExpression(a.node(), a_or_b.node(), true),
+              IsOkAndHolds(m::Or(m::Literal(1), m::Param("b"))));
+  EXPECT_THAT(RemoveNodeFromBooleanExpression(a.node(), a_or_b.node(), false),
+              IsOkAndHolds(m::Or(m::Literal(0), m::Param("b"))));
+  EXPECT_THAT(RemoveNodeFromBooleanExpression(c.node(), a_or_b.node(), true),
+              IsOkAndHolds(a_or_b.node()));
+  EXPECT_THAT(RemoveNodeFromBooleanExpression(c.node(), a_or_b.node(), false),
+              IsOkAndHolds(a_or_b.node()));
+
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(b.node(), a_or_b_or_d.node(), true),
+      IsOkAndHolds(m::Or(m::Or(m::Param("a"), m::Literal(1)), m::Param("d"))));
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(b.node(), a_or_b_or_d.node(), false),
+      IsOkAndHolds(m::Or(m::Or(m::Param("a"), m::Literal(0)), m::Param("d"))));
+
+  EXPECT_THAT(RemoveNodeFromBooleanExpression(c.node(), c_plus_d.node(), true),
+              IsOkAndHolds(m::Literal(1)));
+  EXPECT_THAT(RemoveNodeFromBooleanExpression(c.node(), c_plus_d.node(), false),
+              IsOkAndHolds(m::Literal(0)));
+
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(a.node(), big_nor.node(), true),
+      IsOkAndHolds(m::Nor(m::And(m::Literal(0), m::Param("b"), m::Param("c")),
+                          m::Add(m::Param("c"), m::Param("d")))));
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(a.node(), big_nor.node(), false),
+      IsOkAndHolds(m::Nor(m::And(m::Literal(1), m::Param("b"), m::Param("c")),
+                          m::Add(m::Param("c"), m::Param("d")))));
+
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(b.node(), big_nor.node(), true),
+      IsOkAndHolds(m::Nor(m::And(m::Param("a"), m::Literal(0), m::Param("c")),
+                          m::Add(m::Param("c"), m::Param("d")))));
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(b.node(), big_nor.node(), false),
+      IsOkAndHolds(m::Nor(m::And(m::Param("a"), m::Literal(1), m::Param("c")),
+                          m::Add(m::Param("c"), m::Param("d")))));
+
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(c.node(), big_nor.node(), true),
+      IsOkAndHolds(m::Nor(m::And(m::Param("a"), m::Param("b"), m::Literal(0)),
+                          m::Literal(0))));
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(c.node(), big_nor.node(), false),
+      IsOkAndHolds(m::Nor(m::And(m::Param("a"), m::Param("b"), m::Literal(1)),
+                          m::Literal(1))));
+
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(d.node(), big_nor.node(), true),
+      IsOkAndHolds(m::Nor(m::And(m::Param("a"), m::Param("b"), m::Param("c")),
+                          m::Literal(0))));
+  EXPECT_THAT(
+      RemoveNodeFromBooleanExpression(d.node(), big_nor.node(), false),
+      IsOkAndHolds(m::Nor(m::And(m::Param("a"), m::Param("b"), m::Param("c")),
+                          m::Literal(1))));
+}
+
 }  // namespace
 }  // namespace xls
