@@ -1314,6 +1314,7 @@ xls_dslx_test(
         "zstd_frame_testcases.x",
         "comp_frame.x",
         "comp_frame_huffman.x",
+        "comp_frame_huffman_fse.x",
         "comp_frame_fse_comp.x",
         "comp_frame_fse_repeated.x",
     ],
@@ -3252,7 +3253,7 @@ xls_dslx_library(
     deps = [
         "//xls/modules/zstd:huffman_prescan_dslx",
         "//xls/modules/zstd:refilling_shift_buffer_dslx",
-        "//xls/modules/zstd:fse_lookup_dec_dslx",
+        "//xls/modules/zstd:comp_lookup_dec_dslx",
         "//xls/modules/zstd:fse_table_creator_dslx",
         "//xls/modules/zstd:math_dslx",
         "//xls/modules/zstd/memory:mem_reader_dslx",
