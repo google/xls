@@ -1138,6 +1138,43 @@ const X = foo(u24:5);
                 HasNodeWithType("S { x: x }", "S { x: uN[24] }"))));
 }
 
+TEST(TypecheckV2Test, ParametricStructFormalReturnValueWithTooManyParametrics) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {}
+fn foo() -> S<24, 25> { S {} }
+)",
+      TypecheckFails(HasSubstr("Too many parametric values supplied")));
+}
+
+TEST(TypecheckV2Test,
+     ParametricStructFormalReturnValueWithWrongTypeParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {}
+fn foo() -> S<u64:24> { S {} }
+)",
+      TypecheckFails(HasSizeMismatch("u64", "u32")));
+}
+
+TEST(TypecheckV2Test, ParametricStructFormalArgumentWithTooManyParametrics) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {}
+fn foo(a: S<24, 25>) {}
+)",
+      TypecheckFails(HasSubstr("Too many parametric values supplied")));
+}
+
+TEST(TypecheckV2Test, ParametricStructFormalArgumentWithWrongTypeParametric) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> {}
+fn foo(a: S<u64:24>) {}
+)",
+      TypecheckFails(HasSizeMismatch("u64", "u32")));
+}
+
 TEST(TypecheckV2Test,
      ParametricStructAsFunctionReturnValueWithExplicitismatchFails) {
   EXPECT_THAT(

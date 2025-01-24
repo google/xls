@@ -531,6 +531,10 @@ class InferenceTableConverter {
         }
       }
     }
+    if (const auto* number = dynamic_cast<const Number*>(node)) {
+      XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*number, type));
+      ti->NoteConstExpr(number, value);
+    }
     return absl::OkStatus();
   }
 
@@ -791,7 +795,13 @@ class InferenceTableConverter {
     XLS_ASSIGN_OR_RETURN(InterpValue value,
                          Evaluate(InvocationScopedExpr(
                              parametric_invocation, *type_annotation, expr)));
-    return value.GetBitValueSigned();
+    int64_t result;
+    if (value.IsSigned()) {
+      XLS_ASSIGN_OR_RETURN(result, value.GetBitValueSigned());
+    } else {
+      XLS_ASSIGN_OR_RETURN(result, value.GetBitValueUnsigned());
+    }
+    return result;
   }
 
   // Comes up with one type annotation reconciling the information in any

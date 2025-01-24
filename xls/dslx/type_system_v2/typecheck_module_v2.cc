@@ -282,6 +282,60 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleTypeRefTypeAnnotation(
+      const TypeRefTypeAnnotation* node) override {
+    VLOG(5) << "HandleTypeRefTypeAnnotation: " << node->ToString();
+
+    std::optional<StructOrProcRef> struct_or_proc_ref =
+        GetStructOrProcRef(node);
+    if (!struct_or_proc_ref.has_value() ||
+        struct_or_proc_ref->parametrics.empty()) {
+      return DefaultHandler(node);
+    }
+    const StructDefBase* struct_def =
+        dynamic_cast<const StructDefBase*>(ToAstNode(struct_or_proc_ref->def));
+    if (struct_or_proc_ref->parametrics.size() >
+        struct_def->parametric_bindings().size()) {
+      return ArgCountMismatchErrorStatus(
+          node->span(),
+          absl::Substitute(
+              "Too many parametric values supplied; limit: $0 given: $1",
+              struct_def->parametric_bindings().size(),
+              struct_or_proc_ref->parametrics.size()),
+          file_table_);
+    }
+
+    // If any parametrics are explicitly specified, then they must all be
+    // explicit or defaulted. We technically could infer the rest, as with
+    // functions, but historically we choose not to. We must also constrain the
+    // actual parametric values to the binding type.
+    for (int i = 0; i < struct_def->parametric_bindings().size(); i++) {
+      const ParametricBinding* binding = struct_def->parametric_bindings()[i];
+      if (i < struct_or_proc_ref->parametrics.size()) {
+        const Expr* actual_expr =
+            i < struct_or_proc_ref->parametrics.size()
+                ? std::get<Expr*>(struct_or_proc_ref->parametrics[i])
+                : binding->expr();
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* actual_expr_variable,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType, const_cast<Expr*>(actual_expr),
+                GenerateInternalTypeVariableName(actual_expr)));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeVariable(actual_expr, actual_expr_variable));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(actual_expr, binding->type_annotation()));
+      } else if (binding->expr() == nullptr) {
+        return ArgCountMismatchErrorStatus(
+            node->span(),
+            absl::Substitute("No parametric value provided for `$0` in `$1`",
+                             binding->identifier(), struct_def->identifier()),
+            file_table_);
+      }
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleStructInstance(const StructInstance* node) override {
     // As far as we're concerned here, type-checking a struct instance is like
     // type-checking a function invocation (see `HandleFreeFunctionInvocation`),
@@ -290,6 +344,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // different arguments the same thing.
     VLOG(5) << "HandleStructInstance: " << node->ToString();
 
+    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
     std::optional<StructOrProcRef> struct_or_proc_ref =
         GetStructOrProcRef(node->struct_ref());
     if (!struct_or_proc_ref.has_value()) {
@@ -313,37 +368,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         module_.Make<TypeVariableTypeAnnotation>(type_variable);
     const StructDef* struct_def =
         std::get<const StructDef*>(struct_or_proc_ref->def);
-    if (struct_def->IsParametric()) {
-      // Disallow too many parametrics.
-      if (struct_or_proc_ref->parametrics.size() >
-          struct_def->parametric_bindings().size()) {
-        return ArgCountMismatchErrorStatus(
-            node->span(),
-            absl::Substitute(
-                "Too many parametric values supplied; limit: $0 given: $1",
-                struct_def->parametric_bindings().size(),
-                struct_or_proc_ref->parametrics.size()),
-            file_table_);
-      }
-      // If any parametrics are explicitly specified, then they must all be
-      // explicit or defaulted. We technically could infer the rest, as with
-      // functions, but historically we choose not to.
-      if (!struct_or_proc_ref->parametrics.empty()) {
-        for (int i = 0; i < struct_def->parametric_bindings().size(); i++) {
-          const ParametricBinding* binding =
-              struct_def->parametric_bindings()[i];
-          if (i >= struct_or_proc_ref->parametrics.size() &&
-              struct_def->parametric_bindings()[i]->expr() == nullptr) {
-            return ArgCountMismatchErrorStatus(
-                node->span(),
-                absl::Substitute(
-                    "No parametric value provided for `$0` in `$1`",
-                    binding->identifier(), struct_def->identifier()),
-                file_table_);
-          }
-        }
-      }
-    }
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node,
         CreateStructAnnotation(module_, const_cast<StructDef*>(struct_def),
@@ -700,6 +724,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                       const_cast<Function*>(node),
                                       GenerateInternalTypeVariableName(node)));
     const TypeAnnotation* return_type = GetReturnType(*node);
+    XLS_RETURN_IF_ERROR(return_type->Accept(this));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, type_variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->body(), type_variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, return_type));
