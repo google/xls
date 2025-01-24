@@ -67,9 +67,19 @@ absl::Status TryEnsureFitsInBitsType(const Number& number,
 absl::Status ValidateArrayTypeForIndex(const Index& node, const Type& type,
                                        const FileTable& file_table);
 
+// Validates whether the purported tuple being indexed by a `TupleIndex`
+// operation is really a tuple.
+absl::Status ValidateTupleTypeForIndex(const TupleIndex& node, const Type& type,
+                                       const FileTable& file_table);
+
 // Validates the index expression for an array index operation that is actually
 // an index and not a slice.
 absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
+                                const Type& index_type, const TypeInfo& ti,
+                                const FileTable& file_table);
+
+// Validates the index expression for a tuple index operation.
+absl::Status ValidateTupleIndex(const TupleIndex& node, const Type& tuple_type,
                                 const Type& index_type, const TypeInfo& ti,
                                 const FileTable& file_table);
 

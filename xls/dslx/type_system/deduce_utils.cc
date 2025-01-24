@@ -253,6 +253,18 @@ absl::Status ValidateArrayTypeForIndex(const Index& node, const Type& type,
   return absl::OkStatus();
 }
 
+absl::Status ValidateTupleTypeForIndex(const TupleIndex& node, const Type& type,
+                                       const FileTable& file_table) {
+  if (dynamic_cast<const TupleType*>(&type) != nullptr) {
+    return absl::OkStatus();
+  }
+  return TypeInferenceErrorStatus(
+      node.span(), &type,
+      absl::StrCat("Attempted to use tuple indexing on a non-tuple: ",
+                   node.ToString()),
+      file_table);
+}
+
 absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
                                 const Type& index_type, const TypeInfo& ti,
                                 const FileTable& file_table) {
@@ -295,6 +307,23 @@ absl::Status ValidateArrayIndex(const Index& node, const Type& array_type,
         absl::StrFormat("Index has a compile-time constant value %d that is "
                         "out of bounds of the array type.",
                         constexpr_index),
+        file_table);
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ValidateTupleIndex(const TupleIndex& node, const Type& tuple_type,
+                                const Type& index_type, const TypeInfo& ti,
+                                const FileTable& file_table) {
+  // TupleIndex RHSs are always constexpr numbers.
+  const auto& casted_tuple_type = dynamic_cast<const TupleType&>(tuple_type);
+  XLS_ASSIGN_OR_RETURN(InterpValue index_value, ti.GetConstExpr(node.index()));
+  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueViaSign());
+  if (index >= casted_tuple_type.size()) {
+    return TypeInferenceErrorStatus(
+        node.span(), &tuple_type,
+        absl::StrCat("Out-of-bounds tuple index specified: ",
+                     node.index()->ToString()),
         file_table);
   }
   return absl::OkStatus();

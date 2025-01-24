@@ -744,6 +744,89 @@ const Y = [u32:1, u32:2][X];
               TypecheckFails(HasSubstr("out of bounds of the array type")));
 }
 
+TEST(TypecheckV2Test, GlobalConstantEqualsIndexOfTemporaryTuple) {
+  EXPECT_THAT("const X = (u24:1, u32:2).0;",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[24]")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfConstantTuple) {
+  EXPECT_THAT(R"(
+const X = (s16:5, s8:4);
+const Y = X.1;
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "sN[8]")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfFunctionReturn) {
+  EXPECT_THAT(R"(
+fn foo() -> (u8, u16, u4) { (1, 2, 3) }
+const Y = foo().1;
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfParametricFunctionReturn) {
+  EXPECT_THAT(R"(
+fn foo<A: u32, B: u32, C: u32>() -> (uN[A], uN[B], uN[C]) { (1, 2, 3) }
+const Y = foo<32, 33, 34>().1;
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[33]")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfParametricFunctionReturnUsedForInference) {
+  EXPECT_THAT(R"(
+fn foo<A: u32, B: u32, C: u32>() -> (uN[A], uN[B], uN[C]) { (1, 2, 3) }
+fn bar<N: u32>(a: uN[N]) -> uN[N] { a + 1 }
+const Y = bar(foo<8, 64, 18>().2);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[18]")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfParametricFunctionArgument) {
+  EXPECT_THAT(R"(
+fn foo<N: u32>(a: (uN[N], uN[N])) -> uN[N] { a.1 }
+const Y = foo<16>((1, 2));
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfStructFails) {
+  EXPECT_THAT(R"(
+struct S {
+  x: u32
+}
+const Y = S{ x: 0 }.0;
+)",
+              TypecheckFails(
+                  HasSubstr("Attempted to use tuple indexing on a non-tuple")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfStructMember) {
+  EXPECT_THAT(R"(
+struct S {
+  x: (u16, u32)
+}
+const X = S{ x: (0, 1) }.x.0;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOfArrayFails) {
+  EXPECT_THAT(R"(
+const Y = [u32:1, 2].0;
+)",
+              TypecheckFails(
+                  HasSubstr("Attempted to use tuple indexing on a non-tuple")));
+}
+
+TEST(TypecheckV2Test, TupleIndexOutOfRangeFails) {
+  EXPECT_THAT(
+      R"(
+const Y = (u32:1, s8:2).2;
+)",
+      TypecheckFails(HasSubstr("Out-of-bounds tuple index specified: 2")));
+}
+
 TEST(TypecheckV2Test, GlobalArrayConstantAnnotatedWithBareIntegerLiterals) {
   EXPECT_THAT("const X: u32[2] = [1, 3];",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32][2]"),
@@ -1582,6 +1665,14 @@ const Y = foo();
       TypecheckSucceeds(AllOf(
           HasOneLineBlockWithType("(1, (2, 3))", "(sN[8], (uN[32], uN[24]))"),
           HasNodeWithType("const Y = foo();", "(sN[8], (uN[32], uN[24]))"))));
+}
+
+TEST(TypecheckV2Test, FunctionReturningArrayForTupleFails) {
+  EXPECT_THAT(
+      R"(
+fn foo() -> (u32, u32) { [u32:1, 2] }
+)",
+      TypecheckFails(HasTypeMismatch("(u32, u32)", "uN[32][2]")));
 }
 
 TEST(TypecheckV2Test, FunctionCallReturningFunctionCall) {

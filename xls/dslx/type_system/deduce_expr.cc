@@ -744,14 +744,9 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTupleIndex(const TupleIndex* node,
                                                        DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> lhs_type,
                        ctx->Deduce(node->lhs()));
+  XLS_RETURN_IF_ERROR(
+      ValidateTupleTypeForIndex(*node, *lhs_type, ctx->file_table()));
   TupleType* tuple_type = dynamic_cast<TupleType*>(lhs_type.get());
-  if (tuple_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), lhs_type.get(),
-        absl::StrCat("Attempted to use tuple indexing on a non-tuple: ",
-                     node->ToString()),
-        ctx->file_table());
-  }
 
   ctx->set_in_typeless_number_ctx(true);
   absl::Cleanup cleanup = [ctx]() { ctx->set_in_typeless_number_ctx(false); };
@@ -759,7 +754,8 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTupleIndex(const TupleIndex* node,
                        ctx->Deduce(node->index()));
   std::move(cleanup).Cancel();
 
-  // TupleIndex RHSs are always constexpr numbers.
+  // Note: in order to preserve the on-the-spot evaluation here, we don't use
+  // the utility function that v2 uses for this.
   XLS_ASSIGN_OR_RETURN(
       InterpValue index_value,
       ConstexprEvaluator::EvaluateToValue(

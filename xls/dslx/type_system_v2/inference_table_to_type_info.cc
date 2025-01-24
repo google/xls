@@ -857,10 +857,10 @@ class InferenceTableConverter {
       for (const TypeAnnotation* annotation : annotations) {
         const auto* tuple_annotation =
             dynamic_cast<const TupleTypeAnnotation*>(annotation);
-        // If the DSLX programmer annotates a tuple with a non-tuple annotation,
-        // it will fail before now, because we need to distribute the components
-        // of it to the RHS early on.
-        CHECK(tuple_annotation);
+        if (tuple_annotation == nullptr) {
+          return TypeMismatchErrorWithParametricResolution(
+              parametric_invocation, annotations[0], annotation);
+        }
         // Since all but one must have been fabricated by us, they should have
         // the same structure.
         CHECK_EQ(tuple_annotation->members().size(),
@@ -889,6 +889,7 @@ class InferenceTableConverter {
         first_struct_or_proc.has_value()) {
       const StructDef* struct_def =
           dynamic_cast<const StructDef*>(ToAstNode(first_struct_or_proc->def));
+      CHECK(struct_def != nullptr);
       std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
         std::optional<StructOrProcRef> next_struct_or_proc =
@@ -1400,7 +1401,12 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(
           uint64_t index,
           (*element_type->tuple_index())->GetAsUint64(file_table_));
-      CHECK(index < tuple_type->members().size());
+      if (index >= tuple_type->members().size()) {
+        return TypeInferenceErrorStatusForAnnotation(
+            tuple_type->span(), tuple_type,
+            absl::StrCat("Out-of-bounds tuple index specified: ", index),
+            file_table_);
+      }
       return tuple_type->members()[index];
     }
     return container_type;
@@ -1535,6 +1541,14 @@ class InferenceTableConverter {
         const Type& rhs_type = **ti.GetItem(std::get<Expr*>(index->rhs()));
         return ValidateArrayIndex(*index, lhs_type, rhs_type, ti, file_table_);
       }
+    }
+    if (const auto* tuple_index = dynamic_cast<const TupleIndex*>(node)) {
+      const Type& lhs_type = **ti.GetItem(tuple_index->lhs());
+      const Type& rhs_type = **ti.GetItem(tuple_index->index());
+      XLS_RETURN_IF_ERROR(
+          ValidateTupleTypeForIndex(*tuple_index, lhs_type, file_table_));
+      XLS_RETURN_IF_ERROR(ValidateTupleIndex(*tuple_index, lhs_type, rhs_type,
+                                             ti, file_table_));
     }
 
     // For a cast node we have to validate that the types being cast to/from are

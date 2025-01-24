@@ -530,6 +530,27 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleTupleIndex(const TupleIndex* node) override {
+    VLOG(5) << "HandleTupleIndex: " << node->ToString();
+
+    // Establish a context for the unification of the tuple type.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* tuple_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
+            GenerateInternalTypeVariableName(node->lhs())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->lhs(), tuple_type_variable));
+
+    // The type of the entire expr is then ElementType(tuple_type_variable,
+    // index).
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, module_.Make<ElementTypeAnnotation>(
+                  module_.Make<TypeVariableTypeAnnotation>(tuple_type_variable),
+                  node->index())));
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleFunction(const Function* node) override {
     VLOG(5) << "HandleFunction: " << node->ToString()
             << ", parametric: " << node->IsParametric();
