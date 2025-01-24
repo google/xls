@@ -25,6 +25,15 @@ import xls.modules.zstd.fse_proba_freq_dec;
 import xls.modules.shift_buffer.shift_buffer;
 
 type AccuracyLog = common::FseAccuracyLog;
+type ConsumedFseBytes = fse_proba_freq_dec::ConsumedFseBytes;
+
+pub type CompLookupDecoderReq = common::LookupDecoderReq;
+pub type CompLookupDecoderStatus = common::LookupDecoderStatus;
+pub struct CompLookupDecoderResp {
+    status: CompLookupDecoderStatus,
+    accuracy_log: AccuracyLog,
+    consumed_bytes: ConsumedFseBytes,
+}
 
 pub proc CompLookupDecoder<
     AXI_DATA_W: u32,
@@ -34,9 +43,9 @@ pub proc CompLookupDecoder<
     FSE_RAM_DATA_W: u32, FSE_RAM_ADDR_W: u32, FSE_RAM_NUM_PARTITIONS: u32,
     SB_LENGTH_W: u32 = {refilling_shift_buffer::length_width(AXI_DATA_W)},
 > {
-    type Req = common::LookupDecoderReq;
-    type Resp = common::LookupDecoderResp;
-    type Status = common::LookupDecoderStatus;
+    type Req = CompLookupDecoderReq;
+    type Resp = CompLookupDecoderResp;
+    type Status = CompLookupDecoderStatus;
 
     type FseTableStart = fse_table_creator::FseStartMsg;
 
@@ -158,7 +167,11 @@ pub proc CompLookupDecoder<
         trace_fmt!("FSE table created");
 
         let resp = if pf_dec_ok {
-            Resp { status: Status::OK, accuracy_log: pf_dec_res.accuracy_log }
+            Resp {
+                status: Status::OK,
+                accuracy_log: pf_dec_res.accuracy_log,
+                consumed_bytes: pf_dec_res.consumed_bytes,
+            }
         } else {
             Resp { status: Status::ERROR, ..zero!<Resp>() }
         };
@@ -214,7 +227,7 @@ const TEST_RAM_INITIALIZED = true;
 
 type FseTableRecord = common::FseTableRecord;
 
-const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE], common::LookupDecoderResp)[12] = [
+const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE], CompLookupDecoderResp)[12] = [
     (
         u64[64]:[u64:0x72AAAAABBB1D25C0, u64:0, ...],
         FseTableRecord[TEST_FSE_RAM_SIZE]:[
@@ -252,7 +265,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x0, num_of_bits: u8:0x0, base: u16:0x15 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, consumed_bytes: ConsumedFseBytes:3}
     ),
     (
         u64[64]:[u64:0x1861862062081932, u64:0xC18628A106184184, u64:0x850720FACC49238, u64:0, ...],
@@ -387,7 +400,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x9, num_of_bits: u8:0x6, base: u16:0x40 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:7 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:7, consumed_bytes: ConsumedFseBytes:21}
     ),
     (
         u64[64]:[u64:0x60C3082082085072, u64:0x1C06F8077D850F20, u64:0, ...],
@@ -522,7 +535,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0xb, num_of_bits: u8:0x3, base: u16:0x58 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:7 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:7, consumed_bytes: ConsumedFseBytes:13 }
     ),
     (
         u64[64]:[u64:0x41081C158003A5D0, u64:0, ...],
@@ -561,7 +574,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x0, num_of_bits: u8:0x0, base: u16:0x17 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, consumed_bytes: ConsumedFseBytes:3 }
     ),
     (
         u64[64]:[u64:0x1101141108088A1, u64:0xA210842108421011, u64:0xAC90E792007A5B4, u64:0, ...],
@@ -632,7 +645,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x1c, num_of_bits: u8:0x3, base: u16:0x8 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:6 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:6, consumed_bytes: ConsumedFseBytes:19 }
     ),
     (
         u64[64]:[u64:0x4AF830AC90E7920, u64:0, ...],
@@ -671,7 +684,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x1, num_of_bits: u8:0x1, base: u16:0xa },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, consumed_bytes: ConsumedFseBytes:3 }
     ),
     (
         u64[64]:[u64:0xF47FFEBBFF1D25C0, u64:0, ...],
@@ -710,7 +723,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x0, num_of_bits: u8:0x0, base: u16:0x15 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, consumed_bytes: ConsumedFseBytes:3 }
     ),
     (
         u64[64]:[u64:0xA84DF134544CA40, u64:0xEEC609988403B0C, u64:0, ...],
@@ -749,7 +762,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x14, num_of_bits: u8:0x3, base: u16:0x8 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, consumed_bytes: ConsumedFseBytes:10 }
     ),
     (
         u64[64]:[u64:0x38100EEC60998840, u64:0, ...],
@@ -788,7 +801,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x7, num_of_bits: u8:0x2, base: u16:0xc },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, consumed_bytes: ConsumedFseBytes:6 }
     ),
     (
         u64[64]:[u64:0x6B1CA24D0CE43810, u64:0x6651065104A4DFFD, u64:0, ...],
@@ -827,7 +840,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0xf, num_of_bits: u8:0x3, base: u16:0x8 },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:5 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:5, consumed_bytes: ConsumedFseBytes:10 }
     ),
     (
         u64[64]:[u64:0x604FC0502602814, u64:0xE030505040131FF6, u64:0, ...],
@@ -1345,7 +1358,7 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x10, num_of_bits: u8:0x2, base: u16:0x1fc },
             FseTableRecord { symbol: u8:0x5, num_of_bits: u8:0x2, base: u16:0x1fc },
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:9 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:9, consumed_bytes: ConsumedFseBytes:10 }
     ),
     (
         u64[64]:[u64:0x140FE03050504013, u64:0, ...],
@@ -1608,15 +1621,15 @@ const COMP_LOOKUP_DECODER_TESTCASES: (u64[64], FseTableRecord[TEST_FSE_RAM_SIZE]
             FseTableRecord { symbol: u8:0x5, num_of_bits: u8:0x2, base: u16:0xfc },
             zero!<FseTableRecord>(), ...
         ],
-        common::LookupDecoderResp { status: common::LookupDecoderStatus::OK, accuracy_log: AccuracyLog:8 }
+        CompLookupDecoderResp { status: CompLookupDecoderStatus::OK, accuracy_log: AccuracyLog:8, consumed_bytes: ConsumedFseBytes:7 }
     ),
 ];
 
 #[test_proc]
 proc CompLookupDecoderTest {
-    type Req = common::LookupDecoderReq;
-    type Resp = common::LookupDecoderResp;
-    type Status = common::LookupDecoderStatus;
+    type Req = CompLookupDecoderReq;
+    type Resp = CompLookupDecoderResp;
+    type Status = CompLookupDecoderStatus;
 
     type MemReaderReq  = mem_reader::MemReaderReq<TEST_AXI_ADDR_WIDTH>;
     type MemReaderResp = mem_reader::MemReaderResp<TEST_AXI_DATA_WIDTH, TEST_AXI_ADDR_WIDTH>;
@@ -1793,7 +1806,7 @@ proc CompLookupDecoderTest {
                 tok
             }(tok);
 
-            trace_fmt!("Running FSE lookup decoder on testcase {:x}", test_i);
+            trace_fmt!("Running COMP lookup decoder on testcase {:x}", test_i);
             let tok = send(tok, refill_req_s, RefillStartReq {
                 start_addr: uN[TEST_AXI_ADDR_WIDTH]:0x0
             });
