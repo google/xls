@@ -401,12 +401,11 @@ TEST_F(ProcStateLegalizationPassTest,
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
-      Optional(
-          m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
-                m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                             m::Literal(0))))));
+  const testing::Matcher<const Node*> expected_read_predicate = m::Or(
+      m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
+      m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))));
+  EXPECT_THAT(proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+              Optional(expected_read_predicate));
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
       UnorderedElementsAre(
@@ -414,16 +413,19 @@ TEST_F(ProcStateLegalizationPassTest,
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
           m::Next(m::StateRead("y"), m::StateRead("y"),
-                  m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                               m::Literal(0))))));
+                  m::And(expected_read_predicate,
+                         m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                      m::Literal(0)))))));
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
                   [](Node* node) { return node->Is<Assert>(); });
-  EXPECT_THAT(asserts, UnorderedElementsAre(m::Assert(
-                           _, m::Eq(m::Concat(x_multiple_of_3.node(),
-                                              x_not_multiple_of_3.node()),
-                                    m::BitSlice(m::OneHot(m::Concat()))))));
+  EXPECT_THAT(asserts,
+              UnorderedElementsAre(m::Assert(
+                  _, m::Eq(m::Concat(x_multiple_of_3.node(),
+                                     m::And(expected_read_predicate,
+                                            x_not_multiple_of_3.node())),
+                           m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 TEST_F(ProcStateLegalizationPassTest,
@@ -445,13 +447,11 @@ TEST_F(ProcStateLegalizationPassTest,
 
   ASSERT_THAT(Run(proc), IsOkAndHolds(true));
 
-  EXPECT_THAT(
-      proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
-      Optional(
-          m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
-                m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)),
-                m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                             m::Literal(0))))));
+  const testing::Matcher<const Node*> expected_read_predicate =
+      m::Or(m::Eq(m::UMod(m::StateRead("x"), m::Literal(2)), m::Literal(0)),
+            m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0)));
+  EXPECT_THAT(proc->GetStateRead(*proc->GetStateElement("y"))->predicate(),
+              Optional(expected_read_predicate));
   EXPECT_THAT(
       proc->next_values(proc->GetStateRead(*proc->GetStateElement("y"))),
       UnorderedElementsAre(
@@ -459,16 +459,20 @@ TEST_F(ProcStateLegalizationPassTest,
               m::StateRead("y"), m::Add(m::StateRead("y"), m::Literal(1)),
               m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)), m::Literal(0))),
           m::Next(m::StateRead("y"), m::StateRead("y"),
-                  m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
-                               m::Literal(0))))));
+                  m::And(expected_read_predicate,
+                         m::Not(m::Eq(m::UMod(m::StateRead("x"), m::Literal(3)),
+                                      m::Literal(0)))))))
+      << p->DumpIr();
 
   std::vector<Node*> asserts;
   absl::c_copy_if(proc->nodes(), std::back_inserter(asserts),
                   [](Node* node) { return node->Is<Assert>(); });
-  EXPECT_THAT(asserts, UnorderedElementsAre(m::Assert(
-                           _, m::Eq(m::Concat(x_multiple_of_3.node(),
-                                              x_not_multiple_of_3.node()),
-                                    m::BitSlice(m::OneHot(m::Concat()))))));
+  EXPECT_THAT(asserts,
+              UnorderedElementsAre(m::Assert(
+                  _, m::Eq(m::Concat(x_multiple_of_3.node(),
+                                     m::And(expected_read_predicate,
+                                            x_not_multiple_of_3.node())),
+                           m::BitSlice(m::OneHot(m::Concat()))))));
 }
 
 }  // namespace

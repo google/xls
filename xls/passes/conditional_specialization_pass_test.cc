@@ -1225,7 +1225,10 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
   BValue incremented_counter =
       pb.Add(selected_counter, pb.Literal(UBits(1, 32)));
   pb.Next(index, index_is_0);
+  // counter0 has an explicit increment, and an implicit unchanged state.
   pb.Next(counter0, incremented_counter, /*pred=*/index_is_0);
+  // counter1 has an explicit unchanged state and an explicit increment.
+  pb.Next(counter1, counter1, /*pred=*/index_is_0);
   pb.Next(counter1, incremented_counter, /*pred=*/index_is_1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 

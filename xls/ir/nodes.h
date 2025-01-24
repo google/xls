@@ -759,9 +759,16 @@ class Next final : public Node {
     return kPredicateOperand;
   }
 
-  absl::Status AddPredicate(Node* predicate) {
-    XLS_RET_CHECK(!has_predicate_) << absl::StreamFormat(
-        "Cannot add predicate to node `%s` as it already has one", GetName());
+  absl::Status SetPredicate(Node* predicate) {
+    XLS_RET_CHECK_NE(predicate, nullptr) << absl::StreamFormat(
+        "Cannot set predicate of node `%s` to nullptr; use RemovePredicate() "
+        "if you mean to remove it",
+        GetName());
+
+    if (has_predicate_) {
+      return ReplaceOperandNumber(kPredicateOperand, predicate);
+    }
+
     AddOptionalOperand(predicate);
     has_predicate_ = true;
     return absl::OkStatus();
