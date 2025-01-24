@@ -29,6 +29,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/bind_front.h"
 #include "absl/log/check.h"
@@ -288,49 +289,112 @@ static std::vector<Value> MakeFromUint64(xls::TupleType* tuple_type,
   return value.GetElements().value();
 };
 
+static bool ValueIsValid(const Value& value, const Type& type) {
+  if (type.IsEnum()) {
+    const EnumType& enum_type = dynamic_cast<const EnumType&>(type);
+    // Check the the bits value is contained within the enum's members.
+    BitsType underlying_type(enum_type.is_signed(), enum_type.size());
+    InterpValue interp_value =
+        ValueToInterpValue(value, &underlying_type).value();
+    return absl::c_contains(enum_type.AsEnum().members(), interp_value);
+  }
+  // All other values should be valid for their type by construction (i.e. we
+  // would have generated them of the correct size and don't have any sparsity
+  // in what is accepted).
+  return true;
+}
+
+// Returns true if all the values are valid for the given type. Types like enums
+// may not accept all valid values.
+static bool ValuesAreValid(absl::Span<const Value> values,
+                           absl::Span<const Type* const> types) {
+  CHECK_EQ(values.size(), types.size());
+  for (int64_t i = 0; i < values.size(); ++i) {
+    const Value& value = values[i];
+    const Type& type = *types[i];
+    if (!ValueIsValid(value, type)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
-    xls::Function* xls_function, std::string_view ir_name,
+    bool requires_implicit_token, dslx::FunctionType* dslx_fn_type,
+    xls::Function* ir_function, std::string_view ir_name,
     AbstractRunComparator* run_comparator, int64_t seed,
     QuickCheckTestCases test_cases) {
   QuickCheckResults results;
   std::minstd_rand rng_engine(seed);
-  xls::TupleType* param_tuple = xls_function->package()->GetTupleType(
-      xls_function->GetType()->parameters());
+  xls::TupleType* ir_param_tuple = ir_function->package()->GetTupleType(
+      ir_function->GetType()->parameters());
 
   int64_t num_tests;
   std::function<std::vector<Value>(int64_t)> make_arg_set;
   switch (test_cases.tag()) {
     case QuickCheckTestCasesTag::kExhaustive: {
-      int64_t parameter_bit_count = param_tuple->GetFlatBitCount();
+      int64_t parameter_bit_count = ir_param_tuple->GetFlatBitCount();
       if (parameter_bit_count > 48) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Cannot run an exhaustive quickcheck for `%s` "
                             "because it has too large a parameter bit count; "
                             "got: %d",
-                            xls_function->name(), parameter_bit_count));
+                            ir_function->name(), parameter_bit_count));
       }
       num_tests = int64_t{1} << parameter_bit_count;
-      make_arg_set = [&](int64_t i) { return MakeFromUint64(param_tuple, i); };
+      make_arg_set = [&](int64_t i) {
+        return MakeFromUint64(ir_param_tuple, i);
+      };
       break;
     }
     case QuickCheckTestCasesTag::kCounted:
       num_tests =
           test_cases.count().value_or(QuickCheckTestCases::kDefaultTestCount);
       make_arg_set = [&](int64_t) {
-        return RandomFunctionArguments(xls_function, rng_engine);
+        return RandomFunctionArguments(ir_function, rng_engine);
       };
       break;
   }
 
+  std::unique_ptr<dslx::TokenType> token_type;
+  std::unique_ptr<dslx::BitsType> bool_type;
+  std::vector<const dslx::Type*> dslx_param_types;
+  if (requires_implicit_token) {
+    token_type = std::make_unique<dslx::TokenType>();
+    bool_type = std::make_unique<dslx::BitsType>(false, 1);
+    dslx_param_types.push_back(token_type.get());
+    dslx_param_types.push_back(bool_type.get());
+  }
+  for (const std::unique_ptr<dslx::Type>& type : dslx_fn_type->params()) {
+    dslx_param_types.push_back(type.get());
+  }
+
+  // Check that, after we've accounted for the potential implicit-token calling
+  // convention, the number of IR function parameters and DSLX parameters line
+  // up.
+  XLS_RET_CHECK_EQ(ir_param_tuple->size(), dslx_param_types.size())
+      << "IR param tuple size should match DSLX param types size";
+
   for (int i = 0; i < num_tests; i++) {
-    results.arg_sets.push_back(make_arg_set(i));
+    {
+      std::vector<Value> arg_set = make_arg_set(i);
+      if (!ValuesAreValid(arg_set, dslx_param_types)) {
+        // Note: if we reject an argument set, it counts as a test case -- this
+        // makes sense for exhaustive mode but less sense for randomized mode,
+        // we may want those to operate slightly differently.
+        continue;
+      }
+      results.arg_sets.push_back(std::move(arg_set));
+    }
+
     // TODO(https://github.com/google/xls/issues/506): 2021-10-15
     // Assertion failures should work out, but we should consciously decide
     // if/how we want to dump traces when running QuickChecks (always, for
     // failures, flag-controlled, ...).
+    absl::Span<const Value> this_arg_set = results.arg_sets.back();
     XLS_ASSIGN_OR_RETURN(xls::Value result,
                          DropInterpreterEvents(run_comparator->RunIrFunction(
-                             ir_name, xls_function, results.arg_sets.back())));
+                             ir_name, ir_function, this_arg_set)));
 
     // In the case of an implicit token signature we get (token, bool) as the
     // result of the quickcheck'd function, so we unbox the boolean here.
@@ -338,6 +402,11 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(
       result = result.elements()[1];
       XLS_RET_CHECK(result.IsBits());
     }
+
+    XLS_RET_CHECK(result.IsBits())
+        << "quickcheck properties must return `bool`, should be validated by "
+           "type checking; got: "
+        << result;
 
     results.results.push_back(result);
 
@@ -354,33 +423,37 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(
 struct QuickcheckIrFn {
   std::string ir_name;
   xls::Function* ir_function;
+  CallingConvention calling_convention;
 };
 
-static absl::StatusOr<QuickcheckIrFn> FindQuickcheckIrFn(Function* fn,
+static absl::StatusOr<QuickcheckIrFn> FindQuickcheckIrFn(Function* dslx_fn,
                                                          Package* ir_package) {
   // First we try to get the version of the function that doesn't need a token.
-  XLS_ASSIGN_OR_RETURN(std::string ir_name,
-                       MangleDslxName(fn->owner()->name(), fn->identifier(),
-                                      CallingConvention::kTypical,
-                                      fn->GetFreeParametricKeySet()));
+  XLS_ASSIGN_OR_RETURN(
+      std::string ir_name,
+      MangleDslxName(dslx_fn->owner()->name(), dslx_fn->identifier(),
+                     CallingConvention::kTypical,
+                     dslx_fn->GetFreeParametricKeySet()));
   std::optional<xls::Function*> maybe_ir_function =
       ir_package->TryGetFunction(ir_name);
   if (maybe_ir_function.has_value()) {
-    return QuickcheckIrFn{ir_name, maybe_ir_function.value()};
+    return QuickcheckIrFn{ir_name, maybe_ir_function.value(),
+                          CallingConvention::kTypical};
   }
 
-  XLS_ASSIGN_OR_RETURN(ir_name,
-                       MangleDslxName(fn->owner()->name(), fn->identifier(),
-                                      CallingConvention::kImplicitToken,
-                                      fn->GetFreeParametricKeySet()));
+  XLS_ASSIGN_OR_RETURN(
+      ir_name, MangleDslxName(dslx_fn->owner()->name(), dslx_fn->identifier(),
+                              CallingConvention::kImplicitToken,
+                              dslx_fn->GetFreeParametricKeySet()));
   maybe_ir_function = ir_package->TryGetFunction(ir_name);
   if (maybe_ir_function.has_value()) {
-    return QuickcheckIrFn{ir_name, maybe_ir_function.value()};
+    return QuickcheckIrFn{ir_name, maybe_ir_function.value(),
+                          CallingConvention::kImplicitToken};
   }
   return absl::InternalError(
       absl::StrFormat("Could not find DSLX quickcheck function `%s` in IR "
                       "package `%s`; available IR functions: [%s]",
-                      fn->identifier(), ir_package->name(),
+                      dslx_fn->identifier(), ir_package->name(),
                       absl::StrJoin(ir_package->GetFunctionNames(), ", ")));
 }
 
@@ -388,44 +461,81 @@ static absl::Status RunQuickCheck(AbstractRunComparator* run_comparator,
                                   Package* ir_package, QuickCheck* quickcheck,
                                   TypeInfo* type_info, int64_t seed) {
   // Note: DSLX function.
-  Function* fn = quickcheck->fn();
+  dslx::Function* dslx_fn = quickcheck->fn();
+
+  XLS_ASSIGN_OR_RETURN(dslx::FunctionType * dslx_fn_type,
+                       type_info->GetItemAs<dslx::FunctionType>(dslx_fn));
+
+  // Validate the return type is a bool, we rely on that assumption here.
+  const Type& return_type = dslx_fn_type->return_type();
+  std::optional<BitsLikeProperties> bits_like_properties =
+      GetBitsLike(return_type);
+  XLS_RET_CHECK(bits_like_properties.has_value())
+      << "quickcheck properties must return `bool`, should be validated by "
+         "type checking";
+  XLS_RET_CHECK(IsKnownU1(bits_like_properties.value()))
+      << "quickcheck properties must return `bool`, should be validated by "
+         "type checking";
 
   XLS_ASSIGN_OR_RETURN(QuickcheckIrFn qc_fn,
-                       FindQuickcheckIrFn(fn, ir_package));
+                       FindQuickcheckIrFn(dslx_fn, ir_package));
 
   XLS_ASSIGN_OR_RETURN(
       QuickCheckResults qc_results,
-      DoQuickCheck(qc_fn.ir_function, qc_fn.ir_name, run_comparator, seed,
-                   quickcheck->test_cases()));
-  const auto& [arg_sets, results] = qc_results;
-  XLS_ASSIGN_OR_RETURN(Bits last_result, results.back().GetBitsWithStatus());
+      DoQuickCheck(
+          qc_fn.calling_convention == CallingConvention::kImplicitToken,
+          dslx_fn_type, qc_fn.ir_function, qc_fn.ir_name, run_comparator, seed,
+          quickcheck->test_cases()));
+
+  // Extract the (inputs, outputs) from the results.
+  const auto& [inputs, outputs] = qc_results;
+  XLS_RET_CHECK(inputs.size() == outputs.size())
+      << "inputs and outputs must have the same size";
+
+  if (outputs.empty()) {
+    // If we have a value like an empty enum we'll reject all samples, so we
+    // want to make a reasonable error message for that case.
+    return FailureErrorStatus(
+        dslx_fn->span(),
+        absl::StrFormat("quickcheck of `%s` rejected all input samples",
+                        dslx_fn->identifier()),
+        *dslx_fn->owner()->file_table());
+  }
+
+  XLS_ASSIGN_OR_RETURN(Bits last_result, outputs.back().GetBitsWithStatus());
   if (!last_result.IsZero()) {
     // Did not find a falsifying example.
     return absl::OkStatus();
   }
 
-  const std::vector<Value>& last_argset = arg_sets.back();
-  XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                       type_info->GetItemAs<FunctionType>(fn));
-  const std::vector<std::unique_ptr<Type>>& params = fn_type->params();
+  const std::vector<Value>& last_ir_argset = inputs.back();
+  const std::vector<std::unique_ptr<Type>>& dslx_params =
+      dslx_fn_type->params();
+
+  // If we're using the implicit-token calling convention, we have two extra
+  // arguments at the start of the IR function: the token and activation
+  // boolean.
+  int64_t ir_args_start_index =
+      qc_fn.calling_convention == CallingConvention::kImplicitToken ? 2 : 0;
 
   std::vector<InterpValue> dslx_argset;
-  for (int64_t i = 0; i < params.size(); ++i) {
-    const Type& arg_type = *params[i];
-    const Value& value = last_argset[i];
+  for (int64_t i = 0; i < dslx_params.size(); ++i) {
+    const Type& arg_type = *dslx_params[i];
+    const Value& value = last_ir_argset[ir_args_start_index + i];
     XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
                          ValueToInterpValue(value, &arg_type));
     dslx_argset.push_back(interp_value);
   }
+
   std::string dslx_argset_str = absl::StrJoin(
       dslx_argset, ", ", [](std::string* out, const InterpValue& v) {
         absl::StrAppend(out, v.ToString());
       });
   return FailureErrorStatus(
-      fn->span(),
+      dslx_fn->span(),
       absl::StrFormat("Found falsifying example after %d tests: [%s]",
-                      results.size(), dslx_argset_str),
-      *fn->owner()->file_table());
+                      outputs.size(), dslx_argset_str),
+      *dslx_fn->owner()->file_table());
 }
 
 static absl::Status RunQuickChecksIfJitEnabled(

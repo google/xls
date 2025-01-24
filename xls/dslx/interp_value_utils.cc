@@ -292,11 +292,20 @@ absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
 absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
                                                const Type* type) {
   switch (v.kind()) {
+    case ValueKind::kToken:
+      return InterpValue::MakeToken();
     case ValueKind::kBits: {
       InterpValueTag tag = InterpValueTag::kUBits;
       if (type != nullptr) {
+        if (type->IsEnum()) {
+          const EnumType& enum_type = type->AsEnum();
+          return InterpValue::MakeEnum(v.bits(), enum_type.is_signed(),
+                                       &enum_type.nominal_type());
+        }
         std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
-        XLS_RET_CHECK(bits_like.has_value());
+        XLS_RET_CHECK(bits_like.has_value())
+            << "IR value: " << v
+            << " kind is bits but type is not bits-like: " << type->ToString();
         XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
         tag = is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits;
       }

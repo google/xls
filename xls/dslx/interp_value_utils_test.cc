@@ -268,5 +268,15 @@ TEST(InterpValueHelpersTest, ValueToInterpValue) {
                   {InterpValue::MakeU32(3), InterpValue::MakeU32(4)}))));
 }
 
+TEST(InterpValueHelpersTest, ValueToInterpValueEnum) {
+  EnumDef enum_def(/*owner=*/nullptr, /*span=*/Span::Fake(),
+                   /*name_def=*/nullptr, /*parametric_bindings=*/{},
+                   /*members=*/{}, /*is_public=*/false);
+  EnumType enum_type(enum_def, TypeDim::CreateU32(32), /*is_signed=*/false, {});
+  EXPECT_THAT(ValueToInterpValue(Value(UBits(3, 32)), &enum_type),
+              IsOkAndHolds(Eq(InterpValue::MakeEnum(
+                  UBits(3, 32), /*is_signed=*/false, &enum_def))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

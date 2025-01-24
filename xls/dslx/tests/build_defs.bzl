@@ -43,7 +43,8 @@ def dslx_lang_test(
         evaluate_ir = True,
         benchmark_ir = True,
         warnings_as_errors = True,
-        test_autofmt = True):
+        test_autofmt = True,
+        compare = "jit"):
     """This macro is convenient shorthand for our many DSLX test targets.
 
     The primary target that it generates that developers may want to depend upon is:
@@ -93,10 +94,15 @@ def dslx_lang_test(
       warnings_as_errors: Whether warnings are errors within the DSLX library definition.
       test_autofmt: Whether to make an autoformatting test target. This ensures the
         language test remains auto-formatted.
+      compare: Whether to compare DSL-interpreted results with IR execution for each
+        function for consistency checking.
 
     As a byproduct this makes a "{name}_dslx" library target that other
     dslx_interp_tests can reference via the dslx_deps attribute.
     """
+    if compare not in ["none", "jit", "interpreter"]:
+        fail("compare must be one of: none, jit, interpreter")
+
     dslx_deps = dslx_deps or []
     xls_dslx_library(
         name = name + "_dslx",
@@ -105,7 +111,7 @@ def dslx_lang_test(
         warnings_as_errors = warnings_as_errors,
     )
 
-    test_args = {} if convert_to_ir else {"compare": "none"}
+    test_args = {} if convert_to_ir else {"compare": compare}
     test_args["warnings_as_errors"] = "true" if warnings_as_errors else "false"
     xls_dslx_test(
         name = name + "_dslx_test",

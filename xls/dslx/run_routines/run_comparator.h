@@ -77,6 +77,7 @@ class RunComparator : public AbstractRunComparator {
   XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit);
   XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckExhaustive);
   XLS_FRIEND_TEST(RunRoutinesTest, NoSeedStillQuickChecks);
+  XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckExhaustiveEnumWithFail);
 
   absl::flat_hash_map<std::string, std::unique_ptr<FunctionJit>> jit_cache_;
   CompareMode mode_;

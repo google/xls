@@ -15,21 +15,30 @@
 #include "xls/dslx/run_routines/run_routines.h"
 
 #include <cstdint>
+#include <filesystem>  // NOLINT
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/run_routines/ir_test_runner.h"
 #include "xls/dslx/run_routines/run_comparator.h"
+#include "xls/dslx/type_system/type.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -190,6 +199,161 @@ fn trivial(x: u2) -> bool { id(true) }
   EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__trivial");
 }
 
+TEST_P(RunRoutinesTest, QuickcheckExhaustiveEnumWithFail) {
+  constexpr const char* kProgram = R"(
+enum MyEnum: u2 {
+  A = 0,
+  B = 1,
+  C = 2,
+}
+
+#[quickcheck(exhaustive)]
+fn qc(x: MyEnum) -> bool {
+    match x {
+        MyEnum::A | MyEnum::B | MyEnum::C => true,
+        _ => fail!("impossible_value", false),
+    }
+}
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+
+  ASSERT_EQ(jit_comparator.jit_cache_.size(), 1);
+  EXPECT_EQ(jit_comparator.jit_cache_.begin()->first, "__test__qc");
+}
+
+TEST_P(RunRoutinesTest, EmptyEnum) {
+  constexpr const char* kProgram = R"(
+enum EmptyEnum: u2 {
+}
+
+#[quickcheck(exhaustive)]
+fn qc(x: EmptyEnum) -> bool {
+    true
+}
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.vfs_factory = [kProgram] {
+    return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
+  };
+  options.run_comparator = &jit_comparator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
+  ASSERT_EQ(result.failures().size(), 1);
+  std::string failure_message = result.failures()[0];
+  EXPECT_THAT(failure_message,
+              HasSubstr("quickcheck of `qc` rejected all input samples"));
+}
+
+// Quickcheck function that takes an `xN` based value and returns an `xN` based
+// value.
+TEST_P(RunRoutinesTest, QuickcheckXn) {
+  constexpr const char* kProgram = R"(
+const S: bool = false;
+type MyBool = xN[false][1];
+type MyBool2 = xN[MyBool:0][1];
+#[quickcheck(exhaustive)]
+fn qc(x: xN[S][4]) -> MyBool2 {
+    let lsb = x[0 +: MyBool2];
+    if lsb { lsb } else { MyBool2:1 }
+}
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kAllPassed, 1, 0, 0));
+}
+
+TEST_P(RunRoutinesTest, QuickcheckImplicitTokenRoutineThatFails) {
+  constexpr const char* kProgram = R"(
+#[quickcheck]
+fn qc_with_implicit_token(x: u2) -> bool {
+    trace_fmt!("{}", x);  // make an implicit token calling convention
+    false  // fail immediately
+}
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+  options.vfs_factory = [kProgram] {
+    return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
+}
+
+TEST_P(RunRoutinesTest, GithubIssue1586) {
+  constexpr const char* kProgram = R"(
+import apfloat;
+import bfloat16;
+import float32;
+
+const BF16_TOTAL_SZ: u32 = u32:16;
+
+#[quickcheck]
+fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> bool {
+    (x ++ bits[u32:16]:0 ==
+    float32::flatten(
+        apfloat::upcast<float32::F32_EXP_SZ, float32::F32_FRACTION_SZ>(bfloat16::unflatten(x))))
+}
+)";
+  constexpr const char* kModuleName = "test";
+  constexpr const char* kFilename = "test.x";
+  RunComparator jit_comparator(CompareMode::kJit);
+  ParseAndTestOptions options;
+  options.run_comparator = &jit_comparator;
+
+  const std::filesystem::path root("/");
+  auto get_stdlib_contents = [](std::string_view filename) -> std::string {
+    std::filesystem::path path =
+        std::filesystem::path(kDefaultDslxStdlibPath) / filename;
+    return GetFileContents(path).value();
+  };
+  options.dslx_stdlib_path = root / "stdlib";
+  options.seed = int64_t{431969656495450};
+  options.vfs_factory = [&]() -> std::unique_ptr<VirtualizableFilesystem> {
+    return std::make_unique<FakeFilesystem>(
+        absl::flat_hash_map<std::filesystem::path, std::string>{
+            {"/test.x", kProgram},
+            {"/stdlib/std.x", get_stdlib_contents("std.x")},
+            {"/stdlib/apfloat.x", get_stdlib_contents("apfloat.x")},
+            {"/stdlib/bfloat16.x", get_stdlib_contents("bfloat16.x")},
+            {"/stdlib/float32.x", get_stdlib_contents("float32.x")},
+        },
+        /*cwd=*/root);
+  };
+  // Run the quickcheck and inspect that there's a u16 reported in the output.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TestResultData result,
+      ParseAndTest(kProgram, kModuleName, kFilename, options));
+  EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
+  // Look at the failure message to make sure the u16 is reported.
+  std::vector<std::string> failures = result.failures();
+  ASSERT_EQ(failures.size(), 1);
+  EXPECT_THAT(failures[0], HasSubstr("tests: [u16:34]"));
+}
+
 // An exhaustive quickcheck that fails just for one value in a decently large
 // space.
 TEST_P(RunRoutinesTest, QuickcheckExhaustiveFail) {
@@ -266,7 +430,11 @@ fn qc(x: bool) -> bool { do_fail(x) }
   constexpr const char* kFilename = "test.x";
   RunComparator jit_comparator(CompareMode::kJit);
   ParseAndTestOptions options;
+  options.seed = int64_t{2316476071057580};
   options.run_comparator = &jit_comparator;
+  options.vfs_factory = [kProgram] {
+    return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
+  };
   XLS_ASSERT_OK_AND_ASSIGN(
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
@@ -377,9 +545,16 @@ TEST(QuickcheckTest, QuickCheckBits) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
+
+  std::vector<std::unique_ptr<dslx::Type>> params;
+  params.push_back(std::make_unique<dslx::BitsType>(false, 2));
+  auto return_type = std::make_unique<dslx::BitsType>(false, 1);
+  dslx::FunctionType fn_type(std::move(params), std::move(return_type));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
+      DoQuickCheck(/*requires_implicit_token=*/false, &fn_type, function,
+                   kFakeIrName, &jit_comparator, seed, test_cases));
   std::vector<Value> results = quickcheck_info.results;
   // If a counter-example was found, the last result will be 0.
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
@@ -401,9 +576,17 @@ TEST(QuickcheckTest, QuickCheckArray) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
+
+  std::vector<std::unique_ptr<dslx::Type>> params;
+  params.push_back(std::make_unique<dslx::ArrayType>(
+      std::make_unique<dslx::BitsType>(false, 8), TypeDim::CreateU32(5)));
+  auto return_type = std::make_unique<dslx::BitsType>(false, 1);
+  dslx::FunctionType fn_type(std::move(params), std::move(return_type));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
+      DoQuickCheck(/*requires_implicit_token=*/false, &fn_type, function,
+                   kFakeIrName, &jit_comparator, seed, test_cases));
   std::vector<Value> results = quickcheck_info.results;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
 }
@@ -422,9 +605,20 @@ TEST(QuickcheckTest, QuickCheckTuple) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
+
+  std::vector<std::unique_ptr<dslx::Type>> tuple_elems;
+  tuple_elems.push_back(std::make_unique<dslx::BitsType>(false, 8));
+  tuple_elems.push_back(std::make_unique<dslx::BitsType>(false, 8));
+
+  std::vector<std::unique_ptr<dslx::Type>> params;
+  params.push_back(std::make_unique<dslx::TupleType>(std::move(tuple_elems)));
+  auto return_type = std::make_unique<dslx::BitsType>(false, 1);
+  dslx::FunctionType fn_type(std::move(params), std::move(return_type));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
+      DoQuickCheck(/*requires_implicit_token=*/false, &fn_type, function,
+                   kFakeIrName, &jit_comparator, seed, test_cases));
   std::vector<Value> results = quickcheck_info.results;
   EXPECT_EQ(results.back(), Value(UBits(0, 1)));
 }
@@ -443,9 +637,16 @@ TEST(QuickcheckTest, NumTests) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
+
+  std::vector<std::unique_ptr<dslx::Type>> params;
+  params.push_back(std::make_unique<dslx::BitsType>(false, 32));
+  auto return_type = std::make_unique<dslx::BitsType>(false, 1);
+  dslx::FunctionType fn_type(std::move(params), std::move(return_type));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
+      DoQuickCheck(/*requires_implicit_token=*/false, &fn_type, function,
+                   kFakeIrName, &jit_comparator, seed, test_cases));
 
   std::vector<std::vector<Value>> argsets = quickcheck_info.arg_sets;
   std::vector<Value> results = quickcheck_info.results;
@@ -468,12 +669,20 @@ TEST(QuickcheckTest, Seeding) {
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * function,
                            Parser::ParseFunction(ir_text, &package));
   RunComparator jit_comparator(CompareMode::kJit);
+  std::vector<std::unique_ptr<dslx::Type>> params;
+
+  params.push_back(std::make_unique<dslx::BitsType>(false, 8));
+  auto return_type = std::make_unique<dslx::BitsType>(false, 1);
+  dslx::FunctionType fn_type(std::move(params), std::move(return_type));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info1,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
+      DoQuickCheck(/*requires_implicit_token=*/false, &fn_type, function,
+                   kFakeIrName, &jit_comparator, seed, test_cases));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto quickcheck_info2,
-      DoQuickCheck(function, kFakeIrName, &jit_comparator, seed, test_cases));
+      DoQuickCheck(/*requires_implicit_token=*/false, &fn_type, function,
+                   kFakeIrName, &jit_comparator, seed, test_cases));
 
   const auto& [argsets1, results1] = quickcheck_info1;
   const auto& [argsets2, results2] = quickcheck_info2;

@@ -902,6 +902,12 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(
+    name = "quickcheck_with_enum",
+    # Primarily a #[quickcheck] function.
+    convert_to_ir = False,
+)
+
 dslx_lang_test(name = "for_up_to_const")
 
 dslx_lang_test(name = "for_up_to_const_local")
@@ -1187,6 +1193,7 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "proc_channel_arrays",
+    compare = "none",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,
     # TODO(leary): 2023-10-20 Arrays of channels are being formatted
@@ -1196,6 +1203,7 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "proc_network",
+    compare = "none",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,
 )

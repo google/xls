@@ -39,6 +39,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/mangle.h"
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -293,7 +294,8 @@ struct QuickCheckResults {
 // this finds an example that falsifies the predicate, we early-return (i.e. the
 // length of the returned vectors may be < 1000).
 absl::StatusOr<QuickCheckResults> DoQuickCheck(
-    xls::Function* xls_function, std::string_view ir_name,
+    bool requires_implicit_token, dslx::FunctionType* dslx_fn_type,
+    xls::Function* ir_function, std::string_view ir_name,
     AbstractRunComparator* run_comparator, int64_t seed,
     QuickCheckTestCases test_cases);
 
