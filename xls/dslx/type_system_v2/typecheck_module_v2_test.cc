@@ -2190,35 +2190,42 @@ fn foo(x: u32, y: u32) -> bool {
 
 TEST(TypecheckV2Test, CastU32ToU32) {
   EXPECT_THAT(R"(const X = u32:1;
-const Y: u32 = X as u32;)",
+const Y = X as u32;)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, CastXPlus1AsU32) {
+  EXPECT_THAT(R"(const X = u32:1;
+const Y = (X + 1) as u32;)",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
                                       HasNodeWithType("Y", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, CastU32ToU16) {
   EXPECT_THAT(R"(const X = u32:1;
-const Y: u16 = X as u16;)",
+const Y = X as u16;)",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
                                       HasNodeWithType("Y", "uN[16]"))));
 }
 
 TEST(TypecheckV2Test, CastU16ToU32) {
   EXPECT_THAT(R"(const X = u16:1;
-const Y: u32 = X as u32;)",
+const Y = X as u32;)",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
                                       HasNodeWithType("Y", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, CastS16ToU32) {
   EXPECT_THAT(R"(const X = s16:1;
-const Y: u32 = X as u32;)",
+const Y = X as u32;)",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "sN[16]"),
                                       HasNodeWithType("Y", "uN[32]"))));
 }
 
 TEST(TypecheckV2Test, CastU16ToS32) {
   EXPECT_THAT(R"(const X = u16:1;
-const Y: s32 = X as s32;)",
+const Y = X as s32;)",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
                                       HasNodeWithType("Y", "sN[32]"))));
 }
@@ -2231,13 +2238,13 @@ const X = f(u10:256);)",
 
 TEST(TypecheckV2Test, CastTupleToU32) {
   EXPECT_THAT(R"(const X = (u32:1, u32:2);
-const Y: u32 = X as u32;)",
+const Y = X as u32;)",
               TypecheckFails(HasCastError("(uN[32], uN[32])", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, CastBitsArray2xU16ToU32) {
   EXPECT_THAT(R"(const X = [u16:1, u16:2];
-const Y: u32 = X as u32;)",
+const Y = X as u32;)",
               TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16][2]"),
                                       HasNodeWithType("Y", "uN[32]"))));
 }

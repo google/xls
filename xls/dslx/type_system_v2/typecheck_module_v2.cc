@@ -169,6 +169,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleCast(const Cast* node) override {
     VLOG(5) << "HandleCast: " << node->ToString();
 
+    // Create a new type variable for the casted expression.
+    XLS_ASSIGN_OR_RETURN(const NameRef* casted_variable,
+                         table_.DefineInternalVariable(
+                             InferenceVariableKind::kType, node->expr(),
+                             GenerateInternalTypeVariableName(node->expr())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->expr(), casted_variable));
+
     // The cast node has the target type annotation (assuming it is valid, which
     // will be checked at conversion time).
     const TypeAnnotation* target_type = node->type_annotation();
