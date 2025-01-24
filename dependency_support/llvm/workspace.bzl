@@ -28,6 +28,8 @@ def repo():
         name = "llvm-raw",
         build_file_content = "# empty",
         sha256 = LLVM_SHA256,
+        patches = ["@//dependency_support/llvm:llvm.patch"],
+        patch_args = ["-p1"],
         strip_prefix = "llvm-project-" + LLVM_COMMIT,
         urls = ["https://github.com/llvm/llvm-project/archive/{commit}.tar.gz".format(commit = LLVM_COMMIT)],
     )
