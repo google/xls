@@ -868,6 +868,7 @@ cc_test(
         ":ir",
         ":ir_parser",
         ":op",
+        ":state_element",
         ":type",
         ":value",
         "//xls/common:casts",

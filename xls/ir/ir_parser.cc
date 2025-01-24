@@ -793,7 +793,9 @@ absl::StatusOr<BValue> Parser::ParseNode(
     case Op::kStateRead: {
       IdentifierString* state_name =
           arg_parser.AddKeywordArg<IdentifierString>("state_element");
-      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(ArgParser::kVariadic));
+      std::optional<BValue>* predicate =
+          arg_parser.AddOptionalKeywordArg<BValue>("predicate");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/0));
       auto it = name_to_value->find(state_name->value);
       if (it == name_to_value->end()) {
         return absl::InvalidArgumentError(
@@ -802,6 +804,10 @@ absl::StatusOr<BValue> Parser::ParseNode(
                             state_name->value, op_token.pos().ToHumanString()));
       }
       bvalue = it->second;
+      if (predicate->has_value()) {
+        XLS_RETURN_IF_ERROR(
+            bvalue.node()->As<StateRead>()->SetPredicate((*predicate)->node()));
+      }
       break;
     }
     case Op::kNext: {

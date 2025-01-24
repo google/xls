@@ -523,10 +523,16 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kParam:
       args.push_back(absl::StrFormat("name=%s", GetName()));
       break;
-    case Op::kStateRead:
-      args.push_back(absl::StrFormat("state_element=%s",
-                                     As<StateRead>()->state_element()->name()));
+    case Op::kStateRead: {
+      const StateRead* state_read = As<StateRead>();
+      args = {absl::StrFormat("state_element=%s",
+                              state_read->state_element()->name())};
+      if (state_read->predicate().has_value()) {
+        args.push_back(absl::StrFormat("predicate=%s",
+                                       (*state_read->predicate())->GetName()));
+      }
       break;
+    }
     case Op::kNext: {
       const Next* next = As<Next>();
       args = {absl::StrFormat("param=%s", next->state_read()->GetName()),

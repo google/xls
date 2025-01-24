@@ -1,0 +1,16 @@
+package test
+
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+
+proc my_proc(my_token: token, my_state: bits[32], my_predicate: bits[1], init={token, 42, 1}) {
+  my_predicate: bits[1] = state_read(state_element=my_predicate, id=18)
+  my_token: token = state_read(state_element=my_token, id=9)
+  my_state: bits[32] = state_read(state_element=my_state, predicate=my_predicate, id=10)
+  send.1: token = send(my_token, my_state, channel=ch, id=1)
+  literal.2: bits[1] = literal(value=1, id=2)
+  receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel=ch, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  next_value.5: () = next_value(param=my_token, value=tuple_index.4, id=5)
+  next_value.6: () = next_value(param=my_state, value=my_state, id=6)
+  next_value.7: () = next_value(param=my_predicate, value=my_predicate, id=7)
+}

@@ -270,6 +270,10 @@ TEST(IrParserRoundTripTest, ParseProcWithExplicitNext) {
   ParsePackageAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, ParseProcWithPredicatedStateRead) {
+  ParsePackageAndCheckDump(TestName());
+}
+
 TEST(IrParserRoundTripTest, ParseNewStyleProc) {
   ParsePackageAndCheckDump(TestName());
 }
