@@ -23,13 +23,12 @@
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/Visitors.h"
-#include "mlir/include/mlir/InitAllDialects.h"
-#include "mlir/include/mlir/InitAllExtensions.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Tools/mlir-translate/MlirTranslateMain.h"
@@ -71,12 +70,9 @@ llvm::cl::opt<bool> dumpCodegenMetrics(
     llvm::cl::init(false));
 
 void registerInputDialects(DialectRegistry& registry) {
-  // TODO(jpienaar): Registering all as start/prototyping.
-  mlir::registerAllDialects(registry);
-  mlir::registerAllExtensions(registry);
-  registerXlsDialect(registry);
   registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
-                  mlir::tensor::TensorDialect>();
+                  mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
+  registerXlsDialect(registry);
 }
 
 static void printCodegenMetrics(

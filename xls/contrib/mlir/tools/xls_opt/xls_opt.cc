@@ -13,11 +13,14 @@
 // limitations under the License.
 
 #include "llvm/include/llvm/Support/LogicalResult.h"
-#include "mlir/include/mlir/InitAllDialects.h"
-#include "mlir/include/mlir/InitAllExtensions.h"
-#include "mlir/include/mlir/InitAllPasses.h"
+#include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/include/mlir/Dialect/Math/IR/Math.h"
+#include "mlir/include/mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/include/mlir/Pass/PassRegistry.h"
 #include "mlir/include/mlir/Tools/mlir-opt/MlirOptMain.h"
+#include "mlir/include/mlir/Transforms/Passes.h"
 #include "xls/contrib/mlir/IR/register.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"  // IWYU pragma: keep
 #include "xls/contrib/mlir/transforms/passes.h"
@@ -26,12 +29,14 @@
 #include "xls/contrib/mlir/util/proc_utils.h"
 
 int main(int argc, char** argv) {
-  mlir::registerAllPasses();
-
   mlir::DialectRegistry registry;
-  mlir::registerAllDialects(registry);
-  mlir::registerAllExtensions(registry);
+  registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
+                  mlir::math::MathDialect, mlir::scf::SCFDialect,
+                  mlir::tensor::TensorDialect>();
   mlir::xls::registerXlsDialect(registry);
+  mlir::registerCanonicalizerPass();
+  mlir::registerCSEPass();
+  mlir::registerSymbolDCEPass();
   mlir::registerPass(mlir::xls::createScalarizePass);
   mlir::registerPass(mlir::xls::createArithToXlsPass);
   mlir::registerPass(mlir::xls::createScfToXlsPass);
