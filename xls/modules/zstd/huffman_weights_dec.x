@@ -1059,8 +1059,7 @@ proc HuffmanFseWeightsDecoder<
         let tok = send(tok, fld_rsb_start_req_s, fld_rsb_start_req);
         trace_fmt!("[FSE] Sent refilling shift buffer start request {:#x}", fld_rsb_start_req);
 
-        let fld_req = FseLookupDecoderReq {
-        };
+        let fld_req = FseLookupDecoderReq {};
         let tok = send(tok, fld_req_s, fld_req);
         trace_fmt!("[FSE] Sent FSE lookup decoding request {:#x}", fld_req);
 
@@ -1081,7 +1080,7 @@ proc HuffmanFseWeightsDecoder<
         trace_fmt!("[FSE] Sent refilling shift buffer start request {:#x}", fd_rsb_start_req);
 
         let fd_ctrl = HuffmanFseDecoderCtrl {
-            length: req.length - u8:2, // FIXME: replace hard-coded value with FSE header size
+            length: req.length - checked_cast<u8>(fld_resp.consumed_bytes),
             acc_log: fld_resp.accuracy_log,
         };
         let tok = send(tok, fd_ctrl_s, fd_ctrl);

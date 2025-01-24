@@ -49,11 +49,20 @@ pub enum FseProbaFreqDecoderStatus: u1 {
     ERROR = 1,
 }
 
+const MAX_CONSUMED_FSE_BITS = FSE_MAX_SYMBOLS * FSE_MAX_ACCURACY_LOG;
+const CONSUMED_FSE_BITS_WIDTH = std::clog2(MAX_CONSUMED_FSE_BITS);
+pub type ConsumedFseBits = uN[CONSUMED_FSE_BITS_WIDTH];
+
+const MAX_CONSUMED_FSE_BYTES = MAX_CONSUMED_FSE_BITS / u32:8;
+const CONSUMED_FSE_BYTES_WIDTH = std::clog2(MAX_CONSUMED_FSE_BYTES);
+pub type ConsumedFseBytes = uN[CONSUMED_FSE_BYTES_WIDTH];
+
 pub struct FseProbaFreqDecoderReq {}
 pub struct FseProbaFreqDecoderResp {
     status: FseProbaFreqDecoderStatus,
     accuracy_log: AccuracyLog,
     symbol_count: SymbolCount,
+    consumed_bytes: ConsumedFseBytes,
 }
 
 enum Fsm : u4 {
@@ -89,7 +98,9 @@ struct State {
     // using up more probability points than were available
     data_invalid: bool,
     // number of bits read from RefillingShiftBuffer modulo 8
-    read_bits_mod8: u3
+    read_bits_mod8: u3,
+    // number of bits requested from the ShiftBuffer
+    read_bits: ConsumedFseBits,
 }
 
 // Adapter for input data, converting the data to a shift buffer input type
@@ -254,6 +265,8 @@ pub proc FseProbaFreqDecoder<
         };
         let (tok1_1, out_data) = recv_if(tok0, buff_out_data_r, do_buff_data_recv, zero!<BufferOutput>());
         let data_invalid = state.data_invalid || out_data.error;
+
+        let read_bits = state.read_bits + out_data.length as ConsumedFseBits;
         let read_bits_mod8 = state.read_bits_mod8 + out_data.length as u3;
 
         let (tok1_2, written_symbol_count, written_symb_count_valid) =
@@ -292,6 +305,7 @@ pub proc FseProbaFreqDecoder<
                         remaining_proba,
                         written_symbol_count,
                         data_invalid,
+                        read_bits,
                         read_bits_mod8,
                     ..state
                     },
@@ -303,7 +317,12 @@ pub proc FseProbaFreqDecoder<
                     (true, BufferCtrl { length: bit_width as Length }),
                     (false, zero!<RamWriteReq>()),
                     (false, zero!<Resp>()),
-                    State { fsm: Fsm::RECV_SYMBOL, written_symbol_count, ..state },
+                    State {
+                        fsm: Fsm::RECV_SYMBOL,
+                        written_symbol_count,
+                        read_bits,
+                        read_bits_mod8,
+                    ..state },
                 )
             },
             Fsm::RECV_SYMBOL => {
@@ -351,6 +370,7 @@ pub proc FseProbaFreqDecoder<
                             remaining_proba,
                             remainder,
                             data_invalid,
+                            read_bits,
                             read_bits_mod8,
                         ..state
                         },
@@ -372,6 +392,7 @@ pub proc FseProbaFreqDecoder<
                             symbol_count,
                             remaining_proba,
                             remainder,
+                            read_bits,
                             read_bits_mod8,
                         ..state
                         },
@@ -393,6 +414,7 @@ pub proc FseProbaFreqDecoder<
                             symbol_count,
                             remaining_proba,
                             remainder,
+                            read_bits,
                             read_bits_mod8,
                         ..state
                         }
@@ -432,6 +454,7 @@ pub proc FseProbaFreqDecoder<
                             remainder: zero!<Remainder>(),
                             written_symbol_count,
                             data_invalid,
+                            read_bits,
                             read_bits_mod8,
                         ..state
                         },
@@ -450,6 +473,7 @@ pub proc FseProbaFreqDecoder<
                             zero_proba_count,
                             next_recv_zero,
                             data_invalid,
+                            read_bits,
                             read_bits_mod8,
                         ..state
                         },
@@ -477,6 +501,8 @@ pub proc FseProbaFreqDecoder<
                             written_symbol_count,
                             zero_proba_count,
                             symbol_count,
+                            read_bits,
+                            read_bits_mod8,
                         ..state
                         },
                     )
@@ -491,6 +517,8 @@ pub proc FseProbaFreqDecoder<
                             zero_proba_count: SymbolCount:0,
                             written_symbol_count,
                             symbol_count,
+                            read_bits,
+                            read_bits_mod8,
                         ..state
                         },
                     )
@@ -504,6 +532,8 @@ pub proc FseProbaFreqDecoder<
                             zero_proba_count,
                             symbol_count,
                             written_symbol_count,
+                            read_bits,
+                            read_bits_mod8,
                         ..state
                         },
                     )
@@ -521,6 +551,8 @@ pub proc FseProbaFreqDecoder<
                         (false, zero!<Resp>()),
                         State {
                             fsm: Fsm::CONSUME_PADDING,
+                            read_bits,
+                            read_bits_mod8,
                         ..state
                         }
                     )
@@ -543,6 +575,7 @@ pub proc FseProbaFreqDecoder<
                         status: if state.data_invalid { Status::ERROR } else { Status::OK },
                         accuracy_log: state.accuracy_log,
                         symbol_count: state.symbol_count,
+                        consumed_bytes: checked_cast<ConsumedFseBytes>(read_bits >> 3),
                      }),
                      zero!<State>()
                 )
@@ -710,6 +743,7 @@ proc FseProbaFreqDecoderTest {
             status: FseProbaFreqDecoderStatus::OK,
             accuracy_log: AccuracyLog:8,
             symbol_count: SymbolCount:12,
+            consumed_bytes: ConsumedFseBytes:6,
         });
 
         // check that the proc consumed the padding by sending request
@@ -762,6 +796,7 @@ proc FseProbaFreqDecoderTest {
             status: FseProbaFreqDecoderStatus::OK,
             accuracy_log: AccuracyLog:9,
             symbol_count: SymbolCount:2,
+            consumed_bytes: ConsumedFseBytes:2,
         });
 
         for ((i, exp_val), tok): ((u32, RamData), token) in enumerate(EXPECTED_RAM_CONTENTS) {
@@ -798,6 +833,7 @@ proc FseProbaFreqDecoderTest {
             status: FseProbaFreqDecoderStatus::OK,
             accuracy_log: AccuracyLog:9,
             symbol_count: SymbolCount:2,
+            consumed_bytes: ConsumedFseBytes:2,
         });
 
         for ((i, exp_val), tok): ((u32, RamData), token) in enumerate(EXPECTED_RAM_CONTENTS) {
