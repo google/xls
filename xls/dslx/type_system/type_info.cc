@@ -295,9 +295,23 @@ absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
           [this](ColonRef* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
             return ResolveTypeDefinition(sd);
           },
+          [this](UseTreeEntry* sd) -> absl::StatusOr<TypeInfo::TypeSource> {
+            return ResolveTypeDefinition(sd);
+          },
       },
       source);
 }
+
+absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
+    UseTreeEntry* source) {
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported,
+                       GetImportedOrError(source));
+  std::string_view identifier = source->GetLeafNameDef().value()->identifier();
+  XLS_ASSIGN_OR_RETURN(TypeDefinition imported_def,
+                       imported->module->GetTypeDefinition(identifier));
+  return imported->type_info->ResolveTypeDefinition(imported_def);
+}
+
 absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
     ColonRef* source) {
   // Resolve the colon-ref to the import it comes from.
@@ -309,6 +323,7 @@ absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
                        imported->module->GetTypeDefinition(source->attr()));
   return imported->type_info->ResolveTypeDefinition(imported_def);
 }
+
 absl::StatusOr<std::optional<std::string>> TypeInfo::FindSvType(
     TypeAnnotation* source) {
   auto* ref_type = dynamic_cast<TypeRefTypeAnnotation*>(source);

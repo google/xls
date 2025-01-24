@@ -127,15 +127,31 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
     }
   }
 
+  if (std::holds_alternative<UseTreeEntry*>(current_type_definition)) {
+    UseTreeEntry* use_tree_entry =
+        std::get<UseTreeEntry*>(current_type_definition);
+    std::string_view identifier =
+        use_tree_entry->GetLeafNameDef().value()->identifier();
+    // Get the imported module.
+    XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported,
+                         type_info->GetImportedOrError(use_tree_entry));
+    const Module& imported_module = *imported->module;
+    XLS_ASSIGN_OR_RETURN(current_type_definition,
+                         imported_module.GetTypeDefinition(identifier));
+  }
+
   // If struct type, return the `TypeRefTypeAnnotation` to preserve parametrics.
   if (std::holds_alternative<StructDef*>(current_type_definition)) {
     return current_type_ref;
   }
 
   if (!std::holds_alternative<EnumDef*>(current_type_definition)) {
-    return absl::InternalError(
+    return absl::InternalError(absl::StrFormat(
         "ResolveTypeDefToDirectColonRefSubject() can only be called when the "
-        "TypeAlias directly or indirectly refers to an EnumDef or StructDef.");
+        "TypeAlias directly or indirectly refers to an EnumDef or StructDef; "
+        "got: `%s` (kind: %s)",
+        ToAstNode(current_type_definition)->ToString(),
+        ToAstNode(current_type_definition)->GetNodeTypeName()));
   }
 
   return std::get<EnumDef*>(current_type_definition);
@@ -501,6 +517,10 @@ absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
           },
           [](EnumDef* enum_def) -> ReturnT { return enum_def; },
           [](ColonRef* colon_ref) -> ReturnT { return colon_ref; },
+          [](UseTreeEntry* use_tree_entry) -> ReturnT {
+            LOG(FATAL) << "Extern UseTreeEntry not yet supported: "
+                       << use_tree_entry->ToString();
+          },
       },
       td.value());
 }
@@ -696,7 +716,20 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                       enum_def->identifier()),
                   file_table);
             },
-        },
+            [&](UseTreeEntry* use_tree_entry) -> absl::Status {
+              XLS_ASSIGN_OR_RETURN(
+                  const ImportedInfo* imported,
+                  type_info->GetImportedOrError(use_tree_entry));
+              std::string_view identifier =
+                  use_tree_entry->GetLeafNameDef().value()->identifier();
+              const Module& module = *imported->module;
+              XLS_ASSIGN_OR_RETURN(current,
+                                   module.GetTypeDefinition(identifier));
+              XLS_ASSIGN_OR_RETURN(
+                  retval, DerefToStruct(span, original_ref_text, current,
+                                        imported->type_info));
+              return absl::OkStatus();
+            }},
         current);
     XLS_RETURN_IF_ERROR(status);
     if (retval != nullptr) {

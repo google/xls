@@ -337,6 +337,11 @@ DocRef Fmt(const TypeRef& n, Comments& comments, DocArena& arena) {
   return absl::visit(
       Visitor{
           [&](const ColonRef* n) { return Fmt(*n, comments, arena); },
+          [&](const UseTreeEntry* n) {
+            std::string_view identifier =
+                n->GetLeafNameDef().value()->identifier();
+            return arena.MakeText(std::string(identifier));
+          },
           [&](const auto* n) { return arena.MakeText(n->identifier()); },
       },
       n.type_definition());

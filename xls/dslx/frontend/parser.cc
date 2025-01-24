@@ -161,6 +161,7 @@ absl::StatusOr<TypeDefinition> BoundNodeToTypeDefinition(BoundNode bn) {
   if (auto* e = TryGet<StructDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<ProcDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<EnumDef*>(bn)) { return TypeDefinition(e); }
+  if (auto* e = TryGet<UseTreeEntry*>(bn)) { return TypeDefinition(e); }
   // clang-format on
 
   return absl::InvalidArgumentError("Could not convert to type definition: " +
@@ -394,13 +395,19 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
               [&](auto* t) { return module_->AddTop(t, make_collision_error); },
               [&](TypeDefinition def) {
                 return absl::visit(
-                    Visitor{[&](ColonRef* c) {
-                              return absl::InternalError(
-                                  "colon-ref annotated with attribute");
-                            },
-                            [&](auto* t) {
-                              return module_->AddTop(t, make_collision_error);
-                            }},
+                    Visitor{
+                        [&](ColonRef* c) {
+                          return absl::FailedPreconditionError(
+                              "ColonRef cannot be annotated with an attribute");
+                        },
+                        [&](auto* t) {
+                          return module_->AddTop(t, make_collision_error);
+                        },
+                        [&](UseTreeEntry* n) {
+                          return absl::FailedPreconditionError(
+                              "UseTreeEntry cannot be annotated with an "
+                              "attribute");
+                        }},
                     def);
               },
               [&](std::nullptr_t) { return absl::OkStatus(); },
@@ -797,7 +804,8 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(
       BoundNode type_def,
       bindings.ResolveNodeOrError(*tok.GetValue(), tok.span(), file_table()));
-  if (!IsOneOf<TypeAlias, EnumDef, StructDef, ProcDef>(ToAstNode(type_def))) {
+  if (!IsOneOf<TypeAlias, EnumDef, StructDef, ProcDef, UseTreeEntry>(
+          ToAstNode(type_def))) {
     return ParseErrorStatus(
         tok.span(),
         absl::StrFormat(
@@ -1569,8 +1577,8 @@ absl::StatusOr<UseTreeEntry*> Parser::ParseUseTreeEntry(Bindings& bindings) {
     // Must be a leaf, as we see no subsequent `::` to indicate there is a
     // subsequent level.
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
-    bindings.Add(name_def->identifier(), name_def);
     auto* use_tree_entry = module_->Make<UseTreeEntry>(name_def, tok.span());
+    bindings.Add(name_def->identifier(), use_tree_entry);
     name_def->set_definer(use_tree_entry);
     return use_tree_entry;
   }

@@ -138,6 +138,9 @@ absl::StatusOr<StructDef*> ResolveLocalStructDef(TypeDefinition td) {
           [&](ProcDef* n) -> absl::StatusOr<StructDef*> { return error(n); },
           [&](EnumDef* n) -> absl::StatusOr<StructDef*> { return error(n); },
           [&](ColonRef* n) -> absl::StatusOr<StructDef*> { return error(n); },
+          [&](UseTreeEntry* n) -> absl::StatusOr<StructDef*> {
+            return error(n);
+          },
       },
       td);
 }

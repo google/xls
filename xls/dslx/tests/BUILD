@@ -700,6 +700,11 @@ xls_dslx_library(
 )
 
 xls_dslx_library(
+    name = "mod_imported_parameterized_type_alias_dslx",
+    srcs = ["mod_imported_parameterized_type_alias.x"],
+)
+
+xls_dslx_library(
     name = "mod_use_multi_lib",
     srcs = ["mod_use_multi.x"],
     deps = [":mod_imported_multi_const_dslx"],
@@ -723,6 +728,11 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_importer_typedef",
     dslx_deps = [":mod_imported_typedef_dslx"],
+)
+
+dslx_lang_test(
+    name = "mod_use_parameterized_type_alias",
+    dslx_deps = [":mod_imported_parameterized_type_alias_dslx"],
 )
 
 # Library defined to be imported.

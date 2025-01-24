@@ -189,6 +189,8 @@ class Module : public AstNode {
   // Finds the first top-level member in top() with the given "target" name as
   // an identifier.
   std::optional<ModuleMember*> FindMemberWithName(std::string_view target);
+  std::optional<const ModuleMember*> FindMemberWithName(
+      std::string_view target) const;
 
   // Returns whether the given node is a public member of this module.
   bool IsPublicMember(const AstNode& node) const;

@@ -253,6 +253,11 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
   return std::nullopt;
 }
 
+std::optional<const ModuleMember*> Module::FindMemberWithName(
+    std::string_view target) const {
+  return const_cast<Module*>(this)->FindMemberWithName(target);
+}
+
 absl::StatusOr<ConstantDef*> Module::GetConstantDef(std::string_view target) {
   std::optional<ModuleMember*> member = FindMemberWithName(target);
   if (!member.has_value()) {

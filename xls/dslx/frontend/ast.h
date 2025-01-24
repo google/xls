@@ -1314,8 +1314,8 @@ class Array final : public Expr {
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
-using TypeDefinition =
-    std::variant<TypeAlias*, StructDef*, ProcDef*, EnumDef*, ColonRef*>;
+using TypeDefinition = std::variant<TypeAlias*, StructDef*, ProcDef*, EnumDef*,
+                                    ColonRef*, UseTreeEntry*>;
 
 // Returns the name definition that (most locally) defined this type definition
 // AST node.
@@ -1506,6 +1506,13 @@ class UseTreeEntry : public AstNode {
     return payload_;
   }
   const Span& span() const { return span_; }
+
+  std::optional<NameDef*> GetLeafNameDef() const {
+    if (std::holds_alternative<NameDef*>(payload_)) {
+      return std::get<NameDef*>(payload_);
+    }
+    return std::nullopt;
+  }
 
   // Note: this is non-const because we capture a mutable AST node pointer in
   // the results.

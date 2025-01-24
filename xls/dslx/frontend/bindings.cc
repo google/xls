@@ -84,6 +84,9 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
               [](BuiltinNameDef* node) -> AnyNameDef { return node; },
               [](TypeAlias* node) -> AnyNameDef { return &node->name_def(); },
               [](Import* node) -> AnyNameDef { return &node->name_def(); },
+              [](UseTreeEntry* node) -> AnyNameDef {
+                return node->GetLeafNameDef().value();
+              },
               [](auto* node) -> AnyNameDef { return node->name_def(); }},
       bn);
 }

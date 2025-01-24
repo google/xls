@@ -323,6 +323,24 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceTypeAlias(const TypeAlias* node,
   return type;
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceUseTreeEntry(
+    const UseTreeEntry* node, DeduceCtx* ctx) {
+  // Similar to a ColonRef, we have to reach in to the imported module to find
+  // the type and add it.
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported,
+                       ctx->type_info()->GetImportedOrError(node));
+  const TypeInfo& imported_type_info = *imported->type_info;
+  const Module& imported_module = *imported->module;
+  std::optional<const ModuleMember*> member =
+      imported_module.FindMemberWithName(
+          node->GetLeafNameDef().value()->identifier());
+  XLS_RET_CHECK(member.has_value());
+  std::optional<Type*> type =
+      imported_type_info.GetItem(ToAstNode(*member.value()));
+  XLS_RET_CHECK(type.has_value());
+  return type.value()->CloneToUnique();
+}
+
 // Typechecks the name def tree items against type, putting the corresponding
 // type information for the AST nodes within the name_def_tree as corresponding
 // to the types within "type" (recursively).
@@ -2100,6 +2118,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(ZeroMacro, DeduceZeroMacro)
   DEDUCE_DISPATCH(AllOnesMacro, DeduceAllOnesMacro)
   DEDUCE_DISPATCH(NameRef, DeduceNameRef)
+  DEDUCE_DISPATCH(UseTreeEntry, DeduceUseTreeEntry)
 
   // Unhandled nodes for deduction, either they are custom visited or not
   // visited "automatically" in the traversal process (e.g. top level module
@@ -2108,9 +2127,6 @@ class DeduceVisitor : public AstNodeVisitor {
   absl::Status HandleSlice(const Slice* n) override { return Fatal(n); }
   absl::Status HandleImport(const Import* n) override { return Fatal(n); }
   absl::Status HandleUse(const Use* n) override { return Fatal(n); }
-  absl::Status HandleUseTreeEntry(const UseTreeEntry* n) override {
-    return Fatal(n);
-  }
   absl::Status HandleFunction(const Function* n) override { return Fatal(n); }
   absl::Status HandleQuickCheck(const QuickCheck* n) override {
     return Fatal(n);

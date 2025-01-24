@@ -314,6 +314,11 @@ absl::StatusOr<Expr*> GenerateDslxConstant(absl::BitGenRef bit_gen,
             return absl::UnimplementedError(
                 "Generating constants of ColonRef types isn't yet supported.");
           },
+          [&](dslx::UseTreeEntry* use_tree_entry) -> absl::StatusOr<Expr*> {
+            return absl::UnimplementedError(
+                "Generating constants of UseTreeEntry types isn't yet "
+                "supported.");
+          },
       },
       typeref->type_definition());
 }

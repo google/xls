@@ -65,6 +65,12 @@ std::optional<StructOrProcDef> GetStructOrProcDef(
               },
               [](EnumDef*) -> std::optional<StructOrProcDef> {
                 return std::nullopt;
+              },
+              [](UseTreeEntry*) -> std::optional<StructOrProcDef> {
+                // TODO(https://github.com/google/xls/issues/352): 2025-01-23
+                // Resolve possible Struct or Proc definition through the extern
+                // UseTreeEntry.
+                return std::nullopt;
               }},
       def);
 }
