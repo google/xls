@@ -68,17 +68,19 @@ pub proc FseLookupDecoder<
     type SBOutput = refilling_shift_buffer::RefillingShiftBufferOutput<AXI_DATA_W, SB_LENGTH_W>;
     type SBCtrl = refilling_shift_buffer::RefillingShiftBufferCtrl<SB_LENGTH_W>;
 
+    type CompLookupDecoderReq = comp_lookup_dec::CompLookupDecoderReq;
+    type CompLookupDecoderResp = comp_lookup_dec::CompLookupDecoderResp;
+
     type LookupDecoderReq = common::LookupDecoderReq;
     type LookupDecoderResp = common::LookupDecoderResp;
-
 
     init {}
 
     fse_lookup_dec_req_r: chan<Req> in;
     fse_lookup_dec_resp_s: chan<Resp> out;
 
-    comp_lookup_req_s: chan<LookupDecoderReq> out;
-    comp_lookup_resp_r: chan<LookupDecoderResp> in;
+    comp_lookup_req_s: chan<CompLookupDecoderReq> out;
+    comp_lookup_resp_r: chan<CompLookupDecoderResp> in;
 
     rle_lookup_req_s: chan<LookupDecoderReq> out;
     rle_lookup_resp_r: chan<LookupDecoderResp> in;
@@ -164,8 +166,8 @@ pub proc FseLookupDecoder<
             fse_rd_req_s, fse_rd_resp_r, fse_wr_req_s, fse_wr_resp_r,
         );
 
-        let (comp_lookup_req_s, comp_lookup_req_r) = chan<LookupDecoderReq, CHANNEL_DEPTH>("comp_lookup_req");
-        let (comp_lookup_resp_s, comp_lookup_resp_r) = chan<LookupDecoderResp, CHANNEL_DEPTH>("comp_lookup_resp");
+        let (comp_lookup_req_s, comp_lookup_req_r) = chan<CompLookupDecoderReq, CHANNEL_DEPTH>("comp_lookup_req");
+        let (comp_lookup_resp_s, comp_lookup_resp_r) = chan<CompLookupDecoderResp, CHANNEL_DEPTH>("comp_lookup_resp");
 
         spawn comp_lookup_dec::CompLookupDecoder<
             AXI_DATA_W,
@@ -226,12 +228,17 @@ pub proc FseLookupDecoder<
         let tok4_0 = send_if(tok3, rle_lookup_req_s, req.is_rle, LookupDecoderReq {});
         let (tok5_0, rle_lookup_resp) = recv_if(tok4_0, rle_lookup_resp_r, req.is_rle, zero!<LookupDecoderResp>());
 
-        let tok4_1 = send_if(tok3, comp_lookup_req_s, !req.is_rle, LookupDecoderReq {});
-        let (tok5_1, comp_lookup_resp) = recv_if(tok4_1, comp_lookup_resp_r, !req.is_rle, zero!<LookupDecoderResp>());
+        let tok4_1 = send_if(tok3, comp_lookup_req_s, !req.is_rle, CompLookupDecoderReq {});
+        let (tok5_1, comp_lookup_resp) = recv_if(tok4_1, comp_lookup_resp_r, !req.is_rle, zero!<CompLookupDecoderResp>());
 
         let tok5 = join(tok5_0, tok5_1);
 
-        let resp = if req.is_rle { rle_lookup_resp } else { comp_lookup_resp };
+        let resp = if req.is_rle { rle_lookup_resp } else {
+            Resp {
+                status: comp_lookup_resp.status,
+                accuracy_log: comp_lookup_resp.accuracy_log
+            }
+        };
         let tok6 = send(tok5, fse_lookup_dec_resp_s, resp);
 
         // unused channels
