@@ -177,8 +177,7 @@ class Xls_NaryOp<string name, list<Trait> traits = []> :
     }]>,
     // Common case of a binary op.
     OpBuilder<(ins "::mlir::Value":$lhs, "::mlir::Value":$rhs), [{
-      ::mlir::ValueRange inputs = {lhs, rhs};
-      build($_builder, $_state, lhs.getType(), inputs);
+      build($_builder, $_state, lhs.getType(), {lhs, rhs});
     }]>
   ];
 }
