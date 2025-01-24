@@ -26,9 +26,9 @@
 //  CLANG_TIDY = binary to run; default would just be clang-tidy.
 //  CACHE_DIR  = where to put the cached content; default ~/.cache
 
-// Based on standalone c++-17 scripts found in
-//  https://github.com/chipsalliance/verible
-//  https://github.com/hzeller/bant
+// Based on standalone c++-17 scripts found at
+//   https://github.com/hzeller/dev-tools
+// But out-of-date as we diverged with local xls;re2 changes.
 //
 // ... but using local absl{thread,strings}/xls{file, process}/RE2 features.
 // (so, it is not standalone anymore.)
@@ -73,6 +73,7 @@ static constexpr std::string_view kFileExcludeRe =
     ".git/|.github/|dev_tools/run_clang_tidy_cached.cc/|"
     "/testdata/|"
     "xls/common/build_embed\\.cc|"
+    "xls/eco/|"
     "xlscc/(examples|synth_only|build_rules)";
 inline bool ConsiderExtension(const std::string& extension) {
   return extension == ".cc" || extension == ".h";
@@ -88,7 +89,8 @@ static constexpr std::string_view kExtraArgs[] = {"-Wno-unknown-pragmas",
 // It is good to set if the project is 'clean' and there are only a
 // few problematic sources to begin with, otherwise every update of the
 // compilation DB will re-trigger revisiting all of them.
-static constexpr bool kRevisitBrokenFilesIfCompilationDBNewer = true;
+// (false for now: not in a clean-enough state: too much reprocessing needed)
+static constexpr bool kRevisitBrokenFilesIfCompilationDBNewer = false;
 
 namespace {
 
