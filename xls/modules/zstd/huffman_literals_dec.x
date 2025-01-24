@@ -37,20 +37,26 @@ pub type HuffmanLiteralsDecoderReq = ctrl::HuffmanControlAndSequenceCtrl;
 pub type HuffmanLiteralsDecoderResp = ctrl::HuffmanControlAndSequenceResp;
 pub type HuffmanLiteralsDecoderStatus = ctrl::HuffmanControlAndSequenceStatus;
 
-pub const RAM_SIZE: u32 = prescan::RAM_SIZE;
-pub const WEIGHTS_ADDR_WIDTH: u32 = prescan::RAM_ADDR_WIDTH;
-pub const WEIGHTS_DATA_WIDTH: u32 = prescan::RAM_ACCESS_WIDTH;
-pub const WEIGHTS_PARTITION_WORD_SIZE: u32 = WEIGHTS_DATA_WIDTH;
-pub const WEIGHTS_NUM_PARTITIONS: u32 = u32:1;
+pub const RAM_SIZE = prescan::RAM_SIZE;
+pub const WEIGHTS_ADDR_WIDTH = prescan::RAM_ADDR_WIDTH;
+pub const WEIGHTS_DATA_WIDTH = prescan::RAM_ACCESS_WIDTH;
+pub const WEIGHTS_PARTITION_WORD_SIZE = WEIGHTS_DATA_WIDTH / u32:8;
+pub const WEIGHTS_NUM_PARTITIONS = ram::num_partitions(WEIGHTS_PARTITION_WORD_SIZE, WEIGHTS_DATA_WIDTH);
+// pub const WEIGHTS_NUM_PARTITIONS: u32 = u32:1;
+
 pub const PRESCAN_ADDR_WIDTH: u32 = prescan::RAM_ADDR_WIDTH;
 pub const PRESCAN_DATA_WIDTH: u32 = prescan::WeightPreScanMetaDataSize();
 pub const PRESCAN_PARTITION_WORD_SIZE: u32 = PRESCAN_DATA_WIDTH;
-pub const PRESCAN_NUM_PARTITIONS: u32 = u32:1;
+pub const PRESCAN_NUM_PARTITIONS = ram::num_partitions(PRESCAN_PARTITION_WORD_SIZE, PRESCAN_DATA_WIDTH);
+
+// pub const PRESCAN_NUM_PARTITIONS: u32 = u32:1;
 
 pub proc HuffmanLiteralsDecoder<
     AXI_DATA_W: u32, AXI_ADDR_W: u32, AXI_ID_W: u32, AXI_DEST_W: u32,
     WEIGHTS_DPD_RAM_ADDR_W: u32, WEIGHTS_DPD_RAM_DATA_W: u32, WEIGHTS_DPD_RAM_NUM_PARTITIONS: u32,
     WEIGHTS_TMP_RAM_ADDR_W: u32, WEIGHTS_TMP_RAM_DATA_W: u32, WEIGHTS_TMP_RAM_NUM_PARTITIONS: u32,
+    WEIGHTS_TMP2_RAM_ADDR_W: u32, WEIGHTS_TMP2_RAM_DATA_W: u32, WEIGHTS_TMP2_RAM_NUM_PARTITIONS: u32,
+
     WEIGHTS_FSE_RAM_ADDR_W: u32, WEIGHTS_FSE_RAM_DATA_W: u32, WEIGHTS_FSE_RAM_NUM_PARTITIONS: u32,
     WEIGHTS_RAM_ADDR_WIDTH: u32 = {WEIGHTS_ADDR_WIDTH},
     WEIGHTS_RAM_DATA_WIDTH: u32 = {WEIGHTS_DATA_WIDTH},
@@ -69,6 +75,7 @@ pub proc HuffmanLiteralsDecoder<
     type WeightsRamRdResp = ram::ReadResp<WEIGHTS_RAM_DATA_WIDTH>;
     type WeightsRamWrReq = ram::WriteReq<WEIGHTS_RAM_ADDR_WIDTH, WEIGHTS_RAM_DATA_WIDTH, WEIGHTS_RAM_NUM_PARTITIONS>;
     type WeightsRamWrResp = ram::WriteResp;
+
     type PrescanRamRdReq = ram::ReadReq<PRESCAN_RAM_ADDR_WIDTH, PRESCAN_RAM_NUM_PARTITIONS>;
     type PrescanRamRdResp = ram::ReadResp<PRESCAN_RAM_DATA_WIDTH>;
     type PrescanRamWrReq = ram::WriteReq<PRESCAN_RAM_ADDR_WIDTH, PRESCAN_RAM_DATA_WIDTH, PRESCAN_RAM_NUM_PARTITIONS>;
@@ -84,6 +91,11 @@ pub proc HuffmanLiteralsDecoder<
     type WeightsTmpRamRdResp = ram::ReadResp<WEIGHTS_TMP_RAM_DATA_W>;
     type WeightsTmpRamWrReq = ram::WriteReq<WEIGHTS_TMP_RAM_ADDR_W, WEIGHTS_TMP_RAM_DATA_W, WEIGHTS_TMP_RAM_NUM_PARTITIONS>;
     type WeightsTmpRamWrResp = ram::WriteResp;
+
+    type WeightsTmp2RamRdReq = ram::ReadReq<WEIGHTS_TMP2_RAM_ADDR_W, WEIGHTS_TMP2_RAM_NUM_PARTITIONS>;
+    type WeightsTmp2RamRdResp = ram::ReadResp<WEIGHTS_TMP2_RAM_DATA_W>;
+    type WeightsTmp2RamWrReq = ram::WriteReq<WEIGHTS_TMP2_RAM_ADDR_W, WEIGHTS_TMP2_RAM_DATA_W, WEIGHTS_TMP2_RAM_NUM_PARTITIONS>;
+    type WeightsTmp2RamWrResp = ram::WriteResp;
 
     type WeightsFseRamRdReq = ram::ReadReq<WEIGHTS_FSE_RAM_ADDR_W, WEIGHTS_FSE_RAM_NUM_PARTITIONS>;
     type WeightsFseRamRdResp = ram::ReadResp<WEIGHTS_FSE_RAM_DATA_W>;
@@ -136,10 +148,17 @@ pub proc HuffmanLiteralsDecoder<
         weights_dpd_rd_resp_r: chan<WeightsDpdRamRdResp> in,
         weights_dpd_wr_req_s: chan<WeightsDpdRamWrReq> out,
         weights_dpd_wr_resp_r: chan<WeightsDpdRamWrResp> in,
+
         weights_tmp_rd_req_s: chan<WeightsTmpRamRdReq> out,
         weights_tmp_rd_resp_r: chan<WeightsTmpRamRdResp> in,
         weights_tmp_wr_req_s: chan<WeightsTmpRamWrReq> out,
         weights_tmp_wr_resp_r: chan<WeightsTmpRamWrResp> in,
+
+        weights_tmp2_rd_req_s: chan<WeightsTmp2RamRdReq> out,
+        weights_tmp2_rd_resp_r: chan<WeightsTmp2RamRdResp> in,
+        weights_tmp2_wr_req_s: chan<WeightsTmp2RamWrReq> out,
+        weights_tmp2_wr_resp_r: chan<WeightsTmp2RamWrResp> in,
+
         weights_fse_rd_req_s: chan<WeightsFseRamRdReq> out,
         weights_fse_rd_resp_r: chan<WeightsFseRamRdResp> in,
         weights_fse_wr_req_s: chan<WeightsFseRamWrReq> out,
@@ -215,6 +234,7 @@ pub proc HuffmanLiteralsDecoder<
             WEIGHTS_RAM_ADDR_WIDTH, WEIGHTS_RAM_DATA_WIDTH, WEIGHTS_RAM_NUM_PARTITIONS,
             WEIGHTS_DPD_RAM_ADDR_W, WEIGHTS_DPD_RAM_DATA_W, WEIGHTS_DPD_RAM_NUM_PARTITIONS,
             WEIGHTS_TMP_RAM_ADDR_W, WEIGHTS_TMP_RAM_DATA_W, WEIGHTS_TMP_RAM_NUM_PARTITIONS,
+            WEIGHTS_TMP2_RAM_ADDR_W, WEIGHTS_TMP2_RAM_DATA_W, WEIGHTS_TMP2_RAM_NUM_PARTITIONS,
             WEIGHTS_FSE_RAM_ADDR_W, WEIGHTS_FSE_RAM_DATA_W, WEIGHTS_FSE_RAM_NUM_PARTITIONS,
         >(
             weights_dec_req_r, weights_dec_resp_s,
@@ -225,6 +245,7 @@ pub proc HuffmanLiteralsDecoder<
             weights_ram_wr_req_s, weights_ram_wr_resp_r,
             weights_dpd_rd_req_s, weights_dpd_rd_resp_r, weights_dpd_wr_req_s, weights_dpd_wr_resp_r,
             weights_tmp_rd_req_s, weights_tmp_rd_resp_r, weights_tmp_wr_req_s, weights_tmp_wr_resp_r,
+            weights_tmp2_rd_req_s, weights_tmp2_rd_resp_r, weights_tmp2_wr_req_s, weights_tmp2_wr_resp_r,
             weights_fse_rd_req_s, weights_fse_rd_resp_r, weights_fse_wr_req_s, weights_fse_wr_resp_r,
         );
 
@@ -314,6 +335,14 @@ const INST_WEIGHTS_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(
     INST_WEIGHTS_TMP_RAM_WORD_PARTITION_SIZE, INST_WEIGHTS_TMP_RAM_DATA_W
 );
 
+const INST_WEIGHTS_TMP2_RAM_DATA_W = u32:8;
+const INST_WEIGHTS_TMP2_RAM_SIZE = u32:512;
+const INST_WEIGHTS_TMP2_RAM_ADDR_W = std::clog2(INST_WEIGHTS_TMP2_RAM_SIZE);
+const INST_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE = INST_WEIGHTS_TMP2_RAM_DATA_W;
+const INST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
+    INST_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE, INST_WEIGHTS_TMP2_RAM_DATA_W
+);
+
 proc HuffmanLiteralsDecoderInst {
     type Ctrl = HuffmanLiteralsDecoderReq<INST_AXI_ADDR_W>;
     type Resp = HuffmanLiteralsDecoderResp;
@@ -324,6 +353,7 @@ proc HuffmanLiteralsDecoderInst {
     type WeightsRamRdResp = ram::ReadResp<INST_WEIGHTS_RAM_DATA_WIDTH>;
     type WeightsRamWrReq = ram::WriteReq<INST_WEIGHTS_RAM_ADDR_WIDTH, INST_WEIGHTS_RAM_DATA_WIDTH, INST_WEIGHTS_RAM_NUM_PARTITIONS>;
     type WeightsRamWrResp = ram::WriteResp;
+
     type PrescanRamRdReq = ram::ReadReq<INST_PRESCAN_RAM_ADDR_WIDTH, INST_PRESCAN_RAM_NUM_PARTITIONS>;
     type PrescanRamRdResp = ram::ReadResp<INST_PRESCAN_RAM_DATA_WIDTH>;
     type PrescanRamWrReq = ram::WriteReq<INST_PRESCAN_RAM_ADDR_WIDTH, INST_PRESCAN_RAM_DATA_WIDTH, INST_PRESCAN_RAM_NUM_PARTITIONS>;
@@ -339,6 +369,11 @@ proc HuffmanLiteralsDecoderInst {
     type WeightsTmpRamWrReq = ram::WriteReq<INST_WEIGHTS_TMP_RAM_ADDR_W, INST_WEIGHTS_TMP_RAM_DATA_W, INST_WEIGHTS_TMP_RAM_NUM_PARTITIONS>;
     type WeightsTmpRamWrResp = ram::WriteResp;
 
+    type WeightsTmp2RamRdReq = ram::ReadReq<INST_WEIGHTS_TMP2_RAM_ADDR_W, INST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS>;
+    type WeightsTmp2RamRdResp = ram::ReadResp<INST_WEIGHTS_TMP2_RAM_DATA_W>;
+    type WeightsTmp2RamWrReq = ram::WriteReq<INST_WEIGHTS_TMP2_RAM_ADDR_W, INST_WEIGHTS_TMP2_RAM_DATA_W, INST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS>;
+    type WeightsTmp2RamWrResp = ram::WriteResp;
+
     type WeightsFseRamRdReq = ram::ReadReq<INST_WEIGHTS_FSE_RAM_ADDR_W, INST_WEIGHTS_FSE_RAM_NUM_PARTITIONS>;
     type WeightsFseRamRdResp = ram::ReadResp<INST_WEIGHTS_FSE_RAM_DATA_W>;
     type WeightsFseRamWrReq = ram::WriteReq<INST_WEIGHTS_FSE_RAM_ADDR_W, INST_WEIGHTS_FSE_RAM_DATA_W, INST_WEIGHTS_FSE_RAM_NUM_PARTITIONS>;
@@ -350,32 +385,46 @@ proc HuffmanLiteralsDecoderInst {
         decoded_literals_s: chan<common::LiteralsDataWithSync> out,
         axi_ar_s: chan<AxiAr> out,
         axi_r_r: chan<AxiR> in,
+
         jump_table_axi_ar_s: chan<AxiAr> out,
         jump_table_axi_r_r: chan<AxiR> in,
+
         weights_header_dec_axi_ar_s: chan<AxiAr> out,
         weights_header_dec_axi_r_r: chan<AxiR> in,
+
         weights_raw_dec_axi_ar_s: chan<AxiAr> out,
         weights_raw_dec_axi_r_r: chan<AxiR> in,
+
         weights_fse_lookup_dec_axi_ar_s: chan<AxiAr> out,
         weights_fse_lookup_dec_axi_r_r: chan<AxiR> in,
         weights_fse_decoder_dec_axi_ar_s: chan<AxiAr> out,
         weights_fse_decoder_dec_axi_r_r: chan<AxiR> in,
+
         weights_ram_rd_req_s: chan<WeightsRamRdReq> out,
         weights_ram_rd_resp_r: chan<WeightsRamRdResp> in,
         weights_ram_wr_req_s: chan<WeightsRamWrReq> out,
         weights_ram_wr_resp_r: chan<WeightsRamWrResp> in,
+
         prescan_ram_rd_req_s: chan<PrescanRamRdReq> out,
         prescan_ram_rd_resp_r: chan<PrescanRamRdResp> in,
         prescan_ram_wr_req_s: chan<PrescanRamWrReq> out,
         prescan_ram_wr_resp_r: chan<PrescanRamWrResp> in,
+
         weights_dpd_rd_req_s: chan<WeightsDpdRamRdReq> out,
         weights_dpd_rd_resp_r: chan<WeightsDpdRamRdResp> in,
         weights_dpd_wr_req_s: chan<WeightsDpdRamWrReq> out,
         weights_dpd_wr_resp_r: chan<WeightsDpdRamWrResp> in,
+
         weights_tmp_rd_req_s: chan<WeightsTmpRamRdReq> out,
         weights_tmp_rd_resp_r: chan<WeightsTmpRamRdResp> in,
         weights_tmp_wr_req_s: chan<WeightsTmpRamWrReq> out,
         weights_tmp_wr_resp_r: chan<WeightsTmpRamWrResp> in,
+
+        weights_tmp2_rd_req_s: chan<WeightsTmp2RamRdReq> out,
+        weights_tmp2_rd_resp_r: chan<WeightsTmp2RamRdResp> in,
+        weights_tmp2_wr_req_s: chan<WeightsTmp2RamWrReq> out,
+        weights_tmp2_wr_resp_r: chan<WeightsTmp2RamWrResp> in,
+
         weights_fse_rd_req_s: chan<WeightsFseRamRdReq> out,
         weights_fse_rd_resp_r: chan<WeightsFseRamRdResp> in,
         weights_fse_wr_req_s: chan<WeightsFseRamWrReq> out,
@@ -385,10 +434,12 @@ proc HuffmanLiteralsDecoderInst {
             INST_AXI_DATA_W, INST_AXI_ADDR_W, INST_AXI_ID_W, INST_AXI_DEST_W,
             INST_WEIGHTS_DPD_RAM_ADDR_W, INST_WEIGHTS_DPD_RAM_DATA_W, INST_WEIGHTS_DPD_RAM_NUM_PARTITIONS,
             INST_WEIGHTS_TMP_RAM_ADDR_W, INST_WEIGHTS_TMP_RAM_DATA_W, INST_WEIGHTS_TMP_RAM_NUM_PARTITIONS,
+            INST_WEIGHTS_TMP2_RAM_ADDR_W, INST_WEIGHTS_TMP2_RAM_DATA_W, INST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS,
+
             INST_WEIGHTS_FSE_RAM_ADDR_W, INST_WEIGHTS_FSE_RAM_DATA_W, INST_WEIGHTS_FSE_RAM_NUM_PARTITIONS,
             INST_WEIGHTS_RAM_ADDR_WIDTH, INST_WEIGHTS_RAM_DATA_WIDTH, INST_WEIGHTS_RAM_NUM_PARTITIONS,
             INST_PRESCAN_RAM_ADDR_WIDTH, INST_PRESCAN_RAM_DATA_WIDTH, INST_PRESCAN_RAM_NUM_PARTITIONS
-            >(
+        >(
             ctrl_r, resp_s,
             decoded_literals_s,
             axi_ar_s, axi_r_r,
@@ -405,6 +456,8 @@ proc HuffmanLiteralsDecoderInst {
             weights_dpd_wr_req_s, weights_dpd_wr_resp_r,
             weights_tmp_rd_req_s, weights_tmp_rd_resp_r,
             weights_tmp_wr_req_s, weights_tmp_wr_resp_r,
+            weights_tmp2_rd_req_s, weights_tmp2_rd_resp_r,
+            weights_tmp2_wr_req_s, weights_tmp2_wr_resp_r,
             weights_fse_rd_req_s, weights_fse_rd_resp_r,
             weights_fse_wr_req_s, weights_fse_wr_resp_r,
         );
@@ -438,8 +491,9 @@ const TEST_AXI_RAM_MODEL_NUM = u32:1;
 pub const TEST_WEIGHTS_RAM_SIZE = prescan::RAM_SIZE;
 pub const TEST_WEIGHTS_RAM_ADDR_WIDTH = WEIGHTS_ADDR_WIDTH;
 pub const TEST_WEIGHTS_RAM_DATA_WIDTH = WEIGHTS_DATA_WIDTH;
+
 pub const TEST_WEIGHTS_RAM_NUM_PARTITIONS = WEIGHTS_NUM_PARTITIONS;
-pub const TEST_WEIGHTS_WORD_PARTITION_SIZE = TEST_WEIGHTS_RAM_DATA_WIDTH;
+pub const TEST_WEIGHTS_WORD_PARTITION_SIZE = WEIGHTS_PARTITION_WORD_SIZE;
 pub const TEST_PRESCAN_RAM_ADDR_WIDTH = PRESCAN_ADDR_WIDTH;
 pub const TEST_PRESCAN_RAM_DATA_WIDTH = PRESCAN_DATA_WIDTH;
 pub const TEST_PRESCAN_RAM_NUM_PARTITIONS = PRESCAN_NUM_PARTITIONS;
@@ -468,6 +522,14 @@ const TEST_WEIGHTS_TMP_RAM_ADDR_W = std::clog2(TEST_WEIGHTS_TMP_RAM_SIZE);
 const TEST_WEIGHTS_TMP_RAM_WORD_PARTITION_SIZE = TEST_WEIGHTS_TMP_RAM_DATA_W;
 const TEST_WEIGHTS_TMP_RAM_NUM_PARTITIONS = ram::num_partitions(
     TEST_WEIGHTS_TMP_RAM_WORD_PARTITION_SIZE, TEST_WEIGHTS_TMP_RAM_DATA_W
+);
+
+const TEST_WEIGHTS_TMP2_RAM_DATA_W = u32:8;
+const TEST_WEIGHTS_TMP2_RAM_SIZE = u32:512;
+const TEST_WEIGHTS_TMP2_RAM_ADDR_W = std::clog2(TEST_WEIGHTS_TMP2_RAM_SIZE);
+const TEST_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE = TEST_WEIGHTS_TMP2_RAM_DATA_W;
+const TEST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS = ram::num_partitions(
+    TEST_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE, TEST_WEIGHTS_TMP2_RAM_DATA_W
 );
 
 type TestCtrl = HuffmanLiteralsDecoderReq<TEST_AXI_RAM_ADDR_W>;
@@ -505,6 +567,11 @@ type TestWeightsTmpRamRdReq = ram::ReadReq<TEST_WEIGHTS_TMP_RAM_ADDR_W, TEST_WEI
 type TestWeightsTmpRamRdResp = ram::ReadResp<TEST_WEIGHTS_TMP_RAM_DATA_W>;
 type TestWeightsTmpRamWrReq = ram::WriteReq<TEST_WEIGHTS_TMP_RAM_ADDR_W, TEST_WEIGHTS_TMP_RAM_DATA_W, TEST_WEIGHTS_TMP_RAM_NUM_PARTITIONS>;
 type TestWeightsTmpRamWrResp = ram::WriteResp;
+
+type TestWeightsTmp2RamRdReq = ram::ReadReq<TEST_WEIGHTS_TMP2_RAM_ADDR_W, TEST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS>;
+type TestWeightsTmp2RamRdResp = ram::ReadResp<TEST_WEIGHTS_TMP2_RAM_DATA_W>;
+type TestWeightsTmp2RamWrReq = ram::WriteReq<TEST_WEIGHTS_TMP2_RAM_ADDR_W, TEST_WEIGHTS_TMP2_RAM_DATA_W, TEST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS>;
+type TestWeightsTmp2RamWrResp = ram::WriteResp;
 
 type TestWeightsFseRamRdReq = ram::ReadReq<TEST_WEIGHTS_FSE_RAM_ADDR_W, TEST_WEIGHTS_FSE_RAM_NUM_PARTITIONS>;
 type TestWeightsFseRamRdResp = ram::ReadResp<TEST_WEIGHTS_FSE_RAM_DATA_W>;
@@ -774,6 +841,17 @@ proc HuffmanLiteralsDecoder_test {
             TEST_WEIGHTS_TMP_RAM_WORD_PARTITION_SIZE
         >(weights_tmp_rd_req_r, weights_tmp_rd_resp_s, weights_tmp_wr_req_r, weights_tmp_wr_resp_s);
 
+        let (weights_tmp2_rd_req_s, weights_tmp2_rd_req_r) = chan<TestWeightsTmp2RamRdReq>("weights_tmp_rd_req");
+        let (weights_tmp2_rd_resp_s, weights_tmp2_rd_resp_r) = chan<TestWeightsTmp2RamRdResp>("weights_tmp_rd_resp");
+        let (weights_tmp2_wr_req_s, weights_tmp2_wr_req_r) = chan<TestWeightsTmp2RamWrReq>("weights_tmp_wr_req");
+        let (weights_tmp2_wr_resp_s, weights_tmp2_wr_resp_r) = chan<TestWeightsTmp2RamWrResp>("weights_tmp_wr_resp");
+
+        spawn ram::RamModel<
+            TEST_WEIGHTS_TMP2_RAM_DATA_W,
+            TEST_WEIGHTS_TMP2_RAM_SIZE,
+            TEST_WEIGHTS_TMP2_RAM_WORD_PARTITION_SIZE
+        >(weights_tmp2_rd_req_r, weights_tmp2_rd_resp_s, weights_tmp2_wr_req_r, weights_tmp2_wr_resp_s);
+
         let (weights_fse_rd_req_s, weights_fse_rd_req_r) = chan<TestWeightsFseRamRdReq>("weights_tmp_rd_req");
         let (weights_fse_rd_resp_s, weights_fse_rd_resp_r) = chan<TestWeightsFseRamRdResp>("weights_tmp_rd_resp");
         let (weights_fse_wr_req_s, weights_fse_wr_req_r) = chan<TestWeightsFseRamWrReq>("weights_tmp_wr_req");
@@ -789,10 +867,11 @@ proc HuffmanLiteralsDecoder_test {
             TEST_AXI_RAM_DATA_W, TEST_AXI_RAM_ADDR_W, TEST_AXI_RAM_ID_W, TEST_AXI_RAM_DEST_W,
             TEST_WEIGHTS_DPD_RAM_ADDR_W, TEST_WEIGHTS_DPD_RAM_DATA_W, TEST_WEIGHTS_DPD_RAM_NUM_PARTITIONS,
             TEST_WEIGHTS_TMP_RAM_ADDR_W, TEST_WEIGHTS_TMP_RAM_DATA_W, TEST_WEIGHTS_TMP_RAM_NUM_PARTITIONS,
+            TEST_WEIGHTS_TMP2_RAM_ADDR_W, TEST_WEIGHTS_TMP2_RAM_DATA_W, TEST_WEIGHTS_TMP2_RAM_NUM_PARTITIONS,
             TEST_WEIGHTS_FSE_RAM_ADDR_W, TEST_WEIGHTS_FSE_RAM_DATA_W, TEST_WEIGHTS_FSE_RAM_NUM_PARTITIONS,
             TEST_WEIGHTS_RAM_ADDR_WIDTH, TEST_WEIGHTS_RAM_DATA_WIDTH, TEST_WEIGHTS_RAM_NUM_PARTITIONS,
             TEST_PRESCAN_RAM_ADDR_WIDTH, TEST_PRESCAN_RAM_DATA_WIDTH, TEST_PRESCAN_RAM_NUM_PARTITIONS,
-            >(
+        >(
             ctrl_r, resp_s, decoded_literals_s,
             axi_ar_s, axi_r_r,
             jump_table_axi_ar_s, jump_table_axi_r_r,
@@ -806,6 +885,7 @@ proc HuffmanLiteralsDecoder_test {
             prescan_ram_wr_req_s, prescan_ram_wr_resp_r,
             weights_dpd_rd_req_s, weights_dpd_rd_resp_r, weights_dpd_wr_req_s, weights_dpd_wr_resp_r,
             weights_tmp_rd_req_s, weights_tmp_rd_resp_r, weights_tmp_wr_req_s, weights_tmp_wr_resp_r,
+            weights_tmp2_rd_req_s, weights_tmp2_rd_resp_r, weights_tmp2_wr_req_s, weights_tmp2_wr_resp_r,
             weights_fse_rd_req_s, weights_fse_rd_resp_r, weights_fse_wr_req_s, weights_fse_wr_resp_r,
         );
 
