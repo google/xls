@@ -35,6 +35,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
@@ -1403,6 +1404,52 @@ class InferenceTableConverter {
     return absl::OkStatus();
   }
 
+  absl::StatusOr<BitsLikeProperties> GetBitsLikeOrError(const Expr* node,
+                                                        const Type* type) {
+    std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
+    if (!bits_like.has_value()) {
+      return TypeInferenceErrorStatus(
+          node->span(), type,
+          "Operation can only be applied to bits-typed operands.", file_table_);
+    }
+    return *bits_like;
+  }
+
+  absl::Status ValidateBinopShift(const Binop* binop, const Type* type,
+                                  const TypeInfo& ti) {
+    XLS_ASSIGN_OR_RETURN(Type * rhs_type, ti.GetItemOrError(binop->rhs()));
+    XLS_ASSIGN_OR_RETURN(BitsLikeProperties rhs_bits_like,
+                         GetBitsLikeOrError(binop->rhs(), rhs_type));
+    XLS_ASSIGN_OR_RETURN(bool rhs_is_signed,
+                         rhs_bits_like.is_signed.GetAsBool());
+    if (rhs_is_signed) {
+      return TypeInferenceErrorStatus(binop->rhs()->span(), rhs_type,
+                                      "Shift amount must be unsigned.",
+                                      file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(Type * lhs_type, ti.GetItemOrError(binop->lhs()));
+    XLS_ASSIGN_OR_RETURN(BitsLikeProperties lhs_bits_like,
+                         GetBitsLikeOrError(binop->lhs(), lhs_type));
+
+    if (ti.IsKnownConstExpr(binop->rhs())) {
+      XLS_ASSIGN_OR_RETURN(InterpValue rhs_value,
+                           ti.GetConstExpr(binop->rhs()));
+      XLS_ASSIGN_OR_RETURN(uint64_t number_value,
+                           rhs_value.GetBitValueUnsigned());
+      const TypeDim& lhs_size = lhs_bits_like.size;
+      XLS_ASSIGN_OR_RETURN(int64_t lhs_bits_count, lhs_size.GetAsInt64());
+      if (lhs_bits_count < number_value) {
+        return TypeInferenceErrorStatus(
+            binop->rhs()->span(), rhs_type,
+            absl::StrFormat(
+                "Shift amount is larger than shift value bit width of %d.",
+                lhs_bits_count),
+            file_table_);
+      }
+    }
+    return absl::OkStatus();
+  }
+
   // Checks if the given concrete type ultimately makes sense for the given
   // node, based on the intrinsic properties of the node, like being an add
   // operation or containing an embedded literal.
@@ -1428,7 +1475,8 @@ class InferenceTableConverter {
     }
     if (const auto* binop = dynamic_cast<const Binop*>(node);
         binop != nullptr) {
-      if (GetBinopSameTypeKinds().contains(binop->binop_kind()) &&
+      if ((GetBinopSameTypeKinds().contains(binop->binop_kind()) ||
+           GetBinopShifts().contains(binop->binop_kind())) &&
           !IsBitsLike(*type)) {
         return TypeInferenceErrorStatus(
             binop->span(), type,
@@ -1441,6 +1489,10 @@ class InferenceTableConverter {
                                         "Logical binary operations can only be "
                                         "applied to boolean operands.",
                                         file_table_);
+      }
+      // Confirm that the shift amount is unsigned and fits in the lhs type.
+      if (GetBinopShifts().contains(binop->binop_kind())) {
+        XLS_RETURN_IF_ERROR(ValidateBinopShift(binop, type, ti));
       }
     }
     if (const auto* unop = dynamic_cast<const Unop*>(node);

@@ -146,6 +146,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           table_.SetTypeVariable(node->lhs(), operand_variable));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(node->rhs(), operand_variable));
+    } else if (GetBinopShifts().contains(node->binop_kind())) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), type_variable));
+      XLS_ASSIGN_OR_RETURN(const NameRef* rhs_variable,
+                           table_.DefineInternalVariable(
+                               InferenceVariableKind::kType, node->rhs(),
+                               GenerateInternalTypeVariableName(node->rhs())));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), rhs_variable));
     } else {
       return absl::UnimplementedError(
           absl::StrCat("Type inference version 2 is a work in progress and "

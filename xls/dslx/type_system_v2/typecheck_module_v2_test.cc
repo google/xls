@@ -2587,5 +2587,86 @@ const Y = zero!<imported::X>();
               TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
 }
 
+TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiterals) {
+  EXPECT_THAT("const X = u5:5 << 4;", TopNodeHasType("uN[5]"));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiteralsSameType) {
+  EXPECT_THAT("const X = u32:1 << 4;", TopNodeHasType("uN[32]"));
+}
+
+TEST(TypecheckV2Test,
+     GlobalConstantEqualsLShiftOfLiteralsRhsDifferentTypeAllSpecified) {
+  EXPECT_THAT("const X: u5 = u5:1 << 4;", TopNodeHasType("uN[5]"));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiteralsSizeTooSmall) {
+  EXPECT_THAT("const X = u2:3 << 4;",
+              TypecheckFails(HasSubstr(
+                  "Shift amount is larger than shift value bit width of 2.")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsRShiftOfLiteralsSizeTooSmall) {
+  EXPECT_THAT("const X = u1:1 >> 4;",
+              TypecheckFails(HasSubstr(
+                  "Shift amount is larger than shift value bit width of 1.")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfLiteralsMismatchedType) {
+  EXPECT_THAT("const X: u16 = u32:1 << 4;",
+              TypecheckFails(HasSizeMismatch("u32", "u16")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsLShiftOfNonBitsType) {
+  EXPECT_THAT(
+      "const X = (u32:1, u5:1) << 4;",
+      TypecheckFails(HasSubstr("can only be applied to bits-typed operands")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantEqualsRShiftOfNonBitsAmount) {
+  EXPECT_THAT(
+      "const X = u32:1 >> (u32:4, u4:1);",
+      TypecheckFails(HasSubstr("can only be applied to bits-typed operands")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantLShiftOfConstants) {
+  EXPECT_THAT(R"(
+const X = u4:1;
+const Y = u3:2;
+const Z = X << Y;
+)",
+              TypecheckSucceeds(HasNodeWithType("const Z = X << Y;", "uN[4]")));
+}
+
+TEST(TypecheckV2Test, GlobalConstantLShiftWithNegativeRhs) {
+  EXPECT_THAT(R"(
+const X = u4:1;
+const Y = s3:-3;
+const Z = X << Y;
+)",
+              TypecheckFails(HasSubstr("Shift amount must be unsigned")));
+}
+
+TEST(TypecheckV2Test, RShiftAsFnReturn) {
+  EXPECT_THAT(R"(
+fn foo(x: u32, y: u2) -> u32 {
+  x >> y
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x >> y", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, LShiftAsReturnFromParametricFn) {
+  EXPECT_THAT(R"(
+fn foo<N: u32>(x: u32) -> uN[N] {
+  uN[N]:1 << x
+}
+
+const VAL = foo<u32:3>(u32:1);
+)",
+              TypecheckSucceeds(
+                  HasNodeWithType("const VAL = foo<u32:3>(u32:1);", "uN[3]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
