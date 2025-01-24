@@ -23,7 +23,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
@@ -64,8 +63,6 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
   return tm;
 }
 
-using ::absl_testing::IsOkAndHolds;
-using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
 
 class ProcHierarchyInterpreterTest : public ::testing::Test {
