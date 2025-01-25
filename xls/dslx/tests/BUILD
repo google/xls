@@ -265,6 +265,10 @@ dslx_lang_test(
     dslx_deps = [":constexpr_dslx"],
 )
 
+dslx_lang_test(name = "attr_via_local_type_alias")
+
+dslx_lang_test(name = "attr_via_local_type_alias_in_parametric")
+
 dslx_lang_test(
     name = "builtin_type_max",
     dslx_deps = [":number_of_imported_type_import_dslx"],

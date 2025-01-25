@@ -797,11 +797,10 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
             return GetBuiltinNameDefColonAttr(builtin_name_def, node->attr());
           },
           [&](ArrayTypeAnnotation* array_type) -> absl::StatusOr<InterpValue> {
-            XLS_ASSIGN_OR_RETURN(
-                TypeInfo * type_info,
-                import_data_->GetRootTypeInfoForNode(array_type));
+            const TypeInfo& type_info = GetTypeInfoForNodeIfDifferentModule(
+                array_type, *type_info_, *import_data_);
             XLS_ASSIGN_OR_RETURN(InterpValue value,
-                                 type_info->GetConstExpr(array_type->dim()));
+                                 type_info.GetConstExpr(array_type->dim()));
             XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, value.GetBitValueUnsigned());
             return GetArrayTypeColonAttr(array_type, dim_u64, node->attr());
           },
