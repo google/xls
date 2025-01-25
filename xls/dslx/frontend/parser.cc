@@ -3083,7 +3083,7 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
   Span span(start_tok.span().start(), GetPos());
   Let* let =
       module_->Make<Let>(span, name_def_tree, annotated_type, rhs, const_);
-  if (const_) {
+  if (const_ && name_def != nullptr) {
     name_def->set_definer(let);
   } else if (name_def != nullptr) {
     name_def->set_definer(rhs);

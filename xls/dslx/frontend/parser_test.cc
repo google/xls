@@ -3380,4 +3380,13 @@ TEST_F(ParserTest, ParseWithUncompletedStateTransaction) {
                        HasSubstr("Unrecognized character: '\xb0' (0xb0)")));
 }
 
+// This sample would previously cause a segfault because we'd try to set a
+// definer on a NameDef binding but we only have a NameDefTree.
+TEST_F(ParserTest, LocalConstWithNoNameDef) {
+  constexpr std::string_view kProgram = "fn f(){const(X)=();}";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  XLS_EXPECT_OK(parser.ParseModule());
+}
+
 }  // namespace xls::dslx
