@@ -1,0 +1,46 @@
+1:3-1:11: NAME_DEF :: `distinct` :: (uN[2][2], uN[1][2]) -> uN[1]
+1:12-1:17: NAME_DEF :: `COUNT` :: uN[32]
+1:19-1:22: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+1:24-1:25: NAME_DEF :: `N` :: uN[32]
+1:27-1:30: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+1:32-1:33: NAME_DEF :: `S` :: uN[1]
+1:35-1:39: TYPE_ANNOTATION :: `bool` :: typeof(uN[1])
+1:41-1:46: NAME_DEF :: `items` :: xN[is_signed=S][N][COUNT]
+1:41-1:63: PARAM :: `items: xN[S][N][COUNT]` :: xN[is_signed=S][N][COUNT]
+1:48-1:63: TYPE_ANNOTATION :: `xN[S]` :: typeof(xN[is_signed=S])
+1:48-1:63: TYPE_ANNOTATION :: `xN[S]` :: typeof(xN[is_signed=S][N])
+1:48-1:63: TYPE_ANNOTATION :: `xN[S]` :: typeof(xN[is_signed=S][N][COUNT])
+1:51-1:52: NAME_REF :: `S` :: uN[1]
+1:54-1:55: NAME_REF :: `N` :: uN[32]
+1:57-1:62: NAME_REF :: `COUNT` :: uN[32]
+1:65-1:70: NAME_DEF :: `valid` :: uN[1][COUNT]
+1:65-1:83: PARAM :: `valid: bool[COUNT]` :: uN[1][COUNT]
+1:72-1:76: TYPE_ANNOTATION :: `bool` :: typeof(uN[1])
+1:72-1:83: TYPE_ANNOTATION :: `bool[COUNT]` :: typeof(uN[1][COUNT])
+1:77-1:82: NAME_REF :: `COUNT` :: uN[32]
+1:88-1:92: TYPE_ANNOTATION :: `bool` :: typeof(uN[1])
+4:0-6:1: FUNCTION :: `fn test_simple_nondistinct() {
+    assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)
+}` :: () -> ()
+4:3-4:26: NAME_DEF :: `test_simple_nondistinct` :: () -> ()
+4:29-6:1: STATEMENT_BLOCK :: `{
+    assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)
+}` :: ()
+5:4-5:13: NAME_REF :: `assert_eq` :: (uN[1], uN[1]) -> ()
+5:13-5:66: INVOCATION :: `assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)` :: ()
+5:13-5:66: STATEMENT :: `assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)` :: ()
+5:14-5:22: NAME_REF :: `distinct` :: (uN[2][2], uN[1][2]) -> uN[1]
+5:22-5:58: INVOCATION :: `distinct(u2[2]:[1, 1], bool[2]:[true, true])` :: uN[1]
+5:23-5:25: TYPE_ANNOTATION :: `u2` :: typeof(uN[2])
+5:23-5:28: TYPE_ANNOTATION :: `u2[2]` :: typeof(uN[2][2])
+5:26-5:27: NUMBER :: `2` :: uN[32]
+5:29-5:35: ARRAY :: `u2[2]:[1, 1]` :: uN[2][2]
+5:30-5:31: NUMBER :: `1` :: uN[2]
+5:33-5:34: NUMBER :: `1` :: uN[2]
+5:37-5:41: TYPE_ANNOTATION :: `bool` :: typeof(uN[1])
+5:37-5:44: TYPE_ANNOTATION :: `bool[2]` :: typeof(uN[1][2])
+5:42-5:43: NUMBER :: `2` :: uN[32]
+5:45-5:57: ARRAY :: `bool[2]:[true, true]` :: uN[1][2]
+5:46-5:50: NUMBER :: `true` :: uN[1]
+5:52-5:56: NUMBER :: `true` :: uN[1]
+5:60-5:65: NUMBER :: `false` :: uN[1]
