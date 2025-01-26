@@ -326,6 +326,22 @@ impl foo {
 })");
 }
 
+TEST(ParserErrorTest, LetMut) {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
+    let mut x = u32:0;
+    x
+})";
+  FileTable file_table;
+  Scanner s{file_table, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  absl::StatusOr<std::unique_ptr<Module>> module = parser.ParseModule();
+  EXPECT_THAT(
+      module.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("`mut` and mutable bindings are not supported in DSLX")));
+}
+
 TEST(ParserErrorTest, ImplWithMisplacedSelf) {
   constexpr std::string_view kProgram = R"(struct foo {
     a: bits[9],
