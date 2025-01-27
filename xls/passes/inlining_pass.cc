@@ -15,12 +15,14 @@
 #include "xls/passes/inlining_pass.h"
 
 #include <cstdint>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -33,6 +35,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -125,6 +128,12 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
         node->CloneInNewFunction(new_operands, invoke->function_base()));
     if (new_node->loc().Empty()) {
       new_node->SetLoc(invoke->loc());
+    } else {
+      std::vector<SourceLocation> locs(new_node->loc().locations);
+      locs.reserve(new_node->loc().locations.size() +
+                   invoke->loc().locations.size());
+      absl::c_copy(invoke->loc().locations, std::back_inserter(locs));
+      new_node->SetLoc(SourceInfo(std::move(locs)));
     }
     invoked_node_to_replacement[node] = new_node;
   }

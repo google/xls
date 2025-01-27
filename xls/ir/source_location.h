@@ -17,6 +17,7 @@
 
 #include <compare>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/str_format.h"
@@ -66,6 +67,8 @@ struct SourceInfo {
 
   SourceInfo() = default;
   explicit SourceInfo(const SourceLocation& loc) : locations({loc}) {}
+  explicit SourceInfo(std::vector<SourceLocation>&& locs)
+      : locations(std::move(locs)) {}
   explicit SourceInfo(absl::Span<const SourceLocation> locs)
       : locations(locs.begin(), locs.end()) {}
 
