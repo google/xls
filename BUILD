@@ -49,7 +49,7 @@ exports_files([
 genrule(
     name = "fuzztest_generated_bazelrc",
     outs = ["fuzztest.generated.bazelrc"],
-    cmd = "$(location @com_google_fuzztest//bazel:setup_configs) \"@com_google_fuzztest\" | sed '$ { /^$/d }' > $@",
+    cmd = "$(location @com_google_fuzztest//bazel:setup_configs) \"@com_google_fuzztest\" | sed '$$ { /^$$/d }' > $@",
     tools = ["@com_google_fuzztest//bazel:setup_configs"],
 )
 
