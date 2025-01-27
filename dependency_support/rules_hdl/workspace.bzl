@@ -58,9 +58,9 @@ def repo():
         urls = ["https://github.com/jmillikin/rules_bison/releases/download/v0.2.2/rules_bison-v0.2.2.tar.xz"],
     )
 
-    # Current as of 2024-10-01
-    git_hash = "5023590057a3a83a98be7b6f3aa79eed47daf0e1"
-    archive_sha256 = "4dd1cf51573798da825717d8fbebdb390260d533b76fef908cbceb7bddea1302"
+    # Current as of 2025-01-29
+    git_hash = "160115fe5353e8094917d620fc900014e0dbd956"
+    archive_sha256 = "a7c974d5e938d3fb8934e19a9f7ae9dd07f9863bf07c7804bb02b3d37e326785"
 
     maybe(
         http_archive,

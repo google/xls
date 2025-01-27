@@ -1,0 +1,260 @@
+diff --git a/ortools/algorithms/BUILD.bazel b/ortools/algorithms/BUILD.bazel
+index be5f372620..09781728ca 100644
+--- a/ortools/algorithms/BUILD.bazel
++++ b/ortools/algorithms/BUILD.bazel
+@@ -12,7 +12,7 @@
+ # limitations under the License.
+ 
+ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+diff --git a/ortools/algorithms/python/BUILD.bazel b/ortools/algorithms/python/BUILD.bazel
+index fe3de2c5f9..912b8d9f8c 100644
+--- a/ortools/algorithms/python/BUILD.bazel
++++ b/ortools/algorithms/python/BUILD.bazel
+@@ -16,7 +16,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+ # Python wrapper for ..
+ load("@pip_deps//:requirements.bzl", "requirement")
+ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
+-load("@rules_cc//cc:defs.bzl", "cc_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library")
+ load("@rules_python//python:defs.bzl", "py_test")
+ 
+ # OSS solvers
+diff --git a/ortools/bop/BUILD.bazel b/ortools/bop/BUILD.bazel
+index 47209902d2..c9b2dc1f70 100644
+--- a/ortools/bop/BUILD.bazel
++++ b/ortools/bop/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+diff --git a/ortools/constraint_solver/BUILD.bazel b/ortools/constraint_solver/BUILD.bazel
+index 99d9b4d9c9..18c01554e9 100644
+--- a/ortools/constraint_solver/BUILD.bazel
++++ b/ortools/constraint_solver/BUILD.bazel
+@@ -13,7 +13,7 @@
+ 
+ # Home of constraint solver constraint_solver
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ 
+ package(default_visibility = ["//visibility:public"])
+diff --git a/ortools/glop/BUILD.bazel b/ortools/glop/BUILD.bazel
+index 687c48d363..c8bba33598 100644
+--- a/ortools/glop/BUILD.bazel
++++ b/ortools/glop/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+diff --git a/ortools/graph/BUILD.bazel b/ortools/graph/BUILD.bazel
+index fe0f5883b5..e3d7d3ff2d 100644
+--- a/ortools/graph/BUILD.bazel
++++ b/ortools/graph/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ 
+ package(default_visibility = ["//visibility:public"])
+diff --git a/ortools/gscip/BUILD.bazel b/ortools/gscip/BUILD.bazel
+index d9494838b3..28abaff1fd 100644
+--- a/ortools/gscip/BUILD.bazel
++++ b/ortools/gscip/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+ package(
+diff --git a/ortools/init/python/BUILD.bazel b/ortools/init/python/BUILD.bazel
+index 1774f366bb..36f928cf3b 100644
+--- a/ortools/init/python/BUILD.bazel
++++ b/ortools/init/python/BUILD.bazel
+@@ -15,7 +15,7 @@
+ 
+ load("@pip_deps//:requirements.bzl", "requirement")
+ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
+-load("@rules_cc//cc:defs.bzl", "cc_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library")
+ load("@rules_python//python:defs.bzl", "py_test")
+ 
+ cc_library(
+diff --git a/ortools/linear_solver/BUILD.bazel b/ortools/linear_solver/BUILD.bazel
+index 618e1921a6..60ea2fe95b 100644
+--- a/ortools/linear_solver/BUILD.bazel
++++ b/ortools/linear_solver/BUILD.bazel
+@@ -13,7 +13,7 @@
+ 
+ load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+diff --git a/ortools/math_opt/BUILD.bazel b/ortools/math_opt/BUILD.bazel
+index 3307bffff8..57fcf225f7 100644
+--- a/ortools/math_opt/BUILD.bazel
++++ b/ortools/math_opt/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+ package(default_visibility = ["//visibility:public"])
+diff --git a/ortools/math_opt/solvers/BUILD.bazel b/ortools/math_opt/solvers/BUILD.bazel
+index e7e8054a97..a3c517f72b 100644
+--- a/ortools/math_opt/solvers/BUILD.bazel
++++ b/ortools/math_opt/solvers/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+ package(default_visibility = ["//ortools/math_opt:__subpackages__"])
+diff --git a/ortools/packing/BUILD.bazel b/ortools/packing/BUILD.bazel
+index 04b7014f32..a8368d21b0 100644
+--- a/ortools/packing/BUILD.bazel
++++ b/ortools/packing/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ 
+ package(default_visibility = ["//visibility:public"])
+ 
+diff --git a/ortools/pdlp/BUILD.bazel b/ortools/pdlp/BUILD.bazel
+index 5b68856f23..ca7f3004a7 100644
+--- a/ortools/pdlp/BUILD.bazel
++++ b/ortools/pdlp/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+diff --git a/ortools/routing/parsers/BUILD.bazel b/ortools/routing/parsers/BUILD.bazel
+index 94690f386f..3e15468f60 100644
+--- a/ortools/routing/parsers/BUILD.bazel
++++ b/ortools/routing/parsers/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ 
+ package(default_visibility = ["//visibility:public"])
+diff --git a/ortools/sat/BUILD.bazel b/ortools/sat/BUILD.bazel
+index 222559fa88..991c52652f 100644
+--- a/ortools/sat/BUILD.bazel
++++ b/ortools/sat/BUILD.bazel
+@@ -13,7 +13,7 @@
+ 
+ # Home of CP/SAT solver (which includes SAT, max-SAT and PB problems).
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library")
+ load("@rules_java//java:defs.bzl", "java_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+diff --git a/ortools/scheduling/BUILD.bazel b/ortools/scheduling/BUILD.bazel
+index d2c0ef005d..bfab1c185e 100644
+--- a/ortools/scheduling/BUILD.bazel
++++ b/ortools/scheduling/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ load("@rules_proto//proto:defs.bzl", "proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+diff --git a/ortools/service/v1/BUILD.bazel b/ortools/service/v1/BUILD.bazel
+index 20a72e774d..3dd9f17563 100644
+--- a/ortools/service/v1/BUILD.bazel
++++ b/ortools/service/v1/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+ package(default_visibility = [
+diff --git a/ortools/service/v1/mathopt/BUILD.bazel b/ortools/service/v1/mathopt/BUILD.bazel
+index 0feaf21b1f..c702441d0b 100644
+--- a/ortools/service/v1/mathopt/BUILD.bazel
++++ b/ortools/service/v1/mathopt/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+ package(default_visibility = [
+diff --git a/ortools/util/BUILD.bazel b/ortools/util/BUILD.bazel
+index b2ee31597e..e075a5058b 100644
+--- a/ortools/util/BUILD.bazel
++++ b/ortools/util/BUILD.bazel
+@@ -11,7 +11,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
++# load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+ load("@rules_python//python:proto.bzl", "py_proto_library")
+ 
+ package(default_visibility = ["//visibility:public"])
+diff --git a/ortools/util/python/BUILD.bazel b/ortools/util/python/BUILD.bazel
+index 925cf571dc..4668b80870 100644
+--- a/ortools/util/python/BUILD.bazel
++++ b/ortools/util/python/BUILD.bazel
+@@ -15,7 +15,7 @@
+ 
+ load("@pip_deps//:requirements.bzl", "requirement")
+ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
+-load("@rules_cc//cc:defs.bzl", "cc_library")
++# load("@rules_cc//cc:defs.bzl", "cc_library")
+ load("@rules_python//python:defs.bzl", "py_test")
+ 
+ cc_library(
