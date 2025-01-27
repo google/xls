@@ -221,7 +221,7 @@ cc_library(
         ":synthesizer",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
-        "@com_github_grpc_grpc//:grpc++_public_hdrs",
+        "@com_github_grpc_grpc//:grpc++",
         "@com_google_absl//absl/status:statusor",
     ],
 )
