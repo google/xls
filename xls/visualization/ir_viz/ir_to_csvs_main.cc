@@ -96,7 +96,8 @@ constexpr riegeli::CsvHeaderConstant kNodeHeader = {"name",
                                                     "initial_value",
                                                     "area_um",
                                                     "file",
-                                                    "line"};
+                                                    "line",
+                                                    "range"};
 riegeli::CsvRecord NodeRecord(const viz::Node& node) {
   return riegeli::CsvRecord(
       *kNodeHeader,
@@ -139,6 +140,7 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
               ? node.loc()[0].file()
               : "",
           node.loc_size() == 1 ? ToFieldValue(node.loc()[0].line()) : "",
+          node.attributes().has_ranges() ? node.attributes().ranges() : "",
       });
 }
 

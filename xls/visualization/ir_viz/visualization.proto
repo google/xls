@@ -73,6 +73,9 @@ message NodeAttributes {
   optional double state_param_index = 9;
   optional string initial_value = 10;
   optional double area_um = 11;
+
+  // If present the interval-set of the node.
+  optional string ranges = 32;
 }
 
 message SourceLocation {

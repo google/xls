@@ -47,7 +47,9 @@
 #include "xls/ir/proc.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/proc_state_range_query_engine.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -130,6 +132,7 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
   }
   if (query_engine.IsTracked(node)) {
     attributes.set_known_bits(query_engine.ToString(node));
+    attributes.set_ranges(query_engine.GetIntervals(node).ToString());
   }
   if (std::optional<int64_t> state_index = MaybeGetStateReadIndex(node);
       state_index.has_value()) {
@@ -192,6 +195,8 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
   engines.emplace_back(
       std::make_unique<BddQueryEngine>(BddFunction::kDefaultPathLimit));
   engines.emplace_back(std::make_unique<TernaryQueryEngine>());
+  engines.emplace_back(std::make_unique<RangeQueryEngine>());
+  engines.emplace_back(std::make_unique<ProcStateRangeQueryEngine>());
   UnionQueryEngine query_engine(std::move(engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
