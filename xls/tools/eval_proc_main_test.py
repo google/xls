@@ -52,19 +52,19 @@ BLOCK_SIG_ZERO_SIZE_PATH = runfiles.get_path(
     "xls/tools/testdata/eval_proc_main_zero_size_test.sig.textproto"
 )
 BLOCK_MEMORY_IR_PATH = runfiles.get_path(
-    "xls/tools/testdata/eval_proc_main_test.test_memory.block.ir"
+    "xls/tools/testdata/eval_proc_main_test_memory.block.ir"
 )
 BLOCK_MEMORY_SIGNATURE_PATH = runfiles.get_path(
-    "xls/tools/testdata/eval_proc_main_test.test_memory.sig.textproto"
+    "xls/tools/testdata/eval_proc_main_test_memory.sig.textproto"
 )
 BLOCK_MEMORY_REWRITES_PATH = runfiles.get_path(
-    "xls/tools/testdata/eval_proc_main_test.ram_rewrites.textproto"
+    "xls/tools/testdata/eval_proc_main_test_memory.ram_rewrites.textproto"
 )
 PROC_ABSTRACT_MEMORY_IR_PATH = runfiles.get_path(
-    "xls/tools/testdata/eval_proc_main_test.test_memory.ir"
+    "xls/tools/testdata/eval_proc_main_test_memory.ir"
 )
 PROC_REWRITTEN_MEMORY_IR_PATH = runfiles.get_path(
-    "xls/tools/testdata/eval_proc_main_test.test_memory.opt.ir"
+    "xls/tools/testdata/eval_proc_main_test_memory.opt.ir"
 )
 
 # Block generated from the proc with:
@@ -866,7 +866,7 @@ class EvalProcTest(parameterized.TestCase):
     ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
     signature_file = BLOCK_MEMORY_SIGNATURE_PATH
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in : {
+          eval_proc_main_test_memory__in_ch : {
             bits[32]:42
             bits[32]:101
             bits[32]:50
@@ -874,7 +874,7 @@ class EvalProcTest(parameterized.TestCase):
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out : {
+          eval_proc_main_test_memory__out_ch : {
             bits[32]:126
             bits[32]:303
             bits[32]:150
@@ -978,7 +978,7 @@ rewrites {
     ir_file = PROC_ABSTRACT_MEMORY_IR_PATH
     ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in : {
+          eval_proc_main_test_memory__in_ch : {
             bits[32]:42
             bits[32]:101
             bits[32]:50
@@ -986,7 +986,7 @@ rewrites {
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out : {
+          eval_proc_main_test_memory__out_ch : {
             bits[32]:126
             bits[32]:303
             bits[32]:150
@@ -1012,14 +1012,16 @@ rewrites {
     ] + backend
 
     output = run_command(shared_args)
-    self.assertIn("Proc Test_proc", output.stderr)
+    self.assertIn(
+        "Proc __eval_proc_main_test_memory__test_proc_0_next", output.stderr
+    )
 
   @parameterized_proc_backends
   def test_proc_rewritten_memory(self, backend):
     ir_file = PROC_REWRITTEN_MEMORY_IR_PATH
     ram_rewrites_file = BLOCK_MEMORY_REWRITES_PATH
     input_file = self.create_tempfile(content=textwrap.dedent("""
-          in : {
+          eval_proc_main_test_memory__in_ch : {
             bits[32]:42
             bits[32]:101
             bits[32]:50
@@ -1027,7 +1029,7 @@ rewrites {
           }
         """))
     output_file = self.create_tempfile(content=textwrap.dedent("""
-          out : {
+          eval_proc_main_test_memory__out_ch : {
             bits[32]:126
             bits[32]:303
             bits[32]:150
@@ -1052,7 +1054,9 @@ rewrites {
     ] + backend
 
     output = run_command(shared_args)
-    self.assertIn("Proc Test_proc", output.stderr)
+    self.assertIn(
+        "Proc __eval_proc_main_test_memory__test_proc_0_next", output.stderr
+    )
 
   @parameterized_block_backends
   def test_observe_block(self, backend):

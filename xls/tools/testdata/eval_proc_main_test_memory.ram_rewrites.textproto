@@ -1,0 +1,27 @@
+rewrites {
+  from_config {
+    kind: RAM_ABSTRACT
+    depth: 4
+  }
+  from_channels_logical_to_physical {
+    key: "abstract_read_req"
+    value: "eval_proc_main_test_memory__mem_read_request"
+  }
+  from_channels_logical_to_physical {
+    key: "abstract_read_resp"
+    value: "eval_proc_main_test_memory__mem_read_response"
+  }
+  from_channels_logical_to_physical {
+    key: "abstract_write_req"
+    value: "eval_proc_main_test_memory__mem_write_request"
+  }
+  from_channels_logical_to_physical {
+    key: "write_completion"
+    value: "eval_proc_main_test_memory__mem_write_response"
+  }
+  to_config {
+    kind: RAM_1RW
+    depth: 4
+  }
+  to_name_prefix: "mem"
+}

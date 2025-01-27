@@ -65,3 +65,24 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
+
+py_test(
+    name = "eval_proc_main_test",
+    srcs = ["eval_proc_main_test.py"],
+    data = [
+        "//xls/contrib/xlscc/integration_tests/testdata:eval_proc_main_test.ram_rewrites.textproto",
+        "//xls/contrib/xlscc/integration_tests/testdata:eval_proc_main_test.test_memory.block.ir",
+        "//xls/contrib/xlscc/integration_tests/testdata:eval_proc_main_test.test_memory.ir",
+        "//xls/contrib/xlscc/integration_tests/testdata:eval_proc_main_test.test_memory.opt.ir",
+        "//xls/contrib/xlscc/integration_tests/testdata:eval_proc_main_test.test_memory.sig.textproto",
+        "//xls/tools:eval_proc_main",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_absl_py//absl/testing:absltest",
+        "@com_google_absl_py//absl/testing:parameterized",
+    ],
+)
