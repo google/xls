@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "riegeli/bytes/fd_writer.h"
 #include "riegeli/csv/csv_record.h"
 #include "riegeli/csv/csv_writer.h"
@@ -97,7 +98,8 @@ constexpr riegeli::CsvHeaderConstant kNodeHeader = {"name",
                                                     "area_um",
                                                     "file",
                                                     "line",
-                                                    "range"};
+                                                    "range",
+                                                    "all_locs"};
 riegeli::CsvRecord NodeRecord(const viz::Node& node) {
   return riegeli::CsvRecord(
       *kNodeHeader,
@@ -131,7 +133,6 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
           node.attributes().has_area_um()
               ? ToFieldValue(static_cast<int64_t>(node.attributes().area_um()))
               : "",
-          // TODO(allight): Handle nodes with multiple associated locations.
           node.loc_size() >= 1 && absl::c_all_of(node.loc(),
                                                  [&](auto loc) {
                                                    return loc.file() ==
@@ -141,6 +142,10 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
               : "",
           node.loc_size() == 1 ? ToFieldValue(node.loc()[0].line()) : "",
           node.attributes().has_ranges() ? node.attributes().ranges() : "",
+          absl::StrJoin(node.loc(), "\n",
+                        [](std::string* out, const auto& loc) {
+                          absl::StrAppend(out, loc.file(), ":", loc.line());
+                        }),
       });
 }
 
