@@ -36,7 +36,6 @@
 #include "xls/interpreter/proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/channel.pb.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_test_base.h"
@@ -48,9 +47,6 @@
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "xls/tools/codegen.h"
-#include "xls/tools/codegen_flags.pb.h"
-#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls::verilog {
 namespace {

@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -42,7 +41,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
