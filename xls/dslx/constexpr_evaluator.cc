@@ -281,7 +281,9 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
             XLS_ASSIGN_OR_RETURN(Expr * member_value_expr,
                                  enum_def->GetValue(expr->attr()));
 
-            // Since enum defs can't [currently] be parameterized, this is safe.
+            // Since enum defs can't [currently] be parameterized or declared
+            // locally, it's safe to assume we want to grab the root type info
+            // for the enum def.
             XLS_ASSIGN_OR_RETURN(
                 TypeInfo * type_info,
                 import_data_->GetRootTypeInfoForNode(enum_def));
@@ -302,14 +304,13 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
             return absl::OkStatus();
           },
           [&](ArrayTypeAnnotation* array_type_annotation) -> absl::Status {
-            XLS_ASSIGN_OR_RETURN(
-                TypeInfo * type_info,
-                import_data_->GetRootTypeInfoForNode(array_type_annotation));
+            const TypeInfo& type_info = GetTypeInfoForNodeIfDifferentModule(
+                array_type_annotation, *type_info_, *import_data_);
             XLS_RET_CHECK(
-                type_info->IsKnownConstExpr(array_type_annotation->dim()));
+                type_info.IsKnownConstExpr(array_type_annotation->dim()));
             XLS_ASSIGN_OR_RETURN(
                 InterpValue dim,
-                type_info->GetConstExpr(array_type_annotation->dim()));
+                type_info.GetConstExpr(array_type_annotation->dim()));
             XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, dim.GetBitValueViaSign());
             XLS_ASSIGN_OR_RETURN(InterpValue value,
                                  GetArrayTypeColonAttr(array_type_annotation,

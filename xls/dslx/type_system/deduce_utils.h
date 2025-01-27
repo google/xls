@@ -218,6 +218,13 @@ absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
 // should not cause a type error to occur).
 bool IsAcceptableCast(const Type& from, const Type& to);
 
+// Returns the TypeInfo for the given node, preferring the current TypeInfo if
+// the node is in the same module, otherwise giving the root TypeInfo for
+// the node's module.
+const TypeInfo& GetTypeInfoForNodeIfDifferentModule(
+    AstNode* node, const TypeInfo& current_type_info,
+    const ImportData& import_data);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

@@ -4216,6 +4216,25 @@ fn main() { x36() }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+// Previously this would cause us to RET_CHECK because we were assuming we
+// wanted to grab the root type information instead of the parametric
+// invocation's type information.
+TEST(TypecheckTest, AttrViaParametricBinding) {
+  constexpr std::string_view kProgram = R"(
+fn f<N: u32>() -> uN[N]{
+    type UN = uN[N];
+    let max = UN::MAX;
+    max
+}
+
+#[test]
+fn test_f() {
+    assert_eq(f<u32:8>(), u8:255);
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 // Table-oriented test that lets us validate that *types on parameters* are
 // compatible with *particular values* that should be type-compatible.
 TEST(PassValueToIdentityFnTest, ParameterVsValue) {

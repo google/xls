@@ -862,4 +862,18 @@ bool IsAcceptableCast(const Type& from, const Type& to) {
   return false;
 }
 
+const TypeInfo& GetTypeInfoForNodeIfDifferentModule(
+    AstNode* node, const TypeInfo& current_type_info,
+    const ImportData& import_data) {
+  if (node->owner() == current_type_info.module()) {
+    return current_type_info;
+  }
+  absl::StatusOr<const TypeInfo*> type_info =
+      import_data.GetRootTypeInfoForNode(node);
+  CHECK_OK(type_info.status())
+      << "Must be able to get root type info for node " << node->ToString();
+  CHECK(type_info.value() != nullptr);
+  return *type_info.value();
+}
+
 }  // namespace xls::dslx
