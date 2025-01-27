@@ -148,8 +148,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/ir",
-        "//xls/ir:channel",
-        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:state_element",
         "@com_google_absl//absl/container:flat_hash_map",

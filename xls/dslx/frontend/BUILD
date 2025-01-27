@@ -603,14 +603,9 @@ cc_library(
     deps = [
         ":ast",
         ":ast_node_visitor_with_default",
-        ":module",
-        ":pos",
         "//xls/common/status:status_macros",
-        "//xls/ir:bits",
-        "//xls/ir:number_parser",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )

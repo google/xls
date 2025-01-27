@@ -396,7 +396,6 @@ cc_library(
         "//xls/dslx/frontend:proc",
         "//xls/dslx/frontend:proc_id",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
