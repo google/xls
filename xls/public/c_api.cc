@@ -37,6 +37,7 @@
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bit_push_buffer.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
@@ -254,6 +255,129 @@ bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index) {
   return cpp_bits->Get(index);
 }
 
+struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
+                                      int64_t start, int64_t width) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  return reinterpret_cast<xls_bits*>(
+      new xls::Bits(cpp_bits->Slice(start, width)));
+}
+
+struct xls_bits* xls_bits_shift_left_logical(const struct xls_bits* bits,
+                                             int64_t shift_amount) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  xls::Bits result = xls::bits_ops::ShiftLeftLogical(*cpp_bits, shift_amount);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_shift_right_logical(const struct xls_bits* bits,
+                                              int64_t shift_amount) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  xls::Bits result = xls::bits_ops::ShiftRightLogical(*cpp_bits, shift_amount);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_shift_right_arithmetic(const struct xls_bits* bits,
+                                                 int64_t shift_amount) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  xls::Bits result = xls::bits_ops::ShiftRightArith(*cpp_bits, shift_amount);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_negate(const struct xls_bits* bits) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  xls::Bits result = xls::bits_ops::Negate(*cpp_bits);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_abs(const struct xls_bits* bits) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  xls::Bits result = xls::bits_ops::Abs(*cpp_bits);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_not(const struct xls_bits* bits) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  xls::Bits result = xls::bits_ops::Not(*cpp_bits);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_add(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::Add(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_sub(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::Sub(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_and(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::And(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_or(const struct xls_bits* lhs,
+                             const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::Or(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_xor(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::Xor(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_umul(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::UMul(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
+struct xls_bits* xls_bits_smul(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs) {
+  CHECK(lhs != nullptr);
+  CHECK(rhs != nullptr);
+  const auto* cpp_lhs = reinterpret_cast<const xls::Bits*>(lhs);
+  const auto* cpp_rhs = reinterpret_cast<const xls::Bits*>(rhs);
+  xls::Bits result = xls::bits_ops::SMul(*cpp_lhs, *cpp_rhs);
+  return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
+}
+
 char* xls_bits_to_debug_string(const struct xls_bits* bits) {
   CHECK(bits != nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
@@ -301,6 +425,12 @@ int64_t xls_bits_get_bit_count(const struct xls_bits* bits) {
 void xls_bits_free(xls_bits* b) { delete reinterpret_cast<xls::Bits*>(b); }
 
 void xls_value_free(xls_value* v) { delete reinterpret_cast<xls::Value*>(v); }
+
+struct xls_value* xls_value_from_bits(const struct xls_bits* bits) {
+  CHECK(bits != nullptr);
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  return reinterpret_cast<xls_value*>(new xls::Value(std::move(*cpp_bits)));
+}
 
 struct xls_function_base* xls_package_get_top(struct xls_package* p) {
   CHECK(p != nullptr);
@@ -354,6 +484,27 @@ bool xls_value_to_string_format_preference(
   }
 
   std::string s = reinterpret_cast<const xls::Value*>(v)->ToString(cpp_pref);
+  *result_out = xls::ToOwnedCString(s);
+  return true;
+}
+
+bool xls_bits_to_string(const struct xls_bits* bits,
+                        xls_format_preference format_preference,
+                        bool include_bit_count, char** error_out,
+                        char** result_out) {
+  CHECK(bits != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+
+  xls::FormatPreference cpp_format_preference;
+  if (!FormatPreferenceFromC(format_preference, &cpp_format_preference,
+                             error_out)) {
+    return false;
+  }
+
+  const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
+  std::string s =
+      xls::BitsToString(*cpp_bits, cpp_format_preference, include_bit_count);
   *result_out = xls::ToOwnedCString(s);
   return true;
 }

@@ -142,6 +142,45 @@ bool xls_bits_eq(const struct xls_bits* a, const struct xls_bits* b);
 // returns 1, `xls_bits_get_bit(bits, 1)` returns 0.
 bool xls_bits_get_bit(const struct xls_bits* bits, int64_t index);
 
+struct xls_bits* xls_bits_width_slice(const struct xls_bits* bits,
+                                      int64_t start, int64_t width);
+
+struct xls_bits* xls_bits_shift_left_logical(const struct xls_bits* bits,
+                                             int64_t shift_amount);
+
+struct xls_bits* xls_bits_shift_right_logical(const struct xls_bits* bits,
+                                              int64_t shift_amount);
+
+struct xls_bits* xls_bits_shift_right_arithmetic(const struct xls_bits* bits,
+                                                 int64_t shift_amount);
+
+struct xls_bits* xls_bits_negate(const struct xls_bits* bits);
+
+struct xls_bits* xls_bits_abs(const struct xls_bits* bits);
+
+struct xls_bits* xls_bits_not(const struct xls_bits* bits);
+
+struct xls_bits* xls_bits_add(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_sub(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_and(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_or(const struct xls_bits* lhs,
+                             const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_xor(const struct xls_bits* lhs,
+                              const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_umul(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs);
+
+struct xls_bits* xls_bits_smul(const struct xls_bits* lhs,
+                               const struct xls_bits* rhs);
+
 // Returns a new `bits[1]:0` XLS value which the caller must free.
 struct xls_value* xls_value_make_false();
 
@@ -164,8 +203,15 @@ bool xls_value_to_string_format_preference(
     const struct xls_value* v, xls_format_preference format_preference,
     char** error_out, char** result_out);
 
+bool xls_bits_to_string(const struct xls_bits* bits,
+                        xls_format_preference format_preference,
+                        bool include_bit_count, char** error_out,
+                        char** result_out);
+
 // Deallocates a value, e.g. one as created by `xls_parse_typed_value`.
 void xls_value_free(struct xls_value* v);
+
+struct xls_value* xls_value_from_bits(const struct xls_bits* bits);
 
 // Flattens the given value to a sequence of bits in a bits "buffer" value.
 //
