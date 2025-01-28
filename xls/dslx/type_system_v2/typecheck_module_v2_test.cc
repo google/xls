@@ -2758,6 +2758,16 @@ const Y = zero!<S<16, 64>>();
       TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[16], b: uN[64] }")));
 }
 
+TEST(TypecheckV2Test, ZeroMacroParametricStructInFn) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32, B: u32> { a: uN[A], b: uN[B], }
+fn f<N:u32, M: u32={N*4}>()-> S<N, M> { zero!<S<N, M>>() }
+const Y = f<16>();
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[16], b: uN[64] }")));
+}
+
 TEST(TypecheckV2Test, ZeroMacroFromParametric) {
   EXPECT_THAT(R"(
 fn f<N:u32>() -> uN[N] { zero!<uN[N]>() }

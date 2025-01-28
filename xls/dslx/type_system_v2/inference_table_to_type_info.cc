@@ -40,6 +40,7 @@
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -56,6 +57,7 @@
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/type_zero_value.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
@@ -522,6 +524,24 @@ class InferenceTableConverter {
         ti->NoteConstExpr(constant_def->value(), *value);
         ti->NoteConstExpr(constant_def->name_def(), *value);
       }
+    }
+    if (const auto* zero_macro = dynamic_cast<const ZeroMacro*>(node)) {
+      VLOG(5) << "Checking zero_macro def value: " << zero_macro->ToString()
+              << " with type: " << type.ToString();
+
+      XLS_ASSIGN_OR_RETURN(InterpValue value,
+                           MakeZeroValue(type, import_data_, *node->GetSpan()));
+      ti->NoteConstExpr(zero_macro, value);
+    }
+    if (const auto* all_ones_macro = dynamic_cast<const AllOnesMacro*>(node)) {
+      VLOG(5) << "Checking all_ones_macro def value: "
+              << all_ones_macro->ToString()
+              << " with type: " << type.ToString();
+
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue value,
+          MakeAllOnesValue(type, import_data_, *node->GetSpan()));
+      ti->NoteConstExpr(all_ones_macro, value);
     }
     if (const auto* name_ref = dynamic_cast<const NameRef*>(node)) {
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
