@@ -630,10 +630,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                      node, *fn, /*parametric_invocation=*/std::nullopt);
   }
 
-  absl::Status HandleZeroMacro(const ZeroMacro* node) override {
-    VLOG(5) << "HandleZeroMacro: " << node->ToString();
-
-    ExprOrType type = node->type();
+  absl::Status HandleZeroOrOneMacro(const AstNode* node, ExprOrType type) {
     if (std::holds_alternative<TypeAnnotation*>(type)) {
       // If the "type" is a type annotation, that's the type.
       XLS_RETURN_IF_ERROR(
@@ -642,10 +639,21 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     }
     // If it's an "expr", that's an error (just like in V1)
     return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::Substitute("Expected a type in zero! macro type; saw `$0`.",
+        *node->GetSpan(), nullptr,
+        absl::Substitute("Expected a type in $0 type; saw `$1`.",
+                         node->GetNodeTypeName(),
                          std::get<Expr*>(type)->ToString()),
         file_table_);
+  }
+
+  absl::Status HandleZeroMacro(const ZeroMacro* node) override {
+    VLOG(5) << "HandleZeroMacro: " << node->ToString();
+    return HandleZeroOrOneMacro(node, node->type());
+  }
+
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* node) override {
+    VLOG(5) << "HandleAllOnesMacro: " << node->ToString();
+    return HandleZeroOrOneMacro(node, node->type());
   }
 
   absl::Status DefaultHandler(const AstNode* node) override {

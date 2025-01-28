@@ -2719,6 +2719,14 @@ TEST(TypecheckV2Test, ZeroMacroArray) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[10][2]")));
 }
 
+TEST(TypecheckV2Test, DISABLED_ZeroMacroEnum) {
+  // Type inference v2 cannot handle enums yet.
+  EXPECT_THAT(R"(
+enum E: u2 { ZERO=0, ONE=1, TWO=2}
+const Y = zero!<E>();)",
+              TypecheckSucceeds(HasNodeWithType("Y", "E")));
+}
+
 TEST(TypecheckV2Test, ZeroMacroTuple) {
   EXPECT_THAT("const Y = zero!<(u10, u32)>();",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[10], uN[32])")));
@@ -2763,16 +2771,16 @@ TEST(TypecheckV2Test, ZeroMacroExprError) {
 const X = u32:10;
 const Y = zero!<X>();
 )",
-              TypecheckFails(HasSubstr("in zero! macro type")));
+              TypecheckFails(HasSubstr("in ZeroMacro type")));
 }
 
-TEST(TypecheckV2Test, ZeroMacroImplConstrror) {
+TEST(TypecheckV2Test, ZeroMacroImplConstError) {
   EXPECT_THAT(R"(
 struct S{}
 impl S { const X = u32:10; }
 const Y = zero!<S::X>();
 )",
-              TypecheckFails(HasSubstr("in zero! macro type")));
+              TypecheckFails(HasSubstr("in ZeroMacro type")));
 }
 
 // We don't support imports in the type system yet.
@@ -2865,5 +2873,87 @@ const VAL = foo<u32:3>(u32:1);
                   HasNodeWithType("const VAL = foo<u32:3>(u32:1);", "uN[3]")));
 }
 
+TEST(TypecheckV2Test, AllOnesMacroNumber) {
+  EXPECT_THAT("const Y = all_ones!<u10>();",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroArray) {
+  EXPECT_THAT("const Y = all_ones!<u10[2]>();",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[10][2]")));
+}
+
+TEST(TypecheckV2Test, DISABLED_AllOnesMacroEnum) {
+  // Type inference v2 cannot handle enums yet.
+  EXPECT_THAT(R"(
+enum E: u2 { ZERO=0, ONE=1, TWO=2}
+const Y = all_ones!<E>();)",
+              TypecheckSucceeds(HasNodeWithType("Y", "E")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroTuple) {
+  EXPECT_THAT("const Y = all_ones!<(u10, u32)>();",
+              TypecheckSucceeds(HasNodeWithType("Y", "(uN[10], uN[32])")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroEmptyStruct) {
+  EXPECT_THAT(R"(
+struct S { }
+const Y = all_ones!<S>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "S {}")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroStruct) {
+  EXPECT_THAT(
+      R"(
+struct S { a: u32, b: u32, }
+const Y = all_ones!<S>();
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[32], b: uN[32] }")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroParametricStruct) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32, B: u32> { a: uN[A], b: uN[B], }
+const Y = all_ones!<S<16, 64>>();
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "S { a: uN[16], b: uN[64] }")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroFromParametric) {
+  EXPECT_THAT(R"(
+fn f<N:u32>() -> uN[N] { all_ones!<uN[N]>() }
+const Y = f<10>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroExprError) {
+  EXPECT_THAT(R"(
+const X = u32:10;
+const Y = all_ones!<X>();
+)",
+              TypecheckFails(HasSubstr("in AllOnesMacro type")));
+}
+
+TEST(TypecheckV2Test, AllOnesMacroImplConstError) {
+  EXPECT_THAT(R"(
+struct S{}
+impl S { const X = u32:10; }
+const Y = all_ones!<S::X>();
+)",
+              TypecheckFails(HasSubstr("in AllOnesMacro type")));
+}
+
+// We don't support imports in the type system yet.
+TEST(TypecheckV2Test, DISABLED_AllOnesMacroImportedType) {
+  EXPECT_THAT(R"(
+import imported;
+const Y = all_ones!<imported::X>();
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
+}
 }  // namespace
 }  // namespace xls::dslx
