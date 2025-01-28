@@ -210,6 +210,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:state_element",
+        "//xls/ir:xls_ir_interface_cc_proto",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -1888,6 +1889,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )

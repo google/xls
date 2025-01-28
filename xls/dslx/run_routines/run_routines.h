@@ -20,6 +20,7 @@
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
+#include <functional>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -39,10 +40,11 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
-#include "xls/dslx/mangle.h"
 #include "xls/dslx/run_routines/test_xml.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/virtualizable_file_system.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/events.h"
 #include "xls/ir/format_preference.h"

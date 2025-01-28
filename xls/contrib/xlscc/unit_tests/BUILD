@@ -30,6 +30,7 @@ cc_library(
     srcs = ["unit_test.cc"],
     hdrs = ["unit_test.h"],
     deps = [
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/common:source_location",
         "//xls/common/file:get_runfile_path",
         "//xls/common/file:temp_file",
@@ -59,6 +60,7 @@ cc_library(
         "//xls/tools:codegen",
         "//xls/tools:codegen_flags_cc_proto",
         "//xls/tools:opt",
+        "//xls/tools:scheduling_options_flags_cc_proto",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

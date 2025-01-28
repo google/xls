@@ -16,8 +16,11 @@
 #define XLS_IR_BIT_PUSH_BUFFER_H_
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
+#include "xls/common/math_util.h"
 #include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {

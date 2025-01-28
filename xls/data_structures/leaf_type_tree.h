@@ -15,7 +15,6 @@
 #ifndef XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 #define XLS_DATA_STRUCTURES_LEAF_TYPE_TREE_H_
 
-#include <concepts>
 #include <cstdint>
 #include <functional>
 #include <iterator>

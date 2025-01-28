@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {

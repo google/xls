@@ -15,6 +15,7 @@
 #include "xls/fuzzer/ast_generator.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdint>

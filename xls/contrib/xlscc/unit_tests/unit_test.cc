@@ -46,6 +46,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/source_location.h"
@@ -78,6 +79,7 @@
 #include "xls/tools/codegen.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/opt.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 using ::testing::Optional;
 

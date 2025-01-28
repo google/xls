@@ -14,17 +14,26 @@
 
 #include "xls/dslx/diagnostics/maybe_explain_error.h"
 
+#include <memory>
+#include <optional>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/module.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/type_mismatch_error_data.h"
 #include "xls/dslx/type_system/typecheck_module.h"
+#include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {

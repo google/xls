@@ -38,6 +38,7 @@
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/pass_registry.h"
 #include "xls/passes/pipeline_generator.h"
 

@@ -42,7 +42,6 @@
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/data_structures/transitive_closure.h"
-#include "xls/data_structures/union_find.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"

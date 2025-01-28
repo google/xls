@@ -61,7 +61,6 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value_utils.h"
 #include "xls/ir/verify_node.h"
 #include "re2/re2.h"
 

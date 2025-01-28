@@ -14,7 +14,6 @@
 
 #include "xls/estimators/delay_model/analyze_critical_path.h"
 
-#include <cstdint>
 #include <optional>
 #include <vector>
 

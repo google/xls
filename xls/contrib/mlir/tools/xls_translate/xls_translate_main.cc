@@ -33,6 +33,7 @@
 #include "mlir/include/mlir/Support/LogicalResult.h"
 #include "mlir/include/mlir/Tools/mlir-translate/MlirTranslateMain.h"
 #include "mlir/include/mlir/Tools/mlir-translate/Translation.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/contrib/mlir/IR/register.h"
 #include "xls/contrib/mlir/tools/xls_translate/xls_stitch.h"
 #include "xls/contrib/mlir/tools/xls_translate/xls_translate.h"

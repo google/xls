@@ -40,7 +40,6 @@ cc_library(
     deps = [
         "//xls/common/file:filesystem",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
@@ -71,7 +70,6 @@ cc_library(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:parametric_expression",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:type_zero_value",

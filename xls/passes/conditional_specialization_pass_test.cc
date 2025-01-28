@@ -14,8 +14,6 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
-#include <stdbool.h>
-
 #include <cstdint>
 #include <memory>
 #include <vector>

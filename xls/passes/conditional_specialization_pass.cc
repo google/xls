@@ -64,6 +64,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
 #include "xls/passes/union_query_engine.h"

@@ -190,8 +190,6 @@ cc_library(
         "//xls/estimators/delay_model:delay_estimator",
         "//xls/fdo:delay_manager",
         "//xls/ir",
-        "//xls/ir:channel",
-        "//xls/ir:node_util",
         "//xls/ir:op",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

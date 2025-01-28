@@ -65,6 +65,7 @@
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/predicate_dominator_analysis.h"
 #include "xls/passes/predicate_state.h"
 #include "xls/passes/proc_state_range_query_engine.h"

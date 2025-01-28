@@ -39,6 +39,7 @@ cc_library(
     deps = [
         "//xls/common:math_util",
         "//xls/data_structures:inline_bitmap",
+        "@com_google_absl//absl/container:inlined_vector",
     ],
 )
 
@@ -674,7 +675,6 @@ cc_library(
         ":register",
         ":source_location",
         ":type",
-        ":value_utils",
         "//xls/common:casts",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -1063,6 +1063,7 @@ cc_library(
         "//xls/common:math_util",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",

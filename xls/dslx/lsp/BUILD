@@ -58,6 +58,8 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
     ],
 )

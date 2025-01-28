@@ -545,6 +545,7 @@ cc_library(
         "//xls/ir:foreign_function",
         "//xls/ir:foreign_function_data_cc_proto",
         "//xls/ir:source_location",
+        "//xls/ir:value",
         "//xls/public:function_builder",
         "//xls/public:ir",
         "//xls/public:ir_parser",
@@ -577,6 +578,7 @@ cc_binary(
     deps = [
         ":xls_dialect_registration",
         ":xls_translate_lib",
+        "//xls/codegen:xls_metrics_cc_proto",
         "//xls/public:c_api",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:ArithDialect",

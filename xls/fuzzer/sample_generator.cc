@@ -60,6 +60,7 @@
 #include "xls/fuzzer/sample.pb.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/format_preference.h"
+#include "xls/tests/testvector.pb.h"
 
 namespace xls {
 namespace {

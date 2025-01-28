@@ -15,8 +15,10 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_MODULE_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_MODULE_H_
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"

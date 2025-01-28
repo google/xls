@@ -20,6 +20,7 @@
 #include <functional>
 #include <iostream>
 #include <list>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>

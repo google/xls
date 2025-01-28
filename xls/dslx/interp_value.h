@@ -16,7 +16,6 @@
 #define XLS_DSLX_INTERP_VALUE_H_
 
 #include <cstdint>
-#include <deque>
 #include <memory>
 #include <optional>
 #include <ostream>

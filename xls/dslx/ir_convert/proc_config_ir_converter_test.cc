@@ -14,7 +14,6 @@
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 
 #include <memory>
-#include <optional>
 #include <string_view>
 #include <vector>
 

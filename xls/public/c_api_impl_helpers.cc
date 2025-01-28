@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/log/check.h"

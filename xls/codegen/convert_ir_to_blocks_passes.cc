@@ -41,6 +41,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/topo_sort.h"
+#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 // -- Implementations of

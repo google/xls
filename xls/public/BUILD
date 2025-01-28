@@ -237,6 +237,8 @@ cc_library(
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/tools:codegen_flags_cc_proto",
+        "//xls/tools:scheduling_options_flags_cc_proto",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",

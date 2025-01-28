@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <ctime>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -44,6 +45,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
@@ -76,7 +78,9 @@
 #include "xls/ir/events.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "re2/re2.h"

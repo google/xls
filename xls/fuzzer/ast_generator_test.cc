@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {

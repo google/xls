@@ -14,7 +14,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <initializer_list>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -40,7 +39,6 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/conversion_utils.h"
-#include "xls/codegen/mark_channel_fifos_pass.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
@@ -61,7 +59,6 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "xls/ir/xls_ir_interface.pb.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {

@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>  // NOLINT
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,7 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"

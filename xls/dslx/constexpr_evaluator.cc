@@ -52,7 +52,6 @@
 #include "xls/dslx/interp_value_utils.h"
 #include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
-#include "xls/dslx/type_system/parametric_expression.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_zero_value.h"

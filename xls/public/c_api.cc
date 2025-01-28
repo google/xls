@@ -49,6 +49,8 @@
 #include "xls/public/c_api_impl_helpers.h"
 #include "xls/public/c_api_vast.h"
 #include "xls/public/runtime_build_actions.h"
+#include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 extern "C" {
 

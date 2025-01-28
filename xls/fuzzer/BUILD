@@ -779,6 +779,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
+        "@com_googlesource_code_re2//:re2",
     ],
 )
 
@@ -811,6 +812,7 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",
         "//xls/ir:format_preference",
+        "//xls/tests:testvector_cc_proto",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random:bit_gen_ref",
@@ -958,6 +960,7 @@ cc_library(
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
