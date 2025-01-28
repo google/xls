@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[test]
-fn for_over_array_test() {
-    let result: u8 = for (value, accum): (u8, u8) in range(u8:1, u8:4) {
+fn main() -> u8 {
+    for (value, accum): (u8, u8) in range(u8:1, u8:4) {
         accum + value
-    }(u8:0);
-    assert_eq(u8:6, result)
+    }(u8:0)
 }
+
+#[test]
+fn for_over_builtin_range_invocation_test() { assert_eq(u8:6, main()) }

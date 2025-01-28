@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[test]
-fn for_over_array_test() {
-    let a: u32[3] = u32[3]:[1, 2, 3];
+fn main(a: u32[3]) -> u32 {
     let result: u32 = for (value, accum): (u32, u32) in a {
         accum + value
     }(u32:0);
-    assert_eq(u32:6, result)
+    result
+}
+
+#[test]
+fn for_over_array_test() {
+    let a: u32[3] = u32[3]:[1, 2, 3];
+    assert_eq(u32:6, main(a))
 }

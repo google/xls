@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+fn main(array: u8[4]) -> (u32, u8)[4] { enumerate(array) }
+
 #[test]
 fn enumerate_test() {
-    let my_array = u32[4]:[u32:1, u32:2, u32:4, u32:8];
-    let enumerated = enumerate(my_array);
-    assert_eq(enumerated[u32:0], (u32:0, u32:1));
-    assert_eq(enumerated[u32:1], (u32:1, u32:2));
-    assert_eq(enumerated[u32:2], (u32:2, u32:4));
-    assert_eq(enumerated[u32:3], (u32:3, u32:8));
+    let my_array = u8[4]:[1, 2, 4, 8];
+    let enumerated = main(my_array);
+    assert_eq(enumerated[u32:0], (u32:0, u8:1));
+    assert_eq(enumerated[u32:1], (u32:1, u8:2));
+    assert_eq(enumerated[u32:2], (u32:2, u8:4));
+    assert_eq(enumerated[u32:3], (u32:3, u8:8));
 }

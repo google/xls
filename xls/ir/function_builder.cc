@@ -62,7 +62,10 @@ namespace xls {
 std::ostream& operator<<(std::ostream& os, const BValue& bv) {
   return os << bv.ToString();
 }
-Type* BValue::GetType() const { return node()->GetType(); }
+Type* BValue::GetType() const {
+  CHECK(node_ != nullptr);
+  return node_->GetType();
+}
 
 int64_t BValue::BitCountOrDie() const { return node()->BitCountOrDie(); }
 

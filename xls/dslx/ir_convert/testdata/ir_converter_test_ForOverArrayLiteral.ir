@@ -1,0 +1,25 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__main_counted_for_0_body(__index: bits[32] id=9, accum: bits[7] id=10, __indexable: (bits[7], bits[7])[2] id=11) -> bits[7] {
+  array_index.12: (bits[7], bits[7]) = array_index(__indexable, indices=[__index], id=12)
+  tuple_index.14: bits[7] = tuple_index(array_index.12, index=0, id=14, pos=[(0,3,13)])
+  add.15: bits[7] = add(accum, tuple_index.14, id=15, pos=[(0,3,4)])
+  tuple_index.17: bits[7] = tuple_index(array_index.12, index=1, id=17, pos=[(0,3,19)])
+  literal.13: bits[32] = literal(value=0, id=13, pos=[(0,3,14)])
+  literal.16: bits[32] = literal(value=1, id=16, pos=[(0,3,20)])
+  ret add.18: bits[7] = add(add.15, tuple_index.17, id=18, pos=[(0,3,4)])
+}
+
+top fn __test_module__main() -> bits[7] {
+  literal.2: bits[7] = literal(value=0, id=2, pos=[(0,2,50)])
+  literal.3: bits[7] = literal(value=1, id=3, pos=[(0,2,56)])
+  literal.5: bits[7] = literal(value=2, id=5, pos=[(0,2,64)])
+  literal.6: bits[7] = literal(value=3, id=6, pos=[(0,2,70)])
+  tuple.4: (bits[7], bits[7]) = tuple(literal.2, literal.3, id=4, pos=[(0,2,49)])
+  tuple.7: (bits[7], bits[7]) = tuple(literal.5, literal.6, id=7, pos=[(0,2,63)])
+  literal.1: bits[7] = literal(value=0, id=1, pos=[(0,4,4)])
+  array.8: (bits[7], bits[7])[2] = array(tuple.4, tuple.7, id=8, pos=[(0,2,48)])
+  ret counted_for.19: bits[7] = counted_for(literal.1, trip_count=2, stride=1, body=____test_module__main_counted_for_0_body, invariant_args=[array.8], id=19)
+}
