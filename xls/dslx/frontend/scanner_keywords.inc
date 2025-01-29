@@ -41,6 +41,7 @@
   X(kType, TYPE, "type")                   \
   X(kUnrollFor, UNROLL_FOR, "unroll_for!") \
   X(kUse, USE, "use")                      \
+  X(kMut, MUT, "mut")                      \
   /* builtin types */                      \
   X(kBits, BITS, "bits")                   \
   X(kToken, TOKEN, "token")                \

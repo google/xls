@@ -3079,6 +3079,13 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
                         start_tok.span().ToString(file_table())));
   }
 
+  XLS_ASSIGN_OR_RETURN(bool peek_is_mut, PeekTokenIs(Keyword::kMut));
+  if (peek_is_mut) {
+    return ParseErrorStatus(
+        start_tok.span(),
+        "`mut` and mutable bindings are not supported in DSLX");
+  }
+
   Bindings new_bindings(&bindings);
   NameDef* name_def = nullptr;
   NameDefTree* name_def_tree;
