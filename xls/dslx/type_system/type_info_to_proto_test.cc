@@ -150,5 +150,17 @@ proc Foo { a: u32 }
   DoRun(program, TestName());
 }
 
+TEST(TypeInfoToProtoTest, BitsConstructorTypeProto) {
+  std::string program = R"(
+fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool { fail!("unimplemented", zero!<bool>()) }
+
+#[test]
+fn test_simple_nondistinct() {
+    assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false)
+}
+)";
+  DoRun(program, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx

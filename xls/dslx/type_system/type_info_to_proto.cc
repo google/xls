@@ -666,13 +666,24 @@ absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
           FromProto(ctp.meta_type().wrapped(), import_data, file_table));
       return std::make_unique<MetaType>(std::move(wrapped));
     }
-    default:
-      return absl::UnimplementedError(
-          "TypeInfoFromProto: not yet implemented for "
-          "TypeProto->Type "
-          "conversion: " +
-          ctp.ShortDebugString());
+    case TypeProto::TypeOneofCase::kChannelType: {
+      break;  // Not yet implemented.
+    }
+    case TypeProto::TypeOneofCase::kBitsConstructorType: {
+      const BitsConstructorTypeProto& bctp = ctp.bits_constructor_type();
+      XLS_ASSIGN_OR_RETURN(TypeDim dim,
+                           FromProto(bctp.is_signed(), file_table));
+      return std::make_unique<BitsConstructorType>(std::move(dim));
+    }
+    case TypeProto::TypeOneofCase::TYPE_ONEOF_NOT_SET:
+      return absl::InvalidArgumentError("TypeProto has no type set: " +
+                                        ctp.ShortDebugString());
   }
+  return absl::UnimplementedError(
+      "TypeInfoFromProto: not yet implemented for "
+      "TypeProto->Type "
+      "conversion: " +
+      ctp.ShortDebugString());
 }
 
 absl::StatusOr<std::string> ToHumanString(const TypeProto& ctp,
@@ -866,9 +877,9 @@ absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info) {
   }
   std::sort(items.begin(), items.end(), [](const Item& lhs, const Item& rhs) {
     return std::make_tuple(lhs.span.start(), lhs.span.limit(),
-                           static_cast<int>(lhs.kind)) <
+                           static_cast<int>(lhs.kind), lhs.node->ToString()) <
            std::make_tuple(rhs.span.start(), rhs.span.limit(),
-                           static_cast<int>(rhs.kind));
+                           static_cast<int>(rhs.kind), rhs.node->ToString());
   });
 
   for (const Item& item : items) {
