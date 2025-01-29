@@ -119,18 +119,18 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
     XLS_ASSIGN_OR_RETURN(
         Literal * index,
         proc->MakeNode<Literal>(
-            SourceInfo(),
+            selected_value->selector()->loc(),
             Value(UBits(i, selected_value->selector()->BitCountOrDie()))));
     XLS_ASSIGN_OR_RETURN(
         Node * predicate,
-        proc->MakeNode<CompareOp>(SourceInfo(), selected_value->selector(),
-                                  index, Op::kEq));
+        proc->MakeNode<CompareOp>(selected_value->selector()->loc(),
+                                  selected_value->selector(), index, Op::kEq));
     if (next->predicate().has_value()) {
       XLS_ASSIGN_OR_RETURN(
           predicate,
           proc->MakeNode<NaryOp>(
-              SourceInfo(), std::vector<Node*>{*next->predicate(), predicate},
-              Op::kAnd));
+              selected_value->selector()->loc(),
+              std::vector<Node*>{*next->predicate(), predicate}, Op::kAnd));
     }
 
     std::string name;
@@ -151,19 +151,19 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSmallSelect(
     XLS_ASSIGN_OR_RETURN(
         Literal * max_index,
         proc->MakeNode<Literal>(
-            SourceInfo(),
+            selected_value->selector()->loc(),
             Value(UBits(selected_value->cases().size() - 1,
                         selected_value->selector()->BitCountOrDie()))));
-    XLS_ASSIGN_OR_RETURN(
-        Node * predicate,
-        proc->MakeNode<CompareOp>(SourceInfo(), selected_value->selector(),
-                                  max_index, Op::kUGt));
+    XLS_ASSIGN_OR_RETURN(Node * predicate,
+                         proc->MakeNode<CompareOp>(
+                             selected_value->selector()->loc(),
+                             selected_value->selector(), max_index, Op::kUGt));
     if (next->predicate().has_value()) {
       XLS_ASSIGN_OR_RETURN(
           predicate,
           proc->MakeNode<NaryOp>(
-              SourceInfo(), std::vector<Node*>{*next->predicate(), predicate},
-              Op::kAnd));
+              selected_value->selector()->loc(),
+              std::vector<Node*>{*next->predicate(), predicate}, Op::kAnd));
     }
 
     std::string name;
@@ -202,7 +202,8 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
     absl::InlinedVector<Node*, 3> all_clauses;
     XLS_ASSIGN_OR_RETURN(
         Node * case_active,
-        proc->MakeNode<BitSlice>(SourceInfo(), selected_value->selector(),
+        proc->MakeNode<BitSlice>(selected_value->selector()->loc(),
+                                 selected_value->selector(),
                                  /*start=*/i, /*width=*/1));
     all_clauses.push_back(case_active);
     if (next->predicate().has_value()) {
@@ -233,14 +234,14 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitPrioritySelect(
   // Default case; if all bits of the input are zero, `priority_sel` returns
   // zero.
   absl::InlinedVector<Node*, 2> all_default_clauses;
-  XLS_ASSIGN_OR_RETURN(
-      Literal * zero_selector,
-      proc->MakeNode<Literal>(
-          SourceInfo(), ZeroOfType(selected_value->selector()->GetType())));
-  XLS_ASSIGN_OR_RETURN(
-      Node * all_cases_inactive,
-      proc->MakeNode<CompareOp>(SourceInfo(), selected_value->selector(),
-                                zero_selector, Op::kEq));
+  XLS_ASSIGN_OR_RETURN(Literal * zero_selector,
+                       proc->MakeNode<Literal>(
+                           selected_value->selector()->loc(),
+                           ZeroOfType(selected_value->selector()->GetType())));
+  XLS_ASSIGN_OR_RETURN(Node * all_cases_inactive,
+                       proc->MakeNode<CompareOp>(
+                           selected_value->selector()->loc(),
+                           selected_value->selector(), zero_selector, Op::kEq));
   all_default_clauses.push_back(all_cases_inactive);
   if (next->predicate().has_value()) {
     all_default_clauses.push_back(*next->predicate());
@@ -288,13 +289,14 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSafeOneHotSelect(
   for (int64_t i = 0; i < selected_value->cases().size(); ++i) {
     XLS_ASSIGN_OR_RETURN(
         Node * case_predicate,
-        proc->MakeNode<BitSlice>(SourceInfo(), selected_value->selector(),
+        proc->MakeNode<BitSlice>(selected_value->selector()->loc(),
+                                 selected_value->selector(),
                                  /*start=*/i, /*width=*/1));
     if (next->predicate().has_value()) {
       XLS_ASSIGN_OR_RETURN(
           case_predicate,
           proc->MakeNode<NaryOp>(
-              SourceInfo(),
+              selected_value->selector()->loc(),
               std::vector<Node*>{*next->predicate(), case_predicate},
               Op::kAnd));
     }

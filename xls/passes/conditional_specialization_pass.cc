@@ -553,7 +553,8 @@ absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> AffectedBy(
 }
 
 absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
-                                                TernaryTreeView ternary) {
+                                                TernaryTreeView ternary,
+                                                Node* user) {
   if (absl::c_all_of(ternary.elements(), [](TernarySpan entry) {
         return ternary_ops::AllUnknown(entry);
       })) {
@@ -577,18 +578,19 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
   XLS_ASSIGN_OR_RETURN(
       Node * target,
       node->function_base()->MakeNode<Literal>(
-          SourceInfo(), Value(Bits::FromBitmap(std::move(target_bitmap)))));
-  return node->function_base()->MakeNode<CompareOp>(SourceInfo(), bits_to_check,
+          user->loc(), Value(Bits::FromBitmap(std::move(target_bitmap)))));
+  return node->function_base()->MakeNode<CompareOp>(user->loc(), bits_to_check,
                                                     target, Op::kEq);
 }
 
 absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
-                                                IntervalSetTreeView intervals) {
+                                                IntervalSetTreeView intervals,
+                                                Node* user) {
   if (absl::c_any_of(intervals.elements(), [](const IntervalSet& interval_set) {
         return interval_set.BitCount() > 0 && interval_set.IsEmpty();
       })) {
     // Matching is impossible. Return a literal 0.
-    return node->function_base()->MakeNode<Literal>(SourceInfo(),
+    return node->function_base()->MakeNode<Literal>(user->loc(),
                                                     Value(UBits(0, 1)));
   }
 
@@ -610,25 +612,24 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
               if (!interval.LowerBound().IsZero()) {
                 XLS_ASSIGN_OR_RETURN(
                     Node * lb, node->function_base()->MakeNode<Literal>(
-                                   SourceInfo(), Value(interval.LowerBound())));
-                XLS_ASSIGN_OR_RETURN(
-                    interval_check, node->function_base()->MakeNode<CompareOp>(
-                                        SourceInfo(), leaf_node, lb, Op::kUGe));
+                                   user->loc(), Value(interval.LowerBound())));
+                XLS_ASSIGN_OR_RETURN(interval_check,
+                                     node->function_base()->MakeNode<CompareOp>(
+                                         user->loc(), leaf_node, lb, Op::kUGe));
               }
 
               if (!interval.UpperBound().IsAllOnes()) {
                 XLS_ASSIGN_OR_RETURN(
                     Node * ub, node->function_base()->MakeNode<Literal>(
-                                   SourceInfo(), Value(interval.UpperBound())));
-                XLS_ASSIGN_OR_RETURN(
-                    Node * ub_check,
-                    node->function_base()->MakeNode<CompareOp>(
-                        SourceInfo(), leaf_node, ub, Op::kULe));
+                                   user->loc(), Value(interval.UpperBound())));
+                XLS_ASSIGN_OR_RETURN(Node * ub_check,
+                                     node->function_base()->MakeNode<CompareOp>(
+                                         user->loc(), leaf_node, ub, Op::kULe));
                 if (interval_check.has_value()) {
                   XLS_ASSIGN_OR_RETURN(
                       interval_check,
                       node->function_base()->MakeNode<NaryOp>(
-                          SourceInfo(),
+                          user->loc(),
                           absl::MakeConstSpan({*interval_check, ub_check}),
                           Op::kAnd));
                 } else {
@@ -1065,14 +1066,15 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         }
         if (given.ternary.has_value()) {
           XLS_ASSIGN_OR_RETURN(std::optional<Node*> access_condition,
-                               CheckMatch(src, given.ternary->AsView()));
+                               CheckMatch(src, given.ternary->AsView(), node));
           if (access_condition.has_value()) {
             access_conditions.push_back(*access_condition);
           }
         }
         if (given.intervals.has_value()) {
-          XLS_ASSIGN_OR_RETURN(std::optional<Node*> access_condition,
-                               CheckMatch(src, given.intervals->AsView()));
+          XLS_ASSIGN_OR_RETURN(
+              std::optional<Node*> access_condition,
+              CheckMatch(src, given.intervals->AsView(), node));
           if (access_condition.has_value()) {
             access_conditions.push_back(*access_condition);
           }
