@@ -2598,7 +2598,7 @@ verilog_library(
     name = "huffman_prescan_verilog_lib",
     srcs = [
         ":huffman_prescan.v",
-        "fifo.v"
+        "xls_fifo_wrapper.v"
     ],
     tags = ["manual"],
 )
@@ -2684,7 +2684,7 @@ verilog_library(
     name = "huffman_code_builder_verilog_lib",
     srcs = [
         ":huffman_code_builder.v",
-        "fifo.v"
+        "xls_fifo_wrapper.v"
     ],
     tags = ["manual"],
 )
