@@ -38,6 +38,7 @@ enum {
   xls_dslx_type_definition_kind_enum_def,
   xls_dslx_type_definition_kind_colon_ref,
   xls_dslx_type_definition_kind_proc_def,
+  xls_dslx_type_definition_kind_use_tree_entry,
 };
 
 typedef int32_t xls_dslx_module_member_kind;

@@ -239,6 +239,7 @@ class TypeInfo {
   // its name.
   absl::StatusOr<TypeSource> ResolveTypeDefinition(TypeDefinition source);
   absl::StatusOr<TypeSource> ResolveTypeDefinition(ColonRef* source);
+  absl::StatusOr<TypeSource> ResolveTypeDefinition(UseTreeEntry* source);
 
   // Find the first annotated sv_type for the given type reference, assuming one
   // exists

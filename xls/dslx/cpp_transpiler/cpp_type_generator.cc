@@ -665,31 +665,38 @@ class StructCppTypeGenerator : public CppTypeGenerator {
 CppTypeGenerator::Create(const TypeDefinition& type_definition,
                          TypeInfo* type_info, ImportData* import_data) {
   return absl::visit(
-      Visitor{[&](const TypeAlias* type_alias)
-                  -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
-                return TypeAliasCppTypeGenerator::Create(type_alias, type_info,
-                                                         import_data);
-              },
-              [&](const StructDef* struct_def)
-                  -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
-                return StructCppTypeGenerator::Create(struct_def, type_info,
-                                                      import_data);
-              },
-              [&](const EnumDef* enum_def)
-                  -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
-                return EnumCppTypeGenerator::Create(enum_def, type_info,
-                                                    import_data);
-              },
-              [&](const ColonRef* colon_ref)
-                  -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
-                return absl::UnimplementedError(absl::StrFormat(
-                    "Unsupported type: %s", colon_ref->ToString()));
-              },
-              [&](const ProcDef* proc_def)
-                  -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
-                return absl::UnimplementedError(absl::StrFormat(
-                    "Unsupported type: %s", proc_def->ToString()));
-              }},
+      Visitor{
+          [&](const TypeAlias* type_alias)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return TypeAliasCppTypeGenerator::Create(type_alias, type_info,
+                                                     import_data);
+          },
+          [&](const StructDef* struct_def)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return StructCppTypeGenerator::Create(struct_def, type_info,
+                                                  import_data);
+          },
+          [&](const EnumDef* enum_def)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return EnumCppTypeGenerator::Create(enum_def, type_info,
+                                                import_data);
+          },
+          [&](const ColonRef* colon_ref)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return absl::UnimplementedError(
+                absl::StrFormat("Unsupported type: %s", colon_ref->ToString()));
+          },
+          [&](const ProcDef* proc_def)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return absl::UnimplementedError(
+                absl::StrFormat("Unsupported type: %s", proc_def->ToString()));
+          },
+          [](const UseTreeEntry* use_tree_entry)
+              -> absl::StatusOr<std::unique_ptr<CppTypeGenerator>> {
+            return absl::UnimplementedError(absl::StrFormat(
+                "Unsupported type: %s", use_tree_entry->ToString()));
+          },
+      },
       type_definition);
 }
 

@@ -242,6 +242,9 @@ xls_dslx_type_definition_kind xls_dslx_module_get_type_definition_kind(
                          [](const xls::dslx::ColonRef*) {
                            return xls_dslx_type_definition_kind_colon_ref;
                          },
+                         [](const xls::dslx::UseTreeEntry*) {
+                           return xls_dslx_type_definition_kind_use_tree_entry;
+                         },
                      },
                      cpp_type_definition);
 }

@@ -327,6 +327,13 @@ DslxTypeToVerilogManager::TypeAnnotationToVastType(
                                   "DslxTypeToVerilogManager",
                                   type_annotation->ToString()));
             },
+            [&](UseTreeEntry* use_tree_entry)
+                -> absl::StatusOr<verilog::DataType*> {
+              return absl::UnimplementedError(absl::StrFormat(
+                  "TypeAnnotation UseTreeEntry %s not supported by "
+                  "DslxTypeToVerilogManager",
+                  type_annotation->ToString()));
+            },
         },
         ta->type_ref()->type_definition());
   }

@@ -336,6 +336,9 @@ AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
           [](ColonRef* n) -> AnyNameDef {
             return GetSubjectNameDef(n->subject());
           },
+          [](UseTreeEntry* n) -> AnyNameDef {
+            return n->GetLeafNameDef().value();
+          },
       },
       td);
 }
@@ -761,11 +764,13 @@ TypeRef::TypeRef(Module* owner, Span span, TypeDefinition type_definition)
       type_definition_(type_definition) {}
 
 std::string TypeRef::ToString() const {
-  return absl::visit(Visitor{[&](TypeAlias* n) { return n->identifier(); },
-                             [&](StructDef* n) { return n->identifier(); },
-                             [&](ProcDef* n) { return n->identifier(); },
-                             [&](EnumDef* n) { return n->identifier(); },
-                             [&](ColonRef* n) { return n->ToString(); }},
+  return absl::visit(Visitor{
+                         [&](ColonRef* n) { return n->ToString(); },
+                         [&](UseTreeEntry* n) {
+                           return n->GetLeafNameDef().value()->identifier();
+                         },
+                         [&](auto* n) { return n->identifier(); },
+                     },
                      type_definition_);
 }
 

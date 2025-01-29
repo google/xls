@@ -86,6 +86,9 @@ absl::StatusOr<bool> IsNegative(const dslx::InterpValue& value) {
 std::string GetTypeDefName(const dslx::TypeDefinition& type_def) {
   return absl::visit(Visitor{
                          [&](const dslx::ColonRef* n) { return n->ToString(); },
+                         [&](const dslx::UseTreeEntry* n) {
+                           return n->GetLeafNameDef().value()->identifier();
+                         },
                          [&](const auto* n) { return n->identifier(); },
                      },
                      type_def);
