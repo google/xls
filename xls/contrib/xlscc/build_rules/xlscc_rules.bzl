@@ -209,9 +209,8 @@ def _xls_cc_ir_impl(ctx):
         "debug_print_fsm_states",
         "channel_strictness",
         "default_channel_strictness",
-        "debug_ir_trace_loop_context",
-        "debug_ir_trace_loop_control",
         "max_unroll_iters",
+        "print_optimization_warnings",
     )
 
     xlscc_args = append_default_to_args(
