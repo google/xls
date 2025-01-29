@@ -19,7 +19,7 @@
 import std;
 import xls.examples.ram;
 import xls.modules.zstd.common;
-import xls.modules.shift_buffer.shift_buffer;
+import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.ram_wr_handler as ram_wr;
 
