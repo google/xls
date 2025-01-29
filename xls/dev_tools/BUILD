@@ -828,3 +828,70 @@ sh_test(
         ":parse_ir",
     ],
 )
+
+cc_library(
+    name = "extract_state_element",
+    srcs = ["extract_state_element.cc"],
+    hdrs = ["extract_state_element.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:op",
+        "//xls/ir:state_element",
+        "//xls/ir:value",
+        "//xls/passes:cse_pass",
+        "//xls/passes:dce_pass",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "extract_state_element_test",
+    srcs = ["extract_state_element_test.cc"],
+    data = glob(["testdata/*"]),
+    deps = [
+        ":extract_state_element",
+        "//xls/common:golden_files",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "extract_state_element_main",
+    srcs = ["extract_state_element_main.cc"],
+    deps = [
+        ":extract_state_element",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:state_element",
+        "//xls/public:ir_parser",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)

@@ -1,0 +1,15 @@
+package NoSendState
+
+chan c_chan(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+top proc NoSendState(a: bits[32], b: bits[32], init={1, 1}) {
+  literal.5: token = literal(value=token, id=5)
+  receive.6: (token, bits[32]) = receive(literal.5, channel=c_chan, id=6)
+  a: bits[32] = state_read(state_element=a, id=3)
+  b: bits[32] = state_read(state_element=b, id=4)
+  c: bits[32] = tuple_index(receive.6, index=1, id=7)
+  add.12: bits[32] = add(a, b, id=12)
+  add.13: bits[32] = add(c, a, id=13)
+  next_value.16: () = next_value(param=a, value=add.12, id=16)
+  next_value.17: () = next_value(param=b, value=add.13, id=17)
+}

@@ -1,0 +1,19 @@
+package SendState
+
+chan a_value_chan(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan b_value_chan(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan c_chan(bits[32], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+
+top proc SendState(a: bits[32], b: bits[32], init={1, 1}) {
+  literal.9: token = literal(value=token, id=9)
+  receive.10: (token, bits[32]) = receive(literal.9, channel=c_chan, id=10)
+  a: bits[32] = state_read(state_element=a, id=3)
+  b: bits[32] = state_read(state_element=b, id=6)
+  c: bits[32] = tuple_index(receive.10, index=1, id=11)
+  add.16: bits[32] = add(a, b, id=16)
+  add.17: bits[32] = add(c, a, id=17)
+  a__1: token = send(literal.9, a, channel=a_value_chan, id=5)
+  b__1: token = send(literal.9, b, channel=b_value_chan, id=8)
+  next_value.20: () = next_value(param=a, value=add.16, id=20)
+  next_value.21: () = next_value(param=b, value=add.17, id=21)
+}
