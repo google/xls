@@ -63,6 +63,15 @@ fn test_struct_of_bits_types() {
     assert_eq(make_struct(), MyPoint { x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF })
 }
 
+// -- array of bits constructor based types
+
+fn p<S: bool, N: u32, COUNT: u32>() -> xN[S][N][COUNT] { all_ones!<xN[S][N][COUNT]>() }
+
+#[test]
+fn test_array_of_bits_constructor_based_types() {
+    assert_eq(p<true, u32:3, u32:4>(), s3[4]:[0b111, ...])
+}
+
 // -- parametric struct containing another struct
 
 struct ParametricStruct<N: u32> { p: MyPoint, u: bits[N] }
@@ -72,10 +81,21 @@ struct ParametricStruct<N: u32> { p: MyPoint, u: bits[N] }
 // requires extending the grammar.
 type PS8 = ParametricStruct<8>;
 
-fn main() -> ParametricStruct<8> { all_ones!<PS8>() }
+fn ps8() -> ParametricStruct<8> { all_ones!<PS8>() }
 
 #[test]
 fn test_parametric_struct() {
     assert_eq(
-        main(), ParametricStruct { p: MyPoint { x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF }, u: u8:255 })
+        ps8(), ParametricStruct { p: MyPoint { x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF }, u: u8:255 })
+}
+
+// -- main function for IR emission
+
+fn main() -> (PS8, s3[4]) { (ps8(), p<true, u32:3, u32:4>()) }
+
+#[test]
+fn test_main() {
+    assert_eq(
+        main(),
+        (PS8 { p: MyPoint { x: u32:0xFFFFFFFF, y: u32:0xFFFFFFFF }, u: u8:255 }, s3[4]:[0b111, ...]))
 }

@@ -24,7 +24,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -78,6 +77,14 @@ absl::StatusOr<bool> HasKnownAllOnesValue(const EnumType& t,
   return false;
 }
 
+absl::StatusOr<InterpValue> ZeroOfBitsLike(const BitsLikeProperties& bits_like,
+                                           const ImportData& import_data,
+                                           const Span& span) {
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like.is_signed.GetAsBool());
+  XLS_ASSIGN_OR_RETURN(int64_t size, bits_like.size.GetAsInt64());
+  return InterpValue::MakeBits(is_signed, Bits(size));
+}
+
 absl::StatusOr<InterpValue> ZeroOfLeafType(const Type& type,
                                            const ImportData& import_data,
                                            const Span& span) {
@@ -98,13 +105,19 @@ absl::StatusOr<InterpValue> ZeroOfLeafType(const Type& type,
   }
   if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
       bits_like.has_value()) {
-    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
-    XLS_ASSIGN_OR_RETURN(int64_t size, bits_like->size.GetAsInt64());
-    return InterpValue::MakeBits(is_signed, Bits(size));
+    return ZeroOfBitsLike(bits_like.value(), import_data, span);
   }
 
   return absl::InvalidArgumentError(
       absl::StrFormat("Type '%s' is not a leaf type.", type.ToString()));
+}
+
+absl::StatusOr<InterpValue> AllOnesOfBitsLike(
+    const BitsLikeProperties& bits_like, const ImportData& import_data,
+    const Span& span) {
+  XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like.is_signed.GetAsBool());
+  XLS_ASSIGN_OR_RETURN(int64_t size, bits_like.size.GetAsInt64());
+  return InterpValue::MakeBits(is_signed, Bits::AllOnes(size));
 }
 
 absl::StatusOr<InterpValue> AllOnesOfLeafType(const Type& type,
@@ -127,9 +140,7 @@ absl::StatusOr<InterpValue> AllOnesOfLeafType(const Type& type,
   }
   if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
       bits_like.has_value()) {
-    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
-    XLS_ASSIGN_OR_RETURN(int64_t size, bits_like->size.GetAsInt64());
-    return InterpValue::MakeBits(is_signed, Bits::AllOnes(size));
+    return AllOnesOfBitsLike(bits_like.value(), import_data, span);
   }
 
   return absl::InvalidArgumentError(
@@ -137,50 +148,56 @@ absl::StatusOr<InterpValue> AllOnesOfLeafType(const Type& type,
 }
 
 class MakeValueVisitor : public TypeVisitor {
-  using LeafFn = std::function<absl::StatusOr<InterpValue>(
+  using LeafTypeFn = std::function<absl::StatusOr<InterpValue>(
       const Type&, const ImportData&, const Span&)>;
+  using LeafBitsLikeFn = std::function<absl::StatusOr<InterpValue>(
+      const BitsLikeProperties&, const ImportData&, const Span&)>;
 
  public:
-  MakeValueVisitor(LeafFn&& leaf_fn, const ImportData& import_data,
-                   const Span& span, std::string_view value_name)
-      : leaf_fn_(std::move(leaf_fn)),
+  MakeValueVisitor(LeafTypeFn&& leaf_type_fn,
+                   LeafBitsLikeFn&& leaf_bits_like_fn,
+                   const ImportData& import_data, const Span& span,
+                   std::string_view value_name)
+      : leaf_type_fn_(std::move(leaf_type_fn)),
+        leaf_bits_like_fn_(std::move(leaf_bits_like_fn)),
         import_data_(import_data),
         span_(span),
         value_name_(value_name) {}
 
   absl::Status HandleEnum(const EnumType& t) override {
-    XLS_ASSIGN_OR_RETURN(result_, leaf_fn_(t, import_data_, span_));
+    XLS_ASSIGN_OR_RETURN(result_, leaf_type_fn_(t, import_data_, span_));
     return absl::OkStatus();
   }
 
   absl::Status HandleBits(const BitsType& t) override {
-    XLS_ASSIGN_OR_RETURN(result_, leaf_fn_(t, import_data_, span_));
+    XLS_ASSIGN_OR_RETURN(result_, leaf_type_fn_(t, import_data_, span_));
     return absl::OkStatus();
   }
 
   absl::Status HandleFunction(const FunctionType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of function type."),
+        absl::StrFormat("Cannot make a %s of function type.", value_name_),
         file_table());
   }
   absl::Status HandleChannel(const ChannelType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of channel type."),
+        absl::StrFormat("Cannot make a %s of channel type.", value_name_),
         file_table());
   }
   absl::Status HandleToken(const TokenType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of token type."),
+        absl::StrFormat("Cannot make a %s of token type.", value_name_),
         file_table());
   }
   absl::Status HandleBitsConstructor(const BitsConstructorType& t) override {
-    return TypeInferenceErrorStatus(span_, &t,
-                                    absl::StrCat("Cannot make a ", value_name_,
-                                                 "of bits-constructor type."),
-                                    file_table());
+    return TypeInferenceErrorStatus(
+        span_, &t,
+        absl::StrFormat("Cannot make a %s of bits-constructor type.",
+                        value_name_),
+        file_table());
   }
   absl::Status HandleStruct(const StructType& t) override {
     std::vector<InterpValue> elems;
@@ -195,7 +212,7 @@ class MakeValueVisitor : public TypeVisitor {
   absl::Status HandleProc(const ProcType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of proc type."),
+        absl::StrFormat("Cannot make a %s of proc type.", value_name_),
         file_table());
   }
 
@@ -211,6 +228,11 @@ class MakeValueVisitor : public TypeVisitor {
   }
 
   absl::Status HandleArray(const ArrayType& t) override {
+    std::optional<BitsLikeProperties> bits_like = GetBitsLike(t);
+    if (bits_like.has_value()) {
+      return HandleBitsLike(bits_like.value());
+    }
+
     XLS_RETURN_IF_ERROR(t.element_type().Accept(*this));
     XLS_ASSIGN_OR_RETURN(InterpValue elem_value, ResultOrError());
     XLS_ASSIGN_OR_RETURN(int64_t size, t.size().GetAsInt64());
@@ -223,7 +245,7 @@ class MakeValueVisitor : public TypeVisitor {
   absl::Status HandleMeta(const MetaType& t) override {
     return TypeInferenceErrorStatus(
         span_, &t,
-        absl::StrCat("Cannot make a ", value_name_, " of a meta-type."),
+        absl::StrFormat("Cannot make a %s of a meta-type.", value_name_),
         file_table());
   }
 
@@ -235,7 +257,18 @@ class MakeValueVisitor : public TypeVisitor {
   const FileTable& file_table() const { return import_data_.file_table(); }
 
  private:
-  LeafFn leaf_fn_;
+  absl::Status HandleBitsLike(const BitsLikeProperties& bits_like) {
+    // Make a BitsType with the same properties.
+    XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like.is_signed.GetAsBool());
+    std::unique_ptr<BitsType> bits_type =
+        std::make_unique<BitsType>(is_signed, bits_like.size);
+    XLS_ASSIGN_OR_RETURN(result_,
+                         leaf_bits_like_fn_(bits_like, import_data_, span_));
+    return absl::OkStatus();
+  }
+
+  LeafTypeFn leaf_type_fn_;
+  LeafBitsLikeFn leaf_bits_like_fn_;
   const ImportData& import_data_;
   const Span& span_;
   std::string_view value_name_;
@@ -248,7 +281,8 @@ absl::StatusOr<InterpValue> MakeZeroValue(const Type& type,
                                           const ImportData& import_data,
                                           const Span& span) {
   VLOG(5) << "MakeZeroValue; type: " << type;
-  MakeValueVisitor v(ZeroOfLeafType, import_data, span, kZeroValueName);
+  MakeValueVisitor v(ZeroOfLeafType, ZeroOfBitsLike, import_data, span,
+                     kZeroValueName);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   return v.ResultOrError();
 }
@@ -257,7 +291,8 @@ absl::StatusOr<InterpValue> MakeAllOnesValue(const Type& type,
                                              const ImportData& import_data,
                                              const Span& span) {
   VLOG(5) << "MakeAllOnesValue; type: " << type;
-  MakeValueVisitor v(AllOnesOfLeafType, import_data, span, kAllOnesValueName);
+  MakeValueVisitor v(AllOnesOfLeafType, AllOnesOfBitsLike, import_data, span,
+                     kAllOnesValueName);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   return v.ResultOrError();
 }
