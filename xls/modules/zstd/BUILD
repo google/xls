@@ -182,7 +182,7 @@ xls_dslx_verilog(
     dslx_top = "ShiftBufferAlignerInst",
     library = ":shift_buffer_dslx",
     opt_ir_args = {
-        "top": "__xls_modules_shift_buffer_shift_buffer__ShiftBufferAlignerInst__ShiftBufferAligner_0__64_128_7_next",
+        "top": "__shift_buffer__ShiftBufferAlignerInst__ShiftBufferAligner_0__64_128_7_next",
     },
     verilog_file = "shift_buffer_aligner.v",
     tags = ["manual"],
@@ -250,12 +250,10 @@ xls_dslx_verilog(
         "reset": "rst",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "multi_proc": "true",
     },
     dslx_top = "ShiftBufferStorageInst",
     library = ":shift_buffer_dslx",
-    opt_ir_args = {
-        "top": "__xls_modules_shift_buffer_shift_buffer__ShiftBufferStorageInst__ShiftBufferStorage_0__64_7_next",
-    },
     verilog_file = "shift_buffer_storage.v",
     tags = ["manual"],
 )
@@ -264,8 +262,10 @@ xls_benchmark_ir(
     name = "shift_buffer_storage_opt_ir_benchmark",
     src = ":shift_buffer_storage_verilog.opt.ir",
     benchmark_ir_args = {
+        "inline_procs": "false",
         "pipeline_stages": "2",
         "delay_model": "asap7",
+        "top": "__shift_buffer__ShiftBufferStorageInst__ShiftBufferStorage_0__64_7_next"
     },
     tags = ["manual"],
 )
@@ -322,13 +322,10 @@ xls_dslx_verilog(
         "reset": "rst",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "multi_proc": "true",
     },
     dslx_top = "ShiftBufferInst",
     library = ":shift_buffer_dslx",
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__xls_modules_shift_buffer_shift_buffer__ShiftBufferInst__ShiftBuffer_0__ShiftBufferStorage_0__64_7_next",
-    },
     verilog_file = "shift_buffer.v",
     tags = ["manual"],
 )
@@ -337,9 +334,11 @@ xls_benchmark_ir(
     name = "shift_buffer_opt_ir_benchmark",
     src = ":shift_buffer_verilog.opt.ir",
     benchmark_ir_args = {
+        "inline_procs": "false",
         "pipeline_stages": "2",
         "delay_model": "asap7",
     },
+
     tags = ["manual"],
 )
 
@@ -1472,7 +1471,7 @@ xls_dslx_library(
 xls_dslx_test(
     name = "comp_block_dec_dslx_test",
     library = ":comp_block_dec_dslx",
-    size = "large",
+    size = "enormous",
     tags = ["manual"],
 )
 
@@ -1549,6 +1548,7 @@ xls_dslx_test(
         "data/comp_frame_fse_comp.x",
         "data/comp_frame_fse_repeated.x",
     ],
+    size = "large",
     tags = ["manual"],
     deps = zstd_dec_deps,
 )
@@ -2723,13 +2723,10 @@ xls_dslx_verilog(
         "reset": "rst",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "multi_proc": "true",
     },
     dslx_top = "LiteralsBufferInst",
     library = ":literals_buffer_dslx",
-    opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__literals_buffer__LiteralsBufferInst__LiteralsBuffer_0__LiteralsBufferReader_0__64_0_0_0_13_8192_65536_next"
-    },
     verilog_file = "literals_buffer.v",
     tags = ["manual"],
 )
@@ -2740,6 +2737,8 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "6",
         "delay_model": "asap7",
+        "inline_procs": "false",
+        "top":"__literals_buffer__LiteralsBufferInst__LiteralsBuffer_0__LiteralsBufferReader_0__64_0_0_0_13_8192_65536_next"
     },
     tags = ["manual"],
 )
@@ -3498,6 +3497,7 @@ xls_dslx_test(
     name = "huffman_weights_dec_dslx_test",
     library = ":huffman_weights_dec_dslx",
     tags = ["manual"],
+    size = "large",
 )
 
 huffman_weights_dec_codegen_args = common_codegen_args | {
@@ -3505,6 +3505,7 @@ huffman_weights_dec_codegen_args = common_codegen_args | {
     "pipeline_stages": "25",
     "clock_period_ps": "750",
     "worst_case_throughput": "17",
+    "multi_proc": "true"
 }
 
 xls_dslx_verilog(
@@ -3513,8 +3514,7 @@ xls_dslx_verilog(
     dslx_top = "HuffmanWeightsDecoderInst",
     library = ":huffman_weights_dec_dslx",
     opt_ir_args = {
-        "inline_procs": "true",
-        "top": "__huffman_weights_dec__HuffmanWeightsDecoderInst__HuffmanWeightsDecoder_0__32_64_6_32_8_next",
+        "top": "__huffman_weights_dec__HuffmanWeightsDecoderInst__HuffmanWeightsDecoder_0__32_64_8_8_16_1_8_32_4_9_8_1_8_16_1_6_32_8_next",
     },
     tags = ["manual"],
     verilog_file = "huffman_weights_dec.v",
@@ -3531,6 +3531,7 @@ verilog_library(
     name = "huffman_weights_dec_verilog_lib",
     srcs = [
         ":huffman_weights_dec.v",
+        ":xls_fifo_wrapper.v",
     ],
     tags = ["manual"],
 )

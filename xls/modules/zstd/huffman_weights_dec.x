@@ -1266,18 +1266,15 @@ pub proc HuffmanWeightsDecoder<
         let (raw_weights_ram_wr_resp_s, raw_weights_ram_wr_resp_r) = chan<WeightsRamWrResp, u32:1>("raw_weights_ram_wr_resp");
 
         // Internal RAM Write interface with decoded Fse Huffman Tree Description
-        let (fse_weights_ram_wr_req_s, fse_weights_ram_wr_req_r) = chan<WeightsRamWrReq, u32:1>("raw_weights_ram_wr_req");
-        let (fse_weights_ram_wr_resp_s, fse_weights_ram_wr_resp_r) = chan<WeightsRamWrResp, u32:1>("raw_weights_ram_wr_resp");
-
-        let (fse_lookup_weights_ram_wr_req_s, fse_lookup_weights_ram_wr_req_r) = chan<WeightsRamWrReq, u32:1>("fse_weights_ram_wr_req");
-        let (fse_lookup_weights_ram_wr_resp_s, fse_lookup_weights_ram_wr_resp_r) = chan<WeightsRamWrResp, u32:1>("fse_weights_ram_wr_resp");
-        let (fse_decoder_weights_ram_wr_req_s, fse_decoder_weights_ram_wr_req_r) = chan<WeightsRamWrReq, u32:1>("fse_weights_ram_wr_req");
-        let (fse_decoder_weights_ram_wr_resp_s, fse_decoder_weights_ram_wr_resp_r) = chan<WeightsRamWrResp, u32:1>("fse_weights_ram_wr_resp");
+        let (fse_weights_ram_wr_req_s, fse_weights_ram_wr_req_r) = chan<WeightsRamWrReq, u32:1>("fse_weights_ram_wr_req");
+        let (fse_weights_ram_wr_resp_s, fse_weights_ram_wr_resp_r) = chan<WeightsRamWrResp, u32:1>("fse_weights_ram_wr_resp_s");
 
         let (raw_weights_ram_rd_req_s, raw_weights_ram_rd_req_r) = chan<WeightsRamRdReq, u32:1>("raw_weights_ram_rd_req");
         let (raw_weights_ram_rd_resp_s, raw_weights_ram_rd_resp_r) = chan<WeightsRamRdResp, u32:1>("raw_weights_ram_rd_resp");
+
         let (fse_weights_ram_rd_req_s, fse_weights_ram_rd_req_r) = chan<WeightsRamRdReq, u32:1>("fse_weights_ram_rd_req");
         let (fse_weights_ram_rd_resp_s, fse_weights_ram_rd_resp_r) = chan<WeightsRamRdResp, u32:1>("fse_weights_ram_rd_resp");
+
         let (weights_ram_rd_req_s, weights_ram_rd_req_r) = chan<WeightsRamRdReq, u32:1>("weights_ram_rd_req");
         let (weights_ram_rd_resp_s, weights_ram_rd_resp_r) = chan<WeightsRamRdResp, u32:1>("weights_ram_rd_resp");
 
