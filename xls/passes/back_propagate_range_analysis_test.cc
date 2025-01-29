@@ -554,5 +554,44 @@ TEST_F(BackPropagateRangeAnalysisTest, ImpossibleSignedCmp) {
               absl_testing::IsOk());
 }
 
+// Strength-reduce sometimes transforms comparisons to equality checks on the
+// high-bits of a value if the comparison was to a constant power of 2.
+// Recognize and see through this pattern.
+TEST_F(BackPropagateRangeAnalysisTest, BitsliceComparisonGt) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue inp = fb.Param("foo", p->GetBitsType(32));
+  // inp > 8
+  BValue slice = fb.BitSlice(inp, 3, 29);
+  BValue cmp = fb.Ne(slice, fb.Literal(UBits(0, 29)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  RangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(f).status());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_true,
+      PropagateGivensBackwards(
+          qe, f, {{cmp.node(), IntervalSet::Precise(UBits(1, 1))}}));
+  EXPECT_THAT(
+      results_true,
+      UnorderedElementsAre(
+          Pair(cmp.node(), IntervalSet::Precise(UBits(1, 1))),
+          Pair(inp.node(),
+               IntervalSet::Of({Interval(UBits(8, 32), Bits::AllOnes(32))})),
+          Pair(slice.node(),
+               IntervalSet::Complement(IntervalSet::Precise(UBits(0, 29))))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto results_false,
+      PropagateGivensBackwards(
+          qe, f, {{cmp.node(), IntervalSet::Precise(UBits(0, 1))}}));
+  EXPECT_THAT(
+      results_false,
+      UnorderedElementsAre(
+          LiteralPair(UBits(0, 29)),
+          Pair(cmp.node(), IntervalSet::Precise(UBits(0, 1))),
+          Pair(inp.node(), IntervalSet::Of({Interval(Bits(32), UBits(7, 32))})),
+          Pair(slice.node(), IntervalSet::Precise(UBits(0, 29)))));
+}
+
 }  // namespace
 }  // namespace xls

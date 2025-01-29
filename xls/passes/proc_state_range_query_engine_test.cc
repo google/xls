@@ -19,9 +19,12 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/value.h"
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
@@ -104,6 +107,65 @@ TEST_F(ProcStateRangeQueryEngineTest, DecrementToZeroSigned) {
   BValue cont = pb.SGt(state, pb.Literal(UBits(0, 32)));
   pb.Next(state, pb.Literal(UBits(7, 32)), pb.Not(cont));
   pb.Next(state, pb.Subtract(state, pb.Literal(UBits(1, 32))), cont);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 7]]");
+}
+
+TEST_F(ProcStateRangeQueryEngineTest, MaskReset) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan, p->CreateStreamingChannel(
+                          "chan", ChannelOps::kReceiveOnly, p->GetBitsType(1)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement("the_state", UBits(0, 32));
+  BValue reset = pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1);
+  BValue range_reset = pb.UGe(state, pb.Literal(UBits(8, 32)));
+  BValue nxt_val =
+      pb.Add(pb.And(pb.SignExtend(reset, 32), state), pb.Literal(UBits(1, 32)));
+  pb.Next(state, nxt_val, pb.Not(range_reset));
+  pb.Next(state, pb.Literal(UBits(0, 32)), range_reset);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 8]]");
+}
+
+TEST_F(ProcStateRangeQueryEngineTest, SelectReset) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * chan, p->CreateStreamingChannel(
+                          "chan", ChannelOps::kReceiveOnly, p->GetBitsType(1)));
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement("the_state", UBits(0, 32));
+  BValue reset = pb.TupleIndex(pb.Receive(chan, pb.Literal(Value::Token())), 1);
+  BValue range_reset = pb.UGe(state, pb.Literal(UBits(8, 32)));
+  BValue nxt_val = pb.Add(pb.Select(reset, pb.Literal(UBits(0, 32)), state),
+                          pb.Literal(UBits(1, 32)));
+  pb.Next(state, nxt_val, pb.Not(range_reset));
+  pb.Next(state, pb.Literal(UBits(0, 32)), range_reset);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  ProcStateRangeQueryEngine qe;
+  XLS_ASSERT_OK(qe.Populate(proc).status());
+  EXPECT_EQ(IntervalSetTreeToString(qe.GetIntervals(state.node())), "[[0, 8]]");
+}
+
+TEST_F(ProcStateRangeQueryEngineTest, BitSliceCompare) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement("the_state", UBits(0, 32));
+  BValue nxt_val = pb.Add(state, pb.Literal(UBits(1, 32)));
+  BValue range_reset =
+      pb.Ne(pb.BitSlice(nxt_val, 3, 29), pb.Literal(UBits(0, 29)));
+  pb.Next(state, nxt_val, pb.Not(range_reset));
+  pb.Next(state, pb.Literal(UBits(0, 32)), range_reset);
+
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
   ProcStateRangeQueryEngine qe;

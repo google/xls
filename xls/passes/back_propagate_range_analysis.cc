@@ -107,6 +107,9 @@ class BackPropagate : public DfsVisitorWithDefault {
                Op::kZeroExt,
                Op::kAndReduce,
                Op::kOrReduce,
+               // In some circumstances a bit-slice is actually part of a
+               // compare operation.
+               Op::kBitSlice,
            });
   }
   absl::Status DefaultHandler(Node* node) final { return absl::OkStatus(); }
@@ -178,6 +181,48 @@ class BackPropagate : public DfsVisitorWithDefault {
   }
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) final {
     return UnifyReductionOp(or_reduce);
+  }
+
+  absl::Status HandleBitSlice(BitSlice* slice) final {
+    int64_t input_bitcount = slice->operand(0)->BitCountOrDie();
+    // We want to recognize the pattern where a bit-slice is used to strength
+    // reduce a comparison to a equality check on the high bits of a value.
+    //
+    // Eg:
+    //   x:10 >= 512:10  ->  bit_slice(x, 9, 1) == 1  or
+    //   x:10 <  512:10  ->  bit_slice(x, 9, 1) == 0
+    //
+    // This means we can only proceed if we have a slice of the high bits of a
+    // value.
+    //
+    // Technically we can get information even if the slice doesn't look like
+    // this but the intervals will be so fractured little interesting knowledge
+    // would be gained.
+    //
+    // TODO(allight): We can do a lot more precise reasoning here than we do
+    // especialy if the slice has a known value.  This is a small but impactful
+    // first step however.
+    if (slice->start() == 0 ||
+        slice->width() + slice->start() != input_bitcount) {
+      // Doesn't give information we can push back up.
+      return absl::OkStatus();
+    }
+    IntervalSet slice_intervals = GetIntervals(slice);
+    if (slice_intervals.IsPrecise() && slice_intervals.CoversZero()) {
+      // Implies that operand must be < 1<<slice.start().
+      return MergeIn(
+          slice->operand(0),
+          IntervalSet::Of(
+              {Interval::Maximal(slice->start()).ZeroExtend(input_bitcount)}));
+    }
+    if (!slice_intervals.CoversZero()) {
+      // Implies that operand must be >= 1<<slice.start().
+      return MergeIn(
+          slice->operand(0),
+          IntervalSet::Complement(IntervalSet::Of(
+              {Interval::Maximal(slice->start()).ZeroExtend(input_bitcount)})));
+    }
+    return absl::OkStatus();
   }
 
   const absl::flat_hash_map<Node*, IntervalSet>& ranges() const& {
