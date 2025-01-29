@@ -26,7 +26,7 @@ import xls.modules.zstd.ram_demux;
 import xls.modules.zstd.ram_mux;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.fse_dec;
-import xls.modules.shift_buffer.shift_buffer;
+import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.fse_table_creator;
 
 
