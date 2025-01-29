@@ -22,7 +22,7 @@ import xls.modules.zstd.memory.axi_ram;
 import xls.modules.zstd.fse_table_creator;
 import xls.modules.zstd.refilling_shift_buffer;
 import xls.modules.zstd.fse_proba_freq_dec;
-import xls.modules.shift_buffer.shift_buffer;
+import xls.modules.zstd.shift_buffer;
 
 type AccuracyLog = common::FseAccuracyLog;
 type ConsumedFseBytes = fse_proba_freq_dec::ConsumedFseBytes;
