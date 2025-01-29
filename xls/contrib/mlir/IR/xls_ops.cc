@@ -28,7 +28,9 @@
 #include "llvm/include/llvm/Support/LogicalResult.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/include/mlir/Dialect/Shape/IR/Shape.h"
+#include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
+#include "mlir/include/mlir/IR/BuiltinOps.h"
 #include "mlir/include/mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
 #include "mlir/include/mlir/IR/Diagnostics.h"
@@ -41,6 +43,7 @@
 #include "mlir/include/mlir/IR/PatternMatch.h"
 #include "mlir/include/mlir/IR/Region.h"
 #include "mlir/include/mlir/IR/SymbolTable.h"
+#include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Interfaces/CallInterfaces.h"
 #include "mlir/include/mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/include/mlir/Support/LLVM.h"
@@ -107,6 +110,45 @@ ShapeOrBad getShapeSplat(Operation::operand_type_range range) {
     }
   }
   return shapeSplat.value_or(ShapeOrBad::getBad());
+}
+
+// Verify that the Verilog import function arguments and results have names.
+LogicalResult verifyImportedVerilogFunctionArgumentsAndResults(
+    func::FuncOp& func) {
+  // Make sure that all the arguments are named.
+  unsigned numArguments = func.getNumArguments();
+  for (unsigned i = 0; i < numArguments; ++i) {
+    DictionaryAttr dictAttr = func.getArgAttrDict(i);
+    if (!dictAttr) {
+      return func->emitError()
+             << "for Verilog imported function all arguments should "
+                "be named (use xls.name attribute)";
+    }
+    StringRef attrName = "xls.name";
+    if (!dictAttr.contains(attrName)) {
+      func->emitError() << "for Verilog imported function all arguments"
+                           " should be named (use xls.name attribute)";
+      return failure();
+    }
+  }
+
+  // Make sure that all the results are named.
+  unsigned numResults = func.getNumResults();
+  for (unsigned i = 0; i < numResults; ++i) {
+    DictionaryAttr dictAttr = func.getResultAttrDict(i);
+    if (!dictAttr) {
+      return func->emitError()
+             << "for Verilog imported function all results should "
+                "be named (use xls.name attribute)";
+    }
+    StringRef attrName = "xls.name";
+    if (!dictAttr.contains(attrName)) {
+      func->emitError() << "for Verilog imported function all results should "
+                           "be named (use xls.name attribute)";
+      return failure();
+    }
+  }
+  return success();
 }
 }  // namespace
 
@@ -176,6 +218,58 @@ void CountedForOp::setCalleeFromCallable(CallInterfaceCallable callee) {
   }
   // Indirect call, callee Value is the first operand.
   setOperand(0, callee.get<Value>());
+}
+
+// Verify that the xls.linkage attribute for importing Verilog is valid
+// and the Verilog import function arguments and results have names.
+LogicalResult verifyImportedVerilogFunction(func::FuncOp func,
+                                            TranslationLinkage linkage) {
+  // The Verilog import function has to have a foreign linkage attribute.
+  if (linkage.getKind() != LinkageKind::kForeign) {
+    return func->emitError()
+           << "imported Verilog requires foreign linkage kind";
+  }
+
+  // Make sure a Verilog imported function has a body.
+  if (func.getFunctionBody().getBlocks().empty()) {
+    return func.emitError() << "imported verilog function should have a body";
+  }
+  // Now check if all the argument and resulta are.
+  // TODO (lubol): This is probably better done in the
+  // verifyOperationAttribute. Investigate if it can be moved there. The
+  // issue is that we can't get a SymbolTable to get the import statement
+  // there. It is needed for correctness and more precise checks to make
+  // sure this is a Verilog import function, so we can enforce the naming of
+  // arguments and results.
+  if (failed(verifyImportedVerilogFunctionArgumentsAndResults(func))) {
+    return failure();
+  }
+  return success();
+}
+
+LogicalResult ImportVerilogFileOp::verifySymbolUses(
+    SymbolTableCollection& symbolTable) {
+  ModuleOp module = (*this)->getParentOfType<ModuleOp>();
+  SymbolTable moduleSymbolTable = symbolTable.getSymbolTable(module);
+  auto allUses = moduleSymbolTable.getSymbolUses(*this, module);
+  if (!allUses) {
+    return success();
+  }
+
+  for (SymbolTable::SymbolUse use : *allUses) {
+    auto func = dyn_cast<func::FuncOp>(use.getUser());
+    if (!func) {
+      continue;
+    }
+    auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+    if (!linkage) {
+      continue;
+    }
+
+    return verifyImportedVerilogFunction(func, linkage);
+  }
+
+  return success();
 }
 
 LogicalResult CountedForOp::verifySymbolUses(

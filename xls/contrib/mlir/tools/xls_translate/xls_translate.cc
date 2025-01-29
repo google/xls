@@ -40,6 +40,7 @@
 #include "llvm/include/llvm/ADT/Twine.h"
 #include "llvm/include/llvm/ADT/TypeSwitch.h"
 #include "llvm/include/llvm/Support/Casting.h"  // IWYU pragma: keep
+#include "llvm/include/llvm/Support/LogicalResult.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
@@ -92,6 +93,9 @@ using ::xls::ProcBuilder;
 namespace arith = ::mlir::arith;
 
 using ValueMap = DenseMap<Value, BValue>;
+
+// The default name of the result for imported Verilog module.
+constexpr StringLiteral kResultName("out");
 
 // Tracks imported package and the renaming due to import.
 struct PackageInfo {
@@ -1023,7 +1027,7 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
   // Function return value.
   BValue out;
 
-  // Walk over the function and construct the XLS function.
+  // Walk over the function ops and construct the XLS function.
   auto convert = [&](Operation* op) {
     return TypeSwitch<Operation*, BValue>(op)
         .Case<
@@ -1121,6 +1125,135 @@ FailureOr<BValue> convertFunction(TranslationState& translation_state,
     return failure();
   }
   return out;
+}
+
+bool isVerilogImport(Operation* op, const ModuleOp& module,
+                     const TranslationState& translationState,
+                     XlsRegionOpInterface& xlsRegion) {
+  bool isImportedVerilog = false;
+  if (auto func = dyn_cast<FuncOp>(op)) {
+    auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+    if (linkage) {
+      Operation* importOp = translationState.getSymbolTable().lookupSymbolIn(
+          module, linkage.getPackage());
+      isImportedVerilog = llvm::isa_and_present<ImportVerilogFileOp>(importOp);
+    }
+  }
+  return isImportedVerilog;
+}
+
+// This function sets the argument names in the value map, using the
+// xls.name attribute.
+// Note: In verilog import case the get_name function is not used.
+// The ffi verifier insist that there is a parameter in the converted
+// xls_func with the name used in the template.
+LogicalResult getArgumentNamesForVerilogImport(
+    func::FuncOp& func, XlsRegionOpInterface& xls_region,
+    const TranslationState& translation_state, FunctionBuilder& fb,
+    ArrayRef<Type> argumentTypes, DenseMap<Value, BValue>& valueMap) {
+  // Set the argument names in the value map, using the xls.name
+  // attribute.
+  // Note: In verilog import case we are using the xls.name attribute to name
+  // the XLS function parameter. It is required that this parameter name and the
+  // name we use in the FFI template string match.
+  ::std::optional<ArrayAttr> argAttrs = func.getArgAttrs();
+  const Region::BlockArgListType& argValues =
+      xls_region.getBodyRegion().getArguments();
+  StringRef attrName = "xls.name";
+  ArrayRef<Attribute> attrArgs = argAttrs->getValue();
+  for (auto [argValue, attr] : llvm::zip(argValues, attrArgs)) {
+    auto dictAttr = dyn_cast<DictionaryAttr>(attr);
+    auto nameAttr = dictAttr.getNamed(attrName);
+    ::xls::Type* xls_type = translation_state.getType(argValue.getType());
+    if (!xls_type) {
+      return failure();
+    }
+    valueMap[argValue] =
+        fb.Param(cast<StringAttr>(nameAttr->getValue()).str(), xls_type);
+  }
+  return success();
+}
+
+// Generates the code template for the foreign function that is being imported.
+// It is used to create the FFI tag for importation of foreign function/verilog.
+FailureOr<std::string> generateCodeTemplate(mlir::func::FuncOp func,
+                                            ::xls::Function* xlsFunc,
+                                            llvm::StringRef funcName,
+                                            llvm::StringRef resultName,
+                                            Type resultType) {
+  std::string codeTemplate;
+  llvm::raw_string_ostream os(codeTemplate);
+  os << funcName << " {fn}(";
+  auto xlsParams = xlsFunc->params();
+  bool added_argument = false;
+  llvm::interleaveComma(xlsParams, os, [&](::xls::Param* const param) {
+    added_argument = true;
+    std::string_view name = param->name();
+    os << "." << name << "({" << name << "})";
+  });
+
+  if (added_argument) {
+    os << ", ";
+  }
+
+  if (resultType.isInteger()) {
+    os << "." << resultName << "({return}))";
+  } else if (isa<FloatType>(resultType)) {
+    // Float is expanded to tuple of 3 ints. We don't yet support more
+    // general than that.
+    os << "." << resultName << "$0({return.0}), "
+       << "." << resultName << "$1({return.1}), "
+       << "." << resultName << "$2({return.2}) )";
+  } else {
+    return func->emitError() << "unsupported result type for foreign functions";
+  }
+  return os.str();
+}
+
+LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
+  if (func.getResultTypes().size() != 1) {
+    return func->emitError() << "there should be one result when importing"
+                                " a verilog function";
+  }
+  auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
+  if (!linkage || linkage.getKind() != LinkageKind::kForeign) {
+    return func->emitError() << "expected foreign xls.linkage attribute";
+  }
+
+  StringRef resultName = kResultName;
+  auto resultAttrs = func.getResAttrs();
+  if (resultAttrs && !resultAttrs->getValue().empty()) {
+    auto attributeValues = resultAttrs->getValue();
+    for (auto attr : attributeValues) {
+      mlir::DictionaryAttr dictAttr = dyn_cast<mlir::DictionaryAttr>(attr);
+      if (!dictAttr) {
+        continue;
+      }
+      std::optional<NamedAttribute> namedAttr = dictAttr.getNamed("xls.name");
+      if (namedAttr != std::nullopt) {
+        auto nameAttr = cast<StringAttr>(namedAttr->getValue());
+        resultName = nameAttr.getValue();
+      }
+    }
+  }
+
+  auto importTemplate =
+      generateCodeTemplate(func, &xlsFunc, linkage.getFunction().strref(),
+                           resultName, func.getResultTypes().front());
+  if (failed(importTemplate)) {
+    return failure();
+  }
+
+  absl::StatusOr<::xls::ForeignFunctionData> ffd =
+      ::xls::ForeignFunctionDataCreateFromTemplate(importTemplate.value());
+  if (!ffd.ok()) {
+    llvm::errs() << "Failed to create foreign function data: "
+                 << ffd.status().message() << "\n";
+    return failure();
+  }
+
+  xlsFunc.SetForeignFunctionData(ffd.value());
+  return success();
 }
 
 FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
@@ -1221,6 +1354,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       return valueNameMap[v] = name;
     };
 
+    bool isImportedVerilog =
+        isVerilogImport(&op, module, translation_state, xls_region);
     // Skip function declarations for now.
     if (auto func = dyn_cast<FuncOp>(op); func && func.isDeclaration()) {
       auto linkage = func->getAttrOfType<TranslationLinkage>("xls.linkage");
@@ -1239,24 +1374,15 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
         return failure();
       }
       if (linkage.getKind() == LinkageKind::kForeign) {
-        std::string codeTemplate;
-        llvm::raw_string_ostream os(codeTemplate);
-        os << xls_region.getName() << " {fn}(";
-        for (::xls::Param* param : xlsFunc.value()->params()) {
-          std::string_view name = param->name();
-          os << '.' << name << "({" << name << "}), ";
-        }
-        if (func.getResultTypes().front().isInteger()) {
-          os << ".out({return}) )";
-        } else {
-          // Float is expanded to tuple of 3 ints. We don't yet support more
-          // general than that.
-          os << ".out$0({return.0}), "
-             << ".out$1({return.1}), "
-             << ".out$2({return.2}) )";
+        auto templateString =
+            generateCodeTemplate(func, xlsFunc.value(), xls_region.getName(),
+                                 kResultName, func.getResultTypes().front());
+        if (failed(templateString)) {
+          return failure();
         }
         absl::StatusOr<::xls::ForeignFunctionData> ffd =
-            ::xls::ForeignFunctionDataCreateFromTemplate(codeTemplate);
+            ::xls::ForeignFunctionDataCreateFromTemplate(
+                templateString.value());
         if (!ffd.ok()) {
           llvm::errs() << "Failed to create foreign function data: "
                        << ffd.status().message() << "\n";
@@ -1305,16 +1431,24 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
     } else {
       assert(isa<FuncOp>(op) && "Expected func op");
       FunctionBuilder fb(xls_region.getName(), package.get());
-
-      // Populate the function argument values.
-      for (Value arg : xls_region.getBodyRegion().getArguments()) {
-        ::xls::Type* xls_type = translation_state.getType(arg.getType());
-        if (xls_type == nullptr) {
+      if (isImportedVerilog) {
+        auto func = cast<func::FuncOp>(op);
+        ArrayRef<Type> argumentTypes = func.getArgumentTypes();
+        if (failed(getArgumentNamesForVerilogImport(func, xls_region,
+                                                    translation_state, fb,
+                                                    argumentTypes, valueMap))) {
           return failure();
         }
-        valueMap[arg] = fb.Param(get_name(arg), xls_type);
+      } else {
+        // Populate the function argument values.
+        for (Value arg : xls_region.getBodyRegion().getArguments()) {
+          ::xls::Type* xls_type = translation_state.getType(arg.getType());
+          if (xls_type == nullptr) {
+            return failure();
+          }
+          valueMap[arg] = fb.Param(get_name(arg), xls_type);
+        }
       }
-
       auto out = convertFunction(translation_state, xls_region, valueMap, fb);
       if (failed(out)) {
         return failure();
@@ -1328,6 +1462,13 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       } else {
         // Capture mapping to built function.
         translation_state.addFunction(xls_region.getName(), s.value());
+        if (isImportedVerilog) {
+          if (failed(annotateForeignFunction(cast<FuncOp>(op), *s.value()))) {
+            llvm::errs() << "Failed to annotate foreign function: "
+                         << xls_region.getName() << "\n";
+            return failure();
+          }
+        }
       }
     }
   }

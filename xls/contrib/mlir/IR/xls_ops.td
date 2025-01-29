@@ -1942,5 +1942,34 @@ def VectorizedCallOp : Xls_Op<"vectorized_call",
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// Verilog operations
+//===----------------------------------------------------------------------===//
+
+def Xls_ImportVerilogFileOp : Xls_Op<"import_verilog_file", [Symbol,
+     DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "Verilog import operation";
+  let description = [{
+    Represents importing a Verilog file. The symbol name is used to refer to the
+    imported module.
+
+    It doesn't define which function to import. It just creates a symbol for the
+    referenced file.
+
+    Example:
+      xls.import_verilog_file "/path/to/verilog.v" as @x_verilog
+  }];
+  let arguments = (ins
+    StrAttr:$filename,
+    SymbolNameAttr:$sym_name
+  );
+  let assemblyFormat = [{
+    $filename `as` $sym_name attr-dict
+  }];
+  let extraClassDeclaration = [{
+    // Imports can always be discarded if they are not used.
+    bool canDiscardOnUseEmpty() const { return true; }
+  }];
+}
 
 #endif
