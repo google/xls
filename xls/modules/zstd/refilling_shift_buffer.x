@@ -18,7 +18,7 @@
 
 
 import std;
-import xls.modules.shift_buffer.shift_buffer;
+import xls.modules.zstd.shift_buffer;
 import xls.modules.zstd.memory.mem_reader;
 
 
