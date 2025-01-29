@@ -153,10 +153,10 @@ class VerilogTestBaseWithParam : public testing::TestWithParam<ParamType> {
   // underlying simulator and file type is determined by the test parameters.
   absl::StatusOr<std::unique_ptr<ModuleTestbench>> NewModuleTestbench(
       std::string_view verilog_text, const ModuleSignature& signature,
-      absl::Span<const VerilogInclude> includes = {}) {
-    return ModuleTestbench::CreateFromVerilogText(verilog_text, GetFileType(),
-                                                  signature, GetSimulator(),
-                                                  /*reset_dut=*/true, includes);
+      bool reset_dut = true, absl::Span<const VerilogInclude> includes = {}) {
+    return ModuleTestbench::CreateFromVerilogText(
+        verilog_text, GetFileType(), signature, GetSimulator(),
+        /*reset_dut=*/reset_dut, includes);
   }
 
   ModuleSimulator NewModuleSimulator(

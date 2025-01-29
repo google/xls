@@ -359,7 +359,7 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
   BlockBuilder bb(TestBaseName(), &package);
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
-  BValue rst = bb.InputPort("the_reset", package.GetBitsType(1));
+  BValue rst = bb.ResetPort("the_reset");
 
   // Pipeline register 0.
   BValue p0_a = bb.InsertRegister("p0_a", a, rst,
@@ -382,18 +382,23 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
   XLS_ASSERT_OK(bb.block()->AddClockPort("the_clock"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string verilog,
-      GenerateVerilog(block, codegen_options().emit_as_pipeline(true)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      ModuleSignature sig,
-      GenerateSignature(codegen_options("the_clock"), block));
+  CodegenOptions options =
+      codegen_options("the_clock")
+          .emit_as_pipeline(true)
+          .reset("the_reset", /*asynchronous=*/false, /*active_low=*/false,
+                 /*reset_data_path=*/false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, block));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
-                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      NewModuleTestbench(verilog, sig, /*reset_dut=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
       tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
@@ -474,7 +479,7 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   Type* u32 = package.GetBitsType(32);
   BlockBuilder bb(TestBaseName(), &package);
   BValue in = bb.InputPort("in", u32);
-  BValue rst_n = bb.InputPort("rst_n", package.GetBitsType(1));
+  BValue rst_n = bb.ResetPort("rst_n");
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Register * accum_reg,
@@ -489,16 +494,21 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
+  CodegenOptions options =
+      codegen_options("clk").reset("rst_n", /*asynchronous=*/false,
+                                   /*active_low=*/true,
+                                   /*reset_data_path=*/false);
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, codegen_options()));
+                           GenerateVerilog(block, options));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(codegen_options("clk"), block));
+                           GenerateSignature(options, block));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
-                           NewModuleTestbench(verilog, sig));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      NewModuleTestbench(verilog, sig, /*reset_dut=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
       tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
@@ -546,35 +556,10 @@ TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
                        HasSubstr("Block has registers but no clock port")));
 }
 
-TEST_P(BlockGeneratorTest, RegisterWithDifferentResetBehavior) {
-  Package package(TestBaseName());
-  Type* u32 = package.GetBitsType(32);
-
-  BlockBuilder bb(TestBaseName(), &package);
-  BValue a = bb.InputPort("a", u32);
-  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
-  BValue rst = bb.InputPort("the_reset", package.GetBitsType(1));
-  BValue a_d = bb.InsertRegister("a_d", a, rst,
-                                 xls::Reset{.reset_value = Value(UBits(0, 32)),
-                                            .asynchronous = false,
-                                            .active_low = true});
-  bb.InsertRegister("a_d_d", a_d, rst,
-                    xls::Reset{.reset_value = Value(UBits(0, 32)),
-                               .asynchronous = false,
-                               .active_low = false});
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
-
-  EXPECT_THAT(
-      GenerateVerilog(block, codegen_options()).status(),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("Block has active low and active high reset signals")));
-}
-
 TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
-  BValue rst = b.InputPort("my_rst", package.GetBitsType(1));
+  BValue rst = b.ResetPort("my_rst");
   BValue a = b.InputPort("a", package.GetBitsType(32));
   BValue a_d = b.InsertRegister("a_d", a, rst,
                                 xls::Reset{.reset_value = Value(UBits(123, 32)),
@@ -584,10 +569,15 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
            "a is not greater than 42");
   XLS_ASSERT_OK(b.block()->AddClockPort("my_clk"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+  auto base_options = [this]() {
+    return codegen_options("my_clk").reset("my_rst", /*asynchronous=*/false,
+                                           /*active_low=*/false,
+                                           /*reset_data_path=*/false);
+  };
   {
     // No format string.
     XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                             GenerateVerilog(block, codegen_options("my_clk")));
+                             GenerateVerilog(block, base_options()));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
           verilog,
@@ -604,7 +594,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
         std::string verilog,
         GenerateVerilog(
             block,
-            codegen_options("my_clk").SetOpOverride(
+            base_options().SetOpOverride(
                 Op::kAssert,
                 std::make_unique<OpOverrideAssertion>(
                     R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))"))));
@@ -621,7 +611,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
   // Format string with label but assert doesn't have label.
   EXPECT_THAT(
       GenerateVerilog(block,
-                      codegen_options("my_clk").SetOpOverride(
+                      base_options().SetOpOverride(
                           Op::kAssert, std::make_unique<OpOverrideAssertion>(
                                            R"({label} foobar)"))),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -631,7 +621,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
   // Format string with invalid placeholder.
   EXPECT_THAT(
       GenerateVerilog(block,
-                      codegen_options("my_clk").SetOpOverride(
+                      base_options().SetOpOverride(
                           Op::kAssert, std::make_unique<OpOverrideAssertion>(
                                            R"({foobar} blargfoobar)"))),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -751,6 +741,44 @@ TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Assert format string has {clk} placeholder, "
                                  "but block has no clock signal")));
+}
+
+TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  fb.Assert(fb.AfterAll({}), fb.ULt(x, fb.Literal(UBits(42, 32))),
+            "x is not greater than 42");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, x)));
+  auto options = codegen_options("clk").reset("rst", /*asynchronous=*/false,
+                                              /*active_low=*/false,
+                                              /*reset_data_path=*/false);
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(f, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           FunctionBaseToPipelinedBlock(schedule, options, f));
+  // With format string, no label.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string verilog,
+      GenerateVerilog(
+          unit.top_block,
+          options.SetOpOverride(
+              Op::kAssert,
+              std::make_unique<OpOverrideAssertion>(
+                  R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))"))));
+  if (UseSystemVerilog()) {
+    EXPECT_THAT(
+        verilog,
+        HasSubstr(
+            R"(`MY_ASSERT(x < 32'h0000_002a, "x is not greater than 42", clk, rst))"));
+  } else {
+    EXPECT_THAT(verilog, Not(HasSubstr("assert")));
+  }
 }
 
 TEST_P(BlockGeneratorTest, BlockWithTrace) {
@@ -875,7 +903,8 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
   BValue a_le = bb.InputPort("a_le", u1);
   BValue b = bb.InputPort("b", u32);
   BValue b_le = bb.InputPort("b_le", u1);
-  BValue rst = bb.InputPort("rst", u1);
+  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
+  BValue rst = bb.ResetPort("rst");
 
   BValue a_reg =
       bb.InsertRegister("a_reg", a, rst,
@@ -893,15 +922,18 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
   bb.OutputPort("a_out", a_reg);
   bb.OutputPort("b_out", b_reg);
 
-  XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
+  CodegenOptions options = codegen_options("clk").reset(
+      "rst", /*asynchronous=*/false, /*active_low=*/false,
+      /*reset_data_path=*/false);
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, codegen_options()));
+                           GenerateVerilog(block, options));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(codegen_options("clk"), block));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
-                           NewModuleTestbench(verilog, sig));
+                           GenerateSignature(options, block));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      NewModuleTestbench(verilog, sig, /*reset_dut=*/false));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * tbt,
       tb->CreateThreadDrivingAllInputs("main", ZeroOrX::kX));
@@ -1617,8 +1649,9 @@ proc running_sum(first_cycle: bits[1], init={1}) {
                                  verilog, /*macro_definitions=*/{},
                                  {fifo_definition});
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ModuleTestbench> tb,
-                           NewModuleTestbench(verilog, sig, {fifo_definition}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      NewModuleTestbench(verilog, sig, /*reset_dut=*/true, {fifo_definition}));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleTestbenchThread * push_tbt,
       tb->CreateThread(
@@ -2085,8 +2118,6 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(true).clock_name("clk");
-  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
-                /*reset_data_path=*/true);
   options.streaming_channel_data_suffix("_data");
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
@@ -2122,8 +2153,6 @@ TEST_P(BlockGeneratorTest, ArrayIndexBounds) {
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(true).clock_name("clk");
-  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
-                /*reset_data_path=*/true);
   options.streaming_channel_data_suffix("_data");
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
@@ -2180,8 +2209,6 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(true).clock_name("clk");
-  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
-                /*reset_data_path=*/true);
   options.streaming_channel_data_suffix("_data");
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
@@ -2236,8 +2263,6 @@ fn deep_nesting(x: bits[10]) -> bits[10] {
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(true).clock_name("clk");
-  options.reset("rst", /*asynchronous=*/false, /*active_low=*/false,
-                /*reset_data_path=*/true);
   options.streaming_channel_data_suffix("_data");
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
@@ -2364,7 +2389,9 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, *estimator,
                           SchedulingOptions().pipeline_stages(1)));
-  CodegenOptions options = codegen_options();
+  CodegenOptions options =
+      codegen_options().reset("rst", /*asynchronous=*/false,
+                              /*active_low=*/false, /*reset_data_path=*/true);
 
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));

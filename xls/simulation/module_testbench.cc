@@ -272,7 +272,7 @@ absl::StatusOr<ModuleTestbenchThread*> ModuleTestbench::CreateThread(
 
   auto testbench_thread = std::make_unique<ModuleTestbenchThread>(
       thread_name, &metadata_, &capture_manager_, dut_inputs, wait_until_done,
-      wait_for_reset);
+      wait_for_reset && reset_dut_);
   for (const DutInput& dut_input : dut_inputs) {
     claimed_dut_inputs_[dut_input.port_name] = testbench_thread.get();
   }

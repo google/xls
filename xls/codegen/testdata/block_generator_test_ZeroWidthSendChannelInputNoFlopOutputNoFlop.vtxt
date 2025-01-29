@@ -1,8 +1,8 @@
 module pipelined_proc(
   input wire clk,
+  input wire rst,
   input wire [31:0] in_data,
   input wire in_valid,
-  input wire rst,
   input wire out_ready,
   output wire out_valid,
   output wire in_ready

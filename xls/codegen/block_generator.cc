@@ -125,64 +125,6 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
       absl::StrFormat("Unable to generate code for: %s", node->ToString()));
 }
 
-// Return a ResetProto representing the reset signal of the block. Requires that
-// any register with a reset value have identical reset behavior
-// (asynchronous/synchronous, and active high/low).
-absl::StatusOr<std::optional<ResetProto>> GetBlockResetProto(Block* block) {
-  std::optional<ResetProto> reset_proto;
-
-  auto check_or_set =
-      [&reset_proto](const ResetProto& new_proto) -> absl::Status {
-    if (reset_proto.has_value()) {
-      if (reset_proto->name() != new_proto.name()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Block uses more than one reset signal: %s and %s",
-                            reset_proto->name(), new_proto.name()));
-      }
-      if (reset_proto->asynchronous() != new_proto.asynchronous()) {
-        return absl::InvalidArgumentError(
-            "Block has asynchronous and synchronous reset signals");
-      }
-      if (reset_proto->active_low() != new_proto.active_low()) {
-        return absl::InvalidArgumentError(
-            "Block has active low and active high reset signals");
-      }
-    } else {
-      reset_proto = new_proto;
-    }
-    return absl::OkStatus();
-  };
-
-  for (xls::Instantiation* inst : block->GetInstantiations()) {
-    if (inst->kind() == InstantiationKind::kBlock) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<ResetProto> inst_reset_proto,
-          GetBlockResetProto(
-              down_cast<BlockInstantiation*>(inst)->instantiated_block()));
-      if (inst_reset_proto.has_value()) {
-        XLS_RETURN_IF_ERROR(check_or_set(*inst_reset_proto));
-      }
-    }
-  }
-  for (Node* node : block->nodes()) {
-    if (node->Is<RegisterWrite>()) {
-      RegisterWrite* reg_write = node->As<RegisterWrite>();
-      if (!reg_write->reset().has_value()) {
-        continue;
-      }
-      Node* reset_signal = reg_write->reset().value();
-      Register* reg = reg_write->GetRegister();
-      XLS_RET_CHECK(reg->reset().has_value());
-      ResetProto reg_reset_proto;
-      reg_reset_proto.set_name(reset_signal->GetName());
-      reg_reset_proto.set_asynchronous(reg->reset()->asynchronous);
-      reg_reset_proto.set_active_low(reg->reset()->active_low);
-      XLS_RETURN_IF_ERROR(check_or_set(reg_reset_proto));
-    }
-  }
-  return reset_proto;
-}
-
 // A data structure representing a stage within a feed-forward pipeline.
 struct Stage {
   // The register-reads at the beginning of the stage.
@@ -344,8 +286,7 @@ class BlockGenerator {
       const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types,
       const absl::flat_hash_map<OutputPort*, std::string>&
           output_port_sv_types) {
-    XLS_ASSIGN_OR_RETURN(std::optional<ResetProto> reset_proto,
-                         GetBlockResetProto(block));
+    const std::optional<ResetProto>& reset_proto = options.reset();
     if (reset_proto.has_value()) {
       VLOG(5) << absl::StreamFormat("Reset proto for %s: %s", block->name(),
                                     reset_proto->DebugString());
