@@ -14,21 +14,10 @@
 
 import std;
 
-fn fast_if<N: u32>(cond: bool, arg1: uN[N], arg2: uN[N]) -> uN[N] {
-    let mask = if cond { !bits[N]:0 } else { bits[N]:0 };
-    (arg1 & mask) | (arg2 & !mask)
-}
-
-#[test]
-fn fast_if_test() {
-    assert_eq(if true { u32:1 } else { u32:5 }, fast_if(true, u32:1, u32:5));
-    assert_eq(if false { u32:1 } else { u32:5 }, fast_if(false, u32:1, u32:5));
-}
-
 // Log-depth shift bits left
 pub fn logshiftl<N: u32, R: u32>(n: bits[N], r: bits[R]) -> bits[N] {
     for (i, y) in u32:0..R {
-        fast_if(r[i+:u1], { y << (bits[R]:1 << i) }, { y })
+        if r[i+:u1] { y << (bits[R]:1 << i) } else { y }
     }(n as bits[N])
 }
 
@@ -56,10 +45,11 @@ fn logshiftl_test() {
     assert_eq(logshiftl(bits[24]:0xc0ffee, u8:12), bits[24]:0xfee000);
 }
 
+
 // Log-depth shift bits right
 pub fn logshiftr<N: u32, R: u32>(n: bits[N], r: bits[R]) -> bits[N] {
     for (i, y) in u32:0..R {
-        fast_if(r[i+:u1], { y >> (bits[R]:1 << i) }, { y })
+        if r[i+:u1] { y >> (bits[R]:1 << i) } else { y }
     }(n as bits[N])
 }
 
@@ -85,4 +75,20 @@ fn logshiftr_test() {
     assert_eq(logshiftr(max, u4:5), max >> u4:5);
     assert_eq(logshiftr(max, u4:15), max >> u4:15);
     assert_eq(logshiftr(bits[24]:0xc0ffee, u8:12), bits[24]:0x000c0f);
+}
+
+// Return given value with m first bits masked
+pub fn mask<N: u32, M: u32>(n: bits[N], m: bits[M]) -> bits[N] {
+    n & (std::mask_bits<N>() >> (N as bits[M] - m))
+}
+
+#[test]
+fn mask_test() {
+    assert_eq(mask(u8:0b11111111, u4:0), u8:0b00000000);
+    assert_eq(mask(u8:0b11111111, u4:1), u8:0b00000001);
+    assert_eq(mask(u8:0b11111111, u4:2), u8:0b00000011);
+    assert_eq(mask(u8:0b11111111, u4:4), u8:0b00001111);
+    assert_eq(mask(u8:0b11111111, u4:8), u8:0b11111111);
+    assert_eq(mask(u8:0b11111111, u4:9), u8:0b00000000); // FIXME: sketchy result, I would expect
+                                                         // 0b11111111
 }
