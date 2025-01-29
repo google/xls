@@ -417,8 +417,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Function)
   INVALID(Impl)
   INVALID(Import)
-  INVALID(Use)
-  INVALID(UseTreeEntry)
+  INVALID(Lambda)
   INVALID(Module)
   INVALID(Proc)
   INVALID(ProcMember)
@@ -428,6 +427,8 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(StructMemberNode)
   INVALID(ProcDef)
   INVALID(TypeAlias)
+  INVALID(Use)
+  INVALID(UseTreeEntry)
   // keep-sorted end
 
  private:
@@ -847,6 +848,10 @@ absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
   });
   VLOG(5) << "Aliasing NameDef for constant: " << node->name_def()->ToString();
   return DefAlias(node->value(), /*to=*/node->name_def());
+}
+
+absl::Status FunctionConverter::HandleLambda(const Lambda* node) {
+  return absl::UnimplementedError("lambdas not yet supported");
 }
 
 absl::Status FunctionConverter::HandleLet(const Let* node) {

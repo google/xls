@@ -306,6 +306,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "cast";
     case AstNodeKind::kConstantDef:
       return "constant definition";
+    case AstNodeKind::kLambda:
+      return "lambda";
     case AstNodeKind::kLet:
       return "let";
     case AstNodeKind::kChannelDecl:
@@ -2087,6 +2089,44 @@ std::vector<std::string> Function::GetFreeParametricKeys() const {
 // -- class TestFunction
 
 TestFunction::~TestFunction() = default;
+
+// -- class Lambda
+
+Lambda::Lambda(Module* owner, Span span, std::vector<Param*> params,
+               TypeAnnotation* return_type, StatementBlock* body)
+    : Expr(owner, std::move(span)),
+      params_(std::move(params)),
+      return_type_(return_type),
+      body_(body) {}
+
+Lambda::~Lambda() = default;
+
+std::vector<AstNode*> Lambda::GetChildren(bool want_types) const {
+  std::vector<AstNode*> results;
+  for (Param* p : params()) {
+    results.push_back(p);
+  }
+  if (return_type_ != nullptr && want_types) {
+    results.push_back(return_type_);
+  }
+  results.push_back(body_);
+  return results;
+}
+
+std::string Lambda::ToStringInternal() const {
+  std::string params_str =
+      absl::StrJoin(params(), ", ", [](std::string* out, Param* param) {
+        absl::StrAppend(out, param->ToString());
+      });
+
+  std::string return_str = return_type_ != nullptr
+                               ? absl::StrCat(" -> ", return_type_->ToString())
+                               : "";
+  std::string body_str =
+      body_->size() > 1 ? body_->ToString() : body_->ToInlineString();
+
+  return absl::StrFormat("|%s|%s %s", params_str, return_str, body_str);
+}
 
 // -- class MatchArm
 

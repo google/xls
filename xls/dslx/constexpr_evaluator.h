@@ -83,6 +83,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) override;
   absl::Status HandleIndex(const Index* expr) override;
   absl::Status HandleInvocation(const Invocation* expr) override;
+  absl::Status HandleLambda(const Lambda* expr) override;
   absl::Status HandleLet(const Let* expr) override { return absl::OkStatus(); }
   absl::Status HandleMatch(const Match* expr) override;
   absl::Status HandleNameRef(const NameRef* expr) override;

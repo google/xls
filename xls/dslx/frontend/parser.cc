@@ -238,6 +238,32 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   return f;
 }
 
+// Lambda syntax: | <PARAM>[: <TYPE>], ... | [-> <RETURN_TYPE>] { <BODY> }
+absl::StatusOr<Lambda*> Parser::ParseLambda(Bindings& bindings) {
+  Pos start_pos = GetPos();
+  VLOG(5) << "ParseLambda @ " << start_pos;
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  std::vector<Param*> params;
+  if (peek->kind() == TokenKind::kBar) {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kBar));
+    auto parse_param = [&] { return ParseParam(bindings); };
+    XLS_ASSIGN_OR_RETURN(params,
+                         ParseCommaSeq<Param*>(parse_param, TokenKind::kBar));
+  } else {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kDoubleBar));
+  }
+
+  XLS_ASSIGN_OR_RETURN(bool dropped_arrow, TryDropToken(TokenKind::kArrow));
+  TypeAnnotation* return_type = nullptr;
+  if (dropped_arrow) {
+    XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
+  }
+
+  XLS_ASSIGN_OR_RETURN(StatementBlock * body, ParseBlockExpression(bindings));
+  return module_->Make<Lambda>(Span(start_pos, GetPos()), params, return_type,
+                               body);
+}
+
 absl::Status Parser::ParseModuleAttribute() {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
   Span attribute_span;
@@ -665,6 +691,10 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
   }
   if (peek->kind() == TokenKind::kOBrace) {
     return ParseBlockExpression(bindings);
+  }
+  if (peek->kind() == TokenKind::kBar ||
+      peek->kind() == TokenKind::kDoubleBar) {
+    return ParseLambda(bindings);
   }
   return ParseConditionalExpression(bindings, restrictions);
 }

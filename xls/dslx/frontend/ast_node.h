@@ -55,6 +55,7 @@ enum class AstNodeKind : uint8_t {
   kInstantiation,
   kInvocation,
   kJoin,
+  kLambda,
   kLet,
   kMatch,
   kMatchArm,

@@ -1307,6 +1307,10 @@ absl::Status BytecodeEmitter::DestructureLet(
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleLambda(const Lambda* node) {
+  return absl::UnimplementedError("lambdas not yet supported");
+}
+
 absl::Status BytecodeEmitter::HandleLet(const Let* node) {
   XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
   std::optional<Type*> type = type_info_->GetItem(node->rhs());

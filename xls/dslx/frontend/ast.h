@@ -59,6 +59,7 @@
   X(FunctionRef)                   \
   X(Index)                         \
   X(Invocation)                    \
+  X(Lambda)                        \
   X(Let)                           \
   X(Match)                         \
   X(NameRef)                       \
@@ -2082,6 +2083,48 @@ class Function : public AstNode {
   const bool is_public_;
   std::optional<ForeignFunctionData> extern_verilog_module_;
   bool disable_format_ = false;
+};
+
+// A lambda expression.
+// Syntax: `|<PARAM>[: <TYPE], ... | [-> <RETURN_TYPE>]  { <BODY> }`
+//
+// Parameter types and return type are optional.
+//
+// Example: `let squares = map(range(u32:0, u32:5), |x| { x * x });`
+//
+// Attributes:
+// * params: The explicit parameters of the lambda.
+// * return_type: The return type of the lambda.
+// * body: The body of the lambda.
+class Lambda : public Expr {
+ public:
+  Lambda(Module* owner, Span span, std::vector<Param*> params,
+         TypeAnnotation* return_type, StatementBlock* body);
+
+  ~Lambda() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kLambda; }
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleLambda(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleLambda(this);
+  }
+  std::string_view GetNodeTypeName() const override { return "Lambda"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  const std::vector<Param*>& params() const { return params_; }
+
+ private:
+  std::vector<Param*> params_;
+  TypeAnnotation* return_type_;  // May be null.
+  StatementBlock* body_;
+
+  std::string ToStringInternal() const final;
+
+  Precedence GetPrecedenceWithoutParens() const final {
+    return Precedence::kStrongest;
+  }
 };
 
 // Represents a single arm in a match expression.

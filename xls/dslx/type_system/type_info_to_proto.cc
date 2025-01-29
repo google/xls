@@ -189,6 +189,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_USE;
     case AstNodeKind::kUseTreeEntry:
       return AST_NODE_KIND_USE_TREE_ENTRY;
+    case AstNodeKind::kLambda:
+      return AST_NODE_KIND_LAMBDA;
   }
   // Fatal since enum class values should not be out of range.
   LOG(FATAL) << "Out of range AstNodeKind: " << static_cast<int64_t>(kind);
@@ -832,6 +834,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kUse;
     case AST_NODE_KIND_USE_TREE_ENTRY:
       return AstNodeKind::kUseTreeEntry;
+    case AST_NODE_KIND_LAMBDA:
+      return AstNodeKind::kLambda;
     // Note: since this is a proto enum there are sentinel values defined in
     // addition to the "real" above. Return an invalid argument error.
     case AST_NODE_KIND_INVALID:

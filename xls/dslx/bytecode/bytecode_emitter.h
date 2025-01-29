@@ -119,6 +119,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleWidthSlice(const Index* node, WidthSlice* width_slice);
 
   absl::Status HandleInvocation(const Invocation* node) override;
+  absl::Status HandleLambda(const Lambda* node) override;
   absl::Status HandleLet(const Let* node) override;
   absl::Status HandleMatch(const Match* node) override;
   absl::Status HandleNameRef(const NameRef* node) override;

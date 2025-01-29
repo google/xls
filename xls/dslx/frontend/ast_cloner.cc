@@ -471,6 +471,10 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleLambda(const Lambda* n) override {
+    return absl::UnimplementedError("lambdas not yet supported");
+  }
+
   absl::Status HandleLet(const Let* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 

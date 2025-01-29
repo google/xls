@@ -432,6 +432,10 @@ absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
   return absl::OkStatus();
 }
 
+absl::Status ConstexprEvaluator::HandleLambda(const Lambda* expr) {
+  return absl::OkStatus();
+}
+
 absl::Status ConstexprEvaluator::HandleMatch(const Match* expr) {
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->matched());
 

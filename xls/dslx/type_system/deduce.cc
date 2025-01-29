@@ -467,6 +467,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
   return Type::MakeUnit();
 }
 
+absl::StatusOr<std::unique_ptr<Type>> DeduceLambda(const Lambda* node,
+                                                   DeduceCtx* ctx) {
+  return absl::UnimplementedError("lambdas not yet supported in type system");
+}
+
 // The types that need to be deduced for `for`-like loops (including
 // `unroll_for!`).
 struct ForLoopTypes {
@@ -2057,6 +2062,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Binop, DeduceBinop)
   DEDUCE_DISPATCH(EnumDef, DeduceEnumDef)
   DEDUCE_DISPATCH(Let, DeduceLet)
+  DEDUCE_DISPATCH(Lambda, DeduceLambda)
   DEDUCE_DISPATCH(For, DeduceFor)
   DEDUCE_DISPATCH(Cast, DeduceCast)
   DEDUCE_DISPATCH(ConstAssert, DeduceConstAssert)

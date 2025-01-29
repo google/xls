@@ -3354,6 +3354,48 @@ TEST_F(ParserTest, ParseParametricProcWithConstAssert) {
   EXPECT_EQ(p->ToString(), text);
 }
 
+TEST_F(ParserTest, ParseMapWithLambdaParamAnnotation) {
+  RoundTrip(R"(const ARR = map(range(0, u16:5), |i: u16| { 2 * i });)");
+}
+
+TEST_F(ParserTest, LambdaInLetNoParams) {
+  RoundTrip(R"(fn uses_lambda(i: u32) -> u32 {
+    let X = || { u32:2 * i };
+    X()
+})");
+}
+
+TEST_F(ParserTest, LambdaInLetNoParamsWithReturn) {
+  RoundTrip(R"(fn uses_lambda(i: u32) -> u32 {
+    let X = || -> u32 { u32:2 * i };
+    X()
+})");
+}
+
+TEST_F(ParserTest, ParseMapWithLambdaCapture) {
+  RoundTrip(R"(const X = u16:3;
+const ARR = map(range(0, u16:5), |i: u16| { X * i });)");
+}
+
+TEST_F(ParserTest, ParseMapWithLambdaWithReturnType) {
+  RoundTrip(
+      R"(const ARR = map(range(0, u16:5), |i: u16| -> u32 { 2 * i as u32 });)");
+}
+
+TEST_F(ParserTest, ParseMapWithLambdaMultilineBody) {
+  RoundTrip(
+      R"(const ARR = map(range(0, u16:5), |i: u16| {
+    let x = 2 * i as u32;
+    x
+});)");
+}
+
+// TODO(https://github.com/google/xls/issues/1671): Support once
+// `AnyTypeAnnotation` is available.
+TEST_F(ParserTest, DISABLED_ParseMapWithLambdaNoParamAnnotation) {
+  RoundTrip(R"(const ARR = map(range(0, u16:5), |i| { 2 * i });)");
+}
+
 TEST_F(ParserTest, ParseParametricInMapBuiltin) {
   constexpr std::string_view kProgram = R"(
 fn truncate<OUT: u32, IN: u32>(x: bits[IN]) -> bits[OUT] {

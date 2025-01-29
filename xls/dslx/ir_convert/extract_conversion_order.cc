@@ -359,6 +359,10 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleLambda(const Lambda* expr) override {
+    return absl::UnimplementedError("lambdas not yet supported");
+  }
+
   absl::Status HandleLet(const Let* expr) override {
     XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
     return absl::OkStatus();

@@ -101,6 +101,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_USE = 67;
   AST_NODE_KIND_USE_TREE_ENTRY = 68;
   AST_NODE_KIND_STRUCT_MEMBER = 69;
+  AST_NODE_KIND_LAMBDA = 70;
 }
 
 message BitsValueProto {

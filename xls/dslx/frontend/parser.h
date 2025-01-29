@@ -120,6 +120,8 @@ class Parser : public TokenParser {
       const Pos& start_pos, bool is_public, Bindings& bindings,
       absl::flat_hash_map<std::string, Function*>* name_to_fn = nullptr);
 
+  absl::StatusOr<Lambda*> ParseLambda(Bindings& bindings);
+
   absl::StatusOr<ModuleMember> ParseProc(const Pos& start_pos, bool is_public,
                                          Bindings& bindings);
 
