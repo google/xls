@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import std;
-import xls.modules.shift_buffer.fixme;
-import xls.modules.shift_buffer.math;
+import xls.modules.zstd.math;
 
 pub enum ShiftBufferStatus : u1 {
     OK = 0,
@@ -465,6 +464,59 @@ pub proc ShiftBuffer<DATA_WIDTH: u32, LENGTH_WIDTH: u32> {
     init {  }
 
     next(state: ()) { }
+}
+
+const INST_DATA_WIDTH = u32:64;
+const INST_DATA_WIDTH_X2 = u32:128;
+const INST_LENGTH_WIDTH = std::clog2(INST_DATA_WIDTH) + u32:1;
+
+proc ShiftBufferInst {
+    type Input = ShiftBufferPacket;
+    type Ctrl = ShiftBufferCtrl;
+    type Output = ShiftBufferOutput;
+    input_r: chan<Input<INST_DATA_WIDTH, INST_LENGTH_WIDTH>> in;
+    ctrl_r: chan<Ctrl<INST_LENGTH_WIDTH>> in;
+    output_s: chan<Output<INST_DATA_WIDTH, INST_LENGTH_WIDTH>> out;
+
+    config(input_r: chan<Input<INST_DATA_WIDTH, INST_LENGTH_WIDTH>> in,
+           ctrl_r: chan<Ctrl<INST_LENGTH_WIDTH>> in,
+           output_s: chan<Output<INST_DATA_WIDTH, INST_LENGTH_WIDTH>> out) {
+
+        spawn ShiftBuffer<INST_DATA_WIDTH, INST_LENGTH_WIDTH>(ctrl_r, input_r, output_s);
+
+        (input_r, ctrl_r, output_s)
+    }
+
+    init {  }
+
+    next(state: ()) {}
+}
+
+proc ShiftBufferAlignerInst {
+    type Input = ShiftBufferPacket<INST_DATA_WIDTH, INST_LENGTH_WIDTH>;
+    type Inter = ShiftBufferPacket<INST_DATA_WIDTH_X2, INST_LENGTH_WIDTH>;
+
+    config(input: chan<Input> in, inter: chan<Inter> out) {
+        spawn ShiftBufferAligner<INST_DATA_WIDTH, INST_LENGTH_WIDTH>(input, inter);
+    }
+
+    init {  }
+
+    next(state: ()) {  }
+}
+
+proc ShiftBufferStorageInst {
+    type Ctrl = ShiftBufferCtrl<INST_LENGTH_WIDTH>;
+    type Inter = ShiftBufferPacket<INST_DATA_WIDTH_X2, INST_LENGTH_WIDTH>;
+    type Output = ShiftBufferOutput<INST_DATA_WIDTH, INST_LENGTH_WIDTH>;
+
+    config(ctrl: chan<Ctrl> in, inter: chan<Inter> in, output: chan<Output> out) {
+        spawn ShiftBufferStorage<INST_DATA_WIDTH, INST_LENGTH_WIDTH>(ctrl, inter, output);
+    }
+
+    init {  }
+
+    next(state: ()) {  }
 }
 
 const TEST_DATA_WIDTH = u32:64;

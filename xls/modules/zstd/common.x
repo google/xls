@@ -14,7 +14,7 @@
 
 import std;
 import xls.examples.ram;
-import xls.modules.shift_buffer.shift_buffer;
+import xls.modules.zstd.shift_buffer;
 
 pub const DATA_WIDTH = u32:64;
 pub const MAX_ID = u32::MAX;
