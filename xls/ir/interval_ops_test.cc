@@ -1060,5 +1060,51 @@ FUZZ_TEST(IntervalOpsFuzzTest, CoversTernaryWorksForIntervals)
                                     }))
                      .WithSize(8));
 
+TEST(IntervalOpsTest, AndIdentity) {
+  IntervalSet neg_one = IntervalSet::Precise(SBits(-1, 8));
+  IntervalSet test_set = FromRanges(
+      {{130, 138}, {120, 128}, {90, 98}, {80, 88}, {40, 58}, {10, 28}}, 8);
+  EXPECT_EQ(interval_ops::And(neg_one, test_set), test_set);
+  EXPECT_EQ(interval_ops::And(test_set, neg_one), test_set);
+}
+
+TEST(IntervalOpsTest, AndMask) {
+  IntervalSet mask = IntervalSet::Of(
+      {Interval::Precise(UBits(0, 8)), Interval::Precise(SBits(-1, 8))});
+  IntervalSet test_set = FromRanges(
+      {{130, 138}, {120, 128}, {90, 98}, {80, 88}, {40, 58}, {10, 28}}, 8);
+  EXPECT_EQ(interval_ops::And(mask, test_set),
+            IntervalSet::Combine(test_set, IntervalSet::Precise(UBits(0, 8))));
+  EXPECT_EQ(interval_ops::And(test_set, mask),
+            IntervalSet::Combine(test_set, IntervalSet::Precise(UBits(0, 8))));
+}
+
+TEST(IntervalOpsTest, OrIdentity) {
+  IntervalSet identity = IntervalSet::Precise(UBits(0, 8));
+  IntervalSet test_set = FromRanges(
+      {{130, 138}, {120, 128}, {90, 98}, {80, 88}, {40, 58}, {10, 28}}, 8);
+  EXPECT_EQ(interval_ops::Or(identity, test_set), test_set);
+  EXPECT_EQ(interval_ops::Or(test_set, identity), test_set);
+}
+
+TEST(IntervalOpsTest, OrMask) {
+  IntervalSet mask = IntervalSet::Of(
+      {Interval::Precise(UBits(0, 8)), Interval::Precise(SBits(-1, 8))});
+  IntervalSet test_set = FromRanges(
+      {{130, 138}, {120, 128}, {90, 98}, {80, 88}, {40, 58}, {10, 28}}, 8);
+  EXPECT_EQ(interval_ops::Or(mask, test_set),
+            IntervalSet::Combine(test_set, IntervalSet::Precise(SBits(-1, 8))));
+  EXPECT_EQ(interval_ops::Or(test_set, mask),
+            IntervalSet::Combine(test_set, IntervalSet::Precise(SBits(-1, 8))));
+}
+
+TEST(IntervalOpsTest, XorIdentity) {
+  IntervalSet identity = IntervalSet::Precise(UBits(0, 8));
+  IntervalSet test_set = FromRanges(
+      {{130, 138}, {120, 128}, {90, 98}, {80, 88}, {40, 58}, {10, 28}}, 8);
+  EXPECT_EQ(interval_ops::Xor(identity, test_set), test_set);
+  EXPECT_EQ(interval_ops::Xor(test_set, identity), test_set);
+}
+
 }  // namespace
 }  // namespace xls::interval_ops

@@ -818,6 +818,30 @@ IntervalSet And(const IntervalSet& a, const IntervalSet& b) {
     return TernaryToOneBitRange(
         eval.And(OneBitRangeToTernary(a), OneBitRangeToTernary(b)));
   }
+  // Special case AND with all ones.
+  IntervalSet only_ones = IntervalSet::Precise(SBits(-1, a.BitCount()));
+  if (a == only_ones) {
+    return b;
+  }
+  if (b == only_ones) {
+    return a;
+  }
+  // Special case a mask-select i.e. 'AND with all zeros or all ones' case since
+  // this can come up a lot due to select-simp turning small selects into masks.
+  // NB Size is how many values evaluate as being inside the interval set. If
+  // there are two values total and both 0b1111...111 and 0b0 are in it those
+  // are the only two values.
+  IntervalSet ones_or_zero =
+      IntervalSet::Of({Interval::Precise(UBits(0, a.BitCount())),
+                       Interval::Precise(SBits(-1, a.BitCount()))});
+  if (a == ones_or_zero) {
+    return IntervalSet::Combine(b,
+                                IntervalSet::Precise(UBits(0, b.BitCount())));
+  }
+  if (b == ones_or_zero) {
+    return IntervalSet::Combine(a,
+                                IntervalSet::Precise(UBits(0, a.BitCount())));
+  }
   TernaryVector res =
       eval.BitwiseAnd(ExtractTernaryVector(a), ExtractTernaryVector(b));
   return FromTernary(res);
@@ -828,6 +852,29 @@ IntervalSet Or(const IntervalSet& a, const IntervalSet& b) {
   if (a.BitCount() == 1) {
     return TernaryToOneBitRange(
         eval.Or(OneBitRangeToTernary(a), OneBitRangeToTernary(b)));
+  }
+  IntervalSet only_zero = IntervalSet::Precise(UBits(0, a.BitCount()));
+  if (a == only_zero) {
+    return b;
+  }
+  if (b == only_zero) {
+    return a;
+  }
+  // Special case a mask-select i.e. 'OR with all zeros or all ones' which is
+  // either the other value or all ones.
+  // NB Size is how many values evaluate as being inside the interval set. If
+  // there are two values total and both 0b1111...111 and 0b0 are in it those
+  // are the only two values.
+  IntervalSet ones_or_zero =
+      IntervalSet::Of({Interval::Precise(UBits(0, a.BitCount())),
+                       Interval::Precise(SBits(-1, a.BitCount()))});
+  if (a == ones_or_zero) {
+    return IntervalSet::Combine(b,
+                                IntervalSet::Precise(SBits(-1, a.BitCount())));
+  }
+  if (b == ones_or_zero) {
+    return IntervalSet::Combine(a,
+                                IntervalSet::Precise(SBits(-1, b.BitCount())));
   }
   TernaryVector res =
       eval.BitwiseOr(ExtractTernaryVector(a), ExtractTernaryVector(b));
@@ -840,6 +887,13 @@ IntervalSet Xor(const IntervalSet& a, const IntervalSet& b) {
   if (a.BitCount() == 1) {
     return TernaryToOneBitRange(
         eval.Xor(OneBitRangeToTernary(a), OneBitRangeToTernary(b)));
+  }
+  IntervalSet only_zero = IntervalSet::Precise(UBits(0, a.BitCount()));
+  if (a == only_zero) {
+    return b;
+  }
+  if (b == only_zero) {
+    return a;
   }
   TernaryVector res =
       eval.BitwiseXor(ExtractTernaryVector(a), ExtractTernaryVector(b));
