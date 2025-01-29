@@ -51,15 +51,18 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   const bool register_push = config.register_push_outputs();
   const bool register_pop = config.register_pop_outputs();
   Type* u1 = p->GetBitsType(1);
-  Type* ty = inst->data_type();
+
+  const bool have_data = inst->data_type()->GetFlatBitCount() > 0;
 
   // Make sure there is one extra slot at least. Bad for QOR but makes impl
   // easier since full is always tail + size == head
-  Type* buf_type = p->GetArrayType(depth + 1, ty);
-  Type* ptr_type = p->GetBitsType(Bits::MinBitCountUnsigned(depth + 1));
+  const uint64_t slots_cnt = depth + 1;
+  Type* ptr_type = p->GetBitsType(Bits::MinBitCountUnsigned(slots_cnt));
+
+  std::string ty_name = (have_data) ? inst->data_type()->ToString() : "no_data";
 
   BlockBuilder bb(uniquer.GetSanitizedUniqueName(absl::StrFormat(
-                      "fifo_for_depth_%d_ty_%s_%s%s%s", depth, ty->ToString(),
+                      "fifo_for_depth_%d_ty_%s_%s%s%s", depth, ty_name,
                       bypass ? "with_bypass" : "no_bypass",
                       register_pop ? "_register_pop" : "",
                       register_push ? "_register_push" : "")),
@@ -70,17 +73,13 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   BValue one_lit = bb.Literal(UBits(1, ptr_type->GetFlatBitCount()));
   BValue depth_lit = bb.Literal(UBits(depth, ptr_type->GetFlatBitCount()));
   BValue long_buf_size_lit =
-      bb.Literal(UBits(depth + 1, ptr_type->GetFlatBitCount() + 1),
+      bb.Literal(UBits(slots_cnt, ptr_type->GetFlatBitCount() + 1),
                  SourceInfo(), "long_buf_size_lit");
 
   BValue push_valid = bb.InputPort(FifoInstantiation::kPushValidPortName, u1);
   BValue pop_ready_port =
       bb.InputPort(FifoInstantiation::kPopReadyPortName, u1);
-  BValue push_data = bb.InputPort(FifoInstantiation::kPushDataPortName, ty);
 
-  XLS_ASSIGN_OR_RETURN(
-      Register * buf_reg,
-      bb.block()->AddRegisterWithZeroResetValue("buf", buf_type));
   XLS_ASSIGN_OR_RETURN(
       Register * head_reg,
       bb.block()->AddRegisterWithZeroResetValue("head", ptr_type));
@@ -91,33 +90,24 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
       Register * slots_reg,
       bb.block()->AddRegisterWithZeroResetValue("slots", ptr_type));
 
-  BValue buf = bb.RegisterRead(buf_reg);
   BValue head = bb.RegisterRead(head_reg, SourceInfo(), "head_ptr");
   BValue tail = bb.RegisterRead(tail_reg, SourceInfo(), "tail_ptr");
   BValue slots = bb.RegisterRead(slots_reg, SourceInfo(), "slots_ptr");
 
   // Only used if register_pop is true.
   std::optional<Register*> pop_valid_reg;
-  std::optional<Register*> pop_data_reg;
   std::optional<BValue> pop_valid_reg_read;
-  std::optional<BValue> pop_data_reg_read;
   std::optional<BValue> pop_valid_load_en;
 
   if (register_pop) {
     XLS_ASSIGN_OR_RETURN(
         pop_valid_reg,
         bb.block()->AddRegisterWithZeroResetValue("pop_valid_reg", u1));
-    XLS_ASSIGN_OR_RETURN(
-        pop_data_reg,
-        bb.block()->AddRegisterWithZeroResetValue("pop_data_reg", ty));
     pop_valid_reg_read = bb.RegisterRead(*pop_valid_reg);
     depth_lit = bb.Add(depth_lit, bb.ZeroExtend(*pop_valid_reg_read,
                                                 ptr_type->GetFlatBitCount()));
-    pop_data_reg_read = bb.RegisterRead(*pop_data_reg);
     pop_valid_load_en = bb.Or(pop_ready_port, bb.Not(*pop_valid_reg_read));
   }
-
-  BValue current_queue_tail = bb.ArrayIndex(buf, {tail});
 
   auto add_mod_buf_size = [&](BValue val, BValue addend,
                               std::optional<std::string_view> name) -> BValue {
@@ -164,10 +154,12 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
 
   BValue push_ready;
   BValue pop_valid;
-  BValue next_buf_value_if_push_occurs = bb.ArrayUpdate(buf, push_data, {head});
-  BValue pop_data_value;
   BValue did_pop_occur_bool;
   BValue did_push_occur_bool;
+
+  // Only used if bypass is true.
+  std::optional<BValue> is_empty_bool = std::nullopt;
+
   if (bypass) {
     // NB No need to handle the 'full and bypass and both read & write case
     // specially since we have an extra slot to store those values in.
@@ -176,14 +168,13 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
     BValue is_popable = bb.Or(buf_not_empty_bool, bypass_possible);
     pop_valid = bb.Or(buf_not_empty_bool, push_valid);
     push_ready = bb.Or(can_do_push, buf_pop_ready);
-    BValue is_empty_bool = bb.Eq(head, tail);
-    BValue did_no_write_bypass_occur = bb.And(is_empty_bool, bypass_possible);
+    is_empty_bool = bb.Eq(head, tail);
+    BValue did_no_write_bypass_occur = bb.And(*is_empty_bool, bypass_possible);
     BValue did_visible_push_occur_bool = bb.And(is_pushable, push_valid);
     if (register_pop) {
       buf_pop_ready = bb.And(buf_pop_ready, pop_valid);
     }
     BValue did_visible_pop_occur_bool = bb.And(is_popable, buf_pop_ready);
-    pop_data_value = bb.Select(is_empty_bool, {current_queue_tail, push_data});
     did_pop_occur_bool =
         bb.And(did_visible_pop_occur_bool, bb.Not(did_no_write_bypass_occur),
                SourceInfo(), "did_pop_occur");
@@ -192,7 +183,6 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   } else {
     push_ready = can_do_push;
     pop_valid = buf_not_empty_bool;
-    pop_data_value = current_queue_tail;
     did_pop_occur_bool =
         bb.And(pop_valid, buf_pop_ready, SourceInfo(), "did_pop_occur");
     did_push_occur_bool = bb.And(push_ready, push_valid);
@@ -205,21 +195,13 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
   if (register_pop) {
     bb.RegisterWrite(*pop_valid_reg, pop_valid,
                      /*load_enable=*/pop_valid_load_en, reset_port);
-    bb.RegisterWrite(*pop_data_reg, pop_data_value,
-                     /*load_enable=*/pop_valid_load_en, reset_port);
 
     pop_valid = *pop_valid_reg_read;
-    pop_data_value = *pop_data_reg_read;
   }
   bb.OutputPort(FifoInstantiation::kPushReadyPortName, push_ready);
 
   // Empty is head == tail so ne means there's something to pop.
   bb.OutputPort(FifoInstantiation::kPopValidPortName, pop_valid);
-
-  // We could always send the current data. If not r/v the data is ignored
-  // anyway. Since this is testing might as well send mux in a zero if we
-  // aren't ready.
-  bb.OutputPort(FifoInstantiation::kPopDataPortName, pop_data_value);
 
   BValue pushed = bb.And(push_ready, push_valid, SourceInfo(), "pushed");
   BValue popped = bb.And(pop_ready_port, pop_valid, SourceInfo(), "popped");
@@ -227,14 +209,63 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
       pushed, {bb.Select(popped, {slots, bb.Subtract(slots, one_lit)}),
                bb.Select(popped, {bb.Add(slots, one_lit), slots})});
 
-  bb.RegisterWrite(buf_reg, next_buf_value_if_push_occurs,
-                   /*load_enable=*/did_push_occur_bool, reset_port);
   bb.RegisterWrite(head_reg, next_head_value_if_push_occurs,
                    /*load_enable=*/did_push_occur_bool, reset_port);
   bb.RegisterWrite(tail_reg, next_tail_value_if_pop_occurs,
                    /*load_enable=*/did_pop_occur_bool, reset_port);
   bb.RegisterWrite(slots_reg, slots_next, /*load_enable=*/std::nullopt,
                    reset_port);
+
+  // Only generate data path and I/O if the data type is of non-zero wdith.
+  if (have_data) {
+    Type* ty = inst->data_type();
+    Type* buf_type = p->GetArrayType(slots_cnt, ty);
+
+    BValue push_data = bb.InputPort(FifoInstantiation::kPushDataPortName, ty);
+
+    XLS_ASSIGN_OR_RETURN(
+        Register * buf_reg,
+        bb.block()->AddRegisterWithZeroResetValue("buf", buf_type));
+    BValue buf = bb.RegisterRead(buf_reg);
+
+    // Only used if register_pop is true.
+    std::optional<Register*> pop_data_reg;
+    std::optional<BValue> pop_data_reg_read;
+
+    if (register_pop) {
+      XLS_ASSIGN_OR_RETURN(
+          pop_data_reg,
+          bb.block()->AddRegisterWithZeroResetValue("pop_data_reg", ty));
+      pop_data_reg_read = bb.RegisterRead(*pop_data_reg);
+    }
+
+    BValue current_queue_tail = bb.ArrayIndex(buf, {tail});
+
+    BValue next_buf_value_if_push_occurs =
+        bb.ArrayUpdate(buf, push_data, {head});
+
+    BValue pop_data_value;
+    if (bypass) {
+      pop_data_value =
+          bb.Select(*is_empty_bool, {current_queue_tail, push_data});
+    } else {
+      pop_data_value = current_queue_tail;
+    }
+
+    if (register_pop) {
+      bb.RegisterWrite(*pop_data_reg, pop_data_value,
+                       /*load_enable=*/pop_valid_load_en, reset_port);
+      pop_data_value = *pop_data_reg_read;
+    }
+
+    // We could always send the current data. If not r/v the data is ignored
+    // anyway. Since this is testing might as well send mux in a zero if we
+    // aren't ready.
+    bb.OutputPort(FifoInstantiation::kPopDataPortName, pop_data_value);
+
+    bb.RegisterWrite(buf_reg, next_buf_value_if_push_occurs,
+                     /*load_enable=*/did_push_occur_bool, reset_port);
+  }
 
   return bb.Build();
 }

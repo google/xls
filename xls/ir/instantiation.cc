@@ -282,18 +282,24 @@ absl::StatusOr<InstantiationPort> FifoInstantiation::GetInputPort(
 
 absl::StatusOr<InstantiationType> FifoInstantiation::type() const {
   Type* u1 = package_->GetBitsType(1);
-  return InstantiationType(/*input_types=*/
-                           {
-                               {std::string{kResetPortName}, u1},
-                               {std::string(kPushValidPortName), u1},
-                               {std::string(kPopReadyPortName), u1},
-                               {std::string(kPushDataPortName), data_type()},
-                           },
-                           /*output_types=*/{
-                               {std::string(kPopValidPortName), u1},
-                               {std::string(kPushReadyPortName), u1},
-                               {std::string(kPopDataPortName), data_type()},
-                           });
+
+  absl::flat_hash_map<std::string, Type*> input_types = {
+      {std::string{kResetPortName}, u1},
+      {std::string(kPushValidPortName), u1},
+      {std::string(kPopReadyPortName), u1},
+  };
+
+  absl::flat_hash_map<std::string, Type*> output_types = {
+      {std::string(kPopValidPortName), u1},
+      {std::string(kPushReadyPortName), u1},
+  };
+
+  if (data_type()->GetFlatBitCount() > 0) {
+    input_types[std::string(kPushDataPortName)] = data_type();
+    output_types[std::string(kPopDataPortName)] = data_type();
+  }
+
+  return InstantiationType(input_types, output_types);
 }
 
 absl::StatusOr<InstantiationPort> FifoInstantiation::GetOutputPort(
