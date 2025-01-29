@@ -58,6 +58,101 @@ class DslxFmtTest(absltest.TestCase):
     """)
     self.assertEqual(self._run(contents, in_place=True), want)
 
+  def test_multi_file_in_place_fmt(self):
+    contents0 = 'fn f()->u32{u32:42}'
+    contents1 = 'fn g()->u32{u32:42}'
+    want0 = 'fn f() -> u32 { u32:42 }\n'
+    want1 = 'fn g() -> u32 { u32:42 }\n'
+    f0 = self.create_tempfile(content=contents0)
+    f1 = self.create_tempfile(content=contents1)
+    subp.check_output([_DSLX_FMT_PATH, '-i', f0.full_path, f1.full_path])
+    self.assertEqual(f0.read_text(), want0)
+    self.assertEqual(f1.read_text(), want1)
+
+  def test_no_args(self):
+    with self.assertRaises(subp.CalledProcessError) as e:
+      subp.check_output([_DSLX_FMT_PATH], encoding='utf-8', stderr=subp.PIPE)
+    self.assertIn(
+        'No command-line arguments to format', str(e.exception.stderr)
+    )
+
+  def test_error_for_multifile_with_stdin(self):
+    with self.assertRaises(subp.CalledProcessError) as e:
+      subp.check_output(
+          [_DSLX_FMT_PATH, '-i', '/tmp/dne.x', '-'],
+          encoding='utf-8',
+          stderr=subp.PIPE,
+      )
+    self.assertIn(
+        'Cannot have stdin along with file arguments', str(e.exception.stderr)
+    )
+
+  def test_error_for_not_in_place_multifile(self):
+    with self.assertRaises(subp.CalledProcessError) as e:
+      subp.check_output(
+          [_DSLX_FMT_PATH, '/tmp/dne.x', '/tmp/dne2.x'],
+          encoding='utf-8',
+          stderr=subp.PIPE,
+      )
+    self.assertIn(
+        'Cannot have multiple input files when in-place formatting is disabled',
+        str(e.exception.stderr),
+    )
+
+  def test_error_for_opportunistic_postcondition_multifile(self):
+    with self.assertRaises(subp.CalledProcessError) as e:
+      subp.check_output(
+          [
+              _DSLX_FMT_PATH,
+              '--opportunistic_postcondition',
+              '/tmp/dne.x',
+              '/tmp/dne2.x',
+          ],
+          encoding='utf-8',
+          stderr=subp.PIPE,
+      )
+    self.assertIn(
+        'Cannot have multiple input files when opportunistic-postcondition is'
+        ' enabled',
+        str(e.exception.stderr),
+    )
+
+  def test_error_for_error_on_changes_multifile(self):
+    with self.assertRaises(subp.CalledProcessError) as e:
+      subp.check_output(
+          [_DSLX_FMT_PATH, '--error_on_changes', '/tmp/dne.x', '/tmp/dne2.x'],
+          encoding='utf-8',
+          stderr=subp.PIPE,
+      )
+    self.assertIn(
+        'Cannot have multiple input files when error-on-changes is enabled',
+        str(e.exception.stderr),
+    )
+
+  def test_error_for_stdin_in_place(self):
+    with self.assertRaises(subp.CalledProcessError) as e:
+      subp.check_output(
+          [_DSLX_FMT_PATH, '-i', '-'], encoding='utf-8', stderr=subp.PIPE
+      )
+    self.assertIn(
+        'Cannot format stdin with in-place formatting', str(e.exception.stderr)
+    )
+
+  def test_stdin_streaming_mode(self):
+    # Error code is checked below but we always want to print stderr so
+    # don't specify check=True.
+    # pylint: disable=subprocess-run-check
+    p = subp.run(
+        [_DSLX_FMT_PATH, '-'],
+        input='fn f()->u32{u32:42}',
+        encoding='utf-8',
+        stdout=subp.PIPE,
+        stderr=subp.PIPE,
+    )
+    print('stderr:\n', p.stderr)
+    p.check_returncode()
+    self.assertEqual(p.stdout, 'fn f() -> u32 { u32:42 }\n')
+
 
 if __name__ == '__main__':
   absltest.main()
