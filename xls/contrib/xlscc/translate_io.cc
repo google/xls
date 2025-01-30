@@ -225,6 +225,11 @@ absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
     }
   }
 
+  if (type->getTypeClass() == clang::Type::TypeClass::Typedef) {
+    return TypeIsChannel(
+        clang::QualType(type->getUnqualifiedDesugaredType(), 0), loc);
+  }
+
   if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
     clang::RecordDecl* decl = record->getDecl();
 
@@ -283,6 +288,12 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
     if (template_spec->isTypeAlias()) {
       return GetChannelType(template_spec->getAliasedType(), ctx, loc);
     }
+  } else if (auto typedef_type = clang::dyn_cast<const clang::TypedefType>(
+                 stripped.base.getTypePtr());
+             typedef_type != nullptr) {
+    const clang::Type* type = stripped.base.getTypePtr();
+    return GetChannelType(
+        clang::QualType(type->getUnqualifiedDesugaredType(), 0), ctx, loc);
   } else if (auto record = clang::dyn_cast<const clang::RecordType>(
                  stripped.base.getTypePtr());
              record != nullptr) {
