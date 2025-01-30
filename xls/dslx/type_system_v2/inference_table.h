@@ -184,11 +184,6 @@ class InferenceTable {
   virtual std::vector<const ParametricInvocation*> GetParametricInvocations()
       const = 0;
 
-  // Retrieves the `ParametricInvocation` associated with `node` if there is
-  // one.
-  virtual std::optional<const ParametricInvocation*> GetParametricInvocation(
-      const Invocation* node) const = 0;
-
   // Returns the expression for the value of the given parametric in the given
   // invocation, if the parametric has an explicit or default expression. If it
   // is implicit, then this returns `nullopt`. Note that the return value may be
@@ -214,6 +209,15 @@ class InferenceTable {
   // Returns the type annotation for `node` in the table, if any.
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(
       const AstNode* node) const = 0;
+
+  // Marks the given `annotation` as an auto-determined annotation for a
+  // literal. These annotations have relaxed unification semantics, so that a
+  // literal can become the type its context requires.
+  virtual void MarkAsAutoLiteral(const TypeAnnotation* annotation) = 0;
+
+  // Returns whether the given `annotation` has been marked as an auto literal
+  // annotation.
+  virtual bool IsAutoLiteral(const TypeAnnotation* annotation) = 0;
 
   // Returns the type variable for `node` in the table, if any.
   virtual std::optional<const NameRef*> GetTypeVariable(

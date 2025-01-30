@@ -219,7 +219,6 @@ class InferenceTableImpl : public InferenceTable {
       }
     }
     const ParametricInvocation* result = invocation.get();
-    node_to_parametric_invocation_.emplace(&node, result);
     parametric_invocations_.push_back(std::move(invocation));
     parametric_values_by_invocation_.emplace(result, std::move(values));
     return result;
@@ -233,14 +232,6 @@ class InferenceTableImpl : public InferenceTable {
       result.push_back(invocation.get());
     }
     return result;
-  }
-
-  std::optional<const ParametricInvocation*> GetParametricInvocation(
-      const Invocation* node) const override {
-    const auto it = node_to_parametric_invocation_.find(node);
-    return it == node_to_parametric_invocation_.end()
-               ? std::nullopt
-               : std::make_optional(it->second);
   }
 
   std::optional<InvocationScopedExpr> GetParametricValue(
@@ -257,6 +248,14 @@ class InferenceTableImpl : public InferenceTable {
                                  const TypeAnnotation* annotation) override {
     return MutateAndCheckNodeData(
         node, [=](NodeData& data) { data.type_annotation = annotation; });
+  }
+
+  void MarkAsAutoLiteral(const TypeAnnotation* annotation) override {
+    auto_literal_annotations_.insert(annotation);
+  }
+
+  bool IsAutoLiteral(const TypeAnnotation* annotation) override {
+    return auto_literal_annotations_.contains(annotation);
   }
 
   absl::Status SetTypeVariable(const AstNode* node,
@@ -367,12 +366,11 @@ class InferenceTableImpl : public InferenceTable {
   // Parametric invocations and the corresponding information about parametric
   // variables.
   std::vector<std::unique_ptr<ParametricInvocation>> parametric_invocations_;
-  absl::flat_hash_map<const Invocation*, const ParametricInvocation*>
-      node_to_parametric_invocation_;
   absl::flat_hash_map<
       const ParametricInvocation*,
       absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>>
       parametric_values_by_invocation_;
+  absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
 };
 
 }  // namespace

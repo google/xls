@@ -191,6 +191,24 @@ TypeAnnotation* CreateUnitTupleAnnotation(Module& module, const Span& span) {
       span, /*members=*/std::vector<TypeAnnotation*>{});
 }
 
+FunctionTypeAnnotation* CreateFunctionTypeAnnotation(Module& module,
+                                                     const Function& function) {
+  std::vector<TypeAnnotation*> param_types;
+  param_types.reserve(function.params().size());
+  for (const Param* param : function.params()) {
+    param_types.push_back(param->type_annotation());
+  }
+  return module.Make<FunctionTypeAnnotation>(
+      param_types,
+      const_cast<TypeAnnotation*>(GetReturnType(module, function)));
+}
+
+const TypeAnnotation* GetReturnType(Module& module, const Function& fn) {
+  return fn.return_type() != nullptr
+             ? fn.return_type()
+             : CreateUnitTupleAnnotation(module, fn.span());
+}
+
 const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
     const TypeAnnotation* annotation) {
   const auto* array_annotation =

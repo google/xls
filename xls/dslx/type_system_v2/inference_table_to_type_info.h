@@ -15,8 +15,6 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -30,17 +28,10 @@ namespace xls::dslx {
 
 // Converts the given `InferenceTable` into a `TypeInfo`, by concretizing the
 // types associated with all nodes in the table. This is the final step of type
-// inference. The `auto_literal_annotations` parameter allows type checking to
-// indicate which `TypeAnnotation` objects in the `table` are ones that it
-// auto-generated for literals, because these annotations have more permissive
-// unification rules than others.
+// inference.
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
-    const InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table,
-    const absl::flat_hash_set<const TypeAnnotation*>& auto_literal_annotations,
-    const absl::flat_hash_map<const TypeAnnotation*,
-                              const ParametricInvocation*>&
-        invocation_scoped_type_annotations);
+    InferenceTable& table, Module& module, ImportData& import_data,
+    WarningCollector& warning_collector, const FileTable& file_table);
 
 }  // namespace xls::dslx
 

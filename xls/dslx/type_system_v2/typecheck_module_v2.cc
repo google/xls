@@ -17,7 +17,6 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <stack>
 #include <string>
 #include <utility>
 #include <variant>
@@ -25,8 +24,6 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -38,7 +35,6 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
@@ -51,29 +47,6 @@
 
 namespace xls::dslx {
 namespace {
-
-// Determines what function is being invoked by a `callee` expression that is
-// not invoking an `impl` instance method.
-absl::StatusOr<const Function*> ResolveFreeFunction(
-    const Expr* callee, const FileTable& file_table) {
-  if (const auto& name_ref = dynamic_cast<const NameRef*>(callee);
-      name_ref != nullptr &&
-      std::holds_alternative<const NameDef*>(name_ref->name_def())) {
-    const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
-    const auto* fn = dynamic_cast<Function*>(def->definer());
-    if (fn == nullptr) {
-      return TypeInferenceErrorStatus(
-          callee->span(), nullptr,
-          absl::Substitute("Invocation callee `$0` is not a function",
-                           callee->ToString()),
-          file_table);
-    }
-    return fn;
-  }
-  return absl::UnimplementedError(
-      "Type inference version 2 is a work in progress and only supports "
-      "invoking free functions in the same module so far.");
-}
 
 // A visitor that walks an AST and populates an `InferenceTable` with the
 // encountered info.
@@ -111,7 +84,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       // Otherwise, consider an annotation we add to be an auto-annotation that
       // is "negotiable".
       if (node->number_kind() != NumberKind::kBool) {
-        auto_literal_annotations_.insert(annotation);
+        table_.MarkAsAutoLiteral(annotation);
       }
     }
     return table_.SetTypeAnnotation(node, annotation);
@@ -554,15 +527,43 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleFunction(const Function* node) override {
     VLOG(5) << "HandleFunction: " << node->ToString()
             << ", parametric: " << node->IsParametric();
-    if (node->IsParametric()) {
-      // We only process parametric functions when we see invocations of them in
-      // real functions. `HandleInvocation` ends up calling
-      // `HandleFunctionInternal` for the callee function in that case.
-      return absl::OkStatus();
+    for (const ParametricBinding* binding : node->parametric_bindings()) {
+      XLS_RETURN_IF_ERROR(binding->Accept(this));
     }
-    current_function_stack_.push(node);
-    XLS_RETURN_IF_ERROR(HandleFunctionInternal(node));
-    current_function_stack_.pop();
+
+    const TypeAnnotation* return_type = GetReturnType(module_, *node);
+    XLS_RETURN_IF_ERROR(return_type->Accept(this));
+    for (const Param* param : node->params()) {
+      XLS_RETURN_IF_ERROR(param->Accept(this));
+    }
+
+    const FunctionTypeAnnotation* function_type_annotation =
+        CreateFunctionTypeAnnotation(module_, *node);
+
+    // Create a variable for the function return type, and use it to unify the
+    // formal return type and what is returned by the actual body.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* return_type_variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<Function*>(node),
+                                      GenerateInternalTypeVariableName(node)));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->body(), return_type_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->body(), function_type_annotation->return_type()));
+
+    // Only apply a type annotation to the function itself if it's
+    // non-parametric. This is to avoid leaking types like `uN[N]` into type
+    // variables that are outside the function.
+    if (!node->IsParametric()) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node, function_type_annotation));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node->name_def(), function_type_annotation));
+    }
+
+    // Descend into the function body.
+    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
     return absl::OkStatus();
   }
 
@@ -610,24 +611,98 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleInvocation(const Invocation* node) override {
+    // When we come in here with an example like:
+    //   let x: u32 = foo(a, b);
+    //
+    // the table will look like this before descent into this function:
+    //   Node               Annotation             Variable
+    //   --------------------------------------------------
+    //   x                  u32                    T0
+    //   foo(a, b)                                 T0
+    //
+    // and this function will make it look like this:
+    //   Node               Annotation             Variable
+    //   --------------------------------------------------
+    //   x                  u32                    T0
+    //   foo(a, b)          ReturnType(T3)         T0
+    //   a                  ParamType(T3, 0)       T1
+    //   b                  ParamType(T3, 1)       T2
+    //   foo                (T1, T2) -> T0         T3
+    //
+    // The core task here is to produce a `FunctionTypeAnnotation` for the
+    // actual arguments/return type: the `(T1, T2) -> T0` annotation in the
+    // example. By the time of conversion of the invocation node to type info,
+    // a formal `FunctionTypeAnnotation` for the resolved target `Function`
+    // object will have been determined, and the two annotations will be
+    // unified.
+
     VLOG(5) << "HandleInvocation: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(const Function* fn,
-                         ResolveFreeFunction(node->callee(), file_table_));
-    std::optional<const ParametricInvocation*> current_parametric_invocation =
-        GetCurrentParametricInvocation();
-    // If we are already in a parametric function when we hit an invocation,
-    // remember this node as one of the caller's outbound invocations, because
-    // such invocations need reprocessing on any subsequent analyses of the
-    // caller function when reached from other contexts.
-    if (current_parametric_invocation.has_value()) {
-      invocations_per_parametric_function_[&(*current_parametric_invocation)
-                                                ->callee()]
-          .push_back(node);
+
+    for (ExprOrType parametric : node->explicit_parametrics()) {
+      if (std::holds_alternative<Expr*>(parametric)) {
+        const Expr* parametric_value_expr = std::get<Expr*>(parametric);
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* type_variable,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType,
+                const_cast<Expr*>(parametric_value_expr),
+                GenerateInternalTypeVariableName(parametric_value_expr)));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeVariable(parametric_value_expr, type_variable));
+        XLS_RETURN_IF_ERROR(parametric_value_expr->Accept(this));
+      } else {
+        return absl::UnimplementedError(
+            "Type inference version 2 is a work in progress and "
+            "does not yet support type parametrics.");
+      }
     }
-    return fn->IsParametric()
-               ? HandleParametricInvocation(node, *fn)
-               : HandleFreeFunctionInvocation(
-                     node, *fn, /*parametric_invocation=*/std::nullopt);
+
+    const NameRef* return_type_variable = *table_.GetTypeVariable(node);
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* function_type_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->callee()),
+            absl::StrCat(GenerateInternalTypeVariableName(node->callee()),
+                         "_callee")));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->callee(), function_type_variable));
+
+    std::vector<TypeAnnotation*> arg_types;
+    arg_types.reserve(node->args().size());
+    for (int i = 0; i < node->args().size(); i++) {
+      const Expr* arg = node->args()[i];
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* arg_type_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(arg),
+              absl::Substitute("$0_actual_arg_$1",
+                               GenerateInternalTypeVariableName(arg), i)));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arg, arg_type_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          arg,
+          module_.Make<ParamTypeAnnotation>(
+              module_.Make<TypeVariableTypeAnnotation>(function_type_variable),
+              i)));
+
+      arg_types.push_back(
+          module_.Make<TypeVariableTypeAnnotation>(arg_type_variable));
+      XLS_RETURN_IF_ERROR(arg->Accept(this));
+    }
+
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->callee(), module_.Make<FunctionTypeAnnotation>(
+                            arg_types, module_.Make<TypeVariableTypeAnnotation>(
+                                           return_type_variable))));
+
+    // The specific way we formulate this annotation indicates that the type of
+    // the node is the return type of the unification of the function type;
+    // hence, the formal return type, which has not been encountered yet, will
+    // govern it.
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node,
+        module_.Make<ReturnTypeAnnotation>(
+            module_.Make<TypeVariableTypeAnnotation>(function_type_variable))));
+    return node->callee()->Accept(this);
   }
 
   absl::Status HandleZeroOrOneMacro(const AstNode* node, ExprOrType type) {
@@ -663,16 +738,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  const absl::flat_hash_set<const TypeAnnotation*>& auto_literal_annotations()
-      const {
-    return auto_literal_annotations_;
-  }
-
-  const absl::flat_hash_map<const TypeAnnotation*, const ParametricInvocation*>&
-  invocation_scoped_type_annotations() const {
-    return invocation_scoped_type_annotations_;
-  }
-
  private:
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,
   // or similar type of node that contains a `NameDef` and optional
@@ -693,220 +758,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return variable;
   }
 
-  // Helper that handles invocation nodes calling free functions, i.e. functions
-  // that do not require callee object type info to be looked up. If a
-  // `parametric_invocation` is specified, it is for the invocation actually
-  // done by `node`.
-  absl::Status HandleFreeFunctionInvocation(
-      const Invocation* node, const Function& fn,
-      std::optional<const ParametricInvocation*> parametric_invocation) {
-    VLOG(5) << "HandleFreeFunctionInvocation: " << node->ToString()
-            << ", fn: " << fn.identifier();
-
-    // When we come in here with an example like:
-    //   let x: u32 = foo(a, b);
-    //
-    // the table will look like this before descent into this function:
-    //   Node               Annotation             Variable
-    //   --------------------------------------------------
-    //   x                  u32                    T0
-    //   foo(a, b)                                 T0
-    //
-    // and this function will make it look like this:
-    //   Node               Annotation             Variable
-    //   --------------------------------------------------
-    //   x                  u32                    T0
-    //   foo(a, b)          formal ret type        T0
-    //   a                  formal arg0 type       T1
-    //   b                  formal arg1 type       T2
-    //
-    // Recursive descent will attach the types of the actual arg exprs to `T1`
-    // and `T2`. Unification at the end will ensure that the LHS (`x` in this
-    // example) agrees with the formal return type, and that each actual
-    // argument type matches the formal argument type.
-
-    // The argument count must be correct in order to do anything else.
-    if (node->args().size() != fn.params().size()) {
-      return ArgCountMismatchErrorStatus(
-          node->span(),
-          absl::Substitute("Expected $0 argument(s) but got $1.",
-                           fn.params().size(), node->args().size()),
-          file_table_);
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* return_type,
-        ScopeToParametricInvocation(parametric_invocation, GetReturnType(fn)));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, return_type));
-    for (int i = 0; i < node->args().size(); i++) {
-      const Expr* actual_param = node->args()[i];
-      const Param* formal_param = fn.params()[i];
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* arg_type_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(actual_param),
-              GenerateInternalTypeVariableName(formal_param, actual_param)));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(actual_param, arg_type_variable));
-      XLS_ASSIGN_OR_RETURN(
-          const TypeAnnotation* formal_param_type,
-          ScopeToParametricInvocation(parametric_invocation,
-                                      formal_param->type_annotation()));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeAnnotation(actual_param, formal_param_type));
-      XLS_RETURN_IF_ERROR(actual_param->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
-  // Performs the common handling for any type of function. The caller must push
-  // the function onto `current_function_stack_` beforehand and pop it
-  // sometime afterwards; this is left up to the caller because it may want the
-  // function on the stack for longer than the `HandleFunctionInternal` call.
-  absl::Status HandleFunctionInternal(const Function* node) {
-    VLOG(5) << "HandleFunctionInternal: " << node->ToString();
-
-    CHECK(!current_function_stack_.empty());
-    CHECK(current_function_stack_.top() == node);
-
-    // Create a variable for the function return type, and use it to unify the
-    // formal and actual return type. Eventually, we should create the notion of
-    // "function type" annotations, and use them here instead of annotating the
-    // function with just the return type. However, until we have constructs
-    // like lambdas, that would be overkill.
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* type_variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<Function*>(node),
-                                      GenerateInternalTypeVariableName(node)));
-    const TypeAnnotation* return_type = GetReturnType(*node);
-    XLS_RETURN_IF_ERROR(return_type->Accept(this));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, type_variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->body(), type_variable));
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, return_type));
-
-    for (const Param* param : node->params()) {
-      XLS_RETURN_IF_ERROR(param->Accept(this));
-    }
-    XLS_RETURN_IF_ERROR(node->body()->Accept(this));
-    return absl::OkStatus();
-  }
-
-  // Re-processes the invocation nodes in the given parametric function, in the
-  // context of the current parametric invocation on the stack.
-  absl::Status ReprocessParametricInvocations(const Function* node) {
-    CHECK(!parametric_invocation_stack_.empty());
-    CHECK(&parametric_invocation_stack_.top()->callee() == node);
-
-    const auto it = invocations_per_parametric_function_.find(node);
-    CHECK(it != invocations_per_parametric_function_.end());
-    for (const Invocation* invocation : it->second) {
-      XLS_RETURN_IF_ERROR(HandleParametricInvocation(invocation, *node));
-    }
-    return absl::OkStatus();
-  }
-
-  // Top-level helper to handle an invocation of a parametric function.
-  absl::Status HandleParametricInvocation(const Invocation* node,
-                                          const Function& fn) {
-    VLOG(5) << "HandleParametricInvocation: " << node->ToString()
-            << ", fn: " << fn.identifier();
-    CHECK(fn.IsParametric());
-    const std::vector<ParametricBinding*>& bindings = fn.parametric_bindings();
-    const std::vector<ExprOrType>& explicit_parametrics =
-        node->explicit_parametrics();
-    const std::optional<const Function*> caller = GetCurrentFunction();
-    current_function_stack_.push(&fn);
-    const bool function_processed_before =
-        !invocations_per_parametric_function_
-             .emplace(&fn, std::vector<const Invocation*>{})
-             .second;
-    if (!function_processed_before) {
-      // The bindings need to be defined in the table up front, because the rest
-      // of the header may depend on them, and we can't even create a
-      // `ParametricInvocation` without them being registered.
-      for (const ParametricBinding* binding : bindings) {
-        XLS_RETURN_IF_ERROR(binding->Accept(this));
-      }
-    }
-
-    if (explicit_parametrics.size() > bindings.size()) {
-      return ArgCountMismatchErrorStatus(
-          node->span(),
-          absl::Substitute(
-              "Too many parametric values supplied; limit: $0 given: $1",
-              bindings.size(), explicit_parametrics.size()),
-          file_table_);
-    }
-
-    // Type-check the subtrees for any explicit parametric values. Note that the
-    // addition of the invocation above will have verified that a valid number
-    // of explicit parametrics was passed in.
-    for (int i = 0; i < explicit_parametrics.size(); i++) {
-      ExprOrType explicit_parametric = explicit_parametrics[i];
-      const ParametricBinding* formal_parametric = bindings[i];
-      if (std::holds_alternative<Expr*>(explicit_parametric)) {
-        const Expr* parametric_value_expr =
-            std::get<Expr*>(explicit_parametric);
-        XLS_ASSIGN_OR_RETURN(
-            const NameRef* type_variable,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType,
-                const_cast<Expr*>(parametric_value_expr),
-                GenerateInternalTypeVariableName(parametric_value_expr)));
-        XLS_RETURN_IF_ERROR(
-            table_.SetTypeVariable(parametric_value_expr, type_variable));
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            parametric_value_expr, formal_parametric->type_annotation()));
-        XLS_RETURN_IF_ERROR(parametric_value_expr->Accept(this));
-      }
-    }
-
-    // Register the parametric invocation in the table, regardless of whether
-    // we have seen the function before.
-    XLS_ASSIGN_OR_RETURN(
-        const ParametricInvocation* parametric_invocation,
-        table_.AddParametricInvocation(*node, fn, caller,
-                                       GetCurrentParametricInvocation()));
-
-    // We don't need to process the entire function multiple times, if it's
-    // used in multiple contexts. Only the invocation nodes in it need to be
-    // dealt with multiple times.
-    parametric_invocation_stack_.push(parametric_invocation);
-    if (function_processed_before) {
-      VLOG(5) << "Reprocessing outbound invocations in this context from: "
-              << fn.identifier();
-      XLS_RETURN_IF_ERROR(ReprocessParametricInvocations(&fn));
-    } else {
-      VLOG(5) << "Doing first-time processing for parametric function: "
-              << fn.identifier();
-      XLS_RETURN_IF_ERROR(HandleFunctionInternal(&fn));
-    }
-    current_function_stack_.pop();
-    parametric_invocation_stack_.pop();
-
-    // Then, we handle the actual invocation of it, as we would a real function.
-    XLS_RETURN_IF_ERROR(
-        HandleFreeFunctionInvocation(node, fn, parametric_invocation));
-    return absl::OkStatus();
-  }
-
-  // Returns the function currently being handled (or the containing function,
-  // if we are handling a descendant node). The result should only be `nullopt`
-  // for global nodes.
-  std::optional<const Function*> GetCurrentFunction() {
-    return current_function_stack_.empty()
-               ? std::nullopt
-               : std::make_optional(current_function_stack_.top());
-  }
-
-  // Returns the parametric invocation currently being handled.
-  std::optional<const ParametricInvocation*> GetCurrentParametricInvocation() {
-    return parametric_invocation_stack_.empty()
-               ? std::nullopt
-               : std::make_optional(parametric_invocation_stack_.top());
-  }
-
   // Generates a name for an internal inference variable that will be used as
   // the type for the given node. The name is only relevant for traceability.
   template <typename T>
@@ -925,12 +776,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   std::string GenerateInternalTypeVariableName(const Array* node) {
     return absl::StrCat("internal_type_array_element_at_",
                         node->span().ToString(file_table_));
-  }
-  // Variant for an actual function argument.
-  std::string GenerateInternalTypeVariableName(const Param* formal_param,
-                                               const Expr* actual_arg) {
-    return absl::StrCat("internal_type_actual_arg_", formal_param->identifier(),
-                        "_at_", actual_arg->span().ToString(file_table_));
   }
   // Variant for an actual struct member expr.
   std::string GenerateInternalTypeVariableName(
@@ -970,47 +815,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       return table_.SetTypeAnnotation(ref, *annotation);
     }
     return absl::OkStatus();
-  }
-
-  // Returns the explicit or implied return type of `fn`.
-  const TypeAnnotation* GetReturnType(const Function& fn) {
-    return fn.return_type() != nullptr
-               ? fn.return_type()
-               : CreateUnitTupleAnnotation(module_, fn.span());
-  }
-
-  // Clones the given `annotation` and marks it as scoped to the given
-  // `parametric_invocation` in `invocation_scoped_type_annotations_`. The
-  // reason for doing this is because in a situation like:
-  //
-  //    fn foo<N: u32>(a: uN[N]) -> uN[N] { ... }
-  //    fn bar() { foo<32>(5); }
-  //
-  // The invocation node `foo<32>(5)` has the implicit type annotation `uN[N]`
-  // where `N` must be evaluated within the context of the invocation done by
-  // that node, even though the invocation node itself resides in the global
-  // `TypeInfo`. The subtree in the position where we have the `5` in this
-  // example also has this property.
-  absl::StatusOr<const TypeAnnotation*> ScopeToParametricInvocation(
-      std::optional<const ParametricInvocation*> parametric_invocation,
-      const TypeAnnotation* annotation) {
-    if (!parametric_invocation.has_value()) {
-      return annotation;
-    }
-    VLOG(5) << "Scoping annotation " << annotation->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        AstNode * cloned,
-        CloneAst(annotation, &PreserveTypeDefinitionsReplacer));
-    annotation = dynamic_cast<const TypeAnnotation*>(cloned);
-    CHECK(annotation != nullptr);
-    for (const AstNode* next : FlattenToSet(annotation)) {
-      if (const auto* next_annotation =
-              dynamic_cast<const TypeAnnotation*>(next)) {
-        invocation_scoped_type_annotations_.emplace(next_annotation,
-                                                    *parametric_invocation);
-      }
-    }
-    return annotation;
   }
 
   // Ensures that a `StructInstance` nodes provides exprs for all the names in a
@@ -1073,6 +877,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         std::vector<const TypeAnnotation*> annotations,
         table_.GetTypeAnnotationsForTypeVariable(*type_variable));
     if (annotations.empty()) {
+      VLOG(5) << "No declaration type annotation for " << node->ToString();
       return std::nullopt;
     }
     // If > 1, the caller is ignoring the "before imposing an annotation on the
@@ -1085,22 +890,18 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // because we can't yet prove whether they amount to something expected.
     if (dynamic_cast<const T*>(annotations[0]) ||
         dynamic_cast<const MemberTypeAnnotation*>(annotations[0]) ||
-        dynamic_cast<const ElementTypeAnnotation*>(annotations[0])) {
+        dynamic_cast<const ElementTypeAnnotation*>(annotations[0]) ||
+        dynamic_cast<const ParamTypeAnnotation*>(annotations[0])) {
       return annotations[0];
     }
+    VLOG(5) << "Declaration type is unsupported kind: "
+            << annotations[0]->ToString() << " for " << node->ToString();
     return std::nullopt;
   }
 
   Module& module_;
   InferenceTable& table_;
   const FileTable& file_table_;
-  absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
-  std::stack<const Function*> current_function_stack_;
-  std::stack<const ParametricInvocation*> parametric_invocation_stack_;
-  absl::flat_hash_map<const Function*, std::vector<const Invocation*>>
-      invocations_per_parametric_function_;
-  absl::flat_hash_map<const TypeAnnotation*, const ParametricInvocation*>
-      invocation_scoped_type_annotations_;
 };
 
 }  // namespace
@@ -1113,9 +914,7 @@ absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
                                         import_data->file_table());
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
   return InferenceTableToTypeInfo(*table, *module, *import_data, *warnings,
-                                  import_data->file_table(),
-                                  visitor.auto_literal_annotations(),
-                                  visitor.invocation_scoped_type_annotations());
+                                  import_data->file_table());
 }
 
 }  // namespace xls::dslx

@@ -74,19 +74,27 @@ MATCHER_P(TopNodeHasType, expected, "") {
 // Verifies that a failed `TypecheckV2` status message indicates a type mismatch
 // between the given two types in string format.
 MATCHER_P2(HasTypeMismatch, type1, type2, "") {
-  return ExplainMatchResult(ContainsRegex(absl::Substitute(
-                                "type mismatch.*$0.* vs. $1",
-                                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
-                            arg, result_listener);
+  return ExplainMatchResult(
+      AnyOf(ContainsRegex(absl::Substitute("type mismatch.*$0.* vs. $1",
+                                           RE2::QuoteMeta(type1),
+                                           RE2::QuoteMeta(type2))),
+            ContainsRegex(absl::Substitute("type mismatch.*$1.* vs. $0",
+                                           RE2::QuoteMeta(type1),
+                                           RE2::QuoteMeta(type2)))),
+      arg, result_listener);
 }
 
 // Verifies that a failed `TypecheckV2` status message indicates a size mismatch
 // between the given two types in string format.
 MATCHER_P2(HasSizeMismatch, type1, type2, "") {
-  return ExplainMatchResult(ContainsRegex(absl::Substitute(
-                                "size mismatch.*$0.* vs. $1",
-                                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
-                            arg, result_listener);
+  return ExplainMatchResult(
+      AnyOf(ContainsRegex(absl::Substitute("size mismatch.*$0.* vs. $1",
+                                           RE2::QuoteMeta(type1),
+                                           RE2::QuoteMeta(type2))),
+            ContainsRegex(absl::Substitute("size mismatch.*$1.* vs. $0",
+                                           RE2::QuoteMeta(type1),
+                                           RE2::QuoteMeta(type2)))),
+      arg, result_listener);
 }
 
 // Verifies that a failed `TypecheckV2` status message indicates a cast error
@@ -102,10 +110,14 @@ MATCHER_P2(HasCastError, from_type, to_type, "") {
 // Verifies that a failed `TypecheckV2` status message indicates a signedness
 // mismatch between the given two types in string format.
 MATCHER_P2(HasSignednessMismatch, type1, type2, "") {
-  return ExplainMatchResult(ContainsRegex(absl::Substitute(
-                                "signed vs. unsigned mismatch.*$0.* vs. $1",
-                                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
-                            arg, result_listener);
+  return ExplainMatchResult(
+      AnyOf(ContainsRegex(
+                absl::Substitute("signed vs. unsigned mismatch.*$0.* vs. $1",
+                                 RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
+            ContainsRegex(absl::Substitute(
+                "signed vs. unsigned mismatch.*$1.* vs. $0",
+                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2)))),
+      arg, result_listener);
 }
 
 // Verifies that the `TypecheckV2` output contains a one-line statement block
@@ -440,7 +452,7 @@ TEST(TypecheckV2Test, ComparisonAsParametricArgumentWithConflictFails) {
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const Y = foo<{2 > 1}>(u32:5);
 )",
-              TypecheckFails(HasSignednessMismatch("uN[32]", "sN[32]")));
+              TypecheckFails(HasSignednessMismatch("xN[1][32]", "u32")));
 }
 
 TEST(TypecheckV2Test, ComparisonAndSumAsParametricArguments) {
@@ -460,7 +472,7 @@ const X = u32:1;
 fn foo<S: bool, N: u32>(a: xN[S][N]) -> xN[S][N] { a }
 const Y = foo<{X == 1}, {X + 4}>(s4:3);
 )",
-              TypecheckFails(HasSizeMismatch("sN[4]", "sN[5]")));
+              TypecheckFails(HasSizeMismatch("xN[1][5]", "s4")));
 }
 
 TEST(TypecheckV2Test, ExplicitParametricExpressionMismatchingBindingTypeFails) {
@@ -1284,7 +1296,7 @@ const X = foo(S<25> { x: u25:5 });
 )",
       TypecheckFails(
           AllOf(HasSubstr("Value mismatch for parametric `N` of struct `S`"),
-                HasSubstr("u32:25 vs. u32:24"))));
+                HasSubstr("u32:24 vs. u32:25"))));
 }
 
 TEST(TypecheckV2Test,
@@ -1420,7 +1432,8 @@ const X = foo(u24:5);
 
 // See https://github.com/google/xls/issues/1615
 TEST(TypecheckV2Test, ParametricStructWithWrongOrderParametricValues) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 struct StructFoo<A: u32, B: u32> {
   x: uN[A],
   y: uN[B],
@@ -1434,7 +1447,8 @@ fn test() -> StructFoo<32, 33> {
   wrong_order<32, 33>(2, 3)
 }
 )",
-              TypecheckFails(HasSizeMismatch("uN[32]", "uN[33]")));
+      TypecheckFails(HasSubstr("Value mismatch for parametric `A` of struct "
+                               "`StructFoo`: u32:33 vs. u32:32")));
 }
 
 TEST(TypecheckV2Test, ParametricStructWithCorrectReverseOrderParametricValues) {
@@ -1685,6 +1699,15 @@ const Y = foo();
       TypecheckSucceeds(AllOf(HasOneLineBlockWithType("123", "sN[32]"),
                               HasOneLineBlockWithType("bar()", "sN[32]"),
                               HasNodeWithType("const Y = foo();", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, SumOfLiteralsAndParametricFunctionCall) {
+  EXPECT_THAT(
+      R"(
+fn foo<N: u32>() -> uN[N] { 3 }
+const Y = 1 + 2 + 3 + foo<32>();
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
 TEST(TypecheckV2Test, FunctionReturningMismatchingIntegerAutoTypeFails) {
@@ -2020,7 +2043,7 @@ TEST(TypecheckV2Test, ParametricFunctionWithDefaultImplicitlyOverriddenFails) {
 fn foo<M: u32, N: u32 = {M + 1}>(a: uN[N]) -> uN[N] { a }
 const X = foo<11>(u20:5);
 )",
-              TypecheckFails(HasSizeMismatch("uN[20]", "uN[12]")));
+              TypecheckFails(HasSizeMismatch("u20", "uN[12]")));
 }
 
 TEST(TypecheckV2Test,
@@ -2110,7 +2133,7 @@ TEST(TypecheckV2Test,
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }
 const X = foo<10>(u11:5);
 )",
-              TypecheckFails(HasSizeMismatch("uN[11]", "uN[10]")));
+              TypecheckFails(HasSizeMismatch("u11", "uN[10]")));
 }
 
 TEST(TypecheckV2Test,
@@ -2119,7 +2142,7 @@ TEST(TypecheckV2Test,
 fn foo<S: bool>(a: xN[S][32]) -> xN[S][32] { a }
 const X = foo<true>(u32:5);
 )",
-              TypecheckFails(HasSignednessMismatch("uN[32]", "sN[32]")));
+              TypecheckFails(HasSignednessMismatch("xN[1][32]", "u32")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionWithArrayMismatchingParameterizedSize) {
@@ -2127,7 +2150,7 @@ TEST(TypecheckV2Test, ParametricFunctionWithArrayMismatchingParameterizedSize) {
 fn foo<N: u32>(a: u32[N]) -> u32[N] { a }
 const X = foo<3>([u32:1, u32:2, u32:3, u32:4]);
 )",
-              TypecheckFails(HasTypeMismatch("uN[32][4]", "uN[32][3]")));
+              TypecheckFails(HasTypeMismatch("uN[32][4]", "u32[3]")));
 }
 
 TEST(TypecheckV2Test, ParametricFunctionCallingAnotherParametricFunction) {

@@ -60,12 +60,9 @@ class InferenceTableTest : public ::testing::Test {
   }
 
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * ti,
-        InferenceTableToTypeInfo(*table_, *module_, *import_data_,
-                                 *warning_collector_, file_table_,
-                                 /*auto_literal_annotations=*/{},
-                                 /*invocation_scoped_type_annotations=*/{}));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, InferenceTableToTypeInfo(
+                                            *table_, *module_, *import_data_,
+                                            *warning_collector_, file_table_));
     return ti;
   }
 
