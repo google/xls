@@ -1760,6 +1760,68 @@ const X:(u32, u24, u16) = (u32:1, u24:2, u16:3);
   EXPECT_EQ(annotation->ToString(), clone->ToString());
 }
 
+TEST(AstClonerTest, AnyAnnotation) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule("", "fake_path.x", "the_module", file_table));
+  const AnyTypeAnnotation* annotation = module->Make<AnyTypeAnnotation>();
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
+  EXPECT_EQ(annotation->ToString(), clone->ToString());
+}
+
+TEST(AstClonerTest, FunctionAnnotation) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule("fn foo(a: u32, b: u16[5]) -> bool { false }", "fake_path.x",
+                  "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  const FunctionTypeAnnotation* annotation =
+      module->Make<FunctionTypeAnnotation>(
+          std::vector<TypeAnnotation*>{foo->params()[0]->type_annotation(),
+                                       foo->params()[1]->type_annotation()},
+          foo->return_type());
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
+  EXPECT_EQ(annotation->ToString(), clone->ToString());
+}
+
+TEST(AstClonerTest, ReturnTypeAnnotation) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule("fn foo(a: u32, b: u16[5]) -> bool { false }", "fake_path.x",
+                  "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  const ReturnTypeAnnotation* annotation =
+      module->Make<ReturnTypeAnnotation>(module->Make<FunctionTypeAnnotation>(
+          std::vector<TypeAnnotation*>{foo->params()[0]->type_annotation(),
+                                       foo->params()[1]->type_annotation()},
+          foo->return_type()));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
+  EXPECT_EQ(annotation->ToString(), clone->ToString());
+}
+
+TEST(AstClonerTest, ParamTypeAnnotation) {
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Module> module,
+      ParseModule("fn foo(a: u32, b: u16[5]) -> bool { false }", "fake_path.x",
+                  "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(const Function* foo,
+                           module->GetMemberOrError<Function>("foo"));
+  const ParamTypeAnnotation* annotation = module->Make<ParamTypeAnnotation>(
+      module->Make<FunctionTypeAnnotation>(
+          std::vector<TypeAnnotation*>{foo->params()[0]->type_annotation(),
+                                       foo->params()[1]->type_annotation()},
+          foo->return_type()),
+      0);
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(annotation));
+  EXPECT_EQ(annotation->ToString(), clone->ToString());
+}
+
 TEST(AstClonerTest, ExternVerilog) {
   // Note alternate string literal delimiter * so it can use )" on the
   // last line of the annotation.

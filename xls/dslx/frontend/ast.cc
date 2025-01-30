@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -27,6 +28,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/base/no_destructor.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -1070,6 +1072,63 @@ std::string ElementTypeAnnotation::ToString() const {
           ? absl::Substitute("$0.$1", container_type_->ToString(),
                              (*tuple_index_)->ToStringNoType())
           : container_type_->ToString());
+}
+
+// -- class FunctionTypeAnnotation
+
+FunctionTypeAnnotation::FunctionTypeAnnotation(
+    Module* owner, std::vector<TypeAnnotation*> param_types,
+    TypeAnnotation* return_type)
+    : TypeAnnotation(owner, return_type->span()),
+      param_types_(std::move(param_types)),
+      return_type_(return_type) {
+  CHECK_NE(return_type, nullptr);
+}
+
+std::string FunctionTypeAnnotation::ToString() const {
+  std::vector<std::string> param_strings;
+  param_strings.reserve(param_types_.size());
+  for (const TypeAnnotation* param : param_types_) {
+    param_strings.push_back(param->ToString());
+  }
+  return absl::Substitute("($0) -> $1", absl::StrJoin(param_strings, ", "),
+                          return_type_->ToString());
+}
+
+std::vector<AstNode*> FunctionTypeAnnotation::GetChildren(
+    bool /*want_types*/) const {
+  // Note that, like in other TypeAnnotation subclasses, type children are
+  // returned regardless of the `want_types` flag.
+  std::vector<AstNode*> result;
+  result.reserve(param_types_.size() + 1);
+  absl::c_copy(param_types_, std::back_inserter(result));
+  result.push_back(return_type_);
+  return result;
+}
+
+// -- class ReturnTypeAnnotation
+
+ReturnTypeAnnotation::ReturnTypeAnnotation(Module* owner,
+                                           TypeAnnotation* function_type)
+    : TypeAnnotation(owner, function_type->span()),
+      function_type_(function_type) {}
+
+std::string ReturnTypeAnnotation::ToString() const {
+  return absl::StrCat("Return type of: ", function_type_->ToString());
+}
+
+// -- class ParamTypeAnnotation
+
+ParamTypeAnnotation::ParamTypeAnnotation(Module* owner,
+                                         TypeAnnotation* function_type,
+                                         int param_index)
+    : TypeAnnotation(owner, function_type->span()),
+      function_type_(function_type),
+      param_index_(param_index) {}
+
+std::string ParamTypeAnnotation::ToString() const {
+  return absl::Substitute("Param type $0 of: $1", param_index_,
+                          function_type_->ToString());
 }
 
 // -- class ArrayTypeAnnotation

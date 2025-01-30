@@ -122,6 +122,10 @@
   X(TypeVariableTypeAnnotation)   \
   X(MemberTypeAnnotation)         \
   X(ElementTypeAnnotation)        \
+  X(FunctionTypeAnnotation)       \
+  X(ReturnTypeAnnotation)         \
+  X(ParamTypeAnnotation)          \
+  X(AnyTypeAnnotation)            \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
@@ -524,6 +528,117 @@ class ElementTypeAnnotation : public TypeAnnotation {
  private:
   const TypeAnnotation* container_type_;
   const std::optional<const Number*> tuple_index_;
+};
+
+// Represents a function signature with a return type and parameter types. The
+// signature elements are all non-nullable; a function with no return should use
+// a unit tuple type annotation for the return type.
+class FunctionTypeAnnotation : public TypeAnnotation {
+ public:
+  FunctionTypeAnnotation(Module* owner,
+                         std::vector<TypeAnnotation*> param_types,
+                         TypeAnnotation* return_type);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleFunctionTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "FunctionTypeAnnotation";
+  }
+
+  TypeAnnotation* return_type() const { return return_type_; }
+
+  const std::vector<TypeAnnotation*>& param_types() const {
+    return param_types_;
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::string ToString() const override;
+
+ private:
+  const std::vector<TypeAnnotation*> param_types_;
+  TypeAnnotation* return_type_;
+};
+
+// Used internally in type inference to annotate the type of some node as the
+// return type of an unresolved function type. The wrapped `function_type` is
+// either a `FunctionTypeAnnotation` or something that expands into to one.
+class ReturnTypeAnnotation : public TypeAnnotation {
+ public:
+  ReturnTypeAnnotation(Module* owner, TypeAnnotation* function_type);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleReturnTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "ReturnTypeAnnotation";
+  }
+
+  TypeAnnotation* function_type() const { return function_type_; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {function_type_};
+  }
+
+  std::string ToString() const override;
+
+ private:
+  TypeAnnotation* function_type_;
+};
+
+// Used internally in type inference to annotate the type of some node as the
+// nth param type of an unresolved function type. The wrapped `function_type` is
+// either a `FunctionTypeAnnotation` or something that expands into to one.
+class ParamTypeAnnotation : public TypeAnnotation {
+ public:
+  ParamTypeAnnotation(Module* owner, TypeAnnotation* function_type,
+                      int param_index);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleParamTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "ParamTypeAnnotation";
+  }
+
+  TypeAnnotation* function_type() const { return function_type_; }
+  int param_index() const { return param_index_; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {function_type_};
+  }
+
+  std::string ToString() const override;
+
+ private:
+  TypeAnnotation* function_type_;
+  int param_index_;
+};
+
+// Used internally in type inference to indicate an unknown type that is
+// replaceable in unification with any known type.
+class AnyTypeAnnotation : public TypeAnnotation {
+ public:
+  explicit AnyTypeAnnotation(Module* owner)
+      : TypeAnnotation(owner, Span::None()) {}
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleAnyTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "AnyTypeAnnotation";
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  }
+
+  std::string ToString() const { return "Any"; };
 };
 
 // Represents an array type annotation; e.g. `u32[5]`.

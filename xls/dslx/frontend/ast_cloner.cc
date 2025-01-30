@@ -1024,6 +1024,43 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleFunctionTypeAnnotation(
+      const FunctionTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->return_type()));
+    std::vector<TypeAnnotation*> param_types;
+    param_types.reserve(n->param_types().size());
+    for (TypeAnnotation* argument : n->param_types()) {
+      XLS_RETURN_IF_ERROR(ReplaceOrVisit(argument));
+      param_types.push_back(down_cast<TypeAnnotation*>(old_to_new_[argument]));
+    }
+    old_to_new_[n] = module_->Make<FunctionTypeAnnotation>(
+        std::move(param_types),
+        down_cast<TypeAnnotation*>(old_to_new_[n->return_type()]));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleReturnTypeAnnotation(
+      const ReturnTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->function_type()));
+    old_to_new_[n] = module_->Make<ReturnTypeAnnotation>(
+        down_cast<TypeAnnotation*>(old_to_new_[n->function_type()]));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleParamTypeAnnotation(
+      const ParamTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(ReplaceOrVisit(n->function_type()));
+    old_to_new_[n] = module_->Make<ParamTypeAnnotation>(
+        down_cast<TypeAnnotation*>(old_to_new_[n->function_type()]),
+        n->param_index());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation* n) override {
+    old_to_new_[n] = module_->Make<AnyTypeAnnotation>();
+    return absl::OkStatus();
+  }
+
   absl::Status HandleUnop(const Unop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] =

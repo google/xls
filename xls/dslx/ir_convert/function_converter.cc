@@ -407,6 +407,10 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(TypeVariableTypeAnnotation)
   INVALID(MemberTypeAnnotation)
   INVALID(ElementTypeAnnotation)
+  INVALID(FunctionTypeAnnotation)
+  INVALID(ReturnTypeAnnotation)
+  INVALID(ParamTypeAnnotation)
+  INVALID(AnyTypeAnnotation)
   // keep-sorted end
 
   // The visitor operates within a function, so none of these should be visible.

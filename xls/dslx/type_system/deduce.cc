@@ -2138,24 +2138,37 @@ class DeduceVisitor : public AstNodeVisitor {
   absl::Status HandleVerbatimNode(const VerbatimNode* n) override {
     return Fatal(n);
   }
+
+  // All of these annotation types are created by `type_system_v2`, so there
+  // should be none of them when using `type_system` for inference.
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* n) override {
-    // These annotations are created by `type_system_v2`, so there should be
-    // none of them when using `type_system` for inference.
     return Fatal(n);
   }
   absl::Status HandleMemberTypeAnnotation(
       const MemberTypeAnnotation* n) override {
-    // These annotations are created by `type_system_v2`, so there should be
-    // none of them when using `type_system` for inference.
     return Fatal(n);
   }
   absl::Status HandleElementTypeAnnotation(
       const ElementTypeAnnotation* n) override {
-    // These annotations are created by `type_system_v2`, so there should be
-    // none of them when using `type_system` for inference.
     return Fatal(n);
   }
+  absl::Status HandleFunctionTypeAnnotation(
+      const FunctionTypeAnnotation* n) override {
+    return Fatal(n);
+  }
+  absl::Status HandleReturnTypeAnnotation(
+      const ReturnTypeAnnotation* n) override {
+    return Fatal(n);
+  }
+  absl::Status HandleParamTypeAnnotation(
+      const ParamTypeAnnotation* n) override {
+    return Fatal(n);
+  }
+  absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation* n) override {
+    return Fatal(n);
+  }
+
   absl::Status HandleFunctionRef(const FunctionRef* n) override {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> callee_type,
                          ctx_->Deduce(n->callee()));

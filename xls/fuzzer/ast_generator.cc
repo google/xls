@@ -685,15 +685,37 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleMemberTypeAnnotation(
-      const MemberTypeAnnotation* member_type) override {
+      const MemberTypeAnnotation*) override {
     return absl::InternalError(
         "MemberTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
   absl::Status HandleElementTypeAnnotation(
-      const ElementTypeAnnotation* element_type) override {
+      const ElementTypeAnnotation*) override {
     return absl::InternalError(
         "ElementTypeAnnotation nodes are not supported by the fuzzer.");
+  }
+
+  absl::Status HandleFunctionTypeAnnotation(
+      const FunctionTypeAnnotation*) override {
+    return absl::InternalError(
+        "FunctionTypeAnnotation nodes are not supported by the fuzzer.");
+  }
+
+  absl::Status HandleReturnTypeAnnotation(
+      const ReturnTypeAnnotation*) override {
+    return absl::InternalError(
+        "ReturnTypeAnnotation nodes are not supported by the fuzzer.");
+  }
+
+  absl::Status HandleParamTypeAnnotation(const ParamTypeAnnotation*) override {
+    return absl::InternalError(
+        "ParamTypeAnnotation nodes are not supported by the fuzzer.");
+  }
+
+  absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation*) override {
+    return absl::InternalError(
+        "AnyTypeAnnotation nodes are not supported by the fuzzer.");
   }
 
   absl::Status HandleTypeVariableTypeAnnotation(

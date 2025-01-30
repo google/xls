@@ -169,6 +169,10 @@ class Span {
                                          FileTable& file_table);
   static Span Fake() { return Span(Pos(), Pos()); }
 
+  // For nodes that are internally fabricated (e.g. in type inference) and have
+  // no plausible direct mapping to a source span.
+  static Span None() { return Span(Pos(), Pos()); }
+
   Span(Pos start, Pos limit) : start_(start), limit_(limit) {
     CHECK_EQ(start_.fileno(), limit_.fileno());
     CHECK(start_ <= limit_);
