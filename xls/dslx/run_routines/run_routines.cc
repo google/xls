@@ -146,7 +146,7 @@ absl::Status RunDslxTestFunction(ImportData* import_data, TypeInfo* type_info,
           BytecodeEmitterOptions{.format_preference =
                                      options.format_preference()}));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{},
-                                        /*hierarchy_interpreter=*/std::nullopt,
+                                        /*channel_manager=*/std::nullopt,
                                         options)
       .status();
 }

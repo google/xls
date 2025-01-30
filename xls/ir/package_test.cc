@@ -333,7 +333,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-          /*initial_values=*/{}, /*channel_config=*/std::nullopt,
+          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
           FlowControl::kReadyValid, ChannelStrictness::kProvenMutuallyExclusive,
           ChannelMetadataProto(), 42));
   EXPECT_EQ(ch42->id(), 42);
@@ -348,7 +348,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   // Creating a channel with a duplicate ID is an error.
   EXPECT_THAT(p.CreateStreamingChannel(
                    "ch1_dup", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-                   /*initial_values=*/{}, /*channel_config=*/std::nullopt,
+                   /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
                    FlowControl::kReadyValid,
                    ChannelStrictness::kProvenMutuallyExclusive,
                    ChannelMetadataProto(), 1)

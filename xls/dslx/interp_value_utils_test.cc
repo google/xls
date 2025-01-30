@@ -270,8 +270,8 @@ TEST(InterpValueHelpersTest, ValueToInterpValue) {
 
 TEST(InterpValueHelpersTest, ValueToInterpValueEnum) {
   EnumDef enum_def(/*owner=*/nullptr, /*span=*/Span::Fake(),
-                   /*name_def=*/nullptr, /*parametric_bindings=*/{},
-                   /*members=*/{}, /*is_public=*/false);
+                   /*name_def=*/nullptr, /*type=*/{},
+                   /*values=*/{}, /*is_public=*/false);
   EnumType enum_type(enum_def, TypeDim::CreateU32(32), /*is_signed=*/false, {});
   EXPECT_THAT(ValueToInterpValue(Value(UBits(3, 32)), &enum_type),
               IsOkAndHolds(Eq(InterpValue::MakeEnum(

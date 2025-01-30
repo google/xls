@@ -1219,7 +1219,7 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
   BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
   BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
   BValue selected_counter =
-      pb.Select(index_is_1, {counter1}, /*default_value=*/counter0);
+      pb.Select(index_is_1, {counter1}, /*on_false=*/counter0);
   BValue incremented_counter =
       pb.Add(selected_counter, pb.Literal(UBits(1, 32)));
   pb.Next(index, index_is_0);
@@ -1252,7 +1252,7 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecializationDisabled) {
   BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
   BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
   BValue selected_counter =
-      pb.Select(index_is_1, {counter1}, /*default_value=*/counter0);
+      pb.Select(index_is_1, {counter1}, /*on_false=*/counter0);
   BValue incremented_counter =
       pb.Add(selected_counter, pb.Literal(UBits(1, 32)));
   pb.Next(index, index_is_0);

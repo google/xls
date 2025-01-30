@@ -316,7 +316,7 @@ static std::optional<bool> TryEvaluateAsBool(const Expr* expr) {
         GetSignAndMagnitude(number->text());
     if (sm.ok() && sm->second.bit_count() <= 1) {
       // Note: the zero value is given as a bit count of zero.
-      bool value = sm->second.bit_count() == 0 ? 0 : sm->second.Get(0);
+      bool value = sm->second.bit_count() == 0 ? false : sm->second.Get(0);
       return std::optional<bool>(value);
     }
   }

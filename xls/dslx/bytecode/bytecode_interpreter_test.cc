@@ -120,7 +120,7 @@ static absl::StatusOr<InterpValue> Interpret(
   XLS_RET_CHECK_EQ(bf->owner(), f->owner());
 
   return BytecodeInterpreter::Interpret(import_data, bf.get(), args,
-                                        /*hierarchy_interpreter=*/std::nullopt,
+                                        /*channel_manager=*/std::nullopt,
                                         options);
 }
 
@@ -138,10 +138,10 @@ TEST_F(BytecodeInterpreterTest, DupLiteral) {
                                /*type_info=*/nullptr, std::move(bytecodes)));
   BytecodeInterpreterOptions options;
   options.set_validate_final_stack_depth(false);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue result, BytecodeInterpreter::Interpret(
-                              &import_data_.value(), bfunc.get(), {},
-                              /*hierarchy_interpreter=*/std::nullopt, options));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result,
+                           BytecodeInterpreter::Interpret(
+                               &import_data_.value(), bfunc.get(), {},
+                               /*channel_manager=*/std::nullopt, options));
   EXPECT_EQ(result.ToString(), "u32:42");
 }
 

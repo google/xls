@@ -486,7 +486,7 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
           Node * state_valid,
           NaryOrIfNeeded(block, state_valid_conditions,
                          /*name=*/state_valid_name,
-                         /*loc=*/state_register->reg_full_read->loc()));
+                         /*source_info=*/state_register->reg_full_read->loc()));
       active_valids.push_back(state_valid);
     }
 
