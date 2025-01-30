@@ -1325,6 +1325,26 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
                                        std::move(*package_or));
     }
 
+    // Handle function exports by cloning the linked-to function.
+    if (auto export_dslx_op = dyn_cast<ExportDslxOp>(op)) {
+      StringRef name = export_dslx_op.getSymName();
+      translation_state.addLinkage(name, export_dslx_op.getLinkage());
+      // Eagerly import the function.
+      auto xlsFunc = getFunction(translation_state, name);
+      if (!xlsFunc.ok()) {
+        llvm::errs() << "Failed to get function " << name << ": "
+                     << xlsFunc.status().message() << "\n";
+        return failure();
+      }
+      if (auto status = (*xlsFunc)->Clone(name, package.get()).status();
+          !status.ok()) {
+        llvm::errs() << "Failed to clone function " << name << ": "
+                     << status.message() << "\n";
+        return failure();
+      }
+      continue;
+    }
+
     // Currently this only works over functions and creates a new XLS function
     // for each function in the module.
     auto xls_region = dyn_cast<XlsRegionOpInterface>(op);
@@ -1510,6 +1530,9 @@ LogicalResult setTop(Operation* op, std::string_view name, Package* package) {
 LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
                                     MlirXlsToXlsTranslateOptions options,
                                     MetricsReporter metrics_reporter) {
+  // It is important to ensure the XlsDialect is loaded, because it registers
+  // the XlsRegionOpInterface external model for FuncOp.
+  op->getContext()->getOrLoadDialect<XlsDialect>();
   DslxPackageCache maybe_cache;
   if (options.dslx_cache == nullptr) {
     options.dslx_cache = &maybe_cache;

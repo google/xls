@@ -63,5 +63,9 @@ func.func private @trunc_ext(%arg0: f32) -> f32 attributes {xls = true} {
   return %1 : f32
 }
 
+// XLS-LABEL: fn leaf
+// XLS-SAME: (x: bits[32] id={{.*}}) -> (bits[1], bits[8], bits[23]) {
+xls.export_dslx @leaf #xls.translation_linkage<@struct_type: "int_to_float">
+
 }
 

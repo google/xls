@@ -1275,6 +1275,42 @@ def Xls_CallDslxOp : Xls_Op<"call_dslx", [DeclareOpInterfaceMethods<MemoryEffect
   }];
 }
 
+def Xls_ExportDslxOp : Xls_Op<"export_dslx", []> {
+  let summary = "Export DSLX function as top";
+  let description = [{
+    Exports a DSLX function as a top level function in this module.
+
+    This should be used for wrapping a DSLX function as a module, as opposed to
+    wrapping it:
+
+    INCORRECT:
+      xls.import_dslx_file_package @pkg "path/to/dslx.x"
+      func.func private @extern(f32, f32) -> f32 attribute {xls.linkage = ...}
+      func.func @main(%arg0: f32, %arg1: f32) -> f32 {
+        %0 = func.call @extern(%arg0, %arg1)
+        return %0 : f32
+      }
+
+    CORRECT:
+      xls.import_dslx_file_package @pkg "path/to/dslx.x"
+      xls.export_dslx @main <@pkg : "myfunc"> : (f32, f32) -> f32
+
+    The incorrect version will result in a top function whose argument names
+    are not the same as the DSLX function unless their locations are perfectly
+    (hand) crafted.
+  }];
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    Xls_TranslationLinkage:$linkage
+  );
+  // Note that the linkage, as an attribute, has an implicit type. So the parser
+  // will accept `#xls.translation_linkage<...> : (f32) -> f32` as a valid
+  // attribute.
+  let assemblyFormat = [{
+    $sym_name $linkage attr-dict
+  }];
+}
+
 // TODO(jpienaar): Add variant that has string literal.
 
 //===----------------------------------------------------------------------===//

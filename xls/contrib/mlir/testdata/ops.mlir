@@ -507,6 +507,9 @@ xls.instantiate_extern_eproc "external" ("arg0" as @c1, "result0" as @c2)
 // CHECK-LABEL: xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)
 xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)
 
+// CHECK-LABEL: xls.export_dslx @myfunc <@f32lib : "add">
+xls.export_dslx @myfunc <@f32lib: "add">
+
 // -----
 
 // expected-error@+1 {{yielded state type does not match carried state type ('tuple<i7>' vs 'tuple<i32>'}}
