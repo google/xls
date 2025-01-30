@@ -251,8 +251,8 @@ fn qc(x: EmptyEnum) -> bool {
       TestResultData result,
       ParseAndTest(kProgram, kModuleName, kFilename, options));
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
-  ASSERT_EQ(result.failures().size(), 1);
-  std::string failure_message = result.failures()[0];
+  ASSERT_EQ(result.GetFailureMessages().size(), 1);
+  std::string failure_message = result.GetFailureMessages()[0];
   EXPECT_THAT(failure_message,
               HasSubstr("quickcheck of `qc` rejected all input samples"));
 }
@@ -349,7 +349,7 @@ fn bfloat16_bits_to_float32_bits_upcast_is_zero_pad(x: bits[BF16_TOTAL_SZ]) -> b
       ParseAndTest(kProgram, kModuleName, kFilename, options));
   EXPECT_THAT(result, IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
   // Look at the failure message to make sure the u16 is reported.
-  std::vector<std::string> failures = result.failures();
+  std::vector<std::string> failures = result.GetFailureMessages();
   ASSERT_EQ(failures.size(), 1);
   EXPECT_THAT(failures[0], HasSubstr("tests: [u16:34]"));
 }
@@ -738,7 +738,7 @@ proc tester_proc {
       TestResultData result,
       ParseAndTest(kProgram, "test_module", "test.x", options));
 
-  auto failures = result.failures();
+  std::vector<std::string> failures = result.GetFailureMessages();
   EXPECT_EQ(failures.size(), 1);
   if (GetParam() == RunnerType::kDslxInterpreter) {
     EXPECT_THAT(failures[0],
