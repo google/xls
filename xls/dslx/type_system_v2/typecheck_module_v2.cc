@@ -586,6 +586,25 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleStatement(const Statement* node) override {
+    VLOG(5) << "HandleStatement: " << node->ToString();
+    // If it's just an expr, assign it a type variable.
+    if (std::holds_alternative<Expr*>(node->wrapped())) {
+      Expr* expr = std::get<Expr*>(node->wrapped());
+      std::optional<const NameRef*> type_variable =
+          table_.GetTypeVariable(expr);
+      if (!type_variable.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* type_variable,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType, const_cast<Statement*>(node),
+                GenerateInternalTypeVariableName(expr)));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(expr, type_variable));
+      }
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleStatementBlock(const StatementBlock* node) override {
     // A statement block may have a type variable imposed at a higher level of
     // the tree. For example, in

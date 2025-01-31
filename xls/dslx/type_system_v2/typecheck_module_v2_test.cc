@@ -3000,5 +3000,58 @@ const Y = all_ones!<imported::X>();
 )",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));
 }
+
+TEST(TypecheckV2Test, UnassignedReturnValueIgnored) {
+  EXPECT_THAT(
+      R"(
+fn ignored() -> u32 { u32:0 }
+
+fn main() -> u32 {
+  ignored();
+  u32:1
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("ignored()", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, UnassignedReturnValueIgnoredParametric) {
+  EXPECT_THAT(
+      R"(
+fn ignored<N:u32>() -> uN[N] { zero!<uN[N]>() }
+
+fn main() -> u32 {
+  ignored<u32:31>();
+  u32:1
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("ignored<u32:31>()", "uN[31]")));
+}
+
+TEST(TypecheckV2Test, UnassignedReturnValueTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn ignored() -> u31 { u31:0 }
+
+fn main(x: u32) -> u32 {
+  ignored() + x;
+  u32:1
+}
+)",
+      TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2Test, UnassignedReturnValueTypeMismatchParametric) {
+  EXPECT_THAT(
+      R"(
+fn ignored<N:u32>() -> uN[N] { zero!<uN[N]>() }
+
+fn main(x: u32) -> u32 {
+  ignored<u32:31>() + x;
+  u32:1
+}
+)",
+      TypecheckFails(HasSizeMismatch("uN[31]", "u32")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

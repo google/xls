@@ -4216,6 +4216,36 @@ fn main() { x36() }
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+// Tests that it is OK to ignore the return value of a function.
+TEST(TypecheckTest, IgnoreReturnValue) {
+  constexpr std::string_view kProgram = R"(
+fn foo() -> u32 { u32:0 }
+
+fn main() -> u32 {
+  foo();
+  u32:1
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, UnassignedReturnValueTypeMismatchParametric) {
+  constexpr std::string_view kProgram = R"(
+fn ignored<N:u32>() -> uN[N] { zero!<uN[N]>() }
+
+fn main(x: u32) -> u32 {
+  ignored<u32:31>() + x;
+  u32:1
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "uN[31] vs uN[32]: Could not deduce type for binary operation")));
+}
+
 // Previously this would cause us to RET_CHECK because we were assuming we
 // wanted to grab the root type information instead of the parametric
 // invocation's type information.
