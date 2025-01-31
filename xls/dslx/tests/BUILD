@@ -196,10 +196,7 @@ dslx_lang_test(
     test_ir_equivalence = False,
 )
 
-dslx_lang_test(
-    name = "for_over_range_u8",
-    convert_to_ir = False,
-)
+dslx_lang_test(name = "for_over_range_u8")
 
 dslx_lang_test(
     name = "parametric_binding",
@@ -221,10 +218,7 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "for_over_array",
-    convert_to_ir = False,
-)
+dslx_lang_test(name = "for_over_array")
 
 dslx_lang_test(name = "zero_macro")
 
@@ -337,15 +331,12 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "for_over_range",
-    # No meaningful entry point to convert.
-    convert_to_ir = False,
-)
+dslx_lang_test(name = "for_over_range")
 
 dslx_lang_test(
     name = "enumerate",
-    # No meaningful entry point to convert.
+    compare = "none",
+    # TODO(https://github.com/google/xls/issues/1289): Need to be able to convert enumerate builtin.
     convert_to_ir = False,
 )
 

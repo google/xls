@@ -163,6 +163,14 @@ class FunctionConverter {
   // Helper class used for chaining on/off control predicates.
   friend class ScopedControlPredicate;
 
+  // Contains/returns the pertinent information about a range expression (either
+  // a Range node or the range() builtin).
+  struct RangeData {
+    int64_t start_value;
+    int64_t trip_count;
+    int64_t bit_width;
+  };
+
   const FileTable& file_table() const { return import_data_->file_table(); }
 
   // Wraps up a type so it is (token, u1, type).
@@ -341,7 +349,45 @@ class FunctionConverter {
   absl::Status HandleCast(const Cast* node);
   absl::Status HandleColonRef(const ColonRef* node);
   absl::Status HandleConstantDef(const ConstantDef* node);
+
   absl::Status HandleFor(const For* node);
+
+  // Helper that adds a parameter for the induction variable node for a ranged
+  // for loop, e.g. when we have a pattern like: `for (i, accum) in 1..10` this
+  // handles the `ivar` named `i`.
+  absl::StatusOr<BValue> HandleRangedForInductionVariable(
+      const For* node, FunctionConverter& body_converter,
+      NameDefTree::Leaf ivar);
+
+  // Helpers that adds a parameter for the loop carried accumulator value.
+  // Handles the fact that we may need to destructure a pattern for
+  // `carry_node`.
+  absl::Status HandleForLoopCarry(const For* node,
+                                  FunctionConverter& body_converter,
+                                  const std::optional<RangeData>& range_data,
+                                  BValue loop_index, NameDefTree::Leaf ivar,
+                                  AstNode* carry_node);
+
+  // Returns the relevant name definitions for the lexical scope of the for
+  // loop.
+  //
+  // This lets us convert the body of the for loop into a function and pass all
+  // of the lexically required bindings as invariant arguments.
+  absl::StatusOr<std::vector<const NameDef*>> HandleForLexicalScope(
+      const For* node, FunctionConverter& body_converter);
+
+  // Runs conversion on the body block of `node`, placing the built IR into
+  // `body_converter`.
+  //
+  // This encapsulates any token threading that has to happen if the body is
+  // implicit-token calling convention.
+  //
+  // Returns the `init` BValue (which is also appropriately adapted for the
+  // calling convention).
+  absl::StatusOr<BValue> HandleForBody(const For* node,
+                                       FunctionConverter& body_converter,
+                                       int64_t trip_count);
+
   absl::Status HandleFormatMacro(const FormatMacro* node);
   absl::Status HandleIndex(const Index* node);
   absl::Status HandleInvocation(const Invocation* node);
@@ -436,13 +482,6 @@ class FunctionConverter {
   // with parametric values mangled in appropriately.
   absl::StatusOr<std::string> GetCalleeIdentifier(const Invocation* node);
 
-  // Contains/returns the pertinent information about a range expression (either
-  // a Range node or the range() builtin).
-  struct RangeData {
-    int64_t start_value;
-    int64_t trip_count;
-    int64_t bit_width;
-  };
   absl::StatusOr<RangeData> GetRangeData(const Expr* iterable);
 
   struct AssertionLabelData {

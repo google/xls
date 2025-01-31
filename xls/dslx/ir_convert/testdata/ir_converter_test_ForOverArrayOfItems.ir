@@ -1,0 +1,18 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn ____test_module__main_counted_for_0_body(__index: bits[32] id=3, accum: bits[7] id=4, __indexable: (bits[7], bits[7])[3] id=5) -> bits[7] {
+  array_index.6: (bits[7], bits[7]) = array_index(__indexable, indices=[__index], id=6)
+  tuple_index.8: bits[7] = tuple_index(array_index.6, index=0, id=8, pos=[(0,3,13)])
+  add.9: bits[7] = add(accum, tuple_index.8, id=9, pos=[(0,3,4)])
+  tuple_index.11: bits[7] = tuple_index(array_index.6, index=1, id=11, pos=[(0,3,19)])
+  literal.7: bits[32] = literal(value=0, id=7, pos=[(0,3,14)])
+  literal.10: bits[32] = literal(value=1, id=10, pos=[(0,3,20)])
+  ret add.12: bits[7] = add(add.9, tuple_index.11, id=12, pos=[(0,3,4)])
+}
+
+top fn __test_module__main(a: (bits[7], bits[7])[3] id=1) -> bits[7] {
+  literal.2: bits[7] = literal(value=0, id=2, pos=[(0,4,4)])
+  ret counted_for.13: bits[7] = counted_for(literal.2, trip_count=3, stride=1, body=____test_module__main_counted_for_0_body, invariant_args=[a], id=13)
+}

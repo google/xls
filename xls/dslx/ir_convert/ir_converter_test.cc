@@ -463,6 +463,32 @@ TEST(IrConverterTest, CountedFor) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ForOverArrayOfItems) {
+  const std::string_view kProgram = R"(
+fn main(a: (u7, u7)[3]) -> u7 {
+  for (t, accum): ((u7, u7), u7) in a {
+    accum + t.0 + t.1
+  }(u7:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "main"));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ForOverArrayLiteral) {
+  const std::string_view kProgram = R"(
+fn main() -> u7 {
+  for (t, accum): ((u7, u7), u7) in (u7, u7)[2]:[(u7:0, u7:1), (u7:2, u7:3)] {
+    accum + t.0 + t.1
+  }(u7:0)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "main"));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, CountedForDestructuring) {
   const char* program =
       R"(fn f() -> u32 {
@@ -684,6 +710,19 @@ fn main(input: u8[2]) -> u8[2] {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+// TODO(https://github.com/google/xls/issues/1289): Need to be able to convert
+// enumerate builtin.
+TEST(IrConverterTest, DISABLED_ArrayEnumerate) {
+  const std::string_view kProgram = R"(
+fn main(array: u8[4]) -> (u32, u8)[4]) {
+  enumerate(array)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertOneFunctionForTest(kProgram, "main"));
   ExpectIr(converted, TestName());
 }
 

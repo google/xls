@@ -294,6 +294,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // Causes node "n" to accept this visitor (basic double-dispatch).
   absl::Status Visit(const AstNode* n) {
+    XLS_RET_CHECK(n != nullptr);
     VLOG(6) << this << " visiting: `" << n->ToString() << "` ("
             << n->GetNodeTypeName() << ")" << " @ "
             << SpanToString(n->GetSpan(), converter_->file_table());
@@ -708,6 +709,8 @@ absl::Status FunctionConverter::HandleString(const String* node) {
 absl::Status FunctionConverter::HandleTupleIndex(const TupleIndex* node) {
   XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->lhs())));
   XLS_ASSIGN_OR_RETURN(BValue v, Use(node->lhs()));
+  XLS_RET_CHECK(v.GetType()->IsTuple());
+
   XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->index())));
   XLS_ASSIGN_OR_RETURN(Bits rhs, GetConstBits(ToAstNode(node->index())));
   XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
@@ -952,6 +955,7 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
                                  : name_def_tree->GetSpan());
         }
 
+        CHECK(tuple.GetType()->IsTuple());
         BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
         CHECK_OK(function_builder_->GetError());
 
@@ -1330,47 +1334,10 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
   return RangeData{start_int, trip_count_int, bit_width};
 }
 
-absl::Status FunctionConverter::HandleFor(const For* node) {
-  XLS_RETURN_IF_ERROR(Visit(node->init()));
-
-  XLS_ASSIGN_OR_RETURN(RangeData range_data, GetRangeData(node->iterable()));
-
-  VLOG(5) << "Converting for-loop @ " << node->span().ToString(file_table());
-  FunctionConverter body_converter(package_data_, module_, import_data_,
-                                   options_, proc_data_, channel_scope_,
-                                   /*is_top=*/false);
-  body_converter.set_parametric_env_map(parametric_env_map_);
-
-  // The body conversion uses the same types that we use in the caller.
-  body_converter.current_type_info_ = current_type_info_;
-
-  // Note: there should be no name collisions (i.e. this name is unique)
-  // because:
-  //
-  // a) Double underscore symbols are reserved for the compiler.
-  //    TODO(leary): document this in the DSL reference.
-  // b) The function name being built must be unique in the module.
-  // c) The loop number bumps for each loop in that function.
-  std::string body_fn_name =
-      absl::StrFormat("__%s_counted_for_%d_body", function_builder_->name(),
-                      GetAndBumpCountedForCount());
-  auto body_builder =
-      std::make_unique<FunctionBuilder>(body_fn_name, package());
-  auto* body_builder_ptr = body_builder.get();
-  body_converter.SetFunctionBuilder(std::move(body_builder));
-
-  // Grab the two tuple of `(ivar, accum)`.
-  std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>> flat =
-      node->names()->Flatten1();
-  if (flat.size() != 2) {
-    return absl::UnimplementedError(
-        "Expect for loop to have counter (induction variable) and carry data "
-        "for IR conversion.");
-  }
-
-  // Add the induction value (the "ranged" counter).
-  auto ivar = std::get<NameDefTree::Leaf>(flat[0]);
-  absl::StatusOr<BValue> loop_index = absl::visit(
+absl::StatusOr<BValue> FunctionConverter::HandleRangedForInductionVariable(
+    const For* node, FunctionConverter& body_converter,
+    NameDefTree::Leaf ivar_node) {
+  return absl::visit(
       Visitor{
           [&](NameDef* name_def) -> absl::StatusOr<BValue> {
             XLS_RET_CHECK(name_def != nullptr);
@@ -1401,24 +1368,31 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
                 "Induction variable cannot be a \"rest of tuple\"");
           },
       },
-      ivar);
-  XLS_RETURN_IF_ERROR(loop_index.status());
+      ivar_node);
+}
 
+absl::Status FunctionConverter::HandleForLoopCarry(
+    const For* node, FunctionConverter& body_converter,
+    const std::optional<RangeData>& range_data, BValue ivar_value,
+    NameDefTree::Leaf ivar, AstNode* carry_node) {
   // IR `counted_for` ops only support a trip count, not a set of iterables, so
   // we need to add an offset to that trip count/index to support nonzero loop
-  // start indices.
-  // Pulling values out of the iterable invocation is safe, as it was all
-  // checked in QueryConstRangeCall.
-  Value index_offset =
-      Value(UBits(range_data.start_value, range_data.bit_width));
-  BValue offset_literal =
-      body_converter.function_builder_->Literal(index_offset);
-  BValue offset_sum =
-      body_converter.function_builder_->Add(*loop_index, offset_literal);
-  body_converter.SetNodeToIr(ToAstNode(ivar), offset_sum);
+  // start indices; e.g. `for (i, accum) in 1..10` we actually iterate from 0 to
+  // 9 and add the offset of 1 to the index.
+  if (range_data.has_value()) {
+    Value index_offset =
+        Value(UBits(range_data->start_value, range_data->bit_width));
+    BValue offset_literal =
+        body_converter.function_builder_->Literal(index_offset);
+    BValue offset_sum =
+        body_converter.function_builder_->Add(ivar_value, offset_literal);
+
+    body_converter.SetNodeToIr(ToAstNode(ivar), offset_sum);
+  } else {
+    body_converter.SetNodeToIr(ToAstNode(ivar), ivar_value);
+  }
 
   // Add the loop carry value.
-  AstNode* carry_node = ToAstNode(flat[1]);
   if (auto* carry_name_def = dynamic_cast<NameDef*>(carry_node)) {
     // When the loop carry value is just a name; e.g. the `x` in `for (i, x)` we
     // can simply bind it.
@@ -1465,14 +1439,17 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
              "WildcardPattern";
     }
   }
+  return absl::OkStatus();
+}
 
-  // We need to capture the lexical scope and pass it to his loop body function.
-  //
-  // So we suffix free variables for the function body onto the function
-  // parameters.
+absl::StatusOr<std::vector<const NameDef*>>
+FunctionConverter::HandleForLexicalScope(const For* node,
+                                         FunctionConverter& body_converter) {
+  // Get all of the lexical free variables that are not builtin names.
   FreeVariables freevars =
       GetFreeVariablesByPos(node->body(), &node->span().start());
   freevars = freevars.DropBuiltinDefs();
+
   std::vector<const NameDef*> relevant_name_defs;
   for (const auto& any_name_def : freevars.GetNameDefs()) {
     const auto* freevar_name_def = std::get<const NameDef*>(any_name_def);
@@ -1481,6 +1458,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     if (!type.has_value()) {
       continue;
     }
+    // Functions will be available to call at package scope.
     if (dynamic_cast<const FunctionType*>(type.value()) != nullptr) {
       continue;
     }
@@ -1520,7 +1498,11 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   if (implicit_token_data_.has_value()) {
     XLS_RET_CHECK(body_converter.implicit_token_data_.has_value());
   }
+  return relevant_name_defs;
+}
 
+absl::StatusOr<BValue> FunctionConverter::HandleForBody(
+    const For* node, FunctionConverter& body_converter, int64_t trip_count) {
   FunctionConverterVisitor visitor(&body_converter);
   XLS_RETURN_IF_ERROR(visitor.Visit(node->body()));
 
@@ -1556,29 +1538,135 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
          retval});
   }
 
-  XLS_ASSIGN_OR_RETURN(xls::Function * body_function,
-                       body_builder_ptr->Build());
-  VLOG(5) << "Converted body function: " << body_function->name();
+  XLS_ASSIGN_OR_RETURN(BValue init, Use(node->init()));
+  if (implicit_token_data_.has_value()) {
+    BValue activated = trip_count == 0 ? function_builder_->Literal(UBits(0, 1))
+                                       : implicit_token_data_->activated;
+    init = function_builder_->Tuple(
+        {implicit_token_data_->entry_token, activated, init});
+  }
+  return init;
+}
+
+// Returns whether `node` is a range expression, which is either a `Range` node
+// or an `Invocation` node with a callee of the builtin `range`.
+static bool IsRangeExpr(AstNode* node) {
+  if (auto* range = dynamic_cast<Range*>(node)) {
+    return true;
+  }
+  if (auto* invocation = dynamic_cast<Invocation*>(node)) {
+    // If the callee is builtin name ref to `range` then we also consider it a
+    // range expression.
+    if (auto* callee_name_ref = dynamic_cast<NameRef*>(invocation->callee())) {
+      return std::holds_alternative<BuiltinNameDef*>(
+                 callee_name_ref->name_def()) &&
+             std::get<BuiltinNameDef*>(callee_name_ref->name_def())
+                     ->identifier() == "range";
+    }
+  }
+  return false;
+}
+
+absl::Status FunctionConverter::HandleFor(const For* node) {
+  XLS_RETURN_IF_ERROR(Visit(node->init()));
+
+  std::optional<BValue> indexable;
+  std::optional<RangeData> range_data;
+  int64_t trip_count;
+  if (IsRangeExpr(node->iterable())) {
+    XLS_ASSIGN_OR_RETURN(range_data, GetRangeData(node->iterable()));
+    trip_count = range_data->trip_count;
+  } else {
+    XLS_RETURN_IF_ERROR(Visit(node->iterable()));
+    XLS_ASSIGN_OR_RETURN(indexable, Use(node->iterable()));
+    int64_t array_size = indexable->GetType()->AsArrayOrDie()->size();
+    XLS_RET_CHECK_GE(array_size, 0);
+    trip_count = array_size;
+  }
+
+  // Grab the two tuple of `(ivar, accum)`.
+  std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>> flat =
+      node->names()->Flatten1();
+  if (flat.size() != 2) {
+    return absl::UnimplementedError(
+        "Expect for loop to have counter (induction variable) and carry data "
+        "for IR conversion.");
+  }
+
+  // Add the induction value (the "ranged" counter).
+  NameDefTree::Leaf ivar_node = std::get<NameDefTree::Leaf>(flat[0]);
+  AstNode* carry_node = ToAstNode(flat[1]);
+
+  VLOG(5) << "Converting for-loop @ " << node->span().ToString(file_table());
+  FunctionConverter body_converter(package_data_, module_, import_data_,
+                                   options_, proc_data_, channel_scope_,
+                                   /*is_top=*/false);
+  body_converter.set_parametric_env_map(parametric_env_map_);
+
+  // The body conversion uses the same types that we use in the caller.
+  body_converter.current_type_info_ = current_type_info_;
+
+  // Note: there should be no name collisions (i.e. this name is unique)
+  // because:
+  //
+  // a) Double underscore symbols are reserved for the compiler.
+  //    TODO(leary): document this in the DSL reference.
+  // b) The function name being built must be unique in the module.
+  // c) The loop number bumps for each loop in that function.
+  std::string body_fn_name =
+      absl::StrFormat("__%s_counted_for_%d_body", function_builder_->name(),
+                      GetAndBumpCountedForCount());
+  auto ir_body_builder =
+      std::make_unique<FunctionBuilder>(body_fn_name, package());
+  auto* ir_body_builder_ptr = ir_body_builder.get();
+  body_converter.SetFunctionBuilder(std::move(ir_body_builder));
 
   std::vector<BValue> invariant_args;
+
+  // Get the induction variable value -- this is handled differently for range
+  // expression vs iterating elements of an array because we need to add the
+  // iterable as an extra invariant arg in the latter case.
+  BValue ivar_value;
+  if (range_data.has_value()) {
+    XLS_ASSIGN_OR_RETURN(ivar_value, HandleRangedForInductionVariable(
+                                         node, body_converter, ivar_node));
+    XLS_RETURN_IF_ERROR(HandleForLoopCarry(node, body_converter, range_data,
+                                           ivar_value, ivar_node, carry_node));
+  } else {
+    BValue index =
+        body_converter.AddParam("__index", package()->GetBitsType(32));
+    XLS_RETURN_IF_ERROR(HandleForLoopCarry(node, body_converter, range_data,
+                                           ivar_value, ivar_node, carry_node));
+    BValue iterable =
+        body_converter.AddParam("__indexable", indexable->GetType());
+    ivar_value =
+        body_converter.function_builder_->ArrayIndex(iterable, {index});
+    body_converter.SetNodeToIr(ToAstNode(ivar_node), ivar_value);
+    invariant_args.push_back(indexable.value());
+  }
+
+  // Get any arguments we need lexically as invariant arguments -- this also
+  // prepares them to be available for discovery when we convert in
+  // `HandleForBody`.
+  XLS_ASSIGN_OR_RETURN(std::vector<const NameDef*> relevant_name_defs,
+                       HandleForLexicalScope(node, body_converter));
+
+  // Convert the for-loop body block into its IR (function) form.
+  XLS_ASSIGN_OR_RETURN(BValue init,
+                       HandleForBody(node, body_converter, trip_count));
+
+  // Now the body has been built up, we can get the IR function for it.
+  XLS_ASSIGN_OR_RETURN(xls::Function * ir_body_function,
+                       ir_body_builder_ptr->Build());
+
   for (const NameDef* nd : relevant_name_defs) {
     XLS_ASSIGN_OR_RETURN(BValue value, Use(nd));
     invariant_args.push_back(value);
   }
 
-  XLS_ASSIGN_OR_RETURN(BValue init, Use(node->init()));
-  if (implicit_token_data_.has_value()) {
-    BValue activated = range_data.trip_count == 0
-                           ? function_builder_->Literal(UBits(0, 1))
-                           : implicit_token_data_->activated;
-    init = function_builder_->Tuple(
-        {implicit_token_data_->entry_token, activated, init});
-  }
-
   Def(node, [&](const SourceInfo& loc) {
-    BValue result =
-        function_builder_->CountedFor(init, range_data.trip_count, /*stride=*/1,
-                                      body_function, invariant_args);
+    BValue result = function_builder_->CountedFor(
+        init, trip_count, /*stride=*/1, ir_body_function, invariant_args);
     // If a token was threaded through, we grab it and note it's an assertion
     // token.
     if (implicit_token_data_.has_value()) {
