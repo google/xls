@@ -134,6 +134,15 @@ struct NodeData {
   std::optional<const InferenceVariable*> type_variable;
 };
 
+// The mutable data for a `ParametricInvocation` in an `InferenceTable`.
+struct ParametricInvocationData {
+  absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>
+      parametric_values;
+  absl::flat_hash_map<const InferenceVariable*,
+                      std::vector<const TypeAnnotation*>>
+      type_annotations_per_type_variable;
+};
+
 // The mutable data for a type variable in an `InferenceTable`.
 struct TypeConstraints {
   std::optional<bool> is_signed;
@@ -194,7 +203,7 @@ class InferenceTableImpl : public InferenceTable {
     const std::vector<ExprOrType>& explicit_parametrics =
         node.explicit_parametrics();
     CHECK(explicit_parametrics.size() <= bindings.size());
-    absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr> values;
+    ParametricInvocationData invocation_data;
     for (int i = 0; i < bindings.size(); i++) {
       const ParametricBinding* binding = bindings[i];
       const InferenceVariable* variable =
@@ -207,12 +216,12 @@ class InferenceTableImpl : public InferenceTable {
               "support types as parametric values: $0",
               node.ToString()));
         }
-        values.emplace(
+        invocation_data.parametric_values.emplace(
             variable,
             InvocationScopedExpr(caller_invocation, binding->type_annotation(),
                                  std::get<Expr*>(value)));
       } else if (binding->expr() != nullptr) {
-        values.emplace(
+        invocation_data.parametric_values.emplace(
             variable,
             InvocationScopedExpr(invocation.get(), binding->type_annotation(),
                                  binding->expr()));
@@ -220,7 +229,7 @@ class InferenceTableImpl : public InferenceTable {
     }
     const ParametricInvocation* result = invocation.get();
     parametric_invocations_.push_back(std::move(invocation));
-    parametric_values_by_invocation_.emplace(result, std::move(values));
+    parametric_invocation_data_.emplace(result, std::move(invocation_data));
     return result;
   }
 
@@ -239,7 +248,7 @@ class InferenceTableImpl : public InferenceTable {
       const ParametricInvocation& invocation) const override {
     const InferenceVariable* variable = variables_.at(&binding_name_def).get();
     const absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>&
-        values = parametric_values_by_invocation_.at(&invocation);
+        values = parametric_invocation_data_.at(&invocation).parametric_values;
     const auto it = values.find(variable);
     return it == values.end() ? std::nullopt : std::make_optional(it->second);
   }
@@ -248,6 +257,21 @@ class InferenceTableImpl : public InferenceTable {
                                  const TypeAnnotation* annotation) override {
     return MutateAndCheckNodeData(
         node, [=](NodeData& data) { data.type_annotation = annotation; });
+  }
+
+  absl::Status AddTypeAnnotationToVariableForInvocation(
+      std::optional<const ParametricInvocation*> invocation, const NameRef* ref,
+      const TypeAnnotation* annotation) override {
+    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
+    CHECK(variable->kind() == InferenceVariableKind::kType);
+    if (invocation.has_value()) {
+      parametric_invocation_data_.at(*invocation)
+          .type_annotations_per_type_variable[variable]
+          .push_back(annotation);
+    } else {
+      type_annotations_per_type_variable_[variable].push_back(annotation);
+    }
+    return absl::OkStatus();
   }
 
   void MarkAsAutoLiteral(const TypeAnnotation* annotation) override {
@@ -292,12 +316,27 @@ class InferenceTableImpl : public InferenceTable {
   }
 
   absl::StatusOr<std::vector<const TypeAnnotation*>>
-  GetTypeAnnotationsForTypeVariable(const NameRef* ref) const override {
+  GetTypeAnnotationsForTypeVariable(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const NameRef* ref) const override {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
     const auto it = type_annotations_per_type_variable_.find(variable);
-    return it == type_annotations_per_type_variable_.end()
-               ? std::vector<const TypeAnnotation*>()
-               : it->second;
+    std::vector<const TypeAnnotation*> result =
+        (it == type_annotations_per_type_variable_.end())
+            ? std::vector<const TypeAnnotation*>()
+            : it->second;
+    if (parametric_invocation.has_value()) {
+      const auto& invocation_specific_annotations =
+          parametric_invocation_data_.at(*parametric_invocation)
+              .type_annotations_per_type_variable;
+      const auto invocation_specific_it =
+          invocation_specific_annotations.find(variable);
+      if (invocation_specific_it != invocation_specific_annotations.end()) {
+        absl::c_copy(invocation_specific_it->second,
+                     std::back_inserter(result));
+      }
+    }
+    return result;
   }
 
  private:
@@ -366,10 +405,8 @@ class InferenceTableImpl : public InferenceTable {
   // Parametric invocations and the corresponding information about parametric
   // variables.
   std::vector<std::unique_ptr<ParametricInvocation>> parametric_invocations_;
-  absl::flat_hash_map<
-      const ParametricInvocation*,
-      absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>>
-      parametric_values_by_invocation_;
+  absl::flat_hash_map<const ParametricInvocation*, ParametricInvocationData>
+      parametric_invocation_data_;
   absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
 };
 

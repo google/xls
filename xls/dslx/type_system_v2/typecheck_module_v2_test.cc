@@ -2163,6 +2163,18 @@ const X = foo<24, 23>(4);
                   HasNodeWithType("const X = foo<24, 23>(4);", "uN[23]")));
 }
 
+TEST(TypecheckV2Test,
+     ParametricFunctionCallingAnotherParametricFunctionMultiUse) {
+  EXPECT_THAT(R"(
+fn bar<A: u32>(a: uN[A]) -> uN[A] { a + 1 }
+fn foo<A: u32>(a: uN[A]) -> uN[A] { bar<A>(a) }
+const X = foo<24>(4);
+const Y = foo<32>(5);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[24]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
 TEST(TypecheckV2Test, ParametricFunctionImplicitParameterPropagation) {
   EXPECT_THAT(R"(
 fn bar<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A] { a + 1 }

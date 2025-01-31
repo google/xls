@@ -206,6 +206,13 @@ class InferenceTable {
   virtual absl::Status SetTypeAnnotation(const AstNode* node,
                                          const TypeAnnotation* type) = 0;
 
+  // Sets the explicit type annotation associated with `node`. If `invocation`
+  // is specified, then the annotation is only valid in the context of that
+  // parametric invocation.
+  virtual absl::Status AddTypeAnnotationToVariableForInvocation(
+      std::optional<const ParametricInvocation*> invocation, const NameRef* ref,
+      const TypeAnnotation* type) = 0;
+
   // Returns the type annotation for `node` in the table, if any.
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(
       const AstNode* node) const = 0;
@@ -226,7 +233,9 @@ class InferenceTable {
   // Returns all type annotations that have been associated with the given
   // variable, in the order they were added to the table.
   virtual absl::StatusOr<std::vector<const TypeAnnotation*>>
-  GetTypeAnnotationsForTypeVariable(const NameRef* variable) const = 0;
+  GetTypeAnnotationsForTypeVariable(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const NameRef* variable) const = 0;
 };
 
 }  // namespace xls::dslx

@@ -86,7 +86,10 @@ const TypeAnnotation* SignednessAndSizeToAnnotation(
 // unification.
 class VariableExpander : public AstNodeVisitorWithDefault {
  public:
-  VariableExpander(const InferenceTable& table) : table_(table) {}
+  VariableExpander(
+      const InferenceTable& table,
+      std::optional<const ParametricInvocation*> parametric_invocation)
+      : table_(table), parametric_invocation_(parametric_invocation) {}
 
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* node) override {
@@ -95,7 +98,8 @@ class VariableExpander : public AstNodeVisitorWithDefault {
     }
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations_for_variable,
-        table_.GetTypeAnnotationsForTypeVariable(node->type_variable()));
+        table_.GetTypeAnnotationsForTypeVariable(parametric_invocation_,
+                                                 node->type_variable()));
     for (const TypeAnnotation* annotation : annotations_for_variable) {
       XLS_RETURN_IF_ERROR(annotation->Accept(this));
     }
@@ -109,7 +113,8 @@ class VariableExpander : public AstNodeVisitorWithDefault {
     if (std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
         variable.has_value()) {
       XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
-                           table_.GetTypeAnnotationsForTypeVariable(*variable));
+                           table_.GetTypeAnnotationsForTypeVariable(
+                               parametric_invocation_, *variable));
       for (const TypeAnnotation* annotation : annotations) {
         XLS_RETURN_IF_ERROR(annotation->Accept(this));
       }
@@ -129,6 +134,7 @@ class VariableExpander : public AstNodeVisitorWithDefault {
 
  private:
   const InferenceTable& table_;
+  const std::optional<const ParametricInvocation*> parametric_invocation_;
   std::vector<const TypeAnnotation*> annotations_;
   // Prevent multiple traversal in case of cycles. Cycles can be valid in
   // internally-generated `FunctionTypeAnnotation` data structures that contain
@@ -370,14 +376,17 @@ class InferenceTableConverter {
             parametric_value_exprs_.at(parametric_invocation)));
     const FunctionTypeAnnotation* parametric_free_function_type =
         down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        invocation->callee(), parametric_free_function_type));
+    XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForInvocation(
+        caller_invocation, *table_.GetTypeVariable(invocation->callee()),
+        parametric_free_function_type));
     for (int i = 0; i < parametric_free_function_type->param_types().size();
          i++) {
       const TypeAnnotation* formal_type =
           parametric_free_function_type->param_types()[i];
       const Expr* actual_param = invocation->args()[i];
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_param, formal_type));
+      XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForInvocation(
+          caller_invocation, *table_.GetTypeVariable(actual_param),
+          formal_type));
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(actual_param, caller, caller_invocation));
     }
@@ -410,7 +419,8 @@ class InferenceTableConverter {
       if (node->parent() != nullptr &&
           ((node->parent()->kind() == AstNodeKind::kConstantDef ||
             node->parent()->kind() == AstNodeKind::kNameDef)) &&
-          !VariableHasAnyExplicitTypeAnnotations(*type_variable)) {
+          !VariableHasAnyExplicitTypeAnnotations(parametric_invocation,
+                                                 *type_variable)) {
         // The motivation for disallowing this, irrespective of its
         // unifiability, is that otherwise a snippet like this would present
         // a serious ambiguity:
@@ -824,7 +834,8 @@ class InferenceTableConverter {
       XLS_RETURN_IF_ERROR(pre_use_actual_arg(actual_args[i]));
       XLS_ASSIGN_OR_RETURN(
           std::vector<const TypeAnnotation*> actual_arg_annotations,
-          table_.GetTypeAnnotationsForTypeVariable(*actual_arg_type_var));
+          table_.GetTypeAnnotationsForTypeVariable(actual_arg_invocation,
+                                                   *actual_arg_type_var));
 
       // The type variable for the actual argument should have at least one
       // annotation associated with it that came from the formal argument and is
@@ -935,9 +946,9 @@ class InferenceTableConverter {
           accept_predicate) {
     VLOG(5) << "Unifying type annotations for variable "
             << type_variable->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<const TypeAnnotation*> annotations,
-        table_.GetTypeAnnotationsForTypeVariable(type_variable));
+    XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
+                         table_.GetTypeAnnotationsForTypeVariable(
+                             parametric_invocation, type_variable));
     if (accept_predicate.has_value()) {
       FilterAnnotations(annotations, *accept_predicate);
     }
@@ -1352,7 +1363,8 @@ class InferenceTableConverter {
                 // generally, any decltype-ish annotation that refers back to
                 // the struct we are processing is going to be unhelpful, so we
                 // weed those out here.
-                return !RefersToStruct(annotation, struct_def);
+                return !RefersToStruct(parametric_invocation, annotation,
+                                       struct_def);
               }));
       implicit_parametrics.clear();
       for (const auto& [name, value] : new_values) {
@@ -1391,15 +1403,16 @@ class InferenceTableConverter {
   // Determines whether the given type annotation has any reference to the given
   // `struct_def`, taking into consideration the expansions of any variable or
   // indirect type annotations in the annotation tree.
-  bool RefersToStruct(const TypeAnnotation* annotation,
-                      const StructDef& struct_def) {
+  bool RefersToStruct(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const TypeAnnotation* annotation, const StructDef& struct_def) {
     if (auto* element_annotation =
             dynamic_cast<const ElementTypeAnnotation*>(annotation)) {
       annotation = element_annotation->container_type();
     }
     if (auto* member_annotation =
             dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
-      VariableExpander expander(table_);
+      VariableExpander expander(table_, parametric_invocation);
       CHECK_OK(member_annotation->Accept(&expander));
       for (const TypeAnnotation* annotation : expander.annotations()) {
         std::optional<StructOrProcRef> ref = GetStructOrProcRef(annotation);
@@ -1841,9 +1854,12 @@ class InferenceTableConverter {
 
   // Determines if the given `type_variable` has any annotations in the table
   // that were explicitly written in the DSLX source.
-  bool VariableHasAnyExplicitTypeAnnotations(const NameRef* type_variable) {
+  bool VariableHasAnyExplicitTypeAnnotations(
+      std::optional<const ParametricInvocation*> parametric_invocation,
+      const NameRef* type_variable) {
     absl::StatusOr<std::vector<const TypeAnnotation*>> annotations =
-        table_.GetTypeAnnotationsForTypeVariable(type_variable);
+        table_.GetTypeAnnotationsForTypeVariable(parametric_invocation,
+                                                 type_variable);
     return annotations.ok() &&
            absl::c_any_of(*annotations,
                           [this](const TypeAnnotation* annotation) {

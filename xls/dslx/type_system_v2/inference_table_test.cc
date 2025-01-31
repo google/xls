@@ -151,8 +151,9 @@ TEST_F(InferenceTableTest, AddAnnotationsWithConflictingSignedness) {
   XLS_EXPECT_OK(table_->SetTypeVariable(y_ref, t0));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(x_ref, u32_annotation));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(y_ref, s32_annotation));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<const TypeAnnotation*> annotations,
-                           table_->GetTypeAnnotationsForTypeVariable(t0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<const TypeAnnotation*> annotations,
+      table_->GetTypeAnnotationsForTypeVariable(std::nullopt, t0));
   EXPECT_THAT(annotations, ElementsAre(u32_annotation, s32_annotation));
 }
 
@@ -177,8 +178,9 @@ TEST_F(InferenceTableTest, AddAnnotationsWithSameSignedness) {
   XLS_EXPECT_OK(table_->SetTypeVariable(y_ref, t0));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(x_ref, u32_annotation));
   XLS_EXPECT_OK(table_->SetTypeAnnotation(y_ref, u32_annotation));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<const TypeAnnotation*> annotations,
-                           table_->GetTypeAnnotationsForTypeVariable(t0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<const TypeAnnotation*> annotations,
+      table_->GetTypeAnnotationsForTypeVariable(std::nullopt, t0));
   EXPECT_THAT(annotations, ElementsAre(u32_annotation, u32_annotation));
 }
 
