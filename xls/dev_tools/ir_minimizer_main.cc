@@ -54,6 +54,7 @@
 #include "xls/data_structures/binary_search.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/dev_tools/extract_segment.h"
+#include "xls/dev_tools/extract_state_element.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/channel.h"
@@ -152,6 +153,17 @@ ABSL_FLAG(int64_t, extract_segments_limit, 256,
           "Maximum number of nodes remaining to support extracting segments "
           "in. This just makes convergence happen more quickly since the "
           "segments are selected completely randomly.");
+ABSL_FLAG(
+    bool, can_extract_state_elements, false,
+    "Whether to allow the minimizer to extract the update path for individual "
+    "state elements. This is similar to --can_extract_segments but only "
+    "extracts the update path for a small number of state elements. This "
+    "option may not be used if any (relevant) flag which prevents "
+    "changes to external API are passed (--can_remove_{sends,receives,"
+    "params}=false, --preserve_channels=<anything>, or test_llvm_jit). This "
+    "minimization can only trigger if the entire IR package contains **only** "
+    "a single proc. NB The pass extraction runs the CSE and DCE passes as part "
+    "of extraction.");
 ABSL_FLAG(
     std::string, test_executable, "",
     "Path to test executable to run during minimization. The test accepts "
@@ -1065,6 +1077,43 @@ absl::StatusOr<SimplifiedIr> ExtractSingleProc(FunctionBase* f,
                       .node_count = new_proc->node_count()};
 }
 
+absl::StatusOr<SimplifiedIr> ExtractRandomStateElements(
+    Proc* proc, absl::BitGenRef rng, std::string* which_transform) {
+  std::vector<StateElement*> state_elements;
+  state_elements.reserve(proc->StateElements().size());
+  // Select state elements at random with a log likelihood of 1/2^n.
+  double chance = 0.5;
+  std::vector<StateElement*> initial_state_elements(
+      proc->StateElements().begin(), proc->StateElements().end());
+  absl::c_shuffle(initial_state_elements, rng);
+  for (StateElement* state_element : initial_state_elements) {
+    if (absl::Bernoulli(rng, chance)) {
+      state_elements.push_back(state_element);
+      chance = chance / 2.0;
+    }
+  }
+  SimplifiedIr failure{.result = SimplificationResult::kDidNotChange,
+                       .ir_data = proc->package(),
+                       .node_count = proc->node_count()};
+  if (state_elements.empty() ||
+      state_elements.size() == proc->StateElements().size()) {
+    VLOG(1) << "No state elements selected for removal.";
+    return failure;
+  }
+
+  auto maybe_new_pkg = ExtractStateElementsInNewPackage(
+      proc, state_elements, /*send_state_values=*/absl::Bernoulli(rng, 0.25));
+  if (absl::IsUnimplemented(maybe_new_pkg.status())) {
+    return failure;
+  }
+  XLS_ASSIGN_OR_RETURN(auto new_pkg, std::move(maybe_new_pkg));
+  XLS_RETURN_IF_ERROR(new_pkg->SetTop(new_pkg->procs().front().get()));
+  return SimplifiedIr{
+      .result = SimplificationResult::kDidChange,
+      .ir_data = new_pkg->DumpIr(),
+      .node_count = new_pkg->GetTopAsProc().value()->node_count()};
+}
+
 // Picks a random node in the function 'f' and (if possible) generates a new
 // package&function that only contains that node and its antecedents.
 absl::StatusOr<SimplifiedIr> ExtractRandomNodeSubset(
@@ -1132,6 +1181,17 @@ absl::StatusOr<SimplifiedIr> Simplify(FunctionBase* f,
           f->package()->GetNodeCount()) {
     XLS_ASSIGN_OR_RETURN(auto result,
                          ExtractRandomNodeSubset(f, rng, which_transform));
+    if (result.result != SimplificationResult::kDidNotChange) {
+      return result;
+    }
+  }
+  if (absl::GetFlag(FLAGS_can_extract_state_elements) &&
+      absl::Bernoulli(rng, 0.05) && f->IsProc() &&
+      f->package()->GetFunctionBases().size() == 1 &&
+      f->AsProcOrDie()->StateElements().size() > 1) {
+    XLS_ASSIGN_OR_RETURN(
+        auto result,
+        ExtractRandomStateElements(f->AsProcOrDie(), rng, which_transform));
     if (result.result != SimplificationResult::kDidNotChange) {
       return result;
     }

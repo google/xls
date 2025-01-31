@@ -539,6 +539,7 @@ cc_binary(
     ],
     deps = [
         ":extract_segment",
+        ":extract_state_element",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
