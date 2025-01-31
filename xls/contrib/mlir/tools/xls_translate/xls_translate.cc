@@ -622,6 +622,23 @@ absl::StatusOr<::xls::Function*> getFunction(TranslationState& state,
   return fn;
 }
 
+// Converts a float value from a Bits to a tuple of (sign, exponent,
+// mantissa).
+BValue floatBitsToTuple(BValue float_bits, FloatType float_type,
+                        BuilderBase& fb) {
+  // Note that getFPMantissaWidth() includes the sign bit.
+  int exponent_width = float_type.getWidth() - float_type.getFPMantissaWidth();
+  std::vector<BValue> elements = {
+      /*Sign*/ fb.BitSlice(float_bits, float_type.getWidth() - 1, 1),
+      /*Exponent*/
+      fb.BitSlice(float_bits, float_type.getFPMantissaWidth() - 1,
+                  exponent_width),
+      /*Mantissa*/
+      fb.BitSlice(float_bits, 0, float_type.getFPMantissaWidth() - 1),
+  };
+  return fb.Tuple(elements);
+}
+
 BValue convertOp(mlir::func::CallOp call, TranslationState& state,
                  BuilderBase& fb) {
   std::vector<BValue> args;
@@ -635,7 +652,18 @@ BValue convertOp(mlir::func::CallOp call, TranslationState& state,
                  << "\n";
     return BValue();
   }
-  return fb.Invoke(args, *func_or, state.getLoc(call));
+  BValue result = fb.Invoke(args, *func_or, state.getLoc(call));
+
+  if (isa<FloatType>(call.getResult(0).getType()) &&
+      result.GetType()->IsBits()) {
+    assert((*func_or)->ForeignFunctionData().has_value());
+    // This must be a call to a foreign function that returns a float. The
+    // foreign function will return it as a raw bits value, but we expect it
+    // as a tuple of (sign, exponent, mantissa).
+    auto float_type = cast<FloatType>(call.getResult(0).getType());
+    result = floatBitsToTuple(result, float_type, fb);
+  }
+  return result;
 }
 
 BValue convertOp(MapOp mapOp, TranslationState& state, BuilderBase& fb) {
@@ -744,18 +772,7 @@ BValue convertOp(arith::BitcastOp op, const TranslationState& state,
   if (isa<FloatType>(op.getType()) &&
       !isa<FloatType>(op.getOperand().getType())) {
     auto float_type = cast<FloatType>(op.getType());
-    // Note that getFPMantissaWidth() includes the sign bit.
-    int exponent_width =
-        float_type.getWidth() - float_type.getFPMantissaWidth();
-    std::vector<BValue> elements = {
-        /*Sign*/ fb.BitSlice(operand, float_type.getWidth() - 1, 1),
-        /*Exponent*/
-        fb.BitSlice(operand, float_type.getFPMantissaWidth() - 1,
-                    exponent_width),
-        /*Mantissa*/
-        fb.BitSlice(operand, 0, float_type.getFPMantissaWidth() - 1),
-    };
-    return fb.Tuple(elements);
+    return floatBitsToTuple(operand, float_type, fb);
   }
   // Handle conversion from float to int.
   if (!isa<FloatType>(op.getType()) &&
@@ -1196,14 +1213,9 @@ FailureOr<std::string> generateCodeTemplate(mlir::func::FuncOp func,
     os << ", ";
   }
 
-  if (resultType.isInteger()) {
+  if (resultType.isInteger() || isa<FloatType>(resultType)) {
+    // Floats tuples are collapsed into a single bits value in verilog.
     os << "." << resultName << "({return}))";
-  } else if (isa<FloatType>(resultType)) {
-    // Float is expanded to tuple of 3 ints. We don't yet support more
-    // general than that.
-    os << "." << resultName << "$0({return.0}), "
-       << "." << resultName << "$1({return.1}), "
-       << "." << resultName << "$2({return.2}) )";
   } else {
     return func->emitError() << "unsupported result type for foreign functions";
   }
@@ -1254,6 +1266,39 @@ LogicalResult annotateForeignFunction(FuncOp func, ::xls::Function& xlsFunc) {
 
   xlsFunc.SetForeignFunctionData(ffd.value());
   return success();
+}
+
+// If xlsFunc returns a tuple, wraps it into a function that concats the tuple
+// elements into a single value and returns that.
+//
+// XLS natively flattens tuples when generating Verilog, but XLS also wants
+// the FFI tag to match the type of the function it's wrapping.
+absl::StatusOr<::xls::Function*> wrapDslxFunctionIfNeeded(
+    ::xls::Function* xlsFunc, ::xls::Package* package) {
+  if (!xlsFunc->GetType()->return_type()->IsTuple()) {
+    return xlsFunc;
+  }
+
+  xlsFunc = xlsFunc->Clone(xlsFunc->name() + "__bitsreturn__", package).value();
+
+  std::vector<::xls::Node*> nodesToConcat;
+  auto* tupleType = xlsFunc->GetType()->return_type()->AsTupleOrDie();
+  ::xls::Node* tuple = xlsFunc->return_value();
+  nodesToConcat.reserve(tupleType->size());
+  for (int i = 0; i < tupleType->size(); ++i) {
+    nodesToConcat.push_back(
+        xlsFunc->MakeNode<::xls::TupleIndex>(::xls::SourceInfo(), tuple, i)
+            .value());
+  }
+  auto concat =
+      xlsFunc->MakeNode<::xls::Concat>(::xls::SourceInfo(), nodesToConcat);
+  if (!concat.ok()) {
+    return concat.status();
+  }
+  if (auto status = xlsFunc->set_return_value(*concat); !status.ok()) {
+    return status;
+  }
+  return xlsFunc;
 }
 
 FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
@@ -1393,7 +1438,17 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       if (failed(translation_state.recordOpaqueTypes(func, xlsFunc.value()))) {
         return failure();
       }
+
       if (linkage.getKind() == LinkageKind::kForeign) {
+        xlsFunc = wrapDslxFunctionIfNeeded(xlsFunc.value(), package.get());
+        if (!xlsFunc.ok()) {
+          llvm::errs() << "Failed to wrap DSLX function "
+                       << xls_region.getName() << ": "
+                       << xlsFunc.status().message() << "\n";
+          return failure();
+        }
+        translation_state.addFunction(xls_region.getName(), xlsFunc.value());
+
         auto templateString =
             generateCodeTemplate(func, xlsFunc.value(), xls_region.getName(),
                                  kResultName, func.getResultTypes().front());
