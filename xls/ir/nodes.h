@@ -529,11 +529,50 @@ class Gate final : public Node {
 
   Node* data() const { return operand(1); }
 };
-class InputPort final : public Node {
+
+enum PortDirection : uint8_t { kInput, kOutput };
+
+class PortNode : public Node {
+ public:
+  static constexpr std::array<Op, 2> kOps = {Op::kInputPort, Op::kOutputPort};
+  PortNode(const SourceInfo& loc, Op op, Type* type, std::string_view name,
+           FunctionBase* function)
+      : Node(op, type, loc, name, function) {}
+
+  virtual Type* port_type() const = 0;
+  PortDirection direction() const {
+    return op() == Op::kInputPort ? PortDirection::kInput
+                                  : PortDirection::kOutput;
+  }
+};
+
+class InputPort final : public PortNode {
  public:
   static constexpr std::array<Op, 1> kOps = {Op::kInputPort};
   InputPort(const SourceInfo& loc, std::string_view name, Type* type,
-            FunctionBase* function);
+            FunctionBase* function)
+      : PortNode(loc, Op::kInputPort, type, name, function) {}
+
+  absl::StatusOr<Node*> CloneInNewFunction(
+      absl::Span<Node* const> new_operands,
+      FunctionBase* new_function) const final;
+  std::string_view name() const { return GetNameView(); }
+
+  Type* port_type() const override { return GetType(); }
+};
+
+class OutputPort final : public PortNode {
+ public:
+  static constexpr std::array<Op, 1> kOps = {Op::kOutputPort};
+  static constexpr int64_t kOperandOperand = 0;
+
+  OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
+             FunctionBase* function);
+
+  // Get the value that this port sends.
+  Node* output_source() const { return operand(kOperandOperand); }
+
+  Type* port_type() const override { return output_source()->GetType(); }
 
   absl::StatusOr<Node*> CloneInNewFunction(
       absl::Span<Node* const> new_operands,
@@ -826,26 +865,6 @@ class OneHotSelect final : public Node {
   absl::Span<Node* const> cases() const { return operands().subspan(1); }
 
   Node* get_case(int64_t case_no) const { return cases().at(case_no); }
-};
-
-class OutputPort final : public Node {
- public:
-  static constexpr std::array<Op, 1> kOps = {Op::kOutputPort};
-  static constexpr int64_t kOperandOperand = 0;
-
-  OutputPort(const SourceInfo& loc, Node* operand, std::string_view name,
-             FunctionBase* function);
-
-  // Get the value that this port sends.
-  Node* output_source() const { return operand(kOperandOperand); }
-
-  // Get the type that drives this port.
-  Type* output_type() const { return output_source()->GetType(); }
-
-  absl::StatusOr<Node*> CloneInNewFunction(
-      absl::Span<Node* const> new_operands,
-      FunctionBase* new_function) const final;
-  std::string_view name() const { return GetNameView(); }
 };
 
 class Param final : public Node {

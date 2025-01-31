@@ -502,7 +502,10 @@ void Node::SetNameDirectly(std::string_view name) {
 }
 
 void Node::ClearName() {
+  // Ports and parameters are observable and require names.
   CHECK(!Is<Param>());
+  CHECK(!Is<InputPort>());
+  CHECK(!Is<OutputPort>());
   name_.reset();
 }
 
@@ -909,14 +912,14 @@ absl::Status Node::ReplaceUsesWith(Node* replacement,
   }
 
   // If the replacement does not have an assigned name but this node does, move
-  // the name over to preserve the name. If this is a parameter or state-read
-  // node then don't move the name because we cannot clear the name of a
-  // parameter node or state element.
+  // the name over to preserve the name. If this is a parameter, port, or
+  // state-read node then don't move the name because we cannot clear the name
+  // of these nodes.
   //
   // We also don't replace the name if some use was filtered out and not
   // updated.
-  if (all_replaced && !Is<Param>() && !Is<StateRead>() && HasAssignedName() &&
-      !replacement->HasAssignedName()) {
+  if (all_replaced && !Is<Param>() && !Is<PortNode>() && !Is<StateRead>() &&
+      HasAssignedName() && !replacement->HasAssignedName()) {
     // Do not use SetName because we do not want the name to be uniqued which
     // would add a suffix because (clearly) the name already exists.
     replacement->SetNameDirectly(*name_);

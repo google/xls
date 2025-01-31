@@ -261,7 +261,7 @@ BlockJit::InterfaceMetadata::CreateFromBlock(Block* block) {
     metadata.output_port_names.push_back(std::string(op->name()));
     XLS_ASSIGN_OR_RETURN(
         Type * mapped_type,
-        metadata.type_manager.MapTypeFromOtherArena(op->output_type()));
+        metadata.type_manager.MapTypeFromOtherArena(op->port_type()));
     metadata.output_port_types.push_back(mapped_type);
   }
 

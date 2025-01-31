@@ -435,6 +435,91 @@ absl::Status VerifyElaboration(Package* package) {
   return absl::OkStatus();
 }
 
+absl::Status VerifyBlockChannelMetadata(Block* block) {
+  for (const std::string& channel_name : block->GetChannelNames()) {
+    XLS_ASSIGN_OR_RETURN(ChannelPortMetadata metadata,
+                         block->GetChannelPortMetadata(channel_name));
+    if (metadata.direction == PortDirection::kInput) {
+      if (metadata.data_port.has_value()) {
+        XLS_RET_CHECK(block->HasInputPort(*metadata.data_port))
+            << absl::StrFormat(
+                   "Data port `%s` for channel `%s` not found on block `%s`",
+                   *metadata.data_port, channel_name, block->name());
+        XLS_ASSIGN_OR_RETURN(InputPort * input_port,
+                             block->GetInputPort(*metadata.data_port));
+        XLS_ASSIGN_OR_RETURN(std::optional<PortNode*> data_port,
+                             block->GetDataPortForChannel(channel_name));
+        XLS_RET_CHECK(data_port.has_value());
+        XLS_RET_CHECK_EQ(input_port, *data_port);
+      }
+      if (metadata.valid_port.has_value()) {
+        XLS_RET_CHECK(block->HasInputPort(*metadata.valid_port))
+            << absl::StrFormat(
+                   "Valid port `%s` for channel `%s` not found on block `%s`",
+                   *metadata.valid_port, channel_name, block->name());
+        XLS_ASSIGN_OR_RETURN(InputPort * input_port,
+                             block->GetInputPort(*metadata.valid_port));
+        XLS_ASSIGN_OR_RETURN(std::optional<PortNode*> valid_port,
+                             block->GetValidPortForChannel(channel_name));
+        XLS_RET_CHECK(valid_port.has_value());
+        XLS_RET_CHECK_EQ(input_port, *valid_port);
+      }
+      if (metadata.ready_port.has_value()) {
+        XLS_RET_CHECK(block->HasOutputPort(*metadata.ready_port))
+            << absl::StrFormat(
+                   "Ready port `%s` for channel `%s` not found on block `%s`",
+                   *metadata.ready_port, channel_name, block->name());
+        XLS_ASSIGN_OR_RETURN(OutputPort * output_port,
+                             block->GetOutputPort(*metadata.ready_port));
+        XLS_ASSIGN_OR_RETURN(std::optional<PortNode*> ready_port,
+                             block->GetReadyPortForChannel(channel_name));
+        XLS_RET_CHECK(ready_port.has_value());
+        XLS_RET_CHECK_EQ(output_port, *ready_port);
+      }
+
+    } else {
+      XLS_RET_CHECK_EQ(metadata.direction, PortDirection::kOutput);
+      if (metadata.data_port.has_value()) {
+        XLS_RET_CHECK(block->HasOutputPort(*metadata.data_port))
+            << absl::StrFormat(
+                   "Data port `%s` for channel `%s` not found on block `%s`",
+                   *metadata.data_port, channel_name, block->name());
+        XLS_ASSIGN_OR_RETURN(OutputPort * output_port,
+                             block->GetOutputPort(*metadata.data_port));
+        XLS_ASSIGN_OR_RETURN(std::optional<PortNode*> data_port,
+                             block->GetDataPortForChannel(channel_name));
+        XLS_RET_CHECK(data_port.has_value());
+        XLS_RET_CHECK_EQ(output_port, *data_port);
+      }
+      if (metadata.valid_port.has_value()) {
+        XLS_RET_CHECK(block->HasOutputPort(*metadata.valid_port))
+            << absl::StrFormat(
+                   "Valid port `%s` for channel `%s` not found on block `%s`",
+                   *metadata.valid_port, channel_name, block->name());
+        XLS_ASSIGN_OR_RETURN(OutputPort * output_port,
+                             block->GetOutputPort(*metadata.valid_port));
+        XLS_ASSIGN_OR_RETURN(std::optional<PortNode*> valid_port,
+                             block->GetValidPortForChannel(channel_name));
+        XLS_RET_CHECK(valid_port.has_value());
+        XLS_RET_CHECK_EQ(output_port, *valid_port);
+      }
+      if (metadata.ready_port.has_value()) {
+        XLS_RET_CHECK(block->HasInputPort(*metadata.ready_port))
+            << absl::StrFormat(
+                   "Ready port `%s` for channel `%s` not found on block `%s`",
+                   *metadata.ready_port, channel_name, block->name());
+        XLS_ASSIGN_OR_RETURN(InputPort * input_port,
+                             block->GetInputPort(*metadata.ready_port));
+        XLS_ASSIGN_OR_RETURN(std::optional<PortNode*> ready_port,
+                             block->GetReadyPortForChannel(channel_name));
+        XLS_RET_CHECK(ready_port.has_value());
+        XLS_RET_CHECK_EQ(input_port, *ready_port);
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status VerifyPackage(Package* package, bool codegen) {
@@ -1063,6 +1148,8 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
             << instantiation->ToString();
     }
   }
+
+  XLS_RETURN_IF_ERROR(VerifyBlockChannelMetadata(block));
 
   return absl::OkStatus();
 }

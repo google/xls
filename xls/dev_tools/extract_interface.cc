@@ -92,7 +92,7 @@ PackageInterfaceProto::Block ExtractBlockInterface(Block* block) {
     AddNamed(proto.add_input_ports(), port);
   }
   for (OutputPort* port : block->GetOutputPorts()) {
-    AddTyped(proto.add_output_ports(), port, port->output_type());
+    AddTyped(proto.add_output_ports(), port, port->port_type());
   }
   return proto;
 }

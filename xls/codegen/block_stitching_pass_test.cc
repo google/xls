@@ -277,6 +277,55 @@ TEST_F(BlockStitchingPassTest, StitchNetworkWithFifos) {
           m::InstantiationOutput("ch2_valid", Eq(inst0)),
           m::InstantiationOutput("ch1_ready", Eq(inst0)),
       }));
+
+  // Verify channel port metadata.
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
+  EXPECT_THAT(top_block->GetChannelNames(), UnorderedElementsAre("ch0", "ch2"));
+  EXPECT_THAT(top_block->GetDataPortForChannel("ch0"),
+              IsOkAndHolds(Optional(m::InputPort("ch0_data"))));
+  EXPECT_THAT(top_block->GetValidPortForChannel("ch0"),
+              IsOkAndHolds(Optional(m::InputPort("ch0_valid"))));
+  EXPECT_THAT(top_block->GetReadyPortForChannel("ch0"),
+              IsOkAndHolds(Optional(m::OutputPort("ch0_ready"))));
+
+  EXPECT_THAT(top_block->GetDataPortForChannel("ch2"),
+              IsOkAndHolds(Optional(m::OutputPort("ch2_data"))));
+  EXPECT_THAT(top_block->GetValidPortForChannel("ch2"),
+              IsOkAndHolds(Optional(m::OutputPort("ch2_valid"))));
+  EXPECT_THAT(top_block->GetReadyPortForChannel("ch2"),
+              IsOkAndHolds(Optional(m::InputPort("ch2_ready"))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block0, p->GetBlock("top_proc__1"));
+  EXPECT_THAT(block0->GetChannelNames(), UnorderedElementsAre("ch0", "ch1"));
+  EXPECT_THAT(block0->GetDataPortForChannel("ch0"),
+              IsOkAndHolds(Optional(m::InputPort("ch0_data"))));
+  EXPECT_THAT(block0->GetValidPortForChannel("ch0"),
+              IsOkAndHolds(Optional(m::InputPort("ch0_valid"))));
+  EXPECT_THAT(block0->GetReadyPortForChannel("ch0"),
+              IsOkAndHolds(Optional(m::OutputPort("ch0_ready"))));
+
+  EXPECT_THAT(block0->GetDataPortForChannel("ch1"),
+              IsOkAndHolds(Optional(m::OutputPort("ch1_data"))));
+  EXPECT_THAT(block0->GetValidPortForChannel("ch1"),
+              IsOkAndHolds(Optional(m::OutputPort("ch1_valid"))));
+  EXPECT_THAT(block0->GetReadyPortForChannel("ch1"),
+              IsOkAndHolds(Optional(m::InputPort("ch1_ready"))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block1, p->GetBlock(proc1->name()));
+  EXPECT_THAT(block1->GetChannelNames(), UnorderedElementsAre("ch1", "ch2"));
+  EXPECT_THAT(block1->GetDataPortForChannel("ch1"),
+              IsOkAndHolds(Optional(m::InputPort("ch1_data"))));
+  EXPECT_THAT(block1->GetValidPortForChannel("ch1"),
+              IsOkAndHolds(Optional(m::InputPort("ch1_valid"))));
+  EXPECT_THAT(block1->GetReadyPortForChannel("ch1"),
+              IsOkAndHolds(Optional(m::OutputPort("ch1_ready"))));
+
+  EXPECT_THAT(block1->GetDataPortForChannel("ch2"),
+              IsOkAndHolds(Optional(m::OutputPort("ch2_data"))));
+  EXPECT_THAT(block1->GetValidPortForChannel("ch2"),
+              IsOkAndHolds(Optional(m::OutputPort("ch2_valid"))));
+  EXPECT_THAT(block1->GetReadyPortForChannel("ch2"),
+              IsOkAndHolds(Optional(m::InputPort("ch2_ready"))));
 }
 
 TEST_F(BlockStitchingPassTest, StitchNetworkWithDirectConnections) {
@@ -5082,6 +5131,7 @@ proc output_passthrough(state:bits[1], init={0}) {
       EvalBlock(top_block, unit.metadata, {{"in", {5, 10}}}),
       IsOkAndHolds(BlockOutputsEq({{"out0", {5, 10}}, {"out1", {5, 10}}})));
 }
+
 TEST_F(ProcInliningPassTest, NestedProcsUsingEmptyAfterAll) {
   // Uses tokens created using empty after_all.
   constexpr std::string_view ir_text = R"(package test

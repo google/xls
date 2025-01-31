@@ -15,6 +15,7 @@
 #include "xls/codegen/port_legalization_pass.h"
 
 #include <memory>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -72,11 +73,16 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
         InputPort* input_port = std::get<InputPort*>(port);
         if (input_port->GetType()->GetFlatBitCount() == 0) {
           VLOG(4) << "Removing zero-width input port " << input_port->name();
-          XLS_RETURN_IF_ERROR(input_port
-                                  ->ReplaceUsesWithNew<xls::Literal>(
-                                      ZeroOfType(input_port->GetType()))
-                                  .status());
+          XLS_ASSIGN_OR_RETURN(Node * replacement,
+                               input_port->ReplaceUsesWithNew<xls::Literal>(
+                                   ZeroOfType(input_port->GetType())));
+
+          // Ports have durable names which are not changed by the replacement
+          // process, so rename the replacement after removing the port.
+          std::string name = input_port->GetName();
           XLS_RETURN_IF_ERROR(block->RemoveNode(input_port));
+          replacement->SetName(name);
+
           changed = true;
         }
       } else if (std::holds_alternative<OutputPort*>(port)) {

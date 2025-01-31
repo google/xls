@@ -14,15 +14,22 @@
 
 #include "xls/codegen/port_legalization_pass.h"
 
+#include <optional>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -33,7 +40,9 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::IsEmpty;
+using ::testing::Optional;
 namespace m = ::xls::op_matchers;
 
 class PortLegalizationPassTest : public IrTestBase {
@@ -210,6 +219,54 @@ TEST_F(PortLegalizationPassTest, InstantiatedBlocksWithZeroWidthPorts) {
   EXPECT_THAT(top->GetInputPorts(), ElementsAre(m::InputPort("f")));
   EXPECT_THAT(top->GetOutputPorts(),
               ElementsAre(m::OutputPort("out", m::InstantiationOutput())));
+}
+
+TEST_F(PortLegalizationPassTest, ZeroWidthChannelMetadata) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in, p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                                 p->GetTupleType({})));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", p.get());
+  pb.Receive(ch_in);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToCombinationalBlock(proc, CodegenOptions()));
+  Block* block = FindBlock(TestName(), p.get());
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
+                             block->GetChannelPortMetadata("in"));
+    EXPECT_EQ(in_metadata.channel_name, "in");
+    EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
+    EXPECT_THAT(in_metadata.valid_port, Optional(std::string{"in_vld"}));
+    EXPECT_THAT(in_metadata.ready_port, Optional(std::string{"in_rdy"}));
+
+    EXPECT_THAT(block->GetDataPortForChannel("in"),
+                IsOkAndHolds(Optional(m::InputPort("in"))));
+    EXPECT_THAT(block->GetValidPortForChannel("in"),
+                IsOkAndHolds(Optional(m::InputPort("in_vld"))));
+    EXPECT_THAT(block->GetReadyPortForChannel("in"),
+                IsOkAndHolds(Optional(m::OutputPort("in_rdy"))));
+  }
+  ASSERT_THAT(Run(block), IsOkAndHolds(true));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
+                             block->GetChannelPortMetadata("in"));
+    // The data port should have been removed.
+    EXPECT_THAT(in_metadata.data_port, Eq(std::nullopt));
+    EXPECT_THAT(in_metadata.valid_port, Optional(std::string{"in_vld"}));
+    EXPECT_THAT(in_metadata.ready_port, Optional(std::string{"in_rdy"}));
+
+    EXPECT_THAT(block->GetDataPortForChannel("in"), IsOkAndHolds(std::nullopt));
+    EXPECT_THAT(block->GetValidPortForChannel("in"),
+                IsOkAndHolds(Optional(m::InputPort("in_vld"))));
+    EXPECT_THAT(block->GetReadyPortForChannel("in"),
+                IsOkAndHolds(Optional(m::OutputPort("in_rdy"))));
+  }
 }
 
 }  // namespace

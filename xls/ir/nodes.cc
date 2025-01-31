@@ -1077,13 +1077,6 @@ absl::StatusOr<Node*> Encode::CloneInNewFunction(
                                                 GetNameView());
 }
 
-InputPort::InputPort(const SourceInfo& loc, std::string_view name, Type* type,
-                     FunctionBase* function)
-    : Node(Op::kInputPort, type, loc, name, function) {
-  CHECK(IsOpClass<InputPort>(op_))
-      << "Op `" << op_ << "` is not a valid op for Node class `InputPort`.";
-}
-
 absl::StatusOr<Node*> InputPort::CloneInNewFunction(
     absl::Span<Node* const> new_operands, FunctionBase* new_function) const {
   XLS_RET_CHECK_EQ(operand_count(), new_operands.size());
@@ -1092,8 +1085,8 @@ absl::StatusOr<Node*> InputPort::CloneInNewFunction(
 
 OutputPort::OutputPort(const SourceInfo& loc, Node* operand,
                        std::string_view name, FunctionBase* function)
-    : Node(Op::kOutputPort, function->package()->GetTupleType({}), loc, name,
-           function) {
+    : PortNode(loc, Op::kOutputPort, function->package()->GetTupleType({}),
+               name, function) {
   CHECK(IsOpClass<OutputPort>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `OutputPort`.";
   AddOperand(operand);

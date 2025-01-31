@@ -39,6 +39,18 @@
 
 namespace xls {
 
+// Metadata which maps ports back to the channels the were derived from.
+struct ChannelPortMetadata {
+  std::string channel_name;
+  // The direction of the data/valid port (input or output).
+  PortDirection direction;
+  // Names of the ports for data/valid/ready signals for the channel. The value
+  // is std::nullopt if no such port exists.
+  std::optional<std::string> data_port;
+  std::optional<std::string> valid_port;
+  std::optional<std::string> ready_port;
+};
+
 // Abstraction representing a Verilog module used in code generation. Blocks are
 // function-level constructs similar to functions and procs. Like functions and
 // procs, blocks contain (and own) a data-flow graph of nodes. With a small
@@ -75,6 +87,9 @@ class Block : public FunctionBase {
   // position in the generated Verilog module.
   absl::Span<InputPort* const> GetInputPorts() const { return input_ports_; }
   absl::Span<OutputPort* const> GetOutputPorts() const { return output_ports_; }
+
+  // Return the input/output port of the given name.
+  absl::StatusOr<PortNode*> GetPortNode(std::string_view name) const;
 
   // Returns a given input/output port by name.
   absl::StatusOr<InputPort*> GetInputPort(std::string_view name) const;
@@ -211,6 +226,30 @@ class Block : public FunctionBase {
 
   std::string DumpIr() const override;
 
+  // Add metadata describing the mapping from ports to the channel they are
+  // derived from.
+  absl::Status AddChannelPortMetadata(ChannelPortMetadata metadata);
+
+  // Returns the port metadata for the channel with the given name or an error
+  // if no such metadata exists.
+  absl::StatusOr<ChannelPortMetadata> GetChannelPortMetadata(
+      std::string_view channel_name) const;
+
+  // Returns the port node associated with the ready/valid/data signal for the
+  // given channel. Returns an error if no port metadata exists for the given
+  // channel. Returns std::nullopt if port metadata exists for the channel but
+  // no ready/valid/data port exists for the channel (for example, a data port
+  // for a empty tuple typed channel).
+  absl::StatusOr<std::optional<PortNode*>> GetReadyPortForChannel(
+      std::string_view channel_name);
+  absl::StatusOr<std::optional<PortNode*>> GetValidPortForChannel(
+      std::string_view channel_name);
+  absl::StatusOr<std::optional<PortNode*>> GetDataPortForChannel(
+      std::string_view channel_name);
+
+  // Returns the names of channels which correspond to ports on this block.
+  std::vector<std::string> GetChannelNames() const;
+
  private:
   // Sets the name of the given port node (InputPort or OutputPort) to the given
   // name. Unlike xls::Node::SetName which may name the node `name` with an
@@ -234,6 +273,10 @@ class Block : public FunctionBase {
   // constraints for readability such that logical pipeline stages tend to get
   // emitted together.
   std::vector<Node*> DumpOrder() const;
+
+  absl::StatusOr<const ChannelPortMetadata*> GetChannelPortMetadataInternal(
+      std::string_view channel_name) const;
+  absl::Status AddChannelPortMetadataInternal(ChannelPortMetadata metadata);
 
   // All ports in the block in the order they appear in the Verilog module.
   std::vector<Port> ports_;
@@ -275,6 +318,10 @@ class Block : public FunctionBase {
   std::optional<ClockPort> clock_port_;
   std::optional<InputPort*> reset_port_;
   NameUniquer register_name_uniquer_;
+
+  // Map from channel name to the data structure describing which ports are
+  // associated with the channel (ready/valid/data ports).
+  absl::flat_hash_map<std::string, ChannelPortMetadata> channel_port_metadata_;
 };
 
 }  // namespace xls

@@ -91,6 +91,7 @@ using ::testing::_;
 using ::testing::AllOf;
 using ::testing::Each;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::Ge;
 using ::testing::HasSubstr;
 using ::testing::IsEmpty;
@@ -723,6 +724,104 @@ proc my_proc(my_state: (), init={()}) {
                            ProcToCombinationalBlock(proc, codegen_options()));
   EXPECT_THAT(FindNode("out", unit.top_block),
               m::OutputPort("out", m::Neg(m::InputPort("in"))));
+}
+
+TEST_F(BlockConversionTest, StreamingChannelMetadataForSimpleProc) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue a = pb.Receive(ch_in);
+  pb.Send(ch_out, a);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToCombinationalBlock(proc, codegen_options()));
+  Block* block = FindBlock(TestName(), &package);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
+                           block->GetChannelPortMetadata("in"));
+  EXPECT_EQ(in_metadata.channel_name, "in");
+  EXPECT_EQ(in_metadata.direction, PortDirection::kInput);
+  EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
+  EXPECT_THAT(in_metadata.valid_port, Optional(std::string{"in_vld"}));
+  EXPECT_THAT(in_metadata.ready_port, Optional(std::string{"in_rdy"}));
+
+  EXPECT_THAT(block->GetDataPortForChannel("in"),
+              IsOkAndHolds(Optional(m::InputPort("in"))));
+  EXPECT_THAT(block->GetValidPortForChannel("in"),
+              IsOkAndHolds(Optional(m::InputPort("in_vld"))));
+  EXPECT_THAT(block->GetReadyPortForChannel("in"),
+              IsOkAndHolds(Optional(m::OutputPort("in_rdy"))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata out_metadata,
+                           block->GetChannelPortMetadata("out"));
+  EXPECT_EQ(out_metadata.channel_name, "out");
+  EXPECT_EQ(out_metadata.direction, PortDirection::kOutput);
+  EXPECT_THAT(out_metadata.data_port, Optional(std::string{"out"}));
+  EXPECT_THAT(out_metadata.valid_port, Optional(std::string{"out_vld"}));
+  EXPECT_THAT(out_metadata.ready_port, Optional(std::string{"out_rdy"}));
+
+  EXPECT_THAT(block->GetDataPortForChannel("out"),
+              IsOkAndHolds(Optional(m::OutputPort("out"))));
+  EXPECT_THAT(block->GetValidPortForChannel("out"),
+              IsOkAndHolds(Optional(m::OutputPort("out_vld"))));
+  EXPECT_THAT(block->GetReadyPortForChannel("out"),
+              IsOkAndHolds(Optional(m::InputPort("out_rdy"))));
+}
+
+TEST_F(BlockConversionTest, SingleValueChannelMetadataForSimpleProc) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateSingleValueChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateSingleValueChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue a = pb.Receive(ch_in);
+  pb.Send(ch_out, a);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
+                           ProcToCombinationalBlock(proc, codegen_options()));
+  Block* block = FindBlock(TestName(), &package);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
+                           block->GetChannelPortMetadata("in"));
+  EXPECT_EQ(in_metadata.channel_name, "in");
+  EXPECT_EQ(in_metadata.direction, PortDirection::kInput);
+  EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
+  EXPECT_THAT(in_metadata.valid_port, Eq(std::nullopt));
+  EXPECT_THAT(in_metadata.ready_port, Eq(std::nullopt));
+
+  EXPECT_THAT(block->GetDataPortForChannel("in"),
+              IsOkAndHolds(Optional(m::InputPort("in"))));
+  EXPECT_THAT(block->GetValidPortForChannel("in"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(block->GetReadyPortForChannel("in"), IsOkAndHolds(std::nullopt));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata out_metadata,
+                           block->GetChannelPortMetadata("out"));
+  EXPECT_EQ(out_metadata.channel_name, "out");
+  EXPECT_EQ(out_metadata.direction, PortDirection::kOutput);
+  EXPECT_THAT(out_metadata.data_port, Optional(std::string{"out"}));
+  EXPECT_THAT(out_metadata.valid_port, Eq(std::nullopt));
+  EXPECT_THAT(out_metadata.ready_port, Eq(std::nullopt));
+
+  EXPECT_THAT(block->GetDataPortForChannel("out"),
+              IsOkAndHolds(Optional(m::OutputPort("out"))));
+  EXPECT_THAT(block->GetValidPortForChannel("out"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(block->GetReadyPortForChannel("out"), IsOkAndHolds(std::nullopt));
 }
 
 TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {

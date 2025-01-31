@@ -123,6 +123,8 @@ absl::StatusOr<std::unique_ptr<Package>> StripPackage(
       if (options.strip_node_names) {
         if (n->Is<Param>()) {
           n->SetName("param");
+        } else if (n->Is<PortNode>()) {
+          n->SetName("port");
         } else {
           n->ClearName();
         }
