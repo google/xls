@@ -762,12 +762,12 @@ absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
   elements.reserve(tuple_size.value());
   for (int64_t i = 0; i < tuple_size.value(); i++) {
     XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-    elements.push_back(value);
+    elements.push_back(std::move(value));
   }
 
   std::reverse(elements.begin(), elements.end());
 
-  stack_.Push(InterpValue::MakeTuple(elements));
+  stack_.Push(InterpValue::MakeTuple(std::move(elements)));
   return absl::OkStatus();
 }
 
