@@ -104,7 +104,6 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/type_system:type_info",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

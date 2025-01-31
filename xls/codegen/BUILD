@@ -692,7 +692,6 @@ cc_library(
         ":op_override",
         ":verilog_line_map_cc_proto",
         "//xls/codegen/vast",
-        "//xls/common:casts",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

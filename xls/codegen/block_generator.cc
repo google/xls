@@ -48,7 +48,6 @@
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
-#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
