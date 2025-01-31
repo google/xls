@@ -17,6 +17,7 @@
 #include "llvm/include/llvm/ADT/DenseMap.h"
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
+#include "llvm/include/llvm/Support/FormatVariadic.h"
 #include "mlir/include/mlir/IR/AttrTypeSubElements.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
@@ -47,18 +48,32 @@ class InstantiateEprocsPass
 
 class InstantiateEprocPattern : public OpRewritePattern<InstantiateEprocOp> {
  public:
-  InstantiateEprocPattern(MLIRContext* context, SymbolTable& symbolTable)
+  InstantiateEprocPattern(MLIRContext* context, SymbolTable& symbolTable,
+                          DenseMap<EprocOp, StringAttr>& eprocToOriginalName)
       : OpRewritePattern<InstantiateEprocOp>(context),
-        symbolTable(symbolTable) {}
+
+        symbolTable(symbolTable),
+        eprocToOriginalName(eprocToOriginalName) {}
 
   LogicalResult matchAndRewrite(InstantiateEprocOp op,
                                 PatternRewriter& rewriter) const override {
-    EprocOp eproc =
-        symbolTable.lookup<EprocOp>(op.getEprocAttr().getLeafReference());
+    StringAttr eprocName = op.getEprocAttr().getLeafReference();
+    EprocOp eproc = symbolTable.lookup<EprocOp>(eprocName);
     if (!eproc) {
       return failure();
     }
+
+    int instantiationIndex = eprocToInstantiationIndex[eproc]++;
     Operation* cloned = rewriter.clone(*eproc);
+
+    StringAttr name = eprocToOriginalName.contains(eproc)
+                          ? eprocToOriginalName.at(eproc)
+                          : eprocName;
+    if (instantiationIndex > 0) {
+      name = rewriter.getStringAttr(
+          llvm::formatv("{0}_{1}", name, instantiationIndex));
+    }
+    cast<EprocOp>(cloned).setSymName(name);
     // All instantiated eprocs now must be kept, unlike the template they have
     // been cloned from.
     cast<EprocOp>(cloned).setDiscardable(false);
@@ -82,6 +97,8 @@ class InstantiateEprocPattern : public OpRewritePattern<InstantiateEprocOp> {
 
  private:
   SymbolTable& symbolTable;
+  DenseMap<EprocOp, StringAttr> eprocToOriginalName;
+  mutable DenseMap<EprocOp, int> eprocToInstantiationIndex;
 };
 
 }  // namespace
@@ -89,8 +106,25 @@ class InstantiateEprocPattern : public OpRewritePattern<InstantiateEprocOp> {
 void InstantiateEprocsPass::runOnOperation() {
   ModuleOp module = getOperation();
   SymbolTable symbolTable(module);
+  OpBuilder builder(module);
+
+  // Rename all discardable eprocs by adding "_template" to their name. This
+  // frees up the original name for the first instantiation.
+  DenseMap<EprocOp, StringAttr> eprocToOriginalName;
+  module.walk([&](EprocOp eproc) {
+    if (eproc.getDiscardable()) {
+      eprocToOriginalName[eproc] = eproc.getSymNameAttr();
+      StringAttr newSymName = builder.getStringAttr(
+          llvm::formatv("{0}_template", eproc.getSymName()));
+      if (failed(symbolTable.rename(eproc, newSymName))) {
+        eproc.emitOpError("failed to rename during instantiation");
+      }
+    }
+  });
+
   RewritePatternSet patterns(&getContext());
-  patterns.add<InstantiateEprocPattern>(patterns.getContext(), symbolTable);
+  patterns.add<InstantiateEprocPattern>(patterns.getContext(), symbolTable,
+                                        eprocToOriginalName);
   if (failed(mlir::applyPatternsGreedily(module, std::move(patterns)))) {
     signalPassFailure();
   }

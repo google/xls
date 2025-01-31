@@ -2,12 +2,12 @@
 // RUN: | FileCheck --check-prefix=CHECK-MLIR %s
 
 // RUN: xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
-// RUN: | xls_translate --mlir-xls-to-xls --main-function=reduce_2_0 \
+// RUN: | xls_translate --mlir-xls-to-xls --main-function=reduce \
 // RUN: > %t
 
 // RUN: xls_opt --test-convert-for-op-to-sproc --xls-lower %s \
 // RUN: | xls_translate --mlir-xls-to-verilog \
-// RUN:   --main-function=reduce_2_0 -- --delay_model=asap7 \
+// RUN:   --main-function=reduce -- --delay_model=asap7 \
 // RUN:   --generator=pipeline --pipeline_stages=2 --worst_case_throughput=2 --reset=rst \
 // RUN: | FileCheck --check-prefix=CHECK-VERILOG %s
 
@@ -57,7 +57,7 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:  xls.chan @body_arg_0 : i32
 // CHECK-MLIR:  xls.chan @body_arg_1 : i32
 // CHECK-MLIR:  xls.chan @body_result_0 : i32
-// CHECK-MLIR:  xls.eproc @reduce_for_body_0_2(%arg0: i32) zeroinitializer {
+// CHECK-MLIR:  xls.eproc @reduce_for_body(%arg0: i32) zeroinitializer {
 // CHECK-MLIR:    %0 = xls.after_all  : !xls.token
 // CHECK-MLIR:    %tkn_out, %result = xls.blocking_receive %0, @body_arg_0 : i32
 // CHECK-MLIR:    %tkn_out_0, %result_1 = xls.blocking_receive %0, @body_arg_1 : i32
@@ -66,7 +66,7 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:    %3 = xls.send %0, %1, @body_result_0 : i32
 // CHECK-MLIR:    xls.yield %arg0 : i32
 // CHECK-MLIR:  }
-// CHECK-MLIR:  xls.eproc @reduce_for_controller_1_1(%arg0: i32) zeroinitializer {
+// CHECK-MLIR:  xls.eproc @reduce_for_controller(%arg0: i32) zeroinitializer {
 // CHECK-MLIR:    %0 = "xls.constant_scalar"() <{value = 0 : i32}> : () -> i32
 // CHECK-MLIR:    %1 = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
 // CHECK-MLIR:    %2 = "xls.constant_scalar"() <{value = 3 : i32}> : () -> i32
@@ -85,7 +85,7 @@ xls.sproc @reduce() top attributes {boundary_channel_names = []} {
 // CHECK-MLIR:    %13 = xls.sel %7 in  [%12] else %0 : (i1, [i32], i32) -> i32
 // CHECK-MLIR:    xls.yield %13 : i32
 // CHECK-MLIR:  }
-// CHECK-MLIR:  xls.eproc @reduce_2_0(%arg0: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64} {
+// CHECK-MLIR:  xls.eproc @reduce(%arg0: i32) zeroinitializer attributes {min_pipeline_stages = 2 : i64} {
 // CHECK-MLIR:    %0 = xls.after_all  : !xls.token
 // CHECK-MLIR:    %1 = xls.send %0, %arg0, @for_arg_0 : i32
 // CHECK-MLIR:    %2 = xls.after_all %1 : !xls.token

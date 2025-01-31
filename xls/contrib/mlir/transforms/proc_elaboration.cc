@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cassert>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -24,8 +25,9 @@
 #include "llvm/include/llvm/ADT/STLExtras.h"
 #include "llvm/include/llvm/ADT/SmallVector.h"
 #include "llvm/include/llvm/ADT/SmallVectorExtras.h"
+#include "llvm/include/llvm/ADT/StringMap.h"
 #include "llvm/include/llvm/ADT/StringRef.h"  // IWYU pragma: keep
-#include "llvm/include/llvm/ADT/StringSet.h"
+#include "llvm/include/llvm/Support/FormatVariadic.h"
 #include "mlir/include/mlir/IR/Attributes.h"
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
@@ -49,7 +51,25 @@ namespace mlir::xls {
 namespace {
 
 using ::llvm::ArrayRef;
-using ::llvm::StringSet;
+
+// Deliberately chosen to be a suffix that is unlikely to appear in a user
+// defined symbol name.
+constexpr StringLiteral suffix = "___pre_elaboration___";
+
+// Appends a string to the end of the given operation's symbol name. We do this
+// to free up the original name of an sproc for an eproc.
+void appendToSymbolName(Operation* op, SymbolUserMap& symbolUserMap) {
+  auto symName = cast<StringAttr>(op->getAttr("sym_name"));
+  auto newSymName = StringAttr::get(op->getContext(), Twine(symName) + suffix);
+  symbolUserMap.replaceAllUsesWith(op, newSymName);
+  op->setAttr("sym_name", newSymName);
+}
+
+// Returns the original symbol name, before appendToSymbolName.
+StringRef originalSymbolName(Operation* op) {
+  auto symName = cast<StringAttr>(op->getAttr("sym_name"));
+  return symName.getValue().drop_back(suffix.size());
+}
 
 // Replaces all structured channel ops in a region with the corresponding
 // unstructured channel op (ssend -> send, etc). The channel map is a mapping
@@ -109,7 +129,8 @@ class ElaborationContext
       return it->second;
     }
 
-    EprocOp eproc = builder.create<EprocOp>(sproc.getLoc(), sproc.getSymName(),
+    StringRef originalName = originalSymbolName(sproc);
+    EprocOp eproc = builder.create<EprocOp>(sproc.getLoc(), originalName,
                                             /*discardable=*/true,
                                             sproc.getMinPipelineStages());
     symbolTable.insert(eproc);
@@ -119,8 +140,7 @@ class ElaborationContext
     std::vector<value_type> eprocChannels;
     for (auto [i, arg] : llvm::enumerate(sproc.getNextChannels())) {
       auto chan = builder.create<ChanOp>(
-          sproc.getLoc(),
-          absl::StrFormat("%s_arg%d", sproc.getSymName().str(), i),
+          sproc.getLoc(), absl::StrFormat("%s_arg%d", originalName.str(), i),
           cast<SchanType>(arg.getType()).getElementType());
       eprocChannels.push_back(chan);
       chanMap[mapping.lookup(arg)] = SymbolRefAttr::get(chan.getSymNameAttr());
@@ -165,11 +185,23 @@ class ElaborationContext
 
   SymbolTable& getSymbolTable() { return symbolTable; }
 
+  // Tries to make the given name unique by appending a number to the end. This
+  // generates better names than SymbolTable::insert as it uses a different
+  // uniquer for each base name.
+  StringAttr Uniquify(StringAttr name) {
+    int& uniqueId = uniqueIds[name];
+    ++uniqueId;
+    if (uniqueId == 1) {
+      return name;
+    }
+    return builder.getStringAttr(llvm::formatv("{0}_{1}", name, uniqueId));
+  }
+
  private:
   OpBuilder& builder;
-  SymbolTable symbolTable;
-  StringSet<> addedSymbols;
+  SymbolTable& symbolTable;
   DenseMap<SprocOp, EprocAndChannels>& procCache;
+  llvm::StringMap<int> uniqueIds;
 };
 
 class ElaborationInterpreter
@@ -188,8 +220,10 @@ class ElaborationInterpreter
   }
 
   absl::Status Interpret(SchanOp op, ElaborationContext& ctx) {
-    ChanOp chan = ctx.getBuilder().create<ChanOp>(op.getLoc(), op.getName(),
-                                                  op.getType());
+    std::string name = op.getName().str();
+    auto uniqueName = ctx.Uniquify(op.getNameAttr());
+    ChanOp chan =
+        ctx.getBuilder().create<ChanOp>(op.getLoc(), uniqueName, op.getType());
     ctx.getSymbolTable().insert(chan);
     ctx.Set(op.getResult(0), chan);
     ctx.Set(op.getResult(1), chan);
@@ -255,8 +289,18 @@ class ElaborationInterpreter
 
 void ProcElaborationPass::runOnOperation() {
   ModuleOp module = getOperation();
+
+  SymbolTableCollection symbolTableCollection;
+  SymbolUserMap symbolUserMap(symbolTableCollection, module);
+  for (auto sproc : module.getOps<SprocOp>()) {
+    assert(sproc.getSymName().find(suffix) == StringRef::npos &&
+           "Magic suffix already present in sproc name");
+    appendToSymbolName(sproc, symbolUserMap);
+  }
+
   DenseMap<SprocOp, EprocAndChannels> procCache;
   SymbolTable symbolTable(module);
+
   // Elaborate all sprocs marked "top". Elaboration traverses a potentially
   // cyclical graph of sprocs, so we delay removing the sprocs until the end.
   for (auto sproc : module.getOps<SprocOp>()) {
@@ -271,7 +315,7 @@ void ProcElaborationPass::runOnOperation() {
                                         *sproc.getBoundaryChannelNames())) {
         SchanType schan = cast<SchanType>(arg.getType());
         auto nameAttr = cast<StringAttr>(name);
-        auto echan = builder.create<ChanOp>(sproc.getLoc(), nameAttr,
+        auto echan = builder.create<ChanOp>(sproc.getLoc(), nameAttr.str(),
                                             schan.getElementType());
         if (schan.getIsInput()) {
           echan.setSendSupported(false);
