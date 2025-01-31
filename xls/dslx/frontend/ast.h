@@ -638,7 +638,7 @@ class AnyTypeAnnotation : public TypeAnnotation {
     return {};
   }
 
-  std::string ToString() const { return "Any"; };
+  std::string ToString() const override { return "Any"; };
 };
 
 // Represents an array type annotation; e.g. `u32[5]`.
