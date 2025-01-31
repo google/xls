@@ -1953,6 +1953,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceNameRef(const NameRef* node,
   AstNode* name_def = ToAstNode(node->name_def());
   XLS_RET_CHECK(name_def != nullptr);
 
+  if (std::optional<InterpValue> const_expr =
+          ctx->type_info()->GetConstExprOption(name_def)) {
+    ctx->type_info()->NoteConstExpr(node, const_expr.value());
+  }
+
   std::optional<Type*> item = ctx->type_info()->GetItem(name_def);
   if (item.has_value()) {
     auto type = (*item)->CloneToUnique();

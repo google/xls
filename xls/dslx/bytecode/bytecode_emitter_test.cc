@@ -508,8 +508,7 @@ fn unops() {
 // Tests array creation.
 TEST(BytecodeEmitterTest, Arrays) {
   constexpr std::string_view kProgram = R"(#[test]
-fn arrays() -> u32[3] {
-  let a = u32:32;
+fn arrays(a: u32) -> u32[3] {
   u32[3]:[u32:0, u32:1, a]
 }
 )";
@@ -519,8 +518,8 @@ fn arrays() -> u32[3] {
                            EmitBytecodes(&import_data, kProgram, "arrays"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 6);
-  const Bytecode* bc = &bytecodes[5];
+  ASSERT_EQ(bytecodes.size(), 4);
+  const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCreateArray);
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(Bytecode::NumElements num_elements,

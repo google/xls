@@ -4235,6 +4235,56 @@ fn test_f() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+TEST(TypecheckTest, MatchPackageLevelConstant) {
+  constexpr std::string_view kProgram = R"(
+const FOO = u8:0xff;
+fn f(x: u8) -> u2 {
+  match x {
+    FOO => u2:0,
+    _ => u2:0,
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, Typecheck(kProgram));
+  const TypeInfo& type_info = *result.tm.type_info;
+  // Get the pattern match for the first arm of the match expression inside of
+  // function `f`.
+  Function* f = result.tm.module->GetFunction("f").value();
+  Statement* stmt = f->body()->statements()[0];
+  Expr* expr = std::get<Expr*>(stmt->wrapped());
+  Match* m = dynamic_cast<Match*>(expr);
+  ASSERT_NE(m, nullptr);
+  const MatchArm* arm = m->arms()[0];
+  const NameDefTree* pattern = arm->patterns()[0];
+
+  // Check that the pattern is just a leaf NameRef.
+  NameRef* name_ref = std::get<NameRef*>(pattern->leaf());
+  ASSERT_NE(name_ref, nullptr);
+  EXPECT_EQ(name_ref->identifier(), "FOO");
+
+  std::optional<InterpValue> const_expr =
+      type_info.GetConstExprOption(name_ref);
+  ASSERT_TRUE(const_expr.has_value());
+  EXPECT_EQ(const_expr->ToString(), "u8:255");
+}
+
+TEST(TypecheckTest, MatchPackageLevelConstantIntoTypeAlias) {
+  constexpr std::string_view kProgram = R"(
+const C = u32:2;
+fn f(x: u32) -> u2 {
+  match x {
+    C => {
+      const D = C;
+      type T = uN[D];
+      T::MAX
+    },
+    _ => u2:0,
+  }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 // Table-oriented test that lets us validate that *types on parameters* are
 // compatible with *particular values* that should be type-compatible.
 TEST(PassValueToIdentityFnTest, ParameterVsValue) {
