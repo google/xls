@@ -676,7 +676,8 @@ class SharedLeafTypeTree {
  private:
   std::variant<LeafTypeTreeView<T>, LeafTypeTree<T>> inner_;
 
-  SharedLeafTypeTree(std::variant<LeafTypeTreeView<T>, LeafTypeTree<T>>&& inner)
+  explicit SharedLeafTypeTree(
+      std::variant<LeafTypeTreeView<T>, LeafTypeTree<T>>&& inner)
       : inner_(std::move(inner)) {}
 
   friend class LeafTypeTree<T>;

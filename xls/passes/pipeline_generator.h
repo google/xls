@@ -123,7 +123,7 @@ class PipelineGeneratorBase {
                                element.options());
     }
     if (element.has_fixedpoint()) {
-      auto fp_proto = element.fixedpoint();
+      const auto& fp_proto = element.fixedpoint();
       auto fixedpoint =
           std::make_unique<FixedPointCompoundPassBase<IrT, OptionsT, ResultsT>>(
               fp_proto.has_short_name() ? fp_proto.short_name() : "fixedpoint",
@@ -138,7 +138,7 @@ class PipelineGeneratorBase {
       return absl::OkStatus();
     }
     if (element.has_pipeline()) {
-      auto p_proto = element.pipeline();
+      const auto& p_proto = element.pipeline();
       auto pipeline =
           std::make_unique<CompoundPassBase<IrT, OptionsT, ResultsT>>(
               p_proto.has_short_name() ? p_proto.short_name() : "pipeline",
