@@ -515,7 +515,8 @@ class Parser : public TokenParser {
   //            | NameDef
   //            | NameRef
   //            | Number
-  absl::StatusOr<NameDefTree*> ParsePattern(Bindings& bindings);
+  absl::StatusOr<NameDefTree*> ParsePattern(Bindings& bindings,
+                                            bool within_tuple_pattern);
 
   // Parses a match expression.
   absl::StatusOr<Match*> ParseMatch(Bindings& bindings);
