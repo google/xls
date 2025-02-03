@@ -756,6 +756,50 @@ const Y = [u32:1, u32:2][X];
               TypecheckFails(HasSubstr("out of bounds of the array type")));
 }
 
+TEST(TypecheckV2Test, ArrayAnnotationWithTooLargeLiteralDimFails) {
+  EXPECT_THAT(
+      R"(
+const Y = uN[u33:1]:1;
+)",
+      TypecheckFails(HasSizeMismatch("u33", "u32")));
+}
+
+TEST(TypecheckV2Test, ArrayAnnotationWithTooLargeConstantDimFails) {
+  EXPECT_THAT(
+      R"(
+const X = u33:1;
+const Y = uN[X]:1;
+)",
+      TypecheckFails(HasSizeMismatch("u33", "u32")));
+}
+
+TEST(TypecheckV2Test, ArrayAnnotationWithSignedLiteralDimFails) {
+  EXPECT_THAT("const Y = uN[-1]:1;",
+              TypecheckFails(HasSignednessMismatch("sN[2]", "u32")));
+}
+
+TEST(TypecheckV2Test, ArrayAnnotationWithSignedConstantDimFails) {
+  EXPECT_THAT(
+      R"(
+const X = s31:1;
+const Y = uN[X]:1;
+)",
+      TypecheckFails(HasSizeMismatch("s31", "u32")));
+}
+
+TEST(TypecheckV2Test, XnAnnotationWithNonBoolLiteralSignednessFails) {
+  EXPECT_THAT("const Y = xN[2][32]:1;",
+              TypecheckFails(HasSizeMismatch("bool", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, XnAnnotationWithNonBoolConstantSignednessFails) {
+  EXPECT_THAT(R"(
+const X = u32:2;
+const Y = xN[X][32]:1;
+)",
+              TypecheckFails(HasSizeMismatch("bool", "u32")));
+}
+
 TEST(TypecheckV2Test, GlobalConstantEqualsIndexOfTemporaryTuple) {
   EXPECT_THAT("const X = (u24:1, u32:2).0;",
               TypecheckSucceeds(HasNodeWithType("X", "uN[24]")));
@@ -1322,7 +1366,8 @@ struct S<N: u32> {
 fn foo(a: S<24>) -> S<24> { a }
 const X = foo(S { x: u25:5 });
 )",
-      TypecheckFails(HasSizeMismatch("u25", "uN[24]")));
+      TypecheckFails(HasSubstr("Value mismatch for parametric `N` of struct "
+                               "`S`: u32:24 vs. u32:25")));
 }
 
 TEST(TypecheckV2Test, ParametricStructAsFunctionReturnValue) {
@@ -3051,6 +3096,157 @@ fn main(x: u32) -> u32 {
 }
 )",
       TypecheckFails(HasSizeMismatch("uN[31]", "u32")));
+}
+
+// The impl tests below are generally derived from impl_typecheck_test.cc, with
+// some additions.
+
+TEST(TypecheckV2Test, StaticConstantOnImpl) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+  const NUM_DIMS = u32:2;
+}
+const X = Point::NUM_DIMS;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, MissingFunctionOnImplFails) {
+  EXPECT_THAT(
+      R"(
+struct Point {}
+impl Point {
+  const NUM_DIMS = u32:2;
+}
+const X = Point::num_dims();
+)",
+      TypecheckFails(HasSubstr(
+          "Name 'num_dims' is not defined by the impl for struct 'Point'")));
+}
+
+TEST(TypecheckV2Test, ImplWithMissingConstantFails) {
+  constexpr std::string_view kProgram = R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    const NUM_DIMS = u32:2;
+}
+
+fn point_dims() -> u32 {
+    Point::DIMENSIONS
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Name 'DIMENSIONS' is not defined by the impl "
+                                 "for struct 'Point'")));
+}
+
+TEST(TypecheckV2Test, MissingImplOnStructFails) {
+  EXPECT_THAT(R"(
+struct Point {}
+const X = Point::num_dims();
+)",
+              TypecheckFails(
+                  HasSubstr("Struct 'Point' has no impl defining 'num_dims'")));
+}
+
+TEST(TypecheckV2Test, ImplWithConstCalledAsFuncFails) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+    const num_dims = u32:4;
+}
+const X = Point::num_dims();
+)",
+              TypecheckFails(HasSubstr(
+                  "Invocation callee `Point::num_dims` is not a function")));
+}
+
+TEST(TypecheckV2Test, StaticImplFunction) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+    fn num_dims() -> u32 { 2 }
+}
+const X = Point::num_dims();
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, StaticImplFunctionWithWrongArgumentTypeFails) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+    fn foo(a: u32) -> u32 { a }
+}
+const X = Point::foo(u24:5);
+)",
+              TypecheckFails(HasSizeMismatch("u24", "u32")));
+}
+
+TEST(TypecheckV2Test, StaticImplFunctionCallWithMissingArgumentFails) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+    fn foo(a: u32) -> u32 { a }
+}
+const X = Point::foo();
+)",
+              TypecheckFails(HasSubstr("Expected 1 argument(s) but got 0")));
+}
+
+TEST(TypecheckV2Test, StaticImplFunctionCallWithExtraArgumentFails) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+    fn foo(a: u32) -> u32 { a }
+}
+const X = Point::foo(u32:1, u32:2);
+)",
+              TypecheckFails(HasSubstr("Expected 1 argument(s) but got 2")));
+}
+
+TEST(TypecheckV2Test, StaticImplFunctioUsingConst) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+    const DIMS = u32:2;
+
+    fn num_dims() -> u32 {
+        DIMS
+    }
+}
+
+const X = uN[Point::num_dims()]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, StaticConstUsingImplFunction) {
+  EXPECT_THAT(R"(
+struct Point {}
+impl Point {
+    fn num_dims() -> u32 { 2 }
+    const DIMS = num_dims();
+}
+
+const X = uN[Point::DIMS]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, ImplConstantUsedForParametricFunctionInference) {
+  EXPECT_THAT(R"(
+struct Foo {}
+impl Foo {
+  const X = u32:2;
+}
+fn f<N: u32>(a: uN[N]) -> uN[N] { a }
+const Y = f(Foo::X);
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
 }  // namespace

@@ -291,8 +291,10 @@ class InferenceTableConverter {
       std::optional<const ParametricInvocation*> caller_invocation) {
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString();
     XLS_ASSIGN_OR_RETURN(const Function* function,
-                         ResolveFreeFunction(invocation->callee()));
+                         ResolveFunction(invocation->callee()));
     if (!function->IsParametric()) {
+      XLS_RETURN_IF_ERROR(
+          GenerateTypeInfo(caller_invocation, invocation->callee()));
       // For non-parametric functions, the formal argument types can be taken at
       // face value. Apply them to the actual arguments, convert them, and
       // convert the invocation itself.
@@ -379,6 +381,8 @@ class InferenceTableConverter {
     XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForInvocation(
         caller_invocation, *table_.GetTypeVariable(invocation->callee()),
         parametric_free_function_type));
+    XLS_RETURN_IF_ERROR(
+        GenerateTypeInfo(caller_invocation, invocation->callee()));
     for (int i = 0; i < parametric_free_function_type->param_types().size();
          i++) {
       const TypeAnnotation* formal_type =
@@ -612,6 +616,24 @@ class InferenceTableConverter {
         }
       }
     }
+    if (const auto* colon_ref = dynamic_cast<const ColonRef*>(node)) {
+      const std::optional<const AstNode*> target =
+          table_.GetColonRefTarget(colon_ref);
+      VLOG(5) << "Checking ColonRef constexpr value for: " << node->ToString()
+              << " with target: "
+              << (target.has_value() ? (*target)->ToString() : "none");
+      if (target.has_value() &&
+          (*target)->kind() == AstNodeKind::kConstantDef) {
+        absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+            &import_data_, ti, &warning_collector_, ParametricEnv(),
+            dynamic_cast<const ConstantDef*>(*target)->value(), &type);
+        if (value.ok()) {
+          VLOG(5) << "ColonRef: " << colon_ref->ToString()
+                  << " has value: " << value->ToString();
+          ti->NoteConstExpr(colon_ref, *value);
+        }
+      }
+    }
     if (const auto* number = dynamic_cast<const Number*>(node)) {
       XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*number, type));
       ti->NoteConstExpr(number, value);
@@ -682,12 +704,23 @@ class InferenceTableConverter {
 
   // Determines what function is being invoked by a `callee` expression that is
   // not invoking an `impl` instance method.
-  absl::StatusOr<const Function*> ResolveFreeFunction(const Expr* callee) {
-    if (const auto& name_ref = dynamic_cast<const NameRef*>(callee);
-        name_ref != nullptr &&
-        std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+  absl::StatusOr<const Function*> ResolveFunction(const Expr* callee) {
+    const AstNode* function_node = nullptr;
+    if (const auto* colon_ref = dynamic_cast<const ColonRef*>(callee)) {
+      std::optional<const AstNode*> target =
+          table_.GetColonRefTarget(colon_ref);
+      if (target.has_value()) {
+        function_node = *target;
+      }
+    } else if (const auto* name_ref = dynamic_cast<const NameRef*>(callee);
+               name_ref != nullptr &&
+               std::holds_alternative<const NameDef*>(name_ref->name_def())) {
       const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
-      const auto* fn = dynamic_cast<Function*>(def->definer());
+      function_node = def->definer();
+    }
+
+    if (function_node != nullptr) {
+      const auto* fn = dynamic_cast<const Function*>(function_node);
       if (fn == nullptr) {
         return TypeInferenceErrorStatus(
             callee->span(), nullptr,
@@ -699,7 +732,7 @@ class InferenceTableConverter {
     }
     return absl::UnimplementedError(
         "Type inference version 2 is a work in progress and only supports "
-        "invoking free functions in the same module so far.");
+        "invoking functions in the same module so far.");
   }
 
   // Determines any implicit parametric values in the given `invocation`, and
@@ -1007,7 +1040,7 @@ class InferenceTableConverter {
       std::vector<const ArrayTypeAnnotation*> array_annotations;
       for (int i = 0; i < annotations.size(); i++) {
         const auto* array_annotation =
-            dynamic_cast<const ArrayTypeAnnotation*>(annotations[i]);
+            CastToNonBitsArrayTypeAnnotation(annotations[i]);
         if (array_annotation == nullptr) {
           return TypeMismatchErrorWithParametricResolution(
               parametric_invocation, annotations[0], annotations[i]);

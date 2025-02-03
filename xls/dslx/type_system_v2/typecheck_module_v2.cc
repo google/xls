@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -71,7 +72,26 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleNameRef(const NameRef* node) override {
+    VLOG(5) << "HandleNameRef: " << node->ToString();
     return PropagateDefToRef(node);
+  }
+
+  absl::Status HandleColonRef(const ColonRef* node) override {
+    VLOG(5) << "HandleColonRef: " << node->ToString() << " of subject kind: "
+            << AstNodeKindToString(ToAstNode(node->subject())->kind());
+    if (std::holds_alternative<NameRef*>(node->subject())) {
+      if (const NameDef* name_def = dynamic_cast<const NameDef*>(
+              ToAstNode(std::get<NameRef*>(node->subject())->name_def()))) {
+        if (const auto* struct_def =
+                dynamic_cast<const StructDefBase*>(name_def->definer())) {
+          return HandleStructAttributeReferenceInternal(node, *struct_def,
+                                                        node->attr());
+        }
+      }
+    }
+    return absl::UnimplementedError(
+        "Type inference version 2 is a work in progress and has limited "
+        "support for colon references so far.");
   }
 
   absl::Status HandleNumber(const Number* node) override {
@@ -86,6 +106,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       if (node->number_kind() != NumberKind::kBool) {
         table_.MarkAsAutoLiteral(annotation);
       }
+    } else {
+      XLS_RETURN_IF_ERROR(annotation->Accept(this));
     }
     return table_.SetTypeAnnotation(node, annotation);
   }
@@ -259,6 +281,33 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // Annotate the whole tuple expression as (var:M0, var:M1, ...).
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, module_.Make<TupleTypeAnnotation>(node->span(), member_types)));
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleArrayTypeAnnotation(
+      const ArrayTypeAnnotation* node) override {
+    VLOG(5) << "HandleArrayTypeAnnotation: " << node->ToString();
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* dim_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->dim()),
+            GenerateInternalTypeVariableName(node->dim())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->dim(), dim_variable));
+    if (const auto* builtin_element =
+            dynamic_cast<const BuiltinTypeAnnotation*>(node->element_type());
+        builtin_element != nullptr &&
+        builtin_element->builtin_type() == BuiltinType::kXN) {
+      // For an `xN[S][N]`-style annotation, there is one ArrayTypeAnnotation
+      // wrapping another, and so we get into this function twice. The "outer"
+      // one has the dimension `N` and an ArrayTypeAnnotation for the element
+      // type, and does not come into this if-statement. The "inner" one has the
+      // dimension `S` and the `BuiltinType` `kXN` for the element type.
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node->dim(), CreateBoolAnnotation(module_, node->dim()->span())));
+    } else {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node->dim(), CreateU32Annotation(module_, node->dim()->span())));
+    }
     return DefaultHandler(node);
   }
 
@@ -758,6 +807,39 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
+  // Determines the target of the given `ColonRef` that is already known to be
+  // referencing a member with the name `attribute` of the given `struct_def`.
+  // Associates the target node with the `ColonRef` in the `InferenceTable` for
+  // later reference, and sets a type annotation on the `ColonRef` if
+  // appropriate.
+  absl::Status HandleStructAttributeReferenceInternal(
+      const ColonRef* node, const StructDefBase& struct_def,
+      std::string_view attribute) {
+    if (!struct_def.impl().has_value()) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::Substitute("Struct '$0' has no impl defining '$1'",
+                           struct_def.identifier(), attribute),
+          file_table_);
+    }
+    std::optional<ImplMember> member =
+        (*struct_def.impl())->GetMember(attribute);
+    if (!member.has_value()) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::Substitute(
+              "Name '$0' is not defined by the impl for struct '$1'.",
+              attribute, struct_def.identifier()),
+          file_table_);
+    }
+    table_.SetColonRefTarget(node, ToAstNode(*member));
+    if (std::holds_alternative<ConstantDef*>(*member) ||
+        std::holds_alternative<Function*>(*member)) {
+      return PropagateDefToRef(ToAstNode(*member), node);
+    }
+    return absl::OkStatus();
+  }
+
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,
   // or similar type of node that contains a `NameDef` and optional
   // `TypeAnnotation`.
@@ -823,6 +905,10 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     } else {
       def = ref->name_def();
     }
+    return PropagateDefToRef(def, ref);
+  }
+
+  absl::Status PropagateDefToRef(const AstNode* def, const AstNode* ref) {
     std::optional<const NameRef*> variable = table_.GetTypeVariable(def);
     if (variable.has_value()) {
       return table_.SetTypeAnnotation(

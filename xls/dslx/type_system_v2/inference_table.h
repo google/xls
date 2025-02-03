@@ -226,6 +226,14 @@ class InferenceTable {
   // annotation.
   virtual bool IsAutoLiteral(const TypeAnnotation* annotation) = 0;
 
+  // Sets the target of a `ColonRef`.
+  virtual void SetColonRefTarget(const ColonRef* colon_ref,
+                                 const AstNode* target) = 0;
+
+  // Returns the stored target of a `ColonRef`.
+  virtual std::optional<const AstNode*> GetColonRefTarget(
+      const ColonRef* colon_ref) const = 0;
+
   // Returns the type variable for `node` in the table, if any.
   virtual std::optional<const NameRef*> GetTypeVariable(
       const AstNode* node) const = 0;

@@ -339,6 +339,18 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
+  void SetColonRefTarget(const ColonRef* colon_ref,
+                         const AstNode* target) override {
+    colon_ref_targets_[colon_ref] = target;
+  }
+
+  std::optional<const AstNode*> GetColonRefTarget(
+      const ColonRef* colon_ref) const override {
+    const auto it = colon_ref_targets_.find(colon_ref);
+    return it == colon_ref_targets_.end() ? std::nullopt
+                                          : std::make_optional(it->second);
+  }
+
  private:
   void AddVariable(const NameDef* name_def,
                    std::unique_ptr<InferenceVariable> variable) {
@@ -408,6 +420,7 @@ class InferenceTableImpl : public InferenceTable {
   absl::flat_hash_map<const ParametricInvocation*, ParametricInvocationData>
       parametric_invocation_data_;
   absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
+  absl::flat_hash_map<const ColonRef*, const AstNode*> colon_ref_targets_;
 };
 
 }  // namespace
