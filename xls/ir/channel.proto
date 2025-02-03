@@ -55,24 +55,6 @@ message ChannelConfigProto {
   FlopKind flop_outputs = 3;
 }
 
-// Metadata for a channel which describes ports on a Verilog module.
-message ModulePortProto {
-  // Whether the port is flopped on entry (exit) to (from) the module.
-  // TODO(meheff): 2021-04-23 This is effectively unused. Remove it.
-  optional bool flopped = 1;
-
-  // A number used to determine the ordering of the ports. Within a proc, the
-  // port_order of the channels must be numbered densely from zero. Channels
-  // with lower numbered port_order values will have corresponding ports earlier
-  // in the module declaration. The port_order value does not necessarily
-  // correspond to the position of the port in the Verilog module because a
-  // channel can correspond to multiple ports and the module may have other
-  // ports such as clock and reset.
-  // TODO(meheff): 2021-04-23 Remove this and replace uses with
-  // PortChannel::Position.
-  optional int64 port_order = 2;
-}
-
 // Metadata associating channels with specific ports in a block/module.
 message BlockPortMappingProto {
   optional string block_name = 1;
@@ -86,10 +68,6 @@ message BlockPortMappingProto {
 // (e.g., data types) should be held directly in the xls::Channel data
 // structure.
 message ChannelMetadataProto {
-  oneof channel_oneof {
-    ModulePortProto module_port = 1;
-  }
-
   // Different sides of a channel can be associated with different ports in
   // different blocks.
   repeated BlockPortMappingProto block_ports = 2;

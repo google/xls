@@ -701,10 +701,8 @@ fn __implicit_token__main() -> () {
 TEST_F(BlockConversionTest, SimpleProc) {
   const std::string ir_text = R"(package test
 
-chan in(bits[32], id=0, kind=single_value, ops=receive_only,
-        metadata="""module_port { flopped: false,  port_order: 1 }""")
-chan out(bits[32], id=1, kind=single_value, ops=send_only,
-         metadata="""module_port { flopped: false,  port_order: 0 }""")
+chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="""""")
+chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="""""")
 
 proc my_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token, id=1)
@@ -1083,13 +1081,13 @@ TEST_F(BlockConversionTest, ProcWithMultipleInputChannels) {
   const std::string ir_text = R"(package test
 
 chan in0(bits[32], id=0, kind=single_value, ops=receive_only,
-        metadata="""module_port { flopped: false,  port_order: 0 }""")
+        metadata="""""")
 chan in1(bits[32], id=1, kind=single_value, ops=receive_only,
-        metadata="""module_port { flopped: false,  port_order: 2 }""")
+        metadata="""""")
 chan in2(bits[32], id=2, kind=single_value, ops=receive_only,
-        metadata="""module_port { flopped: false,  port_order: 1 }""")
+        metadata="""""")
 chan out(bits[32], id=3, kind=single_value, ops=send_only,
-         metadata="""module_port { flopped: false,  port_order: 0 }""")
+         metadata="""""")
 
 proc my_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token, id=1)
@@ -1188,11 +1186,8 @@ top proc my_proc() {
 
 TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsTrue) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-flow_control=ready_valid, metadata="""module_port { flopped: false
-port_order: 0 }""")
-chan out(bits[32], id=1, kind=single_value,
-ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="""""")
 
 proc my_proc(st: (), init={()}) {
   tkn: token = literal(value=token, id=1)
@@ -1225,11 +1220,8 @@ proc my_proc(st: (), init={()}) {
 
 TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsFalse) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-flow_control=ready_valid, metadata="""module_port { flopped: false
-port_order: 0 }""")
-chan out(bits[32], id=1, kind=single_value,
-ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="""""")
 
 proc my_proc(st: (), init={()}) {
   tkn: token = literal(value=token, id=1)

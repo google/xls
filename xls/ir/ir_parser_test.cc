@@ -632,7 +632,7 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=single_value,
                       ops=send_receive,
-                      metadata="module_port { flopped: true }"))",
+                      metadata=""))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -640,9 +640,6 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
   EXPECT_EQ(ch->kind(), ChannelKind::kSingleValue);
   EXPECT_EQ(ch->type(), p.GetBitsType(32));
   EXPECT_TRUE(ch->initial_values().empty());
-  EXPECT_EQ(ch->metadata().channel_oneof_case(),
-            ChannelMetadataProto::kModulePort);
-  EXPECT_TRUE(ch->metadata().module_port().flopped());
 
   EXPECT_FALSE(p.ChannelsAreProcScoped());
 }
@@ -654,7 +651,7 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
       Parser::ParseChannel(
           R"(chan foo(bits[32], initial_values={2, 4, 5}, id=42, kind=streaming,
                          flow_control=none, ops=send_receive,
-                         metadata="module_port { flopped: true }"))",
+                         metadata=""))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -664,9 +661,6 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
   EXPECT_THAT(ch->initial_values(),
               ElementsAre(Value(UBits(2, 32)), Value(UBits(4, 32)),
                           Value(UBits(5, 32))));
-  EXPECT_EQ(ch->metadata().channel_oneof_case(),
-            ChannelMetadataProto::kModulePort);
-  EXPECT_TRUE(ch->metadata().module_port().flopped());
 }
 
 TEST(IrParserTest, ParseSendReceiveChannelWithTupleType) {
@@ -676,7 +670,7 @@ TEST(IrParserTest, ParseSendReceiveChannelWithTupleType) {
                       initial_values={(123, 1), (42, 0)},
                       id=42, kind=streaming, flow_control=ready_valid,
                       ops=send_receive,
-                      metadata="module_port { flopped: true }"))",
+                      metadata=""))",
                                              &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_THAT(
@@ -690,15 +684,12 @@ TEST(IrParserTest, ParseSendOnlyChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan bar((bits[32], bits[1]),
                          id=7, kind=single_value, ops=send_only,
-                         metadata="module_port { flopped: false }"))",
+                         metadata=""))",
                                              &p));
   EXPECT_EQ(ch->name(), "bar");
   EXPECT_EQ(ch->id(), 7);
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch->type(), p.GetTupleType({p.GetBitsType(32), p.GetBitsType(1)}));
-  EXPECT_EQ(ch->metadata().channel_oneof_case(),
-            ChannelMetadataProto::kModulePort);
-  EXPECT_FALSE(ch->metadata().module_port().flopped());
 }
 
 TEST(IrParserTest, ParseReceiveOnlyChannel) {
@@ -706,15 +697,12 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan meh(bits[32][4], id=0,
                          kind=single_value, ops=receive_only,
-                         metadata="module_port { flopped: true }"))",
+                         metadata=""))",
                                              &p));
   EXPECT_EQ(ch->name(), "meh");
   EXPECT_EQ(ch->id(), 0);
   EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
   EXPECT_EQ(ch->type(), p.GetArrayType(4, p.GetBitsType(32)));
-  EXPECT_EQ(ch->metadata().channel_oneof_case(),
-            ChannelMetadataProto::kModulePort);
-  EXPECT_TRUE(ch->metadata().module_port().flopped());
 }
 
 TEST(IrParserTest, ParseStreamingChannelWithStrictness) {
@@ -849,16 +837,12 @@ TEST(IrParserTest, ParseSingleValueChannelWithBlockPortMapping) {
     XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                                R"(chan meh(bits[32][4], id=0,
                          kind=single_value, ops=receive_only,
-                         metadata="""module_port { flopped: true },
-                                     block_ports { data_port_name : "data",
+                         metadata="""block_ports { data_port_name : "data",
                                                    block_name : "blk"}"""))",
                                                &p));
     EXPECT_EQ(ch->name(), "meh");
     EXPECT_EQ(ch->id(), 0);
     EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
-    EXPECT_EQ(ch->metadata().channel_oneof_case(),
-              ChannelMetadataProto::kModulePort);
-    EXPECT_TRUE(ch->metadata().module_port().flopped());
 
     EXPECT_THAT(
         ch->metadata().block_ports(),
@@ -895,9 +879,9 @@ TEST(IrParserTest, PackageWithSingleDataElementChannels) {
 package test
 
 chan hbo(bits[32], id=0, kind=streaming, flow_control=none, ops=receive_only,
-            fifo_depth=42, metadata="module_port { flopped: true }")
+            fifo_depth=42, metadata="")
 chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only,
-            metadata="module_port { flopped: true }")
+            metadata="")
 
 proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   receive.1: (token, bits[32]) = receive(my_token, channel=hbo)
