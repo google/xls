@@ -205,8 +205,8 @@ class LegalizeArrayUpdatePattern : public OpConversionPattern<ArrayUpdateOp> {
     (void)adaptor;
     Value value = CoerceFloats({adaptor.getValue()}, rewriter, op)[0];
     rewriter.replaceOpWithNewOp<BitSliceUpdateOp>(
-        op, adaptor.getArray().getType(), adaptor.getArray(), value,
-        adaptor.getIndex());
+        op, adaptor.getArray().getType(), /*operand=*/adaptor.getArray(),
+        /*start=*/adaptor.getIndex(), /*update_value=*/value);
     return success();
   }
 };
@@ -248,8 +248,8 @@ class LegalizeArrayUpdateSlicePattern
     (void)adaptor;
     Value slice = CoerceFloats({adaptor.getSlice()}, rewriter, op)[0];
     rewriter.replaceOpWithNewOp<BitSliceUpdateOp>(
-        op, adaptor.getArray().getType(), adaptor.getArray(), slice,
-        adaptor.getStart());
+        op, adaptor.getArray().getType(), /*operand=*/adaptor.getArray(),
+        /*start=*/adaptor.getStart(), /*update_value=*/slice);
     return success();
   }
 };

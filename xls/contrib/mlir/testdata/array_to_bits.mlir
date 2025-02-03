@@ -70,7 +70,7 @@ func.func @empty(%arg0: !xls.array<2 x i32>, %arg1: i32) -> !xls.array<2 x i32> 
 // CHECK-SAME:                             %[[VAL_0:.*]]: i448,
 // CHECK-SAME:                             %[[VAL_1:.*]]: i32) -> i448 attributes {xls = true} {
 // CHECK:           %[[VAL_2:.*]] = "xls.constant_scalar"() <{value = 13 : index}> : () -> index
-// CHECK:           %[[VAL_3:.*]] = "xls.bit_slice_update"(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) : (i448, i32, index) -> i448
+// CHECK:           %[[VAL_3:.*]] = "xls.bit_slice_update"(%[[VAL_0]], %[[VAL_2]], %[[VAL_1]]) : (i448, index, i32) -> i448
 // CHECK:           return %[[VAL_3]] : i448
 // CHECK:         }
 func.func @tensor_insert(%arg0: !xls.array<14 x i32>, %arg1: i32) -> !xls.array<14 x i32> attributes {xls = true} {
@@ -285,7 +285,7 @@ func.func @array_concat(%arg0: !xls.array<2 x i32>, %arg1: !xls.array<2 x i32>) 
 // CHECK-SAME:                         %[[VAL_0:.*]]: i128,
 // CHECK-SAME:                         %[[VAL_1:.*]]: i64,
 // CHECK-SAME:                         %[[VAL_2:.*]]: i32) -> i128 attributes {xls = true} {
-// CHECK:           %[[VAL_3:.*]] = "xls.bit_slice_update"(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) : (i128, i64, i32) -> i128
+// CHECK:           %[[VAL_3:.*]] = "xls.bit_slice_update"(%[[VAL_0]], %[[VAL_2]], %[[VAL_1]]) : (i128, i32, i64) -> i128
 func.func @array_update_slice(%arg0: !xls.array<4 x i32>, %arg1: !xls.array<2 x i32>, %arg2: i32) -> !xls.array<4 x i32> attributes {xls = true} {
   %0 = xls.array_update_slice %arg1 into %arg0[%arg2 +: 2] : !xls.array<4 x i32>
   return %0 : !xls.array<4 x i32>
