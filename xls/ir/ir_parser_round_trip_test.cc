@@ -428,4 +428,10 @@ TEST(IrParserRoundTripTest, ParseIIProc) {
   ParsePackageAndCheckDump(TestName());
 }
 
+TEST(IrParserRoundTripTest, Ffi) { ParsePackageAndCheckDump(TestName()); }
+
+TEST(IrParserRoundTripTest, ChannelPortMetadata) {
+  ParsePackageAndCheckDump(TestName());
+}
+
 }  // namespace xls

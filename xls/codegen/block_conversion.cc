@@ -345,12 +345,9 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
                                 ready_name);
 
       if (input.IsExternal()) {
-        XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(ChannelPortMetadata{
-            .channel_name = std::string{input.channel->name()},
-            .direction = PortDirection::kInput,
-            .data_port = input.port.value()->GetName(),
-            .valid_port = input.port_valid->GetName(),
-            .ready_port = input.port_ready->GetName()}));
+        XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
+            input.channel, PortDirection::kInput, input.port.value()->GetName(),
+            input.port_valid->GetName(), input.port_ready->GetName()));
       }
     }
   }
@@ -375,12 +372,10 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
                                 ready_name);
 
       if (output.IsExternal()) {
-        XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(ChannelPortMetadata{
-            .channel_name = std::string{output.channel->name()},
-            .direction = PortDirection::kOutput,
-            .data_port = output.port.value()->GetName(),
-            .valid_port = output.port_valid->GetName(),
-            .ready_port = output.port_ready->GetName()}));
+        XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
+            output.channel, PortDirection::kOutput,
+            output.port.value()->GetName(), output.port_valid->GetName(),
+            output.port_ready->GetName()));
       }
     }
   }
@@ -393,11 +388,9 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
         ->AddBlockPortMapping(block->name(), input.port->name());
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        ChannelPortMetadata{.channel_name = std::string{input.channel->name()},
-                            .direction = PortDirection::kInput,
-                            .data_port = std::string{input.port->name()},
-                            .valid_port = std::nullopt,
-                            .ready_port = std::nullopt}));
+        input.channel, PortDirection::kInput, input.port->GetName(),
+        /*valid_port=*/std::nullopt,
+        /*ready_port=*/std::nullopt));
   }
 
   for (const SingleValueOutput& output : io.single_value_outputs) {
@@ -408,11 +401,9 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
         ->AddBlockPortMapping(block->name(), output.port->name());
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        ChannelPortMetadata{.channel_name = std::string{output.channel->name()},
-                            .direction = PortDirection::kOutput,
-                            .data_port = std::string{output.port->name()},
-                            .valid_port = std::nullopt,
-                            .ready_port = std::nullopt}));
+        output.channel, PortDirection::kOutput, output.port->GetName(),
+        /*valid_port=*/std::nullopt,
+        /*ready_port=*/std::nullopt));
   }
 
   return absl::OkStatus();

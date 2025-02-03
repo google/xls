@@ -237,11 +237,8 @@ absl::Status ExposeStreamingOutput(
                           .status());
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      ChannelPortMetadata{.channel_name = std::string{output->channel->name()},
-                          .direction = PortDirection::kOutput,
-                          .data_port = output->port.value()->GetName(),
-                          .valid_port = output->port_valid->GetName(),
-                          .ready_port = output->port_ready->GetName()}));
+      output->channel, PortDirection::kOutput, output->port.value()->GetName(),
+      output->port_valid->GetName(), output->port_ready->GetName()));
 
   return absl::OkStatus();
 }
@@ -289,11 +286,8 @@ absl::Status ExposeStreamingInput(
       block->AddOutputPort(input->port_ready->GetName(), block_ready).status());
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      ChannelPortMetadata{.channel_name = std::string{input->channel->name()},
-                          .direction = PortDirection::kInput,
-                          .data_port = input->port.value()->GetName(),
-                          .valid_port = input->port_valid->GetName(),
-                          .ready_port = input->port_ready->GetName()}));
+      input->channel, PortDirection::kInput, input->port.value()->GetName(),
+      input->port_valid->GetName(), input->port_ready->GetName()));
 
   return absl::OkStatus();
 }
@@ -339,11 +333,8 @@ absl::Status StitchSingleValueChannel(
         input_node, container->AddInputPort(subblock_input->port->GetName(),
                                             subblock_input->port->GetType()));
     XLS_RETURN_IF_ERROR(container->AddChannelPortMetadata(
-        ChannelPortMetadata{.channel_name = std::string{channel->name()},
-                            .direction = PortDirection::kInput,
-                            .data_port = subblock_input->port->GetName(),
-                            .valid_port = std::nullopt,
-                            .ready_port = std::nullopt}));
+        channel, PortDirection::kInput, subblock_input->port->GetName(),
+        /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt));
   }
   if (has_input) {
     auto subblock_inst_iter = instantiations.find(
@@ -364,11 +355,8 @@ absl::Status StitchSingleValueChannel(
       container->AddOutputPort(subblock_output->port->GetName(), input_node)
           .status());
   return container->AddChannelPortMetadata(
-      ChannelPortMetadata{.channel_name = std::string{channel->name()},
-                          .direction = PortDirection::kOutput,
-                          .data_port = subblock_output->port->GetName(),
-                          .valid_port = std::nullopt,
-                          .ready_port = std::nullopt});
+      channel, PortDirection::kOutput, subblock_output->port->GetName(),
+      /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt);
 }
 
 // Stitch two ends of a streaming channel together.

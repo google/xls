@@ -2439,7 +2439,7 @@ top fn example() -> bits[32] {
 )";
   EXPECT_THAT(Parser::ParsePackage(input),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid attribute for function: foobar")));
+                       HasSubstr("Unknown attribute: foobar")));
 }
 
 TEST(IrParserErrorTest, ParseNonexistentAttributeProc) {
@@ -2452,13 +2452,13 @@ top proc example(tkn: token, init={token}) {
 )";
   EXPECT_THAT(Parser::ParsePackage(input),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid attribute for proc: foobar")));
+                       HasSubstr("Unknown attribute: foobar")));
 }
 
 TEST(IrParserErrorTest, ParseTrailingAttribute) {
   std::string input = R"(package test
 
-#[foobar(12)]
+#[initiation_interval(12)]
 )";
   EXPECT_THAT(Parser::ParsePackage(input),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -2474,10 +2474,9 @@ block example(in: bits[32], out: bits[32]) {
   out: () = output_port(in, name=out, id=5)
 }
 )";
-  EXPECT_THAT(
-      Parser::ParsePackage(input),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Attribute foobar is not supported on blocks.")));
+  EXPECT_THAT(Parser::ParsePackage(input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unknown attribute: foobar")));
 }
 
 TEST(IrParserErrorTest, ParseBlockAttributeInitiationInterval) {
@@ -2495,7 +2494,7 @@ block example(in: bits[32], out: bits[32]) {
 TEST(IrParserErrorTest, ParseChannelAttribute) {
   std::string input = R"(package test
 
-#[foobar(12)]
+#[initiation_interval(12)]
 chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
 )";
   EXPECT_THAT(
@@ -2508,7 +2507,7 @@ chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, met
 TEST(IrParserErrorTest, ParseFileNumberAttribute) {
   std::string input = R"(package test
 
-#[foobar(12)]
+#[initiation_interval(12)]
 file_number 0 "fake_file.x"
 )";
   EXPECT_THAT(

@@ -45,6 +45,7 @@
 #include "xls/common/visitor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
@@ -52,6 +53,7 @@
 #include "xls/ir/fileno.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/ir_scanner.h"
@@ -1763,7 +1765,7 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
             peek.pos().ToHumanString()));
       }
       XLS_RETURN_IF_ERROR(
-          ParseChannel(package, /*attributes=*/{}, proc).status());
+          ParseChannel(package, /*outer_attributes=*/{}, proc).status());
       continue;
     }
     if (scanner_.TryDropKeyword("proc_instantiation")) {
@@ -2158,9 +2160,9 @@ absl::StatusOr<std::string> Parser::ParsePackageName() {
   return package_name.value();
 }
 
-absl::Status Parser::ParseFileNumber(Package* package,
-                                     const DeclAttributes& attributes) {
-  if (!attributes.empty()) {
+absl::Status Parser::ParseFileNumber(
+    Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  if (!outer_attributes.empty()) {
     return absl::InvalidArgumentError(
         "Attributes are not supported on file number declarations.");
   }
@@ -2185,7 +2187,7 @@ absl::Status Parser::ParseFileNumber(Package* package,
 }
 
 absl::StatusOr<Function*> Parser::ParseFunction(
-    Package* package, const DeclAttributes& attributes) {
+    Package* package, absl::Span<const IrAttribute> outer_attributes) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse function; at EOF.");
   }
@@ -2218,29 +2220,27 @@ absl::StatusOr<Function*> Parser::ParseFunction(
   XLS_ASSIGN_OR_RETURN(Function * result,
                        fb->BuildWithReturnValue(return_value));
 
-  for (const auto& [attribute, literal] : attributes) {
-    if (attribute == "initiation_interval") {
-      XLS_ASSIGN_OR_RETURN(int64_t ii, literal.GetValueInt64());
-      result->SetInitiationInterval(ii);
-    } else if (attribute == "ffi_proto") {
-      ForeignFunctionData ffi;
-      if (!google::protobuf::TextFormat::ParseFromString(literal.value(), &ffi)) {
-        return absl::InvalidArgumentError("Non-parseable FFI metadata proto.");
-      }
+  for (const IrAttribute& attribute : outer_attributes) {
+    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
+      result->SetInitiationInterval(
+          std::get<InitiationInterval>(attribute.payload).value);
+    } else if (std::holds_alternative<ForeignFunctionData>(attribute.payload)) {
       // Dummy parse to make sure it is a valid template.
+      const ForeignFunctionData& ffi =
+          std::get<ForeignFunctionData>(attribute.payload);
       XLS_RETURN_IF_ERROR(CodeTemplate::Create(ffi.code_template()).status());
       result->SetForeignFunctionData(ffi);
     } else {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid attribute for function: %s", attribute));
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid attribute for function: %s", attribute.name));
     }
   }
 
   return result;
 }
 
-absl::StatusOr<Proc*> Parser::ParseProc(Package* package,
-                                        const DeclAttributes& attributes) {
+absl::StatusOr<Proc*> Parser::ParseProc(
+    Package* package, absl::Span<const IrAttribute> outer_attributes) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse proc; at EOF.");
   }
@@ -2258,27 +2258,28 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package,
 
   XLS_ASSIGN_OR_RETURN(Proc * result, pb->Build(proc_next.next_state));
 
-  for (const auto& [attribute, literal] : attributes) {
-    if (attribute == "initiation_interval") {
-      XLS_ASSIGN_OR_RETURN(int64_t ii, literal.GetValueInt64());
-      result->SetInitiationInterval(ii);
+  for (const IrAttribute& attribute : outer_attributes) {
+    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
+      result->SetInitiationInterval(
+          std::get<InitiationInterval>(attribute.payload).value);
     } else {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid attribute for proc: %s", attribute));
+          absl::StrFormat("Invalid attribute for proc: %s", attribute.name));
     }
   }
 
   return result;
 }
 
-absl::StatusOr<Block*> Parser::ParseBlock(Package* package,
-                                          const DeclAttributes& attributes) {
-  for (const auto& [attribute, token] : attributes) {
-    if (attribute == "initiation_interval") {
+absl::StatusOr<Block*> Parser::ParseBlock(
+    Package* package, absl::Span<const IrAttribute> outer_attributes) {
+  for (const IrAttribute& attribute : outer_attributes) {
+    if (std::holds_alternative<InitiationInterval>(attribute.payload)) {
       continue;
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid attribute for block: %s", attribute.name));
     }
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Attribute %s is not supported on blocks.", attribute));
   }
 
   if (AtEof()) {
@@ -2287,6 +2288,11 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package,
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("block"));
 
   XLS_ASSIGN_OR_RETURN(BlockSignature signature, ParseBlockSignature(package));
+
+  // Parse the inner attributes. These are handled below after the block is
+  // constructed.
+  XLS_ASSIGN_OR_RETURN(std::vector<IrAttribute> inner_attributes,
+                       MaybeParseInnerAttributes(package));
 
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
@@ -2356,13 +2362,21 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package,
   }
 
   XLS_RETURN_IF_ERROR(block->ReorderPorts(port_names));
+
+  for (const IrAttribute& attribute : inner_attributes) {
+    if (std::holds_alternative<ChannelPortMetadata>(attribute.payload)) {
+      XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
+          std::get<ChannelPortMetadata>(attribute.payload)));
+    }
+  }
+
   return block;
 }
 
-absl::StatusOr<Channel*> Parser::ParseChannel(Package* package,
-                                              const DeclAttributes& attributes,
-                                              Proc* proc) {
-  if (!attributes.empty()) {
+absl::StatusOr<Channel*> Parser::ParseChannel(
+    Package* package, absl::Span<const IrAttribute> outer_attributes,
+    Proc* proc) {
+  if (!outer_attributes.empty()) {
     return absl::InvalidArgumentError(
         "Attributes are not supported on channel declarations.");
   }
@@ -2626,23 +2640,136 @@ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
   return package->GetFunctionType(parameter_types, return_type);
 }
 
-absl::StatusOr<DeclAttributes> Parser::MaybeParseAttributes() {
-  absl::flat_hash_map<std::string, Token> attributes;
+absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
+  XLS_ASSIGN_OR_RETURN(Token attribute_name,
+                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+  if (attribute_name.value() == "initiation_interval") {
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    XLS_ASSIGN_OR_RETURN(int64_t value, ParseInt64());
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+    return IrAttribute{.name = attribute_name.value(),
+                       .payload = InitiationInterval{.value = value}};
+  }
+  if (attribute_name.value() == "ffi_proto") {
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    XLS_ASSIGN_OR_RETURN(Token serialized_proto,
+                         scanner_.PopLiteralOrStringToken("ffi proto"));
+    ForeignFunctionData ffi;
+    if (!google::protobuf::TextFormat::ParseFromString(serialized_proto.value(), &ffi)) {
+      return absl::InvalidArgumentError("Non-parseable FFI metadata proto.");
+    }
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+    return IrAttribute{.name = attribute_name.value(), .payload = ffi};
+  }
+  if (attribute_name.value() == "channel_ports") {
+    std::optional<std::string> channel_name;
+    std::optional<Type*> type;
+    std::optional<PortDirection> direction;
+    std::optional<ChannelKind> channel_kind;
+    std::optional<FlopKind> flop_kind;
+    std::optional<std::string> data_port;
+    std::optional<std::string> ready_port;
+    std::optional<std::string> valid_port;
+
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+    handlers["name"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(channel_name, ParseIdentifier());
+      return absl::OkStatus();
+    };
+    handlers["type"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(type, ParseType(package));
+      return absl::OkStatus();
+    };
+    handlers["direction"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(std::string direction_string, ParseIdentifier());
+      if (direction_string == "in") {
+        direction = PortDirection::kInput;
+      } else if (direction_string == "out") {
+        direction = PortDirection::kOutput;
+      } else {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Invalid direction `%s`", direction_string));
+      }
+      return absl::OkStatus();
+    };
+    handlers["kind"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(std::string kind_string, ParseIdentifier());
+      XLS_ASSIGN_OR_RETURN(channel_kind, StringToChannelKind(kind_string));
+      return absl::OkStatus();
+    };
+    handlers["flop"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(std::string flop_string, ParseIdentifier());
+      XLS_ASSIGN_OR_RETURN(flop_kind, StringToFlopKind(flop_string));
+      return absl::OkStatus();
+    };
+    handlers["data_port"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(data_port, ParseIdentifier());
+      return absl::OkStatus();
+    };
+    handlers["valid_port"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(valid_port, ParseIdentifier());
+      return absl::OkStatus();
+    };
+    handlers["ready_port"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(ready_port, ParseIdentifier());
+      return absl::OkStatus();
+    };
+    XLS_RETURN_IF_ERROR(
+        ParseKeywordArguments(handlers, {"name", "type", "direction", "kind"}));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+
+    return IrAttribute{.name = attribute_name.value(),
+                       .payload = ChannelPortMetadata{
+                           .channel_name = channel_name.value(),
+                           .type = type.value(),
+                           .direction = direction.value(),
+                           .channel_kind = channel_kind.value(),
+                           .flop_kind = flop_kind.value_or(FlopKind::kNone),
+                           .data_port = data_port,
+                           .valid_port = valid_port,
+                           .ready_port = ready_port}};
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown attribute: ", attribute_name.value()));
+}
+
+absl::StatusOr<std::vector<IrAttribute>> Parser::MaybeParseOuterAttributes(
+    Package* package) {
+  std::vector<IrAttribute> attributes;
   while (!AtEof() && scanner_.PeekTokenIs(LexicalTokenType::kHash)) {
     XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kHash));
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
-    XLS_ASSIGN_OR_RETURN(Token attribute_name,
-                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    XLS_RETURN_IF_ERROR(
-        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
-    XLS_ASSIGN_OR_RETURN(Token literal,
-                         scanner_.PopLiteralOrStringToken("for attributes"));
-    XLS_RETURN_IF_ERROR(
-        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+    XLS_ASSIGN_OR_RETURN(IrAttribute attribute, ParseAttribute(package));
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
-    attributes.emplace(attribute_name.value(), literal);
+    attributes.push_back(attribute);
+  }
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Illegal attribute at end of file");
+  }
+  return attributes;
+}
+
+absl::StatusOr<std::vector<IrAttribute>> Parser::MaybeParseInnerAttributes(
+    Package* package) {
+  std::vector<IrAttribute> attributes;
+  while (!AtEof() && scanner_.PeekTokenIs(LexicalTokenType::kHash)) {
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kHash));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kBang));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
+    XLS_ASSIGN_OR_RETURN(IrAttribute attribute, ParseAttribute(package));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
+    attributes.push_back(attribute);
   }
   if (AtEof()) {
     return absl::InvalidArgumentError("Illegal attribute at end of file");
@@ -2676,11 +2803,11 @@ static absl::Status VerifyAndSwapError(Package* package) {
 
 /* static */ absl::StatusOr<Function*> Parser::ParseFunction(
     std::string_view input_string, Package* package, bool verify_function_only,
-    const DeclAttributes& attributes) {
+    absl::Span<const IrAttribute> outer_attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   XLS_ASSIGN_OR_RETURN(Function * function,
-                       p.ParseFunction(package, attributes));
+                       p.ParseFunction(package, outer_attributes));
   SetUnassignedNodeIds(package, function);
 
   if (verify_function_only) {
@@ -2695,10 +2822,10 @@ static absl::Status VerifyAndSwapError(Package* package) {
 
 /* static */ absl::StatusOr<Proc*> Parser::ParseProc(
     std::string_view input_string, Package* package,
-    const DeclAttributes& attributes) {
+    absl::Span<const IrAttribute> outer_attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package, attributes));
+  XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package, outer_attributes));
   SetUnassignedNodeIds(package, proc);
 
   // Verify the whole package because the addition of the proc may break
@@ -2709,10 +2836,10 @@ static absl::Status VerifyAndSwapError(Package* package) {
 
 /* static */ absl::StatusOr<Block*> Parser::ParseBlock(
     std::string_view input_string, Package* package,
-    const DeclAttributes& attributes) {
+    absl::Span<const IrAttribute> outer_attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  XLS_ASSIGN_OR_RETURN(Block * block, p.ParseBlock(package, attributes));
+  XLS_ASSIGN_OR_RETURN(Block * block, p.ParseBlock(package, outer_attributes));
   SetUnassignedNodeIds(package, block);
 
   // Verify the whole package because the addition of the block may break
@@ -2723,10 +2850,10 @@ static absl::Status VerifyAndSwapError(Package* package) {
 
 /* static */ absl::StatusOr<Channel*> Parser::ParseChannel(
     std::string_view input_string, Package* package,
-    const DeclAttributes& attributes) {
+    absl::Span<const IrAttribute> outer_attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  return p.ParseChannel(package, attributes);
+  return p.ParseChannel(package, outer_attributes);
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(

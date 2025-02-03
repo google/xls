@@ -55,6 +55,26 @@
 
 namespace xls {
 
+std::string ChannelPortMetadata::ToString() const {
+  std::string result = absl::StrFormat(
+      "channel_ports(name=%s, type=%s, direction=%s, kind=%s", channel_name,
+      type->ToString(), direction == PortDirection::kInput ? "in" : "out",
+      ChannelKindToString(channel_kind));
+  if (flop_kind != FlopKind::kNone) {
+    absl::StrAppendFormat(&result, ", flop=%s", FlopKindToString(flop_kind));
+  }
+  if (data_port.has_value()) {
+    absl::StrAppendFormat(&result, ", data_port=%s", *data_port);
+  }
+  if (ready_port.has_value()) {
+    absl::StrAppendFormat(&result, ", ready_port=%s", *ready_port);
+  }
+  if (valid_port.has_value()) {
+    absl::StrAppendFormat(&result, ", valid_port=%s", *valid_port);
+  }
+  return result + ")";
+}
+
 // For each node in the block, compute the fewest number of registers
 // (RegisterWrite/RegisterRead pair) in a path from the node to a user-less node
 // (e.g., OutputPort) where path length is measured by the number of registers
@@ -239,6 +259,10 @@ std::string Block::DumpIr() const {
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
                                     absl::StrJoin(port_strings, ", "));
 
+  for (const std::string& channel_name : GetChannelNames()) {
+    absl::StrAppendFormat(&res, "  #![%s]\n",
+                          channel_port_metadata_.at(channel_name).ToString());
+  }
   for (Instantiation* instantiation : GetInstantiations()) {
     absl::StrAppendFormat(&res, "  %s\n", instantiation->ToString());
   }
@@ -530,14 +554,23 @@ absl::Status Block::RemoveNode(Node* n) {
     // tuple typed channels).
     for (auto& [channel_name, metadata] : channel_port_metadata_) {
       if (metadata.data_port.has_value() && port_name == *metadata.data_port) {
+        VLOG(3) << absl::StreamFormat(
+            "Data port for channel `%s` in block `%s` removed: %s",
+            metadata.channel_name, name(), metadata.data_port.value());
         metadata.data_port = std::nullopt;
         break;
       } else if (metadata.ready_port.has_value() &&
                  port_name == *metadata.ready_port) {
+        VLOG(3) << absl::StreamFormat(
+            "Ready port for channel `%s` in block `%s` removed: %s",
+            metadata.channel_name, name(), metadata.ready_port.value());
         metadata.ready_port = std::nullopt;
         break;
       } else if (metadata.valid_port.has_value() &&
                  port_name == *metadata.valid_port) {
+        VLOG(3) << absl::StreamFormat(
+            "Valid port for channel `%s` in block `%s` removed: %s",
+            metadata.channel_name, name(), metadata.valid_port.value());
         metadata.valid_port = std::nullopt;
         break;
       }
@@ -940,8 +973,38 @@ absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
                  metadata.data_port.value(), name(), metadata.channel_name);
     }
   }
+  VLOG(3) << "AddChannelPortMetadata for block `" << name()
+          << "`: " << metadata.ToString();
   channel_port_metadata_[metadata.channel_name] = std::move(metadata);
   return absl::OkStatus();
+}
+
+absl::Status Block::AddChannelPortMetadata(
+    Channel* channel, PortDirection direction,
+    std::optional<std::string> data_port, std::optional<std::string> valid_port,
+    std::optional<std::string> ready_port) {
+  FlopKind flop_kind;
+  if (StreamingChannel* streaming_channel =
+          dynamic_cast<StreamingChannel*>(channel);
+      streaming_channel != nullptr) {
+    flop_kind =
+        direction == PortDirection::kInput
+            ? streaming_channel->channel_config().input_flop_kind().value_or(
+                  FlopKind::kNone)
+            : streaming_channel->channel_config().output_flop_kind().value_or(
+                  FlopKind::kNone);
+  } else {
+    flop_kind = FlopKind::kNone;
+  }
+  return AddChannelPortMetadata(
+      ChannelPortMetadata{.channel_name = std::string{channel->name()},
+                          .type = channel->type(),
+                          .direction = direction,
+                          .channel_kind = channel->kind(),
+                          .flop_kind = flop_kind,
+                          .data_port = data_port,
+                          .valid_port = valid_port,
+                          .ready_port = ready_port});
 }
 
 absl::StatusOr<ChannelPortMetadata> Block::GetChannelPortMetadata(

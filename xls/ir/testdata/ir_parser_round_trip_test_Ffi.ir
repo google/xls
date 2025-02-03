@@ -1,0 +1,7 @@
+package some_package
+
+#[ffi_proto("""code_template: "verilog_module {fn} (.a({x}), .b({y}), .out({return}));"
+""")]
+fn ffi_callee(x: bits[32] id=4, y: bits[32] id=5) -> bits[32] {
+  ret add.1: bits[32] = add(x, y, id=1)
+}

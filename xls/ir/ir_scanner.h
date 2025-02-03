@@ -52,6 +52,7 @@ enum class LexicalTokenType {
   kQuotedString,
   kRightArrow,
   kHash,
+  kBang,
 };
 
 std::string LexicalTokenTypeToString(LexicalTokenType token_type);

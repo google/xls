@@ -30,6 +30,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
@@ -1095,6 +1096,67 @@ top proc my_proc<>() {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
                            Parser::ParsePackage(input));
   EXPECT_TRUE(pkg->ChannelsAreProcScoped());
+}
+
+TEST(IrParserTest, FfiAttribute) {
+  const std::string input = R"(
+package some_package
+
+#[ffi_proto("""code_template: "verilog_module {fn} (.a({x}), .b({y}), .out({return}));"
+""")]
+fn ffi_callee(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * f, pkg->GetFunction("ffi_callee"));
+  ASSERT_TRUE(f->ForeignFunctionData().has_value());
+  EXPECT_EQ(f->ForeignFunctionData()->code_template(),
+            "verilog_module {fn} (.a({x}), .b({y}), .out({return}));");
+  EXPECT_FALSE(f->ForeignFunctionData()->has_delay_ps());
+}
+
+TEST(IrParserTest, ParseChannelPortMetadata) {
+  constexpr std::string_view input = R"(package test
+
+block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
+               out: bits[32]) {
+  #![channel_ports(name=foo, type=bits[32], direction=in, kind=streaming, flop=skid, data_port=in, ready_port=in_ready, valid_port=in_valid)]
+  #![channel_ports(name=bar, type=bits[32], direction=out, kind=single_value, data_port=out)]
+  in: bits[32] = input_port(name=in)
+  in_valid: bits[1] = input_port(name=in_valid)
+  data: bits[32] = literal(value=42)
+  one: bits[1] = literal(value=1)
+  out_port: () = output_port(data, name=out)
+  in_ready_port: () = output_port(one, name=in_ready)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, pkg->GetBlock("my_block"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata foo_metadata,
+                           b->GetChannelPortMetadata("foo"));
+  EXPECT_EQ(foo_metadata.channel_name, "foo");
+  EXPECT_EQ(foo_metadata.type, pkg->GetBitsType(32));
+  EXPECT_EQ(foo_metadata.direction, PortDirection::kInput);
+  EXPECT_EQ(foo_metadata.channel_kind, ChannelKind::kStreaming);
+  EXPECT_EQ(foo_metadata.flop_kind, FlopKind::kSkid);
+  EXPECT_THAT(foo_metadata.data_port, Optional(Eq("in")));
+  EXPECT_THAT(foo_metadata.ready_port, Optional(Eq("in_ready")));
+  EXPECT_THAT(foo_metadata.valid_port, Optional(Eq("in_valid")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata bar_metadata,
+                           b->GetChannelPortMetadata("bar"));
+  EXPECT_EQ(bar_metadata.channel_name, "bar");
+  EXPECT_EQ(bar_metadata.type, pkg->GetBitsType(32));
+  EXPECT_EQ(bar_metadata.direction, PortDirection::kOutput);
+  EXPECT_EQ(bar_metadata.channel_kind, ChannelKind::kSingleValue);
+  EXPECT_EQ(bar_metadata.flop_kind, FlopKind::kNone);
+  EXPECT_THAT(bar_metadata.data_port, Optional(Eq("out")));
+  EXPECT_EQ(bar_metadata.ready_port, std::nullopt);
+  EXPECT_EQ(bar_metadata.valid_port, std::nullopt);
 }
 
 }  // namespace xls

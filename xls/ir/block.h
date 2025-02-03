@@ -42,13 +42,19 @@ namespace xls {
 // Metadata which maps ports back to the channels the were derived from.
 struct ChannelPortMetadata {
   std::string channel_name;
+  Type* type;
   // The direction of the data/valid port (input or output).
   PortDirection direction;
+  ChannelKind channel_kind;
+  FlopKind flop_kind;
+
   // Names of the ports for data/valid/ready signals for the channel. The value
   // is std::nullopt if no such port exists.
   std::optional<std::string> data_port;
   std::optional<std::string> valid_port;
   std::optional<std::string> ready_port;
+
+  std::string ToString() const;
 };
 
 // Abstraction representing a Verilog module used in code generation. Blocks are
@@ -229,12 +235,18 @@ class Block : public FunctionBase {
   // Add metadata describing the mapping from ports to the channel they are
   // derived from.
   absl::Status AddChannelPortMetadata(ChannelPortMetadata metadata);
+  absl::Status AddChannelPortMetadata(Channel* channel, PortDirection direction,
+                                      std::optional<std::string> data_port,
+                                      std::optional<std::string> valid_port,
+                                      std::optional<std::string> ready_port);
 
   // Returns the port metadata for the channel with the given name or an error
   // if no such metadata exists.
   absl::StatusOr<ChannelPortMetadata> GetChannelPortMetadata(
       std::string_view channel_name) const;
-
+  bool HasChannelPortMetadata(std::string_view channel_name) const {
+    return channel_port_metadata_.contains(channel_name);
+  }
   // Returns the port node associated with the ready/valid/data signal for the
   // given channel. Returns an error if no port metadata exists for the given
   // channel. Returns std::nullopt if port metadata exists for the channel but
@@ -276,7 +288,6 @@ class Block : public FunctionBase {
 
   absl::StatusOr<const ChannelPortMetadata*> GetChannelPortMetadataInternal(
       std::string_view channel_name) const;
-  absl::Status AddChannelPortMetadataInternal(ChannelPortMetadata metadata);
 
   // All ports in the block in the order they appear in the Verilog module.
   std::vector<Port> ports_;
