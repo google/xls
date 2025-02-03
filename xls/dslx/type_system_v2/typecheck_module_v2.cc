@@ -799,6 +799,38 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return HandleZeroOrOneMacro(node, node->type());
   }
 
+  absl::Status HandleLet(const Let* node) override {
+    VLOG(5) << "HandleLet: " << node->ToString();
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<Let*>(node),
+                                      GenerateInternalTypeVariableName(node)));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
+    if (node->type_annotation() != nullptr) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node, node->type_annotation()));
+    }
+    // If the NameDefTree of the `let` is a leaf, then it shares a type with the
+    // overall let. Otherwise, define a separate type variable for each leaf of
+    // the NameDefTree.
+    if (node->name_def_tree()->is_leaf()) {
+      AstNode* name_def = ToAstNode(node->name_def_tree()->leaf());
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(name_def, variable));
+    } else {
+      for (NameDef* name_def : node->name_def_tree()->GetNameDefs()) {
+        XLS_ASSIGN_OR_RETURN(
+            const NameRef* variable,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType, ToAstNode(name_def),
+                GenerateInternalTypeVariableName(name_def)));
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(name_def, variable));
+      }
+    }
+    return DefaultHandler(node);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
@@ -870,6 +902,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   template <>
   std::string GenerateInternalTypeVariableName(const Expr* node) {
     return absl::StrCat("internal_type_expr_at_",
+                        node->span().ToString(file_table_));
+  }
+  // Specialization for `Let` nodes, which do not have an identifier.
+  template <>
+  std::string GenerateInternalTypeVariableName(const Let* node) {
+    return absl::StrCat("internal_type_let_at_",
                         node->span().ToString(file_table_));
   }
   // Specialization for `Array` nodes.

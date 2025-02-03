@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system/deduce_utils.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -789,14 +790,32 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
                        type_info);
 }
 
+static int64_t Size(TupleTypeOrAnnotation t) {
+  if (std::holds_alternative<const TupleType*>(t)) {
+    return std::get<const TupleType*>(t)->size();
+  }
+  return std::get<const TupleTypeAnnotation*>(t)->size();
+}
+
+absl::Status TypeOrAnnotationErrorStatus(Span span, TupleTypeOrAnnotation type,
+                                         std::string_view message,
+                                         const FileTable& file_table) {
+  if (std::holds_alternative<const TupleType*>(type)) {
+    return TypeInferenceErrorStatus(span, std::get<const TupleType*>(type),
+                                    message, file_table);
+  }
+  return TypeInferenceErrorStatusForAnnotation(
+      span, std::get<const TupleTypeAnnotation*>(type), message, file_table);
+}
+
 absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
-    const NameDefTree* name_def_tree, const TupleType* tuple_type) {
+    const NameDefTree* name_def_tree, TupleTypeOrAnnotation tuple_type) {
   const FileTable& file_table = *name_def_tree->owner()->file_table();
   bool rest_of_tuple_found = false;
   for (const NameDefTree* node : name_def_tree->nodes()) {
     if (node->IsRestOfTupleLeaf()) {
       if (rest_of_tuple_found) {
-        return TypeInferenceErrorStatus(
+        return TypeOrAnnotationErrorStatus(
             node->span(), tuple_type,
             absl::StrFormat("`..` can only be used once per tuple pattern."),
             file_table);
@@ -804,7 +823,7 @@ absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
       rest_of_tuple_found = true;
     }
   }
-  int64_t number_of_tuple_elements = tuple_type->size();
+  int64_t number_of_tuple_elements = Size(tuple_type);
   int64_t number_of_names = name_def_tree->nodes().size();
   bool number_mismatch = number_of_names != number_of_tuple_elements;
   if (rest_of_tuple_found) {
@@ -815,13 +834,86 @@ absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
     number_mismatch = number_of_names > number_of_tuple_elements;
   }
   if (number_mismatch) {
-    return TypeInferenceErrorStatus(
+    return TypeOrAnnotationErrorStatus(
         name_def_tree->span(), tuple_type,
         absl::StrFormat("Cannot match a %d-element tuple to %d values.",
                         number_of_tuple_elements, number_of_names),
         file_table);
   }
   return std::make_pair(number_of_tuple_elements, number_of_names);
+}
+
+static absl::StatusOr<TupleTypeOrAnnotation> GetTupleType(
+    TypeOrAnnotation type, Span span, const FileTable& file_table) {
+  std::string error_msg = "Expected a tuple type for these names, but got";
+  if (std::holds_alternative<const Type*>(type)) {
+    const Type* t = std::get<const Type*>(type);
+    if (auto* tuple_type = dynamic_cast<const TupleType*>(t)) {
+      return tuple_type;
+    }
+    return TypeInferenceErrorStatus(
+        span, t, absl::StrFormat("%s %s", error_msg, t->ToString()),
+        file_table);
+  }
+  const TypeAnnotation* type_annot = std::get<const TypeAnnotation*>(type);
+  if (auto* tuple_type_annotation =
+          dynamic_cast<const TupleTypeAnnotation*>(type_annot)) {
+    return tuple_type_annotation;
+  }
+  return TypeInferenceErrorStatusForAnnotation(
+      span, type_annot,
+      absl::StrFormat("%s %s", error_msg, type_annot->ToString()), file_table);
+}
+
+static TypeOrAnnotation GetSubType(TupleTypeOrAnnotation type, int64_t index) {
+  if (std::holds_alternative<const TupleType*>(type)) {
+    auto* tuple_type = std::get<const TupleType*>(type);
+    return &(tuple_type->GetMemberType(index));
+  }
+  return std::get<const TupleTypeAnnotation*>(type)->members()[index];
+}
+
+absl::Status MatchTupleNodeToType(
+    std::function<absl::Status(AstNode*, TypeOrAnnotation,
+                               std::optional<InterpValue>)>
+        process_tuple_member,
+    const NameDefTree* name_def_tree, const TypeOrAnnotation type,
+    const FileTable& file_table, std::optional<InterpValue> constexpr_value) {
+  if (name_def_tree->is_leaf()) {
+    AstNode* name_def = ToAstNode(name_def_tree->leaf());
+    XLS_RETURN_IF_ERROR(process_tuple_member(name_def, type, constexpr_value));
+    return absl::OkStatus();
+  }
+  XLS_ASSIGN_OR_RETURN(TupleTypeOrAnnotation tuple_type,
+                       GetTupleType(type, name_def_tree->span(), file_table));
+
+  XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
+                       GetTupleSizes(name_def_tree, tuple_type));
+  // Index into the current tuple type.
+  int64_t tuple_index = 0;
+  // Must iterate through the actual nodes size, not number_of_names, because
+  // there may be a "rest of tuple" leaf which decreases the number of names.
+  for (int64_t name_index = 0; name_index < name_def_tree->nodes().size();
+       ++name_index) {
+    NameDefTree* subtree = name_def_tree->nodes()[name_index];
+    if (subtree->IsRestOfTupleLeaf()) {
+      // Skip ahead.
+      tuple_index += number_of_tuple_elements - number_of_names;
+      continue;
+    }
+    TypeOrAnnotation subtype = GetSubType(tuple_type, tuple_index);
+    XLS_RETURN_IF_ERROR(process_tuple_member(subtree, subtype, std::nullopt));
+
+    std::optional<InterpValue> sub_value;
+    if (constexpr_value.has_value()) {
+      sub_value = constexpr_value.value().GetValuesOrDie()[tuple_index];
+    }
+    XLS_RETURN_IF_ERROR(MatchTupleNodeToType(process_tuple_member, subtree,
+                                             subtype, file_table, sub_value));
+
+    ++tuple_index;
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(

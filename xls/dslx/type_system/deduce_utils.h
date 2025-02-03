@@ -16,6 +16,7 @@
 #define XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -33,6 +34,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
@@ -203,8 +205,33 @@ absl::StatusOr<StructDef*> DerefToStruct(const Span& span,
 // will be bound in the given NameDefTree (second).
 //
 // The latter may be less than the former if there is a "rest of tuple" leaf.
+using TupleTypeOrAnnotation =
+    std::variant<const TupleType*, const TupleTypeAnnotation*>;
 absl::StatusOr<std::pair<int64_t, int64_t>> GetTupleSizes(
-    const NameDefTree* name_def_tree, const TupleType* tuple_type);
+    const NameDefTree* name_def_tree, TupleTypeOrAnnotation tuple_type);
+
+// Typechecks the name def tree items against type, and recursively processes
+// the node/type pairs according to the `process_tuple_member` function.
+// If `constexpr_value` is provided for the tuple, the appropriate
+// subvalue will also be passed into `process_tuple_member`.
+//
+// For example:
+//
+//    (a, (b, c))  vs (u8, (u4, u2))
+//
+// Will call `process_tuple_member` with the following arguments:
+//
+//    (a, u8, ...)
+//    (b, u4, ...)
+//    (c, u2, ...)
+//
+using TypeOrAnnotation = std::variant<const Type*, const TypeAnnotation*>;
+absl::Status MatchTupleNodeToType(
+    std::function<absl::Status(AstNode*, TypeOrAnnotation,
+                               std::optional<InterpValue>)>
+        process_tuple_member,
+    const NameDefTree* name_def_tree, TypeOrAnnotation type,
+    const FileTable& file_table, std::optional<InterpValue> constexpr_value);
 
 // Converts a `BuiltinTypeAnnotation` to an appropriate `Type` that is not
 // wrapped in a `MetaType`.

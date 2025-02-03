@@ -3249,5 +3249,307 @@ const Y = f(Foo::X);
               TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
 }
 
+TEST(TypecheckV2Test, BasicLet) {
+  EXPECT_THAT(
+      R"(
+fn f() -> u4 {
+  let x = u4:1;
+  x
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("let x = u4:1;", "uN[4]"),
+                              HasNodeWithType("x", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, LetWithSizeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn f() -> u4 {
+  let x = u32:5000;
+  x
+}
+)",
+      TypecheckFails(HasSizeMismatch("u32", "u4")));
+}
+
+TEST(TypecheckV2Test, ParametricLet) {
+  EXPECT_THAT(R"(
+fn f<N: u32>() -> uN[N] {
+  let x = uN[N]:0;
+  x
+}
+
+const X = f<4>();
+const Y = f<16>();
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[4]"),
+                                      HasNodeWithType("Y", "uN[16]"))));
+}
+
+TEST(TypecheckV2Test, LetSimpleTupleMismatch) {
+  EXPECT_THAT(R"(
+fn f() -> bits[3] {
+  let (x, y) = (u32:1, bits[4]:3);
+  y
+}
+)",
+              TypecheckFails(HasSizeMismatch("bits[4]", "bits[3]")));
+}
+
+TEST(TypecheckV2Test, LetSimpleTuple) {
+  EXPECT_THAT(R"(
+fn f() -> bits[4] {
+  let (x, y) = (u32:1, bits[4]:3);
+  y
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                                      HasNodeWithType("y", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, LetWithTupleVar) {
+  EXPECT_THAT(R"(
+const TUP = (u32:1, bits[4]:0);
+fn f() -> bits[4] {
+  let (x, y) = TUP;
+  y
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                                      HasNodeWithType("y", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, BadTupleAnnotation) {
+  EXPECT_THAT(
+      R"(
+fn f() -> u32 {
+  let (a, b, c): (u32, u32, s8) = (u32:1, u32:2, u32:3);
+  a
+}
+)",
+      TypecheckFails(HasSizeMismatch("u32", "s8")));
+}
+
+TEST(TypecheckV2Test, BadTupleType) {
+  EXPECT_THAT(
+      R"(
+fn f() -> u32 {
+  let (a, b, c): (u32, u32) = (u32:1, u32:2, u32:3);
+  a
+}
+)",
+      TypecheckFails(HasSubstr("Out-of-bounds tuple index specified")));
+}
+
+TEST(TypecheckV2Test, DuplicateRestOfTupleError) {
+  EXPECT_THAT(R"(
+ fn main() {
+   let (x, .., ..) = (u32:7, u24:6, u18:5, u12:4, u8:3);
+ }
+ )",
+              TypecheckFails(HasSubstr("can only be used once")));
+}
+
+TEST(TypecheckV2Test, TupleCountMismatch) {
+  EXPECT_THAT(R"(
+ fn main() {
+   let (x, y) = (u32:7, u24:6, u18:5, u12:4, u8:3);
+ }
+ )",
+              TypecheckFails(HasSubstr("a 5-element tuple to 2 values")));
+}
+
+TEST(TypecheckV2Test, RestOfTupleCountMismatch) {
+  EXPECT_THAT(R"(
+ fn main() {
+   let (x, .., y, z) = (u32:7, u8:3);
+ }
+ )",
+              TypecheckFails(HasSubstr("a 2-element tuple to 3 values")));
+}
+
+TEST(TypecheckV2Test, RestOfTupleCountMismatchNested) {
+  EXPECT_THAT(R"(
+fn main() {
+  let (x, .., (y, .., z)) = (u32:7, u8:3, (u12:4,));
+}
+)",
+              TypecheckFails(HasSubstr("a 1-element tuple to 2 values")));
+}
+
+TEST(TypecheckV2Test, TupleAssignsTypes) {
+  EXPECT_THAT(R"(
+fn main() {
+  let (x, y): (u32, s8) = (u32:7, s8:3);
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                                      HasNodeWithType("y", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleSkipsMiddle) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, .., y) = (u32:7, u12:4, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "sN[8]"),
+          HasNodeWithType("xx", "uN[32]"), HasNodeWithType("yy", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleSkipsNone) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, .., y) = (u32:7, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "sN[8]"),
+          HasNodeWithType("xx", "uN[32]"), HasNodeWithType("yy", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTuplekSkipsNoneWithThree) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, y, .., z) = (u32:7, u12:4, s8:3);
+  let (xx, yy, zz): (u32, u12, s8) = (x, y, z);
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "uN[12]"),
+          HasNodeWithType("z", "sN[8]"), HasNodeWithType("xx", "uN[32]"),
+          HasNodeWithType("yy", "uN[12]"), HasNodeWithType("zz", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleSkipsEnd) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, y, ..) = (u32:7, s8:3, u12:4);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "sN[8]"),
+          HasNodeWithType("xx", "uN[32]"), HasNodeWithType("yy", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleSkipsManyAtEnd) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, y, ..) = (u32:7, s8:3, u12:4, u32:0);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "sN[8]"),
+          HasNodeWithType("xx", "uN[32]"), HasNodeWithType("yy", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleSkipsManyInMiddle) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, .., y) = (u32:7, u8:3, u12:4, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "sN[8]"),
+          HasNodeWithType("xx", "uN[32]"), HasNodeWithType("yy", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleSkipsBeginning) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (.., x, y) = (u12:7, u8:3, u32:4, s8:3);
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "sN[8]"),
+          HasNodeWithType("xx", "uN[32]"), HasNodeWithType("yy", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleSkipsManyAtBeginning) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (.., x) = (u8:3, u12:4, u32:7);
+  let xx: u32 = x;
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                              HasNodeWithType("xx", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleNested) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, .., (.., y)) = (u32:7, u8:3, u18:5, (u12:4, u11:5, s8:3));
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                              HasNodeWithType("y", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleNestedSingleton) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, .., (y,)) = (u32:7, u8:3, (s8:3,));
+  let (xx, yy): (u32, s8) = (x, y);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                              HasNodeWithType("y", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleIsLikeWildcard) {
+  EXPECT_THAT(R"(
+fn main() {
+  let (x, .., (.., y)) = (u32:7, u18:5, (u12:4, s8:3));
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
+                                      HasNodeWithType("y", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleDeeplyNested) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  let (x, y, .., ((.., z), .., d)) = (u32:7, u8:1,
+                            ((u32:3, u64:4, uN[128]:5), u12:4, s8:3));
+  }
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "uN[8]"),
+          HasNodeWithType("z", "uN[128]"), HasNodeWithType("d", "sN[8]"))));
+}
+
+TEST(TypecheckV2Test, RestOfTupleDeeplyNestedNonConstants) {
+  EXPECT_THAT(
+      R"(
+fn main() {
+  // Initial values
+  let (xi, yi, zi): (u32, u8, uN[128]) = (u32:7, u8:1, uN[128]:5);
+  let (x, y, .., ((.., z), .., d)) = (xi, yi,
+                            ((u32:3, u64:4, zi), u12:4, s8:3));
+  }
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "uN[8]"),
+          HasNodeWithType("z", "uN[128]"), HasNodeWithType("d", "sN[8]"))));
+}
 }  // namespace
 }  // namespace xls::dslx

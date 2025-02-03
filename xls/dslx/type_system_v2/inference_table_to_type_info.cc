@@ -172,8 +172,15 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleLet(const Let* node) override {
     XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
-    XLS_RETURN_IF_ERROR(node->name_def_tree()->Accept(this));
     nodes_.push_back(node);
+    XLS_RETURN_IF_ERROR(node->name_def_tree()->Accept(this));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleNameDefTree(const NameDefTree* node) override {
+    for (const NameDef* child : node->GetNameDefs()) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
     return absl::OkStatus();
   }
 
@@ -446,6 +453,24 @@ class InferenceTableConverter {
           annotation,
           UnifyTypeAnnotations(parametric_invocation, *type_variable,
                                *node_span, /*accept_predicate=*/std::nullopt));
+      // If we have a let assignment to a tuple type, destructure the
+      // assignment.
+      if (dynamic_cast<const TupleTypeAnnotation*>(annotation.value()) &&
+          dynamic_cast<const Let*>(node)) {
+        const auto let = dynamic_cast<const Let*>(node);
+        const auto add_annotation =
+            [&](AstNode* name_def, TypeOrAnnotation type,
+                std::optional<InterpValue> _) -> absl::Status {
+          if (std::holds_alternative<const TypeAnnotation*>(type)) {
+            XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+                name_def, std::get<const TypeAnnotation*>(type)));
+          }
+          return absl::OkStatus();
+        };
+        XLS_RETURN_IF_ERROR(MatchTupleNodeToType(
+            add_annotation, let->name_def_tree(), annotation.value(),
+            file_table_, std::nullopt));
+      }
     } else {
       annotation = table_.GetTypeAnnotation(node);
     }

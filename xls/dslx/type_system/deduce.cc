@@ -341,66 +341,22 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUseTreeEntry(
   return type.value()->CloneToUnique();
 }
 
-// Typechecks the name def tree items against type, putting the corresponding
-// type information for the AST nodes within the name_def_tree as corresponding
-// to the types within "type" (recursively).
-//
-// For example:
-//
-//    (a, (b, c))  vs (u8, (u4, u2))
-//
-// Will put a correspondence of {a: u8, b: u4, c: u2} into the mapping in ctx.
 static absl::Status BindNames(const NameDefTree* name_def_tree,
                               const Type& type, DeduceCtx* ctx,
                               std::optional<InterpValue> constexpr_value) {
-  if (name_def_tree->is_leaf()) {
-    AstNode* name_def = ToAstNode(name_def_tree->leaf());
-
-    ctx->type_info()->SetItem(name_def, type);
-    if (constexpr_value.has_value()) {
-      ctx->type_info()->NoteConstExpr(name_def, constexpr_value.value());
+  const auto set_item =
+      [&](AstNode* name_def, TypeOrAnnotation type,
+          std::optional<InterpValue> constexpr_value) -> absl::Status {
+    if (std::holds_alternative<const Type*>(type)) {
+      ctx->type_info()->SetItem(name_def, *(std::get<const Type*>(type)));
+      if (constexpr_value.has_value()) {
+        ctx->type_info()->NoteConstExpr(name_def, constexpr_value.value());
+      }
     }
     return absl::OkStatus();
-  }
-
-  auto* tuple_type = dynamic_cast<const TupleType*>(&type);
-  if (tuple_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        name_def_tree->span(), &type,
-        absl::StrFormat("Expected a tuple type for these names, but "
-                        "got %s.",
-                        type.ToString()),
-        ctx->file_table());
-  }
-
-  XLS_ASSIGN_OR_RETURN((auto [number_of_tuple_elements, number_of_names]),
-                       GetTupleSizes(name_def_tree, tuple_type));
-
-  // Index into the current tuple type.
-  int64_t tuple_index = 0;
-  // Must iterate through the actual nodes size, not number_of_names, because
-  // there may be a "rest of tuple" leaf which decreases the number of names.
-  for (int64_t name_index = 0; name_index < name_def_tree->nodes().size();
-       ++name_index) {
-    NameDefTree* subtree = name_def_tree->nodes()[name_index];
-    if (subtree->IsRestOfTupleLeaf()) {
-      // Skip ahead.
-      tuple_index += number_of_tuple_elements - number_of_names;
-      continue;
-    }
-    const Type& subtype = tuple_type->GetMemberType(tuple_index);
-    ctx->type_info()->SetItem(subtree, subtype);
-
-    std::optional<InterpValue> sub_value;
-    if (constexpr_value.has_value()) {
-      sub_value = constexpr_value.value().GetValuesOrDie()[tuple_index];
-    }
-    XLS_RETURN_IF_ERROR(BindNames(subtree, subtype, ctx, sub_value));
-
-    ++tuple_index;
-  }
-
-  return absl::OkStatus();
+  };
+  return MatchTupleNodeToType(set_item, name_def_tree, &type, ctx->file_table(),
+                              constexpr_value);
 }
 
 absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
