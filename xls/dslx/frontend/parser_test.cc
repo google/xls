@@ -2162,9 +2162,9 @@ fn f(x: u32) {
         _ => u32:42,
     }
 })";
-  EXPECT_NONFATAL_FAILURE(RoundTrip(kProgram),
-                          "Cannot use both wildcard (`_`) and rest-of-tuple "
-                          "(`..`) as match arms");
+  EXPECT_NONFATAL_FAILURE(
+      RoundTrip(kProgram),
+      "`..` patterns are not allowed outside of a tuple pattern");
 }
 
 TEST_F(ParserTest, ArrayTypeAnnotation) {

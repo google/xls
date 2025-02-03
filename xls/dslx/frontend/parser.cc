@@ -1454,7 +1454,8 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
   return lhs;
 }
 
-absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
+absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
+                                                  bool within_tuple_pattern) {
   XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard depth_guard, BumpExpressionDepth());
 
   XLS_ASSIGN_OR_RETURN(std::optional<Token> oparen,
@@ -1500,6 +1501,11 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
   }
 
   if (peek->kind() == TokenKind::kDoubleDot) {
+    if (!within_tuple_pattern) {
+      return ParseErrorStatus(
+          peek->span(),
+          "`..` patterns are not allowed outside of a tuple pattern");
+    }
     XLS_ASSIGN_OR_RETURN(Token rest, PopTokenOrError(TokenKind::kDoubleDot));
     return module_->Make<NameDefTree>(rest.span(),
                                       module_->Make<RestOfTuple>(rest.span()));
@@ -1533,8 +1539,6 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
 
   std::vector<MatchArm*> arms;
   bool must_end = false;
-  bool wildcard_seen = false;
-  bool rest_of_tuple_seen = false;
   while (true) {
     XLS_ASSIGN_OR_RETURN(bool dropped_cbrace, TryDropToken(TokenKind::kCBrace));
     if (dropped_cbrace) {
@@ -1548,10 +1552,9 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
       break;
     }
     Bindings arm_bindings(&bindings);
-    XLS_ASSIGN_OR_RETURN(NameDefTree * first_pattern,
-                         ParsePattern(arm_bindings));
-    wildcard_seen |= first_pattern->IsWildcardLeaf();
-    rest_of_tuple_seen |= first_pattern->IsRestOfTupleLeaf();
+    XLS_ASSIGN_OR_RETURN(
+        NameDefTree * first_pattern,
+        ParsePattern(arm_bindings, /*within_tuple_pattern=*/false));
     std::vector<NameDefTree*> patterns = {first_pattern};
     while (true) {
       XLS_ASSIGN_OR_RETURN(bool dropped_bar, TryDropToken(TokenKind::kBar));
@@ -1569,7 +1572,9 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
                             "previously bound: %s",
                             absl::StrJoin(locals, ", ")));
       }
-      XLS_ASSIGN_OR_RETURN(NameDefTree * pattern, ParsePattern(arm_bindings));
+      XLS_ASSIGN_OR_RETURN(
+          NameDefTree * pattern,
+          ParsePattern(arm_bindings, /*within_tuple_pattern=*/false));
       patterns.push_back(pattern);
     }
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kFatArrow));
@@ -1582,13 +1587,6 @@ absl::StatusOr<Match*> Parser::ParseMatch(Bindings& bindings) {
     arms.push_back(module_->Make<MatchArm>(span, std::move(patterns), rhs));
     XLS_ASSIGN_OR_RETURN(bool dropped_comma, TryDropToken(TokenKind::kComma));
     must_end = !dropped_comma;
-  }
-  if (wildcard_seen && rest_of_tuple_seen) {
-    // Normally we'd catch this in the type checker, but since _ and .. resolve
-    // to different strings, it might not pick it up there as a duplicate.
-    return ParseErrorStatus(match.span(),
-                            "Cannot use both wildcard (`_`) and rest-of-tuple "
-                            "(`..`) as match arms");
   }
   Span span(match.span().start(), GetPos());
   return module_->Make<Match>(span, matched, std::move(arms));
@@ -3468,7 +3466,8 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
       break;
     }
-    XLS_ASSIGN_OR_RETURN(NameDefTree * pattern, ParsePattern(bindings));
+    XLS_ASSIGN_OR_RETURN(NameDefTree * pattern,
+                         ParsePattern(bindings, /*within_tuple_pattern=*/true));
     if (pattern->IsRestOfTupleLeaf()) {
       if (rest_of_tuple_seen) {
         return ParseErrorStatus(

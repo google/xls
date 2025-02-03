@@ -386,7 +386,7 @@ TEST(IrConverterTest, MatchRestOfTupleAsArmFails) {
   let t = (u32:1, u32:2);
   match t {
     (u32:1, .., a) => a,
-    .. => u32:1
+    (..) => u32:1
   }
 })";
   auto import_data = CreateImportDataForTest();
