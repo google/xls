@@ -1490,8 +1490,7 @@ def Xls_NextValueOp : Xls_Op<"next_value", [Pure, SameVariadicOperandSize]> {
   let results = (outs
     Xls_BitsOrTuple:$result
   );
-  // TODO(jpienaar): The verifier should be made stricter (check element type
-  // matches).
+  let hasVerifier = true;
   let assemblyFormat = [{
     custom<NextValuePair>($predicates, $values) attr-dict `:` functional-type($values, results)
   }];
