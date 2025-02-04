@@ -57,6 +57,9 @@ func.func @constant_index(%array : !xls.array<2 x i32>) -> i32 attributes {xls =
   // INDEX32:           %[[index:.*]] = "xls.constant_scalar"() <{value = 1 : i32}> : () -> i32
   // INDEX64:           %[[index:.*]] = "xls.constant_scalar"() <{value = 1 : i64}> : () -> i64
   %cst = arith.constant 1 : index
+  // INDEX32:           "xls.constant_scalar"() <{value = 21 : i32}> : () -> i32
+  // INDEX64:           "xls.constant_scalar"() <{value = 21 : i64}> : () -> i64
+  %2 = "xls.constant_scalar"() <{value = 21 : index}> : () -> index
 
   // INDEX32:           %[[ret:.*]] = "xls.array_index"(%[[array]], %[[index]]) : (!xls.array<2 x i32>, i32) -> i32
   // INDEX64:           %[[ret:.*]] = "xls.array_index"(%[[array]], %[[index]]) : (!xls.array<2 x i32>, i64) -> i32

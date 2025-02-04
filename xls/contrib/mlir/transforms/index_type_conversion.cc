@@ -110,20 +110,33 @@ class IndexTypeConverter : public TypeConverter {
   unsigned indexTypeBitWidth;
 };
 
-class LegalizeConstantIndex
-    : public OpConversionPattern<mlir::arith::ConstantOp> {
+// Converts constant ops with index typed values/results.
+// Note: this also results in converting arith constant ops to xls constant
+// scalar ops if its using index type.
+class LegalizeConstantIndex : public ConversionPattern {
  public:
-  using OpConversionPattern::OpConversionPattern;
-
+  LegalizeConstantIndex(TypeConverter &converter, MLIRContext *context)
+      : ConversionPattern(converter, RewritePattern::MatchAnyOpTypeTag(),
+                          /*benefit=*/2, context) {}
   LogicalResult matchAndRewrite(
-      mlir::arith::ConstantOp op, OpAdaptor /*adaptor*/,
+      Operation *op, llvm::ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const override {
-    auto intAttr = dyn_cast<IntegerAttr>(op.getValue());
+    IntegerAttr intAttr;
+    if (auto cst = dyn_cast<arith::ConstantOp>(op)) {
+      intAttr = dyn_cast<IntegerAttr>(cst.getValue());
+    } else if (auto cst = dyn_cast<xls::ConstantScalarOp>(op)) {
+      intAttr = dyn_cast<IntegerAttr>(cst.getValue());
+    } else {
+      // Note: just returning here as this is serving same purpose as the
+      // OpConversionPattern filtering so not notifying on failure here.
+      return failure();
+    }
     if (!intAttr) {
       return rewriter.notifyMatchFailure(
           op, "all other types should have been converted by this point");
     }
-    Type resultType = getTypeConverter()->convertType(op.getType());
+    Type resultType =
+        getTypeConverter()->convertType(op->getResult(0).getType());
     rewriter.replaceOpWithNewOp<xls::ConstantScalarOp>(
         op, resultType, IntegerAttr::get(resultType, intAttr.getInt()));
     return success();
