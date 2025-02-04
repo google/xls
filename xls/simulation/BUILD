@@ -335,10 +335,7 @@ cc_library(
     name = "check_simulator",
     srcs = ["check_simulator.cc"],
     hdrs = ["check_simulator.h"],
-    deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings:string_view",
-    ],
+    deps = ["@com_google_absl//absl/status"],
 )
 
 cc_library(
