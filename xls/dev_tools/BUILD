@@ -70,8 +70,6 @@ py_test(
     name = "tool_timeout_test",
     srcs = ["tool_timeout_test.py"],
     data = [":tool_timeout_test_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -81,8 +79,6 @@ py_test(
 py_binary(
     name = "package_bazel_build",
     srcs = ["package_bazel_build.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
@@ -101,8 +97,6 @@ sh_test(
 py_binary(
     name = "generate_vvp_runner",
     srcs = ["generate_vvp_runner.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "@com_google_absl_py//absl:app",
     ],
@@ -186,8 +180,6 @@ py_test(
     name = "extract_sample_points_from_ir_main_test",
     srcs = ["extract_sample_points_from_ir_main_test.py"],
     data = [":extract_sample_points_from_ir_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:gfile",
         "//xls/common:runfiles",
@@ -243,8 +235,6 @@ py_test(
     name = "extract_segment_main_test",
     srcs = ["extract_segment_main_test.py"],
     data = [":extract_segment_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -504,8 +494,6 @@ py_test(
     data = [
         ":check_ir_equivalence_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -604,8 +592,6 @@ py_test(
     name = "ir_minimizer_main_test",
     srcs = ["ir_minimizer_main_test.py"],
     data = ["ir_minimizer_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -729,8 +715,6 @@ py_test(
     data = [
         ":benchmark_codegen_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",

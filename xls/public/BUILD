@@ -126,8 +126,6 @@ cc_library(
 py_binary(
     name = "verify_checksum",
     srcs = ["verify_checksum.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",

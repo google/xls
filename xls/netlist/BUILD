@@ -451,8 +451,6 @@ py_test(
         ":netlist_interpreter_main",
     ],
     main = "netlist_interpreter_main_test.py",
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",

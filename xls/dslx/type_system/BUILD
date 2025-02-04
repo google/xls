@@ -741,8 +741,6 @@ py_test(
         "//xls/dslx/tests:mod_const_enum_importer.x",
         "//xls/dslx/tests:mod_simple_const_enum.x",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",

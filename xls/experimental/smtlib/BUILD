@@ -38,7 +38,6 @@ py_binary(
     srcs = [
         "n_bit_add_generator.py",
     ],
-    python_version = "PY3",
     deps = [
         ":flags_checks",
         "//xls/common:gfile",
@@ -52,7 +51,6 @@ py_binary(
     srcs = [
         "n_bit_mul_generator.py",
     ],
-    python_version = "PY3",
     deps = [
         ":flags_checks",
         "//xls/common:gfile",
@@ -99,7 +97,6 @@ py_binary(
     srcs = [
         "solvers_op_comparison_bits_list.py",
     ],
-    python_version = "PY3",
     deps = [
         ":flags_checks",
         ":n_bit_nested_add_generator",
@@ -117,7 +114,6 @@ py_binary(
     srcs = [
         "solvers_op_comparison_nests_list.py",
     ],
-    python_version = "PY3",
     deps = [
         ":flags_checks",
         ":n_bit_nested_add_generator",
@@ -135,7 +131,6 @@ py_binary(
     srcs = [
         "plot_csv_solver_speed_data.py",
     ],
-    python_version = "PY3",
     deps = [
         "//xls/common:gfile",
         "@com_google_absl_py//absl:app",

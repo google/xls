@@ -268,7 +268,6 @@ py_binary(
         "//xls/tools:eval_ir_main",
         "//xls/tools:eval_proc_main",
     ],
-    python_version = "PY3",
     deps = [
         ":hls_block_py_pb2",
         ":metadata_output_py_pb2",

@@ -521,7 +521,6 @@ py_library(
 py_library(
     name = "memoize",
     srcs = ["memoize.py"],
-    srcs_version = "PY2AND3",
 )
 
 cc_library(
@@ -537,7 +536,6 @@ cc_library(
 py_library(
     name = "runfiles",
     srcs = ["runfiles.py"],
-    srcs_version = "PY3",
     deps = [
         "@rules_python//python/runfiles",
     ],
@@ -546,7 +544,6 @@ py_library(
 py_library(
     name = "multiprocess",
     srcs = ["multiprocess.py"],
-    srcs_version = "PY3",
     deps = ["@com_google_absl_py//absl:app"],
 )
 
@@ -557,7 +554,6 @@ py_test(
         "testdata/bar.txt",
         "testdata/foo.txt",
     ],
-    python_version = "PY3",
     deps = [
         ":runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -567,7 +563,6 @@ py_test(
 py_library(
     name = "test_base",
     srcs = ["test_base.py"],
-    srcs_version = "PY2AND3",
     deps = ["@com_google_absl_py//absl/testing:absltest"],
 )
 

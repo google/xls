@@ -519,8 +519,6 @@ py_test(
         ":ir_converter_main",
         ":sv_types_testfiles",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",

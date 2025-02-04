@@ -85,8 +85,6 @@ py_binary(
     name = "synthesis_client_py",
     srcs = ["synthesis_client_main.py"],
     main = "synthesis_client_main.py",
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":client_credentials",
         ":synthesis_py_pb2",
@@ -100,8 +98,6 @@ py_binary(
 py_binary(
     name = "op_characterization_client_main",
     srcs = ["op_characterization_client_main.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":client_credentials",
         ":op_characterization_client",
@@ -114,8 +110,6 @@ py_binary(
 py_test(
     name = "op_characterization_client_test",
     srcs = ["op_characterization_client_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":op_characterization_client",
         "//xls/estimators:estimator_model_py_pb2",
@@ -147,10 +141,8 @@ py_test(
         ":fake_synthesis_server_main",
         ":synthesis_client_main",
     ],
-    python_version = "PY3",
     # 2020-01-08: Two test cases at the moment.
     shard_count = 2,
-    srcs_version = "PY3",
     deps = [
         ":synthesis_py_pb2",
         requirement("portpicker"),
@@ -173,14 +165,12 @@ cc_library(
 py_library(
     name = "client_credentials",
     srcs = ["client_credentials.py"],
-    srcs_version = "PY3",
     deps = ["@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio"],
 )
 
 py_library(
     name = "synthesis_utils",
     srcs = ["synthesis_utils.py"],
-    srcs_version = "PY3",
     deps = [
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
@@ -194,7 +184,6 @@ py_library(
     data = [
         "//xls/ir:op_name_representations_proto",
     ],
-    srcs_version = "PY3",
     deps = [
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
@@ -214,9 +203,7 @@ py_test(
     name = "synthesis_utils_test",
     srcs = ["synthesis_utils_test.py"],
     data = [":fake_synthesis_server_main"],
-    python_version = "PY3",
     shard_count = 7,
-    srcs_version = "PY3",
     deps = [
         ":client_credentials",
         ":synthesis_utils",

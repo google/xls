@@ -93,8 +93,6 @@ py_test(
         "//xls/dslx:interpreter_main",
         "//xls/dslx/tests:mod_imported_file",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",

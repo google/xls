@@ -111,8 +111,6 @@ py_test(
         ":yosys_server_main",
         "//xls/synthesis:synthesis_client_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         requirement("portpicker"),
         "//xls/common:runfiles",

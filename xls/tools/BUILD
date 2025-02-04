@@ -423,9 +423,7 @@ py_test(
         "//xls/modules/aes:aes_ctr.ir",
         "//xls/passes:default_optimization_pipeline_proto",
     ],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/passes:pass_pipeline_py_pb2",
@@ -443,7 +441,6 @@ py_test(
         "//xls/tools/testdata:static_ir_files",
     ],
     main = "run_opt_main.py",
-    python_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
@@ -460,7 +457,6 @@ py_test(
         "//xls/tools/testdata:static_ir_files",
     ],
     main = "run_opt_main.py",
-    python_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
@@ -477,7 +473,6 @@ py_test(
         "//xls/tools/testdata:static_ir_files",
     ],
     main = "run_opt_main.py",
-    python_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
@@ -494,7 +489,6 @@ py_test(
         "//xls/tools/testdata:static_ir_files",
     ],
     main = "run_opt_main.py",
-    python_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
@@ -511,7 +505,6 @@ py_test(
         "//xls/tools/testdata:static_ir_files",
     ],
     main = "run_opt_main.py",
-    python_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
@@ -751,8 +744,6 @@ py_test(
         ":codegen_main",
         ":simulate_module_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     # iverilog crashes with ASAN and MSAN.
     tags = [
         "noasan",
@@ -772,9 +763,7 @@ py_test(
         "//xls/examples:sha256.opt.ir",
         "//xls/tools/testdata:static_vtxt_files",
     ],
-    python_version = "PY3",
     shard_count = 50,
-    srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
         "//xls/codegen:module_signature_py_pb2",
@@ -795,8 +784,6 @@ py_test(
     data = [
         ":eval_ir_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":node_coverage_stats_py_pb2",
         "//xls/common:runfiles",
@@ -815,8 +802,6 @@ py_test(
         "@llvm-project//llvm:lli",
         "@llvm-project//llvm:llvm-link",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     tags = ["nomsan"],
     deps = [
         "//xls/common:runfiles",
@@ -849,8 +834,6 @@ py_test(
         "//xls/tools/testdata:eval_proc_main_zero_size_test.opt.ir",
         "//xls/tools/testdata:eval_proc_main_zero_size_test.sig.textproto",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":node_coverage_stats_py_pb2",
         ":proc_channel_values_py_pb2",
@@ -968,8 +951,6 @@ py_test(
     data = [
         ":delay_info_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -990,8 +971,6 @@ py_proto_library(
 py_binary(
     name = "gather_design_stats",
     srcs = ["gather_design_stats.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     visibility = ["//xls:xls_utility_users"],
     deps = [
         ":design_stats_py_pb2",
@@ -1011,8 +990,6 @@ py_test(
         "//xls/tools/testdata:find_index_5ps_model_unit_verilog_sta_by_stage_sta.log",
         "//xls/tools/testdata:find_index_5ps_model_unit_verilog_synth_by_stage_yosys_output.log.gz",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",

@@ -73,8 +73,6 @@ py_test(
     name = "logging_flags_test",
     srcs = ["logging_flags_test.py"],
     data = [":log_initialization_tester"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",

@@ -59,8 +59,6 @@ py_binary(
         ":js_compiled",
         "//xls/tools:opt_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         requirement("Flask"),
         requirement("Jinja2"),

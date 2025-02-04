@@ -277,7 +277,6 @@ py_test(
         "//xls/interpreter:ir_interpreter",
         "//xls/tools:eval_ir_main",
     ],
-    python_version = "PY3",
     deps = [
         "//xls/contrib/xlscc:hls_block_py_pb2",
         "@com_google_absl_py//absl/testing:absltest",

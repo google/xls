@@ -43,7 +43,6 @@ py_proto_library(
 py_library(
     name = "estimator_model",
     srcs = ["estimator_model.py"],
-    srcs_version = "PY3ONLY",
     deps = [
         ":estimator_model_py_pb2",
         requirement("numpy"),
@@ -54,8 +53,6 @@ py_library(
 py_test(
     name = "estimator_model_test",
     srcs = ["estimator_model_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     tags = ["nomsan"],  # scipy seems not to be msan-clean.
     deps = [
         ":estimator_model",
@@ -72,7 +69,6 @@ py_library(
         "//xls/dev_tools:parse_ir",
         "//xls/tools:codegen_main",
     ],
-    srcs_version = "PY3",
     deps = [
         "//xls/codegen:module_signature_py_pb2",
         "//xls/common:runfiles",
@@ -84,8 +80,6 @@ py_test(
     name = "op_module_generator_test",
     srcs = ["op_module_generator_test.py"],
     data = glob(["testdata/*"]),
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":op_module_generator",
         "//xls/common:runfiles",
@@ -96,8 +90,6 @@ py_test(
 py_binary(
     name = "estimator_model_join",
     srcs = ["estimator_model_join.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":estimator_model",
         ":estimator_model_py_pb2",
@@ -115,8 +107,6 @@ py_test(
     data = [
         ":estimator_model_join",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -133,8 +123,6 @@ py_library(
 py_test(
     name = "estimator_model_utils_test",
     srcs = ["estimator_model_utils_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":estimator_model_py_pb2",
         ":estimator_model_utils",
@@ -147,8 +135,6 @@ py_test(
 py_binary(
     name = "extract_sample_points_from_estimator_model",
     srcs = ["extract_sample_points_from_estimator_model.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":estimator_model_py_pb2",
         "//xls/common:gfile",
@@ -164,8 +150,6 @@ py_test(
     data = [
         ":extract_sample_points_from_estimator_model",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -176,8 +160,6 @@ py_test(
 py_binary(
     name = "estimator_model_stats",
     srcs = ["estimator_model_stats.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         requirement("numpy"),
         "//xls/estimators:estimator_model",
@@ -201,8 +183,6 @@ py_test(
         "testdata/unit_delay_model_stats.csv",
         ":estimator_model_stats",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     tags = ["nomsan"],  # scipy seems not to be msan-clean.
     deps = [
         "//xls/common:runfiles",
@@ -214,8 +194,6 @@ py_test(
 py_binary(
     name = "run_op_characterization",
     srcs = ["run_op_characterization.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         requirement("portpicker"),
         "@com_google_absl_py//absl:app",

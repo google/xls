@@ -29,8 +29,6 @@ package(
 py_binary(
     name = "area_characterization_client_main",
     srcs = ["area_characterization_client_main.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",

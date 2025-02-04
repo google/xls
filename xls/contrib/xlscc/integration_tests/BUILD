@@ -77,8 +77,6 @@ py_test(
         "//xls/contrib/xlscc/integration_tests/testdata:eval_proc_main_test.test_memory.sig.textproto",
         "//xls/tools:eval_proc_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/logging",

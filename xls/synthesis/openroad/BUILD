@@ -68,10 +68,8 @@ py_test(
         ":json_metrics_server_main",
         "//xls/synthesis:synthesis_client_main",
     ],
-    python_version = "PY3",
     # One shard for each different server test.
     shard_count = 5,
-    srcs_version = "PY3",
     deps = [
         requirement("portpicker"),
         "//xls/common:runfiles",

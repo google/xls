@@ -202,8 +202,6 @@ py_binary(
     name = "generate_delay_lookup",
     srcs = ["generate_delay_lookup.py"],
     data = ["generate_delay_lookup.tmpl"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         requirement("Jinja2"),
         requirement("MarkupSafe"),

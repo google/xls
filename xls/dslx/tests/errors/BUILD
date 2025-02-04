@@ -32,8 +32,6 @@ py_test(
     data = glob(["*.x"]) + [
         "//xls/dslx:interpreter_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",

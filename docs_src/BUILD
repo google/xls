@@ -60,8 +60,6 @@ py_test(
         ":all_markdown",
         "//:mkdocs.yml",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         requirement("pyyaml"),
         "//xls/common:runfiles",

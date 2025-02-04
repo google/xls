@@ -47,7 +47,6 @@ dslx_strip_comments(
 py_library(
     name = "cli_utils",
     srcs = ["cli_utils.py"],
-    srcs_version = "PY3ONLY",
 )
 
 cc_library(
@@ -636,8 +635,6 @@ py_test(
     data = [
         ":find_failing_input_main",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -664,8 +661,6 @@ py_test(
     timeout = "long",
     srcs = ["run_fuzz_multiprocess_test.py"],
     data = [":run_fuzz_multiprocess"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -677,9 +672,7 @@ py_test(
     timeout = "eternal",
     srcs = ["fuzz_coverage_test.py"],
     data = [":run_fuzz_multiprocess"],
-    python_version = "PY3",
     shard_count = 3,
-    srcs_version = "PY3",
     tags = [
         "manual",
         "notap",

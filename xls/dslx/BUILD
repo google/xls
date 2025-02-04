@@ -626,8 +626,6 @@ py_test(
         ":highlight_main",
         "//xls/examples:sha256.x",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -659,8 +657,6 @@ py_test(
         ":strip_comments_main",
         "//xls/examples:sha256.x",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
@@ -671,8 +667,6 @@ py_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
     data = [":interpreter_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -683,8 +677,6 @@ py_test(
     name = "prove_quickcheck_test",
     srcs = ["prove_quickcheck_test.py"],
     data = [":prove_quickcheck_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
@@ -868,8 +860,6 @@ py_test(
         ":dslx_fmt",
         "//xls/examples:sha256.x",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",

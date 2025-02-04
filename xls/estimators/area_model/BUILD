@@ -101,8 +101,6 @@ py_test(
     data = [
         ":area_model_utils",
     ],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":area_model_utils",
         "//xls/common:test_base",
@@ -117,8 +115,6 @@ py_binary(
     name = "generate_area_lookup",
     srcs = ["generate_area_lookup.py"],
     data = ["generate_area_lookup.tmpl"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         requirement("Jinja2"),
         requirement("MarkupSafe"),
