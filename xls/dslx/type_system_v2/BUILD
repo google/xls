@@ -175,6 +175,7 @@ cc_library(
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:deduce_utils",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",

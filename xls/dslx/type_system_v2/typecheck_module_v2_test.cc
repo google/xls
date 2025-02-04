@@ -3551,5 +3551,179 @@ fn main() {
           HasNodeWithType("x", "uN[32]"), HasNodeWithType("y", "uN[8]"),
           HasNodeWithType("z", "uN[128]"), HasNodeWithType("d", "sN[8]"))));
 }
+
+TEST(TypecheckV2Test, ImplFunctionUsingStructMembers) {
+  EXPECT_THAT(R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+const P = Point{x: u32:4, y:u32:2};
+const Y = P.area();
+const Z = uN[Y]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("Y", "uN[32]"),
+                                      HasNodeWithType("Z", "uN[8]"))));
+}
+
+TEST(TypecheckV2Test, ImplFunctionReturnsSelf) {
+  EXPECT_THAT(R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn unit() -> Self { Point { x: u32:1, y: u32:1 } }
+}
+
+const P = Point::unit();
+const X = uN[P.x]:0;
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("P", "Point { x: uN[32], y: uN[32] }"),
+                        HasNodeWithType("X", "uN[1]"))));
+}
+
+TEST(TypecheckV2Test, ImplsForDifferentStructs) {
+  EXPECT_THAT(R"(
+struct Point { x: u32, y: u32 }
+
+struct Line { a: Point, b: Point }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+impl Line {
+    fn height(self) -> u32 {
+        self.b.y - self.a.y
+    }
+}
+
+const P = Point{x: u32:4, y:u32:2};
+const A = P.area(); // 8
+const L = Line{a: P, b: Point{x: u32:4, y: u32:4}};
+const H = L.height(); // 2
+const Z = uN[A + H]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("A", "uN[32]"),
+                                      HasNodeWithType("H", "uN[32]"),
+                                      HasNodeWithType("Z", "uN[10]"))));
+}
+
+TEST(TypecheckV2Test, ImplFunctionUsingStructMembersIndirect) {
+  EXPECT_THAT(R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+const P = Point{x: u32:4, y:u32:2};
+const Y = P;
+const W = Y;
+const X = uN[W.area()]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[8]")));
+}
+
+TEST(TypecheckV2Test, InstanceMethodCalledStaticallyWithNoParamsFails) {
+  EXPECT_THAT(R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self) -> u32 {
+        self.x * self.y
+    }
+}
+
+const P = Point::area();
+)",
+              TypecheckFails(HasSubstr("Expected 1 argument(s) but got 0")));
+}
+
+TEST(TypecheckV2Test, ImplFunctionCalledOnSelf) {
+  EXPECT_THAT(R"(
+struct Rect { width: u32, height: u32 }
+
+impl Rect {
+    const BORDER = u32:2;
+    fn compute_width(self) -> u32 { self.width + BORDER * 2 }
+    fn compute_height(self) -> u32 { self.height + BORDER * 2 }
+
+    fn area(self) -> u32 {
+        self.compute_width() * self.compute_height()
+    }
+}
+
+const R = Rect { width: 2, height: 4 };
+const Z = uN[R.area()]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[48]")));
+}
+
+TEST(TypecheckV2Test, InstanceMethodNotDefined) {
+  EXPECT_THAT(
+      R"(
+struct Point { x: u32, y: u32 }
+
+impl Point { }
+
+const P = Point { x: u32:1, y: u32:4 };
+const Z = uN[P.area()]:0;
+)",
+      TypecheckFails(HasSubstr(
+          "Name 'area' is not defined by the impl for struct 'Point'")));
+}
+
+TEST(TypecheckErrorTest, ImplMethodCalledOnInt) {
+  EXPECT_THAT(R"(
+const X = u32:1;
+const Y = uN[X.area()]:0;
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot invoke method `area` on non-struct type `uN[32]`")));
+}
+
+TEST(TypecheckV2Test, ImplFunctionUsingStructMembersAndArg) {
+  EXPECT_THAT(R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self, a: u32, b: u32) -> u32 {
+        self.x * self.y * a * b
+    }
+}
+
+const P = Point{x: 4, y:2};
+const Y = P.area(2, 1);
+const Z = uN[Y]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, ImplFunctionUsingStructMembersExplicitSelfType) {
+  EXPECT_THAT(R"(
+struct Point { x: u32, y: u32 }
+
+impl Point {
+    fn area(self: Self) -> u32 {
+        self.x * self.y
+    }
+}
+
+const P = Point{x: u32:4, y:u32:2};
+const A = P.area();
+const Z = uN[A]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[8]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

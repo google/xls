@@ -242,6 +242,12 @@ absl::StatusOr<std::unique_ptr<Type>> ConcretizeBuiltinTypeAnnotation(
 absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
     const Attr* attr, const TypeInfo* type_info);
 
+// Determines the real type for `Self` in an impl method, i.e. the type of
+// the owning struct. This is lexically determined by AST traversal, with any
+// parametrics left unknown.
+absl::StatusOr<const TypeAnnotation*> GetRealTypeAnnotationForSelf(
+    const SelfTypeAnnotation* self, const FileTable& file_table);
+
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
 // should not cause a type error to occur).
 bool IsAcceptableCast(const Type& from, const Type& to);

@@ -958,6 +958,35 @@ absl::StatusOr<std::optional<Function*>> ImplFnFromCallee(
   return sd.GetImplFunction(attr->attr());
 }
 
+absl::StatusOr<const TypeAnnotation*> GetRealTypeAnnotationForSelf(
+    const SelfTypeAnnotation* self, const FileTable& file_table) {
+  // Currently `self` is only supported for functions within `impl` either as a
+  // parameter or a return type.
+  //  * Lineage for a parameter:
+  //    impl --> function --> parameter --> type.
+  //  * Lineage for a function return:
+  //    impl --> function --> type.
+  //
+  // Identify the relevant `impl` and return the type for the associated
+  // `struct`.
+
+  Function* fn;
+  if (auto* param = dynamic_cast<Param*>(self->parent())) {
+    fn = dynamic_cast<Function*>(param->parent());
+  } else {
+    fn = dynamic_cast<Function*>(self->parent());
+  }
+  if (fn == nullptr || fn->parent()->kind() != AstNodeKind::kImpl) {
+    return TypeInferenceErrorStatusForAnnotation(
+        self->span(), self,
+        "`Self` type is only supported for function parameters and return "
+        "values within an `impl`.",
+        file_table);
+  }
+  const auto* impl = dynamic_cast<const Impl*>(fn->parent());
+  return impl->struct_ref();
+}
+
 bool IsAcceptableCast(const Type& from, const Type& to) {
   auto is_enum = [](const Type& ct) -> bool {
     return dynamic_cast<const EnumType*>(&ct) != nullptr;

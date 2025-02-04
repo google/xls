@@ -40,6 +40,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/deduce_utils.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/inference_table_to_type_info.h"
@@ -362,6 +363,17 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             file_table_);
       }
     }
+    return DefaultHandler(node);
+  }
+
+  absl::Status HandleSelfTypeAnnotation(
+      const SelfTypeAnnotation* node) override {
+    VLOG(5) << "HandleSelfTypeAnnotation: " << node->ToString();
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* real_type,
+        xls::dslx::GetRealTypeAnnotationForSelf(node, file_table_));
+    VLOG(5) << "Real TypeAnnotation for Self: " << real_type->ToString();
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, real_type));
     return DefaultHandler(node);
   }
 
@@ -737,6 +749,25 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
     std::vector<TypeAnnotation*> arg_types;
     arg_types.reserve(node->args().size());
+    int self_arg_offset = 0;
+    if (node->callee()->kind() == AstNodeKind::kAttr) {
+      // An invocation like foo.bar(args), which is targeting an instance
+      // function of a struct, needs the actual object type added to the
+      // signature in place of the formal `Self`.
+      const Attr* attr = dynamic_cast<const Attr*>(node->callee());
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* obj_type_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(attr->lhs()),
+              absl::StrCat(GenerateInternalTypeVariableName(attr->lhs()),
+                           "_target_obj")));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(attr->lhs(), obj_type_variable));
+      XLS_RETURN_IF_ERROR(attr->lhs()->Accept(this));
+      arg_types.push_back(
+          module_.Make<TypeVariableTypeAnnotation>(obj_type_variable));
+      self_arg_offset = 1;
+    }
     for (int i = 0; i < node->args().size(); i++) {
       const Expr* arg = node->args()[i];
       XLS_ASSIGN_OR_RETURN(
@@ -746,12 +777,16 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
               absl::Substitute("$0_actual_arg_$1",
                                GenerateInternalTypeVariableName(arg), i)));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arg, arg_type_variable));
+
+      // In a case like `foo.fn(arg0, arg1)`, `foo` is the implicit first actual
+      // argument, hence `arg0` and `arg1` are actually at index 1 and 2 among
+      // the params in the `FunctionTypeAnnotation`.
+      const int arg_index_including_implicit_self = i + self_arg_offset;
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
           arg,
           module_.Make<ParamTypeAnnotation>(
               module_.Make<TypeVariableTypeAnnotation>(function_type_variable),
-              i)));
-
+              arg_index_including_implicit_self)));
       arg_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(arg_type_variable));
       XLS_RETURN_IF_ERROR(arg->Accept(this));
