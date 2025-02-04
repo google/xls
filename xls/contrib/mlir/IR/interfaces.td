@@ -78,5 +78,23 @@ def PredicatableOpInterface : OpInterface<"PredicatableOpInterface"> {
   ];
 }
 
+// Declares that an op is permissible inside a literal region.
+def LiteralMemberOpInterface : OpInterface<"LiteralMemberOpInterface"> {
+  let description = [{
+    Declares that an op is permissible inside a literal region.
+  }];
+  let cppNamespace = "::mlir::xls";
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns true if the operation, in its current form, is permissible inside a literal region.",
+      /*retTy=*/"bool",
+      /*methodName=*/"isPermissibleInsideLiteral",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/"return true;"
+    >,
+  ];
+}
 
 #endif

@@ -683,7 +683,12 @@ def Xls_SendOp : Xls_Op<"send", [
 // Array operations
 //===----------------------------------------------------------------------===//
 
-def Xls_ArrayOp : Xls_NonScalarizableNaryOp<"array", [Pure, SameTypeOperands, TensorArrayTypeFungible]> {
+def Xls_ArrayOp : Xls_NonScalarizableNaryOp<"array", [
+  Pure,
+  SameTypeOperands,
+  TensorArrayTypeFungible,
+  DeclareOpInterfaceMethods<LiteralMemberOpInterface>
+]> {
   let summary = "Array creation operation";
   let description = [{
     Constructs an array of its operands.
@@ -842,8 +847,12 @@ def Xls_ArrayConcatOp : Xls_Op<"array_concat", [Pure, TensorArrayTypeFungible]> 
 // Tuple operations
 //===----------------------------------------------------------------------===//
 
-def Xls_TupleOp : Xls_Op<"tuple", [Pure, DeclareOpInterfaceMethods<InferTypeOpInterface>,
-                                   TensorArrayTypeFungible]> {
+def Xls_TupleOp : Xls_Op<"tuple", [
+  Pure,
+  DeclareOpInterfaceMethods<InferTypeOpInterface>,
+  DeclareOpInterfaceMethods<LiteralMemberOpInterface>,
+  TensorArrayTypeFungible,
+]> {
   let summary = "Tuple operation";
   let description = [{
     Constructs a tuple of its operands.
@@ -1169,10 +1178,16 @@ def Xls_MapOp : Xls_Op<"map", []> {
 // TODO(jmolloy): DynamicCountedFor (but the XLS code generator cannot handle
 // it).
 
-def Xls_YieldOp : Xls_Op<"yield", [Pure, ReturnLike, Terminator]> {
+def Xls_YieldOp : Xls_Op<"yield", [
+  Pure,
+  ReturnLike,
+  Terminator,
+  DeclareOpInterfaceMethods<LiteralMemberOpInterface>
+]> {
   let summary = "for return op";
   let description = [{
-    Yields an SSA value from the enclosing ForOp, EprocOp, or SprocOp region.
+    Yields an SSA value from the enclosing LiteralOp, ForOp, EprocOp, or
+    SprocOp region.
   }];
 
   let arguments = (ins Variadic<AnyType>:$results);
@@ -1280,7 +1295,10 @@ def Xls_CountedForOp : Xls_Op<"counted_for",
 // Sequencing operations
 //===----------------------------------------------------------------------===//
 
-def Xls_AfterAllOp : Xls_Op<"after_all", [Pure]> {
+def Xls_AfterAllOp : Xls_Op<"after_all", [
+  Pure,
+  DeclareOpInterfaceMethods<LiteralMemberOpInterface>
+]> {
   let summary = "Constructs partial orderings among channel operations";
   let description = [{
     Used to construct partial orderings among channel operations.
@@ -1298,6 +1316,13 @@ def Xls_AfterAllOp : Xls_Op<"after_all", [Pure]> {
       build($_builder, $_state, TokenType::get($_builder.getContext()), ::ValueRange{});
     }]>
   ];
+  let extraClassDeclaration = [{
+    bool isPermissibleInsideLiteral() {
+      // xls.after_all is only permissible inside literal regions if it is
+      // used to create a new token with no prior dependencies.
+      return getOperands().empty();
+    }
+  }];
   let assemblyFormat = [{
     $inputs attr-dict `:` custom<VariadicSameOperandsAndResultType>(ref($inputs), type($inputs), type($result))
   }];
@@ -1321,7 +1346,11 @@ def Xls_ConstantTensorOp : Xls_Op<"constant_tensor", [ConstantLike, Pure]> {
   let hasFolder = 1;
 }
 
-def Xls_ConstantScalarOp : Xls_Op<"constant_scalar", [ConstantLike, Pure]> {
+def Xls_ConstantScalarOp : Xls_Op<"constant_scalar", [
+  ConstantLike,
+  Pure,
+  DeclareOpInterfaceMethods<LiteralMemberOpInterface>
+]> {
   let summary = "Constant scalar operation";
   let description = [{
     Produces an output from a constant value.
@@ -1344,6 +1373,48 @@ def Xls_ConstantScalarOp : Xls_Op<"constant_scalar", [ConstantLike, Pure]> {
     }]>
   ];
   let hasFolder = 1;
+}
+
+def Xls_LiteralOp : Xls_Op<"literal", [
+  ConstantLike,
+  Pure,
+  IsolatedFromAbove,
+  SingleBlockImplicitTerminator<"YieldOp">
+]> {
+  let summary = "Complex Literal";
+  let description = [{
+    Produces a complex (non-bits) constant value from a region containing
+    simple constants or tuple/array construction operations.
+
+    The initializer region must be terminated by a `xls.yield` op, which returns
+    the constructed value.
+
+    Besides this yield, only the following operations are permissible inside
+    the initializer region:
+
+    - `xls.constant_scalar`
+    - `xls.after_all` (with no operands)
+    - `xls.tuple`
+    - `xls.array`
+
+    The `LiteralMemberOpInterface` interface is used to determine if a given
+    incarnation of an operation is permissible inside a literal region.
+  }];
+  let regions = (region
+    SizedRegion<1>:$initializer
+  );
+  let results = (outs
+    Xls_BitsOrTuple:$result
+  );
+  let hasRegionVerifier = 1;
+  let extraClassDeclaration = [{
+    Block &getInitializerBlock() {
+      return getInitializer().front();
+    }
+  }];
+  let assemblyFormat = [{
+    attr-dict `:` type($result) $initializer
+  }];
 }
 
 //===----------------------------------------------------------------------===//
