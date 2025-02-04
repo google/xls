@@ -1,6 +1,6 @@
 # DSLX Reference
 
-### Overview
+## Overview
 
 DSLX is a domain specific, dataflow-oriented functional language used to build
 hardware that can also run effectively as host software. Within the XLS project,
@@ -44,14 +44,14 @@ In this document we use the function to compute a CRC32 checksum to describe
 language features. The full code is in
 [`examples/dslx_intro/crc32_one_byte.x`](https://github.com/google/xls/tree/main/xls/examples/dslx_intro/crc32_one_byte.x).
 
-### Comments
+## Comments
 
 Just as in languages like Rust/C++, comments start with `//` and last through
 the end of the line.
 
-### Identifiers
+## Identifiers
 
-All identifiers, eg., for function names, parameters, and values, follow the
+All identifiers, e.g., for function names, parameters, and values, follow the
 typical naming rules of other languages. The identifiers can start with a
 character or an underscore, and can then contain more characters, underscores,
 or numbers. Valid examples are:
@@ -93,7 +93,7 @@ identifier to indicate "prime"; e.g. `let state' = update(state);`. By
 convention ticks usually come at the end of an identifier. Since this is not
 part of Rust's syntax, it is considered experimental at this time.
 
-#### Unused Bindings
+### Unused Bindings
 
 If you bind a name and do not use it, a warning will be flagged, and warnings
 are errors by default; e.g. this will flag an unused warning:
