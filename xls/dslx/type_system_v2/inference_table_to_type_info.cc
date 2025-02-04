@@ -508,8 +508,14 @@ class InferenceTableConverter {
             [&](AstNode* name_def, TypeOrAnnotation type,
                 std::optional<InterpValue> _) -> absl::Status {
           if (std::holds_alternative<const TypeAnnotation*>(type)) {
-            XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-                name_def, std::get<const TypeAnnotation*>(type)));
+            std::optional<const NameRef*> type_var =
+                table_.GetTypeVariable(name_def);
+            if (type_var.has_value()) {
+              XLS_RETURN_IF_ERROR(
+                  table_.AddTypeAnnotationToVariableForInvocation(
+                      parametric_invocation, *type_var,
+                      std::get<const TypeAnnotation*>(type)));
+            }
           }
           return absl::OkStatus();
         };

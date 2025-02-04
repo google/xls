@@ -3307,7 +3307,7 @@ fn f() -> bits[4] {
                                       HasNodeWithType("y", "uN[4]"))));
 }
 
-TEST(TypecheckV2Test, LetWithTupleVar) {
+TEST(TypecheckV2Test, LetWithTupleConst) {
   EXPECT_THAT(R"(
 const TUP = (u32:1, bits[4]:0);
 fn f() -> bits[4] {
@@ -3317,6 +3317,38 @@ fn f() -> bits[4] {
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[32]"),
                                       HasNodeWithType("y", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, LetInParametricFn) {
+  EXPECT_THAT(R"(
+fn f<N: u32>() -> uN[N] {
+  const ZERO = uN[N]:0;
+  ZERO
+}
+
+fn main() {
+  let five_bits = f<5>();
+  let four_bits = f<4>();
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("five_bits", "uN[5]"),
+                                      HasNodeWithType("four_bits", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, LetWithTupleInParametricFn) {
+  EXPECT_THAT(R"(
+fn f<N: u32>(x: uN[N]) -> uN[N] {
+  let (y, z) = (x + uN[N]:1, u32:3);
+  y
+}
+
+fn main() {
+  const C = f<16>(uN[16]:5);
+  let z = f<4>(uN[4]:0);
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("C", "uN[16]"),
+                                      HasNodeWithType("z", "uN[4]"))));
 }
 
 TEST(TypecheckV2Test, BadTupleAnnotation) {
