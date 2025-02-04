@@ -241,10 +241,37 @@ def Xls_AndOp : Xls_NaryOp<"and", [Commutative, Pure, SameOperandsAndResultType]
   );
 }
 
+def Xls_NandOp : Xls_NaryOp<"nand", [Commutative, Pure, SameOperandsAndResultType]> {
+  let summary = "Bitwise NAND operation";
+  let description = [{
+    result = ~(operand_0 & ... & operand_{N-1})
+  }];
+  let arguments = (ins
+    Variadic<Xls_Bits>:$inputs
+  );
+  let results = (outs
+    Xls_Bits:$result
+  );
+}
+
 def Xls_OrOp : Xls_NaryOp<"or", [Commutative, Pure, SameOperandsAndResultType]> {
   let summary = "Bitwise OR operation";
   let description = [{
     result = operand_0 | ... | operand_{N-1}
+  }];
+  let arguments = (ins
+    Variadic<Xls_Bits>:$inputs
+  );
+  let results = (outs
+    Xls_Bits:$result
+  );
+}
+
+
+def Xls_NorOp : Xls_NaryOp<"nor", [Commutative, Pure, SameOperandsAndResultType]> {
+  let summary = "Bitwise NOR operation";
+  let description = [{
+    result = ~(operand_0 | ... | operand_{N-1})
   }];
   let arguments = (ins
     Variadic<Xls_Bits>:$inputs
@@ -265,6 +292,48 @@ def Xls_XorOp : Xls_NaryOp<"xor", [Commutative, Pure, SameOperandsAndResultType]
   let results = (outs
     Xls_Bits:$result
   );
+}
+
+//===----------------------------------------------------------------------===//
+// Bitwise reduction operations
+//===----------------------------------------------------------------------===//
+
+class Xls_ReductionOp<string name, list<Trait> traits = []> :
+  Xls_Op<name, !listconcat(traits, [
+    ShapesAreConsistent<["input", "result"]>,
+    Elementwise,
+    Scalarizable,
+  ])> {
+  let arguments = (ins
+    Xls_Bits:$input
+  );
+  let results = (outs
+    Xls_Bit:$result
+  );
+  let assemblyFormat = [{
+    $input attr-dict `:` functional-type($input, $result)
+  }];
+}
+
+def Xls_AndReductionOp : Xls_ReductionOp<"and_reduce", [Commutative, Pure]> {
+  let summary = "Unary AND reduction operation";
+  let description = [{
+    result = operand[0] & operand[1] & ...
+  }];
+}
+
+def Xls_OrReductionOp : Xls_ReductionOp<"or_reduce", [Commutative, Pure]> {
+  let summary = "Unary OR reduction operation";
+  let description = [{
+    result = operand[0] | operand[1] | ...
+  }];
+}
+
+def Xls_XorReductionOp : Xls_ReductionOp<"xor_reduce", [Commutative, Pure]> {
+  let summary = "Unary XOR reduction operation";
+  let description = [{
+    result = operand[0] ^ operand[1] ^ ...
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -307,21 +376,70 @@ class Xls_ArithBinaryOp<string name, string desc>
   );
 }
 
+class Xls_PartialProdOp<string name, string desc> :  Xls_Op<name, [
+  Pure,
+  ShapesAreConsistent<["lhs", "rhs", "result_lhs", "result_rhs"]>,
+  Elementwise,
+  Scalarizable,
+  AllTypesMatch<["result_lhs", "result_rhs"]>
+]> {
+  let summary = !strconcat(desc, " operation");
+  let description = summary;
+  let arguments = (ins
+    Xls_Bits:$lhs,
+    Xls_Bits:$rhs
+  );
+  let results = (outs
+    Xls_Bits:$result_lhs,
+    Xls_Bits:$result_rhs
+  );
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` functional-type(operands, results)
+  }];
+  let builders = [
+    OpBuilder<(ins "::mlir::Type":$result_type, "::mlir::Value":$lhs, "::mlir::Value":$rhs), [{
+      build($_builder, $_state, result_type, result_type, lhs, rhs);
+    }]>,
+  ];
+}
+
 def Xls_AddOp : Xls_ArithBinaryOp<"add", "addition"> {
   let hasFolder = 1;
 }
 def Xls_SmulOp : Xls_ArithBinaryOp<"smul", "signed multiplication">;
+def Xls_SmulpOp : Xls_PartialProdOp<"smulp", [{
+  Signed partial product multiply.
+
+  Returns two results such that:
+    result_lhs + result_rhs = lhs * rhs
+
+  The exact behavior of this operation is not fully defined: Any two values
+  such that the above holds are a valid result.
+
+  The two results must have the same (scalar) bitwidth, but there are no other
+  constraints: The two operands can be of arbitrary (scalar) bitwidths.
+}]>;
 def Xls_UmulOp : Xls_ArithBinaryOp<"umul", "unsigned multiplication"> {
   let hasFolder = 1;
   let hasCanonicalizeMethod = 1;
 }
+def Xls_UmulpOp : Xls_PartialProdOp<"umulp", [{
+  Unsigned partial product multiply.
+
+  Returns two results such that:
+    result_lhs + result_rhs = lhs * rhs
+
+  The exact behavior of this operation is not fully defined: Any two values
+  such that the above holds are a valid result.
+
+  The two results must have the same (scalar) bitwidth, but there are no other
+  constraints: The two operands can be of arbitrary (scalar) bitwidths.
+}]>;
 def Xls_SdivOp : Xls_ArithBinaryOp<"sdiv", "signed division">;
 def Xls_SmodOp : Xls_ArithBinaryOp<"smod", "signed modulo">;
 def Xls_SubOp : Xls_ArithBinaryOp<"sub", "subtraction">;
 def Xls_UdivOp : Xls_ArithBinaryOp<"udiv", "unsigned division">;
 def Xls_UmodOp : Xls_ArithBinaryOp<"umod", "unsigned modulo">;
-
-// TODO(jmolloy): Smulp/Umulp - partial product multiplication.
 
 //===----------------------------------------------------------------------===//
 // Comparison operations
@@ -1915,6 +2033,48 @@ def Xls_TraceOp : Xls_Op<"trace", [TensorArrayTypeFungible,
                     CArg<"int", "0">:$verbosity), [{
       ::mlir::Value token = $_builder.create<AfterAllOp>($_builder.getUnknownLoc());
       build($_builder, $_state, token, nullptr, args, $_builder.getStringAttr(format), $_builder.getI64IntegerAttr(verbosity));
+    }]>
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// Other side-effecting operations
+//===----------------------------------------------------------------------===//
+
+def Xls_GateOp :
+  Xls_Op<"gate", [
+    ShapesAreConsistent<["data", "result"]>,
+    Elementwise,
+    Scalarizable,
+]> {
+  let summary = "Gates an arbitrarily-typed value based on a condition";
+  let description = [{
+    The result of the operation is the data operand if the condition is true,
+    otherwise the result is a zero value of the type of the data operand
+    (i.e., the value is gated off).
+
+    A helpful mnemonic is to think of this as analogous to an AND gate: if the
+    condition is true, the value passes through, otherwise it's zeroed.
+
+    This operation intended for use in operand gating for power reduction.
+
+    The operation is considered side-effecting to prevent removal of the operation
+    when the gated result (condition is false) is not observable. The 'side-effect'
+    of this operation is the effect it can have on power consumption.
+  }];
+  let arguments = (ins
+    I1:$condition,
+    Xls_BitsOrTuple:$data
+  );
+  let results = (outs
+    Xls_BitsOrTuple:$result
+  );
+  let assemblyFormat = [{
+    $condition `,` $data attr-dict `:` functional-type(operands, results)
+  }];
+  let builders = [
+    OpBuilder<(ins "::mlir::Value":$condition, "::mlir::Value":$data), [{
+      build($_builder, $_state, data.getType(), condition, data);
     }]>
   ];
 }

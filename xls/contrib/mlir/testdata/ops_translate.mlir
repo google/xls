@@ -17,14 +17,39 @@ func.func @and(%arg0: i8, %arg1: i8) -> i8 {
   return %0 : i8
 }
 
+func.func @nand(%arg0: i8, %arg1: i8) -> i8 {
+  %0 = xls.nand %arg0, %arg1 : i8
+  return %0 : i8
+}
+
 func.func @or(%arg0: i8, %arg1: i8) -> i8 {
   %0 = xls.or %arg0, %arg1 : i8
+  return %0 : i8
+}
+
+func.func @nor(%arg0: i8, %arg1: i8) -> i8 {
+  %0 = xls.nor %arg0, %arg1 : i8
   return %0 : i8
 }
 
 func.func @xor(%arg0: i8, %arg1: i8) -> i8 {
   %0 = xls.xor %arg0, %arg1 : i8
   return %0 : i8
+}
+
+func.func @and_reduce(%arg0: i8) -> i1 {
+  %0 = xls.and_reduce %arg0 : (i8) ->i1
+  return %0 : i1
+}
+
+func.func @or_reduce(%arg0: i8) -> i1 {
+  %0 = xls.or_reduce %arg0 : (i8) ->i1
+  return %0 : i1
+}
+
+func.func @xor_reduce(%arg0: i8) -> i1 {
+  %0 = xls.xor_reduce %arg0 : (i8) ->i1
+  return %0 : i1
 }
 
 func.func @neg(%arg0: i8) -> i8 {
@@ -42,9 +67,19 @@ func.func @smul(%arg0: i8, %arg1: i8) -> i8 {
   return %0 : i8
 }
 
+func.func @smulp(%arg0: i8, %arg1: i7) -> i9 {
+  %0, %1 = xls.smulp %arg0, %arg1 : (i8, i7) -> (i9, i9)
+  return %0 : i9
+}
+
 func.func @umul(%arg0: i8, %arg1: i8) -> i8 {
   %0 = xls.umul %arg0, %arg1 : i8
   return %0 : i8
+}
+
+func.func @umulp(%arg0: i8, %arg1: i7) -> i9 {
+  %0, %1 = xls.umulp %arg0, %arg1 : (i8, i7) -> (i9, i9)
+  return %0 : i9
 }
 
 func.func @sdiv(%arg0: i8, %arg1: i8) -> i8 {
@@ -260,6 +295,11 @@ func.func @trace(%arg0: i32, %tkn: !xls.token) -> !xls.token {
 
 func.func @bitcast(%arg0: f32) -> i32 {
   %0 = arith.bitcast %arg0 : f32 to i32
+  return %0 : i32
+}
+
+func.func @gate(%arg0: i32, %condition: i1) -> i32 {
+  %0 = xls.gate %condition, %arg0 : (i1, i32) -> i32
   return %0 : i32
 }
 
