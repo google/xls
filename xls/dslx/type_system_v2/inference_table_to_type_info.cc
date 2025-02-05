@@ -920,16 +920,16 @@ class InferenceTableConverter {
     // Create the value exprs. This is basically an alternate format for the
     // `ParametricEnv` that is more readily useful for scrubbing the parametrics
     // from type annotations.
-    absl::flat_hash_map<const NameDef*, Expr*> value_exprs;
+    absl::flat_hash_map<const NameDef*, ExprOrType> actual_parametrics;
     for (const auto& [name, value] : values) {
       const NameDef* binding_name_def = binding_name_defs.at(name);
-      value_exprs.emplace(
+      actual_parametrics.emplace(
           binding_name_def,
           module_.Make<Number>(binding_name_def->span(),
                                value.ToString(/*humanize=*/true),
                                NumberKind::kOther, nullptr));
     }
-    parametric_value_exprs_.emplace(invocation, std::move(value_exprs));
+    parametric_value_exprs_.emplace(invocation, std::move(actual_parametrics));
     ParametricEnv env(std::move(values));
     converted_parametric_envs_.emplace(invocation, env);
     return absl::OkStatus();
@@ -1610,7 +1610,7 @@ class InferenceTableConverter {
   absl::StatusOr<const TypeAnnotation*> GetParametricFreeStructMemberType(
       const StructOrProcRef& struct_or_proc_ref,
       const TypeAnnotation* member_type) {
-    absl::flat_hash_map<const NameDef*, Expr*> parametrics;
+    absl::flat_hash_map<const NameDef*, ExprOrType> parametrics;
     std::vector<ParametricBinding*> bindings =
         dynamic_cast<const StructDefBase*>(ToAstNode(struct_or_proc_ref.def))
             ->parametric_bindings();
@@ -1618,14 +1618,15 @@ class InferenceTableConverter {
     for (int i = 0; i < bindings.size(); i++) {
       const ParametricBinding* binding = bindings[i];
       const ExprOrType value_expr = struct_or_proc_ref.parametrics[i];
-      parametrics.emplace(binding->name_def(), std::get<Expr*>(value_expr));
+      parametrics.emplace(binding->name_def(), value_expr);
     }
     return GetParametricFreeType(member_type, parametrics);
   }
 
   absl::StatusOr<const TypeAnnotation*> GetParametricFreeType(
       const TypeAnnotation* type,
-      const absl::flat_hash_map<const NameDef*, Expr*> parametric_values) {
+      const absl::flat_hash_map<const NameDef*, ExprOrType>
+          actual_parametrics) {
     XLS_ASSIGN_OR_RETURN(
         AstNode * clone,
         SafeClone(
@@ -1635,10 +1636,10 @@ class InferenceTableConverter {
               if (const auto* ref = dynamic_cast<const NameRef*>(node);
                   ref != nullptr &&
                   std::holds_alternative<const NameDef*>(ref->name_def())) {
-                const auto it = parametric_values.find(
+                const auto it = actual_parametrics.find(
                     std::get<const NameDef*>(ref->name_def()));
-                if (it != parametric_values.end()) {
-                  return it->second;
+                if (it != actual_parametrics.end()) {
+                  return ToAstNode(it->second);
                 }
               }
               return std::nullopt;
@@ -2236,7 +2237,7 @@ class InferenceTableConverter {
   absl::flat_hash_map<const ParametricInvocation*, ParametricEnv>
       converted_parametric_envs_;
   absl::flat_hash_map<const ParametricInvocation*,
-                      absl::flat_hash_map<const NameDef*, Expr*>>
+                      absl::flat_hash_map<const NameDef*, ExprOrType>>
       parametric_value_exprs_;
 };
 
