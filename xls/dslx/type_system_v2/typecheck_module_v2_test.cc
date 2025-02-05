@@ -3757,5 +3757,26 @@ const Z = uN[A]:0;
               TypecheckSucceeds(HasNodeWithType("Z", "uN[8]")));
 }
 
+TEST(TypecheckV2Test, ArraySizeMismatchConst) {
+  // Previously this was crashing in the const evaluator, because
+  // it didn't have the type of the u2:1
+  // Now, it knows what the type of the u2:1 is, and it fails
+  // properly with a size mismatch (since array sizes must be u32).
+  EXPECT_THAT(R"(
+fn identity<N: u32>(x: uN[N]) -> uN[N] { x }
+const X:uN[identity(u2:1)][4] = [1,2,1,2];
+)",
+              TypecheckFails(HasSizeMismatch("u32", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, ArraySizeMismatchLet) {
+  EXPECT_THAT(R"(
+fn identity<N: u32>(x: uN[N]) -> uN[N] { x }
+fn foo() {
+  let X:uN[identity(u2:1)][4] = [1,2,1,2];
+}
+)",
+              TypecheckFails(HasSizeMismatch("u32", "uN[2]")));
+}
 }  // namespace
 }  // namespace xls::dslx

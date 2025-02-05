@@ -198,6 +198,9 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleLet(const Let* node) override {
+    if (node->type_annotation() != nullptr) {
+      XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
+    }
     XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
     nodes_.push_back(node);
     XLS_RETURN_IF_ERROR(node->name_def_tree()->Accept(this));
@@ -212,6 +215,9 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleConstantDef(const ConstantDef* node) override {
+    if (node->type_annotation() != nullptr) {
+      XLS_RETURN_IF_ERROR(node->type_annotation()->Accept(this));
+    }
     XLS_RETURN_IF_ERROR(node->value()->Accept(this));
     XLS_RETURN_IF_ERROR(node->name_def()->Accept(this));
     nodes_.push_back(node);
