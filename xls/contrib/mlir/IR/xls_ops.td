@@ -581,6 +581,13 @@ def Xls_BlockingReceiveOp : Xls_Op<"blocking_receive", [
       return {getOperands().end(), getOperands().end()};
     }
     ::mlir::MutableOperandRange getArgOperandsMutable() { return {getOperation()}; }
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -631,6 +638,12 @@ def Xls_NonblockingReceiveOp : Xls_Op<"nonblocking_receive", [
     ::mlir::MutableOperandRange getArgOperandsMutable() {
       return {getOperation()};
     }
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -676,6 +689,13 @@ def Xls_SendOp : Xls_Op<"send", [
       return {getOperands().end(), getOperands().end()};
     }
     ::mlir::MutableOperandRange getArgOperandsMutable() { return {getOperation()}; }
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -1288,6 +1308,13 @@ def Xls_CountedForOp : Xls_Op<"counted_for",
     }
     // Set the callee from the callable.
     void setCalleeFromCallable(mlir::CallInterfaceCallable callee);
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -1571,6 +1598,13 @@ def Xls_EprocOp : Xls_Op<"eproc", [
       return {};
     }
     bool canDiscardOnUseEmpty() { return getDiscardable(); }
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -1609,6 +1643,13 @@ def Xls_ChanOp : Xls_Op<"chan", [
     llvm::ArrayRef<::mlir::Type> getResultTypes() {
       return {};
     }
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 
 }
@@ -1869,6 +1910,13 @@ def Xls_SprocOp : Xls_Op<"sproc", [
     }
 
     bool canDiscardOnUseEmpty() { return !getIsTop(); }
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -1903,6 +1951,12 @@ def Xls_SpawnOp : Xls_Op<"spawn", [
     ::mlir::MutableOperandRange getArgOperandsMutable() {
       return getChannelsMutable();
     }
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -1942,6 +1996,13 @@ def Xls_ExternSprocOp : Xls_Op<"extern_sproc", [
       return {};
     }
     bool canDiscardOnUseEmpty() { return true; }
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 }
 
@@ -2204,6 +2265,13 @@ def VectorizedCallOp : Xls_Op<"vectorized_call",
     }
     // Set the callee from the callable.
     void setCalleeFromCallable(mlir::CallInterfaceCallable callee);
+
+    Attribute removeArgAttrsAttr() { return nullptr; }
+    Attribute removeResAttrsAttr() { return nullptr; }
+    ArrayAttr getArgAttrsAttr() { return nullptr; }
+    ArrayAttr getResAttrsAttr() { return nullptr; }
+    void setArgAttrsAttr(ArrayAttr) { return; }
+    void setResAttrsAttr(ArrayAttr) { return; }
   }];
 
   let assemblyFormat = [{
