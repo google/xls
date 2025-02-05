@@ -4117,3 +4117,81 @@ place_and_route(
     synthesized_rtl = ":match_finder_asap7",
     target_die_utilization_percentage = "10",
 )
+
+xls_dslx_library(
+    name = "mem_writer_mux_dslx",
+    srcs = [
+        "mem_writer_mux.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:mem_writer_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_writer_mux_dslx_test",
+    library = ":mem_writer_mux_dslx",
+)
+
+xls_dslx_library(
+    name = "mem_reader_mux_dslx",
+    srcs = [
+        "mem_reader_mux.x",
+    ],
+    deps = [
+        "//xls/modules/zstd/memory:mem_reader_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_reader_mux_dslx_test",
+    library = ":mem_reader_mux_dslx",
+)
+
+xls_dslx_library(
+    name = "literal_encoder_dslx",
+    srcs = [
+        "literal_encoder.x",
+    ],
+    deps = [
+        ":mem_writer_simple_arbiter_dslx",
+        ":mem_reader_simple_arbiter_dslx",
+        "//xls/modules/zstd/memory:axi_dslx",
+        "//xls/modules/zstd/memory:axi_ram_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "literal_encoder_dslx_test",
+    library = ":literal_encoder_dslx",
+)
+
+xls_dslx_library(
+    name = "mem_writer_simple_arbiter_dslx",
+    srcs = [
+        "mem_writer_simple_arbiter.x",
+    ],
+    deps = [
+        ":mem_writer_mux_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_writer_simple_arbiter_dslx_test",
+    library = ":mem_writer_simple_arbiter_dslx",
+)
+
+xls_dslx_library(
+    name = "mem_reader_simple_arbiter_dslx",
+    srcs = [
+        "mem_reader_simple_arbiter.x",
+    ],
+    deps = [
+        ":mem_reader_mux_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "mem_reader_simple_arbiter_dslx_test",
+    library = ":mem_reader_simple_arbiter_dslx",
+)
