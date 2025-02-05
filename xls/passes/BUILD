@@ -2653,8 +2653,11 @@ cc_test(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
+        "//xls/ir:ternary",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -507,7 +507,10 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                   VLOG(3) << "SpecializeGiven exceeded path limit of "
                           << path_limit_ << " on: " << node->GetName() << " in "
                           << interval.ToString() << " (precise)";
-                  continue;
+                  // Since one of our checks has too many paths, the result will
+                  // also have too many paths - so it will never have any
+                  // effect.
+                  return absl::OkStatus();
                 }
                 in_interval_checks.push_back(is_value);
                 continue;
@@ -520,7 +523,9 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                 VLOG(3) << "SpecializeGiven exceeded path limit of "
                         << path_limit_ << " on: " << node->GetName() << " in "
                         << interval.ToString() << " (lower bound)";
-                continue;
+                // Since one of our checks has too many paths, the result will
+                // also have too many paths - so it will never have any effect.
+                return absl::OkStatus();
               }
               SaturatingBddNodeIndex upper_bound = evaluator.ULessThanOrEqual(
                   bits, evaluator.BitsToVector(interval.UpperBound()));
@@ -528,7 +533,9 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                 VLOG(3) << "SpecializeGiven exceeded path limit of "
                         << path_limit_ << " on: " << node->GetName() << " in "
                         << interval.ToString() << " (upper bound)";
-                continue;
+                // Since one of our checks has too many paths, the result will
+                // also have too many paths - so it will never have any effect.
+                return absl::OkStatus();
               }
               SaturatingBddNodeIndex in_interval =
                   evaluator.And(lower_bound, upper_bound);
@@ -536,7 +543,9 @@ std::unique_ptr<QueryEngine> BddQueryEngine::SpecializeGiven(
                 VLOG(3) << "SpecializeGiven exceeded path limit of "
                         << path_limit_ << " on: " << node->GetName() << " in "
                         << interval.ToString() << " (joint)";
-                continue;
+                // Since one of our checks has too many paths, the result will
+                // also have too many paths - so it will never have any effect.
+                return absl::OkStatus();
               }
               in_interval_checks.push_back(in_interval);
             }

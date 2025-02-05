@@ -15,6 +15,7 @@
 #include "xls/passes/bdd_query_engine.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -25,6 +26,8 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
@@ -335,6 +338,43 @@ fn __sample__main(x0: bits[16], x1: bits[8], x2: bits[10], x3: bits[1]) -> (bits
   // This will blow up the path depth.
   EXPECT_EQ(query_engine.ImpliedNodeTernary(vals, target), std::nullopt)
       << "Expected failure to find result due to path-size explosion.";
+}
+TEST_F(BddQueryEngineTest, SpecializeGivenIntervalsHandlesSaturation) {
+  // Found via fuzzing. When told to specialize on an interval set, if one
+  // interval was saturated, it would be omitted from the check - making the
+  // specialization assume more than was requested. In this case, it made a
+  // value appear to be determined when it wasn't.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(
+                                             R"(
+fn __sample__main(x: bits[60]) -> bits[35] {
+  bit_slice.1: bits[55] = bit_slice(x, start=5, width=55, id=1)
+  literal.2: bits[60] = literal(value=459229419044003026, id=2)
+  or_reduce.3: bits[1] = or_reduce(bit_slice.1, id=3)
+  ult.4: bits[1] = ult(x, literal.2, id=4)
+  literal.5: bits[60] = literal(value=0, id=5)
+  literal.6: bits[60] = literal(value=465194495002459937, id=6)
+  and.7: bits[1] = and(or_reduce.3, ult.4, id=7)
+  eq.8: bits[1] = eq(x, literal.5, id=8)
+  eq.9: bits[1] = eq(x, literal.6, id=9)
+  literal.10: bits[1] = literal(value=0, id=10)
+  or.11: bits[1] = or(and.7, eq.8, id=11)
+  y: bits[3] = concat(eq.9, literal.10, or.11, id=12)
+  ret z: bits[35] = bit_slice(x, start=0, width=35, id=13)
+}
+)",
+                                             p.get()));
+  BddQueryEngine query_engine(1024);
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+  IntervalSet intervals = IntervalSet::Of(
+      {Interval(UBits(1, 3), UBits(1, 3)), Interval(UBits(5, 3), UBits(5, 3))});
+  XLS_ASSERT_OK_AND_ASSIGN(Node * specialized_node, f->GetNode("y"));
+  std::unique_ptr<QueryEngine> specialized = query_engine.SpecializeGiven(
+      {{specialized_node,
+        ValueKnowledge{.intervals = IntervalSetTree::CreateSingleElementTree(
+                           specialized_node->GetType(), intervals)}}});
+  XLS_ASSERT_OK_AND_ASSIGN(Node * target, f->GetNode("z"));
+  EXPECT_EQ(specialized->KnownValueAsBits(target), std::nullopt);
 }
 
 }  // namespace
