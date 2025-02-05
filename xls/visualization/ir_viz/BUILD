@@ -93,7 +93,7 @@ cc_library(
     name = "node_attribute_visitor",
     srcs = ["node_attribute_visitor.cc"],
     hdrs = ["node_attribute_visitor.h"],
-    visibility = ["//visibility:private"],
+    visibility = ["//xls:xls_internal"],
     deps = [
         ":visualization_cc_proto",
         "//xls/ir",
