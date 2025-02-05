@@ -26,7 +26,6 @@
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -56,7 +55,6 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_utils.h"
@@ -226,24 +224,6 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceParam(const Param* node,
   return std::move(param_type);
 }
 
-// It's common to accidentally use different constant naming conventions
-// coming from other environments -- warn folks if it's not following
-// https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
-static void WarnOnInappropriateConstantName(std::string_view identifier,
-                                            const Span& span,
-                                            const Module& module,
-                                            DeduceCtx* ctx) {
-  if (!IsScreamingSnakeCase(identifier) &&
-      !module.attributes().contains(
-          ModuleAttribute::kAllowNonstandardConstantNaming)) {
-    ctx->warnings()->Add(
-        span, WarningKind::kConstantNaming,
-        absl::StrFormat("Standard style is SCREAMING_SNAKE_CASE for constant "
-                        "identifiers; got: `%s`",
-                        identifier));
-  }
-}
-
 absl::StatusOr<std::unique_ptr<Type>> DeduceConstantDef(const ConstantDef* node,
                                                         DeduceCtx* ctx) {
   VLOG(5) << "DeduceConstantDef: " << node->ToString();
@@ -277,7 +257,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceConstantDef(const ConstantDef* node,
   }
 
   WarnOnInappropriateConstantName(node->identifier(), node->span(),
-                                  *node->owner(), ctx);
+                                  *node->owner(), ctx->warnings());
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
@@ -414,7 +394,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceLet(const Let* node,
     ti->NoteConstExpr(name_def, ti->GetConstExpr(node->rhs()).value());
 
     WarnOnInappropriateConstantName(name_def->identifier(), node->span(),
-                                    *node->owner(), ctx);
+                                    *node->owner(), ctx->warnings());
   }
 
   VLOG(5) << "DeduceLet rhs: " << rhs->ToString();

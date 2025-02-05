@@ -39,6 +39,7 @@
 #include "xls/dslx/type_system/parametric_with_type.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 using ColonRefSubjectT =
@@ -258,6 +259,13 @@ bool IsAcceptableCast(const Type& from, const Type& to);
 const TypeInfo& GetTypeInfoForNodeIfDifferentModule(
     AstNode* node, const TypeInfo& current_type_info,
     const ImportData& import_data);
+
+// It's common to accidentally use different constant naming conventions
+// coming from other environments -- warn folks if it's not following
+// https://doc.rust-lang.org/1.0.0/style/style/naming/README.html
+void WarnOnInappropriateConstantName(std::string_view identifier,
+                                     const Span& span, const Module& module,
+                                     WarningCollector* warning_collector);
 
 }  // namespace xls::dslx
 

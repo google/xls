@@ -3584,6 +3584,39 @@ fn main() {
           HasNodeWithType("z", "uN[128]"), HasNodeWithType("d", "sN[8]"))));
 }
 
+TEST(TypecheckV2Test, LetValAsType) {
+  EXPECT_THAT(R"(
+fn main() -> u7 {
+  let (x, .., (y,)) = (u32:7, u8:3, (s8:3,));
+  uN[x]:0
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, LetConstAsType) {
+  EXPECT_THAT(R"(
+fn main() -> u7 {
+  let (x, .., (y,)) = (u32:7, u8:3, (s8:3,));
+  const N = x;
+  uN[N]:0
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("N", "uN[32]")));
+}
+
+TEST(TypecheckV2Test, LetConstWarnsOnBadName) {
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult result, TypecheckV2(R"(
+fn main() {
+  const bad_name_const = u32:5;
+}
+)"));
+  ASSERT_THAT(result.tm.warnings.warnings().size(), 1);
+  EXPECT_EQ(result.tm.warnings.warnings()[0].message,
+            "Standard style is SCREAMING_SNAKE_CASE for constant identifiers; "
+            "got: `bad_name_const`");
+}
+
 TEST(TypecheckV2Test, ImplFunctionUsingStructMembers) {
   EXPECT_THAT(R"(
 struct Point { x: u32, y: u32 }

@@ -39,7 +39,9 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
@@ -47,6 +49,8 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -1028,6 +1032,20 @@ const TypeInfo& GetTypeInfoForNodeIfDifferentModule(
       << "Must be able to get root type info for node " << node->ToString();
   CHECK(type_info.value() != nullptr);
   return *type_info.value();
+}
+
+void WarnOnInappropriateConstantName(std::string_view identifier,
+                                     const Span& span, const Module& module,
+                                     WarningCollector* warning_collector) {
+  if (!IsScreamingSnakeCase(identifier) &&
+      !module.attributes().contains(
+          ModuleAttribute::kAllowNonstandardConstantNaming)) {
+    warning_collector->Add(
+        span, WarningKind::kConstantNaming,
+        absl::StrFormat("Standard style is SCREAMING_SNAKE_CASE for constant "
+                        "identifiers; got: `%s`",
+                        identifier));
+  }
 }
 
 }  // namespace xls::dslx

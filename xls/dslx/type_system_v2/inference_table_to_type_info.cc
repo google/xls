@@ -721,6 +721,42 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(*number, type));
       ti->NoteConstExpr(number, value);
     }
+    if (const auto* let = dynamic_cast<const Let*>(node)) {
+      return NoteLetIfConstExpr(let, type, ti);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status NoteLetIfConstExpr(const Let* let, const Type& type,
+                                  TypeInfo* ti) {
+    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+        &import_data_, ti, &warning_collector_, ParametricEnv(), let->rhs(),
+        &type);
+    if (let->is_const()) {
+      if (!value.ok()) {
+        return value.status();
+      }
+      // Reminder: we don't allow name destructuring in constant defs, so this
+      // is expected to never fail.
+      XLS_RET_CHECK_EQ(let->name_def_tree()->GetNameDefs().size(), 1);
+      NameDef* name_def = let->name_def_tree()->GetNameDefs()[0];
+      WarnOnInappropriateConstantName(name_def->identifier(), let->span(),
+                                      *let->owner(), &warning_collector_);
+    } else if (!value.ok()) {
+      return absl::OkStatus();
+    }
+    ti->NoteConstExpr(let, *value);
+    ti->NoteConstExpr(let->rhs(), *value);
+    const auto note_members =
+        [&](AstNode* name_def, TypeOrAnnotation _,
+            std::optional<InterpValue> const_expr) -> absl::Status {
+      if (const_expr.has_value()) {
+        ti->NoteConstExpr(name_def, *const_expr);
+      }
+      return absl::OkStatus();
+    };
+    XLS_RETURN_IF_ERROR(MatchTupleNodeToType(note_members, let->name_def_tree(),
+                                             &type, file_table_, *value));
     return absl::OkStatus();
   }
 
