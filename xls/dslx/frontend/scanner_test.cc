@@ -137,6 +137,15 @@ TEST(ScannerTest, ScanKeyword) {
   EXPECT_TRUE(tokens[0].IsKeyword(Keyword::kFn));
 }
 
+TEST(ScannerTest, CarryIsValidIdentifier) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
+                           ToTokens("fn carry() {}"));
+  EXPECT_TRUE(tokens[0].IsKeyword(Keyword::kFn));
+  EXPECT_EQ(tokens[0].ToString(), "fn");
+  EXPECT_TRUE(tokens[1].IsIdentifier("carry"));
+  EXPECT_EQ(tokens[1].ToString(), "carry");
+}
+
 TEST(ScannerTest, FunctionDefinition) {
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Token> tokens,
                            ToTokens("fn ident(x) { x }"));

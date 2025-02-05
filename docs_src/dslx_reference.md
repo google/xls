@@ -51,7 +51,8 @@ the end of the line.
 
 ## DSLX Keywords
 
-This is a list of reserved keywords in the DSLX language. Since they are used by the language, they cannot be used as identifiers in your DSLX code.
+This is a list of reserved keywords in the DSLX language. Since they are used by
+the language, they cannot be used as identifiers in your DSLX code.
 
 <table>
   <tbody>
@@ -59,46 +60,45 @@ This is a list of reserved keywords in the DSLX language. Since they are used by
       <td><code>as</code></td>
       <td><code>bits</code></td>
       <td><code>bool</code></td>
-      <td><code>carry</code></td>
       <td><code>chan</code></td>
+      <td><code>const</code></td>
     </tr>
     <tr>
-      <td><code>const</code></td>
       <td><code>else</code></td>
       <td><code>enum</code></td>
       <td><code>false</code></td>
       <td><code>fn</code></td>
+      <td><code>for</code></td>
     </tr>
     <tr>
-      <td><code>for</code></td>
       <td><code>if</code></td>
       <td><code>impl</code></td>
       <td><code>import</code></td>
       <td><code>in</code></td>
+      <td><code>out</code></td>
     </tr>
     <tr>
-      <td><code>out</code></td>
       <td><code>let</code></td>
       <td><code>match</code></td>
       <td><code>pub</code></td>
       <td><code>proc</code></td>
+      <td><code>self</code></td>
     </tr>
     <tr>
-      <td><code>self</code></td>
       <td><code>Self</code></td>
       <td><code>s1</code>, ..., <code>s64</code></td>
       <td><code>sN</code></td>
       <td><code>spawn</code></td>
+      <td><code>struct</code></td>
     </tr>
     <tr>
-      <td><code>struct</code></td>
       <td><code>token</code></td>
       <td><code>true</code></td>
       <td><code>type</code></td>
       <td><code>u1</code>, ..., <code>u64</code></td>
+      <td><code>uN</code></td>
     </tr>
     <tr>
-      <td><code>uN</code></td>
       <td><code>unroll_for!</code></td>
       <td><code>use</code></td>
       <td><code>xN</code></td>

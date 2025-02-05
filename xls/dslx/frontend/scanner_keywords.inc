@@ -18,7 +18,6 @@
 // See also `XLS_DSLX_TYPE_KEYWORDS` below and `xls/dslx/ast_builtin_types.inc`
 #define XLS_DSLX_KEYWORDS(X)               \
   X(kAs, AS, "as")                         \
-  X(kCarry, CARRY, "carry")                \
   X(kConst, CONST, "const")                \
   X(kElse, ELSE, "else")                   \
   X(kEnum, ENUM, "enum")                   \
