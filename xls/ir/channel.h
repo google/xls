@@ -120,6 +120,10 @@ void AbslStringify(Sink& sink, FlopKind value) {
       break;
   }
 }
+
+absl::StatusOr<std::optional<FlopKind>> FlopKindFromProto(
+    ChannelConfigProto::FlopKind f);
+
 inline std::string FlopKindToString(FlopKind kind) {
   return absl::StrCat(kind);
 }

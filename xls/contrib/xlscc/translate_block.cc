@@ -50,6 +50,7 @@
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/lsb_or_msb.h"
@@ -148,12 +149,19 @@ absl::Status Translator::GenerateExternalChannels(
       const auto xls_channel_op = top_decl.is_input
                                       ? xls::ChannelOps::kReceiveOnly
                                       : xls::ChannelOps::kSendOnly;
-
+      xls::ChannelConfig channel_config;
+      if (top_decl.flop_kind.has_value()) {
+        XLS_ASSIGN_OR_RETURN(std::optional<xls::FlopKind> flop_kind,
+                             FlopKindFromProto(top_decl.flop_kind.value()));
+        channel_config = top_decl.is_input
+                             ? channel_config.WithInputFlopKind(flop_kind)
+                             : channel_config.WithOutputFlopKind(flop_kind);
+      }
       XLS_ASSIGN_OR_RETURN(
           new_channel.regular,
           package_->CreateStreamingChannel(
               decl->getNameAsString(), xls_channel_op, data_type,
-              /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+              /*initial_values=*/{}, channel_config,
               xls::FlowControl::kReadyValid,
               /*strictness=*/top_decl.strictness));
       unused_xls_channel_ops_.push_back(
@@ -302,6 +310,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       channel_info.is_input = channel_spec.is_input();
     } else if (channel_spec.type() == ChannelType::FIFO) {
       channel_info.interface_type = InterfaceType::kFIFO;
+      channel_info.flop_kind = channel_spec.flop_kind();
       XLS_ASSIGN_OR_RETURN(
           channel_info.channel_type,
           GetChannelType(param->getType(), param->getASTContext(),

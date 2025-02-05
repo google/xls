@@ -9229,6 +9229,44 @@ TEST_P(TranslatorProcTest, MultiBlockReturn) {
           testing::HasSubstr("Returns from sub-block functions")));
 }
 
+TEST_P(TranslatorProcTest, ChannelFlopKindInIR) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+
+      out.write(2*in.read());
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+    ch_in->set_flop_kind(xls::ChannelConfigProto::FlopKind::
+                             ChannelConfigProto_FlopKind_FLOP_KIND_NONE);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_ = std::make_unique<xls::Package>("my_package");
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_Block(package_.get(), block_spec, 1).status());
+  EXPECT_THAT(package_->DumpIr(),
+              testing::ContainsRegex("chan in[^\\)]+input_flop_kind=none"));
+}
+
 }  // namespace
 
 }  // namespace xlscc

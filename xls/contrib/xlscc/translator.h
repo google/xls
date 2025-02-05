@@ -59,6 +59,7 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -1696,6 +1697,7 @@ class Translator {
     InterfaceType interface_type;
     bool extra_return = false;
     bool is_input = false;
+    std::optional<xls::ChannelConfigProto::FlopKind> flop_kind = std::nullopt;
     ChannelBundle external_channels;
     xls::ChannelStrictness strictness =
         xls::ChannelStrictness::kProvenMutuallyExclusive;

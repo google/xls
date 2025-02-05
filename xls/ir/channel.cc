@@ -65,8 +65,7 @@ std::string FifoConfig::ToString() const {
       depth_, bypass_, register_push_outputs_, register_pop_outputs_);
 }
 
-namespace {
-absl::StatusOr<std::optional<FlopKind>> FromProtoFlop(
+absl::StatusOr<std::optional<FlopKind>> FlopKindFromProto(
     ChannelConfigProto::FlopKind f) {
   switch (f) {
     case ChannelConfigProto::FLOP_KIND_DEFAULT:
@@ -83,6 +82,8 @@ absl::StatusOr<std::optional<FlopKind>> FromProtoFlop(
       return absl::InternalError(absl::StrFormat("Unknown flop kind: %d", f));
   }
 }
+
+namespace {
 ChannelConfigProto::FlopKind ToProtoFlop(std::optional<FlopKind> f) {
   if (!f) {
     return ChannelConfigProto::FLOP_KIND_DEFAULT;
@@ -117,9 +118,9 @@ absl::StatusOr<FlopKind> StringToFlopKind(std::string_view str) {
     XLS_ASSIGN_OR_RETURN(fc, FifoConfig::FromProto(proto.fifo()));
   }
   XLS_ASSIGN_OR_RETURN(std::optional<FlopKind> input,
-                       FromProtoFlop(proto.flop_inputs()));
+                       FlopKindFromProto(proto.flop_inputs()));
   XLS_ASSIGN_OR_RETURN(std::optional<FlopKind> output,
-                       FromProtoFlop(proto.flop_outputs()));
+                       FlopKindFromProto(proto.flop_outputs()));
   return ChannelConfig(std::move(fc), input, output);
 }
 

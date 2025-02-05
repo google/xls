@@ -43,6 +43,7 @@ proto_library(
     name = "hls_block_proto",
     srcs = ["hls_block.proto"],
     features = ["-proto_dynamic_mode_static_link"],
+    deps = ["//xls/ir:channel_proto"],
 )
 
 cc_proto_library(
@@ -128,6 +129,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:caret",
         "//xls/ir:channel",
+        "//xls/ir:channel_cc_proto",
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",

@@ -1485,6 +1485,7 @@ cc_proto_library(
 
 py_proto_library(
     name = "channel_py_pb2",
+    visibility = ["//xls:xls_users"],
     deps = [":channel_proto"],
 )
 
