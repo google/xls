@@ -49,12 +49,70 @@ language features. The full code is in
 Just as in languages like Rust/C++, comments start with `//` and last through
 the end of the line.
 
+## DSLX Keywords
+
+This is a list of reserved keywords in the DSLX language. Since they are used by the language, they cannot be used as identifiers in your DSLX code.
+
+<table>
+  <tbody>
+    <tr>
+      <td><code>as</code></td>
+      <td><code>bits</code></td>
+      <td><code>bool</code></td>
+      <td><code>carry</code></td>
+      <td><code>chan</code></td>
+    </tr>
+    <tr>
+      <td><code>const</code></td>
+      <td><code>else</code></td>
+      <td><code>enum</code></td>
+      <td><code>false</code></td>
+      <td><code>fn</code></td>
+    </tr>
+    <tr>
+      <td><code>for</code></td>
+      <td><code>if</code></td>
+      <td><code>impl</code></td>
+      <td><code>import</code></td>
+      <td><code>in</code></td>
+    </tr>
+    <tr>
+      <td><code>out</code></td>
+      <td><code>let</code></td>
+      <td><code>match</code></td>
+      <td><code>pub</code></td>
+      <td><code>proc</code></td>
+    </tr>
+    <tr>
+      <td><code>self</code></td>
+      <td><code>Self</code></td>
+      <td><code>s1</code>, ..., <code>s64</code></td>
+      <td><code>sN</code></td>
+      <td><code>spawn</code></td>
+    </tr>
+    <tr>
+      <td><code>struct</code></td>
+      <td><code>token</code></td>
+      <td><code>true</code></td>
+      <td><code>type</code></td>
+      <td><code>u1</code>, ..., <code>u64</code></td>
+    </tr>
+    <tr>
+      <td><code>uN</code></td>
+      <td><code>unroll_for!</code></td>
+      <td><code>use</code></td>
+      <td><code>xN</code></td>
+    </tr>
+  </tbody>
+</table>
+
 ## Identifiers
 
 All identifiers, e.g., for function names, parameters, and values, follow the
 typical naming rules of other languages. The identifiers can start with a
 character or an underscore, and can then contain more characters, underscores,
-or numbers. Valid examples are:
+or numbers. They must not be DSLX [keywords](#dslx-keywords). Valid examples
+are:
 
 ```
 a                 // valid
