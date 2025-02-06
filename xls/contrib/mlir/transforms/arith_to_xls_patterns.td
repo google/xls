@@ -204,7 +204,9 @@ def : Pat<
   )
 >;
 
-// TODO(jmolloy): Support Div and Exp in the standard library.
+// TODO: b/394855653 - Actually support Div.
 def : FloatLibcall<Arith_DivFOp, "add">;
+
 def : Pat<(Math_ExpOp:$op $a, /*FastMathFlags=*/$_),
-          (Xls_CallDslxOp (FloatLib $a), CS<"ceil">, (variadic $a), ConstUnitAttr)>;
+          (Xls_CallDslxOp (FloatLib $a), CS<"ceil">, (variadic $a),
+           /*is_pure=*/ConstUnitAttr)>;

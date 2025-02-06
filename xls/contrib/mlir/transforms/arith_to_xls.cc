@@ -25,6 +25,7 @@
 #include "mlir/include/mlir/IR/Builders.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinTypes.h"
+#include "mlir/include/mlir/IR/Matchers.h"  // IWYU pragma: keep
 #include "mlir/include/mlir/IR/PatternMatch.h"
 #include "mlir/include/mlir/IR/SymbolTable.h"
 #include "mlir/include/mlir/IR/TypeUtilities.h"
