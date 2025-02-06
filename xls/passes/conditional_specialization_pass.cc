@@ -773,11 +773,35 @@ class ImpliedConditionCache {
   absl::flat_hash_map<Condition, std::unique_ptr<ConditionSet>> cache_;
 };
 
+absl::StatusOr<bool> EliminateNoopNext(FunctionBase* f) {
+  std::vector<Next*> to_remove;
+  for (Node* n : f->nodes()) {
+    if (!n->Is<Next>()) {
+      continue;
+    }
+    Next* next = n->As<Next>();
+    if (next->state_read() == next->value()) {
+      to_remove.push_back(next);
+    }
+  }
+  for (Next* next : to_remove) {
+    XLS_RETURN_IF_ERROR(
+        next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+    XLS_RETURN_IF_ERROR(f->RemoveNode(next));
+  }
+  return !to_remove.empty();
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
+  bool changed = false;
+  if (options.eliminate_noop_next) {
+    XLS_ASSIGN_OR_RETURN(changed, EliminateNoopNext(f));
+  }
+
   std::vector<std::unique_ptr<QueryEngine>> query_engines;
   query_engines.push_back(std::make_unique<StatelessQueryEngine>());
   if (use_bdd_) {
@@ -797,7 +821,6 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   // Iterate backwards through the graph because we add conditions at the case
   // arm operands of selects and propagate them upwards through the expressions
   // which compute the case arm.
-  bool changed = false;
   for (Node* node : ReverseTopoSort(f)) {
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
     VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
@@ -860,13 +883,6 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           node->GetName());
       bool first_user = true;
       for (Node* user : node->users()) {
-        if (user->Is<Next>() &&
-            user->As<Next>()->state_read() == user->As<Next>()->value()) {
-          // This is a Next node that marks its associated state element as
-          // unchanged; ignore it.
-          continue;
-        }
-
         const ConditionSet& user_set =
             condition_map.GetEdgeConditionSet(node, user);
         VLOG(4) << "Conditions for edge " << node->GetName() << " -> "

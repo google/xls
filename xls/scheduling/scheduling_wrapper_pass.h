@@ -40,13 +40,14 @@ namespace xls {
 class SchedulingWrapperPass : public SchedulingPass {
  public:
   explicit SchedulingWrapperPass(std::unique_ptr<OptimizationPass> wrapped_pass,
-                                 int64_t opt_level,
+                                 int64_t opt_level, bool eliminate_noop_next,
                                  bool reschedule_new_nodes = false)
       : SchedulingPass(
             absl::StrFormat("scheduling_%s", wrapped_pass->short_name()),
             absl::StrFormat("%s (scheduling)", wrapped_pass->long_name())),
         wrapped_pass_(std::move(wrapped_pass)),
         opt_level_(opt_level),
+        eliminate_noop_next_(eliminate_noop_next),
         reschedule_new_nodes_(reschedule_new_nodes) {}
   ~SchedulingWrapperPass() override = default;
 
@@ -58,6 +59,7 @@ class SchedulingWrapperPass : public SchedulingPass {
  private:
   std::unique_ptr<OptimizationPass> wrapped_pass_;
   int64_t opt_level_;
+  bool eliminate_noop_next_;
   bool reschedule_new_nodes_;
 };
 

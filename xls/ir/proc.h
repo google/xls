@@ -160,7 +160,8 @@ class Proc : public FunctionBase {
   // argument because initializer lists do not explicitly convert to
   // std::optional<absl::Span> making callsites verbose.
   //
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
+  // Provided as a convenience function for the common case of replacing each
+  // state element with a single next value.
   absl::Status ReplaceState(
       absl::Span<const std::string> requested_state_names,
       absl::Span<const Value> init_values,

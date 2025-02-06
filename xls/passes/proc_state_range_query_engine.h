@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_PROC_STATE_RANGE_QUERY_ENGINE_H_
 #define XLS_PASSES_PROC_STATE_RANGE_QUERY_ENGINE_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -71,7 +72,15 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
       return false;
     }
     Proc* p = f->AsProcOrDie();
-    return !p->next_values().empty() || p->NextState().empty();
+    if (!p->next_values().empty()) {
+      return true;
+    }
+    for (int64_t i = 0; i < p->GetStateElementCount(); ++i) {
+      if (p->GetNextStateElement(i) != p->GetStateRead(p->GetStateElement(i))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {

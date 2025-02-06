@@ -158,6 +158,22 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // Use select context during narrowing range analysis.
   bool use_context_narrowing_analysis = false;
 
+  // Whether to eliminate no-op Next nodes; this should be disabled after
+  // proc-state legalization.
+  bool eliminate_noop_next = true;
+
+  OptimizationPassOptions WithEliminateNoopNext(
+      bool eliminate_noop_next) const& {
+    OptimizationPassOptions opt = *this;
+    opt.eliminate_noop_next = eliminate_noop_next;
+    return opt;
+  }
+
+  OptimizationPassOptions&& WithEliminateNoopNext(bool eliminate_noop_next) && {
+    this->eliminate_noop_next = eliminate_noop_next;
+    return std::move(*this);
+  }
+
   // Optimize for best case throughput, even at the cost of area.
   bool optimize_for_best_case_throughput = false;
 };

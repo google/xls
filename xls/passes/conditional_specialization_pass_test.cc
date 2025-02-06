@@ -972,7 +972,6 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {
         eq.3: bits[1] = eq(value1, literal.5, id=3)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=literal.2, channel=out, id=1)
-        next (value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -993,7 +992,6 @@ TEST_F(ConditionalSpecializationPassTest, SendNoChangeUnprovable) {
         ugt.4: bits[1] = ugt(value1, literal.6, id=4)
         sel.4: bits[32] = sel(eq.3, cases=[literal.5, value2], id=4)
         send.1: token = send(tkn, sel.4, predicate=ugt.4, channel=out, id=1)
-        next (value1, value2)
       }
     )"));
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));

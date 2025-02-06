@@ -134,78 +134,6 @@ absl::StatusOr<bool> LegalizeStateReadPredicates(
   return changed;
 }
 
-// Restrict no-op `next_value` nodes to only be active when the corresponding
-// `state_read` is active.
-absl::StatusOr<bool> LegalizeNoOpNextPredicate(
-    Proc* proc, Next* next, const SchedulingPassOptions& options) {
-  if (next->state_read() != next->value()) {
-    // Not a no-op next_value; nothing to do.
-    return false;
-  }
-  StateRead* state_read = next->state_read()->As<StateRead>();
-  if (!state_read->predicate().has_value()) {
-    // Unconditional state read; nothing to do.
-    return false;
-  }
-
-  Node* new_predicate = *state_read->predicate();
-  if (next->predicate().has_value()) {
-    Node* old_predicate = *next->predicate();
-
-    // Check if we're already trivially restricted to the case where the state
-    // read is active; i.e., taking A = `old_predicate` and B = `new_predicate`,
-    // we're already fine if we can verify that A -> B.
-    if (old_predicate == new_predicate) {
-      return false;
-    }
-    if (old_predicate->op() == Op::kAnd &&
-        absl::c_contains(old_predicate->operands(), new_predicate)) {
-      // A && X -> A, so we're already restricted.
-      return false;
-    }
-    if (new_predicate->op() == Op::kOr &&
-        absl::c_contains(new_predicate->operands(), old_predicate)) {
-      // A -> A || X, so we're already restricted.
-      return false;
-    }
-
-    std::vector<Node*> predicates;
-    if (old_predicate->op() == Op::kAnd) {
-      predicates.reserve(1 + old_predicate->operands().size());
-      absl::c_copy(old_predicate->operands(), std::back_inserter(predicates));
-    } else {
-      predicates.reserve(2);
-      predicates.push_back(old_predicate);
-    }
-    predicates.push_back(*state_read->predicate());
-    XLS_ASSIGN_OR_RETURN(
-        new_predicate,
-        NaryAndIfNeeded(proc, {new_predicate, *next->predicate()},
-                        /*name=*/"", next->loc()));
-  }
-  XLS_RETURN_IF_ERROR(next->SetPredicate(new_predicate));
-  return true;
-}
-
-absl::StatusOr<bool> LegalizeNoOpNextPredicates(
-    Proc* proc, const SchedulingPassOptions& options) {
-  bool changed = false;
-
-  for (Next* next : proc->next_values()) {
-    XLS_ASSIGN_OR_RETURN(bool next_changed,
-                         LegalizeNoOpNextPredicate(proc, next, options));
-    if (next_changed) {
-      StateElement* state_element =
-          next->state_read()->As<StateRead>()->state_element();
-      VLOG(4) << "Narrowed no-op write predicate for state element: "
-              << state_element->name();
-      changed = true;
-    }
-  }
-
-  return changed;
-}
-
 absl::StatusOr<bool> AddMutualExclusionAssert(
     Proc* proc, StateElement* state_element,
     const SchedulingPassOptions& options) {
@@ -510,12 +438,6 @@ absl::StatusOr<bool> ProcStateLegalizationPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(bool read_predicates_changed,
                        LegalizeStateReadPredicates(proc, options));
   if (read_predicates_changed) {
-    changed = true;
-  }
-
-  XLS_ASSIGN_OR_RETURN(bool next_predicates_changed,
-                       LegalizeNoOpNextPredicates(proc, options));
-  if (next_predicates_changed) {
     changed = true;
   }
 

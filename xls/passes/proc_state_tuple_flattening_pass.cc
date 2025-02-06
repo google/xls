@@ -173,10 +173,19 @@ absl::Status ReplaceProcState(Proc* proc,
     XLS_RETURN_IF_ERROR(
         proc->ReplaceState(names, init_values, read_predicates, nexts));
   } else {
-    CHECK(absl::c_all_of(elements, [](const AbstractStateElement& element) {
-      return element.next == element.placeholder;
-    }));
     XLS_RETURN_IF_ERROR(proc->ReplaceState(names, init_values));
+    for (int64_t i = 0; i < elements.size(); ++i) {
+      const AbstractStateElement& element = elements.at(i);
+      if (element.next != element.placeholder) {
+        XLS_RETURN_IF_ERROR(
+            proc->MakeNode<Next>(
+                    SourceInfo(),
+                    /*state_read=*/proc->GetStateRead(proc->GetStateElement(i)),
+                    /*value=*/element.next,
+                    /*predicate=*/std::nullopt)
+                .status());
+      }
+    }
   }
   for (int64_t i = 0; i < elements.size(); ++i) {
     for (const NextValue& next_value : elements[i].next_values) {
