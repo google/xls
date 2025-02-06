@@ -97,6 +97,12 @@ std::optional<TernaryVector> Difference(TernarySpan lhs, TernarySpan rhs);
 // lengths.
 absl::StatusOr<TernaryVector> Union(TernarySpan lhs, TernarySpan rhs);
 
+// Updates `lhs` to include additional known information from `rhs`. Returns
+// false if `lhs` and `rhs` are incompatible (have known bits that disagree),
+// leaving `lhs` in an unspecified state. CHECK fails if `lhs` and `rhs` have
+// different lengths.
+bool TryUpdateWithUnion(TernaryVector& lhs, TernarySpan rhs);
+
 // Updates `lhs` to include additional known information from `rhs`, or an error
 // if `lhs` and `rhs` are incompatible (have known bits that disagree). CHECK
 // fails if `lhs` and `rhs` have different lengths.
@@ -156,6 +162,14 @@ inline TernaryValue And(const TernaryValue& a, const TernaryValue& b) {
   }
   return TernaryValue::kUnknown;
 }
+inline TernaryVector And(TernarySpan a, TernarySpan b) {
+  CHECK_EQ(a.size(), b.size());
+  TernaryVector result(a.size());
+  for (int64_t i = 0; i < a.size(); ++i) {
+    result[i] = And(a[i], b[i]);
+  }
+  return result;
+}
 
 inline TernaryValue Or(const TernaryValue& a, const TernaryValue& b) {
   // Truth table:
@@ -172,6 +186,14 @@ inline TernaryValue Or(const TernaryValue& a, const TernaryValue& b) {
     return TernaryValue::kKnownZero;
   }
   return TernaryValue::kUnknown;
+}
+inline TernaryVector Or(TernarySpan a, TernarySpan b) {
+  CHECK_EQ(a.size(), b.size());
+  TernaryVector result(a.size());
+  for (int64_t i = 0; i < a.size(); ++i) {
+    result[i] = Or(a[i], b[i]);
+  }
+  return result;
 }
 
 inline TernaryValue Not(const TernaryValue& a) {
@@ -190,6 +212,28 @@ inline TernaryVector Not(TernarySpan a) {
   result.reserve(a.size());
   absl::c_transform(a, std::back_inserter(result),
                     [](TernaryValue v) { return Not(v); });
+  return result;
+}
+
+inline TernaryValue Xor(const TernaryValue& a, const TernaryValue& b) {
+  // Truth table:
+  //              rhs
+  //      | |  0   1   X
+  //      --+------------
+  // lhs  0 |  0   1   X
+  //      1 |  1   0   X
+  //      X |  X   X   X
+  if (a == TernaryValue::kUnknown || b == TernaryValue::kUnknown) {
+    return TernaryValue::kUnknown;
+  }
+  return a == b ? TernaryValue::kKnownZero : TernaryValue::kKnownOne;
+}
+inline TernaryVector Xor(TernarySpan a, TernarySpan b) {
+  CHECK_EQ(a.size(), b.size());
+  TernaryVector result(a.size());
+  for (int64_t i = 0; i < a.size(); ++i) {
+    result[i] = Xor(a[i], b[i]);
+  }
   return result;
 }
 

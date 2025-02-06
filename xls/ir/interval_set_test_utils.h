@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "xls/common/fuzzing/fuzztest.h"
@@ -28,6 +29,9 @@
 #include "xls/ir/interval_test_utils.h"
 
 namespace xls {
+
+IntervalSet FromRanges(absl::Span<std::pair<int64_t, int64_t> const> ranges,
+                       int64_t bits);
 
 // GoogleFuzzTest "Arbitrary" domain for IntervalSets with known bit count.
 inline auto ArbitraryIntervalSet(int64_t bit_count) {

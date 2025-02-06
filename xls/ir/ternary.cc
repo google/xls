@@ -219,6 +219,24 @@ absl::StatusOr<TernaryVector> Union(TernarySpan lhs, TernarySpan rhs) {
   return result;
 }
 
+bool TryUpdateWithUnion(TernaryVector& lhs, TernarySpan rhs) {
+  CHECK_EQ(lhs.size(), rhs.size());
+
+  for (int64_t i = 0; i < lhs.size(); ++i) {
+    if (rhs[i] == TernaryValue::kUnknown) {
+      continue;
+    }
+
+    if (lhs[i] == TernaryValue::kUnknown) {
+      lhs[i] = rhs[i];
+    } else if (lhs[i] != rhs[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 absl::Status UpdateWithUnion(TernaryVector& lhs, TernarySpan rhs) {
   CHECK_EQ(lhs.size(), rhs.size());
 

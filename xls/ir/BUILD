@@ -313,8 +313,10 @@ cc_library(
 cc_library(
     name = "interval_set_test_utils",
     testonly = True,
+    srcs = ["interval_set_test_utils.cc"],
     hdrs = ["interval_set_test_utils.h"],
     deps = [
+        ":bits",
         ":interval",
         ":interval_set",
         ":interval_test_utils",
@@ -2267,4 +2269,73 @@ filegroup(
     name = "op_name_representations_proto",
     srcs = ["op_name_representations.textproto"],
     visibility = ["//xls/synthesis:__subpackages__"],
+)
+
+cc_library(
+    name = "partial_info",
+    srcs = ["partial_information.cc"],
+    hdrs = ["partial_information.h"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":interval",
+        ":interval_ops",
+        ":interval_set",
+        ":ternary",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "partial_information_test",
+    srcs = ["partial_information_test.cc"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":interval",
+        ":interval_ops",
+        ":interval_set",
+        ":interval_set_test_utils",
+        ":number_parser",
+        ":partial_info",
+        ":ternary",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "partial_ops",
+    srcs = ["partial_ops.cc"],
+    hdrs = ["partial_ops.h"],
+    deps = [
+        ":interval_ops",
+        ":interval_set",
+        ":partial_info",
+        ":ternary",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "partial_ops_test",
+    srcs = ["partial_ops_test.cc"],
+    deps = [
+        ":interval_set_test_utils",
+        ":partial_info",
+        ":partial_ops",
+        ":ternary",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
 )

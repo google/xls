@@ -55,6 +55,19 @@ IntervalSet IntervalSet::Precise(const Bits& bits) {
   return result;
 }
 
+IntervalSet IntervalSet::Punctured(const Bits& bits) {
+  IntervalSet result(bits.bit_count());
+  if (!bits.IsZero()) {
+    result.AddInterval(Interval::RightOpen(Bits(bits.bit_count()), bits));
+  }
+  if (!bits.IsAllOnes()) {
+    result.AddInterval(
+        Interval::LeftOpen(bits, Bits::AllOnes(bits.bit_count())));
+  }
+  result.is_normalized_ = true;
+  return result;
+}
+
 void IntervalSet::SetIntervals(absl::Span<const Interval> intervals) {
   is_normalized_ = false;
   intervals_.clear();
@@ -329,9 +342,12 @@ std::optional<int64_t> IntervalSet::Size() const {
   CHECK(is_normalized_);
   int64_t total_size = 0;
   for (const Interval& interval : intervals_) {
-    if (auto size = interval.Size()) {
-      total_size += size.value();
-    } else {
+    std::optional<int64_t> size = interval.Size();
+    if (!size.has_value()) {
+      return std::nullopt;
+    }
+    static_assert(__has_builtin(__builtin_add_overflow));
+    if (__builtin_add_overflow(total_size, *size, &total_size)) {
       return std::nullopt;
     }
   }

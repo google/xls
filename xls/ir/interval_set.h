@@ -58,6 +58,10 @@ class IntervalSet {
   // Returns an interval set that covers exactly the given bit pattern.
   static IntervalSet Precise(const Bits& bits);
 
+  // Returns an interval set that covers every bit pattern except the given bit
+  // pattern.
+  static IntervalSet Punctured(const Bits& bits);
+
   // Returns the number of intervals in the set.
   // Does not check for normalization, as this function can be used to check if
   // normalization is required (e.g.: to prevent blowup in memory usage while
