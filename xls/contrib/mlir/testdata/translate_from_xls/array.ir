@@ -1,0 +1,37 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./array.x"
+
+fn is_zero(a: bits[32] id=100) -> bits[1] {
+  literal.102: bits[32] = literal(value=0, id=102)
+  ret eq.103: bits[1] = eq(a, literal.102, id=103)
+}
+
+// CHECK: func @test_array([[ARG1:%.*]]: !xls.array<2 x i32>, [[ARG2:%.*]]: !xls.array<4 x i32>) -> !xls.array<2 x i32> {
+fn test_array(a: bits[32][2] id=1, b: bits[32][4] id=2) -> bits[32][2] {
+  // CHECK: [[LIT1:%.*]] = "xls.constant_scalar"() <{value = 10 : i32}> : () -> i32
+  literal.3: bits[32] = literal(value=10, id=3)
+
+  // CHECK: [[LIT2:%.*]] = "xls.constant_scalar"() <{value = 20 : i32}> : () -> i32
+  literal.4: bits[32] = literal(value=20, id=4)
+
+  // CHECK: {{.*}} = xls.array [[LIT1]], [[LIT2]] : (i32, i32) -> !xls.array<2 x i32>
+  array.5: bits[32][2] = array(literal.3, literal.4, id=5)
+
+  // CHECK: {{.*}} = xls.array_concat [[ARG1]], [[ARG2]] : (!xls.array<2 x i32>, !xls.array<4 x i32>) -> !xls.array<6 x i32>
+  array_concat.6: bits[32][6] = array_concat(a, b, id=6)
+
+  // CHECK: {{.*}} = "xls.array_index"([[ARG1]], [[LIT1]]) : (!xls.array<2 x i32>, i32) -> i32
+  array_index.7: bits[32] = array_index(a, indices=[literal.3], id=7)
+
+  // CHECK: {{.*}} = "xls.array_slice"([[ARG2]], [[LIT1]]) <{width = 2 : i64}> : (!xls.array<4 x i32>, i32) -> !xls.array<2 x i32>
+  array_slice.8: bits[32][2] = array_slice(b, literal.3, width=2, id=8)
+
+  // CHECK: {{.*}} = "xls.map"([[ARG1]]) <{to_apply = @is_zero}> : (!xls.array<2 x i32>) -> !xls.array<2 x i1>
+  map.9: bits[1][2] = map(a, to_apply=is_zero, id=9)
+
+  // CHECK: {{.*}} = "xls.array_update"([[ARG1]], [[LIT2]], [[LIT1]]) : (!xls.array<2 x i32>, i32, i32) -> !xls.array<2 x i32>
+  ret array_update.10: bits[32][2] = array_update(a, literal.4, indices=[literal.3], id=10)
+}

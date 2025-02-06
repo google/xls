@@ -1,0 +1,20 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./tuple.x"
+
+// CHECK: func @test_tuple() -> i32 {
+fn test_tuple() ->  bits[32] {
+  // CHECK: [[LIT1:%.*]] = "xls.constant_scalar"() <{value = 10 : i32}> : () -> i32
+  literal.1: bits[32] = literal(value=10, id=1)
+
+  // CHECK: [[LIT2:%.*]] = "xls.constant_scalar"() <{value = 20 : i32}> : () -> i32
+  literal.2: bits[32] = literal(value=20, id=2)
+
+  // CHECK: [[TUPLE1:%.*]] = "xls.tuple"([[LIT1]], [[LIT2]]) : (i32, i32) -> tuple<i32, i32>
+  tuple.3: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3)
+
+  // CHECK: {{.*}} = "xls.tuple_index"([[TUPLE1:%.*]]) <{index = 1 : i64}> : (tuple<i32, i32>) -> i32
+  ret tuple_index.4: bits[32] = tuple_index(tuple.3, index=1, id=4)
+}

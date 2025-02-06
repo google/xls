@@ -62,9 +62,9 @@ func.func @add(%arg0: i8, %arg1: i8) -> i8 {
   return %0 : i8
 }
 
-func.func @smul(%arg0: i8, %arg1: i8) -> i8 {
-  %0 = xls.smul %arg0, %arg1 : i8
-  return %0 : i8
+func.func @smul(%arg0: i8, %arg1: i8) -> i16 {
+  %0 = xls.smul %arg0, %arg1 : (i8, i8) -> i16
+  return %0 : i16
 }
 
 func.func @smulp(%arg0: i8, %arg1: i7) -> i9 {
@@ -219,7 +219,7 @@ func.func @reverse(%arg0: i32) -> i32 {
 }
 
 func.func @decode(%arg0: i4) -> i16 {
-  %0 = xls.decode %arg0 : (i4) -> i16
+  %0 = xls.decode %arg0 { width = 16 : i64 } : (i4) -> i16
   return %0 : i16
 }
 
@@ -318,6 +318,25 @@ func.func @constant_scalar() -> i7 {
   %1 = "xls.constant_scalar"() { value = 3 : i7 } : () -> i7
   %2 = "xls.constant_scalar"() { value = 103 : i8 } : () -> i8
   return %0 : i7
+}
+
+// XLS-LABEL: complex_literal
+func.func @complex_literal() -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>> {
+  // XLS: ret {{.*}}: ((bits[1], bits[2], (bits[32], bits[32])), bits[3][2]) = literal(value=((1, 2, (10, 0)), [4, 5]),
+  %lit = xls.literal : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>> {
+    %0 = "xls.constant_scalar"() <{value = true}> : () -> i1
+    %1 = "xls.constant_scalar"() <{value = -2 : i2}> : () -> i2
+    %2 = "xls.constant_scalar"() <{value = 10 : i32}> : () -> i32
+    %3 = "xls.constant_scalar"() <{value = 0 : i32}> : () -> i32
+    %4 = "xls.tuple"(%2, %3) : (i32, i32) -> tuple<i32, i32>
+    %5 = "xls.tuple"(%0, %1, %4) : (i1, i2, tuple<i32, i32>) -> tuple<i1, i2, tuple<i32, i32>>
+    %6 = "xls.constant_scalar"() <{value = -4 : i3}> : () -> i3
+    %7 = "xls.constant_scalar"() <{value = -3 : i3}> : () -> i3
+    %8 = xls.array %6, %7 : (i3, i3) -> !xls.array<2 x i3>
+    %final = "xls.tuple"(%5, %8) : (tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>) -> tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+    xls.yield %final : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
+  }
+  return %lit : tuple<tuple<i1, i2, tuple<i32, i32>>, !xls.array<2 x i3>>
 }
 
 xls.chan @mychan : i32

@@ -26,7 +26,7 @@ from lit.llvm import llvm_config
 # Some metadata is populated in lit.site.cfg.py.in.
 config.name = 'MLIR_TESTS_SUITE'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
-config.suffixes = ['.mlir']
+config.suffixes = ['.mlir', '.ir']
 config.test_source_root = os.path.dirname(__file__)
 
 # Disallow reusing variables across CHECK-LABEL matches.

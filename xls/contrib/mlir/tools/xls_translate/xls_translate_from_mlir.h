@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_H_
-#define GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_H_
+#ifndef GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_
+#define GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_
 
 #include <memory>
 #include <string>
@@ -23,6 +23,8 @@
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
+#include "mlir/include/mlir/IR/MLIRContext.h"
+#include "mlir/include/mlir/IR/OwningOpRef.h"
 #include "mlir/include/mlir/Support/LLVM.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/tools/codegen_flags.h"
@@ -102,4 +104,4 @@ LogicalResult MlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output,
 
 }  // namespace mlir::xls
 
-#endif  // GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_H_
+#endif  // GDM_HW_MLIR_XLS_TOOLS_XLS_TRANSLATE_XLS_TRANSLATE_FROM_MLIR_H_

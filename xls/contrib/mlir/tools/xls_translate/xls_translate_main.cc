@@ -20,6 +20,7 @@
 #include "llvm/include/llvm/ADT/Twine.h"
 #include "llvm/include/llvm/Support/CommandLine.h"
 #include "llvm/include/llvm/Support/LogicalResult.h"
+#include "llvm/include/llvm/Support/SourceMgr.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "mlir/include/mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/include/mlir/Dialect/Func/IR/FuncOps.h"
@@ -27,6 +28,7 @@
 #include "mlir/include/mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/include/mlir/IR/BuiltinAttributes.h"
 #include "mlir/include/mlir/IR/BuiltinOps.h"
+#include "mlir/include/mlir/IR/MLIRContext.h"
 #include "mlir/include/mlir/IR/Value.h"
 #include "mlir/include/mlir/IR/Visitors.h"
 #include "mlir/include/mlir/Support/LLVM.h"
@@ -36,7 +38,8 @@
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/contrib/mlir/IR/register.h"
 #include "xls/contrib/mlir/tools/xls_translate/xls_stitch.h"
-#include "xls/contrib/mlir/tools/xls_translate/xls_translate.h"
+#include "xls/contrib/mlir/tools/xls_translate/xls_translate_from_mlir.h"
+#include "xls/contrib/mlir/tools/xls_translate/xls_translate_to_mlir.h"
 #include "xls/public/c_api.h"
 
 namespace mlir::xls {
@@ -102,6 +105,11 @@ LogicalResult mlirXlsToXlsTranslate(Operation* op, llvm::raw_ostream& output) {
   return MlirXlsToXlsTranslate(op, output, options);
 }
 
+OwningOpRef<Operation*> xlsToMlirXlsTranslate(llvm::SourceMgr& mgr,
+                                              MLIRContext* ctx) {
+  return XlsToMlirXlsTranslate(mgr, ctx);
+}
+
 LogicalResult mlirXlsToVerilogTranslate(Operation* op,
                                         llvm::raw_ostream& output) {
   MlirXlsToXlsTranslateOptions options;
@@ -124,6 +132,10 @@ LogicalResult mlirXlsStitch(Operation* op, llvm::raw_ostream& output) {
 TranslateFromMLIRRegistration mlirXlsToXlsTranslateRegistration(
     "mlir-xls-to-xls", "convert from MLIR XLS dialect to XLS",
     mlirXlsToXlsTranslate, registerInputDialects);
+
+TranslateToMLIRRegistration XlsToMlirXlsTranslateRegistration(
+    "xls-to-mlir-xls", "convert from XLS to MLIR XLS dialect",
+    xlsToMlirXlsTranslate, registerInputDialects);
 
 TranslateFromMLIRRegistration mlirXlsToVerilogTranslateRegistration(
     "mlir-xls-to-verilog", "convert from MLIR XLS dialect to Verilog",

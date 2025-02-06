@@ -1,0 +1,18 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./binop.x"
+
+// CHECK: func @test_binop([[ARG1:%.*]]: i32, [[ARG2:%.*]]: i6,  [[ARG3:%.*]]: i32) -> i70 {
+fn test_binop(a: bits[32] id=1, b: bits[6] id=2, c: bits[32] id=3) -> bits[70] {
+
+  // CHECK: %{{.*}} = xls.bit_slice [[ARG1]] {start = 3 : i64, width = 10 : i64} : (i32) -> i10
+  bit_slice.5: bits[10] = bit_slice(a, start=3, width=10, id=5)
+
+  // CHECK: %{{.*}} = "xls.bit_slice_update"([[ARG1]], [[ARG3]], [[ARG2]]) : (i32, i32, i6) -> i32
+  bit_slice_update.6: bits[32] = bit_slice_update(a, c, b, id=6)
+
+  // CHECK: %{{.*}} = xls.concat [[ARG1]], [[ARG3]], [[ARG2]] : (i32, i32, i6) -> i70
+  ret concat.7: bits[70] = concat(a, c, b, id=7)
+}

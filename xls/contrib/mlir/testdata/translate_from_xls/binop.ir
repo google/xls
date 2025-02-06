@@ -1,0 +1,36 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./binop.x"
+
+// CHECK: func @test_binop([[ARG1:%.*]]: i32, [[ARG2:%.*]]: i32) -> i32 {
+fn test_binop(a: bits[32] id=1, b: bits[32] id=2) -> bits[32] {
+
+  // CHECK: %{{.*}} = xls.add [[ARG1]], [[ARG2]] : i32
+  add.3: bits[32] = add(a, b, id=3)
+
+  // CHECK: %{{.*}} = xls.sdiv [[ARG1]], [[ARG2]] : i32
+  sdiv.4: bits[32] = sdiv(a, b, id=4)
+
+  // CHECK: %{{.*}} = xls.smod [[ARG1]], [[ARG2]] : i32
+  smod.5: bits[32] = smod(a, b, id=5)
+
+  // CHECK: %{{.*}} = xls.shll [[ARG1]], [[ARG2]] : i32
+  shll.6: bits[32] = shll(a, b, id=6)
+
+  // CHECK: %{{.*}} = xls.shrl [[ARG1]], [[ARG2]] : i32
+  shrl.7: bits[32] = shrl(a, b, id=7)
+
+  // CHECK: %{{.*}} = xls.shra [[ARG1]], [[ARG2]] : i32
+  shra.8: bits[32] = shra(a, b, id=8)
+
+  // CHECK: %{{.*}} = xls.sub [[ARG1]], [[ARG2]] : i32
+  sub.9: bits[32] = sub(a, b, id=9)
+
+  // CHECK: %{{.*}} = xls.udiv [[ARG1]], [[ARG2]] : i32
+  udiv.10: bits[32] = udiv(a, b, id=10)
+
+  // CHECK: %{{.*}} = xls.umod [[ARG1]], [[ARG2]] : i32
+  ret umod.11: bits[32] = umod(a, b, id=11)
+}

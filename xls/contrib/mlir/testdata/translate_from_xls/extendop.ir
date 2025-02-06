@@ -1,0 +1,15 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./extendop.x"
+
+// CHECK: func @test_extendop([[ARG1:%.*]]: i5) -> i32 {
+fn test_extendop(a: bits[5] id=1) -> bits[32] {
+
+  // CHECK: %{{.*}} = xls.zero_ext [[ARG1]] : (i5) -> i32
+  zero_ext.2: bits[32] = zero_ext(a, new_bit_count=32, id=2)
+
+  // CHECK: %{{.*}} = xls.sign_ext [[ARG1]] : (i5) -> i32
+  ret sign_ext.3: bits[32] = sign_ext(a, new_bit_count=32, id=3)
+}

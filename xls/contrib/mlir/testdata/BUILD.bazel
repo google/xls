@@ -60,7 +60,10 @@ RUNFILES_DIR = LITE_CFG_PY.parents[3].absolute().as_posix()''',
         deps = ["@rules_python//python/runfiles"],
     )
     for src in glob(
-        ["**/*.mlir"],
+        [
+            "**/*.mlir",
+            "**/*.ir",
+        ],
         # TODO(jpienaar): The lookup in RUNFILES does not seem to work for these files with the
         # current lit setup.
         exclude = [

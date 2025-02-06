@@ -1,0 +1,27 @@
+// RUN: xls_translate --xls-to-mlir-xls %s 2>&1 | FileCheck %s
+
+package translate_ops
+
+file_number 0 "./sel.x"
+
+// CHECK: func @test_sel() -> i4 {
+fn test_sel() -> bits[4] {
+
+  // CHECK: %[[LIT1:.*]] = "xls.constant_scalar"
+  literal.1: bits[2] = literal(value=1, id=1)
+
+  // CHECK: %[[LIT2:.*]] = "xls.constant_scalar"
+  literal.2: bits[4] = literal(value=1, id=2)
+
+  // CHECK: %[[LIT3:.*]] = "xls.constant_scalar"
+  literal.3: bits[4] = literal(value=1, id=3)
+
+  // CHECK: %[[LIT4:.*]] = "xls.constant_scalar"
+  literal.4: bits[4] = literal(value=1, id=4)
+
+  // CHECK: %{{.*}} = xls.sel %[[LIT1]] in [%[[LIT2]], %[[LIT3]]] else %[[LIT4]] : (i2, [i4, i4], i4) -> i4
+  sel.5 : bits[4] = sel(literal.1, cases=[literal.2, literal.3], default=literal.4, id=5)
+
+  // CHECK: %{{.*}} = xls.priority_sel %[[LIT1]] in [%[[LIT2]], %[[LIT3]]] else %[[LIT4]] : (i2, [i4, i4], i4) -> i4
+  ret priority_sel.6 : bits[4] = priority_sel(literal.1, cases=[literal.2, literal.3], default=literal.4, id=6)
+}
