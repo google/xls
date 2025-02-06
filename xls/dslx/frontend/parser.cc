@@ -1482,12 +1482,13 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings,
       return module_->Make<NameDefTree>(span, colon_ref);
     }
 
-    std::optional<BoundNode> resolved = bindings.ResolveNode(*tok.GetValue());
-    if (resolved) {
-      AnyNameDef name_def =
-          bindings.ResolveNameOrNullopt(*tok.GetValue()).value();
+    std::string identifier = tok.GetValue().value();
+    if (std::optional<BoundNode> resolved = bindings.ResolveNode(identifier);
+        resolved.has_value()) {
+      AnyNameDef any_name_def =
+          bindings.ResolveNameOrNullopt(identifier).value();
       NameRef* ref =
-          module_->Make<NameRef>(tok.span(), *tok.GetValue(), name_def);
+          module_->Make<NameRef>(tok.span(), identifier, any_name_def);
       return module_->Make<NameDefTree>(tok.span(), ref);
     }
 

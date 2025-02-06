@@ -255,7 +255,8 @@ absl::Status TypecheckFunction(Function& f, DeduceCtx* ctx) {
 
   // Implementation note: we have to check for defined-but-unused values before
   // we pop derived type info below.
-  XLS_RETURN_IF_ERROR(WarnOnDefinedButUnused(f, ctx));
+  XLS_RETURN_IF_ERROR(
+      WarnOnDefinedButUnused(f, *ctx->type_info(), *ctx->warnings()));
 
   if (f.tag() != FunctionTag::kNormal) {
     XLS_RET_CHECK(derived_type_info != nullptr);

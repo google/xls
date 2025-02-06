@@ -29,15 +29,34 @@ cc_library(
     deps = [
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
-        "//xls/dslx/type_system:deduce_ctx",
         "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "warn_on_defined_but_unused_test",
+    srcs = ["warn_on_defined_but_unused_test.cc"],
+    deps = [
+        ":warn_on_defined_but_unused",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 

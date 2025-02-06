@@ -153,6 +153,75 @@ struct TheStruct {
   EXPECT_FALSE(get_type_metadata("n").has_value());
 }
 
+TEST(CollectUnderTest, MatchWithNameDefs) {
+  const std::string kProgram = R"(
+fn f() -> u32 {
+  let t = (u32:0, u32:1);
+  match t {
+    x => u32:0,
+    (y, z) => u32:1,
+  }
+}
+)";
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  std::optional<Function*> f = module->GetFunction("f");
+  ASSERT_TRUE(f.has_value());
+  Statement* stmt = (*f.value()).body()->statements().back();
+  auto* match_expr = std::get<Expr*>(stmt->wrapped());
+  auto* match = down_cast<Match*>(match_expr);
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<AstNode*> nodes,
+                           CollectUnder(match, /*want_types=*/false));
+  ASSERT_EQ(nodes.size(), 15);
+
+  EXPECT_EQ(nodes[0]->ToString(), "t");
+  EXPECT_EQ(nodes[0]->GetNodeTypeName(), "NameRef");
+
+  EXPECT_EQ(nodes[1]->ToString(), "x");
+  EXPECT_EQ(nodes[1]->GetNodeTypeName(), "NameDef");
+
+  EXPECT_EQ(nodes[2]->ToString(), "x");
+  EXPECT_EQ(nodes[2]->GetNodeTypeName(), "NameDefTree");
+
+  EXPECT_EQ(nodes[3]->ToString(), "u32");
+  EXPECT_EQ(nodes[3]->GetNodeTypeName(), "BuiltinTypeAnnotation");
+
+  EXPECT_EQ(nodes[4]->ToString(), "u32:0");
+  EXPECT_EQ(nodes[4]->GetNodeTypeName(), "Number");
+
+  EXPECT_EQ(nodes[5]->ToString(), "x => u32:0");
+  EXPECT_EQ(nodes[5]->GetNodeTypeName(), "MatchArm");
+
+  EXPECT_EQ(nodes[6]->ToString(), "y");
+  EXPECT_EQ(nodes[6]->GetNodeTypeName(), "NameDef");
+
+  EXPECT_EQ(nodes[7]->ToString(), "y");
+  EXPECT_EQ(nodes[7]->GetNodeTypeName(), "NameDefTree");
+
+  EXPECT_EQ(nodes[8]->ToString(), "z");
+  EXPECT_EQ(nodes[8]->GetNodeTypeName(), "NameDef");
+
+  EXPECT_EQ(nodes[9]->ToString(), "z");
+  EXPECT_EQ(nodes[9]->GetNodeTypeName(), "NameDefTree");
+
+  EXPECT_EQ(nodes[10]->ToString(), "(y, z)");
+  EXPECT_EQ(nodes[10]->GetNodeTypeName(), "NameDefTree");
+
+  EXPECT_EQ(nodes[11]->ToString(), "u32");
+  EXPECT_EQ(nodes[11]->GetNodeTypeName(), "BuiltinTypeAnnotation");
+
+  EXPECT_EQ(nodes[12]->ToString(), "u32:1");
+  EXPECT_EQ(nodes[12]->GetNodeTypeName(), "Number");
+
+  EXPECT_EQ(nodes[13]->ToString(), "(y, z) => u32:1");
+  EXPECT_EQ(nodes[13]->GetNodeTypeName(), "MatchArm");
+
+  EXPECT_EQ(nodes[14]->ToString(),
+            "match t {\n    x => u32:0,\n    (y, z) => u32:1,\n}");
+  EXPECT_EQ(nodes[14]->GetNodeTypeName(), "Match");
+}
+
 // Tests that the ResolveLocalStructDef can see through transitive aliases.
 TEST(ResolveLocalStructDef, StructDefInTransitiveAlias) {
   const std::string kProgram = R"(struct S {
