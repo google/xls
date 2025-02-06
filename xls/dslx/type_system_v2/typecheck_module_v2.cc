@@ -1064,14 +1064,14 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     if (!type_variable.has_value()) {
       return std::nullopt;
     }
-    // Note: the nullopt `parametric_invocation` is safe here because all of the
-    // processing in this whole class happens before any `ParametricInvocation`
+    // Note: the nullopt `parametric_context` is safe here because all of the
+    // processing in this whole class happens before any `ParametricContext`
     // objects exist, therefore none of the data in the table at this point can
-    // be dependent on any `ParametricInvocation`.
+    // be dependent on any `ParametricContext`.
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations,
         table_.GetTypeAnnotationsForTypeVariable(
-            /*parametric_invocation=*/std::nullopt, *type_variable));
+            /*parametric_context=*/std::nullopt, *type_variable));
     if (annotations.empty()) {
       VLOG(5) << "No declaration type annotation for " << node->ToString();
       return std::nullopt;

@@ -210,27 +210,27 @@ TEST_F(InferenceTableTest, ParametricVariable) {
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      const ParametricInvocation* parametric_invocation1,
+      const ParametricContext* parametric_context1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
-      const ParametricInvocation* parametric_invocation2,
+      const ParametricContext* parametric_context2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
-              ElementsAre(parametric_invocation1, parametric_invocation2));
+              ElementsAre(parametric_context1, parametric_context2));
 
-  std::optional<InvocationScopedExpr> parametric_inv1_n_value =
-      table_->GetParametricValue(*n, *parametric_invocation1);
-  std::optional<InvocationScopedExpr> parametric_inv2_n_value =
-      table_->GetParametricValue(*n, *parametric_invocation2);
+  std::optional<ParametricContextScopedExpr> parametric_inv1_n_value =
+      table_->GetParametricValue(*n, *parametric_context1);
+  std::optional<ParametricContextScopedExpr> parametric_inv2_n_value =
+      table_->GetParametricValue(*n, *parametric_context2);
   ASSERT_TRUE(parametric_inv1_n_value.has_value());
   ASSERT_TRUE(parametric_inv2_n_value.has_value());
   // These exprs are scoped to `nullopt` invocation because they reside in the
   // non-parametric calling context.
-  EXPECT_EQ(parametric_inv1_n_value->invocation(), std::nullopt);
-  EXPECT_EQ(parametric_inv2_n_value->invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv1_n_value->context(), std::nullopt);
+  EXPECT_EQ(parametric_inv2_n_value->context(), std::nullopt);
   EXPECT_EQ(parametric_inv1_n_value->expr()->ToString(), "u32:4");
   EXPECT_EQ(parametric_inv2_n_value->expr()->ToString(), "u32:5");
 }
@@ -269,35 +269,35 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   const Invocation* invocation2 = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(1)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      const ParametricInvocation* parametric_invocation1,
+      const ParametricContext* parametric_context1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
-      const ParametricInvocation* parametric_invocation2,
+      const ParametricContext* parametric_context2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
-              ElementsAre(parametric_invocation1, parametric_invocation2));
+              ElementsAre(parametric_context1, parametric_context2));
 
-  std::optional<InvocationScopedExpr> parametric_inv1_m_value =
-      table_->GetParametricValue(*m, *parametric_invocation1);
-  std::optional<InvocationScopedExpr> parametric_inv1_n_value =
-      table_->GetParametricValue(*n, *parametric_invocation1);
-  std::optional<InvocationScopedExpr> parametric_inv2_m_value =
-      table_->GetParametricValue(*m, *parametric_invocation2);
-  std::optional<InvocationScopedExpr> parametric_inv2_n_value =
-      table_->GetParametricValue(*n, *parametric_invocation2);
+  std::optional<ParametricContextScopedExpr> parametric_inv1_m_value =
+      table_->GetParametricValue(*m, *parametric_context1);
+  std::optional<ParametricContextScopedExpr> parametric_inv1_n_value =
+      table_->GetParametricValue(*n, *parametric_context1);
+  std::optional<ParametricContextScopedExpr> parametric_inv2_m_value =
+      table_->GetParametricValue(*m, *parametric_context2);
+  std::optional<ParametricContextScopedExpr> parametric_inv2_n_value =
+      table_->GetParametricValue(*n, *parametric_context2);
   ASSERT_TRUE(parametric_inv1_m_value.has_value());
   ASSERT_TRUE(parametric_inv1_n_value.has_value());
   ASSERT_TRUE(parametric_inv2_m_value.has_value());
   ASSERT_TRUE(parametric_inv2_n_value.has_value());
 
   // Exprs that reside in the callee are scoped to the callee invocation.
-  EXPECT_EQ(parametric_inv1_m_value->invocation(), parametric_invocation1);
-  EXPECT_EQ(parametric_inv2_m_value->invocation(), std::nullopt);
-  EXPECT_EQ(parametric_inv1_n_value->invocation(), parametric_invocation1);
-  EXPECT_EQ(parametric_inv2_n_value->invocation(), parametric_invocation2);
+  EXPECT_EQ(parametric_inv1_m_value->context(), parametric_context1);
+  EXPECT_EQ(parametric_inv2_m_value->context(), std::nullopt);
+  EXPECT_EQ(parametric_inv1_n_value->context(), parametric_context1);
+  EXPECT_EQ(parametric_inv2_n_value->context(), parametric_context2);
   EXPECT_EQ(parametric_inv1_m_value->expr()->ToString(), "u32:4");
   EXPECT_EQ(parametric_inv2_m_value->expr()->ToString(), "u32:5");
   EXPECT_EQ(parametric_inv1_n_value->expr()->ToString(), "M * M");
@@ -331,14 +331,14 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
   const Invocation* invocation = down_cast<const Invocation*>(
       ToAstNode(bar->body()->statements().at(0)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(
-      const ParametricInvocation* parametric_invocation,
+      const ParametricContext* parametric_context,
       table_->AddParametricInvocation(*invocation, *foo, bar,
                                       /*caller_invocation=*/std::nullopt));
 
-  std::optional<InvocationScopedExpr> parametric_inv_m_value =
-      table_->GetParametricValue(*m, *parametric_invocation);
+  std::optional<ParametricContextScopedExpr> parametric_inv_m_value =
+      table_->GetParametricValue(*m, *parametric_context);
   ASSERT_TRUE(parametric_inv_m_value.has_value());
-  EXPECT_EQ(parametric_inv_m_value->invocation(), std::nullopt);
+  EXPECT_EQ(parametric_inv_m_value->context(), std::nullopt);
   EXPECT_EQ(parametric_inv_m_value->expr()->ToString(), "u32:5");
 }
 

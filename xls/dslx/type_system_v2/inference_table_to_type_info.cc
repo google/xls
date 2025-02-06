@@ -113,10 +113,9 @@ absl::StatusOr<AstNode*> SafeClone(const AstNode* input,
 // unification.
 class VariableExpander : public AstNodeVisitorWithDefault {
  public:
-  VariableExpander(
-      const InferenceTable& table,
-      std::optional<const ParametricInvocation*> parametric_invocation)
-      : table_(table), parametric_invocation_(parametric_invocation) {}
+  VariableExpander(const InferenceTable& table,
+                   std::optional<const ParametricContext*> parametric_context)
+      : table_(table), parametric_context_(parametric_context) {}
 
   absl::Status HandleTypeVariableTypeAnnotation(
       const TypeVariableTypeAnnotation* node) override {
@@ -125,7 +124,7 @@ class VariableExpander : public AstNodeVisitorWithDefault {
     }
     XLS_ASSIGN_OR_RETURN(
         std::vector<const TypeAnnotation*> annotations_for_variable,
-        table_.GetTypeAnnotationsForTypeVariable(parametric_invocation_,
+        table_.GetTypeAnnotationsForTypeVariable(parametric_context_,
                                                  node->type_variable()));
     for (const TypeAnnotation* annotation : annotations_for_variable) {
       XLS_RETURN_IF_ERROR(annotation->Accept(this));
@@ -141,7 +140,7 @@ class VariableExpander : public AstNodeVisitorWithDefault {
         variable.has_value()) {
       XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
                            table_.GetTypeAnnotationsForTypeVariable(
-                               parametric_invocation_, *variable));
+                               parametric_context_, *variable));
       for (const TypeAnnotation* annotation : annotations) {
         XLS_RETURN_IF_ERROR(annotation->Accept(this));
       }
@@ -161,7 +160,7 @@ class VariableExpander : public AstNodeVisitorWithDefault {
 
  private:
   const InferenceTable& table_;
-  const std::optional<const ParametricInvocation*> parametric_invocation_;
+  const std::optional<const ParametricContext*> parametric_context_;
   std::vector<const TypeAnnotation*> annotations_;
   // Prevent multiple traversal in case of cycles. Cycles can be valid in
   // internally-generated `FunctionTypeAnnotation` data structures that contain
@@ -275,23 +274,23 @@ class InferenceTableConverter {
         file_table_(file_table) {}
 
   // Converts all type info for the subtree rooted at `node`. `function` is
-  // the containing function of the subtree, if any. `parametric_invocation` is
+  // the containing function of the subtree, if any. `parametric_context` is
   // the invocation in whose context the types should be evaluated, if any.
   absl::Status ConvertSubtree(
       const AstNode* node, std::optional<const Function*> function,
-      std::optional<const ParametricInvocation*> parametric_invocation) {
+      std::optional<const ParametricContext*> parametric_context) {
     VLOG(5) << "ConvertSubtree: " << node->ToString()
-            << " in context: " << ToString(parametric_invocation);
-    ConversionOrderVisitor visitor(parametric_invocation.has_value() &&
+            << " in context: " << ToString(parametric_context);
+    ConversionOrderVisitor visitor(parametric_context.has_value() &&
                                    node == function);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     for (const AstNode* node : visitor.nodes()) {
       VLOG(5) << "Next node: " << node->ToString();
       if (const auto* invocation = dynamic_cast<const Invocation*>(node)) {
         XLS_RETURN_IF_ERROR(
-            ConvertInvocation(invocation, function, parametric_invocation));
+            ConvertInvocation(invocation, function, parametric_context));
       } else {
-        XLS_RETURN_IF_ERROR(GenerateTypeInfo(parametric_invocation, node));
+        XLS_RETURN_IF_ERROR(GenerateTypeInfo(parametric_context, node));
       }
     }
     return absl::OkStatus();
@@ -301,25 +300,28 @@ class InferenceTableConverter {
   // output type info. `converted_parametric_envs_` must be populated for both
   // the caller and callee of the parametric invocation before doing this.
   absl::Status AddInvocationTypeInfo(
-      const ParametricInvocation* parametric_invocation) {
+      const ParametricContext* parametric_context) {
     VLOG(5) << "Adding invocation type info for "
-            << parametric_invocation->ToString();
-    ParametricEnv caller_env;
-    if (parametric_invocation->caller_invocation().has_value()) {
-      caller_env = converted_parametric_envs_.at(
-          *parametric_invocation->caller_invocation());
+            << parametric_context->ToString();
+    ParametricEnv parent_env;
+    const auto& data =
+        std::get<ParametricInvocationDetails>(parametric_context->details());
+    if (parametric_context->parent_context().has_value() &&
+        (*parametric_context->parent_context())->is_invocation()) {
+      parent_env =
+          converted_parametric_envs_.at(*parametric_context->parent_context());
     }
     ParametricEnv callee_env =
-        converted_parametric_envs_.at(parametric_invocation);
-    VLOG(5) << "Caller env: " << caller_env.ToString();
+        converted_parametric_envs_.at(parametric_context);
+    VLOG(5) << "Parent env: " << parent_env.ToString();
     VLOG(5) << "Callee env: " << callee_env.ToString();
+    const auto* invocation =
+        dynamic_cast<const Invocation*>(parametric_context->node());
+    CHECK_NE(invocation, nullptr);
     XLS_RETURN_IF_ERROR(base_type_info_->AddInvocationTypeInfo(
-        parametric_invocation->node(),
-        parametric_invocation->caller().has_value()
-            ? *parametric_invocation->caller()
-            : nullptr,
-        caller_env, callee_env,
-        invocation_type_info_.at(parametric_invocation)));
+        *invocation, data.caller.has_value() ? *data.caller : nullptr,
+        parent_env, callee_env,
+        parametric_context_type_info_.at(parametric_context)));
     return absl::OkStatus();
   }
 
@@ -328,11 +330,11 @@ class InferenceTableConverter {
   // types of the arguments to the actual arguments in the inference table.
   absl::Status ConvertInvocation(
       const Invocation* invocation, std::optional<const Function*> caller,
-      std::optional<const ParametricInvocation*> caller_invocation) {
+      std::optional<const ParametricContext*> caller_context) {
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString();
     XLS_ASSIGN_OR_RETURN(
         const FunctionAndTargetObject function_and_target_object,
-        ResolveFunction(invocation->callee(), caller, caller_invocation));
+        ResolveFunction(invocation->callee(), caller, caller_context));
     const Function* function = function_and_target_object.function;
 
     // Come up with the actual args by merging the possible target object
@@ -346,7 +348,7 @@ class InferenceTableConverter {
 
     if (!function->IsParametric()) {
       XLS_RETURN_IF_ERROR(
-          GenerateTypeInfo(caller_invocation, invocation->callee()));
+          GenerateTypeInfo(caller_context, invocation->callee()));
       // For non-parametric functions, the formal argument types can be taken at
       // face value. Apply them to the actual arguments, convert them, and
       // convert the invocation itself.
@@ -356,9 +358,9 @@ class InferenceTableConverter {
         XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
             actual_param, formal_param->type_annotation()));
         XLS_RETURN_IF_ERROR(
-            ConvertSubtree(actual_param, caller, caller_invocation));
+            ConvertSubtree(actual_param, caller, caller_context));
       }
-      return GenerateTypeInfo(caller_invocation, invocation);
+      return GenerateTypeInfo(caller_context, invocation);
     }
 
     // If we get here, we are dealing with a parametric function. First let's
@@ -376,14 +378,14 @@ class InferenceTableConverter {
 
     // The parametric invocation now gets its own data structure set up in both
     // the `InferenceTable` and the `TypeInfo` hierarchy.
-    XLS_ASSIGN_OR_RETURN(
-        const ParametricInvocation* parametric_invocation,
-        table_.AddParametricInvocation(*invocation, *function, caller,
-                                       caller_invocation));
+    XLS_ASSIGN_OR_RETURN(const ParametricContext* parametric_context,
+                         table_.AddParametricInvocation(
+                             *invocation, *function, caller, caller_context));
     XLS_ASSIGN_OR_RETURN(
         TypeInfo * invocation_type_info,
         import_data_.type_info_owner().New(&module_, base_type_info_));
-    invocation_type_info_.emplace(parametric_invocation, invocation_type_info);
+    parametric_context_type_info_.emplace(parametric_context,
+                                          invocation_type_info);
 
     // Assign the formal parametric types to the actual explicit parametric
     // arguments, now that we know the formal types.
@@ -406,7 +408,7 @@ class InferenceTableConverter {
     for (ExprOrType explicit_parametric : invocation->explicit_parametrics()) {
       if (std::holds_alternative<Expr*>(explicit_parametric)) {
         XLS_RETURN_IF_ERROR(ConvertSubtree(std::get<Expr*>(explicit_parametric),
-                                           caller, caller_invocation));
+                                           caller, caller_context));
       }
     }
 
@@ -414,62 +416,59 @@ class InferenceTableConverter {
     for (const ParametricBinding* binding : function->parametric_bindings()) {
       if (binding->expr() != nullptr) {
         XLS_RETURN_IF_ERROR(
-            ConvertSubtree(binding->expr(), function, parametric_invocation));
+            ConvertSubtree(binding->expr(), function, parametric_context));
       }
     }
 
     // Figure out any implicit parametrics and generate the `ParametricEnv`.
-    XLS_RETURN_IF_ERROR(GenerateParametricEnv(parametric_invocation));
-    XLS_RETURN_IF_ERROR(AddInvocationTypeInfo(parametric_invocation));
+    XLS_RETURN_IF_ERROR(GenerateParametricEnv(parametric_context));
+    XLS_RETURN_IF_ERROR(AddInvocationTypeInfo(parametric_context));
 
     // Apply the parametric-free formal types to the arguments and convert them.
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* parametric_free_type,
-        GetParametricFreeType(
-            CreateFunctionTypeAnnotation(module_, *function),
-            parametric_value_exprs_.at(parametric_invocation)));
+        GetParametricFreeType(CreateFunctionTypeAnnotation(module_, *function),
+                              parametric_value_exprs_.at(parametric_context)));
     const FunctionTypeAnnotation* parametric_free_function_type =
         down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
-    XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForInvocation(
-        caller_invocation, *table_.GetTypeVariable(invocation->callee()),
+    XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForParametricContext(
+        caller_context, *table_.GetTypeVariable(invocation->callee()),
         parametric_free_function_type));
-    XLS_RETURN_IF_ERROR(
-        GenerateTypeInfo(caller_invocation, invocation->callee()));
+    XLS_RETURN_IF_ERROR(GenerateTypeInfo(caller_context, invocation->callee()));
     for (int i = 0; i < parametric_free_function_type->param_types().size();
          i++) {
       const TypeAnnotation* formal_type =
           parametric_free_function_type->param_types()[i];
       const Expr* actual_param = actual_args[i];
-      XLS_RETURN_IF_ERROR(table_.AddTypeAnnotationToVariableForInvocation(
-          caller_invocation, *table_.GetTypeVariable(actual_param),
-          formal_type));
       XLS_RETURN_IF_ERROR(
-          ConvertSubtree(actual_param, caller, caller_invocation));
+          table_.AddTypeAnnotationToVariableForParametricContext(
+              caller_context, *table_.GetTypeVariable(actual_param),
+              formal_type));
+      XLS_RETURN_IF_ERROR(ConvertSubtree(actual_param, caller, caller_context));
     }
 
     // Convert the actual parametric function in the context of this invocation,
     // and finally, convert the invocation node.
-    XLS_RETURN_IF_ERROR(
-        ConvertSubtree(function, function, parametric_invocation));
-    return GenerateTypeInfo(caller_invocation, invocation);
+    XLS_RETURN_IF_ERROR(ConvertSubtree(function, function, parametric_context));
+    return GenerateTypeInfo(caller_context, invocation);
   }
 
   // Gets the output `TypeInfo` corresponding to the given
-  // `parametric_invocation`, which may be `nullopt`, in which case it returns
+  // `parametric_context`, which may be `nullopt`, in which case it returns
   // the base type info.
   TypeInfo* GetTypeInfo(
-      std::optional<const ParametricInvocation*> parametric_invocation) {
-    return parametric_invocation.has_value()
-               ? invocation_type_info_.at(*parametric_invocation)
+      std::optional<const ParametricContext*> parametric_context) {
+    return parametric_context.has_value()
+               ? parametric_context_type_info_.at(*parametric_context)
                : base_type_info_;
   }
 
   // Generates type info for one node.
   absl::Status GenerateTypeInfo(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const AstNode* node) {
     VLOG(5) << "Generate type info for node: " << node->ToString();
-    TypeInfo* ti = GetTypeInfo(parametric_invocation);
+    TypeInfo* ti = GetTypeInfo(parametric_context);
     std::optional<const TypeAnnotation*> annotation;
     const std::optional<const NameRef*> type_variable =
         table_.GetTypeVariable(node);
@@ -482,7 +481,7 @@ class InferenceTableConverter {
       if (node->parent() != nullptr &&
           ((node->parent()->kind() == AstNodeKind::kConstantDef ||
             node->parent()->kind() == AstNodeKind::kNameDef)) &&
-          !VariableHasAnyExplicitTypeAnnotations(parametric_invocation,
+          !VariableHasAnyExplicitTypeAnnotations(parametric_context,
                                                  *type_variable)) {
         // The motivation for disallowing this, irrespective of its
         // unifiability, is that otherwise a snippet like this would present
@@ -503,8 +502,8 @@ class InferenceTableConverter {
       }
       XLS_ASSIGN_OR_RETURN(
           annotation,
-          UnifyTypeAnnotations(parametric_invocation, *type_variable,
-                               *node_span, /*accept_predicate=*/std::nullopt));
+          UnifyTypeAnnotations(parametric_context, *type_variable, *node_span,
+                               /*accept_predicate=*/std::nullopt));
       // If we have a let assignment to a tuple type, destructure the
       // assignment.
       if (dynamic_cast<const TupleTypeAnnotation*>(annotation.value()) &&
@@ -518,8 +517,8 @@ class InferenceTableConverter {
                 table_.GetTypeVariable(name_def);
             if (type_var.has_value()) {
               XLS_RETURN_IF_ERROR(
-                  table_.AddTypeAnnotationToVariableForInvocation(
-                      parametric_invocation, *type_var,
+                  table_.AddTypeAnnotationToVariableForParametricContext(
+                      parametric_context, *type_var,
                       std::get<const TypeAnnotation*>(type)));
             }
           }
@@ -539,7 +538,7 @@ class InferenceTableConverter {
       return absl::OkStatus();
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         Concretize(*annotation, parametric_invocation));
+                         Concretize(*annotation, parametric_context));
     XLS_RETURN_IF_ERROR(ValidateConcreteTypeForNode(node, type.get(), *ti));
     if (const auto* literal = dynamic_cast<const Number*>(node);
         literal != nullptr && literal->type_annotation() != nullptr) {
@@ -559,13 +558,13 @@ class InferenceTableConverter {
   // or in the context of a parametric invocation.
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
-      std::optional<const ParametricInvocation*> parametric_invocation) {
+      std::optional<const ParametricContext*> parametric_context) {
     VLOG(5) << "Concretize: " << annotation->ToString()
-            << " in context invocation: " << ToString(parametric_invocation);
-    VLOG(5) << "Effective invocation: " << ToString(parametric_invocation);
+            << " in context invocation: " << ToString(parametric_context);
+    VLOG(5) << "Effective invocation: " << ToString(parametric_context);
 
     XLS_ASSIGN_OR_RETURN(annotation, ResolveVariableTypeAnnotations(
-                                         parametric_invocation, annotation,
+                                         parametric_context, annotation,
                                          /*accept_predicate=*/std::nullopt));
     if (dynamic_cast<const AnyTypeAnnotation*>(annotation) != nullptr) {
       return absl::InvalidArgumentError(
@@ -578,17 +577,17 @@ class InferenceTableConverter {
       member_types.reserve(tuple->members().size());
       for (const TypeAnnotation* member : tuple->members()) {
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> concrete_member_type,
-                             Concretize(member, parametric_invocation));
+                             Concretize(member, parametric_context));
         member_types.push_back(std::move(concrete_member_type));
       }
       return std::make_unique<TupleType>(std::move(member_types));
     }
     if (const auto* array = CastToNonBitsArrayTypeAnnotation(annotation)) {
-      XLS_ASSIGN_OR_RETURN(
-          int64_t size, EvaluateU32OrExpr(parametric_invocation, array->dim()));
+      XLS_ASSIGN_OR_RETURN(int64_t size,
+                           EvaluateU32OrExpr(parametric_context, array->dim()));
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> element_type,
-          Concretize(array->element_type(), parametric_invocation));
+          Concretize(array->element_type(), parametric_context));
       return std::make_unique<ArrayType>(std::move(element_type),
                                          TypeDim(InterpValue::MakeU32(size)));
     }
@@ -596,12 +595,12 @@ class InferenceTableConverter {
             dynamic_cast<const FunctionTypeAnnotation*>(annotation)) {
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> return_type,
-          Concretize(function->return_type(), parametric_invocation));
+          Concretize(function->return_type(), parametric_context));
       std::vector<std::unique_ptr<Type>> param_types;
       param_types.reserve(function->param_types().size());
       for (const TypeAnnotation* argument : function->param_types()) {
         XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> param_type,
-                             Concretize(argument, parametric_invocation));
+                             Concretize(argument, parametric_context));
         param_types.push_back(std::move(param_type));
       }
       return std::make_unique<FunctionType>(std::move(param_types),
@@ -621,7 +620,7 @@ class InferenceTableConverter {
             GetParametricFreeStructMemberType(*struct_or_proc, member->type()));
         XLS_ASSIGN_OR_RETURN(
             std::unique_ptr<Type> concrete_member_type,
-            Concretize(parametric_free_member_type, parametric_invocation));
+            Concretize(parametric_free_member_type, parametric_context));
         member_types.push_back(std::move(concrete_member_type));
       }
       if (std::holds_alternative<const StructDef*>(struct_or_proc->def)) {
@@ -643,11 +642,11 @@ class InferenceTableConverter {
     }
     XLS_ASSIGN_OR_RETURN(
         bool signedness,
-        EvaluateBoolOrExpr(parametric_invocation,
+        EvaluateBoolOrExpr(parametric_context,
                            signedness_and_bit_count->signedness));
     XLS_ASSIGN_OR_RETURN(
         int64_t bit_count,
-        EvaluateU32OrExpr(parametric_invocation,
+        EvaluateU32OrExpr(parametric_context,
                           signedness_and_bit_count->bit_count));
     VLOG(5) << "Concretized: " << annotation->ToString()
             << " to signed: " << signedness << ", bit count: " << bit_count;
@@ -764,11 +763,11 @@ class InferenceTableConverter {
   // be noted as constexpr's in the `TypeInfo` corresponding to the scope for
   // the expression.
   absl::StatusOr<InterpValue> Evaluate(
-      const InvocationScopedExpr& scoped_expr) {
+      const ParametricContextScopedExpr& scoped_expr) {
     VLOG(5) << "Evaluate: " << scoped_expr.expr()->ToString()
-            << " in context: " << ToString(scoped_expr.invocation());
+            << " in context: " << ToString(scoped_expr.context());
     TypeInfo* type_info = base_type_info_;
-    // Note that `scoped_expr` will not have an `invocation()` in a case like
+    // Note that `scoped_expr` will not have a `context()` in a case like
     //  fn foo<X: u32>(...) { ... }
     //  fn bar() {
     //    foo<SOME_CONSTANT + 1>(...);
@@ -776,26 +775,26 @@ class InferenceTableConverter {
     // The only scoped expr there is the expression being passed for `X`, which
     // is in a non-parametric caller and therefore cannot possibly refer to any
     // parametrics.
-    if (scoped_expr.invocation().has_value()) {
-      type_info = invocation_type_info_.at(*scoped_expr.invocation());
+    if (scoped_expr.context().has_value()) {
+      type_info = parametric_context_type_info_.at(*scoped_expr.context());
     }
-    return Evaluate(scoped_expr.invocation(), type_info,
+    return Evaluate(scoped_expr.context(), type_info,
                     scoped_expr.type_annotation(), scoped_expr.expr());
   }
 
   // Variant that uses a specific `TypeInfo`. Use this directly when there is a
   // need to target a temporary `TypeInfo` object, e.g. for `StructInstance`
   // parametric values. When populating a real output `TypeInfo` object, prefer
-  // the variant that takes an `InvocationScopedExpr`.
+  // the variant that takes an `ParametricContextScopedExpr`.
   absl::StatusOr<InterpValue> Evaluate(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       TypeInfo* type_info, const TypeAnnotation* type_annotation,
       const Expr* expr) {
     // This is the type of the parametric binding we are talking about, which is
     // typically a built-in type, but the way we are concretizing it here would
     // support it being a complex type that even refers to other parametrics.
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         Concretize(type_annotation, parametric_invocation));
+                         Concretize(type_annotation, parametric_context));
     type_info->SetItem(expr, *type);
     type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
     // TODO: https://github.com/google/xls/issues/193 - The if-statement below
@@ -816,7 +815,7 @@ class InferenceTableConverter {
                              &import_data_, type_info, &warning_collector_,
                              ParametricEnv(), expr, /*type=*/nullptr));
     VLOG(5) << "Evaluation result for: " << expr->ToString()
-            << " in context: " << ToString(parametric_invocation)
+            << " in context: " << ToString(parametric_context)
             << " value: " << result.ToString();
     return result;
   }
@@ -824,7 +823,7 @@ class InferenceTableConverter {
   // Determines what function is being invoked by a `callee` expression.
   absl::StatusOr<const FunctionAndTargetObject> ResolveFunction(
       const Expr* callee, std::optional<const Function*> caller_function,
-      std::optional<const ParametricInvocation*> caller_invocation) {
+      std::optional<const ParametricContext*> caller_context) {
     const AstNode* function_node = nullptr;
     std::optional<Expr*> target_object;
     if (const auto* colon_ref = dynamic_cast<const ColonRef*>(callee)) {
@@ -840,9 +839,9 @@ class InferenceTableConverter {
       function_node = def->definer();
     } else if (const auto* attr = dynamic_cast<const Attr*>(callee)) {
       XLS_RETURN_IF_ERROR(
-          ConvertSubtree(attr->lhs(), caller_function, caller_invocation));
+          ConvertSubtree(attr->lhs(), caller_function, caller_context));
       target_object = attr->lhs();
-      const TypeInfo* ti = GetTypeInfo(caller_invocation);
+      const TypeInfo* ti = GetTypeInfo(caller_context);
       XLS_ASSIGN_OR_RETURN(std::optional<Function*> instance_method,
                            ImplFnFromCallee(attr, ti));
       if (instance_method.has_value()) {
@@ -880,7 +879,7 @@ class InferenceTableConverter {
   // Determines any implicit parametric values in the given `invocation`, and
   // generates its `ParametricEnv` in `converted_parametric_envs_`. Also
   // populates `parametric_value_exprs_` for the invocation.
-  absl::Status GenerateParametricEnv(const ParametricInvocation* invocation) {
+  absl::Status GenerateParametricEnv(const ParametricContext* context) {
     absl::flat_hash_map<std::string, InterpValue> values;
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
     absl::flat_hash_map<std::string, const NameDef*> binding_name_defs;
@@ -890,16 +889,15 @@ class InferenceTableConverter {
       }
       absl::flat_hash_map<std::string, InterpValue> new_values;
       XLS_ASSIGN_OR_RETURN(new_values, InferImplicitFunctionParametrics(
-                                           invocation, implicit_parametrics));
+                                           context, implicit_parametrics));
       implicit_parametrics.clear();
       values.merge(std::move(new_values));
       return absl::OkStatus();
     };
-    for (const ParametricBinding* binding :
-         invocation->callee().parametric_bindings()) {
+    for (const ParametricBinding* binding : context->parametric_bindings()) {
       binding_name_defs.emplace(binding->identifier(), binding->name_def());
-      std::optional<InvocationScopedExpr> expr =
-          table_.GetParametricValue(*binding->name_def(), *invocation);
+      std::optional<ParametricContextScopedExpr> expr =
+          table_.GetParametricValue(*binding->name_def(), *context);
       if (expr.has_value()) {
         // The expr may be a default expr which may use the inferred values of
         // any parametrics preceding it, so let's resolve any pending implicit
@@ -907,8 +905,8 @@ class InferenceTableConverter {
         XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
         // Now evaluate the expr.
         XLS_ASSIGN_OR_RETURN(InterpValue value, Evaluate(*expr));
-        invocation_type_info_.at(invocation)
-            ->NoteConstExpr(binding->name_def(), value);
+        parametric_context_type_info_.at(context)->NoteConstExpr(
+            binding->name_def(), value);
         values.emplace(binding->name_def()->identifier(), value);
       } else {
         implicit_parametrics.insert(binding);
@@ -929,9 +927,9 @@ class InferenceTableConverter {
                                value.ToString(/*humanize=*/true),
                                NumberKind::kOther, nullptr));
     }
-    parametric_value_exprs_.emplace(invocation, std::move(actual_parametrics));
+    parametric_value_exprs_.emplace(context, std::move(actual_parametrics));
     ParametricEnv env(std::move(values));
-    converted_parametric_envs_.emplace(invocation, env);
+    converted_parametric_envs_.emplace(context, env);
     return absl::OkStatus();
   }
 
@@ -941,13 +939,17 @@ class InferenceTableConverter {
   // error.
   absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
   InferImplicitFunctionParametrics(
-      const ParametricInvocation* invocation,
+      const ParametricContext* context,
       absl::flat_hash_set<const ParametricBinding*> implicit_parametrics) {
     VLOG(5) << "Inferring " << implicit_parametrics.size()
-            << " implicit parametrics for invocation: " << ToString(invocation);
-    const absl::Span<Param* const> formal_args = invocation->callee().params();
-    const absl::Span<Expr* const> actual_args = invocation->node().args();
-    TypeInfo* ti = invocation_type_info_.at(invocation);
+            << " implicit parametrics for invocation: " << ToString(context);
+    const auto& context_data =
+        std::get<ParametricInvocationDetails>(context->details());
+    const auto* invocation = dynamic_cast<const Invocation*>(context->node());
+    CHECK_NE(invocation, nullptr);
+    const absl::Span<Param* const> formal_args = context_data.callee->params();
+    const absl::Span<Expr* const> actual_args = invocation->args();
+    TypeInfo* ti = parametric_context_type_info_.at(context);
     std::vector<const TypeAnnotation*> formal_types;
     formal_types.reserve(formal_args.size());
     for (const Param* param : formal_args) {
@@ -955,12 +957,12 @@ class InferenceTableConverter {
     }
 
     TypeInfo* actual_arg_ti = base_type_info_;
-    if (invocation->caller_invocation().has_value()) {
+    if (context->parent_context().has_value()) {
       actual_arg_ti =
-          invocation_type_info_.at(*invocation->caller_invocation());
+          parametric_context_type_info_.at(*context->parent_context());
     }
     return InferImplicitParametrics(
-        invocation->caller_invocation(), implicit_parametrics, formal_types,
+        context->parent_context(), implicit_parametrics, formal_types,
         actual_args, ti, actual_arg_ti,
         /*caller_accept_predicate=*/[](const TypeAnnotation*) { return true; },
         /*pre_use_actual_arg=*/
@@ -971,8 +973,8 @@ class InferenceTableConverter {
           // before it is used to figure out the type. If it's having a known
           // formal type imposed on it, then `ConvertInvocation` will convert it
           // after deciding the formal type.
-          return ConvertSubtree(actual_arg, invocation->caller(),
-                                invocation->caller_invocation());
+          return ConvertSubtree(actual_arg, context_data.caller,
+                                context->parent_context());
         });
   }
 
@@ -986,7 +988,7 @@ class InferenceTableConverter {
   // used to infer parametrics.
   absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>>
   InferImplicitParametrics(
-      std::optional<const ParametricInvocation*> actual_arg_invocation,
+      std::optional<const ParametricContext*> actual_arg_context,
       absl::flat_hash_set<const ParametricBinding*> implicit_parametrics,
       absl::Span<const TypeAnnotation* const> formal_types,
       absl::Span<Expr* const> actual_args, TypeInfo* output_ti,
@@ -1009,7 +1011,7 @@ class InferenceTableConverter {
       XLS_RETURN_IF_ERROR(pre_use_actual_arg(actual_args[i]));
       XLS_ASSIGN_OR_RETURN(
           std::vector<const TypeAnnotation*> actual_arg_annotations,
-          table_.GetTypeAnnotationsForTypeVariable(actual_arg_invocation,
+          table_.GetTypeAnnotationsForTypeVariable(actual_arg_context,
                                                    *actual_arg_type_var));
 
       // The type variable for the actual argument should have at least one
@@ -1022,7 +1024,7 @@ class InferenceTableConverter {
                !HasAnyReferencesWithMissingTypeInfo(actual_arg_ti, annotation);
       };
       XLS_RETURN_IF_ERROR(ResolveVariableTypeAnnotations(
-          actual_arg_invocation, actual_arg_annotations, accept_predicate));
+          actual_arg_context, actual_arg_annotations, accept_predicate));
       if (actual_arg_annotations.empty()) {
         VLOG(5) << "The actual argument type variable: "
                 << (*actual_arg_type_var)->ToString()
@@ -1031,20 +1033,19 @@ class InferenceTableConverter {
       }
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* actual_arg_type,
-          UnifyTypeAnnotations(actual_arg_invocation, actual_arg_annotations,
+          UnifyTypeAnnotations(actual_arg_context, actual_arg_annotations,
                                actual_args[i]->span(),
                                caller_accept_predicate));
       absl::flat_hash_map<const ParametricBinding*, InterpValue> resolved;
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
-              << " with effective invocation: "
-              << ToString(actual_arg_invocation);
+              << " with effective invocation: " << ToString(actual_arg_context);
       XLS_ASSIGN_OR_RETURN(
           resolved,
           SolveForParametrics(
               actual_arg_type, formal_types[i], implicit_parametrics,
               [&](const TypeAnnotation* expected_type, const Expr* expr) {
-                return Evaluate(InvocationScopedExpr(actual_arg_invocation,
-                                                     expected_type, expr));
+                return Evaluate(ParametricContextScopedExpr(
+                    actual_arg_context, expected_type, expr));
               }));
       for (auto& [binding, value] : resolved) {
         VLOG(5) << "Inferred implicit parametric value: " << value.ToString()
@@ -1070,7 +1071,7 @@ class InferenceTableConverter {
   }
 
   absl::StatusOr<bool> EvaluateBoolOrExpr(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::variant<bool, const Expr*> value_or_expr) {
     if (std::holds_alternative<bool>(value_or_expr)) {
       return std::get<bool>(value_or_expr);
@@ -1078,14 +1079,14 @@ class InferenceTableConverter {
     const Expr* expr = std::get<const Expr*>(value_or_expr);
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
-        Evaluate(InvocationScopedExpr(
-            parametric_invocation, CreateBoolAnnotation(module_, expr->span()),
+        Evaluate(ParametricContextScopedExpr(
+            parametric_context, CreateBoolAnnotation(module_, expr->span()),
             expr)));
     return value.GetBitValueUnsigned();
   }
 
   absl::StatusOr<int64_t> EvaluateU32OrExpr(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::variant<int64_t, const Expr*> value_or_expr) {
     if (std::holds_alternative<int64_t>(value_or_expr)) {
       return std::get<int64_t>(value_or_expr);
@@ -1097,8 +1098,8 @@ class InferenceTableConverter {
       type_annotation = CreateU32Annotation(module_, expr->span());
     }
     XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         Evaluate(InvocationScopedExpr(
-                             parametric_invocation, *type_annotation, expr)));
+                         Evaluate(ParametricContextScopedExpr(
+                             parametric_context, *type_annotation, expr)));
     int64_t result;
     if (value.IsSigned()) {
       XLS_ASSIGN_OR_RETURN(result, value.GetBitValueSigned());
@@ -1111,11 +1112,11 @@ class InferenceTableConverter {
   // Comes up with one type annotation reconciling the information in any
   // type annotations that have been associated with the given type variable. If
   // the information has unreconcilable conflicts, returns an error. The given
-  // `parametric_invocation` argument is used as a context for the evaluation of
+  // `parametric_context` argument is used as a context for the evaluation of
   // any expressions inside the type annotations. If an `accept_predicate` is
   // specified, then annotations not accepted by the predicate are ignored.
   absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable, const Span& span,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
@@ -1123,14 +1124,13 @@ class InferenceTableConverter {
             << type_variable->ToString();
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
                          table_.GetTypeAnnotationsForTypeVariable(
-                             parametric_invocation, type_variable));
+                             parametric_context, type_variable));
     if (accept_predicate.has_value()) {
       FilterAnnotations(annotations, *accept_predicate);
     }
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* result,
-        UnifyTypeAnnotations(parametric_invocation, annotations, span,
-                             accept_predicate));
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
+                         UnifyTypeAnnotations(parametric_context, annotations,
+                                              span, accept_predicate));
     VLOG(5) << "Unified type for variable " << type_variable->ToString() << ": "
             << result->ToString();
     return result;
@@ -1138,12 +1138,12 @@ class InferenceTableConverter {
 
   // Overload that unifies specific type annotations.
   absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*> annotations, const Span& span,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
     XLS_RETURN_IF_ERROR(ResolveVariableTypeAnnotations(
-        parametric_invocation, annotations, accept_predicate));
+        parametric_context, annotations, accept_predicate));
     FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
       return dynamic_cast<const AnyTypeAnnotation*>(annotation) == nullptr;
     });
@@ -1166,7 +1166,7 @@ class InferenceTableConverter {
             dynamic_cast<const TupleTypeAnnotation*>(annotation);
         if (tuple_annotation == nullptr) {
           return TypeMismatchErrorWithParametricResolution(
-              parametric_invocation, annotations[0], annotation);
+              parametric_context, annotations[0], annotation);
         }
         // Since all but one must have been fabricated by us, they should have
         // the same structure.
@@ -1174,7 +1174,7 @@ class InferenceTableConverter {
                  first_tuple_annotation->members().size());
         tuple_annotations.push_back(tuple_annotation);
       }
-      return UnifyTupleTypeAnnotations(parametric_invocation, tuple_annotations,
+      return UnifyTupleTypeAnnotations(parametric_context, tuple_annotations,
                                        span, accept_predicate);
     }
     if (const auto* first_array_annotation =
@@ -1185,11 +1185,11 @@ class InferenceTableConverter {
             CastToNonBitsArrayTypeAnnotation(annotations[i]);
         if (array_annotation == nullptr) {
           return TypeMismatchErrorWithParametricResolution(
-              parametric_invocation, annotations[0], annotations[i]);
+              parametric_context, annotations[0], annotations[i]);
         }
         array_annotations.push_back(array_annotation);
       }
-      return UnifyArrayTypeAnnotations(parametric_invocation, array_annotations,
+      return UnifyArrayTypeAnnotations(parametric_context, array_annotations,
                                        span, accept_predicate);
     }
     if (const auto* first_function_annotation =
@@ -1201,14 +1201,14 @@ class InferenceTableConverter {
             dynamic_cast<const FunctionTypeAnnotation*>(annotations[i]);
         if (function_annotation == nullptr) {
           return TypeMismatchErrorWithParametricResolution(
-              parametric_invocation, annotations[0], annotations[i]);
+              parametric_context, annotations[0], annotations[i]);
         }
         VLOG(5) << "Annotation " << i << ": "
                 << function_annotation->ToString();
         function_annotations.push_back(function_annotation);
       }
       return UnifyFunctionTypeAnnotations(
-          parametric_invocation, function_annotations, span, accept_predicate);
+          parametric_context, function_annotations, span, accept_predicate);
     }
     if (std::optional<StructOrProcRef> first_struct_or_proc =
             GetStructOrProcRef(annotations[0]);
@@ -1223,7 +1223,7 @@ class InferenceTableConverter {
         if (!next_struct_or_proc.has_value() ||
             ToAstNode(next_struct_or_proc->def) != struct_def) {
           return TypeMismatchErrorWithParametricResolution(
-              parametric_invocation, annotations[0], annotation);
+              parametric_context, annotations[0], annotation);
         }
         if (struct_def->IsParametric()) {
           annotations_to_unify.push_back(annotation);
@@ -1234,9 +1234,8 @@ class InferenceTableConverter {
       // its parameters unified.
       return annotations_to_unify.empty()
                  ? annotations[0]
-                 : UnifyParametricStructAnnotations(parametric_invocation,
-                                                    *struct_def,
-                                                    annotations_to_unify);
+                 : UnifyParametricStructAnnotations(
+                       parametric_context, *struct_def, annotations_to_unify);
     }
     std::optional<SignednessAndSize> unified_signedness_and_bit_count;
     for (int i = 0; i < annotations.size(); ++i) {
@@ -1248,15 +1247,15 @@ class InferenceTableConverter {
           table_.IsAutoLiteral(current_annotation);
       if (!signedness_and_bit_count.ok()) {
         return TypeMismatchErrorWithParametricResolution(
-            parametric_invocation, current_annotation, annotations[0]);
+            parametric_context, current_annotation, annotations[0]);
       }
       XLS_ASSIGN_OR_RETURN(
           bool current_annotation_signedness,
-          EvaluateBoolOrExpr(parametric_invocation,
+          EvaluateBoolOrExpr(parametric_context,
                              signedness_and_bit_count->signedness));
       XLS_ASSIGN_OR_RETURN(
           int64_t current_annotation_raw_bit_count,
-          EvaluateU32OrExpr(parametric_invocation,
+          EvaluateU32OrExpr(parametric_context,
                             signedness_and_bit_count->bit_count));
       SignednessAndSize current_annotation_signedness_and_bit_count{
           .is_auto = current_annotation_is_auto,
@@ -1265,7 +1264,7 @@ class InferenceTableConverter {
 
       XLS_ASSIGN_OR_RETURN(
           unified_signedness_and_bit_count,
-          UnifySignednessAndSize(parametric_invocation,
+          UnifySignednessAndSize(parametric_context,
                                  unified_signedness_and_bit_count,
                                  current_annotation_signedness_and_bit_count,
                                  annotations[0], current_annotation));
@@ -1287,7 +1286,7 @@ class InferenceTableConverter {
   // passed-in array is nonempty and the member counts match. Unifying a tuple
   // type amounts to unifying the annotations for each member.
   absl::StatusOr<const TupleTypeAnnotation*> UnifyTupleTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::vector<const TupleTypeAnnotation*> annotations, const Span& span,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
@@ -1301,8 +1300,8 @@ class InferenceTableConverter {
       }
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* unified_member_annotation,
-          UnifyTypeAnnotations(parametric_invocation, annotations_for_member,
-                               span, accept_predicate));
+          UnifyTypeAnnotations(parametric_context, annotations_for_member, span,
+                               accept_predicate));
       unified_member_annotations[i] =
           const_cast<TypeAnnotation*>(unified_member_annotation);
     }
@@ -1313,7 +1312,7 @@ class InferenceTableConverter {
   // passed-in array is nonempty. Unifying an array type amounts to unifying the
   // element types and dims.
   absl::StatusOr<const ArrayTypeAnnotation*> UnifyArrayTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::vector<const ArrayTypeAnnotation*> annotations, const Span& span,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
@@ -1324,7 +1323,7 @@ class InferenceTableConverter {
       element_type_annotations.push_back(annotation->element_type());
       XLS_ASSIGN_OR_RETURN(
           int64_t current_dim,
-          EvaluateU32OrExpr(parametric_invocation, annotation->dim()));
+          EvaluateU32OrExpr(parametric_context, annotation->dim()));
       // This flag indicates we are unifying one min dim with one explicit dim,
       // which warrants a possible different error message than other scenarios.
       const bool is_min_vs_explicit =
@@ -1332,7 +1331,7 @@ class InferenceTableConverter {
           (unified_dim->is_auto ^ annotation->dim_is_min());
       absl::StatusOr<SignednessAndSize> new_unified_dim =
           UnifySignednessAndSize(
-              parametric_invocation, unified_dim,
+              parametric_context, unified_dim,
               SignednessAndSize{.is_auto = annotation->dim_is_min(),
                                 .is_signed = false,
                                 .size = current_dim},
@@ -1348,7 +1347,7 @@ class InferenceTableConverter {
               file_table_);
         }
         return TypeMismatchErrorWithParametricResolution(
-            parametric_invocation, annotations[i], annotations[i - 1]);
+            parametric_context, annotations[i], annotations[i - 1]);
       }
       unified_dim = *new_unified_dim;
     }
@@ -1362,8 +1361,8 @@ class InferenceTableConverter {
     }
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* unified_element_type,
-        UnifyTypeAnnotations(parametric_invocation, element_type_annotations,
-                             span, accept_predicate));
+        UnifyTypeAnnotations(parametric_context, element_type_annotations, span,
+                             accept_predicate));
     return module_.Make<ArrayTypeAnnotation>(
         span, const_cast<TypeAnnotation*>(unified_element_type),
         module_.Make<Number>(annotations[0]->span(),
@@ -1376,7 +1375,7 @@ class InferenceTableConverter {
   // passed-in array is nonempty. Unifying a function type amounts to unifying
   // the return type and the argument types.
   absl::StatusOr<const FunctionTypeAnnotation*> UnifyFunctionTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::vector<const FunctionTypeAnnotation*> annotations, const Span& span,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
@@ -1407,15 +1406,14 @@ class InferenceTableConverter {
     }
 
     // Unify the return type and argument types.
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* unified_return_type,
-        UnifyTypeAnnotations(parametric_invocation, return_types, span,
-                             accept_predicate));
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_return_type,
+                         UnifyTypeAnnotations(parametric_context, return_types,
+                                              span, accept_predicate));
     std::vector<TypeAnnotation*> unified_param_types;
     unified_param_types.reserve(param_types.size());
     for (const std::vector<const TypeAnnotation*>& argument : param_types) {
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* unified_param_type,
-                           UnifyTypeAnnotations(parametric_invocation, argument,
+                           UnifyTypeAnnotations(parametric_context, argument,
                                                 span, accept_predicate));
       unified_param_types.push_back(
           const_cast<TypeAnnotation*>(unified_param_type));
@@ -1434,7 +1432,7 @@ class InferenceTableConverter {
   // other parametrics of the struct. Therefore, `Concretize()` should be able
   // to operate on the returned annotation.
   absl::StatusOr<const TypeAnnotation*> UnifyParametricStructAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const StructDef& struct_def,
       std::vector<const TypeAnnotation*> annotations) {
     VLOG(5) << "Unifying parametric struct annotations; struct def: "
@@ -1458,11 +1456,10 @@ class InferenceTableConverter {
         ExprOrType parametric = struct_or_proc_ref->parametrics[i];
         const ParametricBinding* binding = struct_def.parametric_bindings()[i];
         CHECK(std::holds_alternative<Expr*>(parametric));
-        XLS_ASSIGN_OR_RETURN(
-            InterpValue value,
-            Evaluate(InvocationScopedExpr(parametric_invocation,
-                                          binding->type_annotation(),
-                                          std::get<Expr*>(parametric))));
+        XLS_ASSIGN_OR_RETURN(InterpValue value,
+                             Evaluate(ParametricContextScopedExpr(
+                                 parametric_context, binding->type_annotation(),
+                                 std::get<Expr*>(parametric))));
         if (i == explicit_parametrics.size()) {
           explicit_parametrics.push_back(value);
         } else if (value != explicit_parametrics[i]) {
@@ -1481,19 +1478,19 @@ class InferenceTableConverter {
     // are not explicit. The algorithm is the same as for parametric function
     // invocations, and the differences are in the logistics. We build this as a
     // map, `resolved_parametrics`, and convert it to a vector at the end.
-    XLS_ASSIGN_OR_RETURN(
-        TypeInfo * instance_type_info,
-        import_data_.type_info_owner().New(
-            &module_, parametric_invocation.has_value()
-                          ? invocation_type_info_.at(*parametric_invocation)
-                          : base_type_info_));
+    XLS_ASSIGN_OR_RETURN(TypeInfo * instance_type_info,
+                         import_data_.type_info_owner().New(
+                             &module_, parametric_context.has_value()
+                                           ? parametric_context_type_info_.at(
+                                                 *parametric_context)
+                                           : base_type_info_));
     absl::flat_hash_map<std::string, const ParametricBinding*> bindings;
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
                          InterpValue value) -> absl::Status {
       XLS_ASSIGN_OR_RETURN(
           std::unique_ptr<Type> binding_type,
-          Concretize(binding->type_annotation(), parametric_invocation));
+          Concretize(binding->type_annotation(), parametric_context));
       instance_type_info->SetItem(binding->name_def(), *binding_type);
       instance_type_info->NoteConstExpr(binding->name_def(), value);
       resolved_parametrics.emplace(
@@ -1527,7 +1524,7 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(
           new_values,
           InferImplicitParametrics(
-              parametric_invocation, implicit_parametrics, formal_member_types,
+              parametric_context, implicit_parametrics, formal_member_types,
               actual_member_exprs, instance_type_info, instance_type_info,
               /*caller_accept_predicate=*/
               [&](const TypeAnnotation* annotation) {
@@ -1538,7 +1535,7 @@ class InferenceTableConverter {
                 // generally, any decltype-ish annotation that refers back to
                 // the struct we are processing is going to be unhelpful, so we
                 // weed those out here.
-                return !RefersToStruct(parametric_invocation, annotation,
+                return !RefersToStruct(parametric_context, annotation,
                                        struct_def);
               }));
       implicit_parametrics.clear();
@@ -1556,7 +1553,7 @@ class InferenceTableConverter {
         XLS_RETURN_IF_ERROR(infer_pending_implicit_parametrics());
         XLS_ASSIGN_OR_RETURN(
             InterpValue value,
-            Evaluate(parametric_invocation, instance_type_info,
+            Evaluate(parametric_context, instance_type_info,
                      binding->type_annotation(), binding->expr()));
         XLS_RETURN_IF_ERROR(set_value(binding, value));
       } else {
@@ -1579,7 +1576,7 @@ class InferenceTableConverter {
   // `struct_def`, taking into consideration the expansions of any variable or
   // indirect type annotations in the annotation tree.
   bool RefersToStruct(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation, const StructDef& struct_def) {
     if (auto* element_annotation =
             dynamic_cast<const ElementTypeAnnotation*>(annotation)) {
@@ -1587,7 +1584,7 @@ class InferenceTableConverter {
     }
     if (auto* member_annotation =
             dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
-      VariableExpander expander(table_, parametric_invocation);
+      VariableExpander expander(table_, parametric_context);
       CHECK_OK(member_annotation->Accept(&expander));
       for (const TypeAnnotation* annotation : expander.annotations()) {
         std::optional<StructOrProcRef> ref = GetStructOrProcRef(annotation);
@@ -1665,7 +1662,7 @@ class InferenceTableConverter {
   // attempted resolution of the `uN[N]` annotation by this function. The
   // predicate is not applied to the input `annotation` itself.
   absl::StatusOr<const TypeAnnotation*> ResolveVariableTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
@@ -1682,7 +1679,7 @@ class InferenceTableConverter {
                 XLS_ASSIGN_OR_RETURN(
                     const TypeAnnotation* unified,
                     UnifyTypeAnnotations(
-                        parametric_invocation,
+                        parametric_context,
                         variable_type_annotation->type_variable(),
                         annotation->span(), accept_predicate));
                 replaced_anything = true;
@@ -1693,7 +1690,7 @@ class InferenceTableConverter {
                 replaced_anything = true;
                 XLS_ASSIGN_OR_RETURN(
                     const TypeAnnotation* result,
-                    ExpandMemberType(parametric_invocation, member_type,
+                    ExpandMemberType(parametric_context, member_type,
                                      accept_predicate));
                 return const_cast<TypeAnnotation*>(result);
               }
@@ -1702,7 +1699,7 @@ class InferenceTableConverter {
                 replaced_anything = true;
                 XLS_ASSIGN_OR_RETURN(
                     const TypeAnnotation* result,
-                    ExpandElementType(parametric_invocation, element_type,
+                    ExpandElementType(parametric_context, element_type,
                                       accept_predicate));
                 return const_cast<TypeAnnotation*>(result);
               }
@@ -1711,7 +1708,7 @@ class InferenceTableConverter {
                 replaced_anything = true;
                 XLS_ASSIGN_OR_RETURN(
                     const TypeAnnotation* result,
-                    ExpandReturnType(parametric_invocation, return_type,
+                    ExpandReturnType(parametric_context, return_type,
                                      accept_predicate));
                 return const_cast<TypeAnnotation*>(result);
               }
@@ -1724,7 +1721,7 @@ class InferenceTableConverter {
                 }
                 XLS_ASSIGN_OR_RETURN(
                     const TypeAnnotation* result,
-                    ExpandParamType(parametric_invocation, param_type,
+                    ExpandParamType(parametric_context, param_type,
                                     accept_predicate));
                 return const_cast<TypeAnnotation*>(result);
               }
@@ -1756,14 +1753,14 @@ class InferenceTableConverter {
   // type annotations dependent on an implicit parametric that this utility is
   // being used to help infer.
   absl::StatusOr<const TypeAnnotation*> ExpandMemberType(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const MemberTypeAnnotation* member_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
-    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* struct_type,
-                         ResolveVariableTypeAnnotations(
-                             parametric_invocation, member_type->struct_type(),
-                             accept_predicate));
+    XLS_ASSIGN_OR_RETURN(
+        const TypeAnnotation* struct_type,
+        ResolveVariableTypeAnnotations(
+            parametric_context, member_type->struct_type(), accept_predicate));
     std::optional<StructOrProcRef> struct_or_proc_ref =
         GetStructOrProcRef(struct_type);
     if (!struct_or_proc_ref.has_value()) {
@@ -1812,14 +1809,14 @@ class InferenceTableConverter {
   // `accept_predicate` may be used to exclude type annotations dependent on an
   // implicit parametric that this utility is being used to help infer.
   absl::StatusOr<const TypeAnnotation*> ExpandElementType(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const ElementTypeAnnotation* element_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* container_type,
                          ResolveVariableTypeAnnotations(
-                             parametric_invocation,
-                             element_type->container_type(), accept_predicate));
+                             parametric_context, element_type->container_type(),
+                             accept_predicate));
     if (const auto* array_type =
             dynamic_cast<const ArrayTypeAnnotation*>(container_type)) {
       return array_type->element_type();
@@ -1848,20 +1845,19 @@ class InferenceTableConverter {
   }
 
   absl::StatusOr<const TypeAnnotation*> ExpandReturnType(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const ReturnTypeAnnotation* return_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
     VLOG(5) << "Expand return type: " << return_type->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* function_type,
-        ResolveVariableTypeAnnotations(
-            parametric_invocation, return_type->function_type(),
-            [&](const TypeAnnotation* annotation) {
-              return annotation != return_type &&
-                     (!accept_predicate.has_value() ||
-                      (*accept_predicate)(annotation));
-            }));
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* function_type,
+                         ResolveVariableTypeAnnotations(
+                             parametric_context, return_type->function_type(),
+                             [&](const TypeAnnotation* annotation) {
+                               return annotation != return_type &&
+                                      (!accept_predicate.has_value() ||
+                                       (*accept_predicate)(annotation));
+                             }));
     TypeAnnotation* result_type =
         dynamic_cast<const FunctionTypeAnnotation*>(function_type)
             ->return_type();
@@ -1870,14 +1866,14 @@ class InferenceTableConverter {
   }
 
   absl::StatusOr<const TypeAnnotation*> ExpandParamType(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const ParamTypeAnnotation* param_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
     VLOG(5) << "Expand param type: " << param_type->ToString();
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* function_type,
                          ResolveVariableTypeAnnotations(
-                             parametric_invocation, param_type->function_type(),
+                             parametric_context, param_type->function_type(),
                              [&](const TypeAnnotation* annotation) {
                                return annotation != param_type &&
                                       (!accept_predicate.has_value() ||
@@ -1897,7 +1893,7 @@ class InferenceTableConverter {
   // annotations not accepted by the predicate are filtered from both
   // `annotations` and the expansions of any encountered type variables.
   absl::Status ResolveVariableTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*>& annotations,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
@@ -1906,7 +1902,7 @@ class InferenceTableConverter {
       if (!accept_predicate.has_value() || (*accept_predicate)(annotation)) {
         XLS_ASSIGN_OR_RETURN(
             const TypeAnnotation* resolved_annotation,
-            ResolveVariableTypeAnnotations(parametric_invocation, annotation,
+            ResolveVariableTypeAnnotations(parametric_context, annotation,
                                            accept_predicate));
         result.push_back(resolved_annotation);
       }
@@ -2056,10 +2052,10 @@ class InferenceTableConverter {
   // Determines if the given `type_variable` has any annotations in the table
   // that were explicitly written in the DSLX source.
   bool VariableHasAnyExplicitTypeAnnotations(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const NameRef* type_variable) {
     absl::StatusOr<std::vector<const TypeAnnotation*>> annotations =
-        table_.GetTypeAnnotationsForTypeVariable(parametric_invocation,
+        table_.GetTypeAnnotationsForTypeVariable(parametric_context,
                                                  type_variable);
     return annotations.ok() &&
            absl::c_any_of(*annotations,
@@ -2072,15 +2068,15 @@ class InferenceTableConverter {
   // a nominal type like `uN[N]` will not appear with the variable in the error
   // message.
   absl::Status BitCountMismatchErrorWithParametricResolution(
-      std::optional<const ParametricInvocation*> context_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation1, const TypeAnnotation* annotation2) {
-    if (!context_invocation.has_value()) {
+    if (!parametric_context.has_value()) {
       return BitCountMismatchErrorStatus(annotation1, annotation2, file_table_);
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type1,
-                         Concretize(annotation1, context_invocation));
+                         Concretize(annotation1, parametric_context));
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type2,
-                         Concretize(annotation2, context_invocation));
+                         Concretize(annotation2, parametric_context));
     return BitCountMismatchErrorStatus(*type1, *type2, annotation1->span(),
                                        annotation2->span(), file_table_);
   }
@@ -2089,16 +2085,16 @@ class InferenceTableConverter {
   // that a nominal type like `uN[N]` will not appear with the variable in the
   // error message.
   absl::Status SignednessMismatchErrorWithParametricResolution(
-      std::optional<const ParametricInvocation*> context_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation1, const TypeAnnotation* annotation2) {
-    if (!context_invocation.has_value()) {
+    if (!parametric_context.has_value()) {
       return SignednessMismatchErrorStatus(annotation1, annotation2,
                                            file_table_);
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type1,
-                         Concretize(annotation1, context_invocation));
+                         Concretize(annotation1, parametric_context));
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type2,
-                         Concretize(annotation2, context_invocation));
+                         Concretize(annotation2, parametric_context));
     return SignednessMismatchErrorStatus(*type1, *type2, annotation1->span(),
                                          annotation2->span(), file_table_);
   }
@@ -2107,15 +2103,15 @@ class InferenceTableConverter {
   // nominal type like `uN[N]` will not appear with the variable in the error
   // message.
   absl::Status TypeMismatchErrorWithParametricResolution(
-      std::optional<const ParametricInvocation*> context_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation1, const TypeAnnotation* annotation2) {
-    if (!context_invocation.has_value()) {
+    if (!parametric_context.has_value()) {
       return TypeMismatchErrorStatus(annotation1, annotation2, file_table_);
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type1,
-                         Concretize(annotation1, context_invocation));
+                         Concretize(annotation1, parametric_context));
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type2,
-                         Concretize(annotation2, context_invocation));
+                         Concretize(annotation2, parametric_context));
     return TypeMismatchErrorStatus(*type1, *type2, annotation1->span(),
                                    annotation2->span(), file_table_);
   }
@@ -2155,11 +2151,11 @@ class InferenceTableConverter {
   // invoking this in a loop where the first call has no preceding value.
   //
   // Any error returned is a size or signedness mismatch error suitable for
-  // display to the user. The `parametric_invocation` and the passed in type
+  // display to the user. The `parametric_context` and the passed in type
   // annotations are used only for the purpose of generating errors. It is
   // assumed that `y_annotation` should be mentioned first in errors.
   absl::StatusOr<SignednessAndSize> UnifySignednessAndSize(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       std::optional<SignednessAndSize> x, SignednessAndSize y,
       const TypeAnnotation* x_annotation, const TypeAnnotation* y_annotation) {
     if (!x.has_value()) {
@@ -2191,12 +2187,12 @@ class InferenceTableConverter {
     };
     auto signedness_mismatch_error = [&] {
       return SignednessMismatchErrorWithParametricResolution(
-          parametric_invocation, update_annotation(y, y_annotation),
+          parametric_context, update_annotation(y, y_annotation),
           update_annotation(*x, x_annotation));
     };
     auto bit_count_mismatch_error = [&] {
       return BitCountMismatchErrorWithParametricResolution(
-          parametric_invocation, update_annotation(y, y_annotation),
+          parametric_context, update_annotation(y, y_annotation),
           update_annotation(*x, x_annotation));
     };
     if (x->is_auto || y.is_auto) {
@@ -2232,11 +2228,11 @@ class InferenceTableConverter {
   WarningCollector& warning_collector_;
   TypeInfo* const base_type_info_;
   const FileTable& file_table_;
-  absl::flat_hash_map<const ParametricInvocation*, TypeInfo*>
-      invocation_type_info_;
-  absl::flat_hash_map<const ParametricInvocation*, ParametricEnv>
+  absl::flat_hash_map<const ParametricContext*, TypeInfo*>
+      parametric_context_type_info_;
+  absl::flat_hash_map<const ParametricContext*, ParametricEnv>
       converted_parametric_envs_;
-  absl::flat_hash_map<const ParametricInvocation*,
+  absl::flat_hash_map<const ParametricContext*,
                       absl::flat_hash_map<const NameDef*, ExprOrType>>
       parametric_value_exprs_;
 };
@@ -2253,7 +2249,7 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
                                     file_table);
   XLS_RETURN_IF_ERROR(
       converter.ConvertSubtree(&module, /*function=*/std::nullopt,
-                               /*parametric_invocation=*/std::nullopt));
+                               /*parametric_context=*/std::nullopt));
   return converter.GetBaseTypeInfo();
 }
 

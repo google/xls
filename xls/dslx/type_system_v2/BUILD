@@ -23,6 +23,7 @@ cc_library(
     srcs = ["inference_table.cc"],
     hdrs = ["inference_table.h"],
     deps = [
+        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
@@ -38,6 +39,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 

@@ -134,9 +134,9 @@ struct NodeData {
   std::optional<const InferenceVariable*> type_variable;
 };
 
-// The mutable data for a `ParametricInvocation` in an `InferenceTable`.
-struct ParametricInvocationData {
-  absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>
+// The mutable data for a `ParametricContext` in an `InferenceTable`.
+struct MutableParametricContextData {
+  absl::flat_hash_map<const InferenceVariable*, ParametricContextScopedExpr>
       parametric_values;
   absl::flat_hash_map<const InferenceVariable*,
                       std::vector<const TypeAnnotation*>>
@@ -185,25 +185,21 @@ class InferenceTableImpl : public InferenceTable {
     return name_ref;
   }
 
-  absl::StatusOr<const ParametricInvocation*> AddParametricInvocation(
+  absl::StatusOr<const ParametricContext*> AddParametricInvocation(
       const Invocation& node, const Function& callee,
       std::optional<const Function*> caller,
-      std::optional<const ParametricInvocation*> caller_invocation) override {
+      std::optional<const ParametricContext*> parent_context) override {
     VLOG(5) << "Add parametric invocation: " << node.ToString()
-            << " from caller invocation: " << ToString(caller_invocation);
-    if (caller_invocation.has_value()) {
-      CHECK(caller.has_value());
-      CHECK(&(*caller_invocation)->callee() == *caller);
-    }
-    auto invocation = std::make_unique<ParametricInvocation>(
-        parametric_invocations_.size(), node, callee, caller,
-        caller_invocation);
+            << " from parent context: " << ToString(parent_context);
+    auto context = std::make_unique<ParametricContext>(
+        parametric_contexts_.size(), &node,
+        ParametricInvocationDetails{&callee, caller}, parent_context);
     const std::vector<ParametricBinding*>& bindings =
         callee.parametric_bindings();
     const std::vector<ExprOrType>& explicit_parametrics =
         node.explicit_parametrics();
     CHECK(explicit_parametrics.size() <= bindings.size());
-    ParametricInvocationData invocation_data;
+    MutableParametricContextData mutable_data;
     for (int i = 0; i < bindings.size(); i++) {
       const ParametricBinding* binding = bindings[i];
       const InferenceVariable* variable =
@@ -216,39 +212,41 @@ class InferenceTableImpl : public InferenceTable {
               "support types as parametric values: $0",
               node.ToString()));
         }
-        invocation_data.parametric_values.emplace(
-            variable,
-            InvocationScopedExpr(caller_invocation, binding->type_annotation(),
-                                 std::get<Expr*>(value)));
+        mutable_data.parametric_values.emplace(
+            variable, ParametricContextScopedExpr(parent_context,
+                                                  binding->type_annotation(),
+                                                  std::get<Expr*>(value)));
       } else if (binding->expr() != nullptr) {
-        invocation_data.parametric_values.emplace(
+        mutable_data.parametric_values.emplace(
             variable,
-            InvocationScopedExpr(invocation.get(), binding->type_annotation(),
-                                 binding->expr()));
+            ParametricContextScopedExpr(
+                context.get(), binding->type_annotation(), binding->expr()));
       }
     }
-    const ParametricInvocation* result = invocation.get();
-    parametric_invocations_.push_back(std::move(invocation));
-    parametric_invocation_data_.emplace(result, std::move(invocation_data));
+    const ParametricContext* result = context.get();
+    parametric_contexts_.push_back(std::move(context));
+    mutable_parametric_context_data_.emplace(result, std::move(mutable_data));
     return result;
   }
 
-  std::vector<const ParametricInvocation*> GetParametricInvocations()
+  std::vector<const ParametricContext*> GetParametricInvocations()
       const override {
-    std::vector<const ParametricInvocation*> result;
-    result.reserve(parametric_invocations_.size());
-    for (const auto& invocation : parametric_invocations_) {
-      result.push_back(invocation.get());
+    std::vector<const ParametricContext*> result;
+    for (const auto& context : parametric_contexts_) {
+      if (context->is_invocation()) {
+        result.push_back(context.get());
+      }
     }
     return result;
   }
 
-  std::optional<InvocationScopedExpr> GetParametricValue(
+  std::optional<ParametricContextScopedExpr> GetParametricValue(
       const NameDef& binding_name_def,
-      const ParametricInvocation& invocation) const override {
+      const ParametricContext& context) const override {
     const InferenceVariable* variable = variables_.at(&binding_name_def).get();
-    const absl::flat_hash_map<const InferenceVariable*, InvocationScopedExpr>&
-        values = parametric_invocation_data_.at(&invocation).parametric_values;
+    const absl::flat_hash_map<const InferenceVariable*,
+                              ParametricContextScopedExpr>& values =
+        mutable_parametric_context_data_.at(&context).parametric_values;
     const auto it = values.find(variable);
     return it == values.end() ? std::nullopt : std::make_optional(it->second);
   }
@@ -259,13 +257,13 @@ class InferenceTableImpl : public InferenceTable {
         node, [=](NodeData& data) { data.type_annotation = annotation; });
   }
 
-  absl::Status AddTypeAnnotationToVariableForInvocation(
-      std::optional<const ParametricInvocation*> invocation, const NameRef* ref,
+  absl::Status AddTypeAnnotationToVariableForParametricContext(
+      std::optional<const ParametricContext*> context, const NameRef* ref,
       const TypeAnnotation* annotation) override {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
     CHECK(variable->kind() == InferenceVariableKind::kType);
-    if (invocation.has_value()) {
-      parametric_invocation_data_.at(*invocation)
+    if (context.has_value()) {
+      mutable_parametric_context_data_.at(*context)
           .type_annotations_per_type_variable[variable]
           .push_back(annotation);
     } else {
@@ -317,7 +315,7 @@ class InferenceTableImpl : public InferenceTable {
 
   absl::StatusOr<std::vector<const TypeAnnotation*>>
   GetTypeAnnotationsForTypeVariable(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const NameRef* ref) const override {
     XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
     const auto it = type_annotations_per_type_variable_.find(variable);
@@ -325,9 +323,9 @@ class InferenceTableImpl : public InferenceTable {
         (it == type_annotations_per_type_variable_.end())
             ? std::vector<const TypeAnnotation*>()
             : it->second;
-    if (parametric_invocation.has_value()) {
+    if (parametric_context.has_value()) {
       const auto& invocation_specific_annotations =
-          parametric_invocation_data_.at(*parametric_invocation)
+          mutable_parametric_context_data_.at(*parametric_context)
               .type_annotations_per_type_variable;
       const auto invocation_specific_it =
           invocation_specific_annotations.find(variable);
@@ -414,11 +412,11 @@ class InferenceTableImpl : public InferenceTable {
       type_annotations_per_type_variable_;
   // The `AstNode` objects that have associated data.
   absl::flat_hash_map<const AstNode*, NodeData> node_data_;
-  // Parametric invocations and the corresponding information about parametric
+  // Parametric contexts and the corresponding information about parametric
   // variables.
-  std::vector<std::unique_ptr<ParametricInvocation>> parametric_invocations_;
-  absl::flat_hash_map<const ParametricInvocation*, ParametricInvocationData>
-      parametric_invocation_data_;
+  std::vector<std::unique_ptr<ParametricContext>> parametric_contexts_;
+  absl::flat_hash_map<const ParametricContext*, MutableParametricContextData>
+      mutable_parametric_context_data_;
   absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
   absl::flat_hash_map<const ColonRef*, const AstNode*> colon_ref_targets_;
 };

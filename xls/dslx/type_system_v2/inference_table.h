@@ -16,16 +16,22 @@
 #define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_H_
 
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/variant.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
 
@@ -34,61 +40,114 @@ namespace xls::dslx {
 // The kinds of variables that can be defined in an `InferenceTable`.
 enum class InferenceVariableKind : uint8_t { kInteger, kBool, kType };
 
-// Identifies an invocation of a parametric function, with enough context to
-// determine what its effective parametric value expressions must be. These are
-// dealt out by an `InferenceTable`.
-class ParametricInvocation {
+// The details for a `ParametricContext` that is for an invocation.
+struct ParametricInvocationDetails {
+  const Function* callee;
+  std::optional<const Function*> caller;
+};
+
+// The details for a `ParametricContext` that is for a struct.
+struct ParametricStructDetails {
+  const StructDefBase* struct_or_proc_def;
+};
+
+// Identifies either an invocation of a parametric function, or a
+// parameterization of a parametric struct, with enough context to determine
+// what its effective parametric value expressions must be. These are dealt out
+// by an `InferenceTable`.
+class ParametricContext {
  public:
-  ParametricInvocation(
-      uint64_t id, const Invocation& node, const Function& callee,
-      std::optional<const Function*> caller,
-      std::optional<const ParametricInvocation*> caller_invocation)
+  using Details =
+      std::variant<ParametricInvocationDetails, ParametricStructDetails>;
+
+  ParametricContext(uint64_t id, const AstNode* node, Details details,
+                    std::optional<const ParametricContext*> parent_context)
       : id_(id),
         node_(node),
-        callee_(callee),
-        caller_(caller),
-        caller_invocation_(caller_invocation) {}
-
-  const Invocation& node() const { return node_; }
-  const Function& callee() const { return callee_; }
-  const std::optional<const Function*>& caller() const { return caller_; }
-
-  // Note: this is `nullopt` if the caller is not parametric.
-  const std::optional<const ParametricInvocation*>& caller_invocation() const {
-    return caller_invocation_;
-  }
+        details_(std::move(details)),
+        parent_context_(parent_context) {}
 
   template <typename H>
-  friend H AbslHashValue(H h, const ParametricInvocation& invocation) {
-    return H::combine(std::move(h), invocation.node_,
-                      invocation.caller_invocation_);
+  friend H AbslHashValue(H h, const ParametricContext& context) {
+    return H::combine(std::move(h), context.node_, context.parent_context_);
   }
 
+  // The node that motivated the creation of this context. For a parametric
+  // invocation, it is an `Invocation` node. For a struct, it may be a
+  // `StructInstance`, `ColonRef`, or other node that establishes the use of a
+  // parameterization of the struct.
+  const AstNode* node() const { return node_; }
+
+  // The details about the context, which depend on whether it is for a function
+  // or struct.
+  const Details& details() const { return details_; }
+
+  // Returns whether this context is for an invocation as opposed to a struct.
+  bool is_invocation() const {
+    return std::holds_alternative<ParametricInvocationDetails>(details_);
+  }
+
+  // The parent parametric context. In a scenario where `f` calls `g`, and they
+  // are both parametric functions, a `g` context would have an `f` context as
+  // its parent. An `f` context might then have no parent, if `f` is not called
+  // from a parametric context (being called from a non-parametric context is
+  // irrelevant to this). On the other hand, if `g` is called from the RHS of a
+  // constant in a parametric impl, then the context for a parameterization of
+  // the struct may be the parent of the `g` invocation.
+  const std::optional<const ParametricContext*>& parent_context() const {
+    return parent_context_;
+  }
+
+  // Returns the parametric bindings of the function or struct that this context
+  // is for.
+  std::vector<const ParametricBinding*> parametric_bindings() const {
+    std::vector<const ParametricBinding*> result;
+    // Note: this is due to the interface disparity between structs and
+    // functions.
+    absl::c_copy(is_invocation()
+                     ? std::get<ParametricInvocationDetails>(details_)
+                           .callee->parametric_bindings()
+                     : std::get<ParametricStructDetails>(details_)
+                           .struct_or_proc_def->parametric_bindings(),
+                 std::back_inserter(result));
+    return result;
+  }
+
+  // Converts this context to string for debugging and logging purposes.
   std::string ToString() const {
     return absl::Substitute(
-        "ParametricInvocation(id=$0, node=$1, caller=$2, caller_id=$3)", id_,
-        node_.ToString(),
-        caller_.has_value() ? (*caller_)->identifier() : "<standalone context>",
-        caller_invocation_.has_value()
-            ? std::to_string((*caller_invocation_)->id_)
-            : "none");
+        "ParametricContext(id=$0, parent_id=$1, node=$2, data=($3))", id_,
+        parent_context_.has_value() ? std::to_string((*parent_context_)->id_)
+                                    : "none",
+        node_->ToString(), DetailsToString(details_));
   }
 
  private:
+  static std::string DetailsToString(const Details& details) {
+    return absl::visit(
+        Visitor{[](const ParametricInvocationDetails& details) -> std::string {
+                  return absl::StrCat(details.callee->ToString(), ", caller: ",
+                                      details.caller.has_value()
+                                          ? (*details.caller)->identifier()
+                                          : "<standalone context>");
+                },
+                [](const ParametricStructDetails& details) -> std::string {
+                  return details.struct_or_proc_def->identifier();
+                }},
+        details);
+  }
+
   const uint64_t id_;  // Just for logging.
-  const Invocation& node_;
-  const Function& callee_;
-  const std::optional<const Function*> caller_;
-  const std::optional<const ParametricInvocation*> caller_invocation_;
+  const AstNode* node_;
+  const Details details_;
+  const std::optional<const ParametricContext*> parent_context_;
 };
 
-inline std::string ToString(
-    std::optional<const ParametricInvocation*> invocation) {
-  return invocation.has_value() ? (*invocation)->ToString()
-                                : "<standalone context>";
+inline std::string ToString(std::optional<const ParametricContext*> context) {
+  return context.has_value() ? (*context)->ToString() : "<standalone context>";
 }
 
-// An `Expr` paired with the `ParametricInvocation` in whose context any
+// An `Expr` paired with the `ParametricContext` in whose context any
 // parametrics in it should be evaluated. This is useful for capturing the
 // effective value expressions of parametrics, which may in turn refer to other
 // parametrics. Defaulted values are scoped to the callee, while explicit values
@@ -101,22 +160,21 @@ inline std::string ToString(
 //
 // - `M + u32:1`, as the value of `M`, is scoped to a `bar` invocation.
 // - `M * M`, as the value of `N`, is scoped to a `foo` invocation.
-class InvocationScopedExpr {
+class ParametricContextScopedExpr {
  public:
-  InvocationScopedExpr(std::optional<const ParametricInvocation*> invocation,
-                       const TypeAnnotation* type_annotation, const Expr* expr)
-      : invocation_(invocation),
-        type_annotation_(type_annotation),
-        expr_(expr) {}
+  ParametricContextScopedExpr(std::optional<const ParametricContext*> context,
+                              const TypeAnnotation* type_annotation,
+                              const Expr* expr)
+      : context_(context), type_annotation_(type_annotation), expr_(expr) {}
 
-  const std::optional<const ParametricInvocation*>& invocation() const {
-    return invocation_;
+  const std::optional<const ParametricContext*>& context() const {
+    return context_;
   }
   const TypeAnnotation* type_annotation() const { return type_annotation_; }
   const Expr* expr() const { return expr_; }
 
  private:
-  const std::optional<const ParametricInvocation*> invocation_;
+  const std::optional<const ParametricContext*> context_;
   const TypeAnnotation* const type_annotation_;
   const Expr* const expr_;
 };
@@ -175,13 +233,13 @@ class InferenceTable {
   // context. Note that the `caller` must only be `nullopt` if the invocation is
   // not in a function (e.g. it may be in the RHS of a free constant
   // declaration).
-  virtual absl::StatusOr<const ParametricInvocation*> AddParametricInvocation(
+  virtual absl::StatusOr<const ParametricContext*> AddParametricInvocation(
       const Invocation& invocation, const Function& callee,
       std::optional<const Function*> caller,
-      std::optional<const ParametricInvocation*> caller_invocation) = 0;
+      std::optional<const ParametricContext*> parent_context) = 0;
 
   // Retrieves all the parametric invocations that have been defined.
-  virtual std::vector<const ParametricInvocation*> GetParametricInvocations()
+  virtual std::vector<const ParametricContext*> GetParametricInvocations()
       const = 0;
 
   // Returns the expression for the value of the given parametric in the given
@@ -189,9 +247,9 @@ class InferenceTable {
   // is implicit, then this returns `nullopt`. Note that the return value may be
   // scoped to either `invocation` or its caller, depending on where the value
   // expression originated from.
-  virtual std::optional<InvocationScopedExpr> GetParametricValue(
+  virtual std::optional<ParametricContextScopedExpr> GetParametricValue(
       const NameDef& binding_name_def,
-      const ParametricInvocation& invocation) const = 0;
+      const ParametricContext& context) const = 0;
 
   // Sets the type variable associated with `node`. The `type` must refer to a
   // type variable previously defined in this table. This can serve as a way to
@@ -207,10 +265,10 @@ class InferenceTable {
                                          const TypeAnnotation* type) = 0;
 
   // Sets the explicit type annotation associated with `node`. If `invocation`
-  // is specified, then the annotation is only valid in the context of that
-  // parametric invocation.
-  virtual absl::Status AddTypeAnnotationToVariableForInvocation(
-      std::optional<const ParametricInvocation*> invocation, const NameRef* ref,
+  // is specified, then the annotation is only valid within that parametric
+  // context.
+  virtual absl::Status AddTypeAnnotationToVariableForParametricContext(
+      std::optional<const ParametricContext*> context, const NameRef* ref,
       const TypeAnnotation* type) = 0;
 
   // Returns the type annotation for `node` in the table, if any.
@@ -242,7 +300,7 @@ class InferenceTable {
   // variable, in the order they were added to the table.
   virtual absl::StatusOr<std::vector<const TypeAnnotation*>>
   GetTypeAnnotationsForTypeVariable(
-      std::optional<const ParametricInvocation*> parametric_invocation,
+      std::optional<const ParametricContext*> parametric_context,
       const NameRef* variable) const = 0;
 };
 
