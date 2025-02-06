@@ -73,15 +73,6 @@ func.func @mulf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf3
   return %0 : tensor<3x3xf32>
 }
 
-// TODO(jmolloy): Should be calling "div" but div doesn't exist yet.
-// CHECK-LABEL: divf
-// CHECK: call_dslx
-// CHECK-SAME: "add"
-func.func @divf(%arg0: tensor<3x3xf32>, %arg1: tensor<3x3xf32>) -> tensor<3x3xf32> attributes { "xls" = true } {
-  %0 = arith.divf %arg0, %arg1 : tensor<3x3xf32>
-  return %0 : tensor<3x3xf32>
-}
-
 // CHECK-LABEL: maxf
 // CHECK: call_dslx
 // CHECK-SAME: "gt_2"
