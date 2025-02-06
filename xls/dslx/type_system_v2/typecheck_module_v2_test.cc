@@ -3811,5 +3811,52 @@ fn foo() {
 )",
               TypecheckFails(HasSizeMismatch("u32", "uN[2]")));
 }
+
+TEST(TypecheckV2Test, ConstAssertTrue) {
+  EXPECT_THAT(
+      R"(
+const_assert!(true);
+)",
+      TypecheckSucceeds(HasNodeWithType("true", "uN[1]")));
+}
+
+TEST(TypecheckV2Test, ConstAssertFalse) {
+  EXPECT_THAT(
+      R"(
+const_assert!(false);
+)",
+      TypecheckSucceeds(HasNodeWithType("false", "uN[1]")));
+}
+
+TEST(TypecheckV2Test, ConstAssertConstExpr) {
+  EXPECT_THAT(
+      R"(
+const_assert!(1 > 0);
+)",
+      TypecheckSucceeds(HasNodeWithType("1 > 0", "uN[1]")));
+}
+
+TEST(TypecheckV2Test, ConstAssertMismatch) {
+  EXPECT_THAT(
+      R"(
+const_assert!(4);
+)",
+      TypecheckFails(HasSizeMismatch("uN[3]", "bool")));
+}
+
+TEST(TypecheckV2Test, ConstAssertForcesTypeBool) {
+  EXPECT_THAT(
+      R"(
+fn foo<N: u32>(x:uN[N]) -> uN[N] {
+  const_assert!(x);
+  x
+}
+fn main() {
+  foo<u32:3>(7);
+}
+)",
+      TypecheckFails(HasSizeMismatch("uN[3]", "uN[1]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

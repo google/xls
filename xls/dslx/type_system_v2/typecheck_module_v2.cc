@@ -834,6 +834,19 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return HandleZeroOrOneMacro(node, node->type());
   }
 
+  absl::Status HandleConstAssert(const ConstAssert* node) override {
+    VLOG(5) << "HandleConstAssert: " << node->ToString();
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->arg(), CreateBoolAnnotation(module_, node->span())));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* operand_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->arg()),
+            GenerateInternalTypeVariableName(node->arg())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->arg(), operand_variable));
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleLet(const Let* node) override {
     VLOG(5) << "HandleLet: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(
