@@ -164,6 +164,8 @@ def : Pat<(Arith_FPToSIOp:$op BF16:$a),
 // Creates a `SelOp` with two `cases` (and no `otherwise` operand). This wrapper
 // is needed because DRR doesn't deal well with the `AttrSizedOperandSegments`
 // of the `SelOp`.
+// NB: the order of the cases follows the xls::SelOp convention, i.e. 0 (false)
+// yields the first case, 1 (true) yields the second case.
 def createSelOp2Cases : NativeCodeCall<[{
     $_builder.create<::mlir::xls::SelOp>(
         $_loc, $0, ArrayRef<::mlir::Value>{$1, $2})
@@ -174,7 +176,7 @@ def createSelOp2Cases : NativeCodeCall<[{
 // (sel (> a b) b a) -> a if (a > b) else b.
 class MinMaxPatBase<dag Matcher, dag Predicate> : Pat<
   Matcher,
-  (createSelOp2Cases Predicate, $a, $b)>;
+  (createSelOp2Cases Predicate, $b, $a)>;
 
 class FPMinMaxPat<Op Op, string Name> : MinMaxPatBase<
   (Op:$op $a, $b, /*FastMathFlags=*/$_),
