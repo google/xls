@@ -1,0 +1,21 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+top fn __test_module__f() -> bits[32] {
+  literal.1: bits[32] = literal(value=1, id=1)
+  literal.2: bits[32] = literal(value=2, id=2)
+  t: (bits[32], bits[32]) = tuple(literal.1, literal.2, id=3)
+  literal.6: bits[32] = literal(value=1, id=6)
+  tuple_index.5: bits[32] = tuple_index(t, index=0, id=5)
+  literal.4: bits[1] = literal(value=1, id=4)
+  eq.7: bits[1] = eq(literal.6, tuple_index.5, id=7)
+  and.8: bits[1] = and(literal.4, eq.7, id=8)
+  literal.10: bits[1] = literal(value=1, id=10)
+  and.11: bits[1] = and(and.8, literal.10, id=11)
+  concat.14: bits[1] = concat(and.11, id=14)
+  tuple_index.9: bits[32] = tuple_index(t, index=1, id=9)
+  literal.13: bits[32] = literal(value=1, id=13)
+  literal.12: bits[1] = literal(value=1, id=12)
+  ret priority_sel.15: bits[32] = priority_sel(concat.14, cases=[tuple_index.9], default=literal.13, id=15)
+}

@@ -18,7 +18,6 @@ fn main(et: mod_simple_enum::EnumType) -> u32 {
     match et {
         mod_simple_enum::EnumType::FIRST => u32:0,
         mod_simple_enum::EnumType::SECOND => u32:1,
-        _ => u32:2,
     }
 }
 

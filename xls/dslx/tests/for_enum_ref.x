@@ -26,7 +26,6 @@ fn main(x: u2) -> MyEnum {
             u2:1 => MyEnum::B,
             u2:2 => MyEnum::C,
             u2:3 => MyEnum::D,
-            _ => MyEnum::A,
         }
     }(MyEnum::A)
 }

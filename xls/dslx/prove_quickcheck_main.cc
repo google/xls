@@ -47,6 +47,9 @@ ABSL_FLAG(std::string, dslx_stdlib_path,
           "Path to DSLX standard library directory.");
 ABSL_FLAG(std::string, test_filter, "",
           "Regexp that must be a full match of test name(s) to run.");
+ABSL_FLAG(std::string, enable_warnings, "",
+          "Comma-delimited list of warnings to enable -- not generally "
+          "recommended, but can be used in exceptional circumstances");
 ABSL_FLAG(std::string, disable_warnings, "",
           "Comma-delimited list of warnings to disable -- not generally "
           "recommended, but can be used in exceptional circumstances");
@@ -68,7 +71,8 @@ absl::StatusOr<TestResultData> RealMain(
     std::optional<std::string_view> xml_output_file) {
   XLS_ASSIGN_OR_RETURN(
       WarningKindSet warnings,
-      WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
+      GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
+                              absl::GetFlag(FLAGS_disable_warnings)));
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 

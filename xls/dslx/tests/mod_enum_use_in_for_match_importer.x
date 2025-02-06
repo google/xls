@@ -24,7 +24,6 @@ fn main(x: EnumType) -> bool {
         match x {
             EnumType::FIRST => false,
             EnumType::SECOND => true,
-            _ => false,
         }
     }(false)
 }

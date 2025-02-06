@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
@@ -2170,6 +2171,31 @@ const X: u32 = p<u32:42>(false);
 )");
   EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
                                HasSubstr("pattern expects uN[1]")));
+}
+
+TEST(TypecheckErrorTest, MatchNonExhaustive) {
+  absl::StatusOr<TypecheckResult> result = Typecheck(R"(
+fn f(x: u32) -> u32 {
+    match x {
+        u32:1 => u32:64,
+        u32:2 => u32:42,
+    }
+}
+)");
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Match patterns are not exhaustive")));
+}
+
+TEST(TypecheckErrorTest, MatchWithOneNonExhaustivePattern) {
+  absl::StatusOr<TypecheckResult> result = Typecheck(R"(
+fn f(x: u32) -> u32 {
+    match x {
+        u32:1 => u32:64,
+    }
+}
+)");
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Match pattern is not exhaustive")));
 }
 
 TEST(TypecheckErrorTest, ArrayInconsistency) {

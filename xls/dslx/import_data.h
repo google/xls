@@ -157,6 +157,8 @@ class ImportData {
   absl::StatusOr<TypeInfo*> GetRootTypeInfoForNode(const AstNode* node);
   absl::StatusOr<const TypeInfo*> GetRootTypeInfoForNode(
       const AstNode* node) const;
+
+  // As above but gets the type info for a directly-provided `module`.
   absl::StatusOr<TypeInfo*> GetRootTypeInfo(const Module* module);
 
   // The "top level bindings" for a given module are the values that get
@@ -235,7 +237,7 @@ class ImportData {
       WarningKindSet);
 
   friend ImportData CreateImportDataForTest(
-      std::unique_ptr<VirtualizableFilesystem> vfs);
+      std::unique_ptr<VirtualizableFilesystem> vfs, WarningKindSet warnings);
   friend std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 
   ImportData(std::filesystem::path stdlib_path,

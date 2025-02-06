@@ -49,6 +49,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/exhaustiveness/match_exhaustiveness_checker.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -1339,17 +1340,85 @@ static std::string PatternsToString(MatchArm* arm) {
                        });
 }
 
+static absl::Status ValidateMatchable(const Type& type, const Span& span,
+                                      const FileTable& file_table) {
+  class MatchableTypeVisitor : public TypeVisitor {
+   public:
+    MatchableTypeVisitor(const Span& span, const FileTable& file_table)
+        : span_(span), file_table_(file_table) {}
+    ~MatchableTypeVisitor() override = default;
+    absl::Status HandleBits(const BitsType& type) override {
+      return absl::OkStatus();
+    }
+    absl::Status HandleEnum(const EnumType& type) override {
+      return absl::OkStatus();
+    }
+    absl::Status HandleTuple(const TupleType& type) override {
+      for (const auto& member : type.members()) {
+        XLS_RETURN_IF_ERROR(member->Accept(*this));
+      }
+      return absl::OkStatus();
+    }
+    absl::Status HandleArray(const ArrayType& type) override {
+      std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      if (bits_like.has_value()) {
+        return absl::OkStatus();
+      }
+      return Error(type);
+    }
+    // Note: this should not be directly observable outside of the array type
+    // element.
+    absl::Status HandleBitsConstructor(
+        const BitsConstructorType& type) override {
+      return Error(type);
+    }
+    // -- these types are not matchable
+    absl::Status HandleMeta(const MetaType& type) override {
+      return Error(type);
+    }
+    absl::Status HandleFunction(const FunctionType& type) override {
+      return Error(type);
+    }
+    absl::Status HandleChannel(const ChannelType& type) override {
+      return Error(type);
+    }
+    absl::Status HandleToken(const TokenType& type) override {
+      return Error(type);
+    }
+    absl::Status HandleStruct(const StructType& type) override {
+      return Error(type);
+    }
+    absl::Status HandleProc(const ProcType& type) override {
+      return Error(type);
+    }
+
+   private:
+    absl::Status Error(const Type& type) {
+      return TypeInferenceErrorStatus(
+          span_, &type, "Match construct cannot match on this type.",
+          file_table_);
+    };
+
+    const Span& span_;
+    const FileTable& file_table_;
+  };
+  MatchableTypeVisitor visitor(span, file_table);
+  return type.Accept(visitor);
+}
+
 absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
                                                   DeduceCtx* ctx) {
   VLOG(5) << "DeduceMatch: " << node->ToString();
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> matched,
                        ctx->Deduce(node->matched()));
-  if (matched->IsMeta() || matched->IsFunction()) {
-    return TypeInferenceErrorStatus(
-        node->span(), matched.get(),
-        "Match construct cannot match on this type.", ctx->file_table());
-  }
+
+  // Validate that we can match on the type presented.
+  //
+  // The fact the type is matchable is assumed as a precondition in
+  // exhaustiveness checking.
+  XLS_RETURN_IF_ERROR(
+      ValidateMatchable(*matched, node->span(), ctx->file_table()));
 
   if (node->arms().empty()) {
     return TypeInferenceErrorStatus(
@@ -1358,11 +1427,18 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
         ctx->file_table());
   }
 
+  MatchExhaustivenessChecker exhaustiveness_checker(
+      node->matched()->span(), *ctx->import_data(), *ctx->type_info(),
+      *matched);
+
   absl::flat_hash_set<std::string> seen_patterns;
   for (MatchArm* arm : node->arms()) {
     // We opportunistically identify syntactically identical match arms -- this
     // is a user error since the first should always match, the latter is
     // totally redundant.
+    //
+    // TODO(cdleary): 2025-01-31 We can get precise info on overlaps beyond
+    // identical syntax when the exhaustiveness checker is available.
     std::string patterns_string = PatternsToString(arm);
     if (auto [it, inserted] = seen_patterns.insert(patterns_string);
         !inserted) {
@@ -1388,7 +1464,31 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceMatch(const Match* node,
       }
 
       XLS_RETURN_IF_ERROR(Unify(pattern, *matched, ctx));
+
+      bool exhaustive_before = exhaustiveness_checker.IsExhaustive();
+      exhaustiveness_checker.AddPattern(*pattern);
+      if (exhaustive_before) {
+        ctx->warnings()->Add(pattern->span(),
+                             WarningKind::kAlreadyExhaustiveMatch,
+                             "Match is already exhaustive before this pattern");
+      }
     }
+  }
+
+  if (!exhaustiveness_checker.IsExhaustive()) {
+    std::optional<InterpValue> sample =
+        exhaustiveness_checker.SampleSimplestUncoveredValue();
+    XLS_RET_CHECK(sample.has_value());
+    return TypeInferenceErrorStatus(
+        node->span(), matched.get(),
+        absl::StrFormat(
+            "Match %s not exhaustive; e.g. `%s` not covered; please add "
+            "remaining "
+            "patterns to complete the match or a default case "
+            "via `_ => ...`",
+            seen_patterns.size() == 1 ? "pattern is" : "patterns are",
+            sample->ToString()),
+        ctx->file_table());
   }
 
   std::vector<std::unique_ptr<Type>> arm_types;

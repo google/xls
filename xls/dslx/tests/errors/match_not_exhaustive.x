@@ -13,8 +13,8 @@
 // limitations under the License.
 
 fn f(x: u32) -> u32 {
-  match x {
-    u32:1 => u32:64,
-    u32:2 => u32:42
-  }
+    match x {
+        u32:1 => u32:64,
+        u32:2 => u32:42
+    }
 }

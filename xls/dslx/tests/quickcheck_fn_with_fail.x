@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn seemingly_can_fail(x: u32) -> u32 {
-    match x {
-        y => y,
-        _ => fail!("should_be_impossible", x),
-    }
-}
+fn seemingly_can_fail(x: u32) -> u32 { if x != x { fail!("should_be_impossible", x) } else { x } }
 
 #[quickcheck]
 fn prop_effectively_identity(x: u32) -> bool { seemingly_can_fail(x) == x }

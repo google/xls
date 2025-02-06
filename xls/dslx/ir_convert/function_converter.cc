@@ -1123,11 +1123,10 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
 }
 
 absl::Status FunctionConverter::HandleMatch(const Match* node) {
-  if (node->arms().empty() ||
-      !node->arms().back()->patterns()[0]->IsIrrefutable()) {
+  if (node->arms().empty()) {
     return IrConversionErrorStatus(
         node->span(),
-        "Only matches with trailing irrefutable patterns (i.e. `_ => ...`) "
+        "Only matches with complete patterns (i.e. a trailing `_ => ...`) "
         "are currently supported for IR conversion.",
         file_table());
   }

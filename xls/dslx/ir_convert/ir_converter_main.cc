@@ -93,9 +93,13 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
   bool verify_ir = ir_converter_options.verify();
   bool convert_tests = ir_converter_options.convert_tests();
   bool warnings_as_errors = ir_converter_options.warnings_as_errors();
-  XLS_ASSIGN_OR_RETURN(WarningKindSet enabled_warnings,
-                       WarningKindSetFromDisabledString(
-                           ir_converter_options.disable_warnings()));
+
+  // Start with the default set, then enable the to-enable and then disable the
+  // to-disable.
+  XLS_ASSIGN_OR_RETURN(
+      WarningKindSet warnings,
+      GetWarningsSetFromFlags(ir_converter_options.enable_warnings(),
+                              ir_converter_options.disable_warnings()));
   std::optional<FifoConfig> default_fifo_config;
   if (ir_converter_options.has_default_fifo_config()) {
     XLS_ASSIGN_OR_RETURN(
@@ -107,7 +111,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .emit_fail_as_assert = emit_fail_as_assert,
       .verify_ir = verify_ir,
       .warnings_as_errors = warnings_as_errors,
-      .enabled_warnings = enabled_warnings,
+      .enabled_warnings = warnings,
       .convert_tests = convert_tests,
       .default_fifo_config = default_fifo_config,
   };

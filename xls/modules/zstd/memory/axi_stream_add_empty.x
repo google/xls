@@ -203,13 +203,6 @@ pub proc AxiStreamAddEmpty<
             Fsm::ERROR => {
                 state
             },
-            _ => {
-                assert!(false, "Invalid state");
-                State {
-                    fsm: Fsm::ERROR,
-                    ..state
-                }
-            }
         };
 
         next_state

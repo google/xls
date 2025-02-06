@@ -32,7 +32,6 @@ fn gcd_binary_match<N: u32>(a: uN[N], b: uN[N], d: uN[N]) -> (uN[N], uN[N], uN[N
       (u1:1, u1:0) => (a, b >> 1, d),
       (u1:0, u1:0) => (a >> 1, b >> 1, d+uN[N]:1),
       (u1:1, u1:1) => ((a - b) >> 1, b, d),
-      _ => fail!("unsupported_case", (uN[N]:0, uN[N]:0, uN[N]:0)),
     }
 }
 
