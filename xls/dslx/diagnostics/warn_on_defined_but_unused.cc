@@ -27,13 +27,13 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 
-absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx) {
+absl::Status WarnOnDefinedButUnused(Function& f, TypeInfo& type_info,
+                                    WarningCollector& warnings) {
   // We say we want types in case there are references in e.g. expressions
   // within type annotations, say dimensions.
   XLS_ASSIGN_OR_RETURN(std::vector<AstNode*> nodes,
@@ -94,12 +94,12 @@ absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx) {
       //  let (one, _two, three) = ...;  // _two can go unused
       continue;
     }
-    std::optional<const Type*> type = ctx->type_info()->GetItem(n);
+    std::optional<const Type*> type = type_info.GetItem(n);
     XLS_RET_CHECK(type.has_value()) << absl::StreamFormat(
         "NameDef `%s` %p @ %s parent kind `%v` had no associated type "
         "information in type info %p",
-        n->ToString(), n, n->span().ToString(ctx->file_table()),
-        n->parent()->kind(), ctx->type_info());
+        n->ToString(), n, n->span().ToString(type_info.file_table()),
+        n->parent()->kind(), &type_info);
     // For now tokens are implicitly joined at the end of a proc `next()`, so we
     // don't warn on these.
     if (type.value()->IsToken()) {
@@ -111,7 +111,7 @@ absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx) {
     if (n->parent()->kind() == AstNodeKind::kTypeAlias) {
       continue;
     }
-    ctx->warnings()->Add(
+    warnings.Add(
         n->span(), WarningKind::kUnusedDefinition,
         absl::StrFormat(
             "Definition of `%s` (type `%s`) is not used in function `%s`",

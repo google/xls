@@ -17,13 +17,15 @@
 
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
-// Emit warnings (into the WarningCollector on "ctx") for any bindings
-// considered defined-but-unused variables present in function "f".
-absl::Status WarnOnDefinedButUnused(Function& f, DeduceCtx* ctx);
+// Emit warnings into the `WarningCollector` for any bindings considered
+// defined-but-unused in function "f".
+absl::Status WarnOnDefinedButUnused(Function& f, TypeInfo& type_info,
+                                    WarningCollector& warnings);
 
 }  // namespace xls::dslx
 
