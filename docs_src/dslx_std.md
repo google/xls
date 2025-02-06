@@ -81,8 +81,8 @@ multiplication allows for a pipeline stage in the middle of a multiply. These
 operations have the following signatures:
 
 ```
-fn smulp<N>(lhs: sN[N], rhs: sN[N]) -> (sN[N], sN[N])
-fn umulp<N>(lhs: uN[N], rhs: uN[N]) -> (uN[N], uN[N])
+fn smulp<N: u32>(lhs: sN[N], rhs: sN[N]) -> (sN[N], sN[N])
+fn umulp<N: u32>(lhs: uN[N], rhs: uN[N]) -> (uN[N], uN[N])
 ```
 
 ### `map`
@@ -122,7 +122,13 @@ name of the function must be referred to directly.
 
 `zip` places elements of two same-sized arrays together in an array of 2-tuples.
 
-Its signature is: `zip(lhs: T[N], rhs: U[N]) -> (T, U)[N]`.
+Its signature is:
+
+```
+fn zip<T: type, N: u32, U: type>(lhs: T[N], rhs: U[N]) -> (T, U)[N]
+```
+
+Example:
 
 ```dslx
 #[test]
@@ -141,7 +147,13 @@ fn test_zip_array_size_2() {
 
 ### `array_rev`
 
-`array_rev` reverses the elements of an array.
+`array_rev` reverses the elements of an array. Has the following signature:
+
+```
+fn array_rev<N: u32, T: type>(arr: T[N]) -> T[N]
+```
+
+Example:
 
 ```dslx
 #[test]
@@ -225,7 +237,7 @@ result is equal to the value `n` as an unsigned number. Has the following
 signature:
 
 ```
-fn encode(x: uN[N]) -> uN[ceil(log2(N))]
+fn encode<N: u32>(x: uN[N]) -> uN[ceil(log2(N))]
 ```
 
 If multiple bits of the input are set, the result is equal to the logical or of
@@ -251,7 +263,7 @@ fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N]
 Converts a value to one-hot form. Has the following signature:
 
 ```
-fn one_hot<N: u32, NP1:u32={N+1}>(x: uN[N], lsb_is_prio: bool) -> uN[NP1]
+fn one_hot<N: u32, NP1: u32={N+1}>(x: uN[N], lsb_is_prio: bool) -> uN[NP1]
 ```
 
 When `lsb_is_prio` is true, the least significant bit that is set becomes the
@@ -271,10 +283,11 @@ See also the
 
 Produces the result of 'or'-ing all case values for which the corresponding bit
 of the selector is enabled. In cases where the selector has exactly one bit set
-(it is in one-hot form) this is equivalent to a match.
+(it is in one-hot form) this is equivalent to a match. Has the following
+signature:
 
 ```
-fn one_hot_sel(selector: uN[N], cases: xN[N][M]) -> uN[N]
+fn one_hot_sel<N: u32, M: u32>(selector: uN[N], cases: xN[N][M]) -> uN[N]
 ```
 
 Evaluates each case value and `or`s each case together if the corresponding bit
@@ -293,7 +306,7 @@ though the compiler will when possible synthesize the equivalent code from a
 Implements a priority selector. Has the following signature:
 
 ```
-fn priority_sel(selector: uN[N], cases: xN[M][N], default_value: xN[M]) -> xN[M]
+fn priority_sel<N: u32, M: u32>(selector: uN[N], cases: xN[M][N], default_value: xN[M]) -> xN[M]
 ```
 
 That is, the selector is `N` bits, and we give `N` cases to choose from of
@@ -319,7 +332,11 @@ fn range(START: const uN, LIMIT: const uN) -> uN[{LIMIT-START}]
 
 Casting has well-defined extension rules, but in some cases it is necessary to
 be explicit about sign-extensions, if just for code readability. For this, there
-is the `signex` built-in.
+is the `signex` built-in. Has the following signature:
+
+```
+fn signex<N: u32, M: u32>(x: xN[M], d: xN[N]) -> xN[N]
+```
 
 To invoke the `signex` built-in, provide it with the operand to sign extend
 (lhs), as well as the target type to extend to: these operands may be either
@@ -346,14 +363,18 @@ being passed to built-in functions, this was the canonical way to reflect a
 constexpr in the type system.) Has the following signature:
 
 ```
-fn slice<T: type, N, M, S>(xs: T[N], start: uN[M], want: T[S]) -> T[S]
+fn slice<T: type, N: u32, M: u32, S: u32>(xs: T[N], start: uN[M], want: T[S]) -> T[S]
 ```
 
 ### `rev`
 
 `rev` is used to reverse the bits in an unsigned bits value. The LSb in the
 input becomes the MSb in the result, the 2nd LSb becomes the 2nd MSb in the
-result, and so on.
+result, and so on. It has the following signature:
+
+```
+fn rev<N: u32>(x: uN[N]) -> uN[N]
+```
 
 ```dslx
 // (Dummy) wrapper around reverse.
@@ -516,7 +537,7 @@ fn f() -> MyStruct { MyStruct { foo: u1:1, ..all_ones!<MyStruct>() } }
 
 ### `trace_fmt!`
 
-DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
+DSLX supports printf-style debugging via the `trace_fmt!` built-in, which allows
 dumping values to stdout.
 
 Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging,
@@ -576,24 +597,25 @@ The number of digits for zero-padding is determined by the actual type of the
 input, e.g., a `u16` pads up to 16 binary digits or 4 hexadecimal digits.
 
 !!! NOTE
-    `trace!` currently also exists as a builtin but is in the process of being
-    removed, as it provided the user with only a "global flag" way of specifying the
-    desired format for output values -- `trace_fmt!` is more powerful.
+    `trace!` currently also exists as a built-in but is in the process of
+    being removed, as it provided the user with only a "global flag" way of
+    specifying the desired format for output values -- `trace_fmt!` is more
+    powerful.
 
 ### `fail!` / `assert!`: assertion failure
 
-The `fail!` builtin indicates a path that should not be reachable in practice.
+The `fail!` built-in indicates a path that should not be reachable in practice.
 Its general signature is:
 
 ```
-fail!(label: u8[N], fallback_value: T) -> T
+fn fail!<N: u32, T: type>(label: u8[N], fallback_value: T) -> T
 ```
 
-The `assert!` builtin is similar to fail, but takes a predicate, and does not
-produce a value:
+The `assert!` built-in is similar to `fail!`, but takes a predicate, and does
+not produce a value:
 
 ```
-assert!(predicate: bool, label: u8[N]) -> ()
+fn assert!<N: u32>(predicate: bool, label: u8[N]) -> ()
 ```
 
 These can be thought of as "fatal assertions", and convert to
@@ -604,10 +626,11 @@ Verilog/SytemVerilog assertions in generated code.
     hardware that correspond to these operations. See
     https://github.com/google/xls/issues/1352
 
-`fail!` indicates a **control path that should not be reachable**, `assert!`
-gives a **predicate that should always be true** when the statement is reached.
+`fail!` indicates a **control path that should not be reachable**, while
+`assert!` gives a **predicate that should always be true** when the statement is
+reached.
 
-If triggered, these raise a fatal error in simulation (e.g. via a JIT-execution
+If triggered, these raise a fatal error in simulation (e.g., via a JIT-execution
 failure status or a Verilog assertion when running in RTL simulation).
 
 Assuming `fail!` will not be triggered minimizes its cost in synthesized form.
@@ -655,7 +678,7 @@ an error status or assertion failure respectively), but b) provides a fallback
 value to use (of the appropriate type) in case it were to happen in synthesized
 gates which did not insert fatal-error-indicating hardware.
 
-The associated label (e.g. the first argument to `fail!`) must be a valid
+The associated label (e.g., the first argument to `fail!`) must be a valid
 Verilog identifier and is used for identifying the failure when lowered to
 SystemVerilog. At higher levels in the stack, it's unused.
 
@@ -666,11 +689,11 @@ SystemVerilog. At higher levels in the stack, it's unused.
     source (i.e. iverilog). See
     [google/xls#436](https://github.com/google/xls/issues/436).
 
-The `cover!` builtin tracks how often some condition is satisfied. It desugars
+The `cover!` built-in tracks how often some condition is satisfied. It desugars
 into SystemVerilog cover points. Its signature is:
 
 ```
-cover!(<name>, <condition>);
+fn cover!<N: u32>(name: u8[N], condition: bool) -> ()
 ```
 
 Where `name` is a function-unique literal string identifying the coverpoint and
@@ -683,7 +706,13 @@ letters, digits, underscores, or dollar signs.
 
 ### `gate!`
 
-The `gate!` built-in is used for operand gating, of the form:
+The `gate!` built-in is used for operand gating, with the signature:
+
+```
+fn gate!<T: type>(pass_value: bool, value: T) -> T
+```
+
+Example:
 
 ```
 let gated_value = gate!(<pass_value>, <value>);
@@ -700,17 +729,17 @@ Additionally, it is expected that if, in the resulting Verilog, gating occurs on
 a value that originates from a flip flop, the operand gating may be promoted to
 register-based load-enable gating.
 
-## `proc`-related builtins (Communicating Sequential Processes)
+## `proc`-related built-ins (Communicating Sequential Processes)
 
 ### `join`: sequencing I/O tokens
 
-The `join` builtin "joins together" a variable number of tokens into one
+The `join` built-in "joins together" a variable number of tokens into one
 token -- this resulting token represents that an I/O operation happens "no
 earlier than" all the given tokens. That is, it establishes a `>=` event
 ordering with respect to all the parameter tokens.
 
 ```
-join(token...) -> token
+fn join(token...) -> token
 ```
 
 This is useful to a user that wants to sequence their I/O operations, e.g.
@@ -729,41 +758,41 @@ begin.
 
 ### `send`: send a value on a channel
 
-The `send` builtin sends a value on a channel, taking an I/O sequencing token
+The `send` built-in sends a value on a channel, taking an I/O sequencing token
 and producing a new I/O sequencing token (which can be used to order
 communication events).
 
 ```
-send(tok: token, chan<T> out, value: T) -> token
+fn send<T: type>(tok: token, chan<T> out, value: T) -> token
 ```
 
 ### `send_if`: conditionally send a value on a channel
 
 ```
-send_if(tok: token, chan<T> out, predicate: bool, value: T) -> token
+fn send_if<T: type>(tok: token, chan<T> out, predicate: bool, value: T) -> token
 ```
 
-The `send_if` builtin does a send on a channel as described in [`send`][#send],
+The `send_if` built-in does a send on a channel as described in [`send`][#send],
 but only attempts to do so if the given predicate is true.
 
 ### `recv`: (blocking) receive of a value from a channel
 
-The `recv` builtin does a "blocking" `recv` of a value from a channel -- it is
+The `recv` built-in does a "blocking" `recv` of a value from a channel -- it is
 blocking in the sense that the current activation of the `proc` cannot complete
 until the `recv` has been performed. The token that the `recv` produces can be
 used to force a sequencing of the `recv` with respect to other I/O operations.
 
 ```
-recv(tok: token, c: chan<T> in) -> (token, T)
+fn recv<T: type>(tok: token, c: chan<T> in) -> (token, T)
 ```
 
 ### `recv_if`: conditional (blocking) receive of a value from a channel
 
-The `recv_if` builtin does a blocking receive as described in [`recv`][#recv],
+The `recv_if` built-in does a blocking receive as described in [`recv`][#recv],
 but only attempts to do so if the given predicate is true.
 
 ```
-recv_if(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T)
+fn recv_if<T: type>(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T)
 ```
 
 ### `recv_non_blocking`: non-blocking receive of a value from a channel
@@ -774,7 +803,7 @@ indicates whether the value originated from the channel (i.e. `true` means the
 value came from the channel).
 
 ```
-recv_non_blocking(tok: token, c: chan<T> in, default_value: T) -> (token, T, bool)
+fn recv_non_blocking<T: type>(tok: token, c: chan<T> in, default_value: T) -> (token, T, bool)
 ```
 
 !!! NOTE
@@ -791,7 +820,7 @@ this predicate is false, the default value will be provided and the returned
 boolean will be false.
 
 ```
-recv_if_non_blocking(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
+fn recv_if_non_blocking<T: type>(tok: token, c: chan<T> in, predicate: bool, default_value: T) -> (token, T, bool)
 ```
 
 ## `import std`: DSLX standard library routines
@@ -831,7 +860,7 @@ signature above is parameterized on the signedness of the input type.
 
 ```dslx-snippet
 pub fn to_signed<N: u32>(x: uN[N]) -> sN[N]
-pub fn to_unsigned<N: u32>(x: sN[N]) -> uN[N] {
+pub fn to_unsigned<N: u32>(x: sN[N]) -> uN[N]
 ```
 
 Convenience helper that converts an unsigned bits argument to its same-sized
