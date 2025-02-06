@@ -402,7 +402,7 @@ struct tick_on_exit {
         static std::ofstream {n}_stream("{path}");
 """.format(n=channel.name, path=tmp.name)
 
-    if hls_ch.type == hls_block_pb2.ChannelType.DIRECT_IN:
+    if hls_ch.type == hls_block_pb2.ChannelType.CHANNEL_TYPE_DIRECT_IN:
       assert hls_ch.is_input
       assert not (
           channel.type.as_inst

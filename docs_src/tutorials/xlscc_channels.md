@@ -69,13 +69,13 @@ for integration. In this example, the result is:
 channels {
   name: "in"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
   width_in_bits: 32
 }
 channels {
   name: "out"
   is_input: false
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
   width_in_bits: 32
 }
 name: "TestBlock"

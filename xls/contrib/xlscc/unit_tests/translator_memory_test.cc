@@ -224,13 +224,13 @@ TEST_F(TranslatorMemoryTest, MemoryReadProc) {
 
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("foo_store");
-    ch_in->set_type(MEMORY);
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
     ch_in->set_depth(21);
 
     HLSChannel* ch_out = block_spec.add_channels();
     ch_out->set_name("out");
     ch_out->set_is_input(false);
-    ch_out->set_type(FIFO);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -277,13 +277,13 @@ TEST_F(TranslatorMemoryTest, MemoryWriteProc) {
 
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("memory");
-    ch_in->set_type(MEMORY);
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
     ch_in->set_depth(21);
 
     HLSChannel* ch_out = block_spec.add_channels();
     ch_out->set_name("in");
     ch_out->set_is_input(true);
-    ch_out->set_type(FIFO);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -324,7 +324,7 @@ TEST_F(TranslatorMemoryTest, MemoryReadWriteProc) {
 
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("barstore");
-    ch_in->set_type(MEMORY);
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
     ch_in->set_depth(55);
   }
 
@@ -391,13 +391,13 @@ TEST_F(TranslatorMemoryTest, MemoryReadInPipelinedLoop) {
 
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("foo_store");
-    ch_in->set_type(MEMORY);
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
     ch_in->set_depth(21);
 
     HLSChannel* ch_out = block_spec.add_channels();
     ch_out->set_name("out");
     ch_out->set_is_input(false);
-    ch_out->set_type(FIFO);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -485,14 +485,14 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemory) {
   const std::string ref_meta_str = R"(
     channels {
       name: "foo_store"
-      type: MEMORY
+      type: CHANNEL_TYPE_MEMORY
       width_in_bits: 16
       depth: 21
     }
     channels {
       name: "out"
       is_input: false
-      type: FIFO
+      type: CHANNEL_TYPE_FIFO
       width_in_bits: 64
     }
     name: "Block"
@@ -555,14 +555,14 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine) {
   const std::string ref_meta_str = R"(
     channels {
       name: "foo_store"
-      type: MEMORY
+      type: CHANNEL_TYPE_MEMORY
       width_in_bits: 16
       depth: 21
     }
     channels {
       name: "out"
       is_input: false
-      type: FIFO
+      type: CHANNEL_TYPE_FIFO
       width_in_bits: 64
     }
     name: "Block"
@@ -625,14 +625,14 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine2) {
   const std::string ref_meta_str = R"(
     channels {
       name: "foo_store"
-      type: MEMORY
+      type: CHANNEL_TYPE_MEMORY
       width_in_bits: 16
       depth: 21
     }
     channels {
       name: "out"
       is_input: false
-      type: FIFO
+      type: CHANNEL_TYPE_FIFO
       width_in_bits: 64
     }
     name: "Block"
@@ -696,14 +696,14 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine3) {
   const std::string ref_meta_str = R"(
     channels {
       name: "foo_store"
-      type: MEMORY
+      type: CHANNEL_TYPE_MEMORY
       width_in_bits: 16
       depth: 21
     }
     channels {
       name: "out"
       is_input: false
-      type: FIFO
+      type: CHANNEL_TYPE_FIFO
       width_in_bits: 64
     }
     name: "Block"
@@ -768,14 +768,14 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine4) {
   const std::string ref_meta_str = R"(
     channels {
       name: "foo_store"
-      type: MEMORY
+      type: CHANNEL_TYPE_MEMORY
       width_in_bits: 16
       depth: 21
     }
     channels {
       name: "in"
       is_input: true
-      type: FIFO
+      type: CHANNEL_TYPE_FIFO
       width_in_bits: 64
     }
     name: "Block"
@@ -843,14 +843,14 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemoryPipelinedLoop) {
   const std::string ref_meta_str = R"(
     channels {
       name: "foo_store"
-      type: MEMORY
+      type: CHANNEL_TYPE_MEMORY
       width_in_bits: 16
       depth: 21
     }
     channels {
       name: "out"
       is_input: false
-      type: FIFO
+      type: CHANNEL_TYPE_FIFO
       width_in_bits: 64
     }
     name: "Block"
@@ -1004,13 +1004,13 @@ TEST_F(TranslatorMemoryTest, MemoryUnused) {
 
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("foo_unused");
-    ch_in->set_type(MEMORY);
+    ch_in->set_type(CHANNEL_TYPE_MEMORY);
     ch_in->set_depth(21);
 
     HLSChannel* ch_out = block_spec.add_channels();
     ch_out->set_name("out");
     ch_out->set_is_input(false);
-    ch_out->set_type(FIFO);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
   }
 
   // Check that dummy ops are present

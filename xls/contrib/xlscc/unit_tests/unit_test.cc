@@ -434,7 +434,7 @@ void XlsccTestBase::BuildTestIR(
   LOG(INFO) << package_text;
 
   for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
-    if (ch.type() == xlscc::DIRECT_IN) {
+    if (ch.type() == xlscc::CHANNEL_TYPE_DIRECT_IN) {
       direct_in_channels_by_name.insert(ch.name());
     }
   }
@@ -458,7 +458,7 @@ void XlsccTestBase::BlockTest(
   // Find direct-ins
   absl::flat_hash_set<std::string> direct_in_channel_names;
   for (const xlscc::HLSChannel& ch : block_spec_.channels()) {
-    if (ch.type() != xlscc::DIRECT_IN) {
+    if (ch.type() != xlscc::CHANNEL_TYPE_DIRECT_IN) {
       continue;
     }
     direct_in_channel_names.insert(ch.name());

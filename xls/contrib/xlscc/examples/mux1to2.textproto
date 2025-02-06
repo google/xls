@@ -3,21 +3,21 @@
 channels {
   name: "sel"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "mux_in"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "mux_out0"
   is_input: false
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "mux_out1"
   is_input: false
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 name: "Mux1To2"

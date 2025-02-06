@@ -19,10 +19,10 @@ package xlscc;
 import "xls/ir/channel.proto";
 
 enum ChannelType {
-  INVALID = 0;
-  DIRECT_IN = 1;
-  FIFO = 2;
-  MEMORY = 3;
+  CHANNEL_TYPE_UNSPECIFIED = 0;
+  CHANNEL_TYPE_DIRECT_IN = 1;
+  CHANNEL_TYPE_FIFO = 2;
+  CHANNEL_TYPE_MEMORY = 3;
 }
 
 message HLSChannel {

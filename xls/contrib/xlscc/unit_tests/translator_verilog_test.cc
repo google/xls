@@ -96,22 +96,22 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
     HLSChannel* dir_in = block_spec.add_channels();
     dir_in->set_name("dir");
     dir_in->set_is_input(true);
-    dir_in->set_type(DIRECT_IN);
+    dir_in->set_type(CHANNEL_TYPE_DIRECT_IN);
 
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("in");
     ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_out1 = block_spec.add_channels();
     ch_out1->set_name("out1");
     ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_out2 = block_spec.add_channels();
     ch_out2->set_name("out2");
     ch_out2->set_is_input(false);
-    ch_out2->set_type(FIFO);
+    ch_out2->set_type(CHANNEL_TYPE_FIFO);
   }
 
   auto parser = std::make_unique<xlscc::CCParser>();
@@ -236,22 +236,22 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
     HLSChannel* dir_in = block_spec.add_channels();
     dir_in->set_name("dir");
     dir_in->set_is_input(true);
-    dir_in->set_type(DIRECT_IN);
+    dir_in->set_type(CHANNEL_TYPE_DIRECT_IN);
 
     HLSChannel* ch_in1 = block_spec.add_channels();
     ch_in1->set_name("in1");
     ch_in1->set_is_input(true);
-    ch_in1->set_type(FIFO);
+    ch_in1->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_in2 = block_spec.add_channels();
     ch_in2->set_name("in2");
     ch_in2->set_is_input(true);
-    ch_in2->set_type(FIFO);
+    ch_in2->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_out1 = block_spec.add_channels();
     ch_out1->set_name("out");
     ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
   }
 
   auto parser = std::make_unique<xlscc::CCParser>();

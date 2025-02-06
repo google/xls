@@ -4,26 +4,26 @@
 channels {
   name: "csrs"
   is_input: true
-  type: DIRECT_IN
+  type: CHANNEL_TYPE_DIRECT_IN
 }
 channels {
   name: "mux_in0"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "mux_in1"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "mux_in2"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "mux_out"
   is_input: false
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 name: "Mux3"

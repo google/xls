@@ -3,16 +3,16 @@
 channels {
   name: "in0"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "in1"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 channels {
   name: "out"
   is_input: false
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
 }
 name: "PacketSelector"

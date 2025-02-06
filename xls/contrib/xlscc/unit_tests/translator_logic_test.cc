@@ -1733,12 +1733,12 @@ TEST_F(TranslatorLogicTest, ForPipelinedConstantPropagation) {
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("in");
     ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_out1 = block_spec.add_channels();
     ch_out1->set_name("out");
     ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
   }
 
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
@@ -4217,12 +4217,12 @@ TEST_F(TranslatorLogicTest, TopMemberAccess) {
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("in");
     ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_out1 = block_spec.add_channels();
     ch_out1->set_name("out");
     ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
   }
 
   XLS_ASSERT_OK(ScanFile(content));
@@ -4435,12 +4435,12 @@ TEST_F(TranslatorLogicTest, ChannelTemplateType) {
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("in");
     ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_out1 = block_spec.add_channels();
     ch_out1->set_name("out");
     ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
+    ch_out1->set_type(CHANNEL_TYPE_FIFO);
   }
   XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
                            xls::TempFile::CreateWithContent(content, ".cc"));

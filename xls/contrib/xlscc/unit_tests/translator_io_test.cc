@@ -136,12 +136,12 @@ TEST_F(TranslatorIOTest, ProcNonblockingRead) {
     HLSChannel* ch_in = block_spec.add_channels();
     ch_in->set_name("in");
     ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
+    ch_in->set_type(CHANNEL_TYPE_FIFO);
 
     HLSChannel* ch_out = block_spec.add_channels();
     ch_out->set_name("out");
     ch_out->set_is_input(false);
-    ch_out->set_type(FIFO);
+    ch_out->set_type(CHANNEL_TYPE_FIFO);
   }
 
   {

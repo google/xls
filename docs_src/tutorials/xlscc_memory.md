@@ -55,18 +55,18 @@ The memory should appear in the resulting block `block.pb`:
 channels {
   name: "in"
   is_input: true
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
   width_in_bits: 32
 }
 channels {
   name: "out"
   is_input: false
-  type: FIFO
+  type: CHANNEL_TYPE_FIFO
   width_in_bits: 32
 }
 channels {
   name: "store"
-  type: MEMORY
+  type: CHANNEL_TYPE_MEMORY
   width_in_bits: 16
   depth: 32
 }

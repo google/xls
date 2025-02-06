@@ -289,15 +289,15 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     const HLSChannel& channel_spec =
         channels_by_name.at(param->getNameAsString());
 
-    CHECK(channel_spec.type() == ChannelType::DIRECT_IN ||
-          channel_spec.type() == ChannelType::FIFO ||
-          channel_spec.type() == ChannelType::MEMORY);
+    CHECK(channel_spec.type() == ChannelType::CHANNEL_TYPE_DIRECT_IN ||
+          channel_spec.type() == ChannelType::CHANNEL_TYPE_FIFO ||
+          channel_spec.type() == ChannelType::CHANNEL_TYPE_MEMORY);
 
     ExternalChannelInfo channel_info = {.decl = param};
     XLS_ASSIGN_OR_RETURN(channel_info.strictness,
                          GetChannelStrictness(*param, channel_options,
                                               unused_strictness_options));
-    if (channel_spec.type() == ChannelType::DIRECT_IN) {
+    if (channel_spec.type() == ChannelType::CHANNEL_TYPE_DIRECT_IN) {
       channel_info.interface_type = InterfaceType::kDirect;
       XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                            StripTypeQualifiers(param->getType()));
@@ -308,7 +308,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       channel_info.extra_return =
           stripped.is_ref && !stripped.base.isConstQualified();
       channel_info.is_input = channel_spec.is_input();
-    } else if (channel_spec.type() == ChannelType::FIFO) {
+    } else if (channel_spec.type() == ChannelType::CHANNEL_TYPE_FIFO) {
       channel_info.interface_type = InterfaceType::kFIFO;
       channel_info.flop_kind = channel_spec.flop_kind();
       XLS_ASSIGN_OR_RETURN(
@@ -320,7 +320,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
           channel_info.channel_type->GetItemType(),
           /*memory_size=*/-1);
       channel_info.is_input = channel_spec.is_input();
-    } else if (channel_spec.type() == ChannelType::MEMORY) {
+    } else if (channel_spec.type() == ChannelType::CHANNEL_TYPE_MEMORY) {
       channel_info.interface_type = InterfaceType::kMemory;
       XLS_ASSIGN_OR_RETURN(
           channel_info.channel_type,
@@ -669,7 +669,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
         xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
         channel_spec->set_name(field->name()->getNameAsString());
         channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
-        channel_spec->set_type(xlscc::FIFO);
+        channel_spec->set_type(xlscc::CHANNEL_TYPE_FIFO);
         channel_spec->set_is_input(channel_type->GetOpType() == OpType::kRecv);
 
         ExternalChannelInfo channel_info = {
@@ -686,7 +686,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
         xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
         channel_spec->set_name(field->name()->getNameAsString());
         channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
-        channel_spec->set_type(xlscc::MEMORY);
+        channel_spec->set_type(xlscc::CHANNEL_TYPE_MEMORY);
         channel_spec->set_depth(channel_type->GetMemorySize());
 
         ExternalChannelInfo channel_info = {
@@ -710,7 +710,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
       xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
       channel_spec->set_name(field->name()->getNameAsString());
       channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
-      channel_spec->set_type(xlscc::DIRECT_IN);
+      channel_spec->set_type(xlscc::CHANNEL_TYPE_DIRECT_IN);
       channel_spec->set_is_input(true);
 
       ExternalChannelInfo channel_info = {
