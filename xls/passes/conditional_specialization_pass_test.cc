@@ -1228,6 +1228,42 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
   pb.Next(counter1, incremented_counter, /*pred=*/index_is_1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
 
+  ScopedRecordIr sri(p.get());
+  EXPECT_THAT(
+      Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
+      IsOkAndHolds(true));
+
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("counter0"))->predicate(),
+      Optional(m::Not(m::StateRead("index"))));
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("counter1"))->predicate(),
+      Optional(m::StateRead("index")));
+}
+
+TEST_F(ConditionalSpecializationPassTest, HarderStateReadSpecialization) {
+  auto p = CreatePackage();
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue index = pb.StateElement("index", UBits(0, 2));
+  BValue counter0 = pb.StateElement("counter0", UBits(0, 32));
+  BValue counter1 = pb.StateElement("counter1", UBits(5, 32));
+  BValue counter2 = pb.StateElement("counter2", UBits(10, 32));
+  BValue index_not_0 = pb.Ne(index, pb.Literal(UBits(0, 2)));
+  BValue index_not_1 = pb.Ne(index, pb.Literal(UBits(1, 2)));
+  BValue selected_counter = pb.Select(
+      index_not_0, {counter0, pb.Select(index_not_1, {counter1, counter2})});
+  BValue incremented_counter =
+      pb.Add(selected_counter, pb.Literal(UBits(1, 32)));
+  BValue index_is_0 = pb.Eq(index, pb.Literal(UBits(0, 2)));
+  BValue index_is_1 = pb.Eq(index, pb.Literal(UBits(1, 2)));
+  pb.Next(index, pb.Add(index, pb.Literal(UBits(1, 2))));
+  pb.Next(counter0, incremented_counter, /*pred=*/index_is_0);
+  pb.Next(counter1, incremented_counter, /*pred=*/index_is_1);
+  pb.Next(counter2, incremented_counter,
+          /*pred=*/pb.And(index_not_0, index_not_1));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
   EXPECT_THAT(
       Run(proc, /*use_bdd=*/true, /*optimize_for_best_case_throughput=*/true),
       IsOkAndHolds(true));
@@ -1238,6 +1274,15 @@ TEST_F(ConditionalSpecializationPassTest, StateReadSpecialization) {
   EXPECT_THAT(
       proc->GetStateRead(*proc->GetStateElement("counter1"))->predicate(),
       Optional(m::Eq(m::StateRead("index"), m::Literal(1))));
+  EXPECT_THAT(
+      proc->GetStateRead(*proc->GetStateElement("counter2"))->predicate(),
+      Optional(m::And(
+          // High bit of index is set
+          m::Eq(m::BitSlice(m::StateRead("index"), 1, 1), m::Literal(1)),
+          // index is not 0 or 1; this is redundant with the high-bit check, but
+          // can be simplified away by other passes.
+          m::Ne(m::StateRead("index"), m::Literal(1)),
+          m::Ne(m::StateRead("index"), m::Literal(0)))));
 }
 
 TEST_F(ConditionalSpecializationPassTest, StateReadSpecializationDisabled) {

@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -48,11 +47,14 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
+#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/partial_information.h"
+#include "xls/ir/partial_ops.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
@@ -75,46 +77,25 @@ namespace {
 // assumed to be true at particular points in the graph.
 struct Condition {
   Node* node;
-  TernaryVector value;
-  std::optional<IntervalSet> range;
+  PartialInformation partial;
 
   std::string ToString() const {
-    const bool has_range = range.has_value() && !range->IsMaximal();
-    const bool has_value = !ternary_ops::AllUnknown(value);
-    if (!has_range && !has_value) {
+    if (partial.IsUnrestricted()) {
       return absl::StrFormat("%s (unrestricted)", node->GetName());
     }
-    if (!has_range) {
-      return absl::StrFormat("%s==%s", node->GetName(), xls::ToString(value));
+    if (partial.IsImpossible()) {
+      return absl::StrFormat("%s (impossible)", node->GetName());
     }
-    if (!has_value) {
-      return absl::StrFormat("%s in %s", node->GetName(), range->ToString());
-    }
-    return absl::StrFormat("%s==%s & %s in %s", node->GetName(),
-                           xls::ToString(value), node->GetName(),
-                           range->ToString());
+    return absl::StrFormat("%s in %s", node->GetName(), partial.ToString());
   }
 
   bool operator==(const Condition& other) const {
-    if (node != other.node || value != other.value) {
-      return false;
-    }
-
-    const bool has_range = range.has_value() && !range->IsMaximal();
-    const bool other_has_range =
-        other.range.has_value() && !other.range->IsMaximal();
-    if (has_range != other_has_range) {
-      return false;
-    }
-    if (!has_range) {
-      return true;
-    }
-    return *range == *other.range;
+    return node == other.node && partial == other.partial;
   }
 
   template <typename H>
   friend H AbslHashValue(H h, const Condition& c) {
-    return H::combine(std::move(h), c.node, c.value, c.range);
+    return H::combine(std::move(h), c.node, c.partial);
   }
 };
 
@@ -135,8 +116,7 @@ class ConditionCmp {
   ConditionCmp& operator=(const ConditionCmp&) = default;
 
   bool operator()(const Condition& a, const Condition& b) const {
-    return std::pair(topo_index_->at(a.node), a.value) <
-           std::pair(topo_index_->at(b.node), b.value);
+    return topo_index_->at(a.node) < topo_index_->at(b.node);
   }
 
  private:
@@ -160,49 +140,84 @@ class ConditionSet {
   ConditionSet(ConditionSet&&) = default;
   ConditionSet& operator=(const ConditionSet&) = default;
 
-  // Perform a set intersection with this set and `other` and assign the result
-  // to this set.
+  // Limit to conditions that are also true in `other`.
   void Intersect(const ConditionSet& other) {
-    ConditionVector original = std::move(conditions_);
-    conditions_.clear();
-    absl::c_set_intersection(other.conditions_, original,
-                             std::inserter(conditions_, conditions_.begin()),
-                             condition_cmp_);
-    // Intersection should not increase set size.
-    CHECK_LE(conditions_.size(), kMaxConditions);
+    auto it = conditions_.begin();
+    auto other_it = other.conditions_.begin();
+    while (it != conditions_.end() && other_it != other.conditions_.end()) {
+      if (condition_cmp_(*it, *other_it)) {
+        // No condition on it->node in `other`, so remove it from this set.
+        it = conditions_.erase(it);
+      } else if (condition_cmp_(*other_it, *it)) {
+        // No condition on other_it->node in `this`, so ignore it.
+        ++other_it;
+      } else {
+        // Take the meet of the conditions.
+        it->partial.MeetWith(other_it->partial);
+        if (it->partial.IsUnrestricted()) {
+          it = conditions_.erase(it);
+        } else {
+          ++it;
+        }
+        ++other_it;
+      }
+    }
+    // Remove all trailing conditions from `this` that were not in `other`.
+    conditions_.erase(it, conditions_.end());
   }
 
-  // Perform a set union with this set and `other` and assign the result to this
-  // set.
+  // Add all conditions in `other` to this set.
   void Union(const ConditionSet& other) {
     ConditionVector original = std::move(conditions_);
     conditions_.clear();
-    absl::c_set_union(other.conditions_, original,
-                      std::inserter(conditions_, conditions_.begin()),
-                      condition_cmp_);
-    while (conditions_.size() > kMaxConditions) {
-      conditions_.pop_back();
+    auto original_it = original.begin();
+    auto other_it = other.conditions_.begin();
+    while (conditions_.size() < kMaxConditions &&
+           (original_it != original.end() ||
+            other_it != other.conditions_.end())) {
+      if (other_it == other.conditions_.end() ||
+          (original_it != original.end() &&
+           condition_cmp_(*original_it, *other_it))) {
+        // No condition on original_it->node in `other`, so just insert the
+        // original.
+        conditions_.push_back(std::move(*original_it));
+        ++original_it;
+      } else if (original_it == original.end() ||
+                 (other_it != other.conditions_.end() &&
+                  condition_cmp_(*other_it, *original_it))) {
+        // No condition on other_it->node in the original, so insert the other.
+        conditions_.push_back(*other_it);
+        ++other_it;
+      } else {
+        // Take the join of the conditions, and insert the result.
+        Condition condition = std::move(*original_it);
+        condition.partial.JoinWith(other_it->partial);
+        conditions_.push_back(std::move(condition));
+        ++original_it;
+        ++other_it;
+      }
     }
   }
 
   // Adds a condition to the set.  Note: it is possible to add conflicting
   // conditions to the set (pred==0 and pred==1). This is an indication that the
-  // node is necessarily dead. Arbitrary transformation to dead code is legal so
-  // arbitrarily picking one of the conflicting conditions and transforming
-  // based on it is fine.
+  // node is necessarily dead. We will merge the partial information of the
+  // conditions, and record that the result is impossible.
   void AddCondition(const Condition& condition) {
-    VLOG(4) << absl::StreamFormat(
-        "ConditionSet for (%s, %s) : %s", condition.node->GetName(),
-        xls::ToString(condition.value), this->ToString());
+    VLOG(4) << absl::StreamFormat("ConditionSet for (%s) : %s",
+                                  condition.ToString(), this->ToString());
     CHECK(!condition.node->Is<Literal>());
-    if (auto it = absl::c_lower_bound(conditions_, condition, condition_cmp_);
-        it == conditions_.end() || *it != condition) {
-      conditions_.insert(it, condition);
+    auto it = absl::c_lower_bound(conditions_, condition, condition_cmp_);
+    if (it != conditions_.end() && it->node == condition.node) {
+      it->partial.JoinWith(condition.partial);
+      return;
     }
-    // The conditions are ordering in topological sort order (based on
+    conditions_.insert(it, condition);
+
+    // The conditions are ordered in topological sort order (based on
     // Condition.node) and transformation occurs in reverse topological sort
     // order so the most distant conditions should be at the end of the
-    // condition set.  Just pop the last condition off the end if it exceeds the
+    // condition set. Just pop the last condition off the end if it exceeds the
     // limit.
     if (conditions_.size() > kMaxConditions) {
       conditions_.pop_back();
@@ -212,7 +227,26 @@ class ConditionSet {
 
   absl::Span<const Condition> conditions() const { return conditions_; }
 
+  std::optional<Condition> condition(Node* node) const {
+    auto it = absl::c_lower_bound(
+        conditions_,
+        Condition{.node = node,
+                  .partial =
+                      PartialInformation::Unconstrained(node->BitCountOrDie())},
+        condition_cmp_);
+    if (it == conditions_.end() || it->node != node) {
+      return std::nullopt;
+    }
+    return *it;
+  }
+
   bool empty() const { return conditions_.empty(); }
+
+  bool impossible() const {
+    return absl::c_any_of(conditions_, [](const Condition& condition) {
+      return condition.partial.IsImpossible();
+    });
+  }
 
   std::string ToString() const {
     std::vector<std::string> pieces;
@@ -227,11 +261,15 @@ class ConditionSet {
   std::vector<std::pair<TreeBitLocation, bool>> GetPredicates() const {
     std::vector<std::pair<TreeBitLocation, bool>> predicates;
     for (const Condition& condition : conditions()) {
+      std::optional<TernarySpan> ternary = condition.partial.Ternary();
+      if (!ternary.has_value()) {
+        continue;
+      }
       for (int64_t i = 0; i < condition.node->BitCountOrDie(); ++i) {
-        if (condition.value[i] == TernaryValue::kUnknown) {
+        if (ternary->at(i) == TernaryValue::kUnknown) {
           continue;
         }
-        bool bit_value = (condition.value[i] == TernaryValue::kKnownOne);
+        bool bit_value = (ternary->at(i) == TernaryValue::kKnownOne);
         predicates.push_back({TreeBitLocation{condition.node, i}, bit_value});
       }
     }
@@ -242,19 +280,15 @@ class ConditionSet {
   absl::flat_hash_map<Node*, ValueKnowledge> GetAsGivens() const {
     absl::flat_hash_map<Node*, ValueKnowledge> givens;
     for (const Condition& condition : conditions()) {
-      const bool condition_has_value =
-          !ternary_ops::AllUnknown(condition.value);
-      const bool condition_has_range =
-          condition.range.has_value() && !condition.range->IsMaximal();
-      if (!condition_has_value && !condition_has_range) {
+      if (condition.partial.IsUnrestricted()) {
         continue;
       }
 
       ValueKnowledge& given = givens[condition.node];
-      if (condition_has_value) {
+      if (condition.partial.Ternary().has_value()) {
         if (given.ternary.has_value()) {
           if (absl::Status merged = ternary_ops::UpdateWithUnion(
-                  given.ternary->Get({}), condition.value);
+                  given.ternary->Get({}), *condition.partial.Ternary());
               !merged.ok()) {
             // This is impossible, as the conditions contradict each other. For
             // now, we can't do anything about this; it might be worth finding a
@@ -265,11 +299,11 @@ class ConditionSet {
           }
         } else {
           given.ternary = TernaryTree::CreateSingleElementTree(
-              condition.node->GetType(), std::move(condition.value));
+              condition.node->GetType(), *condition.partial.Ternary());
         }
       }
-      if (condition_has_range) {
-        IntervalSet range = *condition.range;
+      if (condition.partial.Range().has_value()) {
+        IntervalSet range = *condition.partial.Range();
         if (given.intervals.has_value()) {
           range = IntervalSet::Intersect(range, given.intervals->Get({}));
         }
@@ -417,13 +451,23 @@ class ConditionMap {
 std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
                                      Node* node,
                                      const QueryEngine& query_engine) {
-  for (const Condition& condition : condition_set.conditions()) {
-    if (condition.node == node && ternary_ops::IsFullyKnown(condition.value)) {
-      VLOG(4) << absl::StreamFormat("%s trivially implies %s==%s",
-                                    condition_set.ToString(), node->GetName(),
-                                    xls::ToString(condition.value));
-      return ternary_ops::ToKnownBitsValues(condition.value);
-    }
+  if (!node->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  if (condition_set.impossible()) {
+    VLOG(4) << absl::StreamFormat(
+        "%s is impossible, so %s can be anything; we chose zero",
+        condition_set.ToString(), node->GetName());
+    return ZeroOfType(node->GetType()).bits();
+  }
+
+  if (std::optional<Condition> condition = condition_set.condition(node);
+      condition.has_value() && condition->partial.Ternary().has_value() &&
+      ternary_ops::IsFullyKnown(*condition->partial.Ternary())) {
+    VLOG(4) << absl::StreamFormat("%s trivially implies %s==%s",
+                                  condition_set.ToString(), node->GetName(),
+                                  xls::ToString(*condition->partial.Ternary()));
+    return ternary_ops::ToKnownBitsValues(*condition->partial.Ternary());
   }
 
   std::vector<std::pair<TreeBitLocation, bool>> predicates =
@@ -446,27 +490,26 @@ std::optional<TernaryVector> ImpliedNodeTernary(
   if (!node->GetType()->IsBits()) {
     return std::nullopt;
   }
-  TernaryVector result(node->BitCountOrDie(), TernaryValue::kUnknown);
-  for (const Condition& condition : condition_set.conditions()) {
-    if (condition.node == node) {
-      VLOG(4) << absl::StreamFormat("%s trivially implies %s==%s",
-                                    condition_set.ToString(), node->GetName(),
-                                    xls::ToString(condition.value));
-      if (absl::Status update_status =
-              ternary_ops::UpdateWithUnion(result, condition.value);
-          !update_status.ok()) {
-        CHECK(absl::IsInvalidArgument(update_status));
-        // This is impossible, as the conditions contradict each other. For
-        // now, we can't do anything about this; it might be worth finding a
-        // way to propagate this information.
-        VLOG(1) << "Proved this condition is impossible: "
-                << condition_set.ToString();
-        return std::nullopt;
-      }
-    }
+  if (condition_set.impossible()) {
+    // This is impossible, as the conditions contradict each other. For
+    // now, we can't do anything about this; it might be worth finding a
+    // way to propagate this information.
+    VLOG(1) << "This condition is impossible: " << condition_set.ToString();
+    return std::nullopt;
   }
-  if (ternary_ops::IsFullyKnown(result)) {
-    return result;
+
+  PartialInformation partial =
+      PartialInformation::Unconstrained(node->BitCountOrDie());
+  std::optional<Condition> condition = condition_set.condition(node);
+  if (condition.has_value() && !condition->partial.IsUnrestricted()) {
+    VLOG(4) << absl::StreamFormat("%s trivially implies %s==%s",
+                                  condition_set.ToString(), node->GetName(),
+                                  condition->partial.ToString());
+    partial = condition->partial;
+  }
+  if (partial.Ternary().has_value() &&
+      ternary_ops::IsFullyKnown(*partial.Ternary())) {
+    return std::move(partial).Ternary();
   }
 
   std::vector<std::pair<TreeBitLocation, bool>> predicates =
@@ -477,10 +520,8 @@ std::optional<TernaryVector> ImpliedNodeTernary(
     VLOG(4) << absl::StreamFormat("%s implies %s==%s", condition_set.ToString(),
                                   node->GetName(),
                                   xls::ToString(*implied_ternary));
-    if (absl::Status update_status =
-            ternary_ops::UpdateWithUnion(result, *implied_ternary);
-        !update_status.ok()) {
-      CHECK(absl::IsInvalidArgument(update_status));
+    partial.JoinWith(PartialInformation(*implied_ternary));
+    if (partial.IsImpossible()) {
       // This is impossible, as the conditions contradict each other. For
       // now, we can't do anything about this; it might be worth finding a
       // way to propagate this information.
@@ -490,7 +531,7 @@ std::optional<TernaryVector> ImpliedNodeTernary(
     }
   }
 
-  return result;
+  return std::move(partial).Ternary();
 }
 
 // Returns the case arm node of the given select which is selected when the
@@ -551,112 +592,141 @@ absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> AffectedBy(
   return TransitiveClosure(affected_by);
 }
 
-absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
-                                                TernaryTreeView ternary,
-                                                Node* user) {
-  if (absl::c_all_of(ternary.elements(), [](TernarySpan entry) {
-        return ternary_ops::AllUnknown(entry);
-      })) {
+absl::StatusOr<std::optional<Node*>> CheckMatch(
+    Node* node, const PartialInformation& partial, Node* user) {
+  if (partial.IsImpossible()) {
+    // Matching is impossible. Return a literal 0.
+    return node->function_base()->MakeNode<Literal>(user->loc(),
+                                                    Value(UBits(0, 1)));
+  }
+  if (partial.IsUnrestricted()) {
     return std::nullopt;
   }
-  LeafTypeTree<Bits> known_bits = leaf_type_tree::Map<Bits, TernaryVector>(
-      ternary,
-      [](TernarySpan entry) { return ternary_ops::ToKnownBits(entry); });
-  XLS_ASSIGN_OR_RETURN(Node * bits_to_check,
-                       GatherBits(node, known_bits.AsView()));
-  InlineBitmap target_bitmap(bits_to_check->BitCountOrDie());
-  int64_t target_index = 0;
-  leaf_type_tree::ForEach(ternary, [&](TernarySpan entry) {
-    for (TernaryValue value : entry) {
+  if (std::optional<Bits> precise_value = partial.GetPreciseValue();
+      precise_value.has_value()) {
+    if (precise_value->bit_count() == 1) {
+      if (precise_value->IsOne()) {
+        return node;
+      } else {
+        XLS_ASSIGN_OR_RETURN(Node * negated,
+                             node->function_base()->MakeNode<UnOp>(
+                                 SourceInfo(), node, Op::kNot));
+        return negated;
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(Node * matched_value,
+                         node->function_base()->MakeNode<Literal>(
+                             SourceInfo(), Value(*precise_value)));
+    XLS_ASSIGN_OR_RETURN(Node * matched_value_check,
+                         node->function_base()->MakeNode<CompareOp>(
+                             SourceInfo(), node, matched_value, Op::kEq));
+    return matched_value_check;
+  }
+  if (std::optional<Bits> punctured_value = partial.GetPuncturedValue();
+      punctured_value.has_value()) {
+    XLS_ASSIGN_OR_RETURN(Node * punctured_literal,
+                         node->function_base()->MakeNode<Literal>(
+                             SourceInfo(), Value(*punctured_value)));
+    XLS_ASSIGN_OR_RETURN(Node * punctured_value_check,
+                         node->function_base()->MakeNode<CompareOp>(
+                             SourceInfo(), node, punctured_literal, Op::kNe));
+    return punctured_value_check;
+  }
+
+  bool should_match_ternary =
+      partial.BitCount() > 0 && partial.Ternary().has_value();
+  bool should_match_range =
+      partial.BitCount() > 0 && partial.Range().has_value();
+  if (should_match_ternary && should_match_range) {
+    if (partial.Range() == interval_ops::FromTernary(*partial.Ternary())) {
+      // The range is redundant; just use the ternary check, which is cheaper.
+      should_match_range = false;
+    } else if (partial.Ternary() ==
+               interval_ops::ExtractTernaryVector(*partial.Range())) {
+      // The ternary is redundant; just use the range check.
+      should_match_ternary = false;
+    }
+  }
+
+  std::vector<Node*> match_conditions;
+  match_conditions.reserve(2);
+
+  if (should_match_ternary) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * bits_to_check,
+        GatherBits(node, ternary_ops::ToKnownBits(*partial.Ternary())));
+
+    InlineBitmap target_bitmap(bits_to_check->BitCountOrDie());
+    int64_t target_index = 0;
+    for (TernaryValue value : *partial.Ternary()) {
       if (value == TernaryValue::kUnknown) {
         continue;
       }
       target_bitmap.Set(target_index++, value == TernaryValue::kKnownOne);
     }
-  });
-  XLS_ASSIGN_OR_RETURN(
-      Node * target,
-      node->function_base()->MakeNode<Literal>(
-          user->loc(), Value(Bits::FromBitmap(std::move(target_bitmap)))));
-  return node->function_base()->MakeNode<CompareOp>(user->loc(), bits_to_check,
-                                                    target, Op::kEq);
-}
-
-absl::StatusOr<std::optional<Node*>> CheckMatch(Node* node,
-                                                IntervalSetTreeView intervals,
-                                                Node* user) {
-  if (absl::c_any_of(intervals.elements(), [](const IntervalSet& interval_set) {
-        return interval_set.BitCount() > 0 && interval_set.IsEmpty();
-      })) {
-    // Matching is impossible. Return a literal 0.
-    return node->function_base()->MakeNode<Literal>(user->loc(),
-                                                    Value(UBits(0, 1)));
+    XLS_ASSIGN_OR_RETURN(
+        Node * target,
+        node->function_base()->MakeNode<Literal>(
+            user->loc(), Value(Bits::FromBitmap(std::move(target_bitmap)))));
+    XLS_ASSIGN_OR_RETURN(Node * check_ternary,
+                         node->function_base()->MakeNode<CompareOp>(
+                             user->loc(), bits_to_check, target, Op::kEq));
+    match_conditions.push_back(std::move(check_ternary));
   }
 
-  XLS_ASSIGN_OR_RETURN(LeafTypeTree<Node*> node_tree, ToTreeOfNodes(node));
-  XLS_ASSIGN_OR_RETURN(
-      LeafTypeTree<std::optional<Node*>> match_tree,
-      (leaf_type_tree::ZipStatus<std::optional<Node*>, Node*, IntervalSet>(
-          node_tree.AsView(), intervals.AsView(),
-          [&](Node* leaf_node, IntervalSet interval_set)
-              -> absl::StatusOr<std::optional<Node*>> {
-            if (interval_set.BitCount() == 0 || interval_set.IsMaximal()) {
-              return std::nullopt;
-            }
-            std::vector<Node*> interval_checks;
-            interval_checks.reserve(interval_set.Intervals().size());
-            for (const Interval& interval : interval_set.Intervals()) {
-              std::optional<Node*> interval_check;
+  if (should_match_range) {
+    std::vector<Node*> interval_checks;
+    interval_checks.reserve(partial.Range()->Intervals().size());
+    for (const Interval& interval : partial.Range()->Intervals()) {
+      if (interval.IsPrecise()) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * value, node->function_base()->MakeNode<Literal>(
+                              user->loc(), Value(*interval.GetPreciseValue())));
+        XLS_ASSIGN_OR_RETURN(Node * equals_value,
+                             node->function_base()->MakeNode<CompareOp>(
+                                 user->loc(), node, value, Op::kEq));
+        interval_checks.push_back(equals_value);
+        continue;
+      }
 
-              if (!interval.LowerBound().IsZero()) {
-                XLS_ASSIGN_OR_RETURN(
-                    Node * lb, node->function_base()->MakeNode<Literal>(
-                                   user->loc(), Value(interval.LowerBound())));
-                XLS_ASSIGN_OR_RETURN(interval_check,
-                                     node->function_base()->MakeNode<CompareOp>(
-                                         user->loc(), leaf_node, lb, Op::kUGe));
-              }
+      std::optional<Node*> interval_check;
+      if (!interval.LowerBound().IsZero()) {
+        XLS_ASSIGN_OR_RETURN(Node * lb,
+                             node->function_base()->MakeNode<Literal>(
+                                 user->loc(), Value(interval.LowerBound())));
+        XLS_ASSIGN_OR_RETURN(interval_check,
+                             node->function_base()->MakeNode<CompareOp>(
+                                 user->loc(), node, lb, Op::kUGe));
+      }
+      if (!interval.UpperBound().IsAllOnes()) {
+        XLS_ASSIGN_OR_RETURN(Node * ub,
+                             node->function_base()->MakeNode<Literal>(
+                                 user->loc(), Value(interval.UpperBound())));
+        XLS_ASSIGN_OR_RETURN(Node * ub_check,
+                             node->function_base()->MakeNode<CompareOp>(
+                                 user->loc(), node, ub, Op::kULe));
+        if (interval_check.has_value()) {
+          XLS_ASSIGN_OR_RETURN(
+              interval_check,
+              node->function_base()->MakeNode<NaryOp>(
+                  user->loc(), absl::MakeConstSpan({*interval_check, ub_check}),
+                  Op::kAnd));
+        } else {
+          interval_check = ub_check;
+        }
+      }
 
-              if (!interval.UpperBound().IsAllOnes()) {
-                XLS_ASSIGN_OR_RETURN(
-                    Node * ub, node->function_base()->MakeNode<Literal>(
-                                   user->loc(), Value(interval.UpperBound())));
-                XLS_ASSIGN_OR_RETURN(Node * ub_check,
-                                     node->function_base()->MakeNode<CompareOp>(
-                                         user->loc(), leaf_node, ub, Op::kULe));
-                if (interval_check.has_value()) {
-                  XLS_ASSIGN_OR_RETURN(
-                      interval_check,
-                      node->function_base()->MakeNode<NaryOp>(
-                          user->loc(),
-                          absl::MakeConstSpan({*interval_check, ub_check}),
-                          Op::kAnd));
-                } else {
-                  interval_check = ub_check;
-                }
-              }
-
-              if (interval_check.has_value()) {
-                interval_checks.push_back(*interval_check);
-              }
-            }
-            return NaryAndIfNeeded(node->function_base(), interval_checks);
-          })));
-
-  if (absl::c_all_of(match_tree.elements(), [](std::optional<Node*> entry) {
-        return !entry.has_value();
-      })) {
-    return std::nullopt;
-  }
-
-  std::vector<Node*> match_checks;
-  match_checks.reserve(match_tree.elements().size());
-  for (std::optional<Node*> entry : match_tree.elements()) {
-    if (entry.has_value()) {
-      match_checks.push_back(*entry);
+      if (interval_check.has_value()) {
+        interval_checks.push_back(*interval_check);
+      }
     }
-  }
-  return NaryAndIfNeeded(node->function_base(), match_checks);
+    XLS_ASSIGN_OR_RETURN(
+        Node * check_range,
+        NaryOrIfNeeded(node->function_base(), interval_checks));
+    match_conditions.push_back(std::move(check_range));
+  };
+
+  return NaryAndIfNeeded(node->function_base(), match_conditions);
 }
 
 class ImpliedConditionCache {
@@ -680,29 +750,24 @@ class ImpliedConditionCache {
     implied_conditions.AddCondition(condition);
 
     if (condition.node->op() == Op::kNot &&
-        !ternary_ops::AllUnknown(condition.value) &&
+        condition.partial.Ternary().has_value() &&
         !condition.node->operand(0)->Is<Literal>()) {
       Node* operand = condition.node->operand(0);
 
       VLOG(4) << "Lifting a known negated value: not(" << operand->GetName()
-              << ") == " << xls::ToString(condition.value);
+              << ") == " << xls::ToString(*condition.partial.Ternary());
 
-      TernaryVector negated = condition.value;
-      for (int64_t i = 0; i < negated.size(); ++i) {
-        if (negated[i] == TernaryValue::kKnownOne) {
-          negated[i] = TernaryValue::kKnownZero;
-        } else if (negated[i] == TernaryValue::kKnownZero) {
-          negated[i] = TernaryValue::kKnownOne;
-        }
-      }
-      implied_conditions.Union(
-          GetImplied(Condition{.node = operand, .value = negated}));
+      implied_conditions.Union(GetImplied(Condition{
+          .node = operand, .partial = partial_ops::Not(condition.partial)}));
     }
 
-    if (condition.node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor})) {
-      TernaryVector lifted_value = condition.node->OpIn({Op::kNand, Op::kNor})
-                                       ? ternary_ops::Not(condition.value)
-                                       : condition.value;
+    if (condition.node->OpIn({Op::kAnd, Op::kOr, Op::kNand, Op::kNor}) &&
+        condition.partial.Ternary().has_value()) {
+      TernarySpan value = *condition.partial.Ternary();
+      TernaryVector lifted_value =
+          condition.node->OpIn({Op::kNand, Op::kNor})
+              ? ternary_ops::Not(value)
+              : TernaryVector(value.begin(), value.end());
       TernaryValue lifted_bit = condition.node->OpIn({Op::kAnd, Op::kNand})
                                     ? TernaryValue::kKnownOne
                                     : TernaryValue::kKnownZero;
@@ -720,44 +785,91 @@ class ImpliedConditionCache {
                                  [](std::string* out, Node* node) {
                                    absl::StrAppend(out, node->GetName());
                                  })
-                << ") == " << xls::ToString(condition.value)
+                << ") == " << xls::ToString(value)
                 << ", so all operands must match: "
                 << xls::ToString(lifted_value);
         for (Node* operand : condition.node->operands()) {
           if (operand->Is<Literal>()) {
             continue;
           }
-          implied_conditions.Union(
-              GetImplied(Condition{.node = operand, .value = lifted_value}));
+          implied_conditions.Union(GetImplied(Condition{
+              .node = operand, .partial = PartialInformation(lifted_value)}));
         }
       }
     }
 
-    if ((condition.node->op() == Op::kEq &&
-         ternary_ops::IsKnownOne(condition.value)) ||
-        (condition.node->op() == Op::kNe &&
-         ternary_ops::IsKnownZero(condition.value))) {
+    bool lhs_rhs_equal = false;
+    bool lhs_rhs_unequal = false;
+    if (condition.node->OpIn({Op::kEq, Op::kNe}) &&
+        condition.partial.Range().has_value() &&
+        condition.partial.Range()->IsPrecise()) {
+      lhs_rhs_equal = (condition.node->op() == Op::kEq) ==
+                      (condition.partial.Range()->GetPreciseValue()->IsOne());
+      lhs_rhs_unequal = (condition.node->op() == Op::kNe) ==
+                        (condition.partial.Range()->GetPreciseValue()->IsOne());
+    }
+    if (lhs_rhs_equal && condition.node->operand(0)->GetType()->IsBits()) {
       Node* lhs = condition.node->operand(0);
       Node* rhs = condition.node->operand(1);
+      CHECK(rhs->GetType()->IsBits());
 
       VLOG(4) << "Converting a known equality to direct conditions: "
               << lhs->GetName() << " == " << rhs->GetName();
 
-      if (std::optional<SharedLeafTypeTree<TernaryVector>> lhs_ternary =
-              query_engine_->GetTernary(lhs);
-          !rhs->Is<Literal>() && rhs->GetType()->IsBits() &&
-          lhs_ternary.has_value() &&
-          !ternary_ops::AllUnknown(lhs_ternary->Get({}))) {
-        implied_conditions.Union(
-            GetImplied(Condition{.node = rhs, .value = lhs_ternary->Get({})}));
+      std::optional<SharedLeafTypeTree<TernaryVector>> lhs_ternary =
+          query_engine_->GetTernary(lhs);
+      IntervalSet lhs_range = query_engine_->GetIntervals(lhs).Get({});
+      bool info_on_lhs = (lhs_ternary.has_value() &&
+                          !ternary_ops::AllUnknown(lhs_ternary->Get({}))) ||
+                         !lhs_range.IsMaximal();
+      if (!rhs->Is<Literal>() && info_on_lhs) {
+        implied_conditions.Union(GetImplied(
+            Condition{.node = rhs,
+                      .partial = {lhs_ternary.has_value()
+                                      ? std::make_optional(lhs_ternary->Get({}))
+                                      : std::nullopt,
+                                  lhs_range}}));
       }
-      if (std::optional<SharedLeafTypeTree<TernaryVector>> rhs_ternary =
-              query_engine_->GetTernary(rhs);
+
+      std::optional<SharedLeafTypeTree<TernaryVector>> rhs_ternary =
+          query_engine_->GetTernary(rhs);
+      IntervalSet rhs_range = query_engine_->GetIntervals(rhs).Get({});
+      bool info_on_rhs = (rhs_ternary.has_value() &&
+                          !ternary_ops::AllUnknown(rhs_ternary->Get({}))) ||
+                         !rhs_range.IsMaximal();
+      if (!lhs->Is<Literal>() && info_on_rhs) {
+        implied_conditions.Union(GetImplied(
+            Condition{.node = lhs,
+                      .partial = {rhs_ternary.has_value()
+                                      ? std::make_optional(rhs_ternary->Get({}))
+                                      : std::nullopt,
+                                  rhs_range}}));
+      }
+    }
+
+    if (lhs_rhs_unequal && condition.node->operand(0)->GetType()->IsBits()) {
+      Node* lhs = condition.node->operand(0);
+      Node* rhs = condition.node->operand(1);
+      CHECK(rhs->GetType()->IsBits());
+
+      VLOG(4) << "Converting a known inequality to direct conditions: "
+              << lhs->GetName() << " != " << rhs->GetName();
+
+      if (std::optional<Value> lhs_value = query_engine_->KnownValue(lhs);
+          !rhs->Is<Literal>() && rhs->GetType()->IsBits() &&
+          lhs_value.has_value()) {
+        implied_conditions.Union(GetImplied(
+            Condition{.node = rhs,
+                      .partial = PartialInformation(
+                          IntervalSet::Punctured(lhs_value->bits()))}));
+      }
+      if (std::optional<Value> rhs_value = query_engine_->KnownValue(rhs);
           !lhs->Is<Literal>() && lhs->GetType()->IsBits() &&
-          rhs_ternary.has_value() &&
-          !ternary_ops::AllUnknown(rhs_ternary->Get({}))) {
-        implied_conditions.Union(
-            GetImplied(Condition{.node = lhs, .value = rhs_ternary->Get({})}));
+          rhs_value.has_value()) {
+        implied_conditions.Union(GetImplied(
+            Condition{.node = lhs,
+                      .partial = PartialInformation(
+                          IntervalSet::Punctured(rhs_value->bits()))}));
       }
     }
 
@@ -892,6 +1004,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         } else {
           set.Intersect(user_set);
         }
+        VLOG(4) << "Conditions for " << node->GetName()
+                << " so far: " << set.ToString();
         first_user = false;
       }
     }
@@ -910,8 +1024,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           // `case_no`.
           edge_set.Union(condition_cache.GetImplied(Condition{
               .node = select->selector(),
-              .value = ternary_ops::BitsToTernary(
-                  UBits(case_no, select->selector()->BitCountOrDie())),
+              .partial = PartialInformation(IntervalSet::Precise(
+                  UBits(case_no, select->selector()->BitCountOrDie()))),
           }));
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
@@ -930,7 +1044,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           selector_value[case_no] = TernaryValue::kKnownOne;
           edge_set.Union(condition_cache.GetImplied(Condition{
               .node = select->selector(),
-              .value = selector_value,
+              .partial = PartialInformation(selector_value),
           }));
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
@@ -951,8 +1065,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
               Bits::PowerOfTwo(case_no, select->selector()->BitCountOrDie());
           edge_set.Union(condition_cache.GetImplied(Condition{
               .node = select->selector(),
-              .value =
-                  ternary_ops::FromKnownBits(known_bits, known_bits_values),
+              .partial = PartialInformation(
+                  ternary_ops::FromKnownBits(known_bits, known_bits_values)),
           }));
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
@@ -962,8 +1076,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         // selector are zero.
         edge_set.Union(condition_cache.GetImplied(Condition{
             .node = select->selector(),
-            .value = TernaryVector(select->selector()->BitCountOrDie(),
-                                   TernaryValue::kKnownZero),
+            .partial = PartialInformation(IntervalSet::Precise(
+                UBits(0, select->selector()->BitCountOrDie()))),
         }));
         condition_map.SetEdgeConditionSet(node, select->cases().size() + 1,
                                           std::move(edge_set));
@@ -988,11 +1102,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         // cares about the update value if all indices are in range.
         edge_set.Union(condition_cache.GetImplied(Condition{
             .node = index,
-            .value =
-                TernaryVector(index->BitCountOrDie(), TernaryValue::kUnknown),
-            .range = IntervalSet::Of({Interval::RightOpen(
+            .partial = PartialInformation(IntervalSet::Of({Interval::RightOpen(
                 UBits(0, index->BitCountOrDie()),
-                UBits(array_size, index->BitCountOrDie()))}),
+                UBits(array_size, index->BitCountOrDie()))})),
         }));
 
         array_type = array_type->AsArrayOrDie()->element_type();
@@ -1017,8 +1129,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           node->GetName(), predicate->GetName(), send->data()->GetName());
 
       ConditionSet edge_set = set;
-      edge_set.Union(condition_cache.GetImplied(
-          Condition{.node = predicate, .value = {TernaryValue::kKnownOne}}));
+      edge_set.Union(condition_cache.GetImplied(Condition{
+          .node = predicate,
+          .partial = PartialInformation(IntervalSet::Precise(UBits(1, 1)))}));
       condition_map.SetEdgeConditionSet(node, Send::kDataOperand,
                                         std::move(edge_set));
     }
@@ -1040,8 +1153,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           node->GetName(), predicate->GetName(), next->value()->GetName());
 
       ConditionSet edge_set = set;
-      edge_set.Union(condition_cache.GetImplied(
-          Condition{.node = predicate, .value = {TernaryValue::kKnownOne}}));
+      edge_set.Union(condition_cache.GetImplied(Condition{
+          .node = predicate,
+          .partial = PartialInformation(IntervalSet::Precise(UBits(1, 1)))}));
       condition_map.SetEdgeConditionSet(node, Next::kStateReadOperand,
                                         edge_set);
       condition_map.SetEdgeConditionSet(node, Next::kValueOperand,
@@ -1063,11 +1177,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
       // Record that this node is unused (including by next_value nodes) when
       // the condition set is not met.
-      absl::flat_hash_map<Node*, ValueKnowledge> accessed_when =
-          set.GetAsGivens();
-      if (accessed_when.empty()) {
-        continue;
-      }
+      absl::Span<const Condition> accessed_when = set.conditions();
 
       std::vector<Node*> access_conditions;
       if (!affected_by.has_value()) {
@@ -1079,20 +1189,10 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
           // possible to specialize on `src` without creating a cycle.
           continue;
         }
-        if (given.ternary.has_value()) {
-          XLS_ASSIGN_OR_RETURN(std::optional<Node*> access_condition,
-                               CheckMatch(src, given.ternary->AsView(), node));
-          if (access_condition.has_value()) {
-            access_conditions.push_back(*access_condition);
-          }
-        }
-        if (given.intervals.has_value()) {
-          XLS_ASSIGN_OR_RETURN(
-              std::optional<Node*> access_condition,
-              CheckMatch(src, given.intervals->AsView(), node));
-          if (access_condition.has_value()) {
-            access_conditions.push_back(*access_condition);
-          }
+        XLS_ASSIGN_OR_RETURN(std::optional<Node*> access_condition,
+                             CheckMatch(src, given, node));
+        if (access_condition.has_value()) {
+          access_conditions.push_back(*access_condition);
         }
       }
       if (access_conditions.empty()) {
