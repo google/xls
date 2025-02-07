@@ -905,6 +905,28 @@ TEST_F(XlsIntTest, XlsToLongBounds) {
   })";
   RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
 }
+
+TEST_F(XlsIntTest, XlsIntHasNbits) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      return ac_datatypes::ac::nbits<6>::val;
+  })";
+  RunAcDatatypeTest({}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, XlsIntHasRT_T) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      typedef XlsInt<4, true> d_t;
+      typedef d_t::rt_T<XlsInt<8, false>>::mult d_t2;
+      d_t2 result = a;
+      return result.to_long();
+  })";
+  RunAcDatatypeTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

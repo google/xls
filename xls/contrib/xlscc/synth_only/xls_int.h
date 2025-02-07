@@ -498,6 +498,24 @@ struct [[hls_no_tuple]] BitElemRef {
   bool v;
 };
 
+// Defines the result types for each operation using ac_int.
+// T is the second operand while rt_T<XlsInt<W, S>> is the first operand.
+// Since the operand order is reversed, the result types for non-commutative
+// operations are also reversed.
+template <typename T>
+struct rt_ac_int_T {
+  template <int W, bool S>
+  struct op1 {
+    typedef typename T::template rt_T<XlsInt<W, S> >::mult mult;
+    typedef typename T::template rt_T<XlsInt<W, S> >::plus plus;
+    typedef typename T::template rt_T<XlsInt<W, S> >::minus2 minus;
+    typedef typename T::template rt_T<XlsInt<W, S> >::minus minus2;
+    typedef typename T::template rt_T<XlsInt<W, S> >::logic logic;
+    typedef typename T::template rt_T<XlsInt<W, S> >::div2 div;
+    typedef typename T::template rt_T<XlsInt<W, S> >::div div2;
+  };
+};
+
 template <int Width, bool Signed = true>
 class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
  public:
@@ -590,6 +608,11 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
   static const int i_width = Width;
   static const bool sign = Signed;
 
+  template <typename T>
+  struct map {
+    typedef T t;
+  };
+
   // Defines the result types for each operation based on ac_int
   template <int ToW, bool ToSign>
   struct rt
@@ -602,6 +625,22 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     typedef XlsInt<rt::mod_w, rt::mod_s> mod;
     typedef XlsInt arg1;
     typedef XlsInt ident;
+  };
+
+  template <typename T>
+  struct rt_T {
+    typedef typename map<T>::t map_T;
+    typedef typename rt_ac_int_T<map_T>::template op1<Width, Signed>::mult mult;
+    typedef typename rt_ac_int_T<map_T>::template op1<Width, Signed>::plus plus;
+    typedef
+        typename rt_ac_int_T<map_T>::template op1<Width, Signed>::minus minus;
+    typedef
+        typename rt_ac_int_T<map_T>::template op1<Width, Signed>::minus2 minus2;
+    typedef
+        typename rt_ac_int_T<map_T>::template op1<Width, Signed>::logic logic;
+    typedef typename rt_ac_int_T<map_T>::template op1<Width, Signed>::div div;
+    typedef typename rt_ac_int_T<map_T>::template op1<Width, Signed>::div2 div2;
+    typedef XlsInt arg1;
   };
 
   struct rt_unary : public ac_datatypes::ac_int<Width, Signed>::rt_unary {
@@ -939,6 +978,24 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
 
   template <int ToW, bool ToSign>
   friend class XlsInt;
+};
+
+template <int W2, bool S2>
+struct rt_ac_int_T<XlsInt<W2, S2> > {
+  typedef XlsInt<W2, S2> i2_t;
+  template <int W, bool S>
+  struct op1 {
+    typedef XlsInt<W, S> i_t;
+    typedef typename i_t::template rt<W2, S2>::mult mult;
+    typedef typename i_t::template rt<W2, S2>::plus plus;
+    typedef typename i_t::template rt<W2, S2>::minus minus;
+    typedef typename i2_t::template rt<W, S>::minus minus2;
+    typedef typename i_t::template rt<W2, S2>::logic logic;
+    typedef typename i_t::template rt<W2, S2>::div div;
+    typedef typename i2_t::template rt<W, S>::div div2;
+    typedef typename i_t::template rt<W2, S2>::mod mod;
+    typedef typename i2_t::template rt<W, S>::mod mod2;
+  };
 };
 
 template <int Width, bool Signed>
