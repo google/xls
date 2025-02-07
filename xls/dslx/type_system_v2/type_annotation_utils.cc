@@ -16,18 +16,24 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
@@ -36,7 +42,7 @@
 namespace xls::dslx {
 namespace {
 
-std::optional<StructOrProcDef> GetStructOrProcDef(
+std::optional<const StructDefBase*> GetStructOrProcDef(
     const TypeAnnotation* annotation) {
   const auto* type_ref_annotation =
       dynamic_cast<const TypeRefTypeAnnotation*>(annotation);
@@ -46,16 +52,16 @@ std::optional<StructOrProcDef> GetStructOrProcDef(
   const TypeDefinition& def =
       type_ref_annotation->type_ref()->type_definition();
   return absl::visit(
-      Visitor{[](TypeAlias* alias) -> std::optional<StructOrProcDef> {
+      Visitor{[](TypeAlias* alias) -> std::optional<const StructDefBase*> {
                 return GetStructOrProcDef(&alias->type_annotation());
               },
-              [](StructDef* struct_def) -> std::optional<StructOrProcDef> {
+              [](StructDef* struct_def) -> std::optional<const StructDefBase*> {
                 return struct_def;
               },
-              [](ProcDef* proc_def) -> std::optional<StructOrProcDef> {
+              [](ProcDef* proc_def) -> std::optional<const StructDefBase*> {
                 return proc_def;
               },
-              [](ColonRef* colon_ref) -> std::optional<StructOrProcDef> {
+              [](ColonRef* colon_ref) -> std::optional<const StructDefBase*> {
                 if (std::holds_alternative<TypeRefTypeAnnotation*>(
                         colon_ref->subject())) {
                   return GetStructOrProcDef(
@@ -63,10 +69,10 @@ std::optional<StructOrProcDef> GetStructOrProcDef(
                 }
                 return std::nullopt;
               },
-              [](EnumDef*) -> std::optional<StructOrProcDef> {
+              [](EnumDef*) -> std::optional<const StructDefBase*> {
                 return std::nullopt;
               },
-              [](UseTreeEntry*) -> std::optional<StructOrProcDef> {
+              [](UseTreeEntry*) -> std::optional<const StructDefBase*> {
                 // TODO(https://github.com/google/xls/issues/352): 2025-01-23
                 // Resolve possible Struct or Proc definition through the extern
                 // UseTreeEntry.
@@ -230,13 +236,52 @@ std::optional<StructOrProcRef> GetStructOrProcRef(
   if (type_ref_annotation == nullptr) {
     return std::nullopt;
   }
-  std::optional<StructOrProcDef> def = GetStructOrProcDef(type_ref_annotation);
+  std::optional<const StructDefBase*> def =
+      GetStructOrProcDef(type_ref_annotation);
   if (!def.has_value()) {
     return std::nullopt;
   }
   return StructOrProcRef{.def = *def,
                          .parametrics = type_ref_annotation->parametrics(),
                          .instantiator = type_ref_annotation->instantiator()};
+}
+
+absl::Status VerifyAllParametricsSatisfied(
+    const std::vector<ParametricBinding*>& bindings,
+    const std::vector<ExprOrType>& actual_parametrics,
+    std::string_view binding_owner_identifier, const Span& error_span,
+    const FileTable& file_table) {
+  std::vector<std::string> missing_parametric_names;
+  for (int i = actual_parametrics.size(); i < bindings.size(); i++) {
+    const ParametricBinding* binding = bindings[i];
+    if (binding->expr() == nullptr) {
+      missing_parametric_names.push_back(binding->identifier());
+    }
+  }
+  if (missing_parametric_names.empty()) {
+    return absl::OkStatus();
+  }
+  return TypeInferenceErrorStatus(
+      error_span, /*type=*/nullptr,
+      absl::Substitute("Use of `$0` with missing parametric(s): $1",
+                       binding_owner_identifier,
+                       absl::StrJoin(missing_parametric_names, ", ")),
+      file_table);
+}
+
+CloneReplacer NameRefMapper(
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& map) {
+  return [&](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
+    if (const auto* ref = dynamic_cast<const NameRef*>(node);
+        ref != nullptr &&
+        std::holds_alternative<const NameDef*>(ref->name_def())) {
+      const auto it = map.find(std::get<const NameDef*>(ref->name_def()));
+      if (it != map.end()) {
+        return ToAstNode(it->second);
+      }
+    }
+    return std::nullopt;
+  };
 }
 
 }  // namespace xls::dslx

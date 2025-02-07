@@ -17,20 +17,22 @@
 
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
-using StructOrProcDef = std::variant<const StructDef*, const ProcDef*>;
-
 struct StructOrProcRef {
-  StructOrProcDef def;
+  const StructDefBase* def;
   std::vector<ExprOrType> parametrics;
   std::optional<const StructInstance*> instantiator;
 };
@@ -96,6 +98,22 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
 // to by `annotation`.
 std::optional<StructOrProcRef> GetStructOrProcRef(
     const TypeAnnotation* annotation);
+
+// Verifies that all `bindings` either have a value in `actual_parametrics` or
+// a default expression. Note that this is not a requirement in all situations
+// where parametrics can be explicitly passed. In situations where they can be
+// inferred, this is only a requirement after inference.
+absl::Status VerifyAllParametricsSatisfied(
+    const std::vector<ParametricBinding*>& bindings,
+    const std::vector<ExprOrType>& actual_parametrics,
+    std::string_view binding_owner_identifier, const Span& error_span,
+    const FileTable& file_table);
+
+// Creates a CloneReplacer that replaces any `NameRef` to a `NameDef` in `map`
+// with the corresponding `ExprOrType`. This is used for replacement of
+// parametric variables with values.
+CloneReplacer NameRefMapper(
+    const absl::flat_hash_map<const NameDef*, ExprOrType>& map);
 
 }  // namespace xls::dslx
 

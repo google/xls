@@ -3858,5 +3858,221 @@ fn main() {
       TypecheckFails(HasSizeMismatch("uN[3]", "uN[1]")));
 }
 
+TEST(TypecheckV2Test, ParametricImplConstant) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  const N_VALUE = N;
+}
+
+const X = uN[S<1>::N_VALUE]:0;
+const Y = uN[S<2>::N_VALUE]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[1]"),
+                                      HasNodeWithType("Y", "uN[2]"))));
+}
+
+TEST(TypecheckV2Test, SumOfImplConstantsFromDifferentParameterizations) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  const N_VALUE = N;
+}
+
+const X = uN[S<2>::N_VALUE + S<1>::N_VALUE]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[3]")));
+}
+
+TEST(TypecheckV2Test,
+     ImplConstantWithDifferentExpressionsOfOneParameterization) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  const N_VALUE = N;
+}
+
+const A = u32:2;
+const X = uN[S<2>::N_VALUE + S<A>::N_VALUE]:0;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[4]")));
+}
+
+TEST(TypecheckV2Test, ParametricConstantUsingParametricFunction) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+fn f<N: u32>() -> u32 { N + 1 }
+
+impl S<N> {
+  const N_PLUS_1_VALUE = f<N>();
+}
+
+const X = uN[S<2>::N_PLUS_1_VALUE]:0;
+const Y = uN[S<10>::N_PLUS_1_VALUE]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[3]"),
+                                      HasNodeWithType("Y", "uN[11]"))));
+}
+
+TEST(TypecheckV2Test, ParametricConstantUsingConstantFromSameImpl) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+fn f<N: u32>() -> u32 { N + 1 }
+
+impl S<N> {
+  const N_PLUS_1_VALUE = f<N>();
+  const N_PLUS_2_VALUE = f<N_PLUS_1_VALUE>();
+}
+
+const X = uN[S<2>::N_PLUS_2_VALUE]:0;
+const Y = uN[S<10>::N_PLUS_2_VALUE]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[4]"),
+                                      HasNodeWithType("Y", "uN[12]"))));
+}
+
+TEST(TypecheckV2Test, StaticParametricImplFnUsingConstant) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  const N_PLUS_1_VALUE = N + 1;
+  fn foo(a: u32) -> u32 { N_PLUS_1_VALUE + N + a }
+}
+
+// Note that we would likely need constexpr evaluator to be aware of impl
+// TypeInfos in order to use these return values in a mandatory constexpr
+// context.
+const X = S<3>::foo(10);
+const Y = S<4>::foo(10);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, StaticImplFnUsingParametricForInterface) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  fn foo(a: uN[N]) -> uN[N] { a }
+}
+
+const X = S<16>::foo(10);
+const Y = S<32>::foo(11);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
+                                      HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, ParametricConstantUsingConstantFromOtherImpl) {
+  EXPECT_THAT(R"(
+// Note that the entities in here are sensitive to positioning due to
+// https://github.com/google/xls/issues/1911
+
+struct S<N: u32> {}
+
+fn f<N: u32>() -> u32 { N + 1 }
+
+impl S<N> {
+  const N_PLUS_1_VALUE = f<N>();
+}
+
+struct T<N: u32> {}
+
+impl T<N> {
+  const N_PLUS_2_VALUE = f<{S<N>::N_PLUS_1_VALUE}>();
+}
+
+const X = uN[T<2>::N_PLUS_2_VALUE]:0;
+const Y = uN[T<10>::N_PLUS_2_VALUE]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[4]"),
+                                      HasNodeWithType("Y", "uN[12]"))));
+}
+
+TEST(TypecheckV2Test, ParametricBasedImplConstantType) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  const C = uN[N]:0;
+}
+
+const C2 = S<2>::C;
+const C3 = S<3>::C;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("C2", "uN[2]"),
+                                      HasNodeWithType("C3", "uN[3]"))));
+}
+
+TEST(TypecheckV2Test, ParametricFromFunctionUsedInConstantReference) {
+  EXPECT_THAT(R"(
+struct S<N: u32> {}
+
+impl S<N> {
+  const C = uN[N]:0;
+}
+
+fn f<N: u32>() -> uN[N] {
+  S<N>::C
+}
+
+const C8 = f<8>();
+const C9 = f<9>();
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("C8", "uN[8]"),
+                                      HasNodeWithType("C9", "uN[9]"))));
+}
+
+TEST(TypecheckV2Test, ImplConstantUsingParametricDefault) {
+  EXPECT_THAT(R"(
+struct S<A: u32, B: u32 = {A * 2}> {}
+
+impl S<A, B> {
+  const C = B;
+}
+
+const X = uN[S<2>::C]:0;
+const Y = uN[S<3>::C]:0;
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[4]"),
+                                      HasNodeWithType("Y", "uN[6]"))));
+}
+
+TEST(TypecheckV2Test, ParametricImplConstantUsedWithMissingParametrics) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32, B: u32 = {A * 2}> {}
+
+impl S<A, B> {
+  const C = B;
+}
+
+const X = S::C;
+)",
+      TypecheckFails(HasSubstr("Use of `S` with missing parametric(s): A")));
+}
+
+TEST(TypecheckV2Test, ParametricImplConstantUsedWithTooManyParametrics) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32> {}
+
+impl S<A> {
+  const C = A;
+}
+
+const X = S<1, 2>::C;
+)",
+      TypecheckFails(
+          HasSubstr("Too many parametric values supplied; limit: 1 given: 2")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

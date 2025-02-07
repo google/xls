@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 namespace {
@@ -240,6 +241,26 @@ class InferenceTableImpl : public InferenceTable {
     return result;
   }
 
+  const ParametricContext* GetOrCreateParametricStructContext(
+      const StructDefBase* struct_def, const AstNode* node,
+      ParametricEnv parametric_env) override {
+    auto& contexts = parametric_struct_contexts_[struct_def];
+    const auto it = contexts.find(parametric_env);
+    if (it != contexts.end()) {
+      return it->second;
+    }
+    auto context = std::make_unique<ParametricContext>(
+        parametric_contexts_.size(), node,
+        ParametricStructDetails{struct_def, parametric_env},
+        /*parent_context=*/std::nullopt);
+    const ParametricContext* result = context.get();
+    parametric_contexts_.push_back(std::move(context));
+    contexts.emplace_hint(it, parametric_env, result);
+    mutable_parametric_context_data_.emplace(result,
+                                             MutableParametricContextData{});
+    return result;
+  }
+
   std::optional<ParametricContextScopedExpr> GetParametricValue(
       const NameDef& binding_name_def,
       const ParametricContext& context) const override {
@@ -419,6 +440,10 @@ class InferenceTableImpl : public InferenceTable {
       mutable_parametric_context_data_;
   absl::flat_hash_set<const TypeAnnotation*> auto_literal_annotations_;
   absl::flat_hash_map<const ColonRef*, const AstNode*> colon_ref_targets_;
+  absl::flat_hash_map<
+      const StructDefBase*,
+      absl::flat_hash_map<ParametricEnv, const ParametricContext*>>
+      parametric_struct_contexts_;
 };
 
 }  // namespace

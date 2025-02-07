@@ -34,6 +34,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 
@@ -49,6 +50,7 @@ struct ParametricInvocationDetails {
 // The details for a `ParametricContext` that is for a struct.
 struct ParametricStructDetails {
   const StructDefBase* struct_or_proc_def;
+  ParametricEnv env;
 };
 
 // Identifies either an invocation of a parametric function, or a
@@ -132,7 +134,9 @@ class ParametricContext {
                                           : "<standalone context>");
                 },
                 [](const ParametricStructDetails& details) -> std::string {
-                  return details.struct_or_proc_def->identifier();
+                  return absl::StrCat(
+                      details.struct_or_proc_def->identifier(),
+                      ", parametrics: ", details.env.ToString());
                 }},
         details);
   }
@@ -241,6 +245,14 @@ class InferenceTable {
   // Retrieves all the parametric invocations that have been defined.
   virtual std::vector<const ParametricContext*> GetParametricInvocations()
       const = 0;
+
+  // Defines a parametric struct context with the given parametric values, or
+  // returns the existing one with the same values. The idea is to tie each
+  // struct parameterization to a canonicalized env to avoid unnecessary
+  // aliasing. The `parametric_env` does not need values for defaulted bindings.
+  virtual const ParametricContext* GetOrCreateParametricStructContext(
+      const StructDefBase* struct_def, const AstNode* node,
+      ParametricEnv parametric_env) = 0;
 
   // Returns the expression for the value of the given parametric in the given
   // invocation, if the parametric has an explicit or default expression. If it

@@ -85,10 +85,33 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
               ToAstNode(std::get<NameRef*>(node->subject())->name_def()))) {
         if (const auto* struct_def =
                 dynamic_cast<const StructDefBase*>(name_def->definer())) {
-          return HandleStructAttributeReferenceInternal(node, *struct_def,
-                                                        node->attr());
+          XLS_ASSIGN_OR_RETURN(std::optional<const AstNode*> def,
+                               HandleStructAttributeReferenceInternal(
+                                   node, *struct_def, {}, node->attr()));
+          if (def.has_value()) {
+            return PropagateDefToRef(*def, node);
+          }
         }
       }
+    }
+    if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {
+      // This is something like `S<parametrics>::CONSTANT` or
+      // `S<parametrics>::static_fn`. We can't fully resolve these things on
+      // the spot, so we do some basic validation and then produce a
+      // `MemberTypeAnnotation` for deferred resolution.
+      const auto* annotation =
+          std::get<TypeRefTypeAnnotation*>(node->subject());
+      XLS_RETURN_IF_ERROR(annotation->Accept(this));
+      std::optional<StructOrProcRef> struct_or_proc_ref =
+          GetStructOrProcRef(annotation);
+      if (struct_or_proc_ref.has_value()) {
+        XLS_RETURN_IF_ERROR(HandleStructAttributeReferenceInternal(
+                                node, *struct_or_proc_ref->def,
+                                struct_or_proc_ref->parametrics, node->attr())
+                                .status());
+      }
+      return table_.SetTypeAnnotation(
+          node, module_.Make<MemberTypeAnnotation>(annotation, node->attr()));
     }
     return absl::UnimplementedError(
         "Type inference version 2 is a work in progress and has limited "
@@ -322,8 +345,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         struct_or_proc_ref->parametrics.empty()) {
       return DefaultHandler(node);
     }
-    const StructDefBase* struct_def =
-        dynamic_cast<const StructDefBase*>(ToAstNode(struct_or_proc_ref->def));
+    const StructDefBase* struct_def = struct_or_proc_ref->def;
     if (struct_or_proc_ref->parametrics.size() >
         struct_def->parametric_bindings().size()) {
       return ArgCountMismatchErrorStatus(
@@ -396,7 +418,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
               node->struct_ref()->ToString()),
           file_table_);
     }
-    if (!std::holds_alternative<const StructDef*>(struct_or_proc_ref->def)) {
+    if (struct_or_proc_ref->def->kind() == AstNodeKind::kProcDef) {
       return TypeInferenceErrorStatusForAnnotation(
           node->span(), node->struct_ref(),
           "Impl-style procs are a work in progress and cannot yet be "
@@ -404,11 +426,11 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           file_table_);
     }
 
+    const StructDef* struct_def =
+        dynamic_cast<const StructDef*>(struct_or_proc_ref->def);
     const NameRef* type_variable = *table_.GetTypeVariable(node);
     const TypeAnnotation* struct_variable_type =
         module_.Make<TypeVariableTypeAnnotation>(type_variable);
-    const StructDef* struct_def =
-        std::get<const StructDef*>(struct_or_proc_ref->def);
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node,
         CreateStructAnnotation(module_, const_cast<StructDef*>(struct_def),
@@ -890,11 +912,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   // Determines the target of the given `ColonRef` that is already known to be
   // referencing a member with the name `attribute` of the given `struct_def`.
   // Associates the target node with the `ColonRef` in the `InferenceTable` for
-  // later reference, and sets a type annotation on the `ColonRef` if
-  // appropriate.
-  absl::Status HandleStructAttributeReferenceInternal(
+  // later reference, and returns it. Also sets a type annotation on the
+  // `ColonRef` if appropriate.
+  absl::StatusOr<std::optional<const AstNode*>>
+  HandleStructAttributeReferenceInternal(
       const ColonRef* node, const StructDefBase& struct_def,
-      std::string_view attribute) {
+      const std::vector<ExprOrType>& parametrics, std::string_view attribute) {
     if (!struct_def.impl().has_value()) {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,
@@ -912,12 +935,25 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
               attribute, struct_def.identifier()),
           file_table_);
     }
+    if (struct_def.IsParametric()) {
+      // The type-checking of a `TypeRefTypeAnnotation` containing any
+      // parametrics will prove that there aren't too many parametrics given.
+      // However, for general validation, a type reference does not need all
+      // bindings satisfied. In a case like `S { a, b }`, we can infer some or
+      // all `S` binding values from `a` and `b` at conversion time. However, in
+      // `S::SOME_CONSTANT` or `S::static_fn(a)`, we will not infer the `S`
+      // bindings; only the bindings for `static_fn` itself, if it has any.
+      // Hence all the `S` bindings must be satisfied.
+      XLS_RETURN_IF_ERROR(VerifyAllParametricsSatisfied(
+          struct_def.parametric_bindings(), parametrics,
+          struct_def.identifier(), node->span(), file_table_));
+    }
     table_.SetColonRefTarget(node, ToAstNode(*member));
     if (std::holds_alternative<ConstantDef*>(*member) ||
         std::holds_alternative<Function*>(*member)) {
-      return PropagateDefToRef(ToAstNode(*member), node);
+      return ToAstNode(*member);
     }
-    return absl::OkStatus();
+    return std::nullopt;
   }
 
   // Helper that creates an internal type variable for a `ConstantDef`, `Param`,
