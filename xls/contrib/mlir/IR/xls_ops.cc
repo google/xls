@@ -620,6 +620,11 @@ ParseResult SchanOp::parse(OpAsmParser& parser, OperationState& result) {
   result.addAttribute("type", TypeAttr::get(type));
   result.types.push_back(SchanType::get(parser.getContext(), type, false));
   result.types.push_back(SchanType::get(parser.getContext(), type, true));
+
+  if (parser.parseOptionalAttrDictWithKeyword(result.attributes)) {
+    return failure();
+  }
+
   return success();
 }
 
@@ -630,6 +635,8 @@ void SchanOp::print(OpAsmPrinter& printer) {
   printer << '(';
   printer.printString(getName());
   printer << ')';
+  printer << ") ";
+  printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(), {"type", "name"});
 }
 
 void SprocOp::print(OpAsmPrinter& printer) {
