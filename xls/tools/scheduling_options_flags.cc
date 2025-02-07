@@ -160,7 +160,7 @@ ABSL_FLAG(std::string, fdo_default_load, "",
           "Cell to assume is being driven by primary outputs");
 // TODO: google/xls#869 - Remove when proc-scoped channels supplant old-style
 // procs.
-ABSL_FLAG(bool, multi_proc, false,
+ABSL_FLAG(bool, multi_proc, true,
           "If true, schedule all procs and codegen them all.");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_providers.bzl,

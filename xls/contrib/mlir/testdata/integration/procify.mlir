@@ -9,11 +9,13 @@
 // RUN: | xls_translate --mlir-xls-to-verilog \
 // RUN:   --main-function=reduce -- --delay_model=asap7 \
 // RUN:   --generator=pipeline --pipeline_stages=2 --worst_case_throughput=2 --reset=rst \
+// RUN:   --nomulti_proc \
 // RUN: | FileCheck --check-prefix=CHECK-VERILOG %s
 
 // RUN: codegen_main %t \
 // RUN:   --output_verilog_path %t.v --generator=pipeline --pipeline_stages=2 \
 // RUN:   --worst_case_throughput=2 --reset=rst --delay_model=asap7 \
+// RUN:   --nomulti_proc \
 // RUN: && FileCheck --check-prefix=CHECK-VERILOG %s < %t.v
 
 // CHECK-VERILOG: module {{.+}}(
