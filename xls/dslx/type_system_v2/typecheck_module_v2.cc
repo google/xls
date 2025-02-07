@@ -391,11 +391,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   absl::Status HandleSelfTypeAnnotation(
       const SelfTypeAnnotation* node) override {
     VLOG(5) << "HandleSelfTypeAnnotation: " << node->ToString();
-    XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* real_type,
-        xls::dslx::GetRealTypeAnnotationForSelf(node, file_table_));
+    XLS_ASSIGN_OR_RETURN(const TypeAnnotation* real_type,
+                         GetRealTypeAnnotationForSelf(node, file_table_));
     VLOG(5) << "Real TypeAnnotation for Self: " << real_type->ToString();
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, real_type));
+    std::optional<StructOrProcRef> struct_or_proc_ref =
+        GetStructOrProcRef(real_type);
+    // There are two paths for handling of `Self`.
+    // - Within a parametric struct, it gets left alone here, and when the
+    //   conversion step scrubs struct parametrics via
+    //   GetParametricFreeStructMemberType, we finally turn it into
+    //   `TheStruct<ActualParametricValues>`.
+    // - Within a non-parametric struct, we just equate it to `TheStruct` now,
+    //   because the conversion logic will not send it down the parametric
+    //   scrubbing path.
+    if (!struct_or_proc_ref->def->IsParametric()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, real_type));
+    }
     return DefaultHandler(node);
   }
 
@@ -912,8 +923,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   // Determines the target of the given `ColonRef` that is already known to be
   // referencing a member with the name `attribute` of the given `struct_def`.
   // Associates the target node with the `ColonRef` in the `InferenceTable` for
-  // later reference, and returns it. Also sets a type annotation on the
-  // `ColonRef` if appropriate.
+  // later reference, and returns it.
   absl::StatusOr<std::optional<const AstNode*>>
   HandleStructAttributeReferenceInternal(
       const ColonRef* node, const StructDefBase& struct_def,

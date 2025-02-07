@@ -3747,7 +3747,7 @@ const Z = uN[P.area()]:0;
           "Name 'area' is not defined by the impl for struct 'Point'")));
 }
 
-TEST(TypecheckErrorTest, ImplMethodCalledOnInt) {
+TEST(TypecheckV2Test, ImplMethodCalledOnIntFails) {
   EXPECT_THAT(R"(
 const X = u32:1;
 const Y = uN[X.area()]:0;
@@ -4072,6 +4072,74 @@ const X = S<1, 2>::C;
 )",
       TypecheckFails(
           HasSubstr("Too many parametric values supplied; limit: 1 given: 2")));
+}
+
+TEST(TypecheckV2Test, InstanceMethodReturningStaticParametricType) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32> {}
+
+impl S<A> {
+  fn foo(self) -> uN[A] { uN[A]:0 }
+}
+
+const X = S<16>{}.foo();
+const Y = S<32>{}.foo();
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
+                              HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, InstanceMethodReturningParametricConstType) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32> {}
+
+impl S<A> {
+  const C = A;
+  fn foo(self) -> uN[C] { uN[C]:0 }
+}
+
+const X = S<16>{}.foo();
+const Y = S<32>{}.foo();
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
+                              HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, InstanceMethodTakingStaticParametricType) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32> {}
+
+impl S<A> {
+  fn foo(self, a: uN[A]) -> uN[A] { a + 1 }
+}
+
+const X = S<16>{}.foo(100);
+const Y = S<32>{}.foo(200);
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "uN[16]"), HasNodeWithType("Y", "uN[32]"),
+          HasNodeWithType("100", "uN[16]"), HasNodeWithType("200", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, InstanceMethodTakingStaticConstType) {
+  EXPECT_THAT(
+      R"(
+struct S<A: u32> {}
+
+impl S<A> {
+  const C = A + 1;
+  fn foo(self, a: uN[C]) -> uN[C] { a + 1 }
+}
+
+const X = S<16>{}.foo(100);
+const Y = S<32>{}.foo(200);
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "uN[17]"), HasNodeWithType("Y", "uN[33]"),
+          HasNodeWithType("100", "uN[17]"), HasNodeWithType("200", "uN[33]"))));
 }
 
 }  // namespace
