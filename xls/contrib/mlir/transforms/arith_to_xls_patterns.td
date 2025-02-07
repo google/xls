@@ -205,8 +205,3 @@ def : Pat<
     (GetBitwidthAsI64Attr $op)
   )
 >;
-
-// TODO: b/394880049 - Replace with correct lowering.
-def : Pat<(Math_ExpOp:$op $a, /*FastMathFlags=*/$_),
-          (Xls_CallDslxOp (FloatLib $a), CS<"ceil">, (variadic $a),
-           /*is_pure=*/ConstUnitAttr)>;
