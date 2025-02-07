@@ -21,6 +21,7 @@ bazel_dep(name = "abseil-py", version = "2.1.0", repo_name = "com_google_absl_py
 bazel_dep(name = "bazel_features", version = "1.25.0")
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "boringssl", version = "0.20250114.0")
+bazel_dep(name = "cppitertools", version = "2.2")
 bazel_dep(name = "googleapis", version = "0.0.0-20240819-fe8ba054a", repo_name = "com_google_googleapis")
 bazel_dep(name = "grpc", version = "1.69.0", repo_name = "com_github_grpc_grpc")
 bazel_dep(name = "nlohmann_json", version = "3.11.3.bcr.1")

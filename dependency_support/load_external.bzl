@@ -97,17 +97,6 @@ def load_external_repositories():
         patch_args = ["-p1"],
     )
 
-    # HEAD as of 2024-10-11 on https://github.com/ryanhaining/cppitertools
-    # Filed https://github.com/ryanhaining/cppitertools/issues/107 to request new version to be tagged.
-    # Update: Tag done. Now awaiting https://github.com/bazelbuild/bazel-central-registry/pull/3691 to go in.
-    # After that we can add bazel_dep(name="cppitertools", version="2.2") to MODULE.bazel and remove this.
-    http_archive(
-        name = "cppitertools",
-        urls = ["https://github.com/ryanhaining/cppitertools/archive/3f454640b491bc13b314deddbf53b3534f6d7f1f.zip"],
-        strip_prefix = "cppitertools-3f454640b491bc13b314deddbf53b3534f6d7f1f",
-        integrity = "sha256-49xFSGD2D0equ6mOPApSfEuiObp4W1iwnQjxHahGz0Y=",
-    )
-
     # Used in C++ tests of the ZSTD Module
     # Version fdfb2aff released on 2024-07-31
     # https://github.com/facebook/zstd/commit/fdfb2aff39dc498372d8c9e5f2330b692fea9794
