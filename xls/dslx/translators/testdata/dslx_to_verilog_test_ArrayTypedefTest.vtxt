@@ -1,6 +1,14 @@
 package test_pkg;
-  // DSLX Type: StructType { x: uN[16] }[5]
+  // DSLX Type: struct StructType {
+  //     x: u16,
+  // }
   typedef struct packed {
     logic [15:0] x;
-  } ArrayOfStructType[5];
+  } StructType;
+
+  // DSLX Type: type ArrayOfStructType = StructType[5];
+  typedef StructType [4:0] ArrayOfStructType;
+
+  // DSLX Type: StructType { x: uN[16] }[5][2]
+  typedef ArrayOfStructType [1:0] f_b_t;
 endpackage

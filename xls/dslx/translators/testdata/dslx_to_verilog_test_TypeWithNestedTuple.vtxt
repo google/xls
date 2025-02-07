@@ -1,19 +1,16 @@
 package test_pkg;
-  // DSLX Type: NestedType { x: (uN[16], uN[32]), y: uN[32][4] }
+  // DSLX Type: struct NestedType {
+  //     x: (u16, u32),
+  //     y: u32[4],
+  // }
   typedef struct packed {
     struct packed {
       logic [15:0] index_0;
       logic [31:0] index_1;
     } x;
-    logic [31:0] y[4];
+    logic [3:0][31:0] y;
   } NestedType;
 
   // DSLX Type: NestedType { x: (uN[16], uN[32]), y: uN[32][4] }
-  typedef struct packed {
-    struct packed {
-      logic [15:0] index_0;
-      logic [31:0] index_1;
-    } x;
-    logic [31:0] y[4];
-  } user_defined_name_t;
+  typedef NestedType user_defined_name_t;
 endpackage

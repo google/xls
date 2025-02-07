@@ -15,15 +15,14 @@
 #include "xls/dslx/translators/dslx_to_verilog.h"
 
 #include <filesystem>  // NOLINT
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
-#include "absl/status/status_matchers.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/golden_files.h"
@@ -32,12 +31,10 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/virtualizable_file_system.h"
 
 namespace xls::dslx {
 namespace {
-
-using ::absl_testing::StatusIs;
-using ::testing::HasSubstr;
 
 constexpr std::string_view kTestdataPath = "xls/dslx/translators/testdata";
 
@@ -59,7 +56,7 @@ class DslxToVerilogTest : public ::testing::Test {
 };
 
 TEST_F(DslxToVerilogTest, BasicTypesInFunctions) {
-  const char* program =
+  constexpr std::string_view program =
       R"(
 struct Point {
   x: u16,
@@ -106,8 +103,89 @@ fn add_point_elements(p : Point, o : Option, v : u5, a : Point[3], b: u34[5], c:
   ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), type_to_verilog.Emit());
 }
 
+TEST_F(DslxToVerilogTest, BasicTypeDefinition) {
+  constexpr std::string_view program =
+      R"(
+struct Point {
+  x: u16,
+  y: u32,
+}
+
+enum Option : u5 {
+  ZERO = 0,
+  ONE = 1,
+}
+
+type AliasType = Point;
+type AliasType1 = Point[1];
+)";
+
+  // Parse and typecheck program.
+  dslx::ImportData import_data = dslx::CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      dslx::ParseAndTypecheck(program, "test_module.x", "test_module",
+                              &import_data));
+
+  // Create package, add function types, and check output
+  XLS_ASSERT_OK_AND_ASSIGN(DslxTypeToVerilogManager type_to_verilog,
+                           DslxTypeToVerilogManager::Create("test_pkg"));
+
+  for (const TypeDefinition& def : tm.module->GetTypeDefinitions()) {
+    XLS_ASSERT_OK(type_to_verilog.AddTypeForTypeDefinition(def, &import_data));
+  }
+
+  ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), type_to_verilog.Emit());
+}
+
+TEST_F(DslxToVerilogTest, NestedTypeDefinition) {
+  constexpr std::string_view program =
+      R"(
+struct Point {
+  x: u16,
+  y: u32,
+}
+
+enum Option : u5 {
+  ZERO = 0,
+  ONE = 1,
+}
+
+type AliasType = Point;
+type AliasType1 = Point[1];
+type AliasType2 = uN[100];
+
+struct TopType {
+  a: Point,
+  b: Option,
+  c: AliasType,
+  d: AliasType1,
+  e: AliasType2,
+}
+)";
+
+  // Parse and typecheck program.
+  dslx::ImportData import_data = dslx::CreateImportDataForTest();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      dslx::ParseAndTypecheck(program, "test_module.x", "test_module",
+                              &import_data));
+
+  // Create package, add function types, and check output
+  XLS_ASSERT_OK_AND_ASSIGN(DslxTypeToVerilogManager type_to_verilog,
+                           DslxTypeToVerilogManager::Create("test_pkg"));
+
+  for (const TypeDefinition& def : tm.module->GetTypeDefinitions()) {
+    XLS_ASSERT_OK(type_to_verilog.AddTypeForTypeDefinition(def, &import_data));
+  }
+
+  ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), type_to_verilog.Emit());
+}
+
 TEST_F(DslxToVerilogTest, TypeWithNestedTuple) {
-  const char* program =
+  constexpr std::string_view program =
       R"(
 struct NestedType {
   x: (u16, u32),
@@ -132,7 +210,6 @@ fn f() -> NestedType {
                            DslxTypeToVerilogManager::Create("test_pkg"));
 
   Function* func = tm.module->GetFunction("f").value();
-  XLS_ASSERT_OK(type_to_verilog.AddTypeForFunctionOutput(func, &import_data));
 
   XLS_ASSERT_OK(type_to_verilog.AddTypeForFunctionOutput(
       func, &import_data, "user_defined_name_t"));
@@ -141,7 +218,7 @@ fn f() -> NestedType {
 }
 
 TEST_F(DslxToVerilogTest, MultiDimTest) {
-  const char* program =
+  constexpr std::string_view program =
       R"(
 struct StructType {
   x: u16,
@@ -179,7 +256,7 @@ fn f(a : StructType[4][7], b : u32[5][8], c : bits[300][8][9]) -> u32 {
 }
 
 TEST_F(DslxToVerilogTest, ArrayTypedefTest) {
-  const char* program =
+  constexpr std::string_view program =
       R"(
 struct StructType {
   x: u16,
@@ -208,13 +285,61 @@ fn f(a : ArrayOfStructType, b : ArrayOfStructType[2]) -> u32 {
 
   XLS_ASSERT_OK(
       type_to_verilog.AddTypeForFunctionParam(func, &import_data, "a"));
+  XLS_ASSERT_OK(
+      type_to_verilog.AddTypeForFunctionParam(func, &import_data, "b"));
 
   ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), type_to_verilog.Emit());
+}
 
-  EXPECT_THAT(
-      type_to_verilog.AddTypeForFunctionParam(func, &import_data, "b"),
-      StatusIs(absl::StatusCode::kUnimplemented,
-               HasSubstr("Unpacked array of unpacked array not supported")));
+TEST_F(DslxToVerilogTest, ImportedTypesWithTheSameName) {
+  constexpr std::string_view program =
+      R"(
+import a;
+import b;
+
+type AType = a::ArrayOfStructType;
+type BType = b::ArrayOfStructType;
+
+)";
+
+  constexpr std::string_view a_import =
+      R"(
+struct StructType {
+  x: u16,
+}
+
+pub type ArrayOfStructType = StructType[5];
+)";
+  constexpr std::string_view b_import =
+      R"(
+struct StructType {
+  x: u32,
+}
+
+pub type ArrayOfStructType = StructType[10];
+)";
+
+  absl::flat_hash_map<std::filesystem::path, std::string> files;
+  files[std::filesystem::path("/a.x")] = a_import;
+  files[std::filesystem::path("/b.x")] = b_import;
+  auto vfs =
+      std::make_unique<FakeFilesystem>(files, std::filesystem::path("/"));
+  // Parse and typecheck program.
+  dslx::ImportData import_data = dslx::CreateImportDataForTest(std::move(vfs));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      dslx::ParseAndTypecheck(program, "test_module.x", "test_module",
+                              &import_data));
+
+  // Create package, add function types, and check output
+  XLS_ASSERT_OK_AND_ASSIGN(DslxTypeToVerilogManager type_to_verilog,
+                           DslxTypeToVerilogManager::Create("test_pkg"));
+
+  for (const TypeDefinition& def : tm.module->GetTypeDefinitions()) {
+    XLS_ASSERT_OK(type_to_verilog.AddTypeForTypeDefinition(def, &import_data));
+  }
+
+  ExpectEqualToGoldenFile(GoldenFilePath("vtxt"), type_to_verilog.Emit());
 }
 
 }  // namespace

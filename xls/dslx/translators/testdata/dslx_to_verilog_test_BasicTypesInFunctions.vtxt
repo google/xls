@@ -1,11 +1,17 @@
 package test_pkg;
-  // DSLX Type: Point { x: uN[16], y: uN[32] }
+  // DSLX Type: struct Point {
+  //     x: u16,
+  //     y: u32,
+  // }
   typedef struct packed {
     logic [15:0] x;
     logic [31:0] y;
   } Point;
 
-  // DSLX Type: Option
+  // DSLX Type: enum Option : u5 {
+  //     ZERO = 0,
+  //     ONE = 1,
+  // }
   typedef enum logic [4:0] {
     ZERO = 5'h00,
     ONE = 5'h01
@@ -15,13 +21,10 @@ package test_pkg;
   typedef logic [4:0] add_point_elements_v_t;
 
   // DSLX Type: Point { x: uN[16], y: uN[32] }[3]
-  typedef struct packed {
-    logic [15:0] x;
-    logic [31:0] y;
-  } add_point_elements_a_t[3];
+  typedef Point [2:0] add_point_elements_a_t;
 
   // DSLX Type: uN[34][5]
-  typedef logic [33:0] add_point_elements_b_t[5];
+  typedef logic [4:0][33:0] add_point_elements_b_t;
 
   // DSLX Type: uN[9]
   typedef logic [8:0] add_point_elements_c_t;
@@ -29,23 +32,14 @@ package test_pkg;
   // DSLX Type: uN[431]
   typedef logic [430:0] add_point_elements_d_t;
 
-  // DSLX Type: Point { x: uN[16], y: uN[32] }
-  typedef struct packed {
-    logic [15:0] x;
-    logic [31:0] y;
-  } AliasType;
+  // DSLX Type: type AliasType = Point;
+  typedef Point AliasType;
 
   // DSLX Type: Point { x: uN[16], y: uN[32] }[1]
-  typedef struct packed {
-    logic [15:0] x;
-    logic [31:0] y;
-  } add_point_elements_f_t[1];
+  typedef AliasType [0:0] add_point_elements_f_t;
 
-  // DSLX Type: Point { x: uN[16], y: uN[32] }[1]
-  typedef struct packed {
-    logic [15:0] x;
-    logic [31:0] y;
-  } AliasType1[1];
+  // DSLX Type: type AliasType1 = Point[1];
+  typedef Point [0:0] AliasType1;
 
   // DSLX Type: (uN[16], uN[32], uN[64])
   typedef struct packed {

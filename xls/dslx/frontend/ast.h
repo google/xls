@@ -1444,6 +1444,10 @@ using TypeDefinition = std::variant<TypeAlias*, StructDef*, ProcDef*, EnumDef*,
 // "foo", which can be a built-in name.
 AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td);
 
+// Returns a type-erased AstNode* of a type definition.
+AstNode* TypeDefinitionToAstNode(const TypeDefinition& td);
+
+// Returns a TypeDefinition from an AstNode.
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
 // AST construct that refers to a defined type.

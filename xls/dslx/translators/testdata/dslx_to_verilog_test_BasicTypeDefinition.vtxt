@@ -1,0 +1,25 @@
+package test_pkg;
+  // DSLX Type: struct Point {
+  //     x: u16,
+  //     y: u32,
+  // }
+  typedef struct packed {
+    logic [15:0] x;
+    logic [31:0] y;
+  } Point;
+
+  // DSLX Type: enum Option : u5 {
+  //     ZERO = 0,
+  //     ONE = 1,
+  // }
+  typedef enum logic [4:0] {
+    ZERO = 5'h00,
+    ONE = 5'h01
+  } Option;
+
+  // DSLX Type: type AliasType = Point;
+  typedef Point AliasType;
+
+  // DSLX Type: type AliasType1 = Point[1];
+  typedef Point [0:0] AliasType1;
+endpackage

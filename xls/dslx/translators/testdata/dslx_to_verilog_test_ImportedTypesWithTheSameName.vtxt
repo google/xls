@@ -1,0 +1,27 @@
+package test_pkg;
+  // DSLX Type: struct StructType {
+  //     x: u16,
+  // }
+  typedef struct packed {
+    logic [15:0] x;
+  } StructType;
+
+  // DSLX Type: a::ArrayOfStructType
+  typedef StructType [4:0] a;
+
+  // DSLX Type: type AType = a::ArrayOfStructType;
+  typedef a AType;
+
+  // DSLX Type: struct StructType {
+  //     x: u32,
+  // }
+  typedef struct packed {
+    logic [31:0] x;
+  } StructType__1;
+
+  // DSLX Type: b::ArrayOfStructType
+  typedef StructType__1 [9:0] b;
+
+  // DSLX Type: type BType = b::ArrayOfStructType;
+  typedef b BType;
+endpackage

@@ -51,6 +51,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast_builtin_types.inc"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/ir/bits.h"
@@ -345,6 +346,18 @@ AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
           },
       },
       td);
+}
+
+AstNode* TypeDefinitionToAstNode(const TypeDefinition& td) {
+  return absl::visit(Visitor{
+                         [](TypeAlias* n) -> AstNode* { return n; },
+                         [](StructDef* n) -> AstNode* { return n; },
+                         [](ProcDef* n) -> AstNode* { return n; },
+                         [](EnumDef* n) -> AstNode* { return n; },
+                         [](ColonRef* n) -> AstNode* { return n; },
+                         [](UseTreeEntry* n) -> AstNode* { return n; },
+                     },
+                     td);
 }
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
