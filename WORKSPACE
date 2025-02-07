@@ -33,10 +33,6 @@ py_repositories()
 python_register_toolchains(
     name = "project_python",
     python_version = "3.11",
-
-    # Required for our containerized CI environments; we do not recommend
-    # building XLS as root normally.
-    ignore_root_user_error = True,
 )
 
 load("//dependency_support:initialize_external.bzl", "initialize_external_repositories")
