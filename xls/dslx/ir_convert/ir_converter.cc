@@ -590,9 +590,9 @@ absl::StatusOr<PackageConversionData> ConvertFilesToPackage(
         "path to know where to resolve the entry function");
   }
   for (std::string_view path : paths) {
-    ImportData import_data(CreateImportData(
-        stdlib_path, dslx_paths, convert_options.enabled_warnings,
-        std::make_unique<RealFilesystem>()));
+    ImportData import_data(
+        CreateImportData(stdlib_path, dslx_paths, convert_options.warnings,
+                         std::make_unique<RealFilesystem>()));
     XLS_ASSIGN_OR_RETURN(std::string text,
                          import_data.vfs().GetFileContents(path));
     XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));

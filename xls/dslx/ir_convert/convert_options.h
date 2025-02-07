@@ -40,10 +40,10 @@ struct ConvertOptions {
   // Should warnings be treated as errors?
   bool warnings_as_errors = true;
 
-  // Set of warnings that are enabled.
+  // Set of warnings used in DSLX typechecking.
   //
   // Note that this is only used in IR conversion routines that do typechecking.
-  WarningKindSet enabled_warnings = kDefaultWarningsSet;
+  WarningKindSet warnings = kDefaultWarningsSet;
 
   // Should #[test] and #[test_proc] entities be emitted to IR.
   bool convert_tests = false;

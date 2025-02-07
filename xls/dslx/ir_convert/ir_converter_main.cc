@@ -111,7 +111,7 @@ absl::Status RealMain(absl::Span<const std::string_view> paths) {
       .emit_fail_as_assert = emit_fail_as_assert,
       .verify_ir = verify_ir,
       .warnings_as_errors = warnings_as_errors,
-      .enabled_warnings = warnings,
+      .warnings = warnings,
       .convert_tests = convert_tests,
       .default_fifo_config = default_fifo_config,
   };

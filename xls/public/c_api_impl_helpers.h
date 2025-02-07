@@ -46,10 +46,25 @@ bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
 // caller.
 char* ToOwnedCString(std::string_view s);
 
+// Converts a C++ vector of strings into a C array of strings and a count of the
+// number of strings.
+//
+// Precondition: `c_out` and `c_out_count` must not be `nullptr`.
+//
+// Note: if the `cpp` span is empty, then `c_out` will be set to a `nullptr`
+// (and `c_out_count` will be set to 0) so callers should not rely on the value
+// of `c_out` to determine if the conversion was successful.
+void ToOwnedCStrings(absl::Span<const std::string> cpp, char*** c_out,
+                     size_t* c_out_count);
+
 // Converts the C representation of filesystem search paths into a C++
 // representation.
-std::vector<std::filesystem::path> ToCpp(const char* additional_search_paths[],
-                                         size_t additional_search_paths_count);
+std::vector<std::filesystem::path> ToCppPaths(const char* paths[],
+                                              size_t paths_count);
+
+// Converts the C representation of warnings into a C++ representation.
+std::vector<std::string_view> ToCppStringViews(const char* strings[],
+                                               size_t strings_count);
 
 }  // namespace xls
 

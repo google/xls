@@ -60,10 +60,38 @@ bool xls_convert_dslx_to_ir(const char* dslx, const char* path,
                             size_t additional_search_paths_count,
                             char** error_out, char** ir_out);
 
+// As above, but also takes `enable_warnings` and `disable_warnings` which
+// are arrays of warning names to enable or disable respectively against the
+// default warning set.
+//
+// Precondition: if `warnings_out` is provided then `warnings_out_count` must
+// also be provided.
+//
+// Note that if the `warnings_out_count` is populated with zero (i.e. there were
+// no warnings) then we can return `nullptr` for `warnings_out`.
+bool xls_convert_dslx_to_ir_with_warnings(
+    const char* dslx, const char* path, const char* module_name,
+    const char* dslx_stdlib_path, const char* additional_search_paths[],
+    size_t additional_search_paths_count, const char* enable_warnings[],
+    size_t enable_warnings_count, const char* disable_warnings[],
+    size_t disable_warnings_count, bool warnings_as_errors,
+    char*** warnings_out, size_t* warnings_out_count, char** error_out,
+    char** ir_out);
+
 bool xls_convert_dslx_path_to_ir(const char* path, const char* dslx_stdlib_path,
                                  const char* additional_search_paths[],
                                  size_t additional_search_paths_count,
                                  char** error_out, char** ir_out);
+
+// As above `xls_convert_dslx_to_ir_with_warnings`, but for a filesystem path
+// instead of DSLX text.
+bool xls_convert_dslx_path_to_ir_with_warnings(
+    const char* path, const char* dslx_stdlib_path,
+    const char* additional_search_paths[], size_t additional_search_paths_count,
+    const char* enable_warnings[], size_t enable_warnings_count,
+    const char* disable_warnings[], size_t disable_warnings_count,
+    bool warnings_as_errors, char*** warnings_out, size_t* warnings_out_count,
+    char** error_out, char** ir_out);
 
 bool xls_optimize_ir(const char* ir, const char* top, char** error_out,
                      char** ir_out);
@@ -236,6 +264,9 @@ void xls_package_free(struct xls_package* p);
 // different between the caller and the XLS library (otherwise the caller could
 // just call `free` directly).
 void xls_c_str_free(char* c_str);
+
+// Frees an array of C strings that were provided by this XLS public API.
+void xls_c_strs_free(char** c_strs, size_t count);
 
 // Returns a string representation of the given IR package `p`.
 bool xls_package_to_string(const struct xls_package* p, char** string_out);
