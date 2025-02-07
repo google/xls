@@ -108,10 +108,11 @@ class ABSL_MUST_USE_RESULT ExpressionDepthGuard final {
 
 class Parser : public TokenParser {
  public:
-  Parser(std::string module_name, Scanner* scanner)
+  Parser(std::string module_name, Scanner* scanner, bool parse_fn_stubs = false)
       : TokenParser(scanner),
         module_(new Module(std::move(module_name), scanner->filename(),
-                           scanner->file_table())) {}
+                           scanner->file_table())),
+        parse_fn_stubs_(parse_fn_stubs) {}
 
   const FileTable& file_table() const { return scanner().file_table(); }
   FileTable& file_table() { return scanner().file_table(); }
@@ -708,6 +709,10 @@ class Parser : public TokenParser {
   // deeply nested.
   static constexpr int64_t kApproximateExpressionDepthLimit = 64;
   int64_t approximate_expression_depth_ = 0;
+
+  // When true, we expect no function bodies, and a semicolon after
+  // the return type of a function.
+  bool parse_fn_stubs_;
 };
 
 const Span& GetSpan(

@@ -1738,7 +1738,16 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
     XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(bindings));
   }
 
-  XLS_ASSIGN_OR_RETURN(StatementBlock * body, ParseBlockExpression(bindings));
+  StatementBlock* body = nullptr;
+  if (parse_fn_stubs_) {
+    // Must have a semicolon
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
+    body = module_->Make<StatementBlock>(Span(start_pos, GetPos()),
+                                         std::vector<Statement*>{},
+                                         /*trailing_semi=*/true);
+  } else {
+    XLS_ASSIGN_OR_RETURN(body, ParseBlockExpression(bindings));
+  }
   Function* f = module_->Make<Function>(
       Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
       params, return_type, body, FunctionTag::kNormal, is_public);

@@ -3447,4 +3447,42 @@ TEST_F(ParserTest, LocalConstWithNoNameDef) {
   XLS_EXPECT_OK(parser.ParseModule());
 }
 
+TEST_F(ParserTest, StubAcceptedWithStubOnlyFlag) {
+  constexpr std::string_view kProgram = "fn f();";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s, true};
+  XLS_EXPECT_OK(parser.ParseModule());
+}
+
+TEST_F(ParserTest, StubFunctionIsEmpty) {
+  constexpr std::string_view kProgram = "fn ident(x: bits);";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser p{"test", &s, true};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(Pos(), /*is_public=*/false, /*bindings=*/bindings));
+
+  StatementBlock* block = f->body();
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 0);
+}
+
+TEST_F(ParserTest, FullFunctionRejectedWithStubOnlyFlag) {
+  constexpr std::string_view kProgram = "fn f() { }";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s, true};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected ';', got '{'")));
+}
+
+TEST_F(ParserTest, StubRejectedWithoutStubOnlyFlag) {
+  constexpr std::string_view kProgram = "fn f();";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected '{', got ';'")));
+}
 }  // namespace xls::dslx
