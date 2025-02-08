@@ -478,6 +478,22 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "ir_converter_options_flags_test",
+    srcs = ["ir_converter_options_flags_test.cc"],
+    deps = [
+        ":ir_converter_options_flags",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:warning_kind",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_binary(
     name = "ir_converter_main",
     srcs = ["ir_converter_main.cc"],
