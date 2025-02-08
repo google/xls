@@ -926,6 +926,11 @@ class CloneNodesIntoBlockHandler {
       if (!reg) {
         continue;
       }
+      if (reg->read_predicate != nullptr) {
+        // If the state read is predicated, then it doesn't start a mutual
+        // exclusion zone.
+        continue;
+      }
       auto start = reg->read_stage;
       if (reg->next_values.empty()) {
         // If empty, absl::c_min_element()->stage will dereference the end

@@ -367,5 +367,158 @@ TEST_F(RegisterCombiningPassTest, CombineWithRegisterSwap) {
           StageValidMatcher(12), StageValidMatcher(13), StageValidMatcher(14)));
 }
 
+TEST_F(RegisterCombiningPassTest, AppliesToPredicatedWrites) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  auto tok = pb.InitialToken();
+  auto st = pb.StateElement("foo", UBits(1, 32));
+  auto lit_1 = pb.Literal(UBits(1, 32));
+  auto lit_2 = pb.Literal(UBits(2, 32));
+  auto add_1 = pb.Add(st, lit_1);
+  auto mul_2 = pb.UMul(add_1, lit_2);
+  auto nxt_pred = pb.Literal(UBits(0, 1));
+  auto nxt = pb.Next(st, mul_2, /*pred=*/nxt_pred);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
+  PipelineSchedule sched(proc,
+                         {
+                             {tok.node(), 0},
+                             {st.node(), 0},
+                             {lit_1.node(), 4},
+                             {add_1.node(), 4},
+                             {lit_2.node(), 8},
+                             {mul_2.node(), 8},
+                             {nxt_pred.node(), 12},
+                             {nxt.node(), 12},
+                         },
+                         13);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto unit,
+      FunctionBaseToPipelinedBlock(sched,
+                                   CodegenOptions()
+                                       .emit_as_pipeline(true)
+                                       .module_name("foobar")
+                                       .clock_name("clk")
+                                       .reset("rst", false, false, false)
+                                       .streaming_channel_data_suffix("_d")
+                                       .streaming_channel_ready_suffix("_r")
+                                       .streaming_channel_valid_suffix("_v"),
+                                   proc));
+  RecordProperty("ir", unit.DumpIr());
+  // Just make sure that changes to block-conversion haven't broken us.
+  ASSERT_THAT(
+      unit.top_block->GetRegisters(),
+      UnorderedElementsAre(
+          StateToRegMatcher(st), StateToRegFullMatcher(st),
+          NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
+          NodeToRegMatcher(st, 2), NodeToRegMatcher(st, 3),
+          NodeToRegMatcher(add_1, 4), NodeToRegMatcher(add_1, 5),
+          NodeToRegMatcher(add_1, 6), NodeToRegMatcher(add_1, 7),
+          NodeToRegMatcher(mul_2, 8), NodeToRegMatcher(mul_2, 9),
+          NodeToRegMatcher(mul_2, 10), NodeToRegMatcher(mul_2, 11),
+          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
+          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
+          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
+          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11)))
+      << "Register names changed. Test needs to be updated for "
+         "block-conversion changes";
+
+  EXPECT_THAT(Run(unit), IsOkAndHolds(true));
+  RecordProperty("result", unit.DumpIr());
+
+  EXPECT_THAT(
+      unit.top_block->GetRegisters(),
+
+      UnorderedElementsAre(
+          StateToRegMatcher(st), StateToRegFullMatcher(st),
+          NodeToRegMatcher(add_1, 4), NodeToRegMatcher(mul_2, 8),
+          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
+          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
+          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
+          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11)));
+}
+
+TEST_F(RegisterCombiningPassTest, DoesntApplyToPredicatedReads) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb(TestName(), "tok", p.get());
+  auto tok = pb.InitialToken();
+  auto always_false = pb.Literal(UBits(0, 1));
+  auto st = pb.StateElement("foo", UBits(1, 32),
+                            /*read_predicate=*/always_false);
+  auto lit_1 = pb.Literal(UBits(1, 32));
+  auto always_false_2 = pb.Literal(UBits(0, 1));
+  auto st_v = pb.Select(always_false_2, /*cases=*/{lit_1, st});
+  auto add_1 = pb.Add(st_v, lit_1);
+  auto lit_2 = pb.Literal(UBits(2, 32));
+  auto mul_2 = pb.UMul(add_1, lit_2);
+  auto always_false_3 = pb.Literal(UBits(0, 1));
+  auto nxt = pb.Next(st, mul_2, /*pred=*/always_false_3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto proc, pb.Build());
+  PipelineSchedule sched(proc,
+                         {
+                             {tok.node(), 0},
+                             {always_false.node(), 0},
+                             {st.node(), 0},
+                             {lit_1.node(), 4},
+                             {always_false_2.node(), 4},
+                             {st_v.node(), 4},
+                             {add_1.node(), 4},
+                             {lit_2.node(), 8},
+                             {mul_2.node(), 8},
+                             {always_false_3.node(), 12},
+                             {nxt.node(), 12},
+                         },
+                         13);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto unit,
+      FunctionBaseToPipelinedBlock(sched,
+                                   CodegenOptions()
+                                       .emit_as_pipeline(true)
+                                       .module_name("foobar")
+                                       .clock_name("clk")
+                                       .reset("rst", false, false, false)
+                                       .streaming_channel_data_suffix("_d")
+                                       .streaming_channel_ready_suffix("_r")
+                                       .streaming_channel_valid_suffix("_v"),
+                                   proc));
+  RecordProperty("ir", unit.DumpIr());
+  // Just make sure that changes to block-conversion haven't broken us.
+  ASSERT_THAT(
+      unit.top_block->GetRegisters(),
+      UnorderedElementsAre(
+          StateToRegMatcher(st), StateToRegFullMatcher(st),
+          NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
+          NodeToRegMatcher(st, 2), NodeToRegMatcher(st, 3),
+          NodeToRegMatcher(add_1, 4), NodeToRegMatcher(add_1, 5),
+          NodeToRegMatcher(add_1, 6), NodeToRegMatcher(add_1, 7),
+          NodeToRegMatcher(mul_2, 8), NodeToRegMatcher(mul_2, 9),
+          NodeToRegMatcher(mul_2, 10), NodeToRegMatcher(mul_2, 11),
+          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
+          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
+          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
+          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11)))
+      << "Register names changed. Test needs to be updated for "
+         "block-conversion changes";
+
+  EXPECT_THAT(Run(unit), IsOkAndHolds(false));
+  RecordProperty("result", unit.DumpIr());
+
+  EXPECT_THAT(
+      unit.top_block->GetRegisters(),
+      UnorderedElementsAre(
+          StateToRegMatcher(st), StateToRegFullMatcher(st),
+          NodeToRegMatcher(st, 0), NodeToRegMatcher(st, 1),
+          NodeToRegMatcher(st, 2), NodeToRegMatcher(st, 3),
+          NodeToRegMatcher(add_1, 4), NodeToRegMatcher(add_1, 5),
+          NodeToRegMatcher(add_1, 6), NodeToRegMatcher(add_1, 7),
+          NodeToRegMatcher(mul_2, 8), NodeToRegMatcher(mul_2, 9),
+          NodeToRegMatcher(mul_2, 10), NodeToRegMatcher(mul_2, 11),
+          StageValidMatcher(0), StageValidMatcher(1), StageValidMatcher(2),
+          StageValidMatcher(3), StageValidMatcher(4), StageValidMatcher(5),
+          StageValidMatcher(6), StageValidMatcher(7), StageValidMatcher(8),
+          StageValidMatcher(9), StageValidMatcher(10), StageValidMatcher(11)));
+}
+
 }  // namespace
 }  // namespace xls::verilog
