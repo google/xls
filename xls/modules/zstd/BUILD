@@ -75,10 +75,7 @@ xls_dslx_verilog(
     },
     dslx_top = "WindowBuffer64",
     library = ":window_buffer_dslx",
-    # TODO: 2024-01-25: Workaround for https://github.com/google/xls/issues/869
-    # Force proc inlining and set last internal proc as top proc for IR optimization
     opt_ir_args = {
-        "inline_procs": "true",
         "top": "__window_buffer__WindowBuffer64__WindowBuffer_0__64_32_48_next",
     },
     tags = ["manual"],
@@ -407,13 +404,11 @@ xls_dslx_verilog(
         "pipeline_stages": "3",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "RleBlockDecoder",
     library = ":rle_block_dec_dslx",
-    # TODO: 2024-01-15: Workaround for https://github.com/google/xls/issues/869
-    # Force proc inlining and set last internal proc as top proc for IR optimization
     opt_ir_args = {
-        "inline_procs": "true",
         "top": "__rle_block_dec__RleBlockDecoder__BatchPacker_0_next",
     },
     tags = ["manual"],
@@ -426,6 +421,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "3",
         "delay_model": "asap7",
+        "materialize_internal_fifos": "true",
     },
     tags = ["manual"],
 )
@@ -670,13 +666,11 @@ xls_dslx_verilog(
         "pipeline_stages": "2",
         "reset": "rst",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "BlockDecoder",
     library = ":block_dec_dslx",
-    # TODO: 2024-01-15: Workaround for https://github.com/google/xls/issues/869
-    # Force proc inlining and set last internal proc as top proc for IR optimization
     opt_ir_args = {
-        "inline_procs": "true",
         "top": "__xls_modules_zstd_dec_mux__BlockDecoder__DecoderMux_0_next",
     },
     tags = ["manual"],
@@ -689,6 +683,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "2",
         "delay_model": "asap7",
+        "materialize_internal_fifos": "true",
     },
     tags = ["manual"],
 )
@@ -792,11 +787,11 @@ xls_dslx_verilog(
         "flop_outputs": "false",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "SequenceExecutorZstd",
     library = ":sequence_executor_dslx",
     opt_ir_args = {
-        "inline_procs": "true",
         "top": "__sequence_executor__SequenceExecutorZstd__SequenceExecutor_0__64_0_0_0_13_8192_65536_next",
     },
     tags = ["manual"],
@@ -809,6 +804,7 @@ xls_benchmark_ir(
     benchmark_ir_args = {
         "pipeline_stages": "8",
         "delay_model": "asap7",
+        "materialize_internal_fifos": "true",
     },
     tags = ["manual"],
 )
@@ -980,14 +976,10 @@ xls_dslx_verilog(
         "flop_outputs": "false",
         "worst_case_throughput": "1",
         "use_system_verilog": "false",
+        "materialize_internal_fifos": "true",
     },
     dslx_top = "ZstdDecoder",
     library = ":zstd_dec_dslx",
-    # TODO: 2024-01-15: Workaround for https://github.com/google/xls/issues/869
-    # Force proc inlining for IR optimization
-    opt_ir_args = {
-        "inline_procs": "true",
-    },
     tags = ["manual"],
     verilog_file = "zstd_dec.v",
 )
@@ -1042,6 +1034,7 @@ xls_benchmark_ir(
         #TODO: rewrite ram in opt_ir step to perform valid IR benchmark
         "pipeline_stages": "1",
         "delay_model": "asap7",
+        "materialize_internal_fifos": "true",
     },
     tags = ["manual"],
 )

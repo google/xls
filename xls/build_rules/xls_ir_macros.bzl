@@ -157,9 +157,6 @@ def xls_ir_opt_ir_macro(
         xls_ir_opt_ir(
             name = "a_opt_ir",
             src = "a.ir",
-            opt_ir_args = {
-                "inline_procs" : "true",
-            },
         )
         ```
 

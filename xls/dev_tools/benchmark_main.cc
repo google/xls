@@ -118,9 +118,6 @@ ABSL_FLAG(
     "If specified, split `next_value`s that assign `sel`s to state params if "
     "they have fewer than the given number of cases. Otherwise, this "
     "optimization is skipped, since it can sometimes reduce output quality.");
-// TODO(epastor): Switch the `inline_procs` default to match `opt_main`.
-ABSL_FLAG(bool, inline_procs, true,
-          "Whether to inline all procs by calling the proc inlining pass.");
 ABSL_FLAG(bool, use_context_narrowing_analysis, false,
           "Use context sensitive narrowing analysis. This is somewhat slower "
           "but might produce better results in some circumstances by using "
@@ -195,7 +192,6 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
       (split_next_value_selects < 0)
           ? std::nullopt
           : std::make_optional(split_next_value_selects);
-  pass_options.inline_procs = absl::GetFlag(FLAGS_inline_procs);
   pass_options.use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   PassResults pass_results;

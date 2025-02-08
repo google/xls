@@ -61,7 +61,6 @@
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
-#include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/proc_state_array_flattening_pass.h"
 #include "xls/passes/proc_state_narrowing_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
@@ -224,11 +223,6 @@ class PostInliningOptPassGroup : public OptimizationCompoundPass {
     Add<TokenDependencyPass>();
     // Simplify the adapter procs before inlining.
     Add<CapOptLevel<2, FixedPointSimplificationPass>>();
-
-    // TODO(allight): It might be worthwhile to split the pipeline here as well.
-    // Since proc-inlining is being phased out in favor of multi-proc codegen
-    // however this seems unnecessary.
-    Add<ProcInliningPass>();
 
     // After proc inlining flatten and optimize the proc state. Run tuple
     // simplification to simplify tuple structures left over from flattening.

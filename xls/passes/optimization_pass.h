@@ -133,13 +133,6 @@ struct OptimizationPassOptions : public PassOptionsBase {
   // Whether splits is enabled in this config.
   bool splits_enabled() const;
 
-  // Whether to inline all procs by calling the proc inlining pass.
-  // TODO(meheff): 2022/2/13 Devise a better mechanism for deciding whether or
-  // not to inline procs including figuring out which procs to inline. At the
-  // minimum, there should be a specialization of OptimizationPassOptions for
-  // the optimization pass pipeline which holds this value.
-  bool inline_procs = false;
-
   // If this is not `std::nullopt`, convert array indexes with fewer than or
   // equal to the given number of possible indices (by range analysis) into
   // chains of selects. Otherwise, this optimization is skipped, since it can

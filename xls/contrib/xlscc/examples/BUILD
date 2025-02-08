@@ -113,9 +113,6 @@ xls_cc_ir(
 xls_ir_opt_ir(
     name = "simple_unsigned_pipelined_loop_fsm_opt_ir",
     src = "simple_unsigned_pipelined_loop_fsm.ir",
-    opt_ir_args = {
-        "inline_procs": "True",
-    },
     opt_ir_file = "simple_unsigned_pipelined_loop_fsm.opt.ir",
 )
 
@@ -133,9 +130,6 @@ xls_cc_ir(
 xls_ir_opt_ir(
     name = "simple_unsigned_nested_pipelined_loop_fsm_opt_ir",
     src = "simple_unsigned_nested_pipelined_loop_fsm.ir",
-    opt_ir_args = {
-        "inline_procs": "True",
-    },
     opt_ir_file = "simple_unsigned_nested_pipelined_loop_fsm.opt.ir",
 )
 
@@ -153,9 +147,6 @@ xls_cc_ir(
 xls_ir_opt_ir(
     name = "simple_pipelined_loop_fsm_opt_ir",
     src = "simple_pipelined_loop_fsm.ir",
-    opt_ir_args = {
-        "inline_procs": "True",
-    },
     opt_ir_file = "simple_pipelined_loop_fsm.opt.ir",
 )
 
@@ -173,9 +164,6 @@ xls_cc_ir(
 xls_ir_opt_ir(
     name = "simple_backwards_pipelined_loop_fsm_opt_ir",
     src = "simple_backwards_pipelined_loop_fsm.ir",
-    opt_ir_args = {
-        "inline_procs": "True",
-    },
     opt_ir_file = "simple_backwards_pipelined_loop_fsm.opt.ir",
 )
 
@@ -193,9 +181,6 @@ xls_cc_ir(
 xls_ir_opt_ir(
     name = "simple_nested_pipelined_loop_fsm_opt_ir",
     src = "simple_nested_pipelined_loop_fsm.ir",
-    opt_ir_args = {
-        "inline_procs": "True",
-    },
     opt_ir_file = "simple_nested_pipelined_loop_fsm.opt.ir",
 )
 
@@ -216,9 +201,6 @@ xls_ir_opt_ir(
         xls_ir_opt_ir(
             name = "mem_iterated_read_{iterations}_opt_ir".format(iterations = read_iterations),
             src = "mem_iterated_read_{iterations}.ir".format(iterations = read_iterations),
-            opt_ir_args = {
-                "inline_procs": "True",
-            },
             opt_ir_file = "mem_iterated_read_{iterations}.opt.ir".format(iterations = read_iterations),
         ),
         xls_ir_verilog(
@@ -295,9 +277,6 @@ xls_ir_opt_ir(
 xls_ir_opt_ir(
     name = "delay1rw_raw_opt_ir",
     src = ":delay_raw_ir",
-    opt_ir_args = {
-        "inline_procs": "true",
-    },
     opt_ir_file = "delay_raw_1rw.opt.ir",
     ram_rewrites = [
         ":delay_raw_ram1rw_rewrites.textproto",
@@ -307,9 +286,6 @@ xls_ir_opt_ir(
 xls_ir_opt_ir(
     name = "delay1rw_rxw_opt_ir",
     src = ":delay_rxw_ir",
-    opt_ir_args = {
-        "inline_procs": "true",
-    },
     opt_ir_file = "delay_rxw_1rw.opt.ir",
     ram_rewrites = [
         ":delay_rxw_ram1rw_rewrites.textproto",

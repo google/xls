@@ -225,7 +225,6 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
         "ram_configurations",
         "gate_recvs",
         "array_index_bounds_checking",
-        "inline_procs",
     )
 
     SCHEDULING_FLAGS = (

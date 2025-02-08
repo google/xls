@@ -564,7 +564,6 @@ Examples:
         "skip_passes",
         "opt_level",
         "convert_array_index_to_select",
-        "inline_procs",
         "use_context_narrowing_analysis",
         "optimize_for_best_case_throughput",
     )
@@ -579,10 +578,8 @@ Examples:
         if k not in IR_OPT_FLAGS or k in SHARED_FLAGS
     }
 
-    # Add default opt args (setting inline_procs to true by default so both branches are comparable)
-    full_opt_args = {
-        "inline_procs": "true",
-    }
+    # Add default opt args (currently empty)
+    full_opt_args = dict()
     full_opt_args.update(opt_ir_args)
 
     # Add default codegen args

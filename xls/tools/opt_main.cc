@@ -95,8 +95,6 @@ ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel, []() -> const std::string& {
       "Optimization level. Ranges from 1 to %d.", xls::kMaxOptLevel);
   return kDescription;
 }());
-ABSL_FLAG(bool, inline_procs, false,
-          "Whether to inline all procs by calling the proc inlining pass.");
 ABSL_FLAG(std::string, ram_rewrites_pb, "",
           "Path to protobuf describing ram rewrites.");
 ABSL_FLAG(bool, use_context_narrowing_analysis, false,
@@ -206,7 +204,6 @@ absl::Status RealMain(std::string_view input_path) {
       NegativeIsNullopt(absl::GetFlag(FLAGS_convert_array_index_to_select));
   std::optional<int64_t> split_next_value_selects =
       NegativeIsNullopt(absl::GetFlag(FLAGS_split_next_value_selects));
-  bool inline_procs = absl::GetFlag(FLAGS_inline_procs);
   std::string ram_rewrites_pb = absl::GetFlag(FLAGS_ram_rewrites_pb);
   std::vector<RamRewrite> ram_rewrites_vec;
   if (!ram_rewrites_pb.empty()) {
@@ -270,7 +267,6 @@ absl::Status RealMain(std::string_view input_path) {
               .skip_passes = std::move(skip_passes),
               .convert_array_index_to_select = convert_array_index_to_select,
               .split_next_value_selects = split_next_value_selects,
-              .inline_procs = inline_procs,
               .ram_rewrites = std::move(ram_rewrites_vec),
               .use_context_narrowing_analysis = use_context_narrowing_analysis,
               .optimize_for_best_case_throughput =

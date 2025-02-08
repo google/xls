@@ -95,7 +95,6 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   pass_options.opt_level = options.opt_level;
   pass_options.ir_dump_path = options.ir_dump_path;
   pass_options.skip_passes = options.skip_passes;
-  pass_options.inline_procs = options.inline_procs;
   pass_options.convert_array_index_to_select =
       options.convert_array_index_to_select;
   pass_options.split_next_value_selects = options.split_next_value_selects;
