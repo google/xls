@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("//xls/build_rules:xls_dslx_rules.bzl", "xls_dslx_to_verilog_package")
+
 package(
     default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
@@ -70,4 +73,50 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
+)
+
+cc_binary(
+    name = "dslx_to_verilog_main",
+    srcs = ["dslx_to_verilog_main.cc"],
+    deps = [
+        ":dslx_to_verilog",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common:visitor",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:command_line_utils",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_kind",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/ir_convert:ir_converter_options_flags",
+        "//xls/dslx/ir_convert:ir_converter_options_flags_cc_proto",
+        "//xls/dslx/type_system:type",
+        "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+    ],
+)
+
+# Target to test dslx_to_verilog_main against golden.
+xls_dslx_to_verilog_package(
+    name = "memory_proc_pkg",
+    library = "//xls/examples:memory_proc_dslx",
+    lint_waivers = ["struct-union-name-style"],
+    namespace = "memory_proc",
+    package_file = "memory_proc_pkg.sv",
+)
+
+diff_test(
+    name = "dslx_to_verilog_main_memory_proc_test",
+    file1 = "testdata/memory_proc_pkg.sv",
+    file2 = ":memory_proc_pkg.sv",
 )

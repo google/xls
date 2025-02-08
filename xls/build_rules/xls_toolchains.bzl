@@ -47,6 +47,8 @@ _DEFAULT_JIT_WRAPPER_TARGET = "//xls/jit:jit_wrapper_generator_main"
 
 _DEFAULT_CPP_TRANSPILER_TARGET = "//xls/dslx/cpp_transpiler:cpp_transpiler_main"
 
+_DEFAULT_DSLX_TO_VERILOG_TOOL = "//xls/dslx/translators:dslx_to_verilog_main"
+
 xls_toolchain_attrs = {
     "_xls_aot_compiler_tool": attr.label(
         doc = "The target of the AOT IR compiler executable.",
@@ -141,6 +143,13 @@ xls_toolchain_attrs = {
     "_xls_jit_wrapper_tool": attr.label(
         doc = "The target of the JIT wrapper executable.",
         default = Label(_DEFAULT_JIT_WRAPPER_TARGET),
+        allow_files = True,
+        executable = True,
+        cfg = "exec",
+    ),
+    "_xls_dslx_to_verilog_tool": attr.label(
+        doc = "The target of the DSLX to Verilog executable.",
+        default = Label(_DEFAULT_DSLX_TO_VERILOG_TOOL),
         allow_files = True,
         executable = True,
         cfg = "exec",

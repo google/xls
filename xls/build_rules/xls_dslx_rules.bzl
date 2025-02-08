@@ -36,6 +36,7 @@ load(
 
 _H_FILE_EXTENSION = ".h"
 _CC_FILE_EXTENSION = ".cc"
+_SV_FILE_EXTENSION = ".sv"
 
 _DEFAULT_DSLX_TEST_ARGS = {
     "compare": "none",
@@ -794,6 +795,120 @@ Example:
     implementation = _xls_dslx_generate_cpp_type_files_impl,
     attrs = dicts.add(
         xls_dslx_generate_cpp_type_files_attrs,
+        xls_dslx_library_as_input_attrs,
+        CONFIG["xls_outs_attrs"],
+        xls_toolchain_attrs,
+    ),
+)
+
+def _xls_dslx_to_verilog_packge_impl(ctx):
+    """The implementation of the 'xls_dslx_to_verilog_package' rule.
+
+    Generating a .sv file corresponding to types in a DSLX source file.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      DefaultInfo provider
+    """
+
+    # Check and obtain source file for conversion.
+    dslx_srcs = get_src_files_from_dslx_library_as_input(ctx)
+
+    # Obtain dslx path.
+    # With runs outside a monorepo, the execution root for the workspace of
+    # the binary can be different with the execroot, requiring to change
+    # the dslx stdlib search path accordingly.
+    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
+    wsroot = ctx.attr._xls_cpp_transpiler_tool.label.workspace_root
+    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
+
+    # Get workspaces for the source as well.
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs] +
+                                [ctx.genfiles_dir.path + "/" + s.owner.workspace_root for s in dslx_srcs])
+    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
+
+    dslx_path = ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path + dslx_srcs_wsroot_path + wsroot_dslx_path
+
+    # Make arguments for the cpp_transpiler tool.
+    sv_file = ctx.outputs.package_file
+    lint_waivers = ctx.attr.lint_waivers
+
+    dslx_to_verilog_tool = ctx.executable._xls_dslx_to_verilog_tool
+
+    dslx_to_verilog_tool_runfiles = ctx.attr._xls_dslx_to_verilog_tool[DefaultInfo].default_runfiles
+    runfiles = get_runfiles_for_xls(ctx, [dslx_to_verilog_tool_runfiles], dslx_srcs)
+
+    my_args = ctx.actions.args()
+
+    for src in dslx_srcs:
+        my_args.add(src.path)
+
+    my_args.add("--dslx_path=={}".format(dslx_path))
+    my_args.add("--output_file={}".format(sv_file.path))
+
+    if lint_waivers:
+        my_args.add_joined("--lint_waivers", lint_waivers, join_with = ",")
+
+    if ctx.attr.namespace:
+        my_args.add("--namespace={}".format(ctx.attr.namespace))
+
+    ctx.actions.run(
+        outputs = [sv_file],
+        tools = [dslx_to_verilog_tool],
+        # The files required for converting the DSLX source file.
+        inputs = runfiles.files,
+        arguments = [my_args],
+        executable = dslx_to_verilog_tool,
+        mnemonic = "DslxToSVPackage",
+        progress_message = "Converting DSLX types to Verilog package: [%s]" % ", ".join([src.short_path for src in dslx_srcs]),
+        toolchain = None,
+    )
+
+    return [
+        DefaultInfo(
+            files = depset(
+                direct = [sv_file],
+                transitive = get_transitive_built_files_for_xls(ctx),
+            ),
+            runfiles = runfiles,
+        ),
+    ]
+
+xls_dslx_to_verilog_package_attrs = {
+    "namespace": attr.string(doc = "The SystemVerilog namespace to generate the code in (e.g., `foo::bar`)."),
+    "package_file": attr.output(
+        doc = "The filename of the generated source file. The filename must " +
+              "have a '" + _SV_FILE_EXTENSION + "' extension.",
+        mandatory = True,
+    ),
+    "lint_waivers": attr.string_list(doc = "Lint waivers to add to the generated code."),
+}
+
+xls_dslx_to_verilog_package = rule(
+    doc = """Generates a cc and h file pair that provides a C++ interface to
+the DSLX types in srcs.  srcs must only contain a single file.
+
+Example:
+
+    ```
+    xls_dslx_generate_cpp_type_files
+        name = "b_cpp_types_generate",
+        srcs = ["b.x"],
+        deps = [":a_dslx"],
+
+        outs_prefix = "b_cpp_types",
+        namespace = "xls::b",
+    )
+
+    ```
+
+    will generate b_cpp_types.cc and b_cpp_types.h.
+    """,
+    implementation = _xls_dslx_to_verilog_packge_impl,
+    attrs = dicts.add(
+        xls_dslx_to_verilog_package_attrs,
         xls_dslx_library_as_input_attrs,
         CONFIG["xls_outs_attrs"],
         xls_toolchain_attrs,
