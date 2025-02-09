@@ -24,12 +24,12 @@
 #include <string>
 #include <string_view>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
@@ -3344,6 +3344,53 @@ TEST(IrConverterTest, UseTreeEntryCallInParametric) {
   fn f<N: u32>(x: bits[N]) -> bool { is_pow2(x) }
   fn main() -> bool { f(u2:3) }
 )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MatchExhaustiveMultiplePatternLastArm) {
+  constexpr std::string_view program = R"(
+fn main(x: u2) -> u32 {
+  match x {
+    u2:0 | u2:1 => u32:0,
+    u2:2 | u2:3 => u32:1,
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MatchExhaustiveOneRangeAndValueInSingleArm) {
+  constexpr std::string_view program = R"(
+  fn main(x: u2) -> u32 {
+    match x {
+      u2:0..u2:3 | u2:3 => u32:42,
+    }
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MatchExhaustiveRangeInTrailingArm) {
+  constexpr std::string_view program = R"(
+  fn main(x: u2) -> u32 {
+    match x {
+      u2:3 => u32:42,
+      u2:0..u2:3 => u32:64,
+    }
+  }
+  )";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,

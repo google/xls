@@ -1206,8 +1206,8 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
     arm_values.push_back(arm_rhs_value);
   }
 
-  // For compute of the default arm the control predicate is "none of the other
-  // arms matched".
+  // For compute of the default (last) arm the control predicate is "none of the
+  // other arms matched".
   ScopedControlPredicate scp(
       this, [&](const PredicateFun& orig_control_predicate) {
         // The default arm is "activated" when:
@@ -1226,14 +1226,11 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
         return function_builder_->And(
             {orig_control_predicate(), not_any_prev_selected});
       });
+
+  // We are guaranteed from exhaustiveness checking that the last arm handles
+  // all of the rest of the values aside from the ones covered by the earlier
+  // match arms, and so can be emitted as the "default" in the selection IR.
   MatchArm* default_arm = node->arms().back();
-  if (default_arm->patterns().size() != 1) {
-    return IrConversionErrorStatus(
-        node->span(),
-        "Multiple patterns in default arm "
-        "is not currently supported for IR conversion.",
-        file_table());
-  }
   XLS_RETURN_IF_ERROR(
       HandleMatcher(default_arm->patterns()[0], matched, *matched_type)
           .status());
