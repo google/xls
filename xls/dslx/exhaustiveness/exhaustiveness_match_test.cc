@@ -538,5 +538,35 @@ TEST(ExhaustivenessMatchTest, NestedTupleWithRestOfTuple) {
   CheckExhaustiveOnlyAfterLastPattern(kMatch);
 }
 
+TEST(ExhaustivenessMatchTest, NonExhaustiveMatchOnEnumFromImportedModule) {
+  constexpr std::string_view kImported =
+      "pub enum MyEnum : u1 { A = 0, B = 1 }";
+  constexpr std::string_view kProgram = R"(
+import imported;
+
+fn main(e: imported::MyEnum) -> u32 {
+    match e {
+        imported::MyEnum::A => u32:42,
+    }
+}
+)";
+  auto vfs = std::make_unique<FakeFilesystem>(
+      absl::flat_hash_map<std::filesystem::path, std::string>{
+          {std::filesystem::path("/imported.x"), std::string(kImported)},
+          {std::filesystem::path("/main.x"), std::string(kProgram)},
+      },
+      std::filesystem::path("/"));
+  ImportData import_data = CreateImportDataForTest(std::move(vfs));
+  absl::StatusOr<TypecheckedModule> tm =
+      ParseAndTypecheck(kProgram, "main.x", "main", &import_data);
+  // TODO(cdleary): 2025-02-09 We should make a layer where InterpValue can
+  // print out resolved enum member names. This needs constexpr-eval'd
+  // information on how to map bits values into enum member names.
+  EXPECT_THAT(tm.status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("Match pattern is not exhaustive"),
+                             HasSubstr("`MyEnum:1` not covered"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

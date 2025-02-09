@@ -413,13 +413,19 @@ MatchExhaustivenessChecker::SampleSimplestUncoveredValue() const {
       // We have to project back from dense space to enum name space.
       const EnumType& enum_type = type.AsEnum();
       const EnumDef& enum_def = enum_type.nominal_type();
+
+      absl::StatusOr<const TypeInfo*> enum_def_type_info =
+          import_data_.GetRootTypeInfoForNode(&enum_def);
+      CHECK_OK(enum_def_type_info.status())
+          << "Enum type info not found for enum: " << enum_type.ToString();
+
       int64_t member_index = min.GetBitValueUnsigned().value();
       CHECK_LT(member_index, enum_def.values().size())
           << "Member index out of bounds: " << member_index
           << " for enum: " << enum_type.ToString();
       const EnumMember& member = enum_def.values()[member_index];
       InterpValue member_value =
-          type_info_.GetConstExpr(member.name_def).value();
+          enum_def_type_info.value()->GetConstExpr(member.name_def).value();
       VLOG(5) << "SampleSimplestUncoveredValue; enum_type: "
               << enum_type.ToString() << " member_index: " << member_index
               << " member: " << member.name_def->ToString()
