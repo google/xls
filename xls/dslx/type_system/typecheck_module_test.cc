@@ -1042,6 +1042,19 @@ fn main() -> u32 {
 )"));
 }
 
+TEST(TypecheckTest, UseOfClog2InParametricOutputType) {
+  XLS_EXPECT_OK(Typecheck(R"(#![feature(use_syntax)]
+use std::{clog2, is_pow2};
+
+fn p<N: u32, OUT: u32 = {clog2(N)}>(x: uN[N]) -> uN[OUT] {
+  const_assert!(is_pow2(N));
+  uN[OUT]:0
+}
+
+fn main() -> u5 { p(u32:42) }
+)"));
+}
+
 TEST(TypecheckTest, ConstAssertParametricOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>() -> u32 {

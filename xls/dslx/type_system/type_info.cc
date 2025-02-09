@@ -629,12 +629,16 @@ absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
 
 absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(
     UseTreeEntry* use_tree_entry) {
-  if (auto it = imports_.find(use_tree_entry); it != imports_.end()) {
+  auto* self = GetRoot();
+  if (auto it = self->imports_.find(use_tree_entry);
+      it != self->imports_.end()) {
     return &it->second;
   }
 
-  return absl::NotFoundError(absl::StrCat("Could not find import for \"",
-                                          use_tree_entry->ToString(), "\"."));
+  return absl::NotFoundError(
+      absl::StrFormat("Could not find import data for `use` entry `%s` @ %s",
+                      use_tree_entry->ToString(),
+                      use_tree_entry->span().ToString(file_table())));
 }
 
 absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
