@@ -803,16 +803,17 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     return (*this);
   }
 
-#define COMPARISON_OP(__OP, __IR)                                           \
-  template <int ToW, bool ToSign>                                           \
-  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {           \
-    XlsInt val(o);                                                          \
-    bool ret;                                                               \
-    asm("fn (fid)(a: bits[i], b: bits[i]) -> bits[1] { ret (aid): bits[1] " \
-        "= " __IR "(a, b, pos=(loc)) }"                                     \
-        : "=r"(ret)                                                         \
-        : "i"(Width), "parama"(this->storage), "paramb"(val.storage));      \
-    return ret;                                                             \
+#define COMPARISON_OP(__OP, __IR)                                      \
+  template <int ToW, bool ToSign>                                      \
+  inline bool operator __OP(const XlsInt<ToW, ToSign> &o) const {      \
+    XlsInt val(o);                                                     \
+    bool ret;                                                          \
+    asm("fn (gensym operator_" __IR                                    \
+        ")(a: bits[i], b: bits[i]) -> bits[1] { ret (aid): bits[1] "   \
+        "= " __IR "(a, b, pos=(loc)) }"                                \
+        : "=r"(ret)                                                    \
+        : "i"(Width), "parama"(this->storage), "paramb"(val.storage)); \
+    return ret;                                                        \
   }
 
   COMPARISON_OP(==, "eq");
@@ -861,10 +862,12 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
     static_assert(ToW > 0, "Can't slice 0 bits");
     typedef XlsInt<ToW, Signed> Result;
     Result ret;
-    asm("fn (fid)(a: bits[i], o: bits[c]) -> bits[r] { ret op_(aid): bits[r] = "
-        "dynamic_bit_slice(a, o, width=r, pos=(loc)) }"
+    asm("fn (gensym slc)(a: bits[%1], o: bits[%3]) -> bits[%2] { \n"
+        "  ret (gensym slc_result): bits[%2] = "
+        "    dynamic_bit_slice(a, o, width=%2, pos=(loc))\n"
+        "}"
         : "=r"(ret.storage)
-        : "i"(Width), "r"(ToW), "c"(index_t::width), "a"(this->storage),
+        : "i"(Width), "i"(ToW), "i"(index_t::width), "a"(this->storage),
           "o"(offset.storage));
     return ret;
   }
@@ -907,7 +910,7 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
 
   inline XlsInt reverse() const {
     XlsInt<Width, false> reverse_out;
-    asm("fn (fid)(a: bits[i]) -> bits[i] { "
+    asm("fn (gensym reverse)(a: bits[i]) -> bits[i] { "
         "  ret (aid): bits[i] = reverse(a, pos=(loc)) }"
         : "=r"(reverse_out.storage)
         : "i"(Width), "a"(this->storage));
@@ -915,26 +918,17 @@ class [[hls_synthetic_int]] XlsInt : public XlsIntBase<Width, Signed> {
   }
 
   inline index_t clz() const {
-    XlsInt<Width, false> reverse_out;
-    asm("fn (fid)(a: bits[i]) -> bits[i] { "
-        "  ret (aid): bits[i] = reverse(a, pos=(loc)) }"
-        : "=r"(reverse_out.storage)
-        : "i"(Width), "a"(this->storage));
-
-    XlsInt<Width + 1, false> one_hot_out;
-    asm("fn (fid)(a: bits[i]) -> bits[c] { "
-        "  ret (aid): bits[c] = one_hot(a, lsb_prio=true, pos=(loc)) }"
-        : "=r"(one_hot_out.storage)
-        : "i"(Width), "c"(Width + 1), "a"(reverse_out));
-
-    index_t encode_out;
-    asm("fn (fid)(a: bits[i]) -> bits[c] { "
-        "  ret (aid): bits[c] = encode(a, pos=(loc)) }"
-        : "=r"(encode_out.storage)
-        : "i"(Width + 1), "c"(index_t::width), "a"(one_hot_out));
-
-    // zero_ext is automatic
-    return encode_out;
+    index_t clz_out;
+    asm("fn (gensym clz_func)(a: bits[%1]) -> bits[%3] {\n"
+        "  (gensym reversed_val): bits[%1] = reverse(a, pos=(loc))\n"
+        "  (gensym one_hot_val): bits[%2] = "
+        "       one_hot((gensym reversed_val), lsb_prio=true, pos=(loc))\n"
+        "  ret (gensym encode_val): bits[%3] = "
+        "       encode((gensym one_hot_val), pos=(loc))\n"
+        "}"
+        : "=r"(clz_out)
+        : "i"(Width), "i"(Width + 1), "i"(index_t::width), "a"(this->storage));
+    return clz_out;
   }
 
   // Counts leading bits. For unsigned values, it's clz,

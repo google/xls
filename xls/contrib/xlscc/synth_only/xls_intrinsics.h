@@ -30,19 +30,15 @@ namespace xls_intrinsics {
 template <int Width, bool Signed>
 inline typename XlsInt<Width, Signed>::index_t ctz(
     const XlsInt<Width, Signed>& in) {
-  XlsInt<Width + 1, false> one_hot_out;
-  asm("fn (fid)(a: bits[i]) -> bits[c] { "
-      "  ret (aid): bits[c] = one_hot(a, lsb_prio=true, pos=(loc)) }"
-      : "=r"(one_hot_out.storage)
-      : "i"(Width), "c"(Width + 1), "a"(in.storage));
-
   typename XlsInt<Width, Signed>::index_t encode_out;
-  asm("fn (fid)(a: bits[i]) -> bits[c] { "
-      "  ret (aid): bits[c] = encode(a, pos=(loc)) }"
+  asm("fn (gensym ctz)(a: bits[%1]) -> bits[%3] {\n"
+      "  (gensym onehot_val): bits[%2] = one_hot(a, lsb_prio=true, pos=(loc))\n"
+      "  ret (gensym encode_val): bits[%3] = "
+      "          encode((gensym onehot_val), pos=(loc))\n"
+      "}"
       : "=r"(encode_out.storage)
-      : "i"(Width + 1), "c"(XlsInt<Width, Signed>::index_t::width),
-        "a"(one_hot_out));
-
+      : "i"(Width), "i"(Width + 1), "i"(XlsInt<Width, Signed>::index_t::width),
+        "a"(in.storage));
   // zero_ext is automatic
   return encode_out;
 }

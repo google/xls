@@ -5325,7 +5325,11 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     std::string sasm = pasm->getAsmString()->getString().str();
     vector<xls::BValue> args;
 
-    for (int i = 0; i < pasm->getNumInputs(); ++i) {
+    // Go in reverse to avoid having to deal with eg %10 matching %1.
+    // TODO: This is really ugly. Really we should just inline the ir directly
+    // instead of using an 'ir-function'. Would make it possible to have asm
+    // with multiple results etc.
+    for (int i = pasm->getNumInputs() - 1; i >= 0; --i) {
       const clang::Expr* expr = pasm->getInputExpr(i);
       if (expr->isIntegerConstantExpr(ctx)) {
         const std::string name = pasm->getInputConstraint(i).str();
@@ -5333,12 +5337,20 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
         sasm = std::regex_replace(
             sasm, std::regex(absl::StrFormat(R"(\b%s\b)", name)),
             absl::StrCat(val));
+        // NB a '<number>]' does not count as having a word break between the
+        // number and the brace.
+        RE2::GlobalReplace(
+            &sasm, absl::StrFormat(R"re(%%%d)re", i + pasm->getNumOutputs()),
+            absl::StrCat(val));
       } else {
         XLS_ASSIGN_OR_RETURN(CValue ret, GenerateIR_Expr(expr, loc));
         args.emplace_back(ret.rvalue());
       }
     }
+    absl::c_reverse(args);
 
+    // Perform macro expansion in asm.
+    // First perform old-style gensynms for compat.
     // Unique function name
     RE2::GlobalReplace(&sasm, "\\(fid\\)",
                        absl::StrFormat("fid%i", next_asm_number_++));
@@ -5347,6 +5359,21 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                        absl::StrFormat("aid%i", next_asm_number_++));
     // File location
     RE2::GlobalReplace(&sasm, "\\(loc\\)", loc.ToString());
+
+    // Perform gensym expansion.
+    RE2 genid_re(R"(\(gensym\s+(\w+)\))");
+    std::string_view asm_view(sasm);
+    std::string gensym;
+    absl::flat_hash_map<std::string, int64_t> gensyms;
+    while (RE2::FindAndConsume(&asm_view, genid_re, &gensym)) {
+      if (!gensyms.contains(gensym)) {
+        gensyms.insert({gensym, next_asm_number_++});
+      }
+    }
+    for (const auto& [genid, id] : gensyms) {
+      RE2::GlobalReplace(&sasm, absl::StrFormat(R"(\(gensym\s+%s\))", genid),
+                         absl::StrFormat("gensym_%s_%i", genid, id));
+    }
 
     if (pasm->getNumOutputs() != 1) {
       return absl::UnimplementedError(
