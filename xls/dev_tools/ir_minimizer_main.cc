@@ -210,6 +210,8 @@ ABSL_FLAG(bool, can_remove_sends, false,
           "If true, then the minimizer may remove sends.");
 ABSL_FLAG(bool, can_remove_receives, false,
           "If true, then the minimizer may remove receives.");
+ABSL_FLAG(bool, can_remove_asserts, true,
+          "If true, then the minimizer may remove asserts.");
 ABSL_FLAG(std::vector<std::string>, preserve_channels, {},
           "Preserve IO ops on the given channel names during minimization. "
           "This is useful when minimizing with a script that runs the "
@@ -907,6 +909,14 @@ absl::StatusOr<SimplificationResult> SimplifyNode(
         return SimplificationResult::kDidChange;
       }
     }
+  }
+
+  if (n->Is<Assert>() && absl::GetFlag(FLAGS_can_remove_asserts) &&
+      absl::Bernoulli(rng, 0.3)) {
+    *which_transform = "remove assert: " + n->GetName();
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->As<Assert>()->token()));
+    XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+    return SimplificationResult::kDidChange;
   }
 
   if (TypeHasToken(n->GetType())) {
