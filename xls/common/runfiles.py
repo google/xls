@@ -17,7 +17,7 @@
 import os
 from typing import Iterable
 
-from rules_python.python.runfiles import runfiles
+from python.runfiles import runfiles
 
 _BASE_PATH = 'com_google_xls'
 
