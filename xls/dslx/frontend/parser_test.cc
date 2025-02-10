@@ -32,6 +32,8 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/error_test_utils.h"
@@ -3485,4 +3487,15 @@ TEST_F(ParserTest, StubRejectedWithoutStubOnlyFlag) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected '{', got ';'")));
 }
+
+TEST_F(ParserTest, ReadStubFile) {
+  const std::string path = "xls/dslx/frontend/builtin_stubs.x";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string text,
+                           GetFileContents(GetXlsRunfilePath(path).value()));
+  Fileno fileno = file_table_.GetOrCreate(path);
+  Scanner s{file_table_, fileno, text};
+  Parser parser{"test", &s, true};
+  XLS_EXPECT_OK(parser.ParseModule());
+}
+
 }  // namespace xls::dslx

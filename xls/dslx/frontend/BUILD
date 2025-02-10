@@ -141,6 +141,7 @@ cc_library(
 cc_test(
     name = "parser_test",
     srcs = ["parser_test.cc"],
+    data = ["builtin_stubs.x"],
     deps = [
         ":ast",
         ":bindings",
@@ -151,6 +152,8 @@ cc_test(
         ":scanner",
         "//xls/common:casts",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:error_test_utils",
