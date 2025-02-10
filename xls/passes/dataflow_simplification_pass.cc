@@ -105,7 +105,7 @@ class NodeSourceDataflowVisitor : public DataflowVisitor<NodeSource> {
   absl::StatusOr<NodeSource> JoinElements(
       Type* element_type, absl::Span<const NodeSource* const> data_sources,
       absl::Span<const LeafTypeTreeView<NodeSource>> control_sources,
-      Node* node, absl::Span<const int64_t> index) const override {
+      Node* node, absl::Span<const int64_t> index) override {
     if (std::all_of(
             data_sources.begin(), data_sources.end(),
             [&](const NodeSource* n) { return *n == *data_sources.front(); })) {

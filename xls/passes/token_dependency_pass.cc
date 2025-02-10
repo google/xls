@@ -68,7 +68,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
           continue;
         }
         for (const absl::flat_hash_set<Node*>& sources :
-             provenance.at(child).elements()) {
+             provenance.at(child)->elements()) {
           for (Node* element : sources) {
             token_deps[element].insert(node);
           }

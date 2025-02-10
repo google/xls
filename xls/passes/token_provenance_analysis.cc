@@ -101,7 +101,7 @@ class TokenProvenanceVisitor
       absl::Span<absl::flat_hash_set<Node*> const* const> data_sources,
       absl::Span<const LeafTypeTreeView<absl::flat_hash_set<Node*>>>
           control_sources,
-      Node* node, absl::Span<const int64_t> index) const override {
+      Node* node, absl::Span<const int64_t> index) override {
     if (!AreAllElementsEmpty(control_sources)) {
       return TokenError(node);
     }
@@ -144,10 +144,7 @@ absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f) {
   TokenProvenanceVisitor visitor;
   XLS_RETURN_IF_ERROR(f->Accept(&visitor));
 
-  absl::flat_hash_map<Node*, LeafTypeTree<absl::flat_hash_set<Node*>>> result;
-  for (Node* node : f->nodes()) {
-    result.insert({node, visitor.ConsumeValue(node)});
-  }
+  TokenProvenance result = std::move(visitor).ToStoredValues();
   XLS_VLOG_LINES(3, ToString(result));
   return result;
 }
@@ -162,7 +159,7 @@ std::string ToString(const TokenProvenance& provenance) {
     }
     lines.push_back(absl::StrFormat(
         "  %s : {%s}", node->GetName(),
-        provenance.at(node).ToString(
+        provenance.at(node)->ToString(
             [](const absl::flat_hash_set<Node*>& sources) {
               std::vector<Node*> sorted_sources(sources.begin(), sources.end());
               absl::c_sort(sorted_sources, Node::NodeIdLessThan());
@@ -182,7 +179,7 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
       for (Node* operand : node->operands()) {
         if (operand->GetType()->IsToken()) {
           const absl::flat_hash_set<Node*>& child =
-              provenance.at(operand).Get({});
+              provenance.at(operand)->Get({});
           dag[node].insert(child.cbegin(), child.cend());
         }
       }

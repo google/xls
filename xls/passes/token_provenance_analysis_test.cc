@@ -75,25 +75,25 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
                            TokenProvenanceAnalysis(proc));
 
-  EXPECT_THAT(provenance.at(token.node()).Get({}),
+  EXPECT_THAT(provenance.at(token.node())->Get({}),
               UnorderedElementsAre(token.node()));
-  EXPECT_THAT(provenance.at(recv.node()).Get({0}),
+  EXPECT_THAT(provenance.at(recv.node())->Get({0}),
               UnorderedElementsAre(recv.node()));
-  EXPECT_THAT(provenance.at(recv.node()).Get({1}), IsEmpty());
-  EXPECT_THAT(provenance.at(tuple.node()).Get({0}),
+  EXPECT_THAT(provenance.at(recv.node())->Get({1}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node())->Get({0}),
               UnorderedElementsAre(recv.node()));
-  EXPECT_THAT(provenance.at(tuple.node()).Get({1}), IsEmpty());
-  EXPECT_THAT(provenance.at(tuple.node()).Get({2, 0}), IsEmpty());
-  EXPECT_THAT(provenance.at(tuple.node()).Get({2, 1}), IsEmpty());
-  EXPECT_THAT(provenance.at(tuple.node()).Get({3, 0}),
+  EXPECT_THAT(provenance.at(tuple.node())->Get({1}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node())->Get({2, 0}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node())->Get({2, 1}), IsEmpty());
+  EXPECT_THAT(provenance.at(tuple.node())->Get({3, 0}),
               UnorderedElementsAre(t2.node()));
-  EXPECT_THAT(provenance.at(t3.node()).Get({}),
+  EXPECT_THAT(provenance.at(t3.node())->Get({}),
               UnorderedElementsAre(t3.node()));
-  EXPECT_THAT(provenance.at(t4.node()).Get({}),
+  EXPECT_THAT(provenance.at(t4.node())->Get({}),
               UnorderedElementsAre(t4.node()));
-  EXPECT_THAT(provenance.at(t5.node()).Get({}),
+  EXPECT_THAT(provenance.at(t5.node())->Get({}),
               UnorderedElementsAre(t5.node()));
-  EXPECT_THAT(provenance.at(t6.node()).Get({}),
+  EXPECT_THAT(provenance.at(t6.node())->Get({}),
               UnorderedElementsAre(t6.node()));
 }
 
@@ -112,7 +112,7 @@ TEST_F(TokenProvenanceAnalysisTest, VeryLongChain) {
   // The proc only consists of a token param and token-typed identity
   // operations.
   for (Node* node : proc->nodes()) {
-    EXPECT_THAT(provenance.at(node).Get({}),
+    EXPECT_THAT(provenance.at(node)->Get({}),
                 UnorderedElementsAre(token.node()));
   }
 }
@@ -257,12 +257,12 @@ TEST_F(TokenProvenanceAnalysisTest, SelectOfTokens) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({select, select, selector}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
                            TokenProvenanceAnalysis(proc));
-  EXPECT_THAT(provenance.at(token1.node()).Get({}),
+  EXPECT_THAT(provenance.at(token1.node())->Get({}),
               UnorderedElementsAre(token1.node()));
-  EXPECT_THAT(provenance.at(token2.node()).Get({}),
+  EXPECT_THAT(provenance.at(token2.node())->Get({}),
               UnorderedElementsAre(token2.node()));
-  EXPECT_THAT(provenance.at(selector.node()).Get({}), IsEmpty());
-  EXPECT_THAT(provenance.at(select.node()).Get({}),
+  EXPECT_THAT(provenance.at(selector.node())->Get({}), IsEmpty());
+  EXPECT_THAT(provenance.at(select.node())->Get({}),
               UnorderedElementsAre(token1.node(), token2.node()));
 }
 

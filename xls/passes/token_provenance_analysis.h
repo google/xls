@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_TOKEN_PROVENANCE_ANALYSIS_H_
 #define XLS_PASSES_TOKEN_PROVENANCE_ANALYSIS_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -29,8 +30,8 @@
 
 namespace xls {
 
-using TokenProvenance =
-    absl::flat_hash_map<Node*, LeafTypeTree<absl::flat_hash_set<Node*>>>;
+using TokenProvenance = absl::flat_hash_map<
+    Node*, std::unique_ptr<SharedLeafTypeTree<absl::flat_hash_set<Node*>>>>;
 
 // Compute, for each token-type in the given `FunctionBase*`, what
 // side-effecting node(s) contributed to that token. If a leaf type in one of

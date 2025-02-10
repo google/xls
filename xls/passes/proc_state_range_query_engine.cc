@@ -15,6 +15,7 @@
 #include "xls/passes/proc_state_range_query_engine.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <queue>
 #include <utility>
@@ -287,7 +288,8 @@ class ConstantValueIrInterpreter
   // it's hard to imagine many procs with more than a handful of constant set
   // values which are still narrowable.
   static constexpr int64_t kSegmentLimit = 8;
-  const absl::flat_hash_map<Node*, LeafTypeTree<absl::flat_hash_set<Bits>>>&
+  const absl::flat_hash_map<
+      Node*, std::unique_ptr<SharedLeafTypeTree<absl::flat_hash_set<Bits>>>>&
   values() const {
     return map_;
   }
@@ -431,7 +433,7 @@ class ConstantValueIrInterpreter
       absl::Span<const absl::flat_hash_set<Bits>* const> data_sources,
       absl::Span<const LeafTypeTreeView<absl::flat_hash_set<Bits>>>
           control_sources,
-      Node* node, absl::Span<const int64_t> index) const override {
+      Node* node, absl::Span<const int64_t> index) override {
     if (!element_type->IsBits()) {
       return absl::flat_hash_set<Bits>{};
     }
@@ -501,7 +503,7 @@ absl::StatusOr<absl::flat_hash_set<Bits>> FindConstantUpdateValues(
       continue;
     }
     LeafTypeTreeView<absl::flat_hash_set<Bits>> v =
-        values.at(n->value()).AsView();
+        values.at(n->value())->AsView();
     XLS_RET_CHECK(v.type()->IsBits());
     for (const Bits& b : v.Get({})) {
       param_values.insert(b);

@@ -214,7 +214,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
   absl::StatusOr<InlineBitmap> JoinElements(
       Type* element_type, absl::Span<const InlineBitmap* const> data_sources,
       absl::Span<const LeafTypeTreeView<InlineBitmap>> control_sources,
-      Node* node, absl::Span<const int64_t> index) const override {
+      Node* node, absl::Span<const int64_t> index) override {
     InlineBitmap element = *data_sources.front();
     for (const InlineBitmap* data_source : data_sources.subspan(1)) {
       element.Union(*data_source);

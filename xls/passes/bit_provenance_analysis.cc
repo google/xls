@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -51,10 +50,6 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
 
   // TODO(allight): With a query engine passed down to DataflowVisitor we could
   // do a better job picking which select branches etc are possible.
-
-  absl::flat_hash_map<Node*, LeafTypeTree<TreeBitSources>>&& map() && {
-    return std::move(map_);
-  }
 
   absl::Status DefaultHandler(Node* node) override {
     // Generic node is the sole source of all of its bits.
@@ -256,7 +251,7 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
   absl::StatusOr<TreeBitSources> JoinElements(
       Type* element_type, absl::Span<const TreeBitSources* const> data_sources,
       absl::Span<const LeafTypeTreeView<TreeBitSources>> control_sources,
-      Node* node, absl::Span<const int64_t> index) const override {
+      Node* node, absl::Span<const int64_t> index) override {
     // TODO Find overlaps
     std::vector<TreeBitRange> range(data_sources.front()->ranges().begin(),
                                     data_sources.front()->ranges().end());
@@ -273,7 +268,7 @@ class BitProvenanceVisitor final : public DataflowVisitor<TreeBitSources> {
 BitProvenanceAnalysis::Create(FunctionBase* function) {
   BitProvenanceVisitor prov;
   XLS_RETURN_IF_ERROR(function->Accept(&prov));
-  return BitProvenanceAnalysis(std::move(prov).map());
+  return BitProvenanceAnalysis(std::move(prov).ToStoredValues());
 }
 
 TreeBitLocation BitProvenanceAnalysis::GetSource(

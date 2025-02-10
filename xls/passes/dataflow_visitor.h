@@ -15,7 +15,10 @@
 #ifndef XLS_PASSES_DATAFLOW_VISITOR_H_
 #define XLS_PASSES_DATAFLOW_VISITOR_H_
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -127,6 +130,47 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> result,
                          Join(data_sources, control_sources, array_index));
     return SetValue(array_index, std::move(result));
+  }
+
+  absl::Status HandleArraySlice(ArraySlice* array_slice) override {
+    // The value for each element in an array-slice operation is the join of the
+    // possibly sliced values in the input array.
+    std::vector<SharedLeafTypeTree<LeafT>> elements;
+    elements.reserve(array_slice->width());
+    LeafTypeTreeView<LeafT> array_value = GetValue(array_slice->array());
+    int64_t array_size =
+        array_slice->array()->GetType()->AsArrayOrDie()->size();
+    if (std::optional<Bits> start_bits =
+            query_engine_.KnownValueAsBits(array_slice->start());
+        start_bits.has_value()) {
+      int64_t start = std::numeric_limits<int64_t>::max();
+      if (start_bits->FitsInNBitsUnsigned(63)) {
+        start = static_cast<int64_t>(*start_bits->ToUint64());
+      }
+      XLS_ASSIGN_OR_RETURN(
+          LeafTypeTree<LeafT> slice_value,
+          leaf_type_tree::SliceArray(array_slice->GetType()->AsArrayOrDie(),
+                                     array_value, start));
+      return SetValue(array_slice, std::move(slice_value));
+    }
+
+    std::vector<LeafTypeTreeView<LeafT>> data_sources;
+    std::vector<LeafTypeTree<LeafT>> possible_slices;
+    data_sources.reserve(array_size);
+    possible_slices.reserve(array_size);
+    for (int64_t start = 0; start < array_size; ++start) {
+      XLS_ASSIGN_OR_RETURN(
+          LeafTypeTree<LeafT> possible_slice,
+          leaf_type_tree::SliceArray(array_slice->GetType()->AsArrayOrDie(),
+                                     array_value, start));
+      possible_slices.push_back(std::move(possible_slice));
+      data_sources.push_back(possible_slices.back().AsView());
+    }
+    std::vector<LeafTypeTreeView<LeafT>> control_sources = {
+        GetValue(array_slice->start())};
+    XLS_ASSIGN_OR_RETURN(LeafTypeTree<LeafT> slice_value,
+                         Join(data_sources, control_sources, array_slice));
+    return SetValue(array_slice, std::move(slice_value));
   }
 
   absl::Status HandleArrayUpdate(ArrayUpdate* array_update) override {
@@ -249,21 +293,17 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   absl::Status HandleTupleIndex(TupleIndex* tuple_index) override {
     return SetValue(
         tuple_index,
-        leaf_type_tree::Clone(
-            map_.at(tuple_index->operand(0)).AsView({tuple_index->index()})));
+        map_.at(tuple_index->operand(0))->AsView({tuple_index->index()}));
   }
 
   // Returns the leaf type tree value associated with `node`.
   LeafTypeTreeView<LeafT> GetValue(Node* node) const {
-    return map_.at(node).AsView();
+    return map_.at(node)->AsView();
   }
 
-  // Returns the moved leaf type tree value associated with `node`.
-  LeafTypeTree<LeafT> ConsumeValue(Node* node) {
-    LeafTypeTree<LeafT> ltt = std::move(map_.at(node));
-    // Erase the moved element from the map to avoid later access.
-    map_.erase(node);
-    return ltt;
+  absl::flat_hash_map<Node*, std::unique_ptr<SharedLeafTypeTree<LeafT>>>
+  ToStoredValues() && {
+    return std::move(map_);
   }
 
  protected:
@@ -278,13 +318,13 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   virtual absl::StatusOr<LeafT> JoinElements(
       Type* element_type, absl::Span<const LeafT* const> data_sources,
       absl::Span<const LeafTypeTreeView<LeafT>> control_sources, Node* node,
-      absl::Span<const int64_t> index) const = 0;
+      absl::Span<const int64_t> index) = 0;
 
   // Inplace join of `other` into `element`.
   absl::Status JoinSubtreeInPlace(
       MutableLeafTypeTreeView<LeafT> tree, LeafTypeTreeView<LeafT> other,
       absl::Span<const LeafTypeTreeView<LeafT>> control_sources, Node* node,
-      absl::Span<const int64_t> index_of_root) const {
+      absl::Span<const int64_t> index_of_root) {
     XLS_RETURN_IF_ERROR(leaf_type_tree::ForEach(
         tree,
         [&](Type* element_type, LeafT& element,
@@ -304,8 +344,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // joined.
   absl::StatusOr<LeafTypeTree<LeafT>> Join(
       absl::Span<const LeafTypeTreeView<LeafT>> data_sources,
-      absl::Span<const LeafTypeTreeView<LeafT>> control_sources,
-      Node* node) const {
+      absl::Span<const LeafTypeTreeView<LeafT>> control_sources, Node* node) {
     return leaf_type_tree::ZipIndex<LeafT, LeafT>(
         data_sources,
         [&](Type* leaf_type, absl::Span<const LeafT* const> elements,
@@ -318,12 +357,20 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   // Sets the leaf type tree value associated with `node`.
   absl::Status SetValue(Node* node, LeafTypeTreeView<LeafT> value) {
     XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_[node] = leaf_type_tree::Clone(value);
+    map_.insert_or_assign(
+        node, std::make_unique<SharedLeafTypeTree<LeafT>>(value.AsShared()));
     return absl::OkStatus();
   }
   absl::Status SetValue(Node* node, LeafTypeTree<LeafT>&& value) {
     XLS_RET_CHECK_EQ(node->GetType(), value.type());
-    map_[node] = value;
+    map_.insert_or_assign(node, std::make_unique<SharedLeafTypeTree<LeafT>>(
+                                    std::move(value).AsShared()));
+    return absl::OkStatus();
+  }
+  absl::Status SetValue(Node* node, SharedLeafTypeTree<LeafT>&& value) {
+    XLS_RET_CHECK_EQ(node->GetType(), value.type());
+    map_.insert_or_assign(
+        node, std::make_unique<SharedLeafTypeTree<LeafT>>(std::move(value)));
     return absl::OkStatus();
   }
 
@@ -382,7 +429,11 @@ class DataflowVisitor : public DfsVisitorWithDefault {
   }
 
   StatelessQueryEngine query_engine_;
-  absl::flat_hash_map<Node*, LeafTypeTree<LeafT>> map_;
+
+  // Storage for the leaf type tree values associated with each node; must be
+  // pointer-stable so that values can be shared (by populating some values as
+  // Views of others).
+  absl::flat_hash_map<Node*, std::unique_ptr<SharedLeafTypeTree<LeafT>>> map_;
 };
 
 }  // namespace xls

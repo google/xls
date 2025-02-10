@@ -103,7 +103,7 @@ class TestDataflowVisitor : public DataflowVisitor<DataSource> {
   absl::StatusOr<DataSource> JoinElements(
       Type* element_type, absl::Span<const DataSource* const> data_sources,
       absl::Span<const LeafTypeTreeView<DataSource>> control_sources,
-      Node* node, absl::Span<const int64_t> index) const override {
+      Node* node, absl::Span<const int64_t> index) override {
     XLS_RET_CHECK(!data_sources.empty());
     DataSource result = *data_sources.front();
     for (const DataSource* other : data_sources.subspan(1)) {
@@ -119,7 +119,7 @@ class TestDataflowVisitorWithControl : public TestDataflowVisitor {
   absl::StatusOr<DataSource> JoinElements(
       Type* element_type, absl::Span<const DataSource* const> data_sources,
       absl::Span<const LeafTypeTreeView<DataSource>> control_sources,
-      Node* node, absl::Span<const int64_t> index) const override {
+      Node* node, absl::Span<const int64_t> index) override {
     XLS_RET_CHECK(!data_sources.empty());
     DataSource result = *data_sources.front();
     for (const DataSource* other : data_sources.subspan(1)) {
@@ -192,6 +192,8 @@ TEST_F(DataflowVisitorTest, Arrays) {
   BValue z_updated_1_i = b.ArrayUpdate(z, i, {one, i});
   BValue yy = b.ArrayConcat({y, y});
   BValue ij = b.Array({i, j}, u32);
+  BValue y_slice = b.ArraySlice(y, i, 2);
+  BValue y_slice_past_the_end = b.ArraySlice(y, i, 5);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
   TestDataflowVisitor visitor;
@@ -220,6 +222,11 @@ TEST_F(DataflowVisitorTest, Arrays) {
   EXPECT_THAT(visitor.GetValue(yy.node()).ToString(),
               "[y[0], y[1], y[2], y[0], y[1], y[2]]");
   EXPECT_THAT(visitor.GetValue(ij.node()).ToString(), "[i, j]");
+
+  EXPECT_THAT(visitor.GetValue(y_slice.node()).ToString(),
+              "[y[0] OR y[1] OR y[2], y[1] OR y[2]]");
+  EXPECT_THAT(visitor.GetValue(y_slice_past_the_end.node()).ToString(),
+              "[y[0] OR y[1] OR y[2], y[1] OR y[2], y[2], y[2], y[2]]");
 }
 
 TEST_F(DataflowVisitorTest, MultiDimensionalArrays) {
