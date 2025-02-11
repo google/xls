@@ -104,6 +104,7 @@ absl::StatusOr<bool> SetOptionsFromFlags(IrConverterOptionsFlagsProto& proto) {
   POPULATE_FLAG(verify);
   POPULATE_FLAG(convert_tests);
   POPULATE_OPTIONAL_FLAG(disable_warnings);
+  POPULATE_OPTIONAL_FLAG(enable_warnings);
   POPULATE_FLAG(warnings_as_errors);
   POPULATE_OPTIONAL_FLAG(interface_proto_file);
   POPULATE_OPTIONAL_FLAG(interface_textproto_file);
