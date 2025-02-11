@@ -52,3 +52,6 @@ single_version_override(
     patches = ["//dependency_support:protoc-gen-validate/no-rulescc.patch"],
     version = "1.0.4.bcr.2",
 )
+
+# compilation DB; build_cleaner
+bazel_dep(name = "bant", version = "0.1.14", dev_dependency=True)

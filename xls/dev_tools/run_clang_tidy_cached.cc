@@ -64,7 +64,8 @@
 
 // Some configuration for this project.
 static constexpr std::string_view kProjectCachePrefix = "xls_";
-static constexpr std::string_view kWorkspaceFile = "WORKSPACE";
+static constexpr std::string_view kWorkspaceFile = "MODULE.bazel";
+static constexpr std::string_view kCompilationDb = "compile_flags.txt";
 
 // Choices of what files to include and exclude to run clang-tidy on.
 static constexpr std::string_view kStartDirectory = "xls";
@@ -401,7 +402,7 @@ int main(int argc, char* argv[]) {
     std::cerr << "Script needs to be executed in toplevel bazel project dir\n";
     return EXIT_FAILURE;
   }
-  const auto compdb_ts = fs::last_write_time("compile_commands.json", ec);
+  const auto compdb_ts = fs::last_write_time(kCompilationDb, ec);
   if (ec.value() != 0) {
     std::cerr << "No compilation db found. First, run make-compilation-db.sh\n";
     return EXIT_FAILURE;

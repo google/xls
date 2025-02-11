@@ -18,16 +18,18 @@
 # to clang-tidy as-is. Typical use could be for instance
 #   run-clang-tidy-cached.sh --checks="-*,modernize-use-override" --fix
 
-# We have to first build the binary, then build the compilation-db and
-# must not call "bazel run" below ... otherwise bazel will remove some
-# of the symbolic links to external dependencies that we carefully
-# establish with the compilation-db build.
-bazel build //xls/dev_tools:run_clang_tidy_cached
+set -u
 
-$(dirname $0)/make-compilation-db.sh
+# Build clang-tidy runner; making sure to use the same -c opt flag
+# as make-compilation-db.sh will use so that the bazel symbolic links
+# are not switched around.
+bazel build -c opt //xls/dev_tools:run_clang_tidy_cached
 
 # Use either CLANG_TIDY provided by the user as environment variable or use
-# our own from the toolchain we configured in the WORKSPACE.
-export CLANG_TIDY="${CLANG_TIDY:-$(bazel info output_base)/external/llvm_toolchain_llvm/bin/clang-tidy}"
+# our own from the toolchain we configured in the MODULE.bazel
+export CLANG_TIDY=${CLANG_TIDY:-$(bazel run -c opt --run_under="echo" @llvm_toolchain//:clang-tidy 2>/dev/null)}
+
+# Refresh compilation DB
+$(dirname $0)/make-compilation-db.sh
 
 exec bazel-bin/xls/dev_tools/run_clang_tidy_cached "$@"
