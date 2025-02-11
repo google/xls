@@ -35,7 +35,7 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl/logging",
     ],
 )
 

@@ -50,7 +50,7 @@ cc_test(
         ":pretty_print",
         "//xls/common:xls_gunit_main",
         "//xls/dslx/frontend:pos",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -128,7 +128,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -150,7 +150,7 @@ cc_test(
         "//xls/fuzzer:ast_generator",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/random",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -194,6 +194,6 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

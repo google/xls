@@ -31,6 +31,6 @@ cc_test(
         "//xls/public:ir",
         "//xls/public:status_matchers",
         "//xls/public:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

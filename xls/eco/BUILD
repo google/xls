@@ -51,7 +51,7 @@ py_library(
     srcs = ["xls_ir_to_networkx.py"],
     data = [":xls_ir_to_cytoscape"],
     deps = [
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl/logging",
         requirement("networkx"),
         # networkx annoyingly marks scipy as an optional dep, but our usage requires it.
         # Also see b/394358042.
@@ -68,6 +68,6 @@ py_test(
         ":xls_ir_to_networkx",
         requirement("networkx"),
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )

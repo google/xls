@@ -62,7 +62,7 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/ir:xls_ir_interface_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -79,8 +79,8 @@ py_test(
     ],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/logging",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/logging",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )

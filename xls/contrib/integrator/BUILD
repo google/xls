@@ -72,7 +72,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -110,6 +110,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:verifier",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

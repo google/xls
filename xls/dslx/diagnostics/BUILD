@@ -56,7 +56,7 @@ cc_test(
         "//xls/dslx:warning_collector",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/status",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -99,7 +99,7 @@ cc_test(
         "//xls/dslx/type_system:type_mismatch_error_data",
         "//xls/dslx/type_system:typecheck_module",
         "@com_google_absl//absl/status",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -133,6 +133,6 @@ cc_test(
         "//xls/dslx:channel_direction",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

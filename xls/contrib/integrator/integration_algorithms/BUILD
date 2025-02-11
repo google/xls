@@ -59,6 +59,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
         "//xls/ir:verifier",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

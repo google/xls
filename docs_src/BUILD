@@ -63,6 +63,6 @@ py_test(
     deps = [
         requirement("pyyaml"),
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
+        "@abseil-py//absl:app",
     ],
 )

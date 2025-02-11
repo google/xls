@@ -43,7 +43,7 @@ cc_test(
         ":z3_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
         "@z3//:api",
     ],
 )
@@ -78,7 +78,7 @@ cc_library(
     deps = [
         ":z3_ir_translator",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -90,7 +90,7 @@ cc_test(
         ":z3_ir_translator_matchers",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -115,7 +115,7 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -143,7 +143,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -202,7 +202,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
         "@z3//:api",
     ],
 )
@@ -256,7 +256,7 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -307,7 +307,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
         "@z3//:api",
     ],
 )
@@ -331,7 +331,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_googlesource_code_re2//:re2",
+        "@re2",
         "@z3//:api",
     ],
 )
@@ -350,7 +350,7 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
         "@z3//:api",
     ],
 )

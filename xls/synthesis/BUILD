@@ -13,8 +13,8 @@
 # limitations under the License.
 
 # pytype binary, test, library
-load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
-load("@com_github_grpc_grpc//bazel:python_rules.bzl", "py_grpc_library")
+load("@grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
+load("@grpc//bazel:python_rules.bzl", "py_grpc_library")
 load("@rules_python//python:proto.bzl", "py_proto_library")
 # Load proto_library
 # cc_proto_library is used in this file
@@ -71,7 +71,7 @@ cc_grpc_library(
     grpc_only = 1,
     deps = [
         ":synthesis_service_cc_proto",
-        "@com_github_grpc_grpc//:grpc++",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -89,9 +89,9 @@ py_binary(
         ":client_credentials",
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/logging",
     ],
 )
 
@@ -102,8 +102,8 @@ py_binary(
         ":client_credentials",
         ":op_characterization_client",
         ":synthesis_service_py_pb2_grpc",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -114,7 +114,7 @@ py_test(
         ":op_characterization_client",
         "//xls/estimators:estimator_model_py_pb2",
         "//xls/estimators:estimator_model_utils",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -126,11 +126,11 @@ cc_binary(
         ":synthesis_cc_proto",
         ":synthesis_service_cc_grpc",
         "//xls/common:init_xls",
-        "@com_github_grpc_grpc//:grpc++",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -147,7 +147,7 @@ py_test(
         ":synthesis_py_pb2",
         requirement("portpicker"),
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -157,15 +157,15 @@ cc_library(
     srcs = ["credentials.cc"],
     hdrs = ["credentials.h"],
     deps = [
-        "@com_github_grpc_grpc//:grpc",
-        "@com_github_grpc_grpc//:grpc++",
+        "@grpc",
+        "@grpc//:grpc++",
     ],
 )
 
 py_library(
     name = "client_credentials",
     srcs = ["client_credentials.py"],
-    deps = ["@com_github_grpc_grpc//src/python/grpcio/grpc:grpcio"],
+    deps = ["@grpc//src/python/grpcio/grpc:grpcio"],
 )
 
 py_library(
@@ -174,7 +174,7 @@ py_library(
     deps = [
         ":synthesis_py_pb2",
         ":synthesis_service_py_pb2_grpc",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl/logging",
     ],
 )
 
@@ -193,8 +193,8 @@ py_library(
         "//xls/estimators:estimator_model_utils",
         "//xls/estimators:op_module_generator",
         "//xls/ir:xls_op_name_py_pb2",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/logging",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -209,7 +209,7 @@ py_test(
         ":synthesis_utils",
         requirement("portpicker"),
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -222,9 +222,9 @@ cc_library(
         ":synthesis_cc_proto",
         ":synthesis_service_cc_grpc",
         "//xls/common/status:status_macros",
-        "@com_github_grpc_grpc//:grpc++",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@grpc//:grpc++",
     ],
 )
 

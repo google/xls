@@ -51,12 +51,12 @@ cc_binary(
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
         "@at_clifford_yosys//:json11",
-        "@com_github_grpc_grpc//:grpc++",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -74,7 +74,7 @@ py_test(
         requirement("portpicker"),
         "//xls/common:runfiles",
         "//xls/synthesis:synthesis_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )

@@ -108,7 +108,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -131,7 +131,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -155,7 +155,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -179,7 +179,7 @@ cc_test(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -203,7 +203,7 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -228,7 +228,7 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -253,7 +253,7 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -342,7 +342,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_googlesource_code_re2//:re2",
+        "@re2",
     ],
 )
 
@@ -373,7 +373,7 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -520,7 +520,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_protobuf//:differencer",
         "@com_google_protobuf//:protobuf",
-        "@com_googlesource_code_re2//:re2",
+        "@re2",
     ],
 )
 
@@ -682,8 +682,8 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/ir:op_py_pb2",
-        "@com_google_absl_py//absl/logging",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/logging",
+        "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -771,8 +771,8 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@com_googlesource_code_re2//:re2",
+        "@googletest//:gtest",
+        "@re2",
     ],
 )
 
@@ -845,7 +845,7 @@ cc_test(
         "@com_google_absl//absl/random:mocking_bit_gen",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -853,7 +853,7 @@ cc_library(
     name = "scrub_crasher",
     srcs = ["scrub_crasher.cc"],
     hdrs = ["scrub_crasher.h"],
-    deps = ["@com_googlesource_code_re2//:re2"],
+    deps = ["@re2"],
 )
 
 cc_test(
@@ -871,7 +871,7 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -898,7 +898,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -925,7 +925,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -972,7 +972,7 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -986,7 +986,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
         "@com_google_absl//absl/log",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

@@ -143,8 +143,8 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
     ],
 )
 
@@ -260,7 +260,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_googlesource_code_re2//:re2",
+        "@re2",
     ],
 )
 
@@ -277,8 +277,8 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
     ],
 )
 
@@ -427,8 +427,8 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/passes:pass_pipeline_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
@@ -443,8 +443,8 @@ py_test(
     main = "run_opt_main.py",
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -459,8 +459,8 @@ py_test(
     main = "run_opt_main.py",
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -475,8 +475,8 @@ py_test(
     main = "run_opt_main.py",
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -491,8 +491,8 @@ py_test(
     main = "run_opt_main.py",
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -507,8 +507,8 @@ py_test(
     main = "run_opt_main.py",
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -535,7 +535,7 @@ proto_library(
     name = "scheduling_options_flags_proto",
     srcs = ["scheduling_options_flags.proto"],
     visibility = ["//xls:xls_users"],
-    deps = ["@com_google_googleapis//google/api:field_behavior_proto"],
+    deps = ["@googleapis//google/api:field_behavior_proto"],
 )
 
 py_proto_library(
@@ -769,9 +769,9 @@ py_test(
         "//xls/codegen:module_signature_py_pb2",
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -789,8 +789,8 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/ir:xls_value_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
@@ -806,8 +806,8 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
@@ -839,9 +839,9 @@ py_test(
         ":proc_channel_values_py_pb2",
         "//xls/common:runfiles",
         "//xls/ir:xls_value_py_pb2",
-        "@com_google_absl_py//absl/logging",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/logging",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
@@ -875,7 +875,7 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -975,8 +975,8 @@ py_binary(
     deps = [
         ":design_stats_py_pb2",
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -993,7 +993,7 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 

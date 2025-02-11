@@ -73,7 +73,7 @@ cc_test(
         "//xls/common/fuzzing:fuzztest",
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -96,7 +96,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:value_view",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -109,7 +109,7 @@ cc_test(
         "//xls/dslx/stdlib:float32_add_jit_wrapper",
         "//xls/ir:value",
         "//xls/ir:value_utils",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -203,7 +203,7 @@ cc_test(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

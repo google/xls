@@ -95,7 +95,7 @@ cc_test(
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -116,7 +116,7 @@ cc_test(
         ":dimension_order_entry_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -141,7 +141,7 @@ cc_test(
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -162,7 +162,7 @@ cc_test(
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_butterfly_options_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -183,7 +183,7 @@ cc_test(
         ":bidirectional_butterfly_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -208,7 +208,7 @@ cc_test(
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_butterfly_options_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -229,7 +229,7 @@ cc_test(
         ":level_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -250,7 +250,7 @@ cc_test(
         ":topology_options_network_config_builder_cc_proto",
         ":unidirectional_tree_options_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -271,7 +271,7 @@ cc_test(
         ":bidirectional_tree_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -299,7 +299,7 @@ cc_test(
         ":tree_options_proto_builder",
         ":unidirectional_tree_options_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -322,7 +322,7 @@ cc_test(
         ":topology_endpoint_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -343,7 +343,7 @@ cc_test(
         ":coordinate_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -367,7 +367,7 @@ cc_test(
         ":node_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -389,7 +389,7 @@ cc_test(
         ":channel_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -414,7 +414,7 @@ cc_test(
         ":node_options_proto_builder",
         ":topology_options_network_config_builder_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -436,7 +436,7 @@ cc_test(
         ":network_component_port",
         ":network_view",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -462,7 +462,7 @@ cc_test(
         ":network_component_port",
         ":network_view",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -485,7 +485,7 @@ cc_test(
         ":network_connection",
         ":network_view",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -510,7 +510,7 @@ cc_test(
         ":network_connection",
         ":network_view",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -549,7 +549,7 @@ cc_test(
         ":network_view",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -579,7 +579,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -606,7 +606,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -631,7 +631,7 @@ cc_test(
         ":network_view_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -655,7 +655,7 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -676,7 +676,7 @@ cc_test(
     deps = [
         ":dimension_bounds",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -701,7 +701,7 @@ cc_test(
         ":dimension_bounds",
         "//xls/common:xls_gunit_main",
         "//xls/data_structures:inline_bitmap",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -727,7 +727,7 @@ cc_test(
         ":dimension_bounds",
         ":flattened_multi_dimensional_array",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -753,7 +753,7 @@ cc_test(
         ":network_topology_component",
         ":network_topology_view",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -780,6 +780,6 @@ cc_test(
         ":network_topology_view",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

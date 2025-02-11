@@ -89,8 +89,8 @@ py_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":metadata_output_py_pb2",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -155,10 +155,10 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_googlesource_code_re2//:re2",
         "@llvm-project//clang:ast",
         "@llvm-project//clang:basic",
         "@llvm-project//llvm:Support",
+        "@re2",
         "@z3//:api",
     ],
 )
@@ -274,7 +274,7 @@ py_binary(
         ":hls_block_py_pb2",
         ":metadata_output_py_pb2",
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )

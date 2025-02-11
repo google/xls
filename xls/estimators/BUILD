@@ -57,7 +57,7 @@ py_test(
     deps = [
         ":estimator_model",
         ":estimator_model_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -83,7 +83,7 @@ py_test(
     deps = [
         ":op_module_generator",
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -95,8 +95,8 @@ py_binary(
         ":estimator_model_py_pb2",
         ":estimator_model_utils",
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -110,7 +110,7 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -127,8 +127,8 @@ py_test(
         ":estimator_model_py_pb2",
         ":estimator_model_utils",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
@@ -138,8 +138,8 @@ py_binary(
     deps = [
         ":estimator_model_py_pb2",
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -153,7 +153,7 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -164,9 +164,9 @@ py_binary(
         requirement("numpy"),
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/logging",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -187,7 +187,7 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -196,8 +196,8 @@ py_binary(
     srcs = ["run_op_characterization.py"],
     deps = [
         requirement("portpicker"),
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/logging",
     ],
 )

@@ -56,6 +56,6 @@ cc_test(
         "//xls/ir:events",
         "//xls/ir:value",
         "//xls/ir:value_builder",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

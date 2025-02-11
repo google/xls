@@ -36,7 +36,7 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
-        "@com_googlesource_code_re2//:re2",
+        "@re2",
     ],
 )
 
@@ -72,7 +72,7 @@ py_test(
     data = [":tool_timeout_test_main"],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -80,9 +80,9 @@ py_binary(
     name = "package_bazel_build",
     srcs = ["package_bazel_build.py"],
     deps = [
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/logging",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+        "@abseil-py//absl/logging",
     ],
 )
 
@@ -98,7 +98,7 @@ py_binary(
     name = "generate_vvp_runner",
     srcs = ["generate_vvp_runner.py"],
     deps = [
-        "@com_google_absl_py//absl:app",
+        "@abseil-py//absl:app",
     ],
 )
 
@@ -147,7 +147,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "//xls/ir:source_location",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -185,7 +185,7 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/estimators:estimator_model_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -237,7 +237,7 @@ py_test(
     data = [":extract_segment_main"],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -252,7 +252,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -289,7 +289,7 @@ cc_test(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -359,8 +359,8 @@ py_binary(
     deps = [
         "//xls/common:runfiles",
         "//xls/jit:aot_entrypoint_py_pb2",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -373,7 +373,7 @@ py_test(
     ],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -429,7 +429,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -496,7 +496,7 @@ py_test(
     ],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -594,7 +594,7 @@ py_test(
     data = ["ir_minimizer_main"],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -718,7 +718,7 @@ py_test(
     deps = [
         "//xls/common:runfiles",
         "//xls/common:test_base",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -858,7 +858,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

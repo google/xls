@@ -48,7 +48,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/log:scoped_mock_log",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

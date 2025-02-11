@@ -42,7 +42,7 @@ cc_test(
         "//xls/simulation:sim_test_base",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -55,7 +55,7 @@ cc_test(
         "//xls/ir:value",
         "//xls/simulation:sim_test_base",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -79,7 +79,7 @@ cc_test(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -95,8 +95,8 @@ py_test(
     ],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
-        "@com_google_absl_py//absl/testing:parameterized",
+        "@abseil-py//absl/testing:absltest",
+        "@abseil-py//absl/testing:parameterized",
     ],
 )
 
@@ -141,7 +141,7 @@ cc_test(
     deps = [
         ":testbench_builder_utils",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

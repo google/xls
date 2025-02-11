@@ -40,7 +40,7 @@ cc_test(
         ":union_find_map",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -64,7 +64,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/types:variant",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -89,7 +89,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -119,8 +119,8 @@ cc_test(
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@com_google_benchmark//:benchmark",
-        "@com_google_googletest//:gtest",
+        "@google_benchmark//:benchmark",
+        "@googletest//:gtest",
     ],
 )
 
@@ -243,8 +243,8 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
         "@cppitertools",
+        "@googletest//:gtest",
     ],
 )
 
@@ -266,7 +266,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -276,7 +276,7 @@ cc_test(
     deps = [
         ":algorithm",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -289,7 +289,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -302,7 +302,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -313,7 +313,7 @@ cc_test(
         ":strongly_connected_components",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/container:btree",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -324,7 +324,7 @@ cc_test(
         ":submodular",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/container:btree",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -334,6 +334,6 @@ cc_test(
     deps = [
         ":union_find",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

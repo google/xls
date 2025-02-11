@@ -41,8 +41,8 @@ py_binary(
     deps = [
         ":flags_checks",
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -54,8 +54,8 @@ py_binary(
     deps = [
         ":flags_checks",
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -104,8 +104,8 @@ py_binary(
         ":n_bit_nested_shift_generator",
         ":solvers_op_comparison_functions",
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -121,8 +121,8 @@ py_binary(
         ":n_bit_nested_shift_generator",
         ":solvers_op_comparison_functions",
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -133,7 +133,7 @@ py_binary(
     ],
     deps = [
         "//xls/common:gfile",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )

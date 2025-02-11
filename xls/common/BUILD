@@ -52,7 +52,7 @@ cc_test(
         ":iter_util",
         ":xls_gunit_main",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -85,9 +85,9 @@ cc_library(
     hdrs = ["proto_test_utils.h"],
     deps = [
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:differencer",
         "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
     ],
 )
 
@@ -108,8 +108,8 @@ cc_test(
         ":matcher_test_messages_cc_proto",
         ":proto_test_utils",
         ":xls_gunit_main",
-        "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest",
     ],
 )
 
@@ -119,7 +119,7 @@ cc_test(
     deps = [
         ":proto_adaptor_utils",
         ":xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -144,7 +144,7 @@ cc_test(
         ":casts",
         ":xls_gunit_main",
         "@com_google_absl//absl/base",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -153,7 +153,7 @@ cc_test(
     srcs = ["xls_gunit_sample.cc"],
     deps = [
         ":xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -163,7 +163,7 @@ py_test(
     data = [":xls_gunit_sample"],
     deps = [
         ":runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
@@ -183,7 +183,7 @@ cc_library(
     hdrs = ["gunit_init_xls.h"],
     deps = [
         ":init_xls",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -195,7 +195,7 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         "@com_google_absl//absl/flags:flag",
-        "@com_google_benchmark//:benchmark",
+        "@google_benchmark//:benchmark",
     ],
 )
 
@@ -245,7 +245,7 @@ cc_test(
         ":xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/base:core_headers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -261,7 +261,7 @@ cc_test(
     deps = [
         ":module_initializer",
         ":xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -277,7 +277,7 @@ cc_test(
     deps = [
         ":source_location",
         ":xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -322,7 +322,7 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -339,7 +339,7 @@ cc_test(
     deps = [
         ":strerror",
         ":xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -378,7 +378,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -390,7 +390,7 @@ cc_test(
         ":xls_gunit_main",
         "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/hash:hash_testing",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -411,7 +411,7 @@ cc_test(
     deps = [
         ":symbolized_stacktrace",
         ":xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -433,7 +433,7 @@ cc_test(
         ":visitor",
         ":xls_gunit_main",
         "@com_google_absl//absl/types:variant",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -449,7 +449,7 @@ cc_test(
         ":type_traits_utils",
         ":xls_gunit_main",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -471,7 +471,7 @@ cc_test(
         ":xls_gunit_main",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -495,7 +495,7 @@ cc_test(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -509,7 +509,7 @@ cc_test(
         ":golden_files",
         ":xls_gunit_main",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -544,7 +544,7 @@ py_library(
 py_library(
     name = "multiprocess",
     srcs = ["multiprocess.py"],
-    deps = ["@com_google_absl_py//absl:app"],
+    deps = ["@abseil-py//absl:app"],
 )
 
 py_test(
@@ -556,14 +556,14 @@ py_test(
     ],
     deps = [
         ":runfiles",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
 
 py_library(
     name = "test_base",
     srcs = ["test_base.py"],
-    deps = ["@com_google_absl_py//absl/testing:absltest"],
+    deps = ["@abseil-py//absl/testing:absltest"],
 )
 
 cc_library(
@@ -593,7 +593,7 @@ cc_library(
         ":benchmark_support",
         ":gunit_init_xls",
         "@com_google_fuzztest//fuzztest:init_fuzztest",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
     alwayslink = True,
 )
@@ -613,7 +613,7 @@ cc_library(
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -642,7 +642,7 @@ cc_test(
         ":xls_gunit_main",
         "//xls/common/fuzzing:fuzztest",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

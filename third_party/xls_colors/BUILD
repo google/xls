@@ -51,7 +51,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:value",
         "//xls/simulation:sim_test_base",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

@@ -60,7 +60,7 @@ cc_test(
         ":link_config_proto_builder",
         ":network_config_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -82,7 +82,7 @@ cc_test(
         ":network_config_cc_proto",
         ":virtual_channel_config_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -104,7 +104,7 @@ cc_test(
         ":network_config_cc_proto",
         ":port_config_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -126,7 +126,7 @@ cc_test(
         ":network_config_cc_proto",
         ":routing_scheme_config_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -151,7 +151,7 @@ cc_test(
         ":network_config_cc_proto",
         ":network_config_proto_builder_utils",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -180,7 +180,7 @@ cc_test(
         ":router_config_proto_builder",
         ":routing_scheme_config_proto_builder",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -210,7 +210,7 @@ cc_test(
         ":virtual_channel_config_proto_builder",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -248,7 +248,7 @@ cc_test(
         ":network_config_builder_options_cc_proto",
         ":network_config_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -269,6 +269,6 @@ cc_test(
         ":custom_network_config_builder_options_proto_builder",
         ":network_config_builder_options_cc_proto",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )

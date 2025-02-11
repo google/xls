@@ -51,7 +51,7 @@ cc_test(
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -105,7 +105,7 @@ cc_test(
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -153,7 +153,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -209,7 +209,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -221,8 +221,8 @@ cc_library(
         ":synthesizer",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
-        "@com_github_grpc_grpc//:grpc++",
         "@com_google_absl//absl/status:statusor",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -256,7 +256,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

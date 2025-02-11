@@ -62,7 +62,7 @@ cc_test(
         "//xls/simulation:verilog_include",
         "//xls/simulation:verilog_test_base",
         "@com_google_absl//absl/log",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

@@ -74,7 +74,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:default_dslx_stdlib_path",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -128,7 +128,7 @@ py_binary(
     srcs = ["verify_checksum.py"],
     deps = [
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
+        "@abseil-py//absl:app",
     ],
 )
 
@@ -262,7 +262,7 @@ cc_test(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

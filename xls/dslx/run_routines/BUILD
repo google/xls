@@ -79,7 +79,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",
-        "@com_googlesource_code_re2//:re2",
+        "@re2",
     ],
 )
 
@@ -107,8 +107,8 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@com_googlesource_code_re2//:re2",
+        "@googletest//:gtest",
+        "@re2",
     ],
 )
 
@@ -133,7 +133,7 @@ cc_test(
         ":test_xml",
         "//xls/common:xls_gunit_main",
         "@com_google_absl//absl/time",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 

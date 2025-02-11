@@ -67,8 +67,8 @@ py_binary(
         requirement("MarkupSafe"),
         requirement("Werkzeug"),
         "//xls/common:runfiles",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
     ],
 )
 
@@ -133,7 +133,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_googlesource_code_re2//:re2",
+        "@re2",
     ],
 )
 
@@ -158,7 +158,7 @@ cc_test(
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -225,7 +225,7 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/log",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -281,9 +281,9 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_riegeli//riegeli/bytes:fd_writer",
-        "@com_google_riegeli//riegeli/csv:csv_record",
-        "@com_google_riegeli//riegeli/csv:csv_writer",
+        "@riegeli//riegeli/bytes:fd_writer",
+        "@riegeli//riegeli/csv:csv_record",
+        "@riegeli//riegeli/csv:csv_writer",
     ],
 )
 

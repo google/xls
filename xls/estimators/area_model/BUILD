@@ -59,7 +59,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -85,7 +85,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/status:status_matchers",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -106,7 +106,7 @@ py_test(
         "//xls/common:test_base",
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
+        "@abseil-py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],
 )
@@ -122,8 +122,8 @@ py_binary(
         "//xls/estimators:estimator_model",
         "//xls/estimators:estimator_model_py_pb2",
         "//xls/estimators/area_model:area_model_utils",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
         "@com_google_protobuf//:protobuf_python",
     ],
 )

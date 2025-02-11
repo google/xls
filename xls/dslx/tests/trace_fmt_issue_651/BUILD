@@ -69,6 +69,6 @@ cc_test(
         "//xls/ir:value",
         "//xls/ir:value_builder",
         "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
