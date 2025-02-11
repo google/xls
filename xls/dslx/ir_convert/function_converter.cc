@@ -3150,8 +3150,19 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   std::string callee_name;
   Module* m;
   if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
-    callee_name = name_ref->identifier();
-    m = module_;
+    if (std::optional<const UseTreeEntry*> use_tree_entry =
+            IsExternNameRef(*name_ref)) {
+      // NameRef refers to an externally-defined entity.
+      XLS_ASSIGN_OR_RETURN(
+          const ImportedInfo* info,
+          current_type_info_->GetImportedOrError(use_tree_entry.value()));
+      callee_name = name_ref->identifier();
+      m = info->module;
+    } else {
+      // NameRef that refers to a locally defined entity.
+      callee_name = name_ref->identifier();
+      m = module_;
+    }
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
     callee_name = colon_ref->attr();
     std::optional<Import*> import = colon_ref->ResolveImportSubject();

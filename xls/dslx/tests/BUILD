@@ -710,6 +710,8 @@ dslx_lang_test(
     dslx_deps = [":mod_use_multi_lib"],
 )
 
+dslx_lang_test(name = "mod_use_in_parametric")
+
 dslx_lang_test(
     name = "mod_importer",
     dslx_deps = [":mod_imported_dslx"],
