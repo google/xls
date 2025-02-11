@@ -19,8 +19,10 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/fuzzing/fuzztest.h"
@@ -703,6 +705,27 @@ void CompareBitsAndPushBufferData(
   EXPECT_EQ(ones_count_from_bits, set_in_bit_vector);
 }
 FUZZ_TEST(BitsFuzzTest, CompareBitsAndPushBufferData);
+
+void BM_BitsRopePushBack(benchmark::State& state) {
+  int64_t add_cnt = state.range(0);
+  Bits to_add = Bits::FromBytes(
+      std::vector<uint8_t>(CeilOfRatio<int64_t>(state.range(1), 8), 0b10101010),
+      state.range(1));
+  for (auto s : state) {
+    BitsRope rope(state.range(0) * state.range(1));
+    for (int64_t i = 0; i < add_cnt; ++i) {
+      rope.push_back(to_add);
+    }
+    Bits res = std::move(rope).Build();
+    state.PauseTiming();
+    benchmark::DoNotOptimize(res);
+    state.ResumeTiming();
+  }
+}
+
+// First pair is the number of elements to push second is the number of bits in
+// each element.
+BENCHMARK(BM_BitsRopePushBack)->RangePair(5, 500, 10, 2000);
 
 }  // namespace
 }  // namespace xls
