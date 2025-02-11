@@ -5008,20 +5008,6 @@ TEST_F(TranslatorLogicTest, PragmaIgnoresSpaces) {
   Run({}, 1, content);
 }
 
-TEST_F(TranslatorLogicTest, PragmaHlsPartialUnrollTreatedAsFullUnroll) {
-  std::string_view content = R"(
-  #pragma hls_top
-  int st() {
-    int sum = 0;
-    #pragma hls_unroll  4
-    for (int i = 0; i < 4; i++) {
-      sum += i;
-    }
-    return sum;
-  })";
-  Run({}, 0 + 1 + 2 + 3, content);
-}
-
 TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
   std::string_view content = R"(
   // #pragma    hls_top

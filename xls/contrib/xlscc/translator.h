@@ -1942,24 +1942,27 @@ class Translator {
       clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
+  // max_iters must be > 0
   absl::Status GenerateIR_UnrolledLoop(
       bool always_first_iter, bool warn_inferred_loop_type,
       const clang::Stmt* init, const clang::Expr* cond_expr,
-      const clang::Stmt* inc, const clang::Stmt* body, clang::ASTContext& ctx,
+      const clang::Stmt* inc, const clang::Stmt* body, int64_t max_iters,
+      bool propagate_break_up, clang::ASTContext& ctx,
       const xls::SourceInfo& loc);
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_PipelinedLoop(
       bool always_first_iter, bool warn_inferred_loop_type,
       const clang::Stmt* init, const clang::Expr* cond_expr,
       const clang::Stmt* inc, const clang::Stmt* body,
-      int64_t initiation_interval_arg, bool schedule_asap,
-      clang::ASTContext& ctx, const xls::SourceInfo& loc);
+      int64_t initiation_interval_arg, int64_t unroll_factor,
+      bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
 
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
-      const clang::Stmt* body, int64_t init_interval, bool always_first_iter,
-      clang::ASTContext& ctx, std::string_view name_prefix,
-      xls::Type* context_struct_xls_type, xls::Type* context_lvals_xls_type,
+      const clang::Stmt* body, int64_t init_interval, int64_t unroll_factor,
+      bool always_first_iter, clang::ASTContext& ctx,
+      std::string_view name_prefix, xls::Type* context_struct_xls_type,
+      xls::Type* context_lvals_xls_type,
       const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
       absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
           lvalues_out,

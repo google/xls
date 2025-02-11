@@ -635,7 +635,7 @@ void XlsccTestBase::ProcTest(
   absl::flat_hash_map<std::string, xls::InterpreterEvents> got_events_for_proc;
 
   int tick = 1;
-  for (; tick < max_ticks; ++tick) {
+  for (; tick <= max_ticks; ++tick) {
     LOG(INFO) << "Before tick " << tick;
 
     interpreter->ClearInterpreterEvents();

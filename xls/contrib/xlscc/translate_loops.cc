@@ -74,72 +74,83 @@ absl::Status Translator::GenerateIR_Loop(
     }
   }
 
-  bool is_asap = HasAnnotation(attrs, "xlscc_asap");
-
-  int64_t unroll_factor = context().for_loops_default_unroll
-                              ? std::numeric_limits<int64_t>::max()
-                              : 0;
-  bool warn_inferred_loop_type =
-      debug_ir_trace_flags_ & DebugIrTraceFlags_OptimizationWarnings;
-
   XLS_ASSIGN_OR_RETURN(
       std::optional<int64_t> unroll_factor_optional,
-      GetAnnotationWithNonNegativeIntegerParam(attrs, "hls_unroll", loc, ctx,
-                                               /*default_value=*/1));
+      GetAnnotationWithNonNegativeIntegerParam(
+          attrs, "hls_unroll", loc, ctx,
+          /*default_value=*/std::numeric_limits<int64_t>::max()));
 
-  if (unroll_factor_optional.has_value()) {
-    unroll_factor = unroll_factor_optional.value();
-    warn_inferred_loop_type = false;
-  }
-
-  if (unroll_factor > 0) {
-    if (unroll_factor > 1 &&
-        unroll_factor < std::numeric_limits<int64_t>::max() &&
-        debug_ir_trace_flags_ & DebugIrTraceFlags_OptimizationWarnings) {
-      LOG(WARNING) << WarningMessage(loc,
-                                     "XLS[cc] currently supports only "
-                                     "unbounded loop unrolling; ignoring "
-                                     "specified depth %d",
-                                     unroll_factor);
-    }
-    return GenerateIR_UnrolledLoop(always_first_iter, warn_inferred_loop_type,
-                                   init, cond_expr, inc, body, ctx, loc);
-  }
-
-  int64_t init_interval = -1;
   XLS_ASSIGN_OR_RETURN(std::optional<int64_t> init_interval_optional,
                        GetAnnotationWithNonNegativeIntegerParam(
                            attrs, "hls_pipeline_init_interval", loc, ctx));
 
-  warn_inferred_loop_type =
+  // Both pragmas/attributes cannot be present
+  XLSCC_CHECK(!(unroll_factor_optional.has_value() &&
+                init_interval_optional.has_value()),
+              loc);
+
+  // hls_unroll can indicate either unrolling or pipelining (partial unroll).
+
+  const bool no_pragma = !unroll_factor_optional.has_value() &&
+                         !init_interval_optional.has_value();
+  const bool default_unroll = no_pragma && context().for_loops_default_unroll;
+  const bool inferred_loop_warning_on =
       debug_ir_trace_flags_ & DebugIrTraceFlags_OptimizationWarnings;
 
-  if (init_interval_optional.has_value()) {
-    init_interval = init_interval_optional.value();
-    warn_inferred_loop_type = false;
-  } else {
-    // Pipelined loops can inherit their initiation interval from enclosing
-    // loops, so they can be allowed not to have a #pragma.
-    CHECK(!context().in_pipelined_for_body ||
-          (context().outer_pipelined_loop_init_interval > 0));
-    init_interval = context().outer_pipelined_loop_init_interval;
+  if (default_unroll ||
+      (unroll_factor_optional.has_value() &&
+       unroll_factor_optional.value() == std::numeric_limits<int64_t>::max())) {
+    const bool warn_inferred_loop_type =
+        default_unroll && inferred_loop_warning_on;
+
+    return GenerateIR_UnrolledLoop(
+        always_first_iter, warn_inferred_loop_type, init, cond_expr, inc, body,
+        /*max_iters=*/std::numeric_limits<int64_t>::max(),
+        /*propagate_break_up=*/false, ctx, loc);
   }
 
-  if (init_interval <= 0) {
+  int64_t init_interval = -1;
+  int64_t unroll_factor = -1;
+  bool warn_inferred_loop_type = false;
+
+  if (init_interval_optional.has_value()) {
+    XLSCC_CHECK((!unroll_factor_optional.has_value()) ||
+                    (unroll_factor_optional.value() ==
+                     std::numeric_limits<int64_t>::max()),
+                loc);
+    init_interval = init_interval_optional.value();
+    unroll_factor = 1;
+  } else if (unroll_factor_optional.has_value()) {
+    XLSCC_CHECK(!init_interval_optional.has_value(), loc);
+    init_interval = 1;
+    unroll_factor = unroll_factor_optional.value();
+  } else if (context().outer_pipelined_loop_init_interval > 0) {
+    init_interval = context().outer_pipelined_loop_init_interval;
+    unroll_factor = 1;
+    warn_inferred_loop_type = inferred_loop_warning_on;
+  } else {
     return absl::UnimplementedError(
         ErrorMessage(loc, "Loop statement missing #pragma or attribute"));
   }
 
+  CHECK(init_interval > 0 && unroll_factor > 0);
+
+  bool is_asap = HasAnnotation(attrs, "xlscc_asap");
+
   return GenerateIR_PipelinedLoop(always_first_iter, warn_inferred_loop_type,
                                   init, cond_expr, inc, body, init_interval,
-                                  is_asap, ctx, loc);
+                                  /*unroll_factor=*/unroll_factor, is_asap, ctx,
+                                  loc);
 }
 
 absl::Status Translator::GenerateIR_UnrolledLoop(
     bool always_first_iter, bool warn_inferred_loop_type,
     const clang::Stmt* init, const clang::Expr* cond_expr,
-    const clang::Stmt* inc, const clang::Stmt* body, clang::ASTContext& ctx,
+    const clang::Stmt* inc, const clang::Stmt* body, int64_t max_iters,
+    bool propagate_break_up, clang::ASTContext& ctx,
     const xls::SourceInfo& loc) {
+  XLSCC_CHECK(max_iters > 0, loc);
+
   XLS_ASSIGN_OR_RETURN(xls::solvers::z3::IrTranslator * z3_translator_parent,
                        GetZ3Translator(context().fb->function()));
   Z3_solver solver =
@@ -158,7 +169,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
 
   // Generate the declaration within a private context
   PushContextGuard for_init_guard(*this, loc);
-  context().propagate_break_up = false;
+  context().propagate_break_up = propagate_break_up;
   context().propagate_continue_up = false;
   context().in_for_body = true;
   context().in_switch_body = false;
@@ -176,7 +187,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
 
   absl::Duration slowest_iter = absl::ZeroDuration();
 
-  for (int64_t nIters = 0;; ++nIters) {
+  for (int64_t nIters = 0; nIters < max_iters; ++nIters) {
     const bool first_iter = nIters == 0;
     const bool always_this_iter = always_first_iter && first_iter;
 
@@ -348,8 +359,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     bool always_first_iter, bool warn_inferred_loop_type,
     const clang::Stmt* init, const clang::Expr* cond_expr,
     const clang::Stmt* inc, const clang::Stmt* body,
-    int64_t initiation_interval_arg, bool schedule_asap, clang::ASTContext& ctx,
-    const xls::SourceInfo& loc) {
+    int64_t initiation_interval_arg, int64_t unroll_factor, bool schedule_asap,
+    clang::ASTContext& ctx, const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(CheckInitIntervalValidity(initiation_interval_arg, loc));
 
   const TranslationContext& outer_context = context();
@@ -448,10 +459,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   XLS_ASSIGN_OR_RETURN(
       PipelinedLoopSubProc sub_proc,
       GenerateIR_PipelinedLoopBody(
-          cond_expr, inc, body, initiation_interval_arg, always_first_iter, ctx,
-          name_prefix, context_struct_xls_type, context_lvals_xls_type,
-          context_cvars_struct_ctype, &lvalues_out, context_field_indices,
-          variable_fields_order, &uses_on_reset, loc));
+          cond_expr, inc, body, initiation_interval_arg, unroll_factor,
+          always_first_iter, ctx, name_prefix, context_struct_xls_type,
+          context_lvals_xls_type, context_cvars_struct_ctype, &lvalues_out,
+          context_field_indices, variable_fields_order, &uses_on_reset, loc));
 
   if (warn_inferred_loop_type) {
     LOG(WARNING) << WarningMessage(
@@ -755,9 +766,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
 absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, int64_t init_interval, bool always_first_iter,
-    clang::ASTContext& ctx, std::string_view name_prefix,
-    xls::Type* context_struct_xls_type, xls::Type* context_lvals_xls_type,
+    const clang::Stmt* body, int64_t init_interval, int64_t unroll_factor,
+    bool always_first_iter, clang::ASTContext& ctx,
+    std::string_view name_prefix, xls::Type* context_struct_xls_type,
+    xls::Type* context_lvals_xls_type,
     const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
     absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
         lvalues_out,
@@ -915,7 +927,15 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
 
       CHECK_NE(body, nullptr);
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
+
+      // always_first_iter = true is safe because the body is already
+      // conditioned by the pipelined loop machinery.
+      XLS_RETURN_IF_ERROR(GenerateIR_UnrolledLoop(
+          /*always_first_iter=*/true,
+          /*warn_inferred_loop_type=*/false,
+          /*init=*/nullptr, cond_expr, /*inc=*/inc, body,
+          /*max_iters=*/unroll_factor,
+          /*propagate_break_up=*/true, ctx, loc));
 
       // break_condition is the assignment condition
       if (context().relative_break_condition.valid()) {
@@ -924,14 +944,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
       }
     }
 
-    // Increment
-    // Break condition skips increment
-    if (inc != nullptr) {
-      // This context pop will top generate selects
-      PushContextGuard context_guard(*this, loc);
-      XLS_RETURN_IF_ERROR(and_condition(context().fb->Not(do_break, loc), loc));
-      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
-    }
+    // Incrementor is handled by GenerateIR_UnrolledLoop
 
     // Check condition
     if (cond_expr != nullptr) {
