@@ -1391,6 +1391,9 @@ static absl::Status ValidateMatchable(const Type& type, const Span& span,
     absl::Status HandleProc(const ProcType& type) override {
       return Error(type);
     }
+    absl::Status HandleModule(const ModuleType& type) override {
+      return Error(type);
+    }
 
    private:
     absl::Status Error(const Type& type) {

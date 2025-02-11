@@ -302,12 +302,21 @@ int64_t xls_dslx_struct_def_get_member_count(struct xls_dslx_struct_def* n) {
 struct xls_dslx_import* xls_dslx_colon_ref_resolve_import_subject(
     struct xls_dslx_colon_ref* n) {
   auto* cpp_colon_ref = reinterpret_cast<xls::dslx::ColonRef*>(n);
-  std::optional<xls::dslx::Import*> cpp_import =
-      cpp_colon_ref->ResolveImportSubject();
+  std::optional<std::variant<xls::dslx::UseTreeEntry*, xls::dslx::Import*>>
+      cpp_import = cpp_colon_ref->ResolveImportSubject();
   if (!cpp_import.has_value()) {
     return nullptr;
   }
-  return reinterpret_cast<xls_dslx_import*>(cpp_import.value());
+  return absl::visit(
+      xls::Visitor{
+          [](xls::dslx::UseTreeEntry* entry) -> xls_dslx_import* {
+            return nullptr;
+          },
+          [](xls::dslx::Import* import) -> xls_dslx_import* {
+            return reinterpret_cast<xls_dslx_import*>(import);
+          },
+      },
+      cpp_import.value());
 }
 
 char* xls_dslx_colon_ref_get_attr(struct xls_dslx_colon_ref* n) {

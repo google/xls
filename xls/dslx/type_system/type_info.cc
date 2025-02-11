@@ -316,10 +316,10 @@ absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
 absl::StatusOr<TypeInfo::TypeSource> TypeInfo::ResolveTypeDefinition(
     ColonRef* source) {
   // Resolve the colon-ref to the import it comes from.
-  std::optional<Import*> import = source->ResolveImportSubject();
-  XLS_RET_CHECK(import) << "Invalid colonref in type position";
+  std::optional<ImportSubject> import = source->ResolveImportSubject();
+  XLS_RET_CHECK(import.has_value()) << "Invalid colonref in type position";
   XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported,
-                       GetImportedOrError(*import));
+                       GetImportedOrError(import.value()));
   XLS_ASSIGN_OR_RETURN(TypeDefinition imported_def,
                        imported->module->GetTypeDefinition(source->attr()));
   return imported->type_info->ResolveTypeDefinition(imported_def);
@@ -598,13 +598,13 @@ std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
   return it2->second;
 }
 
-void TypeInfo::AddImport(std::variant<UseTreeEntry*, Import*> import,
-                         Module* module, TypeInfo* type_info) {
+void TypeInfo::AddImport(ImportSubject import, Module* module,
+                         TypeInfo* type_info) {
   CHECK_EQ(ToAstNode(import)->owner(), module_);
   GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 
-std::optional<const ImportedInfo*> TypeInfo::GetImported(Import* import) const {
+std::optional<ImportedInfo*> TypeInfo::GetImported(Import* import) {
   CHECK_EQ(import->owner(), module_) << absl::StreamFormat(
       "Import node is owned by: `%s` vs this TypeInfo is for `%s`",
       import->owner()->name(), module_->name());
@@ -616,18 +616,16 @@ std::optional<const ImportedInfo*> TypeInfo::GetImported(Import* import) const {
   return &it->second;
 }
 
-absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
-    Import* import) const {
-  auto maybe_imported = GetImported(import);
-  if (maybe_imported.has_value()) {
-    return maybe_imported.value();
-  }
-
-  return absl::NotFoundError(
-      absl::StrCat("Could not find import for \"", import->ToString(), "\"."));
+std::optional<const ImportedInfo*> TypeInfo::GetImported(Import* import) const {
+  return const_cast<TypeInfo*>(this)->GetImported(import);
 }
 
-absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(
+std::optional<const ImportedInfo*> TypeInfo::GetImported(
+    UseTreeEntry* use_tree_entry) const {
+  return const_cast<TypeInfo*>(this)->GetImported(use_tree_entry);
+}
+
+std::optional<ImportedInfo*> TypeInfo::GetImported(
     UseTreeEntry* use_tree_entry) {
   auto* self = GetRoot();
   if (auto it = self->imports_.find(use_tree_entry);
@@ -635,16 +633,77 @@ absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(
     return &it->second;
   }
 
+  return std::nullopt;
+}
+
+std::optional<const ImportedInfo*> TypeInfo::GetImported(
+    ImportSubject import) const {
+  return const_cast<TypeInfo*>(this)->GetImported(import);
+}
+
+std::optional<ImportedInfo*> TypeInfo::GetImported(ImportSubject import) {
+  return absl::visit(
+      Visitor{
+          [&](UseTreeEntry* use_tree_entry) -> std::optional<ImportedInfo*> {
+            return GetImported(use_tree_entry);
+          },
+          [&](Import* import) -> std::optional<ImportedInfo*> {
+            return GetImported(import);
+          },
+      },
+      import);
+}
+
+absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
+    Import* import) const {
+  return const_cast<TypeInfo*>(this)->GetImportedOrError(import);
+}
+
+absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(Import* import) {
+  std::optional<ImportedInfo*> imported = GetImported(import);
+  if (imported.has_value()) {
+    return imported.value();
+  }
+
+  return absl::NotFoundError(absl::StrFormat(
+      "Could not find import for import `%s`.", import->ToString()));
+}
+
+absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(
+    UseTreeEntry* use_tree_entry) {
+  if (std::optional<ImportedInfo*> imported = GetImported(use_tree_entry);
+      imported.has_value()) {
+    return imported.value();
+  }
+
   return absl::NotFoundError(
-      absl::StrFormat("Could not find import data for `use` entry `%s` @ %s",
-                      use_tree_entry->ToString(),
-                      use_tree_entry->span().ToString(file_table())));
+      absl::StrFormat("Could not find import for use-tree-entry: `%s`.",
+                      use_tree_entry->ToString()));
 }
 
 absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
     const UseTreeEntry* use_tree_entry) const {
   return const_cast<TypeInfo*>(this)->GetImportedOrError(
       const_cast<UseTreeEntry*>(use_tree_entry));
+}
+
+absl::StatusOr<ImportedInfo*> TypeInfo::GetImportedOrError(
+    ImportSubject import) {
+  return absl::visit(
+      Visitor{
+          [&](UseTreeEntry* use_tree_entry) -> absl::StatusOr<ImportedInfo*> {
+            return GetImportedOrError(use_tree_entry);
+          },
+          [&](Import* import) -> absl::StatusOr<ImportedInfo*> {
+            return GetImportedOrError(import);
+          },
+      },
+      import);
+}
+
+absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
+    ImportSubject import) const {
+  return const_cast<TypeInfo*>(this)->GetImportedOrError(import);
 }
 
 std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {

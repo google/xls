@@ -712,6 +712,13 @@ dslx_lang_test(
 
 dslx_lang_test(name = "mod_use_in_parametric")
 
+dslx_lang_test(name = "mod_use_stdlib")
+
+dslx_lang_test(
+    name = "mod_use_simple_enum",
+    dslx_deps = [":mod_simple_enum_dslx"],
+)
+
 dslx_lang_test(
     name = "mod_importer",
     dslx_deps = [":mod_imported_dslx"],

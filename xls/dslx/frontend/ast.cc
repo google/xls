@@ -951,7 +951,7 @@ ColonRef::ColonRef(Module* owner, Span span, Subject subject, std::string attr,
 
 ColonRef::~ColonRef() = default;
 
-std::optional<Import*> ColonRef::ResolveImportSubject() const {
+std::optional<ImportSubject> ColonRef::ResolveImportSubject() const {
   if (!std::holds_alternative<NameRef*>(subject_)) {
     return std::nullopt;
   }
@@ -962,6 +962,11 @@ std::optional<Import*> ColonRef::ResolveImportSubject() const {
   }
   const auto* name_def = std::get<const NameDef*>(any_name_def);
   AstNode* definer = name_def->definer();
+
+  if (auto* use_tree_entry = dynamic_cast<UseTreeEntry*>(definer)) {
+    return use_tree_entry;
+  }
+
   Import* import = dynamic_cast<Import*>(definer);
   if (import == nullptr) {
     return std::nullopt;

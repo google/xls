@@ -1858,9 +1858,10 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
     lookup_module = module_;
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
     map_fn_name = colon_ref->attr();
-    Import* import_node = colon_ref->ResolveImportSubject().value();
+    std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
+    XLS_RET_CHECK(import.has_value());
     std::optional<const ImportedInfo*> info =
-        current_type_info_->GetImported(import_node);
+        current_type_info_->GetImported(import.value());
     lookup_module = (*info)->module;
   } else {
     return absl::UnimplementedError("Unhandled function mapping: " +
@@ -3000,11 +3001,12 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // Implementation note: ColonRef "invocations" are handled in Invocation (by
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
-  if (std::optional<Import*> import = node->ResolveImportSubject()) {
+  if (std::optional<ImportSubject> import = node->ResolveImportSubject()) {
     VLOG(6) << "ColonRef @ " << node->span().ToString(file_table())
-            << " was import subject; import: " << import.value()->ToString();
+            << " was import subject; import: "
+            << ToAstNode(import.value())->ToString();
     std::optional<const ImportedInfo*> imported =
-        current_type_info_->GetImported(*import);
+        current_type_info_->GetImported(import.value());
     XLS_RET_CHECK(imported.has_value());
     Module* imported_mod = (*imported)->module;
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
@@ -3165,10 +3167,10 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     }
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
     callee_name = colon_ref->attr();
-    std::optional<Import*> import = colon_ref->ResolveImportSubject();
+    std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
     std::optional<const ImportedInfo*> info =
-        current_type_info_->GetImported(*import);
+        current_type_info_->GetImported(import.value());
     m = (*info)->module;
   } else {
     return absl::InternalError("Invalid callee: " + callee->ToString());
@@ -3887,10 +3889,10 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
 
   XLS_RET_CHECK(std::holds_alternative<ColonRef*>(node));
   auto* colon_ref = std::get<ColonRef*>(node);
-  std::optional<Import*> import = colon_ref->ResolveImportSubject();
+  std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value());
   std::optional<const ImportedInfo*> info =
-      current_type_info_->GetImported(*import);
+      current_type_info_->GetImported(import.value());
   Module* imported_mod = (*info)->module;
   ScopedTypeInfoSwap stis(this, (*info)->type_info);
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
@@ -3993,7 +3995,9 @@ absl::StatusOr<std::optional<ConstantDef*>> TryResolveConstantDef(
                        type_info.GetImportedOrError(use_tree_entry));
   std::optional<ModuleMember*> member =
       info->module->FindMemberWithName(identifier);
-  XLS_RET_CHECK(member.has_value());
+  XLS_RET_CHECK(member.has_value())
+      << "Failed to find constant named: `" << identifier << "` in module: `"
+      << info->module->name() << "`";
   if (std::holds_alternative<ConstantDef*>(*member.value())) {
     auto* result = std::get<ConstantDef*>(*member.value());
     return result;
@@ -4013,6 +4017,13 @@ absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
       continue;
     }
     const auto* name_def = std::get<const NameDef*>(any_name_def);
+
+    // If this is a direct module reference we skip it.
+    if (std::optional<Type*> type = type_info.GetItem(name_def);
+        type.has_value() && type.value()->IsModule()) {
+      continue;
+    }
+
     AstNode* definer = name_def->definer();
     if (auto* use_tree_entry = dynamic_cast<UseTreeEntry*>(definer);
         use_tree_entry != nullptr) {

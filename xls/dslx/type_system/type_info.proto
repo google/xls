@@ -253,6 +253,10 @@ message TokenTypeProto {
   // Empty.
 }
 
+message ModuleTypeProto {
+  // Empty.
+}
+
 message TypeProto {
   oneof type_oneof {
     BitsTypeProto bits_type = 1;
@@ -266,6 +270,7 @@ message TypeProto {
     ChannelTypeProto channel_type = 9;
     BitsConstructorTypeProto bits_constructor_type = 10;
     ProcTypeProto proc_type = 11;
+    ModuleTypeProto module_type = 12;
   }
 }
 

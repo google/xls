@@ -467,6 +467,13 @@ static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
     return struct_def;
   }
 
+  if (UseTreeEntry* use_tree_entry = dynamic_cast<UseTreeEntry*>(definer);
+      use_tree_entry != nullptr) {
+    XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported,
+                         type_info->GetImportedOrError(use_tree_entry));
+    return imported->module;
+  }
+
   TypeAlias* type_alias = dynamic_cast<TypeAlias*>(definer);
   if (type_alias == nullptr) {
     return make_subject_error();
@@ -620,13 +627,12 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
 
   auto* colon_ref = dynamic_cast<ColonRef*>(callee);
   XLS_RET_CHECK_NE(colon_ref, nullptr);
-  std::optional<Import*> import = colon_ref->ResolveImportSubject();
+  std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << colon_ref->ToString();
-  std::optional<const ImportedInfo*> imported_info =
-      type_info->GetImported(*import);
-  return imported_info.value()->module->GetMemberOrError<Function>(
-      colon_ref->attr());
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                       type_info->GetImportedOrError(import.value()));
+  return imported_info->module->GetMemberOrError<Function>(colon_ref->attr());
 }
 
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
@@ -636,13 +642,12 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
 
   auto* colon_ref = dynamic_cast<ColonRef*>(callee);
   XLS_RET_CHECK_NE(colon_ref, nullptr);
-  std::optional<Import*> import = colon_ref->ResolveImportSubject();
+  std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << colon_ref->ToString();
-  std::optional<const ImportedInfo*> imported_info =
-      type_info->GetImported(*import);
-  return imported_info.value()->module->GetMemberOrError<Proc>(
-      colon_ref->attr());
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                       type_info->GetImportedOrError(import.value()));
+  return imported_info->module->GetMemberOrError<Proc>(colon_ref->attr());
 }
 
 absl::StatusOr<std::unique_ptr<Type>> ParametricBindingToType(

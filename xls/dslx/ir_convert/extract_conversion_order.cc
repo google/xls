@@ -451,9 +451,10 @@ class InvocationVisitor : public ExprVisitor {
   // Helper for invocations of ColonRef callees.
   absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
       const ColonRef* colon_ref) {
-    std::optional<Import*> import = colon_ref->ResolveImportSubject();
+    std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
-    std::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    std::optional<const ImportedInfo*> info =
+        type_info_->GetImported(import.value());
     XLS_RET_CHECK(info.has_value());
     Module* module = (*info)->module;
     XLS_ASSIGN_OR_RETURN(Function * f,
@@ -477,10 +478,11 @@ class InvocationVisitor : public ExprVisitor {
     if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
       VLOG(5) << "map() invoking ColonRef: " << mapped_colon_ref->ToString();
       const std::string& identifier = mapped_colon_ref->attr();
-      std::optional<Import*> import = mapped_colon_ref->ResolveImportSubject();
+      std::optional<ImportSubject> import =
+          mapped_colon_ref->ResolveImportSubject();
       XLS_RET_CHECK(import.has_value());
       std::optional<const ImportedInfo*> info =
-          type_info_->GetImported(*import);
+          type_info_->GetImported(import.value());
       XLS_RET_CHECK(info.has_value());
       Module* this_m = (*info)->module;
       TypeInfo* callee_type_info = (*info)->type_info;

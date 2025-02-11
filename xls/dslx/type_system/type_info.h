@@ -213,6 +213,10 @@ class TypeInfo {
     CHECK_EQ(key->owner(), module_);
     dict_[key] = value.CloneToUnique();
   }
+  void SetItem(const AstNode* key, std::unique_ptr<Type> value) {
+    CHECK_EQ(key->owner(), module_);
+    dict_[key] = std::move(value);
+  }
 
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
   std::optional<Type*> GetItem(const AstNode* key) const;
@@ -249,13 +253,22 @@ class TypeInfo {
   //
   // Note that added type information and such will generally be owned by the
   // import cache.
-  void AddImport(std::variant<UseTreeEntry*, Import*> import, Module* module,
-                 TypeInfo* type_info);
+  void AddImport(ImportSubject import, Module* module, TypeInfo* type_info);
 
   // Returns information on the imported module (its module AST node and
   // top-level type information).
   std::optional<const ImportedInfo*> GetImported(Import* import) const;
+  std::optional<ImportedInfo*> GetImported(Import* import);
+
+  std::optional<const ImportedInfo*> GetImported(
+      UseTreeEntry* use_tree_entry) const;
+  std::optional<ImportedInfo*> GetImported(UseTreeEntry* use_tree_entry);
+
+  std::optional<const ImportedInfo*> GetImported(ImportSubject import) const;
+  std::optional<ImportedInfo*> GetImported(ImportSubject import);
+
   absl::StatusOr<const ImportedInfo*> GetImportedOrError(Import* import) const;
+  absl::StatusOr<ImportedInfo*> GetImportedOrError(Import* import);
 
   // Returns the imported module information associated with the given
   // use-tree-entry.
@@ -263,6 +276,12 @@ class TypeInfo {
       UseTreeEntry* use_tree_entry);
   absl::StatusOr<const ImportedInfo*> GetImportedOrError(
       const UseTreeEntry* use_tree_entry) const;
+
+  // As above but takes the "generic import" variant where it may have resolved
+  // from either a `UseTreeEntry` or an `Import`.
+  absl::StatusOr<ImportedInfo*> GetImportedOrError(ImportSubject import);
+  absl::StatusOr<const ImportedInfo*> GetImportedOrError(
+      ImportSubject import) const;
 
   // Returns the type information for m, if it is available either as this
   // module or an import of this module.
@@ -332,8 +351,8 @@ class TypeInfo {
     return GetRoot()->invocations();
   }
 
-  const absl::flat_hash_map<std::variant<UseTreeEntry*, Import*>, ImportedInfo>&
-  GetRootImports() const {
+  const absl::flat_hash_map<ImportSubject, ImportedInfo>& GetRootImports()
+      const {
     return GetRoot()->imports();
   }
 
@@ -383,8 +402,7 @@ class TypeInfo {
   // dervied type info for e.g. a parametric instantiation context).
   bool IsRoot() const { return this == GetRoot(); }
 
-  const absl::flat_hash_map<std::variant<UseTreeEntry*, Import*>, ImportedInfo>&
-  imports() const {
+  const absl::flat_hash_map<ImportSubject, ImportedInfo>& imports() const {
     return imports_;
   }
 
@@ -406,8 +424,7 @@ class TypeInfo {
       unrolled_loops_;
 
   // The following are only present on the root type info.
-  absl::flat_hash_map<std::variant<UseTreeEntry*, Import*>, ImportedInfo>
-      imports_;
+  absl::flat_hash_map<ImportSubject, ImportedInfo> imports_;
   absl::flat_hash_map<const Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;

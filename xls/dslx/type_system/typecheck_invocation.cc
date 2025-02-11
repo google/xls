@@ -64,8 +64,7 @@ namespace xls::dslx {
 
 static absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
     DeduceCtx* ctx, const Invocation* invocation,
-    const ParametricEnv& caller_bindings,
-    std::variant<UseTreeEntry*, Import*> import_key) {
+    const ParametricEnv& caller_bindings, ImportSubject import_key) {
   auto it = ctx->type_info()->GetRootImports().find(import_key);
   XLS_RET_CHECK(it != ctx->type_info()->GetRootImports().end())
       << "Could not find import for key: " << ToAstNode(import_key)->ToString();
@@ -333,10 +332,10 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
 // Inspects to see whether the given `ref` is a reference to an externally
 // defined entity -- if so, returns the "import key" we can use to resolve the
 // module information for it.
-static std::optional<std::variant<UseTreeEntry*, Import*>> IsExternRef(
-    Expr& ref, Module& current_module) {
+static std::optional<ImportSubject> IsExternRef(Expr& ref,
+                                                Module& current_module) {
   if (auto* colon_ref = dynamic_cast<ColonRef*>(&ref); colon_ref != nullptr) {
-    std::optional<Import*> import = colon_ref->ResolveImportSubject();
+    std::optional<ImportSubject> import = colon_ref->ResolveImportSubject();
     if (import.has_value()) {
       return import.value();
     }

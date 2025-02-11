@@ -282,14 +282,9 @@ absl::Status TypecheckModuleMember(const ModuleMember& member, Module* module,
                   ctx->type_info()->SetItem(&subject.name_def(), *type.value());
                 }
               } else {
-                // TODO(cdleary): 2024-12-31 If somebody imports a module as a
-                // name and then refers to it via colon-refs, we probably want
-                // to have a "module type" to tag the used `NameDef` with.
-                return TypeInferenceErrorStatus(
-                    subject.name_def().span(), nullptr,
-                    "Only importing members from modules is currently "
-                    "supported.",
-                    ctx->file_table());
+                ctx->type_info()->SetItem(
+                    &subject.name_def(), std::make_unique<ModuleType>(
+                                             result.imported_module->module()));
               }
             }
             return absl::OkStatus();

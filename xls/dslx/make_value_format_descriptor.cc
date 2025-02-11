@@ -149,6 +149,10 @@ absl::StatusOr<ValueFormatDescriptor> MakeValueFormatDescriptor(
       return absl::InvalidArgumentError(
           "Cannot format a bits constructor; got: " + t.ToString());
     }
+    absl::Status HandleModule(const ModuleType& t) override {
+      return absl::InvalidArgumentError("Cannot format a module type; got: " +
+                                        t.ToString());
+    }
 
     ValueFormatDescriptor& result() { return result_; }
 

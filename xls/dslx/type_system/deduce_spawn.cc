@@ -28,6 +28,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -47,13 +48,13 @@ namespace {
 // Resolves "ref" to an AST proc.
 absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
                                             DeduceCtx* ctx) {
-  std::optional<Import*> import = ref->ResolveImportSubject();
+  std::optional<ImportSubject> import = ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << ref->ToString();
-  std::optional<const ImportedInfo*> imported_info =
-      ctx->type_info()->GetImported(*import);
-  return GetMemberOrTypeInferenceError<Proc>(imported_info.value()->module,
-                                             ref->attr(), ref->span());
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                       ctx->type_info()->GetImportedOrError(import.value()));
+  return GetMemberOrTypeInferenceError<Proc>(imported_info->module, ref->attr(),
+                                             ref->span());
 }
 
 absl::Status TypecheckProcConstantDefs(const Proc& p, DeduceCtx* ctx) {
