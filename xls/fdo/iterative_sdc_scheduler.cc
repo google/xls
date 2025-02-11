@@ -183,10 +183,10 @@ absl::Status RefineDelayEstimations(
 
   auto except_evaluated_cuts = [&](Node *source, Node *target) {
     if (options.path_evaluate_strategy == PathEvaluateStrategy::PATH) {
-      absl::StatusOr<std::vector<Node *>> path_or =
+      absl::StatusOr<std::vector<Node *>> path =
           delay_manager.GetFullCriticalPath(source, target);
-      CHECK(path_or.ok());
-      return evaluated_cuts.contains(GetPathCut(path_or.value()));
+      CHECK_OK(path);
+      return evaluated_cuts.contains(GetPathCut(*path));
     }
     CHECK(cut_map.contains(target));
     return evaluated_cuts.contains(cut_map.at(target));

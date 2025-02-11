@@ -57,14 +57,13 @@ absl::Status ParseAndTypecheck(std::string_view text,
   std::string filename = absl::StrCat(module_name, ".x");
 
   auto import_data = CreateImportDataForTest();
-  absl::StatusOr<TypecheckedModule> parsed_or = ParseAndTypecheck(
+  absl::StatusOr<TypecheckedModule> parsed = ParseAndTypecheck(
       text, /*path=*/filename, /*module_name=*/module_name, &import_data);
 
   UniformContentFilesystem vfs(text, /*expect_path=*/filename);
-  TryPrintError(parsed_or.status(), import_data.file_table(), vfs);
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule parsed, parsed_or);
+  TryPrintError(parsed.status(), import_data.file_table(), vfs);
   XLS_RETURN_IF_ERROR(
-      parsed.module->GetMemberOrError<ModuleMember>("main").status());
+      parsed->module->GetMemberOrError<ModuleMember>("main").status());
   return absl::OkStatus();
 }
 

@@ -100,8 +100,8 @@ InstanceContextVTable::InstanceContextVTable()
 Type* InstanceContext::ParseTypeFromProto(absl::Span<uint8_t const> data) {
   TypeProto proto;
   CHECK(proto.ParseFromArray(data.data(), data.size()));
-  auto type_or = type_manager->GetTypeFromProto(proto);
-  CHECK_OK(type_or);
-  return *type_or;
+  absl::StatusOr<Type*> type = type_manager->GetTypeFromProto(proto);
+  CHECK_OK(type);
+  return *type;
 }
 }  // namespace xls

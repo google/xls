@@ -175,15 +175,15 @@ bool xls_parse_typed_value(const char* input, char** error_out,
   CHECK(error_out != nullptr);
   CHECK(xls_value_out != nullptr);
 
-  absl::StatusOr<xls::Value> value_or = xls::Parser::ParseTypedValue(input);
-  if (value_or.ok()) {
-    *xls_value_out = reinterpret_cast<xls_value*>(
-        new xls::Value(std::move(value_or).value()));
+  absl::StatusOr<xls::Value> value = xls::Parser::ParseTypedValue(input);
+  if (value.ok()) {
+    *xls_value_out =
+        reinterpret_cast<xls_value*>(new xls::Value(*std::move(value)));
     return true;
   }
 
   *xls_value_out = nullptr;
-  *error_out = xls::ToOwnedCString(value_or.status().ToString());
+  *error_out = xls::ToOwnedCString(value.status().ToString());
   return false;
 }
 
@@ -194,15 +194,15 @@ bool xls_value_get_bits(const struct xls_value* value, char** error_out,
   CHECK(bits_out != nullptr);
 
   const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
-  absl::StatusOr<xls::Bits> bits_or = cpp_value->GetBitsWithStatus();
-  if (bits_or.ok()) {
-    xls::Bits* heap_bits = new xls::Bits(std::move(bits_or).value());
+  absl::StatusOr<xls::Bits> bits = cpp_value->GetBitsWithStatus();
+  if (bits.ok()) {
+    xls::Bits* heap_bits = new xls::Bits(*std::move(bits));
     *bits_out = reinterpret_cast<xls_bits*>(heap_bits);
     return true;
   }
 
   *bits_out = nullptr;
-  *error_out = xls::ToOwnedCString(bits_or.status().ToString());
+  *error_out = xls::ToOwnedCString(bits.status().ToString());
   return false;
 }
 
@@ -575,17 +575,16 @@ bool xls_parse_ir_package(const char* ir, const char* filename,
   if (filename != nullptr) {
     cpp_filename.emplace(filename);
   }
-  absl::StatusOr<std::unique_ptr<xls::Package>> package_or =
+  absl::StatusOr<std::unique_ptr<xls::Package>> package =
       xls::Parser::ParsePackage(ir, cpp_filename);
-  if (package_or.ok()) {
-    *xls_package_out =
-        reinterpret_cast<xls_package*>(package_or.value().release());
+  if (package.ok()) {
+    *xls_package_out = reinterpret_cast<xls_package*>(package->release());
     *error_out = nullptr;
     return true;
   }
 
   *xls_package_out = nullptr;
-  *error_out = xls::ToOwnedCString(package_or.status().ToString());
+  *error_out = xls::ToOwnedCString(package.status().ToString());
   return false;
 }
 
@@ -593,15 +592,15 @@ bool xls_package_get_function(struct xls_package* package,
                               const char* function_name, char** error_out,
                               struct xls_function** result_out) {
   xls::Package* xls_package = reinterpret_cast<xls::Package*>(package);
-  absl::StatusOr<xls::Function*> function_or =
+  absl::StatusOr<xls::Function*> function =
       xls_package->GetFunction(function_name);
-  if (function_or.ok()) {
-    *result_out = reinterpret_cast<struct xls_function*>(function_or.value());
+  if (function.ok()) {
+    *result_out = reinterpret_cast<struct xls_function*>(*function);
     return true;
   }
 
   *result_out = nullptr;
-  *error_out = xls::ToOwnedCString(function_or.status().ToString());
+  *error_out = xls::ToOwnedCString(function.status().ToString());
   return false;
 }
 
@@ -681,7 +680,7 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
     xls_args.push_back(*reinterpret_cast<const xls::Value*>(args[i]));
   }
 
-  absl::StatusOr<xls::InterpreterResult<xls::Value>> result_or =
+  absl::StatusOr<xls::InterpreterResult<xls::Value>> result =
       xls::InterpretFunction(xls_function, xls_args);
 
   auto return_status = [result_out, error_out](const absl::Status& status) {
@@ -690,25 +689,23 @@ bool xls_interpret_function(struct xls_function* function, size_t argc,
     return false;
   };
 
-  if (!result_or.ok()) {
-    return return_status(result_or.status());
+  if (!result.ok()) {
+    return return_status(result.status());
   }
 
   // TODO(cdleary): 2024-05-30 We should pass back interpreter events through
   // this API instead of dropping them.
-  xls::InterpreterResult<xls::Value> result = std::move(result_or).value();
-
   // Note that DropInterpreterEvents reifies any assertions into an error
   // status.
   absl::StatusOr<xls::Value> result_value =
-      xls::InterpreterResultToStatusOrValue(result);
+      xls::InterpreterResultToStatusOrValue(*std::move(result));
 
   if (!result_value.ok()) {
     return return_status(result_value.status());
   }
 
   *result_out = reinterpret_cast<struct xls_value*>(
-      new xls::Value(std::move(result_value.value())));
+      new xls::Value(*std::move(result_value)));
   *error_out = nullptr;
   return true;
 }

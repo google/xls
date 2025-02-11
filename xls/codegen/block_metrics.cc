@@ -101,9 +101,9 @@ absl::Status SetDelayFields(Block* block, const DelayEstimator& delay_estimator,
       }
       return value;
     };
-    absl::StatusOr<int64_t> node_delay_or =
+    absl::StatusOr<int64_t> node_delay_estimate =
         delay_estimator.GetOperationDelayInPs(node);
-    int64_t node_delay = node_delay_or.ok() ? node_delay_or.value() : 0;
+    int64_t node_delay = node_delay_estimate.ok() ? *node_delay_estimate : 0;
 
     std::optional<int64_t> input_delay;
     std::optional<int64_t> reg_delay;

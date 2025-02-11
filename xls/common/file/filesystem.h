@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "google/protobuf/message.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls {
 
@@ -160,12 +161,9 @@ absl::Status ParseTextProtoFile(const std::filesystem::path& file_name,
 template <typename T>
 inline absl::StatusOr<T> ParseTextProtoFile(
     const std::filesystem::path& file_name) {
-  absl::StatusOr<T> v_or = T();
-  absl::Status status = ParseTextProtoFile(file_name, &v_or.value());
-  if (!status.ok()) {
-    v_or = status;
-  }
-  return v_or;
+  T proto_message;
+  XLS_RETURN_IF_ERROR(ParseTextProtoFile(file_name, &proto_message));
+  return proto_message;
 }
 
 // Parses a single binary protobuf from the given string which is assumed to

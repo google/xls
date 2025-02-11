@@ -53,10 +53,10 @@ const struct xls_dslx_type* GetMetaTypeHelper(
   }
   CHECK(maybe_type.value() != nullptr);
   // Should always have a metatype as its associated type.
-  absl::StatusOr<const xls::dslx::Type*> unwrapped_or =
+  absl::StatusOr<const xls::dslx::Type*> unwrapped =
       xls::dslx::UnwrapMetaType(*maybe_type.value());
-  CHECK(unwrapped_or.ok());
-  return reinterpret_cast<const struct xls_dslx_type*>(unwrapped_or.value());
+  CHECK_OK(unwrapped);
+  return reinterpret_cast<const struct xls_dslx_type*>(*unwrapped);
 }
 }  // namespace
 
@@ -103,18 +103,17 @@ bool xls_dslx_parse_and_typecheck(
     struct xls_dslx_typechecked_module** result_out) {
   auto* cpp_import_data = reinterpret_cast<xls::dslx::ImportData*>(import_data);
 
-  absl::StatusOr<xls::dslx::TypecheckedModule> tm_or =
+  absl::StatusOr<xls::dslx::TypecheckedModule> tm =
       xls::dslx::ParseAndTypecheck(text, path, module_name, cpp_import_data);
-  if (tm_or.ok()) {
-    auto* tm_on_heap =
-        new xls::dslx::TypecheckedModule{std::move(tm_or).value()};
+  if (tm.ok()) {
+    auto* tm_on_heap = new xls::dslx::TypecheckedModule{*std::move(tm)};
     *result_out = reinterpret_cast<xls_dslx_typechecked_module*>(tm_on_heap);
     *error_out = nullptr;
     return true;
   }
 
   *result_out = nullptr;
-  *error_out = xls::ToOwnedCString(tm_or.status().ToString());
+  *error_out = xls::ToOwnedCString(tm.status().ToString());
   return false;
 }
 
@@ -502,15 +501,14 @@ const struct xls_dslx_type* xls_dslx_type_info_get_type_type_annotation(
 bool xls_dslx_type_get_total_bit_count(const struct xls_dslx_type* type,
                                        char** error_out, int64_t* result_out) {
   const auto* cpp_type = reinterpret_cast<const xls::dslx::Type*>(type);
-  absl::StatusOr<xls::dslx::TypeDim> bit_count_or =
-      cpp_type->GetTotalBitCount();
-  if (!bit_count_or.ok()) {
+  absl::StatusOr<xls::dslx::TypeDim> bit_count = cpp_type->GetTotalBitCount();
+  if (!bit_count.ok()) {
     *result_out = 0;
-    *error_out = xls::ToOwnedCString(bit_count_or.status().ToString());
+    *error_out = xls::ToOwnedCString(bit_count.status().ToString());
     return false;
   }
 
-  absl::StatusOr<int64_t> width_or = bit_count_or->GetAsInt64();
+  absl::StatusOr<int64_t> width_or = bit_count->GetAsInt64();
   if (!width_or.ok()) {
     *result_out = 0;
     *error_out = xls::ToOwnedCString(width_or.status().ToString());
@@ -547,15 +545,15 @@ bool xls_dslx_type_info_get_const_expr(
     char** error_out, struct xls_dslx_interp_value** result_out) {
   auto* cpp_type_info = reinterpret_cast<xls::dslx::TypeInfo*>(type_info);
   auto* cpp_expr = reinterpret_cast<xls::dslx::Expr*>(expr);
-  absl::StatusOr<xls::dslx::InterpValue> value_or =
+  absl::StatusOr<xls::dslx::InterpValue> value =
       cpp_type_info->GetConstExpr(cpp_expr);
-  if (!value_or.ok()) {
+  if (!value.ok()) {
     *result_out = nullptr;
-    *error_out = xls::ToOwnedCString(value_or.status().ToString());
+    *error_out = xls::ToOwnedCString(value.status().ToString());
     return false;
   }
 
-  auto* heap = new xls::dslx::InterpValue{std::move(value_or).value()};
+  auto* heap = new xls::dslx::InterpValue{*std::move(value)};
   *result_out = reinterpret_cast<xls_dslx_interp_value*>(heap);
   *error_out = nullptr;
   return true;
@@ -577,14 +575,14 @@ bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
                                          char** error_out,
                                          struct xls_value** result_out) {
   auto* cpp_interp_value = reinterpret_cast<xls::dslx::InterpValue*>(v);
-  absl::StatusOr<xls::Value> ir_value_or = cpp_interp_value->ConvertToIr();
-  if (!ir_value_or.ok()) {
-    *error_out = xls::ToOwnedCString(ir_value_or.status().ToString());
+  absl::StatusOr<xls::Value> ir_value = cpp_interp_value->ConvertToIr();
+  if (!ir_value.ok()) {
+    *error_out = xls::ToOwnedCString(ir_value.status().ToString());
     *result_out = nullptr;
     return false;
   }
 
-  auto* heap = new xls::Value{std::move(ir_value_or).value()};
+  auto* heap = new xls::Value{*std::move(ir_value)};
   *result_out = reinterpret_cast<xls_value*>(heap);
   *error_out = nullptr;
   return true;
@@ -595,15 +593,15 @@ bool xls_dslx_interp_value_convert_to_ir(struct xls_dslx_interp_value* v,
 bool xls_dslx_type_is_signed_bits(const struct xls_dslx_type* type,
                                   char** error_out, bool* result_out) {
   const auto* cpp_type = reinterpret_cast<const xls::dslx::Type*>(type);
-  absl::StatusOr<bool> is_signed_or = xls::dslx::IsSigned(*cpp_type);
-  if (!is_signed_or.ok()) {
-    *error_out = xls::ToOwnedCString(is_signed_or.status().ToString());
+  absl::StatusOr<bool> is_signed = xls::dslx::IsSigned(*cpp_type);
+  if (!is_signed.ok()) {
+    *error_out = xls::ToOwnedCString(is_signed.status().ToString());
     *result_out = false;
     return false;
   }
 
   *error_out = nullptr;
-  *result_out = is_signed_or.value();
+  *result_out = *is_signed;
   return true;
 }
 
@@ -706,14 +704,14 @@ bool xls_dslx_type_dim_is_parametric(struct xls_dslx_type_dim* td) {
 bool xls_dslx_type_dim_get_as_bool(struct xls_dslx_type_dim* td,
                                    char** error_out, bool* result_out) {
   auto* cpp_type_dim = reinterpret_cast<xls::dslx::TypeDim*>(td);
-  absl::StatusOr<bool> value_or = cpp_type_dim->GetAsBool();
-  if (!value_or.ok()) {
+  absl::StatusOr<bool> value = cpp_type_dim->GetAsBool();
+  if (!value.ok()) {
     *result_out = false;
-    *error_out = xls::ToOwnedCString(value_or.status().ToString());
+    *error_out = xls::ToOwnedCString(value.status().ToString());
     return false;
   }
 
-  *result_out = value_or.value();
+  *result_out = *value;
   *error_out = nullptr;
   return true;
 }
@@ -721,14 +719,14 @@ bool xls_dslx_type_dim_get_as_bool(struct xls_dslx_type_dim* td,
 bool xls_dslx_type_dim_get_as_int64(struct xls_dslx_type_dim* td,
                                     char** error_out, int64_t* result_out) {
   auto* cpp_type_dim = reinterpret_cast<xls::dslx::TypeDim*>(td);
-  absl::StatusOr<int64_t> value_or = cpp_type_dim->GetAsInt64();
-  if (!value_or.ok()) {
+  absl::StatusOr<int64_t> value = cpp_type_dim->GetAsInt64();
+  if (!value.ok()) {
     *result_out = 0;
-    *error_out = xls::ToOwnedCString(value_or.status().ToString());
+    *error_out = xls::ToOwnedCString(value.status().ToString());
     return false;
   }
 
-  *result_out = value_or.value();
+  *result_out = *value;
   *error_out = nullptr;
   return true;
 }

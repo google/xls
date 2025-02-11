@@ -289,22 +289,22 @@ int main(int argc, char** argv) {
     input =
         xls::FunctionInput{std::vector<std::string>{absl::GetFlag(FLAGS_args)}};
   } else if (!absl::GetFlag(FLAGS_args_file).empty()) {
-    absl::StatusOr<std::string> args_file_contents_or =
+    absl::StatusOr<std::string> args_file_contents =
         xls::GetFileContents(absl::GetFlag(FLAGS_args_file));
-    QCHECK_OK(args_file_contents_or.status());
-    input = xls::FunctionInput{absl::StrSplit(args_file_contents_or.value(),
-                                              '\n', absl::SkipWhitespace())};
+    QCHECK_OK(args_file_contents);
+    input = xls::FunctionInput{
+        absl::StrSplit(*args_file_contents, '\n', absl::SkipWhitespace())};
   } else if (!absl::GetFlag(FLAGS_channel_values_file).empty()) {
     absl::StatusOr<std::string> channel_values_file_contents =
         xls::GetFileContents(absl::GetFlag(FLAGS_channel_values_file));
     QCHECK_OK(channel_values_file_contents.status());
     absl::StatusOr<absl::btree_map<std::string, std::vector<xls::Value>>>
-        channel_values_or =
+        parsed_channel_values =
             xls::ParseChannelValues(channel_values_file_contents.value());
-    QCHECK_OK(channel_values_or.status());
+    QCHECK_OK(parsed_channel_values);
     absl::flat_hash_map<std::string, std::vector<xls::Value>> channel_values;
-    channel_values.reserve(channel_values_or->size());
-    absl::c_move(*std::move(channel_values_or),
+    channel_values.reserve(parsed_channel_values->size());
+    absl::c_move(*std::move(parsed_channel_values),
                  std::inserter(channel_values, channel_values.end()));
     input = xls::ProcInput{.channel_inputs = channel_values};
   }

@@ -160,9 +160,9 @@ TEST_P(TestbenchIoTest, SimpleInputOutput) {
 
   std::vector<int32_t> results;
   Thread read_thread([&]() {
-    absl::StatusOr<std::vector<int32_t>> values_or = read_lines_and_convert();
-    CHECK_OK(values_or.status());
-    results = std::move(values_or.value());
+    absl::StatusOr<std::vector<int32_t>> values = read_lines_and_convert();
+    CHECK_OK(values);
+    results = *std::move(values);
   });
 
   std::pair<std::string, std::string> stdout_stderr;

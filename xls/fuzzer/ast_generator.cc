@@ -815,9 +815,9 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueTupleWithoutToken(
     if (tuple_type->size() < min_size) {
       return false;
     }
-    absl::StatusOr<bool> contains_token_or = ContainsToken(tuple_type);
-    CHECK_OK(contains_token_or.status());
-    return !contains_token_or.value();
+    absl::StatusOr<bool> contains_token = ContainsToken(tuple_type);
+    CHECK_OK(contains_token);
+    return !*contains_token;
   };
   return ChooseEnvValue(env, take);
 }
@@ -825,9 +825,9 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueTupleWithoutToken(
 absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueNotContainingToken(
     Env* env) {
   auto take = [&](const TypedExpr& e) -> bool {
-    absl::StatusOr<bool> contains_token_or = ContainsToken(e.type);
-    CHECK_OK(contains_token_or.status());
-    return !contains_token_or.value();
+    absl::StatusOr<bool> contains_token = ContainsToken(e.type);
+    CHECK_OK(contains_token);
+    return !*contains_token;
   };
   return ChooseEnvValue(env, take);
 }
