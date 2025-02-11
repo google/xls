@@ -64,15 +64,24 @@ namespace xls {
 // Users must define the following methods:
 //
 //   * DefaultHandler: the base class includes handlers for tuple, array,
-//   select
-//     and identity operations. The default handler is used for all other
-//     operations.
+//     select, and identity operations. The default handler is used for all
+//     other operations.
 //
 //   * JoinElements: an operation for joining data sources together for an
 //      operation. This operation is used, for example, to produce the value
 //      for a select operation by joining the possible selected cases.
 //
-// Other handlers can optionally defined or overridden.
+// Other handlers can be optionally defined or overridden.
+//
+// Users may also override the following methods:
+//
+//   * IndexMightBeEquivalent: used to determine if a given index might be
+//     equivalent to a given concrete index. This is used to determine which
+//     elements of an array might be relevant to a given array operation.
+//
+//   * IndexIsEquivalent: used to determine if a given index is definitely
+//     equivalent to a given concrete set of indices. This is used to determine
+//     which elements of an array might be relevant to a given array operation.
 template <typename LeafT>
 class DataflowVisitor : public DfsVisitorWithDefault {
  public:
@@ -107,16 +116,11 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     std::vector<int64_t> bounds =
         GetArrayBounds(array_index->array()->GetType());
     std::vector<LeafTypeTreeView<LeafT>> data_sources;
-    std::vector<std::optional<Bits>> indices_bits;
-    indices_bits.reserve(array_index->indices().size());
-    for (Node* index : array_index->indices()) {
-      indices_bits.push_back(query_engine_.KnownValueAsBits(index));
-    }
     XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
         array_value.AsView(), array_index->indices().size(),
         [&](LeafTypeTreeView<LeafT> element_view,
             absl::Span<const int64_t> index) {
-          if (IndicesMightBeEquivalent(indices_bits, index, bounds,
+          if (IndicesMightBeEquivalent(array_index->indices(), index, bounds,
                                        /*indices_clamped=*/true)) {
             data_sources.push_back(element_view);
           }
@@ -154,17 +158,23 @@ class DataflowVisitor : public DfsVisitorWithDefault {
       return SetValue(array_slice, std::move(slice_value));
     }
 
-    std::vector<LeafTypeTreeView<LeafT>> data_sources;
     std::vector<LeafTypeTree<LeafT>> possible_slices;
-    data_sources.reserve(array_size);
     possible_slices.reserve(array_size);
     for (int64_t start = 0; start < array_size; ++start) {
-      XLS_ASSIGN_OR_RETURN(
-          LeafTypeTree<LeafT> possible_slice,
-          leaf_type_tree::SliceArray(array_slice->GetType()->AsArrayOrDie(),
-                                     array_value, start));
-      possible_slices.push_back(std::move(possible_slice));
-      data_sources.push_back(possible_slices.back().AsView());
+      if (IndexMightBeEquivalent(array_slice->start(), start, array_size,
+                                 /*indices_clamped=*/true)) {
+        XLS_ASSIGN_OR_RETURN(
+            LeafTypeTree<LeafT> possible_slice,
+            leaf_type_tree::SliceArray(array_slice->GetType()->AsArrayOrDie(),
+                                       array_value, start));
+        possible_slices.push_back(std::move(possible_slice));
+      }
+    }
+
+    std::vector<LeafTypeTreeView<LeafT>> data_sources;
+    data_sources.reserve(possible_slices.size());
+    for (const LeafTypeTree<LeafT>& possible_slice : possible_slices) {
+      data_sources.push_back(possible_slice.AsView());
     }
     std::vector<LeafTypeTreeView<LeafT>> control_sources = {
         GetValue(array_slice->start())};
@@ -191,25 +201,17 @@ class DataflowVisitor : public DfsVisitorWithDefault {
       XLS_RET_CHECK(IsLeafType(index->GetType()));
       control_sources.push_back(GetValue(index));
     }
-    std::vector<std::optional<Bits>> indices_bits;
-    indices_bits.reserve(array_update->indices().size());
-    for (Node* index : array_update->indices()) {
-      indices_bits.push_back(query_engine_.KnownValueAsBits(index));
-    }
     XLS_RETURN_IF_ERROR(leaf_type_tree::ForEachSubArray<LeafT>(
         result_view, array_update->indices().size(),
         [&](MutableLeafTypeTreeView<LeafT> element_view,
             absl::Span<const int64_t> index) -> absl::Status {
-          if (IndicesMightBeEquivalent(indices_bits, index, bounds,
+          if (IndicesAreEquivalent(array_update->indices(), index, bounds,
+                                   /*indices_clamped=*/false)) {
+            // This is confirmed to be the updated position; just replace it.
+            return leaf_type_tree::ReplaceElements(element_view, update_value);
+          }
+          if (IndicesMightBeEquivalent(array_update->indices(), index, bounds,
                                        /*indices_clamped=*/false)) {
-            if (absl::c_all_of(indices_bits,
-                               [](const std::optional<Bits>& index_bits) {
-                                 return index_bits.has_value();
-                               })) {
-              // This is confirmed to be the updated position; just replace it.
-              return leaf_type_tree::ReplaceElements(element_view,
-                                                     update_value);
-            }
             return leaf_type_tree::UpdateFrom<LeafT, LeafT>(
                 element_view, update_value,
                 [&](Type* leaf_type, LeafT& element, const LeafT& other_element,
@@ -392,23 +394,74 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     }
     return bits_ops::UEqual(bits_index, concrete_index);
   }
+  virtual bool IndexIsEquivalent(const LeafT& index, int64_t concrete_index,
+                                 int64_t bound, bool index_clamped) const {
+    return false;
+  }
+  bool IndexIsEquivalent(Node* index, int64_t concrete_index, int64_t bound,
+                         bool index_clamped) const {
+    CHECK(IsLeafType(index->GetType()));
+    if (std::optional<Bits> known_value = query_engine_.KnownValueAsBits(index);
+        known_value.has_value()) {
+      return IndexIsEquivalent(*known_value, concrete_index, bound,
+                               index_clamped);
+    }
+    return IndexIsEquivalent(GetValue(index).Get({}), concrete_index, bound,
+                             index_clamped);
+  }
 
-  // Returns true if all known `indices` are equivalent to the given
+  // Returns true if `index` could be equivalent to `concrete_index`. If
+  // `index_clamped` is true then the value of `index` is clamped when it
+  // equals or exceeds `bound`.
+  bool IndexMightBeEquivalent(const Bits& bits_index, int64_t concrete_index,
+                              int64_t bound, bool index_clamped) const {
+    return IndexIsEquivalent(bits_index, concrete_index, bound, index_clamped);
+  }
+  virtual bool IndexMightBeEquivalent(const LeafT& index,
+                                      int64_t concrete_index, int64_t bound,
+                                      bool index_clamped) const {
+    return true;
+  }
+  bool IndexMightBeEquivalent(Node* index, int64_t concrete_index,
+                              int64_t bound, bool index_clamped) const {
+    CHECK(IsLeafType(index->GetType()));
+    if (std::optional<Bits> known_value = query_engine_.KnownValueAsBits(index);
+        known_value.has_value()) {
+      return IndexMightBeEquivalent(*known_value, concrete_index, bound,
+                                    index_clamped);
+    }
+    return IndexMightBeEquivalent(GetValue(index).Get({}), concrete_index,
+                                  bound, index_clamped);
+  }
+
+  // Returns true if all known `indices` could be equivalent to the given
   // `concrete_indices`, ignoring all unknown `indices`. If `index_clamped` is
   // true then the `indices` are each clamped when they equal or exceed their
   // corresponding `bounds`.
-  bool IndicesMightBeEquivalent(const std::vector<std::optional<Bits>>& indices,
+  bool IndicesMightBeEquivalent(absl::Span<Node* const> indices,
                                 absl::Span<const int64_t> concrete_indices,
                                 absl::Span<const int64_t> bounds,
                                 bool indices_clamped) const {
     CHECK_EQ(indices.size(), concrete_indices.size());
     for (int64_t i = 0; i < indices.size(); ++i) {
-      const std::optional<Bits>& bits_index = indices[i];
-      if (!bits_index.has_value()) {
-        // We don't know the value, so it might be equal.
-        continue;
+      if (!IndexMightBeEquivalent(indices[i], concrete_indices[i], bounds[i],
+                                  indices_clamped)) {
+        return false;
       }
-      if (!IndexIsEquivalent(*bits_index, concrete_indices[i], bounds[i],
+    }
+    return true;
+  }
+
+  // Returns true if all known `indices` are known equivalent to the given
+  // `concrete_indices`. If `index_clamped` is true then the `indices` are each
+  // clamped when they equal or exceed their corresponding `bounds`.
+  bool IndicesAreEquivalent(absl::Span<Node* const> indices,
+                            absl::Span<const int64_t> concrete_indices,
+                            absl::Span<const int64_t> bounds,
+                            bool indices_clamped) const {
+    CHECK_EQ(indices.size(), concrete_indices.size());
+    for (int64_t i = 0; i < indices.size(); ++i) {
+      if (!IndexIsEquivalent(indices[i], concrete_indices[i], bounds[i],
                              indices_clamped)) {
         return false;
       }

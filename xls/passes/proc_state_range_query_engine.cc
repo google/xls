@@ -421,12 +421,6 @@ class ConstantValueIrInterpreter
                            }));
   }
 
-  // TODO(allight): Technically we could go through this but its hard to see
-  // what the benefit would be.
-  absl::Status HandleArraySlice(ArraySlice* a) override {
-    return HandleNonConst(a);
-  }
-
  protected:
   absl::StatusOr<absl::flat_hash_set<Bits>> JoinElements(
       Type* element_type,
@@ -456,6 +450,28 @@ class ConstantValueIrInterpreter
       res.pop();
     }
     return out;
+  }
+
+  bool IndexMightBeEquivalent(const absl::flat_hash_set<Bits>& index,
+                              int64_t concrete_index, int64_t bound,
+                              bool index_clamped) const override {
+    if (index.empty()) {
+      // Represents a value that can't be any particular constant; it's
+      // unconstrained.
+      return true;
+    }
+    return absl::c_any_of(index, [&](const Bits& possibility) {
+      return DataflowVisitor::IndexMightBeEquivalent(
+          possibility, concrete_index, bound, index_clamped);
+    });
+  }
+
+  bool IndexIsEquivalent(const absl::flat_hash_set<Bits>& index,
+                         int64_t concrete_index, int64_t bound,
+                         bool index_clamped) const override {
+    return index.size() == 1 &&
+           DataflowVisitor::IndexIsEquivalent(*index.begin(), concrete_index,
+                                              bound, index_clamped);
   }
 };
 
