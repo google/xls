@@ -32,6 +32,8 @@
 
 namespace xls {
 
+class BitmapView;
+
 // A bitmap that has 64-bits of inline storage by default.
 class InlineBitmap {
  public:
@@ -327,11 +329,23 @@ class InlineBitmap {
     return H::combine(std::move(h), ib.bit_count_, ib.data_);
   }
 
+  // Overwrite 'cnt' bits starting at w_offset with the bits in 'other' starting
+  // at 'r_offset'. Returns an error code if either of 'w_offset + cnt' or
+  // 'r_offset + cnt' is out of bounds.
+  void Overwrite(const InlineBitmap& other, int64_t cnt, int64_t w_offset = 0,
+                 int64_t r_offset = 0);
+
  private:
   XLS_FRIEND_TEST(InlineBitmapTest, MaskForWord);
+  friend uint64_t GetWordBitsAtForTest(const InlineBitmap& ib,
+                                       int64_t bit_offset);
 
   static constexpr int64_t kWordBits = 64;
   static constexpr int64_t kWordBytes = 8;
+
+  // Gets the kWordBits bits following bit_offset with 'Get(bit_offset)' being
+  // the LSB, Get(bit_offset + 1) being the next lsb etc.
+  int64_t GetWordBitsAt(int64_t bit_offset) const;
 
   void MaskLastWord() {
     if (word_count() == 0) {
@@ -375,9 +389,8 @@ class BitmapView {
 
   InlineBitmap ToBitmap() const {
     InlineBitmap result(bit_count_, false);
-    for (int64_t i = 0; i < bit_count_; ++i) {
-      result.Set(i, Get(i));
-    }
+    result.Overwrite(bitmap_, bit_count_, /*w_offset=*/0,
+                     /*r_offset=*/start_bit_);
     return result;
   }
 

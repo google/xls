@@ -126,6 +126,7 @@ cc_test(
 
 cc_library(
     name = "inline_bitmap",
+    srcs = ["inline_bitmap.cc"],
     hdrs = ["inline_bitmap.h"],
     deps = [
         "//xls/common:bits_util",
@@ -237,8 +238,13 @@ cc_test(
     deps = [
         ":inline_bitmap",
         "//xls/common:xls_gunit_main",
+        "//xls/common/fuzzing:fuzztest",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
+        "@cppitertools",
     ],
 )
 

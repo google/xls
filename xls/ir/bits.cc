@@ -256,13 +256,9 @@ Bits Bits::Slice(int64_t start, int64_t width) && {
     // This is the most common slice so make it fast.
     return Bits::FromBitmap(std::move(bitmap_).WithSize(width));
   }
-  Bits result(width);
-  for (int64_t i = 0; i < width; ++i) {
-    if (Get(start + i)) {
-      result.bitmap_.Set(i, true);
-    }
-  }
-  return result;
+  InlineBitmap bm(width);
+  bm.Overwrite(bitmap_, width, /*w_offset=*/0, /*r_offset=*/start);
+  return Bits::FromBitmap(std::move(bm));
 }
 
 Bits Bits::Slice(int64_t start, int64_t width) const& {
@@ -275,13 +271,9 @@ Bits Bits::Slice(int64_t start, int64_t width) const& {
     // This is the most common slice so make it fast.
     return Bits::FromBitmap(bitmap_.WithSize(width));
   }
-  Bits result(width);
-  for (int64_t i = 0; i < width; ++i) {
-    if (Get(start + i)) {
-      result.bitmap_.Set(i, true);
-    }
-  }
-  return result;
+  InlineBitmap bm(width);
+  bm.Overwrite(bitmap_, width, /*w_offset=*/0, /*r_offset=*/start);
+  return Bits::FromBitmap(std::move(bm));
 }
 
 }  // namespace xls

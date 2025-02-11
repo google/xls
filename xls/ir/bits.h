@@ -274,9 +274,8 @@ class BitsRope {
   //
   // So b.Get(0) is now at result.Get(2).
   void push_back(const Bits& bits) {
-    for (int64_t i = 0; i < bits.bit_count(); ++i) {
-      bitmap_.Set(index_ + i, bits.Get(i));
-    }
+    bitmap_.Overwrite(bits.bitmap(), bits.bit_count(),
+                      /*w_offset=*/index_, /*r_offset=*/0);
     index_ += bits.bit_count();
   }
 
