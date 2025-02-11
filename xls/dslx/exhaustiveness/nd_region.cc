@@ -46,6 +46,7 @@ InterpValue TightestUpperBound(const InterpValueInterval& a,
     absl::Span<const InterpValue> start_point,
     absl::Span<const InterpValue> end_point) {
   std::vector<InterpValueInterval> dims;
+  dims.reserve(start_point.size());
   for (int64_t i = 0; i < start_point.size(); ++i) {
     dims.push_back(InterpValueInterval(start_point[i], end_point[i]));
   }
