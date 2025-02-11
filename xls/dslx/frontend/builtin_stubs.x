@@ -43,4 +43,3 @@ fn smulp<N: u32>(x: sN[N], y: sN[N]) -> (uN[N], uN[N]);
 fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
 
 fn xor_reduce<N: u32>(x: uN[N]) -> u1;
-
