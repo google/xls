@@ -67,6 +67,10 @@ TypeAnnotation* CreateStructAnnotation(
     Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
     std::optional<const StructInstance*> instantiator);
 
+// Variant that converts a `StructOrProcRef` into an annotation.
+TypeAnnotation* CreateStructAnnotation(Module& module,
+                                       const StructOrProcRef& ref);
+
 // Returns the signedness and bit count from the given type annotation, if it is
 // a bits-like annotation; otherwise, returns an error.
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(

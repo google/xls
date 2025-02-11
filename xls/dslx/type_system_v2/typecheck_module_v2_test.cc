@@ -4142,5 +4142,146 @@ const Y = S<32>{}.foo(200);
           HasNodeWithType("100", "uN[17]"), HasNodeWithType("200", "uN[33]"))));
 }
 
+TEST(TypecheckV2Test, ParametricInstanceMethod) {
+  EXPECT_THAT(
+      R"(
+struct S {}
+
+impl S {
+  fn foo<N: u32>(self, a: uN[N]) -> uN[N] { a + 1 }
+}
+
+const X = S{}.foo(u16:100);
+const Y = S{}.foo(u32:200);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
+                              HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, ParametricInstanceMethodWithParametricSignedness) {
+  EXPECT_THAT(
+      R"(
+struct S {}
+
+impl S {
+  fn foo<S: bool, N: u32>(self, a: xN[S][N]) -> xN[S][N] { a + 1 }
+}
+
+const X = S{}.foo(u16:100);
+const Y = S{}.foo(s32:200);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16]"),
+                              HasNodeWithType("Y", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, ParametricInstanceMethodOfParametricStruct) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32> {}
+
+impl S<M> {
+  fn add<N: u32>(self) -> u32 { M + N }
+}
+
+const X = S<4>{}.add<3>();
+const Y = S<5>{}.add<6>();
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                              HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, ParametricInstanceMethodUsingParametricConstant) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32> {}
+
+impl S<M> {
+  const M_VALUE = M;
+  fn add<N: u32>(self) -> u32 { M_VALUE + N }
+}
+
+const X = S<4>{}.add<3>();
+const Y = S<5>{}.add<6>();
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[32]"),
+                              HasNodeWithType("Y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, ParametricInstanceMethodUsingStaticParametricAsDefault) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32> {}
+
+impl S<M> {
+  fn add<N: u32, P: u32 = {M + N}>(self) -> uN[P] { uN[P]:0 }
+}
+
+const X = S<4>{}.add<3>();
+const Y = S<5>{}.add<6>();
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[7]"),
+                              HasNodeWithType("Y", "uN[11]"))));
+}
+
+TEST(TypecheckV2Test, ParametricsFromStructAndMethodInType) {
+  EXPECT_THAT(
+      R"(
+struct S<M: u32> {
+  a: uN[M]
+}
+
+impl S<M> {
+  fn replicate<N: u32>(self) -> uN[M][N] { [self.a, ...] }
+}
+
+const X = S{a: u16:5}.replicate<3>();
+const Y = S{a: u32:6}.replicate<4>();
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[16][3]"),
+                              HasNodeWithType("Y", "uN[32][4]"))));
+}
+
+TEST(TypecheckV2Test, ParametricsFromStructAndMethodBothInferred) {
+  EXPECT_THAT(
+      R"(
+struct Data<M: u32> {
+  a: uN[M]
+}
+
+impl Data<M> {
+  fn combine<S: bool, N: u32>(self, b: xN[S][N]) -> (uN[M], xN[S][N]) {
+    (self.a, b)
+  }
+}
+
+const X = Data{a: 5}.combine(-42);
+const Y = Data{a: 120}.combine(256);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[3], sN[7])"),
+                              HasNodeWithType("Y", "(uN[7], uN[9])"))));
+}
+
+TEST(TypecheckV2Test, StackedParametricInstanceMethodCalls) {
+  EXPECT_THAT(
+      R"(
+struct Data<M: u32> {
+  a: uN[M]
+}
+
+impl Data<M> {
+  fn bar<N: u32>(self, b: uN[N]) -> uN[N] { b }
+
+  fn foo<N: u32>(self, b: uN[N]) -> (uN[M], uN[N], u16) {
+    (self.a, b, self.bar(b as u16))
+  }
+}
+
+const X = Data{a: 5}.foo(42);
+const Y = Data{a: 120}.foo(256);
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("X", "(uN[3], uN[6], uN[16])"),
+                              HasNodeWithType("Y", "(uN[7], uN[9], uN[16])"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

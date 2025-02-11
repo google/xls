@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system_v2/inference_table.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -29,10 +30,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -189,12 +192,15 @@ class InferenceTableImpl : public InferenceTable {
   absl::StatusOr<const ParametricContext*> AddParametricInvocation(
       const Invocation& node, const Function& callee,
       std::optional<const Function*> caller,
-      std::optional<const ParametricContext*> parent_context) override {
+      std::optional<const ParametricContext*> parent_context,
+      std::optional<const TypeAnnotation*> self_type) override {
     VLOG(5) << "Add parametric invocation: " << node.ToString()
-            << " from parent context: " << ToString(parent_context);
+            << " from parent context: "
+            << ::xls::dslx::ToString(parent_context);
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), &node,
-        ParametricInvocationDetails{&callee, caller}, parent_context);
+        ParametricInvocationDetails{&callee, caller}, parent_context,
+        self_type);
     const std::vector<ParametricBinding*>& bindings =
         callee.parametric_bindings();
     const std::vector<ExprOrType>& explicit_parametrics =
@@ -243,7 +249,7 @@ class InferenceTableImpl : public InferenceTable {
 
   const ParametricContext* GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
-      ParametricEnv parametric_env) override {
+      ParametricEnv parametric_env, const TypeAnnotation* self_type) override {
     auto& contexts = parametric_struct_contexts_[struct_def];
     const auto it = contexts.find(parametric_env);
     if (it != contexts.end()) {
@@ -252,7 +258,7 @@ class InferenceTableImpl : public InferenceTable {
     auto context = std::make_unique<ParametricContext>(
         parametric_contexts_.size(), node,
         ParametricStructDetails{struct_def, parametric_env},
-        /*parent_context=*/std::nullopt);
+        /*parent_context=*/std::nullopt, self_type);
     const ParametricContext* result = context.get();
     parametric_contexts_.push_back(std::move(context));
     contexts.emplace_hint(it, parametric_env, result);
@@ -289,6 +295,23 @@ class InferenceTableImpl : public InferenceTable {
           .push_back(annotation);
     } else {
       type_annotations_per_type_variable_[variable].push_back(annotation);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status RemoveTypeAnnotationsFromTypeVariable(
+      const NameRef* ref,
+      absl::FunctionRef<bool(const TypeAnnotation*)> remove_predicate)
+      override {
+    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
+    const auto it = type_annotations_per_type_variable_.find(variable);
+    if (it != type_annotations_per_type_variable_.end()) {
+      auto& annotations = it->second;
+      annotations.erase(std::remove_if(annotations.begin(), annotations.end(),
+                                       [&](const TypeAnnotation* annotation) {
+                                         return remove_predicate(annotation);
+                                       }),
+                        annotations.end());
     }
     return absl::OkStatus();
   }
@@ -368,6 +391,75 @@ class InferenceTableImpl : public InferenceTable {
     const auto it = colon_ref_targets_.find(colon_ref);
     return it == colon_ref_targets_.end() ? std::nullopt
                                           : std::make_optional(it->second);
+  }
+
+  std::string ToString() const override {
+    std::string result;
+    absl::flat_hash_map<const AstNode*, std::vector<const ParametricContext*>>
+        contexts_per_node;
+    for (const auto& context : parametric_contexts_) {
+      contexts_per_node[context->node()].push_back(context.get());
+    }
+    for (const auto& [node, data] : node_data_) {
+      absl::StrAppendFormat(&result, "Node: %s\n", node->ToString());
+      absl::StrAppendFormat(&result, "  Address: 0x%x\n", (uint64_t)node);
+      if (data.type_variable.has_value()) {
+        absl::StrAppendFormat(&result, "  Variable: %s\n",
+                              (*data.type_variable)->name());
+      }
+      if (data.type_annotation.has_value()) {
+        absl::StrAppendFormat(&result, "  Annotation: %s\n",
+                              (*data.type_annotation)->ToString());
+      }
+      const std::vector<const ParametricContext*>& contexts =
+          contexts_per_node[node];
+      if (!contexts.empty()) {
+        absl::StrAppendFormat(&result, "  Parametric contexts:\n");
+        for (int i = 0; i < contexts.size(); i++) {
+          absl::StrAppendFormat(&result, "    %d %s\n", i,
+                                ::xls::dslx::ToString(contexts[i]));
+        }
+      }
+    }
+    for (const auto& [name_def, variable] : variables_) {
+      absl::StrAppendFormat(&result, "Variable: %s\n", variable->name());
+      absl::StrAppendFormat(&result, "  NameDef address: 0x%x\n",
+                            (uint64_t)(name_def));
+      const auto annotations =
+          type_annotations_per_type_variable_.find(variable.get());
+      if (annotations != type_annotations_per_type_variable_.end() &&
+          !annotations->second.empty()) {
+        absl::StrAppendFormat(&result, "  Annotations:\n");
+        for (int i = 0; i < annotations->second.size(); i++) {
+          absl::StrAppendFormat(&result, "    %d: %s\n", i,
+                                annotations->second[i]->ToString());
+        }
+      }
+      for (const auto& context : parametric_contexts_) {
+        const MutableParametricContextData& data =
+            mutable_parametric_context_data_.at(context.get());
+        const auto context_annotations =
+            data.type_annotations_per_type_variable.find(variable.get());
+        if (context_annotations !=
+                data.type_annotations_per_type_variable.end() &&
+            !context_annotations->second.empty()) {
+          absl::StrAppendFormat(&result, "  Annotations for context %s\n",
+                                ::xls::dslx::ToString(context.get()));
+          for (int i = 0; i < context_annotations->second.size(); i++) {
+            absl::StrAppendFormat(&result, "    %d %s\n", i,
+                                  context_annotations->second[i]->ToString());
+          }
+        }
+      }
+    }
+    if (!parametric_contexts_.empty()) {
+      absl::StrAppendFormat(&result, "Parametric contexts:\n");
+      for (const auto& context : parametric_contexts_) {
+        absl::StrAppendFormat(&result, "  %s\n",
+                              ::xls::dslx::ToString(context.get()));
+      }
+    }
+    return result;
   }
 
  private:

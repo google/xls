@@ -212,11 +212,13 @@ TEST_F(InferenceTableTest, ParametricVariable) {
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricContext* parametric_context1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt));
+                                      /*caller_invocation=*/std::nullopt,
+                                      /*self_type=*/std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricContext* parametric_context2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt));
+                                      /*caller_invocation=*/std::nullopt,
+                                      /*self_type=*/std::nullopt));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_context1, parametric_context2));
@@ -271,11 +273,13 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricContext* parametric_context1,
       table_->AddParametricInvocation(*invocation1, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt));
+                                      /*caller_invocation=*/std::nullopt,
+                                      /*self_type=*/std::nullopt));
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricContext* parametric_context2,
       table_->AddParametricInvocation(*invocation2, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt));
+                                      /*caller_invocation=*/std::nullopt,
+                                      /*self_type=*/std::nullopt));
 
   EXPECT_THAT(table_->GetParametricInvocations(),
               ElementsAre(parametric_context1, parametric_context2));
@@ -302,6 +306,19 @@ TEST_F(InferenceTableTest, ParametricVariableWithDefault) {
   EXPECT_EQ(parametric_inv2_m_value->expr()->ToString(), "u32:5");
   EXPECT_EQ(parametric_inv1_n_value->expr()->ToString(), "M * M");
   EXPECT_EQ(parametric_inv2_n_value->expr()->ToString(), "M * M");
+
+  EXPECT_THAT(
+      table_->ToString(),
+      AllOf(
+          HasSubstr("Node: b: uN[N]"), HasSubstr("Annotation: uN[N]"),
+          HasSubstr("Node: a: uN[M]"), HasSubstr("Annotation: uN[M]"),
+          HasSubstr("Node: M"), HasSubstr("Annotation: u32"),
+          HasSubstr("Node: N"), HasSubstr("Variable: N"),
+          HasSubstr("Variable: M"), HasSubstr("Parametric contexts:"),
+          HasSubstr("ParametricContext(id=0, parent_id=none, self_type=none, "
+                    "node=foo(u4:1), data=(foo, caller: bar))"),
+          HasSubstr("ParametricContext(id=1, parent_id=none, self_type=none, "
+                    "node=foo<u32:5>(u5:3, u25:4), data=(foo, caller: bar)")));
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
@@ -333,13 +350,18 @@ TEST_F(InferenceTableTest, ParametricVariableWithArrayAnnotation) {
   XLS_ASSERT_OK_AND_ASSIGN(
       const ParametricContext* parametric_context,
       table_->AddParametricInvocation(*invocation, *foo, bar,
-                                      /*caller_invocation=*/std::nullopt));
+                                      /*caller_invocation=*/std::nullopt,
+                                      /*self_type=*/std::nullopt));
 
   std::optional<ParametricContextScopedExpr> parametric_inv_m_value =
       table_->GetParametricValue(*m, *parametric_context);
   ASSERT_TRUE(parametric_inv_m_value.has_value());
   EXPECT_EQ(parametric_inv_m_value->context(), std::nullopt);
   EXPECT_EQ(parametric_inv_m_value->expr()->ToString(), "u32:5");
+  EXPECT_THAT(table_->ToString(),
+              AllOf(HasSubstr("Node: a: uN[M]"), HasSubstr("Annotation: uN[M]"),
+                    HasSubstr("Node: M"), HasSubstr("Annotation: uN[32]"),
+                    HasSubstr("Variable: M")));
 }
 
 TEST_F(InferenceTableTest, ParametricVariableWithUnsupportedAnnotation) {

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -110,6 +111,14 @@ TypeAnnotation* CreateStructAnnotation(
   return module.Make<TypeRefTypeAnnotation>(
       def->span(), module.Make<TypeRef>(def->span(), def),
       std::move(parametrics), instantiator);
+}
+
+TypeAnnotation* CreateStructAnnotation(Module& module,
+                                       const StructOrProcRef& ref) {
+  CHECK(ref.def->kind() == AstNodeKind::kStructDef);
+  return CreateStructAnnotation(
+      module, dynamic_cast<StructDef*>(const_cast<StructDefBase*>(ref.def)),
+      ref.parametrics, std::nullopt);
 }
 
 absl::StatusOr<SignednessAndBitCountResult> GetSignednessAndBitCount(

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/functional/function_ref.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -63,11 +64,13 @@ class ParametricContext {
       std::variant<ParametricInvocationDetails, ParametricStructDetails>;
 
   ParametricContext(uint64_t id, const AstNode* node, Details details,
-                    std::optional<const ParametricContext*> parent_context)
+                    std::optional<const ParametricContext*> parent_context,
+                    std::optional<const TypeAnnotation*> self_type)
       : id_(id),
         node_(node),
         details_(std::move(details)),
-        parent_context_(parent_context) {}
+        parent_context_(parent_context),
+        self_type_(self_type) {}
 
   template <typename H>
   friend H AbslHashValue(H h, const ParametricContext& context) {
@@ -100,6 +103,16 @@ class ParametricContext {
     return parent_context_;
   }
 
+  // The real type of `Self` in this context, including the parametric values.
+  // Currently, we only populate this if this context is for a parametric struct
+  // or a parametric method invocation on a parametric struct. In any other
+  // case, the real type of `Self` can be determined by looking up the
+  // `SelfTypeAnnotation` in the `InferenceTable`. This may change when we
+  // support type parametrics.
+  const std::optional<const TypeAnnotation*>& self_type() const {
+    return self_type_;
+  }
+
   // Returns the parametric bindings of the function or struct that this context
   // is for.
   std::vector<const ParametricBinding*> parametric_bindings() const {
@@ -118,26 +131,29 @@ class ParametricContext {
   // Converts this context to string for debugging and logging purposes.
   std::string ToString() const {
     return absl::Substitute(
-        "ParametricContext(id=$0, parent_id=$1, node=$2, data=($3))", id_,
+        "ParametricContext(id=$0, parent_id=$1, self_type=$2, node=$3, "
+        "data=($4))",
+        id_,
         parent_context_.has_value() ? std::to_string((*parent_context_)->id_)
                                     : "none",
+        self_type_.has_value() ? (*self_type_)->ToString() : "none",
         node_->ToString(), DetailsToString(details_));
   }
 
  private:
   static std::string DetailsToString(const Details& details) {
     return absl::visit(
-        Visitor{[](const ParametricInvocationDetails& details) -> std::string {
-                  return absl::StrCat(details.callee->ToString(), ", caller: ",
-                                      details.caller.has_value()
-                                          ? (*details.caller)->identifier()
-                                          : "<standalone context>");
-                },
-                [](const ParametricStructDetails& details) -> std::string {
-                  return absl::StrCat(
-                      details.struct_or_proc_def->identifier(),
-                      ", parametrics: ", details.env.ToString());
-                }},
+        Visitor{
+            [](const ParametricInvocationDetails& details) -> std::string {
+              return absl::StrCat(details.callee->identifier(), ", caller: ",
+                                  details.caller.has_value()
+                                      ? (*details.caller)->identifier()
+                                      : "<standalone context>");
+            },
+            [](const ParametricStructDetails& details) -> std::string {
+              return absl::StrCat(details.struct_or_proc_def->identifier(),
+                                  ", parametrics: ", details.env.ToString());
+            }},
         details);
   }
 
@@ -145,6 +161,7 @@ class ParametricContext {
   const AstNode* node_;
   const Details details_;
   const std::optional<const ParametricContext*> parent_context_;
+  const std::optional<const TypeAnnotation*> self_type_;
 };
 
 inline std::string ToString(std::optional<const ParametricContext*> context) {
@@ -240,7 +257,8 @@ class InferenceTable {
   virtual absl::StatusOr<const ParametricContext*> AddParametricInvocation(
       const Invocation& invocation, const Function& callee,
       std::optional<const Function*> caller,
-      std::optional<const ParametricContext*> parent_context) = 0;
+      std::optional<const ParametricContext*> parent_context,
+      std::optional<const TypeAnnotation*> self_type) = 0;
 
   // Retrieves all the parametric invocations that have been defined.
   virtual std::vector<const ParametricContext*> GetParametricInvocations()
@@ -252,7 +270,7 @@ class InferenceTable {
   // aliasing. The `parametric_env` does not need values for defaulted bindings.
   virtual const ParametricContext* GetOrCreateParametricStructContext(
       const StructDefBase* struct_def, const AstNode* node,
-      ParametricEnv parametric_env) = 0;
+      ParametricEnv parametric_env, const TypeAnnotation* self_type) = 0;
 
   // Returns the expression for the value of the given parametric in the given
   // invocation, if the parametric has an explicit or default expression. If it
@@ -282,6 +300,12 @@ class InferenceTable {
   virtual absl::Status AddTypeAnnotationToVariableForParametricContext(
       std::optional<const ParametricContext*> context, const NameRef* ref,
       const TypeAnnotation* type) = 0;
+
+  // Removes annotations matching the given predicate from the general list of
+  // annotations for the variable referred to by `ref`.
+  virtual absl::Status RemoveTypeAnnotationsFromTypeVariable(
+      const NameRef* ref,
+      absl::FunctionRef<bool(const TypeAnnotation*)> remove_predicate) = 0;
 
   // Returns the type annotation for `node` in the table, if any.
   virtual std::optional<const TypeAnnotation*> GetTypeAnnotation(
@@ -314,6 +338,9 @@ class InferenceTable {
   GetTypeAnnotationsForTypeVariable(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* variable) const = 0;
+
+  // Converts the table to string for debugging purposes.
+  virtual std::string ToString() const = 0;
 };
 
 }  // namespace xls::dslx
