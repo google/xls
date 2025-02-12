@@ -319,6 +319,18 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
         invocation, InterpValue::MakeU32(static_cast<int32_t>(array_size)));
   }
 
+  // bit_count is similar to array_size, but uses the parametric argument rather
+  // than a value.
+  if (callee_nameref->identifier() == "bit_count") {
+    auto* annotation =
+        std::get<TypeAnnotation*>(invocation->explicit_parametrics()[0]);
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
+                         ctx->DeduceAndResolve(annotation));
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         GetBitCountAsInterpValue(type.get()));
+    ctx->type_info()->NoteConstExpr(invocation, value);
+  }
+
   if (callee_nameref->identifier() == "cover!") {
     XLS_RETURN_IF_ERROR(TypecheckCoverBuiltinInvocation(ctx, invocation));
   }

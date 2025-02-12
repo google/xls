@@ -69,6 +69,8 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
           {"array_rev", {.signature = "(T[N]) -> T[N]", .is_ast_node = false}},
           {"array_size", {.signature = "(T[N]) -> u32", .is_ast_node = false}},
 
+          {"bit_count", {.signature = "() -> u32", .is_ast_node = false}},
+
           // Bitwise reduction ops.
           {"and_reduce", {.signature = "(uN[N]) -> u1", .is_ast_node = false}},
           {"or_reduce", {.signature = "(uN[N]) -> u1", .is_ast_node = false}},

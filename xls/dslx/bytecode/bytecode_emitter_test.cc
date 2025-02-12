@@ -1486,6 +1486,56 @@ fn main() -> u32 {
   ASSERT_EQ(bc->op(), Bytecode::Op::kShr);
 }
 
+TEST(BytecodeEmitterTest, BitCount) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+  a: u32
+}
+
+struct T<N: u32> {
+  a: uN[N]
+}
+
+#[test]
+fn main() -> u32 {
+  bit_count<u32>() +
+  bit_count<s64>() +
+  bit_count<u32[u32:4]>() +
+  bit_count<bool>() +
+  bit_count<S>() +
+  bit_count<T<u32:4>>() +
+  bit_count<(u32, bool)>()
+}
+)";
+
+  constexpr std::string_view kWant = R"(literal u32:32
+literal u32:64
+uadd
+literal u32:128
+uadd
+literal u32:1
+uadd
+literal u32:32
+uadd
+literal u32:4
+uadd
+literal u32:33
+uadd)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
+
+  std::string got = absl::StrJoin(
+      bf->bytecodes(), "\n",
+      [&import_data](std::string* out, const Bytecode& b) {
+        absl::StrAppend(
+            out, b.ToString(import_data.file_table(), /*source_locs=*/false));
+      });
+
+  EXPECT_EQ(kWant, got);
+}
+
 TEST(BytecodeEmitterTest, ParameterizedTypeDefToImportedEnum) {
   constexpr std::string_view kImported = R"(
 pub struct ImportedStruct<X: u32> {

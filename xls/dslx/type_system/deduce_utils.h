@@ -267,6 +267,9 @@ void WarnOnInappropriateConstantName(std::string_view identifier,
                                      const Span& span, const Module& module,
                                      WarningCollector* warning_collector);
 
+// Gets the total bit count of the given `type` as a u32 `InterpValue`.
+absl::StatusOr<InterpValue> GetBitCountAsInterpValue(const Type* type);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

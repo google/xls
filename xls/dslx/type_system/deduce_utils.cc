@@ -1048,4 +1048,15 @@ void WarnOnInappropriateConstantName(std::string_view identifier,
   }
 }
 
+absl::StatusOr<InterpValue> GetBitCountAsInterpValue(const Type* type) {
+  if (type->IsMeta()) {
+    XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
+  }
+  XLS_ASSIGN_OR_RETURN(TypeDim bit_count_ctd, type->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t bit_count,
+      std::get<InterpValue>(bit_count_ctd.value()).GetBitValueViaSign());
+  return InterpValue::MakeU32(bit_count);
+}
+
 }  // namespace xls::dslx

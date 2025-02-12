@@ -46,6 +46,25 @@ fn test_array_size() {
 }
 ```
 
+### `bit_count`
+
+`bit_count` returns the number of bits in the given type.
+
+```
+fn bit_count<T: type>() -> u32
+```
+
+```dslx
+struct MyPoint { x: u32, y: u32 }
+
+#[test]
+fn test_bit_count_size() {
+    assert_eq(bit_count<u32[4]>(), u32:128);
+    assert_eq(bit_count<bool>(), u32:1);
+    assert_eq(bit_count<MyPoint>(), u32:64);
+}
+```
+
 ### `widening_cast`, `checked_cast`
 
 `widening_cast` and `checked_cast` cast bits-type values to bits-type values
@@ -911,10 +930,10 @@ fn convert_to_bits_test() {
 
 There's always a source of confusion in these orderings:
 
-* Mathematically we often indicate the least significant digit as "digit 0"
-* *But*, in a number as we write the digits from left-to-right on a piece of
-  paper, if you made an array from the written characters, the digit at "array
-  index 0" would be the most significant bit.
+*   Mathematically we often indicate the least significant digit as "digit 0"
+*   *But*, in a number as we write the digits from left-to-right on a piece of
+    paper, if you made an array from the written characters, the digit at "array
+    index 0" would be the most significant bit.
 
 So, it's somewhat ambiguous whether "index 0" in the array would become the
 least significant bit or the most significant bit. This routine uses the "as it
@@ -979,9 +998,9 @@ pub fn extract_bits<FROM_INCLUSIVE: u32, TO_EXCLUSIVE: u32, FIXED_SHIFT: u32,
 }
 ```
 
-Extracts a bit-slice from x shifted left by `fixed_shift`.  This function behaves as-if x as
-resonably infinite precision so that the shift does not drop any bits and that the bit slice
-will be in-range.
+Extracts a bit-slice from x shifted left by `fixed_shift`. This function behaves
+as-if x as resonably infinite precision so that the shift does not drop any bits
+and that the bit slice will be in-range.
 
 If `to_exclusive <= from_excsuive`, the result will be a zero-bit `bits[0]`.
 
@@ -1097,8 +1116,8 @@ Returns `x` rounded up to the nearest multiple of `y`.
 #### std::round_up_to_nearest_pow2_?
 
 Returns `x` rounded up to the nearest multiple of `y`, where `y` is a known
-positive power of 2. This functionality is the same as `std::round_up_to_nearest`
-but optimized when `y` is a power of 2.
+positive power of 2. This functionality is the same as
+`std::round_up_to_nearest` but optimized when `y` is a power of 2.
 
 #### `std::?pow`
 
@@ -1167,8 +1186,8 @@ Returns the minimum of two unsigned integers.
 pub fn uadd_with_overflow<V: u32>(x: uN[N], y: uN[M]) -> (bool, uN[V])
 ```
 
-Returns a 2-tuple indicating overflow (boolean) and a sum `(x + y) as uN[V]`.
-An overflow occurs if the result does not fit within a `uN[V]`.
+Returns a 2-tuple indicating overflow (boolean) and a sum `(x + y) as uN[V]`. An
+overflow occurs if the result does not fit within a `uN[V]`.
 
 #### `std::umul_with_overflow`
 
@@ -1176,8 +1195,8 @@ An overflow occurs if the result does not fit within a `uN[V]`.
 pub fn umul_with_overflow<V: u32>(x: uN[N], y: uN[M]) -> (bool, uN[V])
 ```
 
-Returns a 2-tuple indicating overflow (boolean) and a product `(x * y) as uN[V]`.
-An overflow occurs if the result does not fit within a `uN[V]`.
+Returns a 2-tuple indicating overflow (boolean) and a product `(x * y) as
+uN[V]`. An overflow occurs if the result does not fit within a `uN[V]`.
 
 ### Misc Functions
 
@@ -1215,8 +1234,8 @@ ultimately discarded from the unselected match arm.
 pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool
 ```
 
-Returns whether all the `items` are distinct (i.e. there are no duplicate
-items) after the `valid` mask is applied.
+Returns whether all the `items` are distinct (i.e. there are no duplicate items)
+after the `valid` mask is applied.
 
 ```dslx
 import std;

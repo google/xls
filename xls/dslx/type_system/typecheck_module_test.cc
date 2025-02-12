@@ -4354,6 +4354,69 @@ fn f(x: u32) -> u2 {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+TEST(TypecheckTest, BitCount) {
+  XLS_ASSERT_OK(Typecheck(R"(
+struct S {
+  a: u32
+}
+
+struct T<N: u32> {
+  a: uN[N]
+}
+
+type A = S;
+type B = T;
+
+fn main() -> u32 {
+  bit_count<u32>() +
+  bit_count<s64>() +
+  bit_count<u32[u32:4]>() +
+  bit_count<bool>() +
+  bit_count<S>() +
+  bit_count<T<u32:4>>() +
+  bit_count<(u32, bool)>() +
+  bit_count<A>() +
+  bit_count<B<u32:5>>()
+})"));
+}
+
+TEST(TypecheckTest, BitCountAsConstExpr) {
+  XLS_ASSERT_OK(Typecheck(R"(
+fn main() -> u64 {
+  uN[bit_count<u32[2]>()]:0
+})"));
+}
+
+TEST(TypecheckTest, BitCountWithNoTypeArgument) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> u32 {
+  bit_count<>()
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid number of parametrics passed to "
+                                 "'bit_count', expected 1, got 0")));
+}
+
+TEST(TypecheckTest, BitCountWithMultipleTypeArguments) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> u32 {
+  bit_count<u32, u16>()
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid number of parametrics passed to "
+                                 "'bit_count', expected 1, got 2")));
+}
+
+TEST(TypecheckTest, BitCountWithExprArgument) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> u32 {
+  bit_count<u32:0>()
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("The parametric argument for 'bit_count' "
+                                 "should be a type and not a value.")));
+}
+
 // Table-oriented test that lets us validate that *types on parameters* are
 // compatible with *particular values* that should be type-compatible.
 TEST(PassValueToIdentityFnTest, ParameterVsValue) {

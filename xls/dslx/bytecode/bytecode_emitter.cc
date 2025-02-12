@@ -714,6 +714,19 @@ absl::Status BytecodeEmitter::HandleBuiltinWideningCast(
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleBuiltinBitCount(const Invocation* node) {
+  VLOG(5) << "BytecodeEmitter::HandleInvocation - BitCount @ "
+          << node->span().ToString(file_table());
+
+  const auto* annotation =
+      std::get<TypeAnnotation*>(node->explicit_parametrics()[0]);
+  XLS_ASSIGN_OR_RETURN(Type * type, GetTypeOfNode(annotation, type_info_));
+  XLS_ASSIGN_OR_RETURN(InterpValue bit_count, GetBitCountAsInterpValue(type));
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kLiteral, bit_count));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
   // Channels are created as constexpr values during type deduction/constexpr
   // evaluation, since they're concrete values that need to be shared amongst
@@ -1081,6 +1094,10 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
 
     if (name_ref->identifier() == "widening_cast") {
       return HandleBuiltinWideningCast(node);
+    }
+
+    if (name_ref->identifier() == "bit_count") {
+      return HandleBuiltinBitCount(node);
     }
 
     if (name_ref->identifier() == "checked_cast") {

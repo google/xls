@@ -2263,6 +2263,11 @@ TEST_F(ParserTest, WideningCastOfCheckedCastOfCast) {
                 /*populate_dslx_builtins=*/true);
 }
 
+TEST_F(ParserTest, BitCount) {
+  RoundTripExpr("bit_count<u32>()", {},
+                /*populate_dslx_builtins=*/true, "bit_count<u32>()");
+}
+
 TEST_F(ParserTest, CastOfCastEnum) {
   RoundTrip(R"(enum MyEnum : u3 {
     SOME_VALUE = 0,

@@ -3146,6 +3146,33 @@ proc Counter {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, BitCount) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+  a: u32
+}
+
+struct T<N: u32> {
+  a: uN[N]
+}
+
+fn main() -> u32 {
+  bit_count<u32>() +
+  bit_count<s64>() +
+  bit_count<u32[u32:4]>() +
+  bit_count<bool>() +
+  bit_count<S>() +
+  bit_count<T<u32:4>>() +
+  bit_count<(u32, bool)>()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, MapInvocationWithBuiltinFunction) {
   constexpr std::string_view program =
       R"(

@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/base/no_destructor.h"
@@ -828,6 +829,39 @@ static void AddAssertLikeSignature(
   };
 }
 
+static void AddUsizeTypeTraitLikeSignature(
+    absl::flat_hash_map<std::string, SignatureFn>& map) {
+  map["() -> u32"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
+    XLS_RETURN_IF_ERROR(
+        Checker(data.arg_types, data.name, data.span, *ctx).Len(0).status());
+
+    if (data.arg_explicit_parametrics.size() != 1) {
+      return ArgCountMismatchErrorStatus(
+          data.span,
+          absl::StrFormat("Invalid number of parametrics passed to '%s', "
+                          "expected 1, got %d",
+                          data.name, data.arg_explicit_parametrics.size()),
+          ctx->file_table());
+    }
+
+    if (!std::holds_alternative<TypeAnnotation*>(
+            data.arg_explicit_parametrics[0])) {
+      return TypeInferenceErrorStatus(
+          data.span, /*type=*/nullptr,
+          absl::StrFormat("The parametric argument for '%s' should be a type "
+                          "and not a value.",
+                          data.name),
+          ctx->file_table());
+    }
+
+    return TypeAndParametricEnv{
+        .type = std::make_unique<FunctionType>(
+            std::vector<std::unique_ptr<Type>>{}, BitsType::MakeU32())};
+  };
+}
+
 static absl::flat_hash_map<std::string, SignatureFn>
 PopulateSignatureToLambdaMap() {
   absl::flat_hash_map<std::string, SignatureFn> map;
@@ -844,6 +878,7 @@ PopulateSignatureToLambdaMap() {
   AddPrioritySelLikeSignature(map);
   AddOneHotSelLikeSignature(map);
   AddAssertLikeSignature(map);
+  AddUsizeTypeTraitLikeSignature(map);
 
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
       [](const SignatureData& data,
