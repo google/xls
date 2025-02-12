@@ -1,6 +1,6 @@
 module_name: "repeat_byte_4"
 data_ports {
-  direction: DIRECTION_INPUT
+  direction: PORT_DIRECTION_INPUT
   name: "x"
   width: 8
   type {
@@ -9,7 +9,7 @@ data_ports {
   }
 }
 data_ports {
-  direction: DIRECTION_OUTPUT
+  direction: PORT_DIRECTION_OUTPUT
   name: "out"
   width: 32
   type {

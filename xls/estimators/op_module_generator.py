@@ -315,9 +315,9 @@ def generate_parallel_module(
     for data_port in module.data_ports:
       width_str = f'[{data_port.width - 1}:0]'
       signal_name = f'{module.module_name}_{data_port.name}'
-      if data_port.direction == module_signature_pb2.DIRECTION_INPUT:
+      if data_port.direction == module_signature_pb2.PORT_DIRECTION_INPUT:
         ports.append(f'input wire {width_str} {signal_name}')
-      elif data_port.direction == module_signature_pb2.DIRECTION_OUTPUT:
+      elif data_port.direction == module_signature_pb2.PORT_DIRECTION_OUTPUT:
         ports.append(f'output wire {width_str} {signal_name}')
   header = """module {module_name}(\n{ports}\n);""".format(
       module_name=module_name, ports=',\n'.join(f'  {p}' for p in ports)

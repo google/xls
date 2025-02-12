@@ -106,7 +106,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithPipelineInterface(
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
     std::string_view name, Type* type) {
   PortProto* port = proto_.add_data_ports();
-  port->set_direction(DIRECTION_INPUT);
+  port->set_direction(PORT_DIRECTION_INPUT);
   port->set_name(ToProtoString(name));
   port->set_width(type->GetFlatBitCount());
   *port->mutable_type() = type->ToProto();
@@ -116,7 +116,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
     std::string_view name, Type* type) {
   PortProto* port = proto_.add_data_ports();
-  port->set_direction(DIRECTION_OUTPUT);
+  port->set_direction(PORT_DIRECTION_OUTPUT);
   port->set_name(ToProtoString(name));
   port->set_width(type->GetFlatBitCount());
   *port->mutable_type() = type->ToProto();
@@ -251,39 +251,39 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
 
   auto* address_proto = req->mutable_address();
   address_proto->set_name(ToProtoString(args.address_name));
-  address_proto->set_direction(DIRECTION_OUTPUT);
+  address_proto->set_direction(PORT_DIRECTION_OUTPUT);
   address_proto->set_width(args.address_width);
   *address_proto->mutable_type() =
       args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* read_enable_proto = req->mutable_read_enable();
   read_enable_proto->set_name(ToProtoString(args.read_enable_name));
-  read_enable_proto->set_direction(DIRECTION_OUTPUT);
+  read_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   read_enable_proto->set_width(1);
   *read_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* write_enable_proto = req->mutable_write_enable();
   write_enable_proto->set_name(ToProtoString(args.write_enable_name));
-  write_enable_proto->set_direction(DIRECTION_OUTPUT);
+  write_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   write_enable_proto->set_width(1);
   *write_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* write_data_proto = req->mutable_write_data();
   write_data_proto->set_name(ToProtoString(args.write_data_name));
-  write_data_proto->set_direction(DIRECTION_OUTPUT);
+  write_data_proto->set_direction(PORT_DIRECTION_OUTPUT);
   write_data_proto->set_width(data_width);
   *write_data_proto->mutable_type() = args.data_type->ToProto();
 
   auto* read_data_proto = resp->mutable_read_data();
   read_data_proto->set_name(ToProtoString(args.read_data_name));
-  read_data_proto->set_direction(DIRECTION_INPUT);
+  read_data_proto->set_direction(PORT_DIRECTION_INPUT);
   read_data_proto->set_width(data_width);
   *read_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.write_mask_width > 0) {
     auto* write_mask_proto = req->mutable_write_mask();
     write_mask_proto->set_name(ToProtoString(args.write_mask_name));
-    write_mask_proto->set_direction(DIRECTION_OUTPUT);
+    write_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     write_mask_proto->set_width(args.write_mask_width);
     *write_mask_proto->mutable_type() =
         args.package->GetBitsType(args.write_mask_width)->ToProto();
@@ -292,7 +292,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
   if (args.read_mask_width > 0) {
     auto* read_mask_proto = req->mutable_read_mask();
     read_mask_proto->set_name(ToProtoString(args.read_mask_name));
-    read_mask_proto->set_direction(DIRECTION_OUTPUT);
+    read_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     read_mask_proto->set_width(args.read_mask_width);
     *read_mask_proto->mutable_type() =
         args.package->GetBitsType(args.read_mask_width)->ToProto();
@@ -322,27 +322,27 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
 
   auto* rd_address_proto = r_req->mutable_address();
   rd_address_proto->set_name(ToProtoString(args.read_address_name));
-  rd_address_proto->set_direction(DIRECTION_OUTPUT);
+  rd_address_proto->set_direction(PORT_DIRECTION_OUTPUT);
   rd_address_proto->set_width(args.address_width);
   *rd_address_proto->mutable_type() =
       args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* rd_enable_proto = r_req->mutable_enable();
   rd_enable_proto->set_name(ToProtoString(args.read_enable_name));
-  rd_enable_proto->set_direction(DIRECTION_OUTPUT);
+  rd_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   rd_enable_proto->set_width(1);
   *rd_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
   auto* rd_data_proto = r_resp->mutable_data();
   rd_data_proto->set_name(ToProtoString(args.read_data_name));
-  rd_data_proto->set_direction(DIRECTION_INPUT);
+  rd_data_proto->set_direction(PORT_DIRECTION_INPUT);
   rd_data_proto->set_width(data_width);
   *rd_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.read_mask_width > 0) {
     auto* read_mask_proto = w_req->mutable_mask();
     read_mask_proto->set_name(ToProtoString(args.read_mask_name));
-    read_mask_proto->set_direction(DIRECTION_OUTPUT);
+    read_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     read_mask_proto->set_width(args.read_mask_width);
     *read_mask_proto->mutable_type() =
         args.package->GetBitsType(args.read_mask_width)->ToProto();
@@ -350,21 +350,21 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
 
   auto* wr_address_proto = w_req->mutable_address();
   wr_address_proto->set_name(ToProtoString(args.write_address_name));
-  wr_address_proto->set_direction(DIRECTION_OUTPUT);
+  wr_address_proto->set_direction(PORT_DIRECTION_OUTPUT);
   wr_address_proto->set_width(args.address_width);
   *wr_address_proto->mutable_type() =
       args.package->GetBitsType(args.address_width)->ToProto();
 
   auto* wr_data_proto = w_req->mutable_data();
   wr_data_proto->set_name(ToProtoString(args.write_data_name));
-  wr_data_proto->set_direction(DIRECTION_OUTPUT);
+  wr_data_proto->set_direction(PORT_DIRECTION_OUTPUT);
   wr_data_proto->set_width(data_width);
   *wr_data_proto->mutable_type() = args.data_type->ToProto();
 
   if (args.write_mask_width > 0) {
     auto* write_mask_proto = w_req->mutable_mask();
     write_mask_proto->set_name(ToProtoString(args.write_mask_name));
-    write_mask_proto->set_direction(DIRECTION_OUTPUT);
+    write_mask_proto->set_direction(PORT_DIRECTION_OUTPUT);
     write_mask_proto->set_width(args.write_mask_width);
     *write_mask_proto->mutable_type() =
         args.package->GetBitsType(args.write_mask_width)->ToProto();
@@ -372,7 +372,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
 
   auto* wr_enable_proto = w_req->mutable_enable();
   wr_enable_proto->set_name(ToProtoString(args.write_enable_name));
-  wr_enable_proto->set_direction(DIRECTION_OUTPUT);
+  wr_enable_proto->set_direction(PORT_DIRECTION_OUTPUT);
   wr_enable_proto->set_width(1);
   *wr_enable_proto->mutable_type() = args.package->GetBitsType(1)->ToProto();
 
@@ -389,7 +389,7 @@ static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
     if (!port.has_name() || port.name().empty()) {
       return absl::InvalidArgumentError("A name is required for all ports.");
     }
-    if (port.direction() == DirectionProto::DIRECTION_INVALID) {
+    if (port.direction() == PORT_DIRECTION_INVALID) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Port '%s' has an invalid port direction.", port.name()));
     }
@@ -586,9 +586,9 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
   ModuleSignature signature;
   signature.proto_ = proto;
   for (const PortProto& port : proto.data_ports()) {
-    if (port.direction() == DIRECTION_INPUT) {
+    if (port.direction() == PORT_DIRECTION_INPUT) {
       signature.data_inputs_.push_back(port);
-    } else if (port.direction() == DIRECTION_OUTPUT) {
+    } else if (port.direction() == PORT_DIRECTION_OUTPUT) {
       signature.data_outputs_.push_back(port);
     } else {
       return absl::InvalidArgumentError("Invalid port direction.");

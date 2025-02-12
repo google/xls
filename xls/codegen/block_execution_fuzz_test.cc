@@ -127,7 +127,7 @@ class BaseExecutionFuzzer {
     CHECK_OK(ParseTextProtoFile(filename.value(), &msp));
     flat_input_size = absl::c_accumulate(
         msp.data_ports(), 0, [](int64_t v, const PortProto& port) {
-          if (port.direction() != DirectionProto::DIRECTION_INPUT) {
+          if (port.direction() != PORT_DIRECTION_INPUT) {
             return v;
           }
           CHECK_EQ(port.type().type_enum(), TypeProto::BITS)
@@ -160,7 +160,7 @@ class BaseExecutionFuzzer {
       absl::flat_hash_map<std::string, Value> result;
       auto it = bits.cbegin();
       for (const auto& port : msp.data_ports()) {
-        if (port.direction() == DirectionProto::DIRECTION_INPUT) {
+        if (port.direction() == PORT_DIRECTION_INPUT) {
           InlineBitmap ib(port.width());
           for (int64_t i = 0; i < port.width(); ++i) {
             CHECK(it != bits.cend());

@@ -22,10 +22,10 @@ import "xls/ir/channel.proto";
 import "xls/ir/foreign_function_data.proto";
 import "xls/ir/xls_type.proto";
 
-enum DirectionProto {
-  DIRECTION_INVALID = 0;
-  DIRECTION_INPUT = 1;
-  DIRECTION_OUTPUT = 2;
+enum PortDirectionProto {
+  PORT_DIRECTION_INVALID = 0;
+  PORT_DIRECTION_INPUT = 1;
+  PORT_DIRECTION_OUTPUT = 2;
 }
 
 enum ChannelKindProto {
@@ -47,7 +47,7 @@ enum ChannelFlowControlProto {
 }
 
 message PortProto {
-  optional DirectionProto direction = 1;
+  optional PortDirectionProto direction = 1;
   optional string name = 2;
   // The width of a port may be zero corresponding to zero-width XLS data types
   // such as empty tuples. These zero-width PortPorts have no corresponding port

@@ -550,21 +550,21 @@ TEST(ModuleSignatureTest, RamPortInterface1RW) {
   EXPECT_THAT(p.GetTypeFromProto(ram_1rw.rw_port().request().address().type()),
               IsOkAndHolds(m::Type("bits[24]")));
   EXPECT_EQ(ram_1rw.rw_port().request().address().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(ram_1rw.rw_port().request().read_enable().name(), "ram_req_re");
   EXPECT_EQ(ram_1rw.rw_port().request().read_enable().width(), 1);
   EXPECT_THAT(
       p.GetTypeFromProto(ram_1rw.rw_port().request().read_enable().type()),
       IsOkAndHolds(m::Type("bits[1]")));
   EXPECT_EQ(ram_1rw.rw_port().request().read_enable().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(ram_1rw.rw_port().request().write_enable().name(), "ram_req_we");
   EXPECT_EQ(ram_1rw.rw_port().request().write_enable().width(), 1);
   EXPECT_THAT(
       p.GetTypeFromProto(ram_1rw.rw_port().request().write_enable().type()),
       IsOkAndHolds(m::Type("bits[1]")));
   EXPECT_EQ(ram_1rw.rw_port().request().write_enable().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(ram_1rw.rw_port().response().read_data().name(),
             "ram_resp_rd_data");
   EXPECT_EQ(ram_1rw.rw_port().response().read_data().width(), 32);
@@ -572,14 +572,14 @@ TEST(ModuleSignatureTest, RamPortInterface1RW) {
       p.GetTypeFromProto(ram_1rw.rw_port().response().read_data().type()),
       IsOkAndHolds(m::Type("(bits[32])")));
   EXPECT_EQ(ram_1rw.rw_port().response().read_data().direction(),
-            DirectionProto::DIRECTION_INPUT);
+            PORT_DIRECTION_INPUT);
   EXPECT_EQ(ram_1rw.rw_port().request().write_data().name(), "ram_req_wr_data");
   EXPECT_EQ(ram_1rw.rw_port().request().write_data().width(), 32);
   EXPECT_THAT(
       p.GetTypeFromProto(ram_1rw.rw_port().request().write_data().type()),
       IsOkAndHolds(m::Type("(bits[32])")));
   EXPECT_EQ(ram_1rw.rw_port().request().write_data().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
 }
 
 TEST(ModuleSignatureTest, RamPortInterface1R1W) {
@@ -626,38 +626,38 @@ TEST(ModuleSignatureTest, RamPortInterface1R1W) {
   EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.r_port().request().address().type()),
               IsOkAndHolds(m::Type("bits[24]")));
   EXPECT_EQ(ram_1r1w.r_port().request().address().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(ram_1r1w.r_port().request().enable().name(), "ram_rd_en");
   EXPECT_EQ(ram_1r1w.r_port().request().enable().width(), 1);
   EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.r_port().request().enable().type()),
               IsOkAndHolds(m::Type("bits[1]")));
   EXPECT_EQ(ram_1r1w.r_port().request().enable().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(ram_1r1w.w_port().request().enable().name(), "ram_wr_en");
   EXPECT_EQ(ram_1r1w.w_port().request().enable().width(), 1);
   EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.w_port().request().enable().type()),
               IsOkAndHolds(m::Type("bits[1]")));
   EXPECT_EQ(ram_1r1w.w_port().request().enable().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(ram_1r1w.r_port().response().data().name(), "ram_rd_data");
   EXPECT_EQ(ram_1r1w.r_port().response().data().width(), 32);
   EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.r_port().response().data().type()),
               IsOkAndHolds(m::Type("(bits[32])")));
   EXPECT_EQ(ram_1r1w.r_port().response().data().direction(),
-            DirectionProto::DIRECTION_INPUT);
+            PORT_DIRECTION_INPUT);
 
   EXPECT_EQ(ram_1r1w.w_port().request().address().name(), "ram_wr_addr");
   EXPECT_EQ(ram_1r1w.w_port().request().address().width(), 24);
   EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.w_port().request().address().type()),
               IsOkAndHolds(m::Type("bits[24]")));
   EXPECT_EQ(ram_1r1w.w_port().request().address().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(ram_1r1w.w_port().request().data().name(), "ram_wr_data");
   EXPECT_EQ(ram_1r1w.w_port().request().data().width(), 32);
   EXPECT_THAT(p.GetTypeFromProto(ram_1r1w.w_port().request().data().type()),
               IsOkAndHolds(m::Type("(bits[32])")));
   EXPECT_EQ(ram_1r1w.w_port().request().data().direction(),
-            DirectionProto::DIRECTION_OUTPUT);
+            PORT_DIRECTION_OUTPUT);
 }
 
 TEST(ModuleSignatureTest, FifoInstantiation) {

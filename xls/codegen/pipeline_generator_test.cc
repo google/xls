@@ -79,7 +79,7 @@ absl::StatusOr<ModuleSignature> StripResetFromSignature(
   ModuleSignatureProto proto = signature.proto();
   proto.clear_reset();
   PortProto* reset_as_data_port = proto.add_data_ports();
-  reset_as_data_port->set_direction(DIRECTION_INPUT);
+  reset_as_data_port->set_direction(PORT_DIRECTION_INPUT);
   reset_as_data_port->set_name(signature.proto().reset().name());
   reset_as_data_port->set_width(1);
   return ModuleSignature::FromProto(proto);

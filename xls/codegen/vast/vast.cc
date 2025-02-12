@@ -532,8 +532,9 @@ std::string MacroStatementBlock::Emit(LineInfo* line_info) const {
 
 Port Port::FromProto(const PortProto& proto, VerilogFile* f) {
   Port port;
-  port.direction = proto.direction() == DIRECTION_INPUT ? Direction::kInput
-                                                        : Direction::kOutput;
+  port.direction = proto.direction() == PORT_DIRECTION_INPUT
+                       ? Direction::kInput
+                       : Direction::kOutput;
   port.wire = f->Make<WireDef>(SourceInfo(), proto.name(),
                                f->BitVectorType(proto.width(), SourceInfo()));
   return port;
@@ -546,8 +547,8 @@ std::string Port::ToString() const {
 
 absl::StatusOr<PortProto> Port::ToProto() const {
   PortProto proto;
-  proto.set_direction(direction == Direction::kInput ? DIRECTION_INPUT
-                                                     : DIRECTION_OUTPUT);
+  proto.set_direction(direction == Direction::kInput ? PORT_DIRECTION_INPUT
+                                                     : PORT_DIRECTION_OUTPUT);
   proto.set_name(wire->GetName());
   XLS_ASSIGN_OR_RETURN(int64_t width, wire->data_type()->FlatBitCountAsInt64());
   proto.set_width(width);

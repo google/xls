@@ -70,21 +70,21 @@ TEST(SignatureGeneratorTest, CombinationalBlock) {
 
   ASSERT_EQ(sig.data_inputs().size(), 3);
 
-  EXPECT_EQ(sig.data_inputs()[0].direction(), DIRECTION_INPUT);
+  EXPECT_EQ(sig.data_inputs()[0].direction(), PORT_DIRECTION_INPUT);
   EXPECT_EQ(sig.data_inputs()[0].name(), "a");
   EXPECT_EQ(sig.data_inputs()[0].width(), 8);
 
-  EXPECT_EQ(sig.data_inputs()[1].direction(), DIRECTION_INPUT);
+  EXPECT_EQ(sig.data_inputs()[1].direction(), PORT_DIRECTION_INPUT);
   EXPECT_EQ(sig.data_inputs()[1].name(), "b");
   EXPECT_EQ(sig.data_inputs()[1].width(), 32);
 
-  EXPECT_EQ(sig.data_inputs()[2].direction(), DIRECTION_INPUT);
+  EXPECT_EQ(sig.data_inputs()[2].direction(), PORT_DIRECTION_INPUT);
   EXPECT_EQ(sig.data_inputs()[2].name(), "c");
   EXPECT_EQ(sig.data_inputs()[2].width(), 0);
 
   ASSERT_EQ(sig.data_outputs().size(), 1);
 
-  EXPECT_EQ(sig.data_outputs()[0].direction(), DIRECTION_OUTPUT);
+  EXPECT_EQ(sig.data_outputs()[0].direction(), PORT_DIRECTION_OUTPUT);
   EXPECT_EQ(sig.data_outputs()[0].name(), "out");
   EXPECT_EQ(sig.data_outputs()[0].width(), 40);
 
@@ -124,17 +124,17 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
 
     ASSERT_EQ(sig.data_inputs().size(), 2);
 
-    EXPECT_EQ(sig.data_inputs()[0].direction(), DIRECTION_INPUT);
+    EXPECT_EQ(sig.data_inputs()[0].direction(), PORT_DIRECTION_INPUT);
     EXPECT_EQ(sig.data_inputs()[0].name(), "a");
     EXPECT_EQ(sig.data_inputs()[0].width(), 32);
 
-    EXPECT_EQ(sig.data_inputs()[1].direction(), DIRECTION_INPUT);
+    EXPECT_EQ(sig.data_inputs()[1].direction(), PORT_DIRECTION_INPUT);
     EXPECT_EQ(sig.data_inputs()[1].name(), "b");
     EXPECT_EQ(sig.data_inputs()[1].width(), 32);
 
     ASSERT_EQ(sig.data_outputs().size(), 1);
 
-    EXPECT_EQ(sig.data_outputs()[0].direction(), DIRECTION_OUTPUT);
+    EXPECT_EQ(sig.data_outputs()[0].direction(), PORT_DIRECTION_OUTPUT);
     EXPECT_EQ(sig.data_outputs()[0].name(), "out");
     EXPECT_EQ(sig.data_outputs()[0].width(), 32);
 

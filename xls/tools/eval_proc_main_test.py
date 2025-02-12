@@ -128,7 +128,7 @@ block ObserverTest(clk: clock, in_data: bits[32], in_vld: bits[1], out_data: bit
 OBSERVER_BLOCK_SIG = """
 module_name: "ObserverTest"
 data_ports {
-  direction: DIRECTION_INPUT
+  direction: PORT_DIRECTION_INPUT
   name: "in_data"
   width: 32
   type {
@@ -137,7 +137,7 @@ data_ports {
   }
 }
 data_ports {
-  direction: DIRECTION_INPUT
+  direction: PORT_DIRECTION_INPUT
   name: "in_vld"
   width: 1
   type {
@@ -146,7 +146,7 @@ data_ports {
   }
 }
 data_ports {
-  direction: DIRECTION_OUTPUT
+  direction: PORT_DIRECTION_OUTPUT
   name: "out_data"
   width: 32
   type {
@@ -155,7 +155,7 @@ data_ports {
   }
 }
 data_ports {
-  direction: DIRECTION_INPUT
+  direction: PORT_DIRECTION_INPUT
   name: "out_rdy"
   width: 1
   type {
@@ -164,7 +164,7 @@ data_ports {
   }
 }
 data_ports {
-  direction: DIRECTION_OUTPUT
+  direction: PORT_DIRECTION_OUTPUT
   name: "out_vld"
   width: 1
   type {
@@ -173,7 +173,7 @@ data_ports {
   }
 }
 data_ports {
-  direction: DIRECTION_OUTPUT
+  direction: PORT_DIRECTION_OUTPUT
   name: "in_rdy"
   width: 1
   type {

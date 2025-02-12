@@ -605,7 +605,7 @@ InterpretBlockSignature(
     for (const verilog::PortProto& port : signature.data_ports()) {
       channel_info[port.name()] = ChannelInfo{
           .width = port.width(),
-          .port_input = port.direction() == verilog::DIRECTION_INPUT,
+          .port_input = port.direction() == verilog::PORT_DIRECTION_INPUT,
           .ready_valid = false,
           .channel_data = port.name()};
     }
