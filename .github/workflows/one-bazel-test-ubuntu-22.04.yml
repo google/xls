@@ -40,4 +40,4 @@ jobs:
 
       - name: Bazel Test Target (opt)
         run: |
-          bazel test -c opt --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST -- $BAZEL_TARGET
+          bazel test --config=ci -c opt --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST -- $BAZEL_TARGET

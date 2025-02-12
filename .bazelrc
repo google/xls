@@ -1,5 +1,10 @@
 common --enable_bzlmod
 
+# We require the lockfile to be up-to-date for the requested deps.
+# Read https://bazel.build/external/lockfile for more details and instructions
+# on how to update the lockfile.
+common:ci --lockfile_mode=error
+
 # Disable rules_python Starlark rules for Bazel 7+.
 # See https://github.com/bazelbuild/rules_python/issues/1069#issuecomment-1942053014.
 build --action_env=RULES_PYTHON_ENABLE_PYSTAR=0

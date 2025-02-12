@@ -40,12 +40,12 @@ jobs:
 
       - name: Bazel Build Tools (opt)
         run: |
-          bazel build -c opt --noshow_progress --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
+          bazel build --config=ci -c opt --noshow_progress --test_output=errors -- //xls/dslx:interpreter_main //xls/dslx/ir_convert:ir_converter_main //xls/tools:opt_main //xls/tools:codegen_main
 
       - name: Bazel Test xls/... (opt)
         run: |
-          bazel test -c opt --noshow_progress --test_output=errors -- //xls/... -//xls/contrib/... -//xls/dev_tools/... //docs_src/... //xls/tests:documentation_test
+          bazel test --config=ci -c opt --noshow_progress --test_output=errors -- //xls/... -//xls/contrib/... -//xls/dev_tools/... //docs_src/... //xls/tests:documentation_test
 
       - name: Bazel Test Including Contrib & DevTools (opt)
         run: |
-          bazel test -c opt --noshow_progress --test_output=errors -- //...
+          bazel test --config=ci -c opt --noshow_progress --test_output=errors -- //...
