@@ -1098,6 +1098,15 @@ absl::Status FunctionConverter::HandleBuiltinBitCount(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinElementCount(
+    const Invocation* node) {
+  // Like bit_count, element_count is always constexpr.
+  XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  DefConst(node, v);
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleBuiltinWideningCast(
     const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
@@ -2374,6 +2383,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"widening_cast", &FunctionConverter::HandleBuiltinWideningCast},
           {"checked_cast", &FunctionConverter::HandleBuiltinCheckedCast},
           {"bit_count", &FunctionConverter::HandleBuiltinBitCount},
+          {"element_count", &FunctionConverter::HandleBuiltinElementCount},
           {"update", &FunctionConverter::HandleBuiltinUpdate},
           {"umulp", &FunctionConverter::HandleBuiltinUMulp},
           {"smulp", &FunctionConverter::HandleBuiltinSMulp},

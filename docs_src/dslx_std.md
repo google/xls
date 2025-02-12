@@ -65,6 +65,31 @@ fn test_bit_count_size() {
 }
 ```
 
+### `element_count`
+
+`element_count` returns the number of elements in the given type.
+
+*   For an array, it is the same as `array_size` for a value of the type.
+*   For a tuple or struct, it is the number of top-level members.
+*   For all other types, it is the same as `bit_count`.
+
+```
+fn element_count<T: type>() -> u32
+```
+
+```dslx
+struct MyPoint { x: u32, y: u32 }
+
+#[test]
+fn test_bit_count_size() {
+    assert_eq(element_count<u32[4]>(), u32:4);
+    assert_eq(element_count<s64>(), u32:64);
+    assert_eq(element_count<bool>(), u32:1);
+    assert_eq(element_count<MyPoint>(), u32:2);
+    assert_eq(element_count<(u32, (u32, u32))>(), u32:2);
+}
+```
+
 ### `widening_cast`, `checked_cast`
 
 `widening_cast` and `checked_cast` cast bits-type values to bits-type values

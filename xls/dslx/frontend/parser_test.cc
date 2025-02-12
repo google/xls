@@ -2268,6 +2268,11 @@ TEST_F(ParserTest, BitCount) {
                 /*populate_dslx_builtins=*/true, "bit_count<u32>()");
 }
 
+TEST_F(ParserTest, ElementCount) {
+  RoundTripExpr("element_count<u32[u32:5]>()", {},
+                /*populate_dslx_builtins=*/true, "element_count<u32[u32:5]>()");
+}
+
 TEST_F(ParserTest, CastOfCastEnum) {
   RoundTrip(R"(enum MyEnum : u3 {
     SOME_VALUE = 0,

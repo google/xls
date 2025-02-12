@@ -31,6 +31,7 @@ namespace xls::dslx {
   X("array_rev", kArrayRev)               \
   X("array_size", kArraySize)             \
   X("bit_count", kBitCount)               \
+  X("element_count", kElementCount)       \
   X("assert_eq", kAssertEq)               \
   X("assert_lt", kAssertLt)               \
   X("bit_slice_update", kBitSliceUpdate)  \

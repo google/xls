@@ -1059,4 +1059,22 @@ absl::StatusOr<InterpValue> GetBitCountAsInterpValue(const Type* type) {
   return InterpValue::MakeU32(bit_count);
 }
 
+absl::StatusOr<InterpValue> GetElementCountAsInterpValue(const Type* type) {
+  if (type->IsMeta()) {
+    XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
+  }
+  if (const auto* array_type = dynamic_cast<const ArrayType*>(type)) {
+    XLS_ASSIGN_OR_RETURN(int64_t size, array_type->size().GetAsInt64());
+    CHECK(static_cast<uint32_t>(size) == size);
+    return InterpValue::MakeU32(size);
+  }
+  if (const auto* tuple_type = dynamic_cast<const TupleType*>(type)) {
+    return InterpValue::MakeU32(tuple_type->members().size());
+  }
+  if (const auto* struct_type = dynamic_cast<const StructType*>(type)) {
+    return InterpValue::MakeU32(struct_type->members().size());
+  }
+  return GetBitCountAsInterpValue(type);
+}
+
 }  // namespace xls::dslx

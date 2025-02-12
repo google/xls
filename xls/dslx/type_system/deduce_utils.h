@@ -270,6 +270,17 @@ void WarnOnInappropriateConstantName(std::string_view identifier,
 // Gets the total bit count of the given `type` as a u32 `InterpValue`.
 absl::StatusOr<InterpValue> GetBitCountAsInterpValue(const Type* type);
 
+// Gets the element count of the given `type` as a u32 `InterpValue`. The
+// element count depends on the kind of type:
+//
+//  kind          element count
+//  -----------------------------
+//  bits-like     total bit count
+//  array         number of elements indexable by first index
+//  tuple         number of top-level members
+//  struct        number of top-level members
+absl::StatusOr<InterpValue> GetElementCountAsInterpValue(const Type* type);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_UTILS_H_

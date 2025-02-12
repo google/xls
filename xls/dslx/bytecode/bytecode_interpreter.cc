@@ -1542,6 +1542,7 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kCheckedCast:
     case Builtin::kWideningCast:
     case Builtin::kBitCount:
+    case Builtin::kElementCount:
       return absl::UnimplementedError(absl::StrFormat(
           "BytecodeInterpreter: builtin function \"%s\" not yet implemented.",
           BuiltinToString(builtin)));

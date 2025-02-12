@@ -4380,6 +4380,35 @@ fn main() -> u32 {
 })"));
 }
 
+TEST(TypecheckTest, ElementCount) {
+  XLS_ASSERT_OK(Typecheck(R"(
+struct S {
+  a: u32,
+  b: u32
+}
+
+struct T<N: u32> {
+  a: uN[N],
+  b: u32
+}
+
+type A = S;
+type B = T;
+
+fn main() -> u32 {
+  element_count<u32>() +
+  element_count<s64>() +
+  element_count<u32[u32:4]>() +
+  element_count<u32[u32:4][u32:5]>() +
+  element_count<bool>() +
+  element_count<S>() +
+  element_count<T<u32:4>>() +
+  element_count<(u32, bool)>() +
+  element_count<A>() +
+  element_count<B<u32:5>>()
+})"));
+}
+
 TEST(TypecheckTest, BitCountAsConstExpr) {
   XLS_ASSERT_OK(Typecheck(R"(
 fn main() -> u64 {

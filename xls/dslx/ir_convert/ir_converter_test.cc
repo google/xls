@@ -3173,6 +3173,35 @@ fn main() -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ElementCount) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+  a: u32,
+  b: u32
+}
+
+struct T<N: u32> {
+  a: uN[N]
+}
+
+fn main() -> u32 {
+  element_count<u32>() +
+  element_count<s64>() +
+  element_count<u32[u32:4]>() +
+  element_count<u32[u32:4][u32:5]>() +
+  element_count<bool>() +
+  element_count<S>() +
+  element_count<T<u32:4>>() +
+  element_count<(u32, bool)>()
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, MapInvocationWithBuiltinFunction) {
   constexpr std::string_view program =
       R"(
