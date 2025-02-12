@@ -25,6 +25,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -80,6 +81,108 @@ absl::Status ValidateBinopShift(const Binop* binop, const Type* type,
   return absl::OkStatus();
 }
 
+// A non-recursive visitor that contains per-node-type handlers for
+// `ValidateConcreteType`.
+class TypeValidator : public AstNodeVisitorWithDefault {
+ public:
+  explicit TypeValidator(const Type* type, const TypeInfo& ti,
+                         const FileTable& file_table)
+      : type_(type), ti_(ti), file_table_(file_table) {}
+
+  absl::Status HandleNumber(const Number* literal) override {
+    // A literal can have its own explicit type annotation that ultimately
+    // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
+    // something more subtly wrong, like `uN[N]:0xffff`, where N proves to be
+    // too small.
+    if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type_);
+        bits_like.has_value()) {
+      return TryEnsureFitsInType(*literal, bits_like.value(), *type_);
+    }
+    return TypeInferenceErrorStatus(
+        literal->span(), type_,
+        "Non-bits type used to define a numeric literal.", file_table_);
+  }
+
+  absl::Status HandleBinop(const Binop* binop) override {
+    if ((GetBinopSameTypeKinds().contains(binop->binop_kind()) ||
+         GetBinopShifts().contains(binop->binop_kind())) &&
+        !IsBitsLike(*type_)) {
+      return TypeInferenceErrorStatus(
+          binop->span(), type_,
+          "Binary operations can only be applied to bits-typed operands.",
+          file_table_);
+    }
+    if (GetBinopLogicalKinds().contains(binop->binop_kind()) &&
+        !IsBitsLikeWithNBitsAndSignedness(*type_, false, 1)) {
+      return TypeInferenceErrorStatus(binop->span(), type_,
+                                      "Logical binary operations can only be "
+                                      "applied to boolean operands.",
+                                      file_table_);
+    }
+    // Confirm that the shift amount is unsigned and fits in the lhs type.
+    if (GetBinopShifts().contains(binop->binop_kind())) {
+      XLS_RETURN_IF_ERROR(ValidateBinopShift(binop, type_, ti_, file_table_));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleUnop(const Unop* unop) override {
+    if (!IsBitsLike(*type_)) {
+      return TypeInferenceErrorStatus(
+          unop->span(), type_,
+          "Unary operations can only be applied to bits-typed operands.",
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleIndex(const Index* index) override {
+    const Type& lhs_type = **ti_.GetItem(index->lhs());
+    XLS_RETURN_IF_ERROR(
+        ValidateArrayTypeForIndex(*index, lhs_type, file_table_));
+    if (std::holds_alternative<Expr*>(index->rhs())) {
+      const Type& rhs_type = **ti_.GetItem(std::get<Expr*>(index->rhs()));
+      return ValidateArrayIndex(*index, lhs_type, rhs_type, ti_, file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTupleIndex(const TupleIndex* tuple_index) override {
+    const Type& lhs_type = **ti_.GetItem(tuple_index->lhs());
+    const Type& rhs_type = **ti_.GetItem(tuple_index->index());
+    XLS_RETURN_IF_ERROR(
+        ValidateTupleTypeForIndex(*tuple_index, lhs_type, file_table_));
+    return ValidateTupleIndex(*tuple_index, lhs_type, rhs_type, ti_,
+                              file_table_);
+  }
+
+  absl::Status HandleCast(const Cast* cast) override {
+    // For a cast node we have to validate that the types being cast to/from are
+    // compatible via the `IsAcceptableCast` predicate.
+
+    // Retrieve the type of the operand from the TypeInfo.
+    std::optional<const Type*> from_type = ti_.GetItem(cast->expr());
+    XLS_RET_CHECK(from_type.has_value());
+    XLS_RET_CHECK(from_type.value() != nullptr);
+    XLS_RET_CHECK(type_ != nullptr);
+
+    const Type& to_type = *type_;
+    if (!IsAcceptableCast(*from_type.value(), to_type)) {
+      return TypeInferenceErrorStatus(
+          cast->span(), type_,
+          absl::Substitute("Cannot cast from type `$0` to type `$1`",
+                           from_type.value()->ToString(), to_type.ToString()),
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  const Type* type_;
+  const TypeInfo& ti_;
+  const FileTable& file_table_;
+};
+
 }  // namespace
 
 absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
@@ -88,86 +191,8 @@ absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
   if (type->IsMeta()) {
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
-  if (const auto* literal = dynamic_cast<const Number*>(node);
-      literal != nullptr) {
-    // A literal can have its own explicit type annotation that ultimately
-    // doesn't even fit the hard coded value. For example, `u4:0xffff`, or
-    // something more subtly wrong, like `uN[N]:0xffff`, where N proves to be
-    // too small.
-    if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type);
-        bits_like.has_value()) {
-      return TryEnsureFitsInType(*literal, bits_like.value(), *type);
-    }
-    return TypeInferenceErrorStatus(
-        literal->span(), type,
-        "Non-bits type used to define a numeric literal.", file_table);
-  }
-  if (const auto* binop = dynamic_cast<const Binop*>(node); binop != nullptr) {
-    if ((GetBinopSameTypeKinds().contains(binop->binop_kind()) ||
-         GetBinopShifts().contains(binop->binop_kind())) &&
-        !IsBitsLike(*type)) {
-      return TypeInferenceErrorStatus(
-          binop->span(), type,
-          "Binary operations can only be applied to bits-typed operands.",
-          file_table);
-    }
-    if (GetBinopLogicalKinds().contains(binop->binop_kind()) &&
-        !IsBitsLikeWithNBitsAndSignedness(*type, false, 1)) {
-      return TypeInferenceErrorStatus(binop->span(), type,
-                                      "Logical binary operations can only be "
-                                      "applied to boolean operands.",
-                                      file_table);
-    }
-    // Confirm that the shift amount is unsigned and fits in the lhs type.
-    if (GetBinopShifts().contains(binop->binop_kind())) {
-      XLS_RETURN_IF_ERROR(ValidateBinopShift(binop, type, ti, file_table));
-    }
-  }
-  if (const auto* unop = dynamic_cast<const Unop*>(node);
-      unop != nullptr && !IsBitsLike(*type)) {
-    return TypeInferenceErrorStatus(
-        unop->span(), type,
-        "Unary operations can only be applied to bits-typed operands.",
-        file_table);
-  }
-  if (const auto* index = dynamic_cast<const Index*>(node)) {
-    const Type& lhs_type = **ti.GetItem(index->lhs());
-    XLS_RETURN_IF_ERROR(
-        ValidateArrayTypeForIndex(*index, lhs_type, file_table));
-    if (std::holds_alternative<Expr*>(index->rhs())) {
-      const Type& rhs_type = **ti.GetItem(std::get<Expr*>(index->rhs()));
-      return ValidateArrayIndex(*index, lhs_type, rhs_type, ti, file_table);
-    }
-  }
-  if (const auto* tuple_index = dynamic_cast<const TupleIndex*>(node)) {
-    const Type& lhs_type = **ti.GetItem(tuple_index->lhs());
-    const Type& rhs_type = **ti.GetItem(tuple_index->index());
-    XLS_RETURN_IF_ERROR(
-        ValidateTupleTypeForIndex(*tuple_index, lhs_type, file_table));
-    XLS_RETURN_IF_ERROR(
-        ValidateTupleIndex(*tuple_index, lhs_type, rhs_type, ti, file_table));
-  }
-
-  // For a cast node we have to validate that the types being cast to/from are
-  // compatible via the `IsAcceptableCast` predicate.
-  if (const auto* cast = dynamic_cast<const Cast*>(node); cast != nullptr) {
-    // Retrieve the type of the operand from the TypeInfo.
-    std::optional<const Type*> from_type = ti.GetItem(cast->expr());
-    XLS_RET_CHECK(from_type.has_value());
-    XLS_RET_CHECK(from_type.value() != nullptr);
-    XLS_RET_CHECK(type != nullptr);
-
-    const Type& to_type = *type;
-    if (!IsAcceptableCast(*from_type.value(), to_type)) {
-      return TypeInferenceErrorStatus(
-          cast->span(), type,
-          absl::Substitute("Cannot cast from type `$0` to type `$1`",
-                           from_type.value()->ToString(), to_type.ToString()),
-          file_table);
-    }
-  }
-
-  return absl::OkStatus();
+  TypeValidator validator(type, ti, file_table);
+  return node->Accept(&validator);
 }
 
 }  // namespace xls::dslx
