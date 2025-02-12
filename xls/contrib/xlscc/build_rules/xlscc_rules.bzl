@@ -70,6 +70,7 @@ _IR_FILE_EXTENSION = ".ir"
 _PROTOBIN_FILE_EXTENSION = ".protobin"
 _BINARYPB_FILE_EXTENSION = ".binarypb"
 _PROTOTEXT_FILE_EXTENSION = ".pbtxt"
+_TEXTPROTO_FILE_EXTENSION = ".txtpb"
 _DEFAULT_XLSCC_ARGS = {
     "top": "Run",
 }
@@ -192,6 +193,7 @@ def _xls_cc_ir_impl(ctx):
         "module_name",
         "block",
         "block_pb_out",
+        "block_pb_text",
         "top",
         "package",
         "clang_args_file",
@@ -326,6 +328,7 @@ _xls_cc_ir_attrs = {
               "source file must be provided. The file " + "must have a '" +
               _PROTOBIN_FILE_EXTENSION + "' or a '" +
               _PROTOTEXT_FILE_EXTENSION + "' or a '" +
+              _TEXTPROTO_FILE_EXTENSION + "' or a '" +
               _BINARYPB_FILE_EXTENSION + "' extension. To create this " +
               "protobuf automatically from your C++ source file, use " +
               "'block_from_class' instead. Exactly one of 'block' or " +
@@ -335,6 +338,7 @@ _xls_cc_ir_attrs = {
             _PROTOBIN_FILE_EXTENSION,
             _BINARYPB_FILE_EXTENSION,
             _PROTOTEXT_FILE_EXTENSION,
+            _TEXTPROTO_FILE_EXTENSION,
         ],
     ),
     "block_pb_out": attr.output(
