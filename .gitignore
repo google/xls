@@ -3,6 +3,7 @@ bazel-*
 __pycache__
 *~
 compile_commands.json
+compile_flags.txt
 xls_clang-tidy.out
 user.bazelrc
 .vscode
