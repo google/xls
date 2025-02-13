@@ -134,6 +134,10 @@ class BaseExecutionFuzzer {
               << "Non bits inputs not yet supported.";
           return v + port.width();
         });
+    if (msp.has_reset()) {
+      // Reset is a single bit input not accounted for in msp.data_ports().
+      ++flat_input_size;
+    }
 
     CHECK_EQ(oracle_block->GetOutputPorts().size(),
              test_block->GetOutputPorts().size());
@@ -160,6 +164,7 @@ class BaseExecutionFuzzer {
       absl::flat_hash_map<std::string, Value> result;
       auto it = bits.cbegin();
       for (const auto& port : msp.data_ports()) {
+        CHECK(it != bits.cend());
         if (port.direction() == PORT_DIRECTION_INPUT) {
           InlineBitmap ib(port.width());
           for (int64_t i = 0; i < port.width(); ++i) {
@@ -171,6 +176,7 @@ class BaseExecutionFuzzer {
         }
       }
       if (msp.has_reset()) {
+        CHECK(it != bits.cend());
         result[msp.reset().name()] = Value(UBits(*it ? 1 : 0, 1));
       }
       return result;
@@ -304,11 +310,11 @@ using JitCustomScheduleFuzzer = CustomScheduleFuzzer<false>;
 // Execute custom_schedule.x proc in interpreter for between 100 and 150 cycles.
 FUZZ_TEST_F(InterpreterCustomScheduleFuzzer, ExecuteRaw)
     .WithDomains(
-        InterpreterCustomScheduleFuzzer::InputDomain(13, /*min_cycles=*/100,
+        InterpreterCustomScheduleFuzzer::InputDomain(14, /*min_cycles=*/100,
                                                      /*max_cycles=*/150));
 // Execute custom_schedule.x proc in jit for between 100 and 5000 cycles.
 FUZZ_TEST_F(JitCustomScheduleFuzzer, ExecuteRaw)
-    .WithDomains(JitCustomScheduleFuzzer::InputDomain(13, /*min_cycles=*/100,
+    .WithDomains(JitCustomScheduleFuzzer::InputDomain(14, /*min_cycles=*/100,
                                                       /*max_cycles=*/5000));
 
 }  // namespace
