@@ -172,6 +172,38 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                InferenceVariableKind::kType, node->rhs(),
                                GenerateInternalTypeVariableName(node->rhs())));
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), rhs_variable));
+    } else if (node->binop_kind() == BinopKind::kConcat) {
+      // The type of a concat is
+      //   ArrayType(ElementType(lhs),
+      //             element_count<lhs_var>() + element_count<rhs_var>())
+      //
+      // which is bits-like if the element type amounts to a built-in bits type;
+      // otherwise, it's a real array.
+      //
+      // There is a nontrivial set of rules for what input types are actually
+      // allowed, and the application of those rules is deferred until
+      // `ValidateConcreteType` at the end.
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* lhs_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
+              GenerateInternalTypeVariableName(node->lhs())));
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* rhs_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(node->rhs()),
+              GenerateInternalTypeVariableName(node->rhs())));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), rhs_variable));
+      auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
+      auto* rhs_tvta = module_.Make<TypeVariableTypeAnnotation>(rhs_variable);
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, module_.Make<ArrayTypeAnnotation>(
+                    node->span(),
+                    module_.Make<ElementTypeAnnotation>(
+                        lhs_tvta, /*tuple_index=*/std::nullopt,
+                        /*allow_bit_vector_destructuring=*/true),
+                    CreateElementCountSum(module_, lhs_tvta, rhs_tvta))));
     } else {
       return absl::UnimplementedError(
           absl::StrCat("Type inference version 2 is a work in progress and "

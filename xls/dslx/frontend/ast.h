@@ -499,12 +499,16 @@ class MemberTypeAnnotation : public TypeAnnotation {
 // arrays and tuples. It is used internally in type inference to describe an
 // element type when the concrete rendition of the container's type is not yet
 // known. The `tuple_index` is only specified for tuple elements, since all
-// array elements are the same type.
+// array elements are the same type. By default, an `ElementTypeAnnotation` that
+// tries to destructure a bit vector, e.g. access the raw `uN` from `uN[N]`,
+// will be considered erroneous, and likely lead to a type mismatch error. The
+// `allow_bit_vector_destructuring` flag indicates that the annotation should be
+// allowed to actually do this.
 class ElementTypeAnnotation : public TypeAnnotation {
  public:
-  ElementTypeAnnotation(
-      Module* owner, const TypeAnnotation* container_type,
-      std::optional<const Number*> tuple_index = std::nullopt);
+  ElementTypeAnnotation(Module* owner, const TypeAnnotation* container_type,
+                        std::optional<const Number*> tuple_index = std::nullopt,
+                        bool allow_bit_vector_destructuring = false);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleElementTypeAnnotation(this);
@@ -519,6 +523,10 @@ class ElementTypeAnnotation : public TypeAnnotation {
     return tuple_index_;
   }
 
+  bool allow_bit_vector_destructuring() const {
+    return allow_bit_vector_destructuring_;
+  }
+
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return std::vector<AstNode*>{const_cast<TypeAnnotation*>(container_type_)};
   }
@@ -528,6 +536,7 @@ class ElementTypeAnnotation : public TypeAnnotation {
  private:
   const TypeAnnotation* container_type_;
   const std::optional<const Number*> tuple_index_;
+  const bool allow_bit_vector_destructuring_;
 };
 
 // Represents a function signature with a return type and parameter types. The

@@ -82,17 +82,36 @@ std::optional<const StructDefBase*> GetStructOrProcDef(
       def);
 }
 
+Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation) {
+  NameRef* bit_count =
+      module.Make<NameRef>(annotation->span(), "element_count",
+                           module.GetOrCreateBuiltinNameDef("element_count"));
+  return module.Make<Invocation>(annotation->span(), bit_count,
+                                 std::vector<Expr*>{},
+                                 std::vector<ExprOrType>{annotation});
+}
+
 }  // namespace
 
 TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
                                        bool is_signed, int64_t bit_count) {
-  return module.Make<ArrayTypeAnnotation>(
-      span,
-      module.Make<BuiltinTypeAnnotation>(
-          span, is_signed ? BuiltinType::kSN : BuiltinType::kUN,
-          module.GetOrCreateBuiltinNameDef(is_signed ? "sN" : "uN")),
+  return CreateUnOrSnAnnotation(
+      module, span, is_signed,
       module.Make<Number>(span, absl::StrCat(bit_count), NumberKind::kOther,
                           /*type_annotation=*/nullptr));
+}
+
+TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
+                                       bool is_signed, Expr* bit_count) {
+  return module.Make<ArrayTypeAnnotation>(
+      span, CreateUnOrSnElementAnnotation(module, span, is_signed), bit_count);
+}
+
+TypeAnnotation* CreateUnOrSnElementAnnotation(Module& module, const Span& span,
+                                              bool is_signed) {
+  return module.Make<BuiltinTypeAnnotation>(
+      span, is_signed ? BuiltinType::kSN : BuiltinType::kUN,
+      module.GetOrCreateBuiltinNameDef(is_signed ? "sN" : "uN"));
 }
 
 TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span) {
@@ -291,6 +310,13 @@ CloneReplacer NameRefMapper(
     }
     return std::nullopt;
   };
+}
+
+Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
+                            TypeAnnotation* rhs) {
+  return module.Make<Binop>(
+      lhs->span(), BinopKind::kAdd, CreateElementCountInvocation(module, lhs),
+      CreateElementCountInvocation(module, rhs), Span::None());
 }
 
 }  // namespace xls::dslx

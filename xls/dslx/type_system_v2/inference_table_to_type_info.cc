@@ -82,9 +82,10 @@ const TypeAnnotation* SignednessAndSizeToAnnotation(
 // is specified, then it is an instance method being invoked on `target_object`.
 // Otherwise, it is a static function which may or may not be a member.
 struct FunctionAndTargetObject {
-  const Function* function;
+  const Function* function = nullptr;
   const std::optional<Expr*> target_object;
   std::optional<const ParametricContext*> target_struct_context;
+  bool is_builtin = false;
 };
 
 // Performs a clone of `input` with preservation of nodes that we never want to
@@ -365,6 +366,20 @@ class InferenceTableConverter {
     XLS_ASSIGN_OR_RETURN(
         const FunctionAndTargetObject function_and_target_object,
         ResolveFunction(invocation->callee(), caller, caller_context));
+
+    // This is a temporary hack for type-checking annotations we generate that
+    // contain invocations of builtins like `element_count`. We can remove this
+    // when we have normal type checking for builtin functions.
+    if (function_and_target_object.is_builtin) {
+      for (ExprOrType parametric : invocation->explicit_parametrics()) {
+        VLOG(5) << "Convert parametric of builtin: "
+                << ToAstNode(parametric)->ToString();
+        XLS_RETURN_IF_ERROR(
+            ConvertSubtree(ToAstNode(parametric), caller, caller_context));
+      }
+      return absl::OkStatus();
+    }
+
     const Function* function = function_and_target_object.function;
 
     // Come up with the actual args by merging the possible target object
@@ -562,12 +577,23 @@ class InferenceTableConverter {
                                            parametric_context, node,
                                            type_annotation_accept_predicate));
     }
+
+    // If the node itself is a `TypeAnnotation`, then, in the absence of any
+    // other information, its `Type` is whatever that concretizes to.
+    bool node_is_annotation = false;
     if (!annotation.has_value()) {
-      // The caller may have passed a node that is in the AST but not in the
-      // table, and it may not be needed in the table.
-      VLOG(5) << "No type information for: " << node->ToString();
-      return absl::OkStatus();
+      if (const auto* node_as_annotation =
+              dynamic_cast<const TypeAnnotation*>(node)) {
+        annotation = node_as_annotation;
+        node_is_annotation = true;
+      } else {
+        // The caller may have passed a node that is in the AST but not in the
+        // table, and it may not be needed in the table.
+        VLOG(5) << "No type information for: " << node->ToString();
+        return absl::OkStatus();
+      }
     }
+
     // If we have a let assignment to a tuple type, destructure the
     // assignment.
     if (dynamic_cast<const TupleTypeAnnotation*>(*annotation) &&
@@ -576,17 +602,37 @@ class InferenceTableConverter {
           parametric_context, dynamic_cast<const Let*>(node),
           dynamic_cast<const TupleTypeAnnotation*>(*annotation)));
     }
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
-                         Concretize(*annotation, parametric_context));
+
+    // Any annotation which actually gets used as the type of a node should be
+    // converted itself, in order to generate type info for expressions that are
+    // embedded in it, so those do not disrupt evaluations that occur in
+    // concretization. These annotations may not be scheduled for conversion
+    // otherwise, because they may be fabricated.
+    if (node->kind() != AstNodeKind::kTypeAnnotation) {
+      XLS_RETURN_IF_ERROR(ConvertSubtree(*annotation, /*function=*/std::nullopt,
+                                         parametric_context));
+    }
+
+    absl::StatusOr<std::unique_ptr<Type>> type =
+        Concretize(*annotation, parametric_context);
+    if (!type.ok()) {
+      // When the node itself is an annotation, and we decide to concretize
+      // the node itself, we can't succeed in all contexts. For example, a
+      // parametric-dependent field type declaration inside a parametric struct
+      // declaration can't just be concretized like that. Rather than trying to
+      // identify such cases, we just consider such nodes best-effort.
+      return node_is_annotation ? absl::OkStatus() : type.status();
+    }
+
     XLS_RETURN_IF_ERROR(
-        ValidateConcreteType(node, type.get(), *ti, file_table_));
+        ValidateConcreteType(node, type->get(), *ti, file_table_));
     if (const auto* literal = dynamic_cast<const Number*>(node);
         literal != nullptr && literal->type_annotation() != nullptr) {
       ti->SetItem(literal->type_annotation(),
-                  *std::make_unique<MetaType>(type->CloneToUnique()));
+                  *std::make_unique<MetaType>((*type)->CloneToUnique()));
     }
-    ti->SetItem(node, *type);
-    XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, *type, ti));
+    ti->SetItem(node, **type);
+    XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, **type, ti));
     return absl::OkStatus();
   }
 
@@ -1085,10 +1131,15 @@ class InferenceTableConverter {
         function_node = *target;
       }
     } else if (const auto* name_ref = dynamic_cast<const NameRef*>(callee);
-               name_ref != nullptr &&
-               std::holds_alternative<const NameDef*>(name_ref->name_def())) {
-      const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
-      function_node = def->definer();
+               name_ref != nullptr) {
+      if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
+        const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
+        function_node = def->definer();
+      } else {
+        // For now, we don't resolve actual builtin functions; just the fact
+        // that they are builtins.
+        return FunctionAndTargetObject{.is_builtin = true};
+      }
     } else if (const auto* attr = dynamic_cast<const Attr*>(callee)) {
       XLS_RETURN_IF_ERROR(
           ConvertSubtree(attr->lhs(), caller_function, caller_context));
@@ -1608,6 +1659,14 @@ class InferenceTableConverter {
     for (int i = 0; i < annotations.size(); i++) {
       const ArrayTypeAnnotation* annotation = annotations[i];
       element_type_annotations.push_back(annotation->element_type());
+      // An array dim that we fabricate internally, e.g. for a concat result,
+      // will not be scheduled for conversion normally because it's not attached
+      // to the rest of the AST. If it invokes builtins, we may need it
+      // converted in order to evaluate it. If this dim doesn't meet this
+      // criteria, this will be a no-op.
+      XLS_RETURN_IF_ERROR(
+          ConvertSubtree(annotation->dim(), std::nullopt, parametric_context));
+
       XLS_ASSIGN_OR_RETURN(
           int64_t current_dim,
           EvaluateU32OrExpr(parametric_context, annotation->dim()));
@@ -2173,6 +2232,20 @@ class InferenceTableConverter {
             file_table_);
       }
       return tuple_type->members()[index];
+    }
+    if (element_type->allow_bit_vector_destructuring()) {
+      absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
+          GetSignednessAndBitCount(container_type);
+      if (signedness_and_bit_count.ok()) {
+        VLOG(6) << "Destructuring bit vector type: "
+                << container_type->ToString();
+        XLS_ASSIGN_OR_RETURN(
+            bool signedness,
+            EvaluateBoolOrExpr(parametric_context,
+                               signedness_and_bit_count->signedness));
+        return CreateUnOrSnElementAnnotation(module_, container_type->span(),
+                                             signedness);
+      }
     }
     return container_type;
   }

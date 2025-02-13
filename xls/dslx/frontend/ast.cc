@@ -1073,10 +1073,14 @@ std::string MemberTypeAnnotation::ToString() const {
 
 ElementTypeAnnotation::ElementTypeAnnotation(
     Module* owner, const TypeAnnotation* container_type,
-    std::optional<const Number*> tuple_index)
+    std::optional<const Number*> tuple_index,
+    bool allow_bit_vector_destructuring)
     : TypeAnnotation(owner, container_type->span()),
       container_type_(container_type),
-      tuple_index_(tuple_index) {}
+      tuple_index_(tuple_index),
+      allow_bit_vector_destructuring_(allow_bit_vector_destructuring) {
+  CHECK(!(allow_bit_vector_destructuring_ && tuple_index_.has_value()));
+}
 
 std::string ElementTypeAnnotation::ToString() const {
   return absl::StrCat(

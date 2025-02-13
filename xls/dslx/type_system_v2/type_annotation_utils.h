@@ -50,6 +50,15 @@ struct SignednessAndBitCountResult {
 TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
                                        bool is_signed, int64_t bit_count);
 
+// Variant that uses an `Expr` for the bit count.
+TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
+                                       bool is_signed, Expr* bit_count);
+
+// Creates an annotation for an "element" of a `uN[N]` or `sN[N]` type, i.e.
+// just the `uN` or the `sN` piece with no dimension.
+TypeAnnotation* CreateUnOrSnElementAnnotation(Module& module, const Span& span,
+                                              bool is_signed);
+
 // Creates a `bool` type annotation.
 TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span);
 
@@ -118,6 +127,11 @@ absl::Status VerifyAllParametricsSatisfied(
 // parametric variables with values.
 CloneReplacer NameRefMapper(
     const absl::flat_hash_map<const NameDef*, ExprOrType>& map);
+
+// Creates an `Expr` representing `element_count<lhs>() +
+// element_count<rhs>()`.
+Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
+                            TypeAnnotation* rhs);
 
 }  // namespace xls::dslx
 

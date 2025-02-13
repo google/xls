@@ -47,40 +47,6 @@ absl::StatusOr<BitsLikeProperties> GetBitsLikeOrError(
   return *bits_like;
 }
 
-absl::Status ValidateBinopShift(const Binop* binop, const Type* type,
-                                const TypeInfo& ti,
-                                const FileTable& file_table) {
-  XLS_ASSIGN_OR_RETURN(Type * rhs_type, ti.GetItemOrError(binop->rhs()));
-  XLS_ASSIGN_OR_RETURN(BitsLikeProperties rhs_bits_like,
-                       GetBitsLikeOrError(binop->rhs(), rhs_type, file_table));
-  XLS_ASSIGN_OR_RETURN(bool rhs_is_signed, rhs_bits_like.is_signed.GetAsBool());
-  if (rhs_is_signed) {
-    return TypeInferenceErrorStatus(binop->rhs()->span(), rhs_type,
-                                    "Shift amount must be unsigned.",
-                                    file_table);
-  }
-  XLS_ASSIGN_OR_RETURN(Type * lhs_type, ti.GetItemOrError(binop->lhs()));
-  XLS_ASSIGN_OR_RETURN(BitsLikeProperties lhs_bits_like,
-                       GetBitsLikeOrError(binop->lhs(), lhs_type, file_table));
-
-  if (ti.IsKnownConstExpr(binop->rhs())) {
-    XLS_ASSIGN_OR_RETURN(InterpValue rhs_value, ti.GetConstExpr(binop->rhs()));
-    XLS_ASSIGN_OR_RETURN(uint64_t number_value,
-                         rhs_value.GetBitValueUnsigned());
-    const TypeDim& lhs_size = lhs_bits_like.size;
-    XLS_ASSIGN_OR_RETURN(int64_t lhs_bits_count, lhs_size.GetAsInt64());
-    if (lhs_bits_count < number_value) {
-      return TypeInferenceErrorStatus(
-          binop->rhs()->span(), rhs_type,
-          absl::StrFormat(
-              "Shift amount is larger than shift value bit width of %d.",
-              lhs_bits_count),
-          file_table);
-    }
-  }
-  return absl::OkStatus();
-}
-
 // A non-recursive visitor that contains per-node-type handlers for
 // `ValidateConcreteType`.
 class TypeValidator : public AstNodeVisitorWithDefault {
@@ -121,7 +87,10 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     }
     // Confirm that the shift amount is unsigned and fits in the lhs type.
     if (GetBinopShifts().contains(binop->binop_kind())) {
-      XLS_RETURN_IF_ERROR(ValidateBinopShift(binop, type_, ti_, file_table_));
+      XLS_RETURN_IF_ERROR(ValidateBinopShift(*binop));
+    }
+    if (binop->binop_kind() == BinopKind::kConcat) {
+      return ValidateConcatOperandTypes(*binop);
     }
     return absl::OkStatus();
   }
@@ -178,6 +147,103 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
  private:
+  absl::Status ValidateBinopShift(const Binop& binop) {
+    XLS_ASSIGN_OR_RETURN(Type * rhs_type, ti_.GetItemOrError(binop.rhs()));
+    XLS_ASSIGN_OR_RETURN(
+        BitsLikeProperties rhs_bits_like,
+        GetBitsLikeOrError(binop.rhs(), rhs_type, file_table_));
+    XLS_ASSIGN_OR_RETURN(bool rhs_is_signed,
+                         rhs_bits_like.is_signed.GetAsBool());
+    if (rhs_is_signed) {
+      return TypeInferenceErrorStatus(binop.rhs()->span(), rhs_type,
+                                      "Shift amount must be unsigned.",
+                                      file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(Type * lhs_type, ti_.GetItemOrError(binop.lhs()));
+    XLS_ASSIGN_OR_RETURN(
+        BitsLikeProperties lhs_bits_like,
+        GetBitsLikeOrError(binop.lhs(), lhs_type, file_table_));
+
+    if (ti_.IsKnownConstExpr(binop.rhs())) {
+      XLS_ASSIGN_OR_RETURN(InterpValue rhs_value,
+                           ti_.GetConstExpr(binop.rhs()));
+      XLS_ASSIGN_OR_RETURN(uint64_t number_value,
+                           rhs_value.GetBitValueUnsigned());
+      const TypeDim& lhs_size = lhs_bits_like.size;
+      XLS_ASSIGN_OR_RETURN(int64_t lhs_bits_count, lhs_size.GetAsInt64());
+      if (lhs_bits_count < number_value) {
+        return TypeInferenceErrorStatus(
+            binop.rhs()->span(), rhs_type,
+            absl::StrFormat(
+                "Shift amount is larger than shift value bit width of %d.",
+                lhs_bits_count),
+            file_table_);
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateConcatOperandTypes(const Binop& concat) {
+    const Type* lhs = *ti_.GetItem(concat.lhs());
+    const Type* rhs = *ti_.GetItem(concat.rhs());
+    std::optional<BitsLikeProperties> lhs_bits_like = GetBitsLike(*lhs);
+    std::optional<BitsLikeProperties> rhs_bits_like = GetBitsLike(*rhs);
+    if (lhs_bits_like.has_value() && rhs_bits_like.has_value()) {
+      XLS_ASSIGN_OR_RETURN(bool lhs_is_signed,
+                           lhs_bits_like->is_signed.GetAsBool());
+      XLS_ASSIGN_OR_RETURN(bool rhs_is_signed,
+                           rhs_bits_like->is_signed.GetAsBool());
+      if (lhs_is_signed || rhs_is_signed) {
+        return TypeInferenceErrorStatus(
+            concat.span(), nullptr,
+            absl::StrFormat("Concatenation requires operand types to both be "
+                            "unsigned bits; got lhs: `%s`; rhs: `%s`",
+                            lhs->ToString(), rhs->ToString()),
+            file_table_);
+      }
+      return absl::OkStatus();
+    }
+
+    const auto* lhs_array = dynamic_cast<const ArrayType*>(lhs);
+    const auto* rhs_array = dynamic_cast<const ArrayType*>(rhs);
+    bool lhs_is_array = lhs_array != nullptr && !lhs_bits_like.has_value();
+    bool rhs_is_array = rhs_array != nullptr && !rhs_bits_like.has_value();
+
+    if (lhs_is_array != rhs_is_array) {
+      return TypeInferenceErrorStatus(
+          concat.span(), nullptr,
+          absl::StrFormat("Attempting to concatenate array/non-array "
+                          "values together; got lhs: `%s`; rhs: `%s`.",
+                          lhs->ToString(), rhs->ToString()),
+          file_table_);
+    }
+
+    if (lhs_is_array) {
+      if (lhs_array->element_type() != rhs_array->element_type()) {
+        return TypeMismatchErrorStatus(
+            lhs_array->element_type(), rhs_array->element_type(),
+            concat.lhs()->span(), concat.rhs()->span(), file_table_);
+      }
+      return absl::OkStatus();
+    }
+
+    if (lhs->HasEnum() || rhs->HasEnum()) {
+      return TypeInferenceErrorStatus(
+          concat.span(), nullptr,
+          absl::StrFormat("Enum values must be cast to unsigned bits before "
+                          "concatenation; got lhs: `%s`; rhs: `%s`",
+                          lhs->ToString(), rhs->ToString()),
+          file_table_);
+    }
+    return TypeInferenceErrorStatus(
+        concat.span(), nullptr,
+        absl::StrFormat(
+            "Concatenation requires operand types to be "
+            "either both-arrays or both-bits; got lhs: `%s`; rhs: `%s`",
+            lhs->ToString(), rhs->ToString()),
+        file_table_);
+  }
+
   const Type* type_;
   const TypeInfo& ti_;
   const FileTable& file_table_;

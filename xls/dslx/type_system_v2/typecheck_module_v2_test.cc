@@ -385,6 +385,114 @@ const Z = X % 1 % Y % 2;
                   HasNodeWithType("const Z = X % 1 % Y % 2;", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, ConcatOfBitsLiterals) {
+  EXPECT_THAT("const X = u8:3 ++ u1:1;", TopNodeHasType("uN[9]"));
+}
+
+TEST(TypecheckV2Test, ConcatWithSignedBitsLhsFails) {
+  EXPECT_THAT(
+      "const X = s8:3 ++ u1:1;",
+      TypecheckFails(HasSubstr(
+          "Concatenation requires operand types to both be unsigned bits")));
+}
+
+TEST(TypecheckV2Test, ConcatWithSignedBitsRhsFails) {
+  EXPECT_THAT(
+      "const X = u8:3 ++ s1:1;",
+      TypecheckFails(HasSubstr(
+          "Concatenation requires operand types to both be unsigned bits")));
+}
+
+TEST(TypecheckV2Test, ConcatWithArrayAndNonArrayFails) {
+  EXPECT_THAT(
+      "const X = [u8:3] ++ u8:1;",
+      TypecheckFails(HasSubstr(
+          "Attempting to concatenate array/non-array values together")));
+}
+
+TEST(TypecheckV2Test, ConcatWithDifferentArrayElementTypesFails) {
+  EXPECT_THAT("const X = [u8:3] ++ [u16:1];",
+              TypecheckFails(HasTypeMismatch("uN[8]", "uN[16]")));
+}
+
+TEST(TypecheckV2Test, ConcatWithBitsAndStructFails) {
+  EXPECT_THAT(
+      R"(
+struct Foo { x: u8 }
+const X = Foo{ x: u8:1 } ++ u8:1;
+)",
+      TypecheckFails(HasSubstr("Concatenation requires operand types to be "
+                               "either both-arrays or both-bits")));
+}
+
+TEST(TypecheckV2Test, ConcatOfArrayLiterals) {
+  EXPECT_THAT("const X = [u32:1, 2, 3] ++ [u32:1, 2, 3];",
+              TopNodeHasType("uN[32][6]"));
+}
+
+TEST(TypecheckV2Test, IndexOfArrayConcat) {
+  EXPECT_THAT("const X = ([u32:1, 2, 3] ++ [u32:1, 2])[1];",
+              TopNodeHasType("uN[32]"));
+}
+
+TEST(TypecheckV2Test, ConcatOfBitsConstants) {
+  EXPECT_THAT(R"(
+const A = u20:0;
+const B = u30:0;
+const X = A ++ B;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[50]")));
+}
+
+TEST(TypecheckV2Test, ConcatOfArrayConstants) {
+  EXPECT_THAT(R"(
+const A = [u32:0, 1, 2];
+const B = [u32:200, 300];
+const X = A ++ B;
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32][5]")));
+}
+
+TEST(TypecheckV2Test, ConcatOfBitsParametricFunctionArgs) {
+  EXPECT_THAT(R"(
+fn f<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A + B] {
+  a ++ b
+}
+const X = f(u16:0, u32:0);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[48]")));
+}
+
+TEST(TypecheckV2Test, ConcatOfArrayParametricFunctionArgs) {
+  EXPECT_THAT(R"(
+fn f<A: u32, B: u32>(a: u32[A], b: u32[B]) -> u32[A + B] {
+  a ++ b
+}
+const X = f([u32:1, 2, 3], [u32:200]);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32][4]")));
+}
+
+TEST(TypecheckV2Test, ConcatOfBitsAsImplicitParametric) {
+  EXPECT_THAT(R"(
+fn f<A: u32>(a: uN[A]) -> uN[A] { a }
+const X = f(u16:0 ++ u32:0);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[48]")));
+}
+
+TEST(TypecheckV2Test, ConcatOfArrayAsImplicitParametric) {
+  EXPECT_THAT(R"(
+fn f<A: u32>(a: u16[A]) -> u16[A] { a }
+const X = f([u16:0, 1, 2] ++ [u16:20]);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[16][4]")));
+}
+
+TEST(TypecheckV2Test, SumOfConcatsOfBits) {
+  EXPECT_THAT("const X = (u16:0 ++ u32:0) + u48:10;", TopNodeHasType("uN[48]"));
+}
+
 TEST(TypecheckV2Test, GlobalBoolConstantEqualsComparisonOfUntypedLiterals) {
   EXPECT_THAT("const Z = 4 > 1;", TopNodeHasType("uN[1]"));
 }
