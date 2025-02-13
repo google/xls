@@ -286,6 +286,95 @@ bool xls_value_get_bits(const struct xls_value* value, char** error_out,
   return false;
 }
 
+bool xls_value_get_element_count(const struct xls_value* value,
+                                 char** error_out, int64_t* count_out) {
+  CHECK(value != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(count_out != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  switch (cpp_value->kind()) {
+    case xls::ValueKind::kTuple:
+    case xls::ValueKind::kArray:
+      *count_out = cpp_value->size();
+      return true;
+    default:
+      *error_out = xls::ToOwnedCString(
+          absl::InvalidArgumentError(
+              absl::StrFormat("Value is not a tuple or array, and so has no "
+                              "element count; kind: %s value: %s",
+                              xls::ValueKindToString(cpp_value->kind()),
+                              cpp_value->ToString()))
+              .ToString());
+      return false;
+  }
+}
+
+bool xls_value_get_element(const struct xls_value* value, size_t index,
+                           char** error_out, struct xls_value** element_out) {
+  CHECK(value != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(element_out != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  switch (cpp_value->kind()) {
+    case xls::ValueKind::kTuple:
+    case xls::ValueKind::kArray:
+      *element_out = reinterpret_cast<xls_value*>(
+          new xls::Value(cpp_value->element(index)));
+      break;
+    case xls::ValueKind::kBits:
+    case xls::ValueKind::kToken:
+      *error_out = xls::ToOwnedCString(
+          absl::InvalidArgumentError(
+              absl::StrFormat(
+                  "Value does not hold elements; kind: %s value: %s",
+                  xls::ValueKindToString(cpp_value->kind()),
+                  cpp_value->ToString()))
+              .ToString());
+      return false;
+    case xls::ValueKind::kInvalid:
+      *error_out = xls::ToOwnedCString(
+          absl::InvalidArgumentError("Value is invalid").ToString());
+      return false;
+  }
+  return true;
+}
+
+struct xls_value* xls_value_clone(const struct xls_value* value) {
+  CHECK(value != nullptr);
+  const auto* cpp_value = reinterpret_cast<const xls::Value*>(value);
+  return reinterpret_cast<xls_value*>(new xls::Value(*cpp_value));
+}
+
+bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
+                          struct xls_value** xls_value_out) {
+  CHECK(error_out != nullptr);
+  CHECK(xls_value_out != nullptr);
+  absl::StatusOr<xls::Bits> bits = xls::UBitsWithStatus(value, bit_count);
+  if (!bits.ok()) {
+    *error_out = xls::ToOwnedCString(bits.status().ToString());
+    return false;
+  }
+  *xls_value_out =
+      reinterpret_cast<xls_value*>(new xls::Value(std::move(bits).value()));
+  *error_out = nullptr;
+  return true;
+}
+
+bool xls_value_make_sbits(int64_t bit_count, int64_t value, char** error_out,
+                          struct xls_value** xls_value_out) {
+  CHECK(error_out != nullptr);
+  CHECK(xls_value_out != nullptr);
+  absl::StatusOr<xls::Bits> bits = xls::SBitsWithStatus(value, bit_count);
+  if (!bits.ok()) {
+    *error_out = xls::ToOwnedCString(bits.status().ToString());
+    return false;
+  }
+  *xls_value_out =
+      reinterpret_cast<xls_value*>(new xls::Value(std::move(bits).value()));
+  *error_out = nullptr;
+  return true;
+}
+
 struct xls_value* xls_value_make_token() {
   auto* value = new xls::Value(xls::Value::Token());
   return reinterpret_cast<xls_value*>(value);

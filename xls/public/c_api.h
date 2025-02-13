@@ -124,6 +124,12 @@ void xls_schedule_and_codegen_result_free(
 bool xls_parse_typed_value(const char* input, char** error_out,
                            struct xls_value** xls_value_out);
 
+bool xls_value_make_ubits(int64_t bit_count, uint64_t value, char** error_out,
+                          struct xls_value** xls_value_out);
+
+bool xls_value_make_sbits(int64_t bit_count, int64_t value, char** error_out,
+                          struct xls_value** xls_value_out);
+
 // Returns a new token XLS value which the caller must free.
 struct xls_value* xls_value_make_token();
 
@@ -133,6 +139,20 @@ struct xls_value* xls_value_make_true();
 // Returns a new tuple-kind XLS value which the caller must free.
 struct xls_value* xls_value_make_tuple(size_t element_count,
                                        struct xls_value** elements);
+
+// Returns a clone of the given value -- the caller must free the returned value
+// via `xls_value_free`.
+struct xls_value* xls_value_clone(const struct xls_value* value);
+
+// Returns the element at the given index in the value -- the value must be an
+// aggregate (i.e. tuple or array) or an error is returned.
+bool xls_value_get_element(const struct xls_value* value, size_t index,
+                           char** error_out, struct xls_value** element_out);
+
+// Returns the number of elements in the given value -- the value must be an
+// aggregate (i.e. tuple or array) or an error is returned.
+bool xls_value_get_element_count(const struct xls_value* value,
+                                 char** error_out, int64_t* count_out);
 
 // Attempts to extract a "bits" value from the given XLS value -- the resulting
 // `bits_out` is owned by the caller and must be freed via `xls_bits_free()` on
