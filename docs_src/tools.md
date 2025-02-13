@@ -506,7 +506,7 @@ Dumps type information that has been deduced for a given DSL file.
 ### clang-tidy
 
 For C++ development, you might need a compilation database to have good support
-in your IDE. You can create the `compile_commands.json` by running this script.
+in your IDE. You can create the `compile_flags.txt` by running this script.
 
 ```
 xls/dev_tools/make-compilation-db.sh
@@ -528,6 +528,52 @@ these, you can use `cat xls_clang-tidy.out` as your 'compiler invocation' in
 your IDE (e.g. `M-x compile` in emacs) and step through next-error locations as
 usual.
 
+### Build dependency cleaner
+
+For a well-defined build, it is necessary to have all implicit library
+dependencies due to `#include`s explicitly defined in the `deps = [...]` in the
+`BUILD` rules (and not unnecessarily keep superfluous ones).
+
+To automatically check and repair these, there is the build cleaner. It takes a
+bazel pattern, in the simplest case just `...`:
+
+```
+xls/dev_tools/run-build-cleaner.sh ...
+```
+
+If there are changes needed, it will emit a set of `buildozer` commands to edit
+the necessary BUILD files. You can automatically apply these by just sourcing
+the output of the script (assuming [buildozer] is installed):
+
+```
+source <(xls/dev_tools/run-build-cleaner.sh ...)
+```
+
+This also simplifies development: Just modify a library, include whatever
+headers are necessary (You can use `clang-tidy` from above to find if there are
+missing includes), and then use the build-cleaner to add all necessary
+dependencies. Even if you start a new library, just specify the sources, and
+build-cleaner will automagically add all the necessary `deps`.
+
+The build cleaner will also remove unambiguously not needed dependencies.
+
+#### build_cleaner keep
+
+If you encounter a situation in which the build cleaner attempts to remove a
+dependency that you know you need (but you don't need to include a header it
+provides), then this is likely because that library provides features only
+available by means of linking (e.g. some global registration of sorts).
+
+In that case make sure that that library is marked with `alwayslink = True`; it
+will then not be considered for dependency-removal.
+
+In the rare case that this is not possible, you can annotate a dependency that
+you don't want to see removed with a comment in the `deps` line: `#
+build_cleaner: keep`.
+
+This should rarely be needed. If you ever run into that situation, there are
+examples for both cases in the codebase.
+
 ### Golden Comparison Files
 
 To re-generate golden reference files (for all test targets that use golden
@@ -546,3 +592,5 @@ Information about what `channels` are defined and other useful details is also
 included. Take a look at
 [`xls_ir_interface.proto`](https://github.com/google/xls/tree/main/xls/ir/xls_ir_interface.proto)
 for what the interface contains.
+
+[buildozer]: https://github.com/bazelbuild/buildtools/tree/main/buildozer
