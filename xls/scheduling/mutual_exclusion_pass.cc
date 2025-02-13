@@ -140,6 +140,27 @@ std::vector<std::pair<Node*, int64_t>> PredicateNodes(Predicates* p,
 
 bool IsHeavyOp(Op op) { return op == Op::kSend || op == Op::kReceive; }
 
+std::string_view GetChannelName(Node* node) {
+  if (node->Is<Send>()) {
+    return node->As<Send>()->channel_name();
+  }
+  if (node->Is<Receive>()) {
+    return node->As<Receive>()->channel_name();
+  }
+  return "";
+}
+
+std::optional<Node*> GetPredicate(Node* node) {
+  std::optional<Node*> predicate;
+  if (node->Is<Send>()) {
+    predicate = node->As<Send>()->predicate();
+  }
+  if (node->Is<Receive>()) {
+    predicate = node->As<Receive>()->predicate();
+  }
+  return predicate;
+};
+
 using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 
 // Find all nodes that the given node transitively depends on.
@@ -193,6 +214,24 @@ absl::flat_hash_set<Node*> LargestConnectedSubgraph(
 // 2. Nodes of the same type that are unrelated in the transitive token
 //    dependency relation can be merged.
 absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
+  absl::flat_hash_set<std::string> multi_op_channels;
+  absl::flat_hash_set<std::string> channel_names;
+  for (Node* node : f->nodes()) {
+    if (node->Is<Send>() || node->Is<Receive>()) {
+      std::string_view channel_name = GetChannelName(node);
+      if (auto it = channel_names.find(channel_name);
+          it == channel_names.end()) {
+        channel_names.insert(it, std::string(channel_name));
+      } else if (auto it = multi_op_channels.find(channel_name);
+                 it == multi_op_channels.end()) {
+        multi_op_channels.insert(it, std::string(channel_name));
+      }
+    }
+  }
+  if (multi_op_channels.empty()) {
+    return NodeRelation();
+  }
+
   XLS_ASSIGN_OR_RETURN(TokenDAG token_dag, ComputeTokenDAG(f));
   absl::flat_hash_set<Node*> token_nodes;
   for (const auto& [node, children] : token_dag) {
@@ -202,49 +241,31 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
     }
   }
 
-  auto get_channel_name = [](Node* node) -> std::string_view {
-    if (node->Is<Receive>()) {
-      return node->As<Receive>()->channel_name();
-    }
-    if (node->Is<Send>()) {
-      return node->As<Send>()->channel_name();
-    }
-    return "";
-  };
-
-  auto get_predicate = [](Node* node) -> std::optional<Node*> {
-    std::optional<Node*> predicate;
-    if (node->Is<Send>()) {
-      predicate = node->As<Send>()->predicate();
-    }
-    if (node->Is<Receive>()) {
-      predicate = node->As<Receive>()->predicate();
-    }
-    return predicate;
-  };
-
   NodeRelation result;
   NodeRelation transitive_closure = TransitiveClosure<Node*>(token_dag);
   for (Node* node : ReverseTopoSort(f)) {
     if (node->Is<Send>() || node->Is<Receive>()) {
+      std::string_view channel_name = GetChannelName(node);
+      if (!multi_op_channels.contains(channel_name)) {
+        continue;
+      }
       absl::flat_hash_set<Node*> subgraph =
           LargestConnectedSubgraph(node, token_dag, [&](Node* n) -> bool {
-            return n->op() == node->op() &&
-                   get_channel_name(n) == get_channel_name(node);
+            return n->op() == node->op() && GetChannelName(n) == channel_name;
           });
       for (Node* x : subgraph) {
         for (Node* y : subgraph) {
           // Ensure that x and y are not data-dependent on each other (but they
           // can be token-dependent). The only way for two sends or two receives
           // to have a data dependency is through the predicate.
-          if (std::optional<Node*> pred_x = get_predicate(x)) {
+          if (std::optional<Node*> pred_x = GetPredicate(x)) {
             absl::flat_hash_set<Node*> dependencies_of_pred_x =
                 DependenciesOf(pred_x.value());
             if (dependencies_of_pred_x.contains(y)) {
               continue;
             }
           }
-          if (std::optional<Node*> pred_y = get_predicate(y)) {
+          if (std::optional<Node*> pred_y = GetPredicate(y)) {
             absl::flat_hash_set<Node*> dependencies_of_pred_y =
                 DependenciesOf(pred_y.value());
             if (dependencies_of_pred_y.contains(x)) {
@@ -277,6 +298,12 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
 // A merge class is a set of nodes that are all jointly mutually exclusive.
 absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
     Predicates* p, FunctionBase* f, const ScheduleCycleMap& scm) {
+  XLS_ASSIGN_OR_RETURN(NodeRelation mergable_effects,
+                       ComputeMergableEffects(f));
+  if (mergable_effects.empty()) {
+    return std::vector<absl::flat_hash_set<Node*>>();
+  }
+
   absl::flat_hash_set<Node*> nodes;
   std::vector<Node*> ordered_nodes;
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> neighborhoods;
@@ -289,8 +316,6 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(NodeRelation mergable_effects,
-                       ComputeMergableEffects(f));
   auto is_mergable = [&](Node* x, Node* y) -> bool {
     return mergable_effects.contains(x) && mergable_effects.at(x).contains(y) &&
            scm.at(x) == scm.at(y);
