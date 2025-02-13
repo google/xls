@@ -638,7 +638,9 @@ void GetWordBitsAtEndFuzz(std::vector<bool> pre, std::vector<bool> target) {
 FUZZ_TEST(InlineBitmapTest, GetWordBitsAtEndFuzz)
     .WithDomains(
         fuzztest::VectorOf(fuzztest::Arbitrary<bool>()).WithMaxSize(500),
-        fuzztest::VectorOf(fuzztest::Arbitrary<bool>()).WithMaxSize(64));
+        fuzztest::VectorOf(fuzztest::Arbitrary<bool>())
+            .WithMaxSize(64)
+            .WithMinSize(1));
 
 using SrcSink = std::pair<bool, bool>;
 // Overwrites 'target' part of out with target part of src

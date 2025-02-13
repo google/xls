@@ -66,6 +66,7 @@ void InlineBitmap::Overwrite(const InlineBitmap& other, int64_t cnt,
 }
 
 int64_t InlineBitmap::GetWordBitsAt(int64_t bit_offset) const {
+  CHECK_LT(bit_offset, bit_count());
   int64_t bits_off = bit_offset % kWordBits;
   int64_t start_word_num = bit_offset / kWordBits;
   if (bits_off == 0) {
