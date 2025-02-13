@@ -516,7 +516,6 @@ def xls_cc_ir_macro(
     string_type_check("block_pb_out", block, True)
     string_type_check("block_from_class", block_from_class, True)
     list_type_check("src_deps", src_deps)
-    dictionary_type_check("xlscc_args", xlscc_args)
     bool_type_check("enable_generated_file", enable_generated_file)
     bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
