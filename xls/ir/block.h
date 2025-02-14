@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -43,8 +44,8 @@ namespace xls {
 struct ChannelPortMetadata {
   std::string channel_name;
   Type* type;
-  // The direction of the data/valid port (input or output).
-  PortDirection direction;
+  // The direction of the data/valid port (send or receive).
+  Direction direction;
   ChannelKind channel_kind;
   FlopKind flop_kind;
 
@@ -163,7 +164,7 @@ class Block : public FunctionBase {
 
   // Add an instantiation of the given block `instantiated_block` to this
   // block. InstantiationInput and InstantiationOutput operations must be later
-  // added to connect the instantation to the data-flow graph.
+  // added to connect the instantiation to the data-flow graph.
   absl::StatusOr<BlockInstantiation*> AddBlockInstantiation(
       std::string_view name, Block* instantiated_block);
 
@@ -235,7 +236,7 @@ class Block : public FunctionBase {
   // Add metadata describing the mapping from ports to the channel they are
   // derived from.
   absl::Status AddChannelPortMetadata(ChannelPortMetadata metadata);
-  absl::Status AddChannelPortMetadata(Channel* channel, PortDirection direction,
+  absl::Status AddChannelPortMetadata(Channel* channel, Direction direction,
                                       std::optional<std::string> data_port,
                                       std::optional<std::string> valid_port,
                                       std::optional<std::string> ready_port);
@@ -243,9 +244,11 @@ class Block : public FunctionBase {
   // Returns the port metadata for the channel with the given name or an error
   // if no such metadata exists.
   absl::StatusOr<ChannelPortMetadata> GetChannelPortMetadata(
-      std::string_view channel_name) const;
-  bool HasChannelPortMetadata(std::string_view channel_name) const {
-    return channel_port_metadata_.contains(channel_name);
+      std::string_view channel_name, Direction direction) const;
+  bool HasChannelPortMetadata(std::string_view channel_name,
+                              Direction direction) const {
+    return channel_port_metadata_.contains(
+        std::pair<std::string, Direction>(channel_name, direction));
   }
   // Returns the port node associated with the ready/valid/data signal for the
   // given channel. Returns an error if no port metadata exists for the given
@@ -253,14 +256,16 @@ class Block : public FunctionBase {
   // no ready/valid/data port exists for the channel (for example, a data port
   // for a empty tuple typed channel).
   absl::StatusOr<std::optional<PortNode*>> GetReadyPortForChannel(
-      std::string_view channel_name);
+      std::string_view channel_name, Direction direction);
   absl::StatusOr<std::optional<PortNode*>> GetValidPortForChannel(
-      std::string_view channel_name);
+      std::string_view channel_name, Direction direction);
   absl::StatusOr<std::optional<PortNode*>> GetDataPortForChannel(
-      std::string_view channel_name);
+      std::string_view channel_name, Direction direction);
 
-  // Returns the names of channels which correspond to ports on this block.
-  std::vector<std::string> GetChannelNames() const;
+  // Returns the names of and directions of channels which correspond to ports
+  // on this block.
+  std::vector<std::pair<std::string, Direction>> GetChannelsWithMappedPorts()
+      const;
 
  private:
   // Sets the name of the given port node (InputPort or OutputPort) to the given
@@ -287,7 +292,7 @@ class Block : public FunctionBase {
   std::vector<Node*> DumpOrder() const;
 
   absl::StatusOr<const ChannelPortMetadata*> GetChannelPortMetadataInternal(
-      std::string_view channel_name) const;
+      std::string_view channel_name, Direction direction) const;
 
   // All ports in the block in the order they appear in the Verilog module.
   std::vector<Port> ports_;
@@ -330,9 +335,10 @@ class Block : public FunctionBase {
   std::optional<InputPort*> reset_port_;
   NameUniquer register_name_uniquer_;
 
-  // Map from channel name to the data structure describing which ports are
-  // associated with the channel (ready/valid/data ports).
-  absl::flat_hash_map<std::string, ChannelPortMetadata> channel_port_metadata_;
+  // Map from channel name and direction to the data structure describing which
+  // ports are associated with the channel (ready/valid/data ports).
+  absl::flat_hash_map<std::pair<std::string, Direction>, ChannelPortMetadata>
+      channel_port_metadata_;
 };
 
 }  // namespace xls

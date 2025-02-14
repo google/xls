@@ -237,34 +237,37 @@ TEST_F(PortLegalizationPassTest, ZeroWidthChannelMetadata) {
   Block* block = FindBlock(TestName(), p.get());
 
   {
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
-                             block->GetChannelPortMetadata("in"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ChannelPortMetadata in_metadata,
+        block->GetChannelPortMetadata("in", xls::Direction::kReceive));
     EXPECT_EQ(in_metadata.channel_name, "in");
     EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
     EXPECT_THAT(in_metadata.valid_port, Optional(std::string{"in_vld"}));
     EXPECT_THAT(in_metadata.ready_port, Optional(std::string{"in_rdy"}));
 
-    EXPECT_THAT(block->GetDataPortForChannel("in"),
+    EXPECT_THAT(block->GetDataPortForChannel("in", xls::Direction::kReceive),
                 IsOkAndHolds(Optional(m::InputPort("in"))));
-    EXPECT_THAT(block->GetValidPortForChannel("in"),
+    EXPECT_THAT(block->GetValidPortForChannel("in", xls::Direction::kReceive),
                 IsOkAndHolds(Optional(m::InputPort("in_vld"))));
-    EXPECT_THAT(block->GetReadyPortForChannel("in"),
+    EXPECT_THAT(block->GetReadyPortForChannel("in", xls::Direction::kReceive),
                 IsOkAndHolds(Optional(m::OutputPort("in_rdy"))));
   }
   ASSERT_THAT(Run(block), IsOkAndHolds(true));
 
   {
-    XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
-                             block->GetChannelPortMetadata("in"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ChannelPortMetadata in_metadata,
+        block->GetChannelPortMetadata("in", xls::Direction::kReceive));
     // The data port should have been removed.
     EXPECT_THAT(in_metadata.data_port, Eq(std::nullopt));
     EXPECT_THAT(in_metadata.valid_port, Optional(std::string{"in_vld"}));
     EXPECT_THAT(in_metadata.ready_port, Optional(std::string{"in_rdy"}));
 
-    EXPECT_THAT(block->GetDataPortForChannel("in"), IsOkAndHolds(std::nullopt));
-    EXPECT_THAT(block->GetValidPortForChannel("in"),
+    EXPECT_THAT(block->GetDataPortForChannel("in", xls::Direction::kReceive),
+                IsOkAndHolds(std::nullopt));
+    EXPECT_THAT(block->GetValidPortForChannel("in", xls::Direction::kReceive),
                 IsOkAndHolds(Optional(m::InputPort("in_vld"))));
-    EXPECT_THAT(block->GetReadyPortForChannel("in"),
+    EXPECT_THAT(block->GetReadyPortForChannel("in", xls::Direction::kReceive),
                 IsOkAndHolds(Optional(m::OutputPort("in_rdy"))));
   }
 }

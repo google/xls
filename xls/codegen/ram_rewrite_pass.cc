@@ -22,7 +22,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
@@ -53,35 +52,6 @@
 namespace xls::verilog {
 
 namespace {
-absl::StatusOr<Channel*> GetStreamingChannel(Block* block,
-                                             std::string_view channel_name) {
-  XLS_ASSIGN_OR_RETURN(Channel * channel,
-                       block->package()->GetChannel(channel_name));
-  XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming)
-      << absl::StreamFormat("Channel %s must be a streaming channel.",
-                            channel_name);
-  auto iter = absl::c_find_if(channel->metadata().block_ports(),
-                              [block](const BlockPortMappingProto& block_port) {
-                                return block_port.has_block_name() &&
-                                       block_port.block_name() == block->name();
-                              });
-  if (iter == channel->metadata().block_ports().end()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Metadata not found for module '%s' for channel '%s'.",
-                        block->name(), channel->name()));
-  }
-  XLS_RET_CHECK(iter->has_data_port_name())
-      << "data port not found- channel " << channel->name()
-      << " should be streaming with ready/valid flow control.";
-  XLS_RET_CHECK(iter->has_valid_port_name())
-      << "valid port not found- channel " << channel->name()
-      << " should be streaming with ready/valid flow control.";
-  XLS_RET_CHECK(iter->has_ready_port_name())
-      << "ready port not found- channel " << channel->name()
-      << " should be streaming with ready/valid flow control.";
-
-  return channel;
-}
 
 struct ReqBlockPorts {
   OutputPort* req_data;
@@ -160,22 +130,24 @@ absl::Status CheckDataPortType(
 
 absl::StatusOr<ReqBlockPorts> GetReqBlockPorts(Block* block,
                                                std::string_view channel_name) {
-  XLS_ASSIGN_OR_RETURN(Channel * req_channel,
-                       GetStreamingChannel(block, channel_name));
-  std::optional<const BlockPortMappingProto*> block_port_mapping =
-      req_channel->GetMetadataBlockPort(block->name());
-  XLS_RET_CHECK(block_port_mapping.has_value())
-      << "Metadata not found for module '" << block->name() << "' for channel '"
-      << req_channel->name() << "'.";
   XLS_ASSIGN_OR_RETURN(
-      auto* req_data_port,
-      block->GetOutputPort(block_port_mapping.value()->data_port_name()));
-  XLS_ASSIGN_OR_RETURN(
-      auto* req_valid_port,
-      block->GetOutputPort(block_port_mapping.value()->valid_port_name()));
-  XLS_ASSIGN_OR_RETURN(
-      auto* req_ready_port,
-      block->GetInputPort(block_port_mapping.value()->ready_port_name()));
+      ChannelPortMetadata metadata,
+      block->GetChannelPortMetadata(channel_name, xls::Direction::kSend));
+  XLS_RET_CHECK(metadata.data_port.has_value())
+      << absl::StreamFormat("No data port for channel `%s` in block `%s`",
+                            channel_name, block->name());
+  XLS_RET_CHECK(metadata.ready_port.has_value())
+      << absl::StreamFormat("No ready port for channel `%s` in block `%s`",
+                            channel_name, block->name());
+  XLS_RET_CHECK(metadata.valid_port.has_value())
+      << absl::StreamFormat("No valid port for channel `%s` in block `%s`",
+                            channel_name, block->name());
+  XLS_ASSIGN_OR_RETURN(auto* req_data_port,
+                       block->GetOutputPort(*metadata.data_port));
+  XLS_ASSIGN_OR_RETURN(auto* req_valid_port,
+                       block->GetOutputPort(*metadata.valid_port));
+  XLS_ASSIGN_OR_RETURN(auto* req_ready_port,
+                       block->GetInputPort(*metadata.ready_port));
 
   return ReqBlockPorts{.req_data = req_data_port,
                        .req_valid = req_valid_port,
@@ -184,22 +156,24 @@ absl::StatusOr<ReqBlockPorts> GetReqBlockPorts(Block* block,
 
 absl::StatusOr<RespBlockPorts> GetRespBlockPorts(
     Block* block, std::string_view channel_name) {
-  XLS_ASSIGN_OR_RETURN(Channel * resp_channel,
-                       GetStreamingChannel(block, channel_name));
-  std::optional<const BlockPortMappingProto*> block_port_mapping =
-      resp_channel->GetMetadataBlockPort(block->name());
-  XLS_RET_CHECK(block_port_mapping.has_value())
-      << "Metadata not found for module '" << block->name() << "' for channel '"
-      << resp_channel->name() << "'.";
   XLS_ASSIGN_OR_RETURN(
-      auto* resp_data_port,
-      block->GetInputPort(block_port_mapping.value()->data_port_name()));
-  XLS_ASSIGN_OR_RETURN(
-      auto* resp_valid_port,
-      block->GetInputPort(block_port_mapping.value()->valid_port_name()));
-  XLS_ASSIGN_OR_RETURN(
-      auto* resp_ready_port,
-      block->GetOutputPort(block_port_mapping.value()->ready_port_name()));
+      ChannelPortMetadata metadata,
+      block->GetChannelPortMetadata(channel_name, xls::Direction::kReceive));
+  XLS_RET_CHECK(metadata.data_port.has_value())
+      << absl::StreamFormat("No data port for channel `%s` in block `%s`",
+                            channel_name, block->name());
+  XLS_RET_CHECK(metadata.ready_port.has_value())
+      << absl::StreamFormat("No ready port for channel `%s` in block `%s`",
+                            channel_name, block->name());
+  XLS_RET_CHECK(metadata.valid_port.has_value())
+      << absl::StreamFormat("No valid port for channel `%s` in block `%s`",
+                            channel_name, block->name());
+  XLS_ASSIGN_OR_RETURN(auto* resp_data_port,
+                       block->GetInputPort(*metadata.data_port));
+  XLS_ASSIGN_OR_RETURN(auto* resp_valid_port,
+                       block->GetInputPort(*metadata.valid_port));
+  XLS_ASSIGN_OR_RETURN(auto* resp_ready_port,
+                       block->GetOutputPort(*metadata.ready_port));
   return RespBlockPorts{.resp_data = resp_data_port,
                         .resp_valid = resp_valid_port,
                         .resp_ready = resp_ready_port};
@@ -318,23 +292,21 @@ absl::Status Ram1RWUpdateSignature(
            ram_config.rw_port_configuration().response_channel_name,
            ram_config.rw_port_configuration().write_completion_channel_name,
        }) {
-    XLS_RETURN_IF_ERROR(builder.RemoveChannel(channel_name));
-    XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(channel_name));
-    std::optional<const BlockPortMappingProto*> block_ports_optional =
-        channel->GetMetadataBlockPort(signature.module_name());
-    if (!block_ports_optional.has_value()) {
-      continue;
+    XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_interface,
+                         signature.GetChannelInterfaceByName(channel_name));
+    if (channel_interface.has_data_port_name()) {
+      XLS_RETURN_IF_ERROR(
+          builder.RemoveData(channel_interface.data_port_name()));
     }
-    auto* block_ports = *block_ports_optional;
-    if (block_ports->has_data_port_name()) {
-      XLS_RETURN_IF_ERROR(builder.RemoveData(block_ports->data_port_name()));
+    if (channel_interface.has_valid_port_name()) {
+      XLS_RETURN_IF_ERROR(
+          builder.RemoveData(channel_interface.valid_port_name()));
     }
-    if (block_ports->has_valid_port_name()) {
-      XLS_RETURN_IF_ERROR(builder.RemoveData(block_ports->valid_port_name()));
+    if (channel_interface.has_ready_port_name()) {
+      XLS_RETURN_IF_ERROR(
+          builder.RemoveData(channel_interface.ready_port_name()));
     }
-    if (block_ports->has_ready_port_name()) {
-      XLS_RETURN_IF_ERROR(builder.RemoveData(block_ports->ready_port_name()));
-    }
+    XLS_RETURN_IF_ERROR(builder.RemoveChannelInterface(channel_name));
   }
 
   for (const OutputPort* port : {
@@ -772,27 +744,21 @@ absl::StatusOr<bool> Ram1R1WRewrite(
                ram_config.w_port_configuration().request_channel_name,
                ram_config.w_port_configuration().write_completion_channel_name,
            }) {
-        XLS_RETURN_IF_ERROR(builder.RemoveChannel(channel_name));
-        XLS_ASSIGN_OR_RETURN(Channel * channel,
-                             block->package()->GetChannel(channel_name));
-        std::optional<const BlockPortMappingProto*> block_ports_optional =
-            channel->GetMetadataBlockPort(block->name());
-        if (!block_ports_optional.has_value()) {
-          continue;
-        }
-        auto* block_ports = *block_ports_optional;
-        if (block_ports->has_data_port_name()) {
+        XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_interface,
+                             signature.GetChannelInterfaceByName(channel_name));
+        if (channel_interface.has_data_port_name()) {
           XLS_RETURN_IF_ERROR(
-              builder.RemoveData(block_ports->data_port_name()));
+              builder.RemoveData(channel_interface.data_port_name()));
         }
-        if (block_ports->has_valid_port_name()) {
+        if (channel_interface.has_valid_port_name()) {
           XLS_RETURN_IF_ERROR(
-              builder.RemoveData(block_ports->valid_port_name()));
+              builder.RemoveData(channel_interface.valid_port_name()));
         }
-        if (block_ports->has_ready_port_name()) {
+        if (channel_interface.has_ready_port_name()) {
           XLS_RETURN_IF_ERROR(
-              builder.RemoveData(block_ports->ready_port_name()));
+              builder.RemoveData(channel_interface.ready_port_name()));
         }
+        XLS_RETURN_IF_ERROR(builder.RemoveChannelInterface(channel_name));
       }
       for (const xls::OutputPort* port : {
                rd_addr_port,

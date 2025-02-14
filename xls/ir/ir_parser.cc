@@ -2392,7 +2392,6 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
                                                 "'(' in channel definition"));
   std::optional<int64_t> id;
   std::optional<ChannelOps> supported_ops;
-  std::optional<ChannelMetadataProto> metadata;
   std::vector<Value> initial_values;
   std::optional<ChannelKind> kind;
   std::optional<FlowControl> flow_control;
@@ -2465,19 +2464,10 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
     return absl::OkStatus();
   };
   handlers["metadata"] = [&]() -> absl::Status {
-    // The metadata is serialized as a text proto.
+    // TODO(meheff): This is unused. Remove.
     XLS_ASSIGN_OR_RETURN(
         Token metadata_token,
         scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
-    ChannelMetadataProto proto;
-    bool success =
-        google::protobuf::TextFormat::ParseFromString(metadata_token.value(), &proto);
-    if (!success) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid channel metadata @ %s",
-                          metadata_token.pos().ToHumanString()));
-    }
-    metadata = proto;
     return absl::OkStatus();
   };
   handlers["flow_control"] = [&]() -> absl::Status {
@@ -2553,7 +2543,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
   };
 
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(
-      handlers, /*mandatory_keywords=*/{"id", "ops", "metadata", "kind"}));
+      handlers, /*mandatory_keywords=*/{"id", "ops", "kind"}));
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
                                                 "')' in channel definition"));
@@ -2593,21 +2583,20 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
             channel_name.value(), *supported_ops, type, initial_values,
             channel_config, flow_control.value_or(FlowControl::kNone),
             strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
-            *metadata, id);
+            id);
       }
       return package->CreateStreamingChannelInProc(
           channel_name.value(), *supported_ops, type, proc, initial_values,
           channel_config, flow_control.value_or(FlowControl::kNone),
-          strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
-          *metadata, id);
+          strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive), id);
     }
     case ChannelKind::kSingleValue: {
       if (proc == nullptr) {
-        return package->CreateSingleValueChannel(
-            channel_name.value(), *supported_ops, type, *metadata, id);
+        return package->CreateSingleValueChannel(channel_name.value(),
+                                                 *supported_ops, type, id);
       }
       return package->CreateSingleValueChannelInProc(
-          channel_name.value(), *supported_ops, type, proc, *metadata, id);
+          channel_name.value(), *supported_ops, type, proc, id);
     }
   }
 
@@ -2668,7 +2657,7 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
   if (attribute_name.value() == "channel_ports") {
     std::optional<std::string> channel_name;
     std::optional<Type*> type;
-    std::optional<PortDirection> direction;
+    std::optional<Direction> direction;
     std::optional<ChannelKind> channel_kind;
     std::optional<FlopKind> flop_kind;
     std::optional<std::string> data_port;
@@ -2688,10 +2677,10 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
     };
     handlers["direction"] = [&]() -> absl::Status {
       XLS_ASSIGN_OR_RETURN(std::string direction_string, ParseIdentifier());
-      if (direction_string == "in") {
-        direction = PortDirection::kInput;
-      } else if (direction_string == "out") {
-        direction = PortDirection::kOutput;
+      if (direction_string == "receive") {
+        direction = Direction::kReceive;
+      } else if (direction_string == "send") {
+        direction = Direction::kSend;
       } else {
         return absl::InvalidArgumentError(
             absl::StrFormat("Invalid direction `%s`", direction_string));

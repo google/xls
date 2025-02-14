@@ -432,11 +432,11 @@ absl::StatusOr<Proc*> Proc::Clone(
             channel->supported_ops(), chan_type, channel->initial_values(),
             streaming_channel->channel_config(),
             streaming_channel->GetFlowControl(),
-            streaming_channel->GetStrictness(), channel->metadata());
+            streaming_channel->GetStrictness());
       } else {
         new_channel = std::make_unique<SingleValueChannel>(
             new_chan_name(channel->name()), channel->id(),
-            channel->supported_ops(), chan_type, channel->metadata());
+            channel->supported_ops(), chan_type);
       }
       XLS_RETURN_IF_ERROR(
           cloned_proc->AddChannel(std::move(new_channel)).status());

@@ -283,11 +283,6 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
   pb.Send(out_streaming_rv, in1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  EXPECT_THAT(in_single_val->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(out_single_val->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(in_streaming_rv->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(out_streaming_rv->metadata_block_ports(), IsEmpty());
-
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -312,65 +307,63 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
       ModuleSignature sig,
       GenerateSignature(options, block, schedule.GetCycleMap()));
 
-  EXPECT_EQ(sig.proto().data_channels_size(), 4);
+  EXPECT_EQ(sig.GetInputChannelInterfaces().size(), 2);
+  EXPECT_EQ(sig.GetOutputChannelInterfaces().size(), 2);
+
   {
-    ChannelProto ch = sig.proto().data_channels(0);
-    EXPECT_EQ(ch.name(), "in_single_val");
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto ch,
+                             sig.GetChannelInterfaceByName("in_single_val"));
+    EXPECT_EQ(ch.channel_name(), "in_single_val");
+    EXPECT_EQ(ch.direction(), CHANNEL_DIRECTION_RECEIVE);
+    EXPECT_THAT(package.GetTypeFromProto(ch.type()),
+                IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
-    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_RECEIVE_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-    EXPECT_THAT(
-        ch.metadata().block_ports(),
-        ElementsAre(AllOf(
-            Property(&BlockPortMappingProto::data_port_name, "in_single_val"),
-            Property(&BlockPortMappingProto::has_ready_port_name, false),
-            Property(&BlockPortMappingProto::has_valid_port_name, false))));
+    EXPECT_EQ(ch.data_port_name(), "in_single_val");
+    EXPECT_FALSE(ch.has_ready_port_name());
+    EXPECT_FALSE(ch.has_valid_port_name());
   }
 
   {
-    ChannelProto ch = sig.proto().data_channels(1);
-    EXPECT_EQ(ch.name(), "in_streaming");
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto ch,
+                             sig.GetChannelInterfaceByName("in_streaming"));
+    EXPECT_EQ(ch.channel_name(), "in_streaming");
+    EXPECT_EQ(ch.direction(), CHANNEL_DIRECTION_RECEIVE);
+    EXPECT_THAT(package.GetTypeFromProto(ch.type()),
+                IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
-    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_RECEIVE_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-    EXPECT_THAT(
-        ch.metadata().block_ports(),
-        ElementsAre(AllOf(Property(&BlockPortMappingProto::data_port_name,
-                                   "in_streaming_data"),
-                          Property(&BlockPortMappingProto::ready_port_name,
-                                   "in_streaming_ready"),
-                          Property(&BlockPortMappingProto::valid_port_name,
-                                   "in_streaming_valid"))));
+    EXPECT_EQ(ch.data_port_name(), "in_streaming_data");
+    EXPECT_EQ(ch.ready_port_name(), "in_streaming_ready");
+    EXPECT_EQ(ch.valid_port_name(), "in_streaming_valid");
   }
 
   {
-    ChannelProto ch = sig.proto().data_channels(2);
-    EXPECT_EQ(ch.name(), "out_single_val");
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto ch,
+                             sig.GetChannelInterfaceByName("out_single_val"));
+    EXPECT_EQ(ch.channel_name(), "out_single_val");
+    EXPECT_EQ(ch.direction(), CHANNEL_DIRECTION_SEND);
+    EXPECT_THAT(package.GetTypeFromProto(ch.type()),
+                IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
-    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_SEND_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
-    EXPECT_THAT(
-        ch.metadata().block_ports(),
-        ElementsAre(AllOf(
-            Property(&BlockPortMappingProto::data_port_name, "out_single_val"),
-            Property(&BlockPortMappingProto::has_ready_port_name, false),
-            Property(&BlockPortMappingProto::has_valid_port_name, false))));
+    EXPECT_EQ(ch.data_port_name(), "out_single_val");
+    EXPECT_FALSE(ch.has_ready_port_name());
+    EXPECT_FALSE(ch.has_valid_port_name());
   }
 
   {
-    ChannelProto ch = sig.proto().data_channels(3);
-    EXPECT_EQ(ch.name(), "out_streaming");
+    XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto ch,
+                             sig.GetChannelInterfaceByName("out_streaming"));
+    EXPECT_EQ(ch.channel_name(), "out_streaming");
+    EXPECT_EQ(ch.direction(), CHANNEL_DIRECTION_SEND);
+    EXPECT_THAT(package.GetTypeFromProto(ch.type()),
+                IsOkAndHolds(m::Type("bits[32]")));
     EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
-    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_SEND_ONLY);
     EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
-    EXPECT_THAT(
-        ch.metadata().block_ports(),
-        ElementsAre(AllOf(Property(&BlockPortMappingProto::data_port_name,
-                                   "out_streaming_data"),
-                          Property(&BlockPortMappingProto::ready_port_name,
-                                   "out_streaming_ready"),
-                          Property(&BlockPortMappingProto::valid_port_name,
-                                   "out_streaming_valid"))));
+    EXPECT_EQ(ch.data_port_name(), "out_streaming_data");
+    EXPECT_EQ(ch.ready_port_name(), "out_streaming_ready");
+    EXPECT_EQ(ch.valid_port_name(), "out_streaming_valid");
   }
 }
 
@@ -400,6 +393,7 @@ block my_block(in: bits[32], out: (bits[32])) {
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleSignature sig,
       GenerateSignature(options, my_block, /*stage_map=*/{}));
+
   ASSERT_EQ(sig.instantiations().size(), 1);
   ASSERT_TRUE(sig.instantiations()[0].has_fifo_instantiation());
   const FifoInstantiationProto& instantiation =
@@ -457,6 +451,218 @@ block my_block(in: bits[32], out: (bits[32])) {
               IsOkAndHolds(m::Type("(bits[32])")));
   EXPECT_EQ(instantiation.fifo_config().depth(), 3);
   EXPECT_FALSE(instantiation.fifo_config().bypass());
+}
+
+TEST(SignatureGeneratorTest, ProcNetwork) {
+  constexpr std::string_view ir_text = R"(package test
+
+block generator(out: bits[32], out_valid: bits[1], out_ready: bits[1]) {
+  #![channel_ports(name=out, type=bits[32], direction=send, kind=streaming, data_port=out, ready_port=out_ready, valid_port=out_valid)]
+
+  out_ready: bits[1] = input_port(name=out_ready)
+
+  forty_two: bits[32] = literal(value=42)
+  one: bits[1] = literal(value=1)
+
+  out: () = output_port(forty_two, name=out)
+  out_valid: () = output_port(one, name=out_valid)
+}
+
+block consumer(in: bits[32], in_valid: bits[1], in_ready: bits[1]) {
+  #![channel_ports(name=in, type=bits[32], direction=receive, kind=streaming, data_port=in, ready_port=in_ready, valid_port=in_valid)]
+
+  in: bits[32] = input_port(name=in)
+  in_valid: bits[1] = input_port(name=in_valid)
+
+  one: bits[1] = literal(value=1)
+
+  in_ready: () = output_port(one, name=in_ready)
+}
+
+top block my_block() {
+  instantiation generator_inst(block=generator, kind=block)
+  instantiation consumer_inst(block=consumer, kind=block)
+  instantiation fifo_inst(data_type=bits[32], depth=1, bypass=false, register_push_outputs=false, register_pop_outputs=false, channel=my_channel, kind=fifo)
+
+  // Plumb data signal forward.
+  generator_out: bits[32] = instantiation_output(instantiation=generator_inst, port_name=out)
+  fifo_in_data: () = instantiation_input(generator_out, instantiation=fifo_inst, port_name=push_data)
+  fifo_out_data: bits[32] = instantiation_output(instantiation=fifo_inst, port_name=pop_data)
+  consumer_in: () = instantiation_input(fifo_out_data, instantiation=consumer_inst, port_name=in)
+
+  // Plumb valid signal forward.
+  generator_out_valid: bits[1] = instantiation_output(instantiation=generator_inst, port_name=out_valid)
+  fifo_in_valid: () = instantiation_input(generator_out_valid, instantiation=fifo_inst, port_name=push_valid)
+  fifo_out_valid: bits[1] = instantiation_output(instantiation=fifo_inst, port_name=pop_valid)
+  consumer_in_valid: () = instantiation_input(fifo_out_valid, instantiation=consumer_inst, port_name=in_valid)
+
+  // Plumb ready signal backwards.
+  consumer_in_ready: bits[1] = instantiation_output(instantiation=consumer_inst, port_name=in_ready)
+  fifo_out_ready: () = instantiation_input(consumer_in_ready, instantiation=fifo_inst, port_name=pop_ready)
+  fifo_in_ready: bits[1] = instantiation_output(instantiation=fifo_inst, port_name=push_ready)
+  generator_out_ready: () = instantiation_input(fifo_in_ready, instantiation=generator_inst, port_name=out_ready)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * my_block, p->GetBlock("my_block"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature sig,
+      GenerateSignature(options, my_block, /*stage_map=*/{}));
+
+  ASSERT_EQ(sig.instantiations().size(), 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(FifoInstantiationProto fifo,
+                           sig.GetFifoInstantiation("fifo_inst"));
+  EXPECT_EQ(fifo.instance_name(), "fifo_inst");
+  EXPECT_TRUE(fifo.has_channel_name());
+  EXPECT_EQ(fifo.channel_name(), "my_channel");
+  EXPECT_THAT(p->GetTypeFromProto(fifo.type()),
+              IsOkAndHolds(m::Type("bits[32]")));
+  EXPECT_EQ(fifo.fifo_config().depth(), 1);
+  EXPECT_FALSE(fifo.fifo_config().bypass());
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockInstantiationProto generator,
+                           sig.GetBlockInstantiation("generator_inst"));
+  EXPECT_EQ(generator.instance_name(), "generator_inst");
+  EXPECT_EQ(generator.block_name(), "generator");
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockInstantiationProto consumer,
+                           sig.GetBlockInstantiation("consumer_inst"));
+  EXPECT_EQ(consumer.instance_name(), "consumer_inst");
+  EXPECT_EQ(consumer.block_name(), "consumer");
+}
+
+TEST(SignatureGeneratorTest, InstantiatedSubblockWithPassThroughChannel) {
+  constexpr std::string_view ir_text = R"(package test
+
+block subblock(in: bits[32], in_valid: bits[1], in_ready: bits[1],
+               out: bits[32], out_valid: bits[1], out_ready: bits[1]) {
+  #![channel_ports(name=in, type=bits[32], direction=receive, kind=streaming, data_port=in, ready_port=in_ready, valid_port=in_valid)]
+  #![channel_ports(name=out, type=bits[32], direction=send, kind=streaming, data_port=out, ready_port=out_ready, valid_port=out_valid)]
+
+  in: bits[32] = input_port(name=in)
+  in_valid: bits[1] = input_port(name=in_valid)
+  out_ready: bits[1] = input_port(name=out_ready)
+
+  in_ready: () = output_port(out_ready, name=in_ready)
+  out: () = output_port(in, name=out)
+  out_valid: () = output_port(in_valid, name=out_valid)
+}
+
+top block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
+                 out: bits[32], out_valid: bits[1], out_ready: bits[1]) {
+  #![channel_ports(name=in, type=bits[32], direction=receive, kind=streaming, data_port=in, ready_port=in_ready, valid_port=in_valid)]
+  #![channel_ports(name=out, type=bits[32], direction=send, kind=streaming, data_port=out, ready_port=out_ready, valid_port=out_valid)]
+
+  instantiation subblock_inst(block=subblock, kind=block)
+
+  in: bits[32] = input_port(name=in)
+  in_valid: bits[1] = input_port(name=in_valid)
+  out_ready: bits[1] = input_port(name=out_ready)
+
+  inst_in: () = instantiation_input(in, instantiation=subblock_inst, port_name=in)
+  inst_out: bits[32] = instantiation_output(instantiation=subblock_inst, port_name=out)
+
+  inst_in_valid: () = instantiation_input(in_valid, instantiation=subblock_inst, port_name=in_valid)
+  inst_out_valid: bits[1] = instantiation_output(instantiation=subblock_inst, port_name=out_valid)
+
+  inst_out_ready: () = instantiation_input(out_ready, instantiation=subblock_inst, port_name=out_ready)
+  inst_in_ready: bits[1] = instantiation_output(instantiation=subblock_inst, port_name=in_ready)
+
+  out: () = output_port(inst_out, name=out)
+  out_valid: () = output_port(inst_out_valid, name=out_valid)
+  in_ready: () = output_port(inst_in_ready, name=in_ready)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * my_block, p->GetBlock("my_block"));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature sig,
+      GenerateSignature(options, my_block, /*stage_map=*/{}));
+
+  ASSERT_EQ(sig.instantiations().size(), 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockInstantiationProto generator,
+                           sig.GetBlockInstantiation("subblock_inst"));
+  EXPECT_EQ(generator.instance_name(), "subblock_inst");
+  EXPECT_EQ(generator.block_name(), "subblock");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto top_in_channel,
+                           sig.GetChannelInterfaceByName("in"));
+  EXPECT_EQ(top_in_channel.channel_name(), "in");
+  EXPECT_EQ(top_in_channel.direction(), CHANNEL_DIRECTION_RECEIVE);
+  EXPECT_THAT(p->GetTypeFromProto(top_in_channel.type()),
+              IsOkAndHolds(p->GetBitsType(32)));
+  EXPECT_EQ(top_in_channel.kind(), CHANNEL_KIND_STREAMING);
+  EXPECT_EQ(top_in_channel.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(top_in_channel.data_port_name(), "in");
+  EXPECT_EQ(top_in_channel.ready_port_name(), "in_ready");
+  EXPECT_EQ(top_in_channel.valid_port_name(), "in_valid");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto top_out_channel,
+                           sig.GetChannelInterfaceByName("out"));
+  EXPECT_EQ(top_out_channel.channel_name(), "out");
+  EXPECT_EQ(top_out_channel.direction(), CHANNEL_DIRECTION_SEND);
+  EXPECT_THAT(p->GetTypeFromProto(top_out_channel.type()),
+              IsOkAndHolds(p->GetBitsType(32)));
+  EXPECT_EQ(top_out_channel.kind(), CHANNEL_KIND_STREAMING);
+  EXPECT_EQ(top_out_channel.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(top_out_channel.data_port_name(), "out");
+  EXPECT_EQ(top_out_channel.ready_port_name(), "out_ready");
+  EXPECT_EQ(top_out_channel.valid_port_name(), "out_valid");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * subblock, p->GetBlock("subblock"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature subblock_sig,
+      GenerateSignature(options, subblock, /*stage_map=*/{}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto subblock_in_channel,
+                           subblock_sig.GetChannelInterfaceByName("in"));
+  EXPECT_EQ(subblock_in_channel.channel_name(), "in");
+  EXPECT_EQ(subblock_in_channel.direction(), CHANNEL_DIRECTION_RECEIVE);
+  EXPECT_THAT(p->GetTypeFromProto(subblock_in_channel.type()),
+              IsOkAndHolds(p->GetBitsType(32)));
+  EXPECT_EQ(subblock_in_channel.kind(), CHANNEL_KIND_STREAMING);
+  EXPECT_EQ(subblock_in_channel.flow_control(),
+            CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(subblock_in_channel.data_port_name(), "in");
+  EXPECT_EQ(subblock_in_channel.ready_port_name(), "in_ready");
+  EXPECT_EQ(subblock_in_channel.valid_port_name(), "in_valid");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelInterfaceProto subblock_out_channel,
+                           subblock_sig.GetChannelInterfaceByName("out"));
+  EXPECT_EQ(subblock_out_channel.channel_name(), "out");
+  EXPECT_EQ(subblock_out_channel.direction(), CHANNEL_DIRECTION_SEND);
+  EXPECT_THAT(p->GetTypeFromProto(subblock_out_channel.type()),
+              IsOkAndHolds(p->GetBitsType(32)));
+  EXPECT_EQ(subblock_out_channel.kind(), CHANNEL_KIND_STREAMING);
+  EXPECT_EQ(subblock_out_channel.flow_control(),
+            CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(subblock_out_channel.data_port_name(), "out");
+  EXPECT_EQ(subblock_out_channel.ready_port_name(), "out_ready");
+  EXPECT_EQ(subblock_out_channel.valid_port_name(), "out_valid");
 }
 
 }  // namespace

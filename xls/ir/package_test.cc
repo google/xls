@@ -330,12 +330,11 @@ TEST_F(PackageTest, CreateStreamingChannel) {
 
   // Create a channel with a specific ID.
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch42,
-      p.CreateStreamingChannel(
-          "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
-          FlowControl::kReadyValid, ChannelStrictness::kProvenMutuallyExclusive,
-          ChannelMetadataProto(), 42));
+      Channel * ch42, p.CreateStreamingChannel(
+                          "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
+                          /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
+                          FlowControl::kReadyValid,
+                          ChannelStrictness::kProvenMutuallyExclusive, 42));
   EXPECT_EQ(ch42->id(), 42);
   EXPECT_THAT(p.GetChannel(42), IsOkAndHolds(ch42));
 
@@ -350,8 +349,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
                    "ch1_dup", ChannelOps::kReceiveOnly, p.GetBitsType(44),
                    /*initial_values=*/{}, /*fifo_config=*/std::nullopt,
                    FlowControl::kReadyValid,
-                   ChannelStrictness::kProvenMutuallyExclusive,
-                   ChannelMetadataProto(), 1)
+                   ChannelStrictness::kProvenMutuallyExclusive, 1)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Channel already exists with id 1")));
@@ -442,20 +440,6 @@ TEST_F(PackageTest, CloneSingleValueChannelSetParams) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Cannot clone single value channel with "
                          "streaming channel parameter overrides")));
-
-  ChannelMetadataProto new_metadata;
-  new_metadata.add_block_ports()->set_block_name("new_block_name");
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch4,
-      p.CloneChannel(
-          ch0, "ch4",
-          Package::CloneChannelOverrides().OverrideMetadata(new_metadata)));
-  EXPECT_THAT(ch4->metadata().block_ports(),
-              ElementsAre(Property(&BlockPortMappingProto::block_name,
-                                   "new_block_name")));
-  EXPECT_THAT(ch0->metadata().block_ports(),
-              Not(Contains(Property(&BlockPortMappingProto::block_name,
-                                    "new_block_name"))));
 }
 
 TEST_F(PackageTest, CloneSingleValueChannelSamePackageButDifferentOps) {
@@ -531,8 +515,6 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackage) {
 TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   Package p(TestName());
 
-  ChannelMetadataProto original_metadata;
-  original_metadata.add_block_ports()->set_block_name("original_name");
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch0,
       p.CreateStreamingChannel(
@@ -545,8 +527,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
                         /*input_flop_kind=*/std::nullopt,
                         /*output_flop_kind=*/std::nullopt),
           /*flow_control=*/FlowControl::kNone,
-          /*strictness=*/ChannelStrictness::kProvenMutuallyExclusive,
-          /*metadata=*/original_metadata));
+          /*strictness=*/ChannelStrictness::kProvenMutuallyExclusive));
   std::vector<Value> initial_values_override;
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1_base,
@@ -562,9 +543,6 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch1->GetFifoDepth(), 3);
   EXPECT_EQ(ch1->GetFlowControl(), FlowControl::kNone);
   EXPECT_EQ(ch1->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_THAT(ch1->metadata().block_ports(),
-              ElementsAre(Property(&BlockPortMappingProto::block_name,
-                                   "original_name")));
 
   EXPECT_EQ(ch1->initial_values(), initial_values_override);
 
@@ -586,9 +564,6 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch2->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch2->GetFlowControl(), FlowControl::kNone);
   EXPECT_EQ(ch2->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_THAT(ch2->metadata().block_ports(),
-              ElementsAre(Property(&BlockPortMappingProto::block_name,
-                                   "original_name")));
 
   EXPECT_EQ(ch2->GetFifoDepth(), std::nullopt);
 
@@ -606,17 +581,12 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch3->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch3->GetFifoDepth(), 3);
   EXPECT_EQ(ch3->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_THAT(ch3->metadata().block_ports(),
-              ElementsAre(Property(&BlockPortMappingProto::block_name,
-                                   "original_name")));
 
   EXPECT_EQ(ch3->GetFlowControl(), FlowControl::kReadyValid);
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch4_base,
-      p.CloneChannel(ch0, "ch4",
-                     Package::CloneChannelOverrides().OverrideMetadata(
-                         ChannelMetadataProto())));
+      p.CloneChannel(ch0, "ch4", Package::CloneChannelOverrides()));
   StreamingChannel* ch4 = down_cast<StreamingChannel*>(ch4_base);
   ASSERT_NE(ch4, nullptr);
 
@@ -627,10 +597,6 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch4->GetFifoDepth(), 3);
   EXPECT_EQ(ch4->GetFlowControl(), FlowControl::kNone);
   EXPECT_EQ(ch4->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
-  EXPECT_THAT(ch0->metadata().block_ports(),
-              ElementsAre(Property(&BlockPortMappingProto::block_name,
-                                   "original_name")));
-  EXPECT_THAT(ch4->metadata().block_ports(), IsEmpty());
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch5_base,
@@ -646,9 +612,6 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch5->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch5->GetFifoDepth(), 3);
   EXPECT_EQ(ch5->GetFlowControl(), FlowControl::kNone);
-  EXPECT_THAT(ch5->metadata().block_ports(),
-              ElementsAre(Property(&BlockPortMappingProto::block_name,
-                                   "original_name")));
   EXPECT_EQ(ch5->GetStrictness(), ChannelStrictness::kArbitraryStaticOrder);
 }
 

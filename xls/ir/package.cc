@@ -655,22 +655,23 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     std::string_view name, ChannelOps supported_ops, Type* type,
     absl::Span<const Value> initial_values, ChannelConfig channel_config,
     FlowControl flow_control, ChannelStrictness strictness,
-    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
-  return CreateStreamingChannelInProc(
-      name, supported_ops, type, /*proc=*/nullptr, initial_values,
-      channel_config, flow_control, strictness, metadata, id);
+    std::optional<int64_t> id) {
+  return CreateStreamingChannelInProc(name, supported_ops, type,
+                                      /*proc=*/nullptr, initial_values,
+                                      channel_config, flow_control, strictness,
+                                      id);
 }
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannelInProc(
     std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
     absl::Span<const Value> initial_values, ChannelConfig channel_config,
     FlowControl flow_control, ChannelStrictness strictness,
-    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
+    std::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<StreamingChannel>(
       name, actual_id, supported_ops, type, initial_values, channel_config,
-      flow_control, strictness, metadata);
+      flow_control, strictness);
   StreamingChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel), proc));
   return channel_ptr;
@@ -678,17 +679,17 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannelInProc(
 
 absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
     std::string_view name, ChannelOps supported_ops, Type* type,
-    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
-  return Package::CreateSingleValueChannelInProc(
-      name, supported_ops, type, /*proc=*/nullptr, metadata, id);
+    std::optional<int64_t> id) {
+  return Package::CreateSingleValueChannelInProc(name, supported_ops, type,
+                                                 /*proc=*/nullptr, id);
 }
 
 absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannelInProc(
     std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
-    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
+    std::optional<int64_t> id) {
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
-  auto channel = std::make_unique<SingleValueChannel>(
-      name, actual_id, supported_ops, type, metadata);
+  auto channel = std::make_unique<SingleValueChannel>(name, actual_id,
+                                                      supported_ops, type);
   SingleValueChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel), proc));
   return channel_ptr;
@@ -827,8 +828,7 @@ absl::StatusOr<Channel*> Package::CloneChannel(
           this->CreateSingleValueChannel(
               name,
               overrides.supported_ops().value_or(channel->supported_ops()),
-              new_channel_type,
-              overrides.metadata().value_or(channel->metadata())));
+              new_channel_type));
       return new_channel;
     }
     case ChannelKind::kStreaming: {
@@ -856,8 +856,7 @@ absl::StatusOr<Channel*> Package::CloneChannel(
               overrides.flow_control().value_or(
                   streaming_channel->GetFlowControl()),
               overrides.strictness().value_or(
-                  streaming_channel->GetStrictness()),
-              overrides.metadata().value_or(channel->metadata())));
+                  streaming_channel->GetStrictness())));
       return new_channel;
     }
   }

@@ -534,48 +534,27 @@ InterpretBlockSignature(
     const RamRewritesProto& ram_rewrites) {
   absl::flat_hash_map<std::string, ChannelInfo> channel_info;
   // Pull the information out of the channel_protos
-  for (const verilog::ChannelProto& channel : signature.data_channels()) {
-    if (channel.supported_ops() == verilog::CHANNEL_OPS_SEND_RECEIVE) {
-      // Internal channel, no input/output.
-      continue;
-    }
-    if (channel.metadata().block_ports_size() < 1) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Channel '%s' has no associated ports", channel.name()));
-    }
-    const BlockPortMappingProto& port_mapping =
-        channel.metadata().block_ports().at(0);
-    if (!absl::c_all_of(
-            channel.metadata().block_ports(),
-            [&](const BlockPortMappingProto& port) -> bool {
-              return port.data_port_name() == port_mapping.data_port_name() &&
-                     port.ready_port_name() == port_mapping.ready_port_name() &&
-                     port.valid_port_name() == port_mapping.valid_port_name();
-            })) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("A single channel '%s' being mapped to multiple "
-                          "ports is not supported",
-                          channel.name()));
-    }
+  for (const verilog::ChannelInterfaceProto& channel :
+       signature.channel_interfaces()) {
     const auto& data_port_it = absl::c_find_if(
         signature.data_ports(), [&](const verilog::PortProto& port) {
-          return port.name() == port_mapping.data_port_name();
+          return port.name() == channel.data_port_name();
         });
     if (data_port_it == signature.data_ports().cend()) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Channel '%s' names its data port as '%s' but no such port exists.",
-          channel.name(), port_mapping.data_port_name()));
+          channel.channel_name(), channel.data_port_name()));
     }
     ChannelInfo info{
         .width = data_port_it->width(),
         .ready_valid =
             channel.flow_control() == verilog::CHANNEL_FLOW_CONTROL_READY_VALID,
-        .channel_data = port_mapping.data_port_name(),
+        .channel_data = channel.data_port_name(),
     };
-    if (channel.supported_ops() == verilog::CHANNEL_OPS_SEND_ONLY) {
+    if (channel.direction() == verilog::PORT_DIRECTION_OUTPUT) {
       // Output channel
       info.port_input = false;
-    } else if (channel.supported_ops() == verilog::CHANNEL_OPS_RECEIVE_ONLY) {
+    } else if (channel.direction() == verilog::PORT_DIRECTION_INPUT) {
       // Input channel
       info.port_input = true;
     } else {
@@ -584,18 +563,20 @@ InterpretBlockSignature(
                            << "' ended up in block signature.";
     }
     if (info.ready_valid) {
-      if (!port_mapping.has_ready_port_name()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Ready/valid channel '%s' has no ready port.", channel.name()));
+      if (!channel.has_ready_port_name()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Ready/valid channel '%s' has no ready port.",
+                            channel.channel_name()));
       }
-      if (!port_mapping.has_valid_port_name()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Ready/valid channel '%s' has no valid port.", channel.name()));
+      if (!channel.has_valid_port_name()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Ready/valid channel '%s' has no valid port.",
+                            channel.channel_name()));
       }
-      info.channel_valid = port_mapping.valid_port_name();
-      info.channel_ready = port_mapping.ready_port_name();
+      info.channel_valid = channel.valid_port_name();
+      info.channel_ready = channel.ready_port_name();
     }
-    channel_info[channel.name()] = std::move(info);
+    channel_info[channel.channel_name()] = std::move(info);
   }
 
   // If channels aren't around we are interpreting a 'fn' so need to get the

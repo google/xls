@@ -65,41 +65,41 @@ std::string FifoConfig::ToString() const {
       depth_, bypass_, register_push_outputs_, register_pop_outputs_);
 }
 
-absl::StatusOr<std::optional<FlopKind>> FlopKindFromProto(
-    ChannelConfigProto::FlopKind f) {
+namespace {
+
+FlopKindProto ToProtoFlop(std::optional<FlopKind> f) {
+  if (!f) {
+    return FLOP_KIND_DEFAULT;
+  }
+  switch (*f) {
+    case FlopKind::kNone:
+      return FLOP_KIND_NONE;
+    case FlopKind::kFlop:
+      return FLOP_KIND_FLOP;
+    case FlopKind::kSkid:
+      return FLOP_KIND_SKID;
+    case FlopKind::kZeroLatency:
+      return FLOP_KIND_ZERO_LATENCY;
+  }
+}
+}  // namespace
+
+absl::StatusOr<std::optional<FlopKind>> FlopKindFromProto(FlopKindProto f) {
   switch (f) {
-    case ChannelConfigProto::FLOP_KIND_DEFAULT:
+    case FLOP_KIND_DEFAULT:
       return std::nullopt;
-    case ChannelConfigProto::FLOP_KIND_NONE:
+    case FLOP_KIND_NONE:
       return FlopKind::kNone;
-    case ChannelConfigProto::FLOP_KIND_FLOP:
+    case FLOP_KIND_FLOP:
       return FlopKind::kFlop;
-    case ChannelConfigProto::FLOP_KIND_SKID:
+    case FLOP_KIND_SKID:
       return FlopKind::kSkid;
-    case ChannelConfigProto::FLOP_KIND_ZERO_LATENCY:
+    case FLOP_KIND_ZERO_LATENCY:
       return FlopKind::kZeroLatency;
     default:
       return absl::InternalError(absl::StrFormat("Unknown flop kind: %d", f));
   }
 }
-
-namespace {
-ChannelConfigProto::FlopKind ToProtoFlop(std::optional<FlopKind> f) {
-  if (!f) {
-    return ChannelConfigProto::FLOP_KIND_DEFAULT;
-  }
-  switch (*f) {
-    case FlopKind::kNone:
-      return ChannelConfigProto::FLOP_KIND_NONE;
-    case FlopKind::kFlop:
-      return ChannelConfigProto::FLOP_KIND_FLOP;
-    case FlopKind::kSkid:
-      return ChannelConfigProto::FLOP_KIND_SKID;
-    case FlopKind::kZeroLatency:
-      return ChannelConfigProto::FLOP_KIND_ZERO_LATENCY;
-  }
-}
-}  // namespace
 
 absl::StatusOr<FlopKind> StringToFlopKind(std::string_view str) {
   for (FlopKind f : {FlopKind::kNone, FlopKind::kFlop, FlopKind::kSkid,
@@ -111,6 +111,7 @@ absl::StatusOr<FlopKind> StringToFlopKind(std::string_view str) {
   return absl::InvalidArgumentError(
       absl::StrFormat("'%s' is not a valid flop kind", str));
 }
+
 /* static */ absl::StatusOr<ChannelConfig> ChannelConfig::FromProto(
     const ChannelConfigProto& proto) {
   std::optional<FifoConfig> fc;
@@ -206,12 +207,6 @@ std::string Channel::ToString() const {
   }
 
   std::string metadata_textproto;
-  google::protobuf::TextFormat::Printer printer;
-  printer.SetSingleLineMode(true);
-  printer.PrintToString(metadata(), &metadata_textproto);
-  if (!metadata_textproto.empty() && metadata_textproto.back() == ' ') {
-    metadata_textproto.pop_back();
-  }
   absl::StrAppendFormat(&result, "metadata=\"\"\"%s\"\"\")",
                         metadata_textproto);
 

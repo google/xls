@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -44,6 +45,20 @@
 #include "xls/ir/type.h"
 
 namespace xls::verilog {
+namespace {
+FlopKindProto ToProtoFlop(FlopKind f) {
+  switch (f) {
+    case FlopKind::kNone:
+      return FLOP_KIND_NONE;
+    case FlopKind::kFlop:
+      return FLOP_KIND_FLOP;
+    case FlopKind::kSkid:
+      return FLOP_KIND_SKID;
+    case FlopKind::kZeroLatency:
+      return FLOP_KIND_ZERO_LATENCY;
+  }
+}
+}  // namespace
 
 absl::StatusOr<ModuleSignature> GenerateSignature(
     const CodegenOptions& options, Block* block,
@@ -99,45 +114,58 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     }
   }
 
-  // Adds information on channels.
   Package* p = block->package();
   VLOG(5) << "GenerateSignature called on package:";
   XLS_VLOG_LINES(5, p->DumpIr());
-  for (const Channel* const ch : p->channels()) {
-    if (!ch->GetMetadataBlockPort(block->name()).has_value()) {
-      continue;
-    }
 
-    XLS_RET_CHECK(ch->kind() == ChannelKind::kStreaming ||
-                  ch->kind() == ChannelKind::kSingleValue);
-
-    switch (ch->kind()) {
-      case ChannelKind::kStreaming:
-        b.AddStreamingChannel(
-            ch->name(), ch->supported_ops(),
-            down_cast<const StreamingChannel*>(ch)->GetFlowControl(),
-            ch->type(),
-            down_cast<const StreamingChannel*>(ch)->channel_config(),
-            ch->metadata());
-        break;
-      case ChannelKind::kSingleValue:
-        b.AddSingleValueChannel(ch->name(), ch->supported_ops(),
-                                ch->metadata());
-        break;
-    }
-  }
+  // Add internal channels and block instantiations. Iterate through the fifo
+  // instantiations.
   for (const ::xls::Instantiation* instantiation : block->GetInstantiations()) {
     if (instantiation->kind() == ::xls::InstantiationKind::kFifo) {
       const FifoInstantiation* fifo =
           down_cast<const FifoInstantiation*>(instantiation);
-      std::optional<std::string_view> channel_name;
       if (fifo->channel_name().has_value()) {
-        XLS_ASSIGN_OR_RETURN(Channel * ch,
-                             p->GetChannel(*fifo->channel_name()));
-        channel_name = ch->name();
+        b.AddStreamingChannel(fifo->channel_name().value(), fifo->data_type(),
+                              FlowControl::kReadyValid, fifo->fifo_config());
       }
-      b.AddFifoInstantiation(p, fifo->name(), channel_name, fifo->data_type(),
-                             fifo->fifo_config());
+      b.AddFifoInstantiation(p, fifo->name(), fifo->channel_name(),
+                             fifo->data_type(), fifo->fifo_config());
+    } else if (instantiation->kind() == ::xls::InstantiationKind::kBlock) {
+      const BlockInstantiation* block_instantiation =
+          down_cast<const BlockInstantiation*>(instantiation);
+      b.AddBlockInstantiation(p,
+                              block_instantiation->instantiated_block()->name(),
+                              block_instantiation->name());
+    }
+  }
+
+  // Add interface channels. Iterate through the block metadata.
+  for (const std::pair<std::string, xls::Direction>& channel_direction :
+       block->GetChannelsWithMappedPorts()) {
+    XLS_ASSIGN_OR_RETURN(
+        ChannelPortMetadata metadata,
+        block->GetChannelPortMetadata(channel_direction.first,
+                                      channel_direction.second));
+    ChannelDirectionProto direction =
+        metadata.direction == xls::Direction::kSend ? CHANNEL_DIRECTION_SEND
+                                                    : CHANNEL_DIRECTION_RECEIVE;
+    switch (metadata.channel_kind) {
+      case ChannelKind::kStreaming: {
+        FlowControl flow_control =
+            (metadata.ready_port.has_value() && metadata.valid_port.has_value())
+                ? FlowControl::kReadyValid
+                : FlowControl::kNone;
+        b.AddStreamingChannelInterface(
+            metadata.channel_name, direction, metadata.type, flow_control,
+            metadata.data_port, metadata.ready_port, metadata.valid_port,
+            ToProtoFlop(metadata.flop_kind));
+        break;
+      }
+      case ChannelKind::kSingleValue:
+        b.AddSingleValueChannelInterface(
+            metadata.channel_name, direction, metadata.type,
+            metadata.data_port.value(), ToProtoFlop(metadata.flop_kind));
+        break;
     }
   }
 

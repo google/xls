@@ -124,7 +124,7 @@ absl::Status VerifyReadyValidHoldoffs(
 absl::Status HoldoffValid(int64_t input_number, int64_t input_bit_count,
                           const ValidHoldoff& valid_holdoff,
                           std::string_view channel_name,
-                          const BlockPortMappingProto& port_mapping_proto,
+                          const ChannelInterfaceProto& port_mapping_proto,
                           SequentialBlock& seq_block) {
   if (valid_holdoff.cycles == 0) {
     // Nothing to do as the valid holdoff is zero cycles.
@@ -156,7 +156,7 @@ absl::Status HoldoffValid(int64_t input_number, int64_t input_bit_count,
 // Sets up the test bench to drive the specified inputs on to the given channel.
 absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
                                std::string_view channel_name,
-                               const BlockPortMappingProto& port_mapping_proto,
+                               const ChannelInterfaceProto& port_mapping_proto,
                                absl::Span<const ValidHoldoff> valid_holdoffs,
                                ModuleTestbench& tb) {
   std::vector<DutInput> dut_inputs;
@@ -210,7 +210,7 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
 // values after the test bench is run.
 absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
     std::string_view channel_name,
-    const BlockPortMappingProto& port_mapping_proto, int64_t output_count,
+    const ChannelInterfaceProto& port_mapping_proto, int64_t output_count,
     absl::Span<const int64_t> ready_holdoffs, ModuleTestbench& tb) {
   if (port_mapping_proto.has_ready_port_name()) {
     std::string_view ready_port_name = port_mapping_proto.ready_port_name();
@@ -275,21 +275,6 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
     }
   }
   return outputs;
-}
-
-absl::StatusOr<const BlockPortMappingProto*> BlockPortMappingForModule(
-    const ChannelProto& channel_proto, std::string_view module_name) {
-  auto iter = absl::c_find_if(
-      channel_proto.metadata().block_ports(),
-      [&](const BlockPortMappingProto& block_port_mapping_proto) {
-        return block_port_mapping_proto.block_name() == module_name;
-      });
-  if (iter == channel_proto.metadata().block_ports().end()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Block port mapping for channel '%s' not found for module '%s'.",
-        channel_proto.name(), module_name));
-  }
-  return &*iter;
 }
 
 }  // namespace
@@ -561,14 +546,12 @@ ModuleSimulator::CreateProcTestbench(
   if (VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs_values;
     for (const auto& [channel_name, channel_values] : channel_inputs) {
-      XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
-                           signature_.GetInputChannelProtoByName(channel_name));
+      XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_proto,
+                           signature_.GetChannelInterfaceByName(channel_name));
+      XLS_RET_CHECK_EQ(channel_proto.direction(), PORT_DIRECTION_INPUT);
       XLS_ASSIGN_OR_RETURN(
-          const BlockPortMappingProto* block_port_proto,
-          BlockPortMappingForModule(channel_proto, signature_.module_name()));
-      XLS_ASSIGN_OR_RETURN(PortProto data_port,
-                           signature_.GetInputPortProtoByName(
-                               block_port_proto->data_port_name()));
+          PortProto data_port,
+          signature_.GetInputPortByName(channel_proto.data_port_name()));
       XLS_ASSIGN_OR_RETURN(
           channel_inputs_values[channel_name],
           BitsListToValueList(channel_values, data_port.type()));
@@ -584,8 +567,9 @@ ModuleSimulator::CreateProcTestbench(
   }
 
   // Ensure all output channels have an expected read count.
-  for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
-    std::string_view channel_name = channel_proto.name();
+  for (const ChannelInterfaceProto& channel_proto :
+       signature_.GetOutputChannelInterfaces()) {
+    std::string_view channel_name = channel_proto.channel_name();
     if (!output_channel_counts.contains(channel_name)) {
       return absl::NotFoundError(absl::StrFormat(
           "Channel '%s' not found in expected output channel counts map.",
@@ -620,18 +604,19 @@ ModuleSimulator::CreateProcTestbench(
   }
 
   // TODO(vmirian): 10-30-2022 Ensure semantics work for single value channel.
-  for (const ChannelProto& channel_proto : signature_.GetInputChannels()) {
-    std::string_view channel_name = channel_proto.name();
+  for (const ChannelInterfaceProto& channel_proto :
+       signature_.GetInputChannelInterfaces()) {
+    std::string_view channel_name = channel_proto.channel_name();
     absl::Span<const ValidHoldoff> valid_holdoffs;
     if (holdoffs.has_value() &&
         holdoffs->valid_holdoffs.contains(channel_name)) {
       valid_holdoffs = holdoffs->valid_holdoffs.at(channel_name);
     }
-    XLS_ASSIGN_OR_RETURN(
-        const BlockPortMappingProto* block_port_proto,
-        BlockPortMappingForModule(channel_proto, signature_.module_name()));
+    XLS_RET_CHECK(channel_inputs.contains(channel_name))
+        << channel_name << "\n"
+        << signature_.ToString();
     XLS_RETURN_IF_ERROR(DriveInputChannel(channel_inputs.at(channel_name),
-                                          channel_name, *block_port_proto,
+                                          channel_name, channel_proto,
                                           valid_holdoffs, *tb));
   }
 
@@ -639,21 +624,19 @@ ModuleSimulator::CreateProcTestbench(
   // ModuleTestbench::Capture().
   absl::flat_hash_map<std::string, std::vector<std::unique_ptr<Bits>>>
       stable_outputs;
-  for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
-    std::string_view channel_name = channel_proto.name();
+  for (const ChannelInterfaceProto& channel_proto :
+       signature_.GetOutputChannelInterfaces()) {
+    std::string_view channel_name = channel_proto.channel_name();
     absl::Span<const int64_t> ready_holdoffs;
     if (holdoffs.has_value() &&
         holdoffs->ready_holdoffs.contains(channel_name)) {
       ready_holdoffs = holdoffs->ready_holdoffs.at(channel_name);
     }
-    XLS_ASSIGN_OR_RETURN(
-        const BlockPortMappingProto* block_port_proto,
-        BlockPortMappingForModule(channel_proto, signature_.module_name()));
-    XLS_ASSIGN_OR_RETURN(
-        stable_outputs[channel_name],
-        CaptureOutputChannel(channel_name, *block_port_proto,
-                             output_channel_counts.at(channel_proto.name()),
-                             ready_holdoffs, *tb));
+    XLS_ASSIGN_OR_RETURN(stable_outputs[channel_name],
+                         CaptureOutputChannel(channel_name, channel_proto,
+                                              output_channel_counts.at(
+                                                  channel_proto.channel_name()),
+                                              ready_holdoffs, *tb));
   }
   return ProcTestbench{
       .testbench = std::move(tb),
@@ -673,8 +656,9 @@ ModuleSimulator::RunInputSeriesProc(
   XLS_RETURN_IF_ERROR(proc_tb.testbench->Run());
 
   absl::flat_hash_map<std::string, std::vector<Bits>> outputs;
-  for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
-    std::string_view channel_name = channel_proto.name();
+  for (const ChannelInterfaceProto& channel_proto :
+       signature_.GetOutputChannelInterfaces()) {
+    std::string_view channel_name = channel_proto.channel_name();
     outputs[channel_name] = std::vector<Bits>();
     for (std::unique_ptr<Bits>& bits : proc_tb.outputs.at(channel_name)) {
       outputs[channel_name].push_back(std::move(*bits));
@@ -684,15 +668,12 @@ ModuleSimulator::RunInputSeriesProc(
   if (VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> result_channel_values;
     for (const auto& [channel_name, channel_values] : outputs) {
+      XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_proto,
+                           signature_.GetChannelInterfaceByName(channel_name));
+      XLS_RET_CHECK_EQ(channel_proto.direction(), PORT_DIRECTION_OUTPUT);
       XLS_ASSIGN_OR_RETURN(
-          ChannelProto channel_proto,
-          signature_.GetOutputChannelProtoByName(channel_name));
-      XLS_ASSIGN_OR_RETURN(
-          const BlockPortMappingProto* block_port_proto,
-          BlockPortMappingForModule(channel_proto, signature_.module_name()));
-      XLS_ASSIGN_OR_RETURN(PortProto data_port,
-                           signature_.GetOutputPortProtoByName(
-                               block_port_proto->data_port_name()));
+          PortProto data_port,
+          signature_.GetOutputPortByName(channel_proto.data_port_name()));
       XLS_ASSIGN_OR_RETURN(
           result_channel_values[channel_name],
           BitsListToValueList(channel_values, data_port.type()));
@@ -724,17 +705,15 @@ ModuleSimulator::RunInputSeriesProc(
                          std::move(holdoffs)));
 
   for (const auto& [channel_name, channel_bits] : channel_outputs_bits) {
-    XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
-                         signature_.GetOutputChannelProtoByName(channel_name));
+    XLS_ASSIGN_OR_RETURN(ChannelInterfaceProto channel_proto,
+                         signature_.GetChannelInterfaceByName(channel_name));
+    XLS_RET_CHECK_EQ(channel_proto.direction(), PORT_DIRECTION_OUTPUT);
     XLS_ASSIGN_OR_RETURN(
-        const BlockPortMappingProto* block_port_proto,
-        BlockPortMappingForModule(channel_proto, signature_.module_name()));
-    XLS_ASSIGN_OR_RETURN(PortProto data_port,
-                         signature_.GetOutputPortProtoByName(
-                             block_port_proto->data_port_name()));
+        PortProto data_port,
+        signature_.GetOutputPortByName(channel_proto.data_port_name()));
     XLS_ASSIGN_OR_RETURN(std::vector<Value> values,
                          BitsListToValueList(channel_bits, data_port.type()));
-    channel_outputs[channel_proto.name()] = values;
+    channel_outputs[channel_proto.channel_name()] = values;
   }
   return channel_outputs;
 }

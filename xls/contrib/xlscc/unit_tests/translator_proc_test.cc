@@ -9248,8 +9248,7 @@ TEST_P(TranslatorProcTest, ChannelFlopKindInIR) {
     ch_in->set_name("in");
     ch_in->set_is_input(true);
     ch_in->set_type(CHANNEL_TYPE_FIFO);
-    ch_in->set_flop_kind(xls::ChannelConfigProto::FlopKind::
-                             ChannelConfigProto_FlopKind_FLOP_KIND_NONE);
+    ch_in->set_flop_kind(xls::FLOP_KIND_NONE);
 
     HLSChannel* ch_out = block_spec.add_channels();
     ch_out->set_name("out");

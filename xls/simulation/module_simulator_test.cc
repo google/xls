@@ -36,7 +36,6 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
-#include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/testbench_signal_capture.h"
@@ -67,40 +66,24 @@ absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
       testing::UnitTest::GetInstance()->current_test_info();
   Package p(test_info->name());
 
-  ChannelMetadataProto input_metadata;
-  {
-    BlockPortMappingProto& block_port_proto = *input_metadata.add_block_ports();
-    block_port_proto.set_block_name("input_channel_monitor");
-    block_port_proto.set_data_port_name("input_data");
-    block_port_proto.set_valid_port_name("input_valid");
-    block_port_proto.set_ready_port_name("input_ready");
-  }
-
   ModuleSignatureBuilder b("input_channel_monitor");
   b.WithReset("rst", /*asynchronous=*/false, /*active_low=*/false);
   b.WithCombinationalInterface();
   b.AddDataInputAsBits("input_data", 8);
   b.AddDataOutputAsBits("input_ready", 1);
   b.AddDataInputAsBits("input_valid", 1);
-  b.AddStreamingChannel("input", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, p.GetBitsType(8),
-                        ChannelConfig(), input_metadata);
+  b.AddStreamingChannelInterface("input", CHANNEL_DIRECTION_RECEIVE,
+                                 p.GetBitsType(8), FlowControl::kReadyValid,
+                                 "input_data", "input_ready", "input_valid",
+                                 FLOP_KIND_NONE);
 
   b.AddDataOutputAsBits("monitor_data", 9);
   b.AddDataInputAsBits("monitor_ready", 1);
   b.AddDataOutputAsBits("monitor_valid", 1);
-  ChannelMetadataProto output_metadata;
-  {
-    BlockPortMappingProto& block_port_proto =
-        *output_metadata.add_block_ports();
-    block_port_proto.set_block_name("input_channel_monitor");
-    block_port_proto.set_data_port_name("monitor_data");
-    block_port_proto.set_valid_port_name("monitor_valid");
-    block_port_proto.set_ready_port_name("monitor_ready");
-  }
-  b.AddStreamingChannel("monitor", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, p.GetBitsType(9),
-                        ChannelConfig(), output_metadata);
+  b.AddStreamingChannelInterface("monitor", CHANNEL_DIRECTION_SEND,
+                                 p.GetBitsType(8), FlowControl::kReadyValid,
+                                 "monitor_data", "monitor_ready",
+                                 "monitor_valid", FLOP_KIND_NONE);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
   return ModuleGeneratorResult{.verilog_text = verilog_text,
                                .verilog_line_map = VerilogLineMap(),
@@ -211,55 +194,21 @@ endmodule
   b.AddDataOutputAsBits("result_vld", 1);
   b.AddDataOutputAsBits("operand_0_rdy", 1);
   b.AddDataOutputAsBits("operand_1_rdy", 1);
-  ChannelMetadataProto channel0_metadata;
-  {
-    BlockPortMappingProto& block_port_proto =
-        *channel0_metadata.add_block_ports();
-    block_port_proto.set_block_name("proc_adder_pipeline");
-    block_port_proto.set_data_port_name("operand_0");
-    block_port_proto.set_valid_port_name("operand_0_vld");
-    block_port_proto.set_ready_port_name("operand_0_rdy");
-  }
-  b.AddStreamingChannel(
-      "operand_0", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
-      p.GetBitsType(32),
-      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false)),
-      channel0_metadata);
-  ChannelMetadataProto channel1_metadata;
-  {
-    BlockPortMappingProto& block_port_proto =
-        *channel1_metadata.add_block_ports();
-    block_port_proto.set_block_name("proc_adder_pipeline");
-    block_port_proto.set_data_port_name("operand_1");
-    block_port_proto.set_valid_port_name("operand_1_vld");
-    block_port_proto.set_ready_port_name("operand_1_rdy");
-  }
-  b.AddStreamingChannel(
-      "operand_1", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
-      p.GetBitsType(32),
-      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false)),
-      channel1_metadata);
-  ChannelMetadataProto channel2_metadata;
-  {
-    BlockPortMappingProto& block_port_proto =
-        *channel2_metadata.add_block_ports();
-    block_port_proto.set_block_name("proc_adder_pipeline");
-    block_port_proto.set_data_port_name("result");
-    block_port_proto.set_valid_port_name("result_vld");
-    block_port_proto.set_ready_port_name("result_rdy");
-  }
-  b.AddStreamingChannel(
-      "result", ChannelOps::kSendOnly, FlowControl::kReadyValid,
-      p.GetBitsType(32),
-      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false)),
-      channel2_metadata);
+
+  b.AddStreamingChannelInterface("operand_0", CHANNEL_DIRECTION_RECEIVE,
+                                 p.GetBitsType(32), FlowControl::kReadyValid,
+                                 "operand_0", "operand_0_rdy", "operand_0_vld",
+                                 FLOP_KIND_NONE);
+  b.AddStreamingChannelInterface("operand_1", CHANNEL_DIRECTION_RECEIVE,
+                                 p.GetBitsType(32), FlowControl::kReadyValid,
+                                 "operand_1", "operand_1_rdy", "operand_1_vld",
+                                 FLOP_KIND_NONE);
+  b.AddStreamingChannelInterface("result", CHANNEL_DIRECTION_SEND,
+                                 p.GetBitsType(32), FlowControl::kReadyValid,
+                                 "result", "result_rdy", "result_vld",
+                                 FLOP_KIND_NONE);
   XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
+
   return ModuleGeneratorResult{.verilog_text = std::string(text),
                                .verilog_line_map = VerilogLineMap(),
                                .signature = signature};
@@ -555,48 +504,20 @@ endmodule
   b.AddDataOutputAsBits("result_vld", 1);
   b.AddDataOutputAsBits("operand_0_rdy", 1);
   b.AddDataOutputAsBits("operand_1_rdy", 1);
-  ChannelMetadataProto channel0_metadata;
-  BlockPortMappingProto& block_port_proto0 =
-      *channel0_metadata.add_block_ports();
-  block_port_proto0.set_block_name("proc_adder");
-  block_port_proto0.set_data_port_name("operand_0");
-  block_port_proto0.set_valid_port_name("operand_0_vld");
-  block_port_proto0.set_ready_port_name("operand_0_rdy");
-  b.AddStreamingChannel(
-      "operand_0", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
-      p.GetBitsType(32),
-      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false)),
-      channel0_metadata);
-  ChannelMetadataProto channel1_metadata;
-  BlockPortMappingProto& block_port_proto1 =
-      *channel1_metadata.add_block_ports();
-  block_port_proto1.set_block_name("proc_adder");
-  block_port_proto1.set_data_port_name("operand_1");
-  block_port_proto1.set_valid_port_name("operand_1_vld");
-  block_port_proto1.set_ready_port_name("operand_1_rdy");
-  b.AddStreamingChannel(
-      "operand_1", ChannelOps::kReceiveOnly, FlowControl::kReadyValid,
-      p.GetBitsType(32),
-      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false)),
-      channel1_metadata);
-  ChannelMetadataProto channel2_metadata;
-  BlockPortMappingProto& block_port_proto2 =
-      *channel2_metadata.add_block_ports();
-  block_port_proto2.set_block_name("proc_adder");
-  block_port_proto2.set_data_port_name("result");
-  block_port_proto2.set_valid_port_name("result_vld");
-  block_port_proto2.set_ready_port_name("result_rdy");
-  b.AddStreamingChannel(
-      "result", ChannelOps::kSendOnly, FlowControl::kReadyValid,
-      p.GetBitsType(32),
-      ChannelConfig(FifoConfig(/*depth=*/42, /*bypass=*/true,
-                               /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false)),
-      channel2_metadata);
+
+  b.AddStreamingChannelInterface("operand_0", CHANNEL_DIRECTION_RECEIVE,
+                                 p.GetBitsType(32), FlowControl::kReadyValid,
+                                 "operand_0", "operand_0_rdy", "operand_0_vld",
+                                 FLOP_KIND_NONE);
+  b.AddStreamingChannelInterface("operand_1", CHANNEL_DIRECTION_RECEIVE,
+                                 p.GetBitsType(32), FlowControl::kReadyValid,
+                                 "operand_1", "operand_1_rdy", "operand_1_vld",
+                                 FLOP_KIND_NONE);
+  b.AddStreamingChannelInterface("result", CHANNEL_DIRECTION_SEND,
+                                 p.GetBitsType(32), FlowControl::kReadyValid,
+                                 "result", "result_rdy", "result_vld",
+                                 FLOP_KIND_NONE);
+
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   ModuleSimulator simulator = NewModuleSimulator(text, signature);

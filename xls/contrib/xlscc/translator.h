@@ -1697,7 +1697,7 @@ class Translator {
     InterfaceType interface_type;
     bool extra_return = false;
     bool is_input = false;
-    std::optional<xls::ChannelConfigProto::FlopKind> flop_kind = std::nullopt;
+    std::optional<xls::FlopKindProto> flop_kind = std::nullopt;
     ChannelBundle external_channels;
     xls::ChannelStrictness strictness =
         xls::ChannelStrictness::kProvenMutuallyExclusive;

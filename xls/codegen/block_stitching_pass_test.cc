@@ -280,51 +280,59 @@ TEST_F(BlockStitchingPassTest, StitchNetworkWithFifos) {
 
   // Verify channel port metadata.
   XLS_ASSERT_OK_AND_ASSIGN(Block * top_block, p->GetBlock("top_proc"));
-  EXPECT_THAT(top_block->GetChannelNames(), UnorderedElementsAre("ch0", "ch2"));
-  EXPECT_THAT(top_block->GetDataPortForChannel("ch0"),
+  EXPECT_THAT(top_block->GetChannelsWithMappedPorts(),
+              UnorderedElementsAre(Pair("ch0", xls::Direction::kReceive),
+                                   Pair("ch2", xls::Direction::kSend)));
+  EXPECT_THAT(top_block->GetDataPortForChannel("ch0", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("ch0_data"))));
-  EXPECT_THAT(top_block->GetValidPortForChannel("ch0"),
-              IsOkAndHolds(Optional(m::InputPort("ch0_valid"))));
-  EXPECT_THAT(top_block->GetReadyPortForChannel("ch0"),
-              IsOkAndHolds(Optional(m::OutputPort("ch0_ready"))));
+  EXPECT_THAT(
+      top_block->GetValidPortForChannel("ch0", xls::Direction::kReceive),
+      IsOkAndHolds(Optional(m::InputPort("ch0_valid"))));
+  EXPECT_THAT(
+      top_block->GetReadyPortForChannel("ch0", xls::Direction::kReceive),
+      IsOkAndHolds(Optional(m::OutputPort("ch0_ready"))));
 
-  EXPECT_THAT(top_block->GetDataPortForChannel("ch2"),
+  EXPECT_THAT(top_block->GetDataPortForChannel("ch2", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("ch2_data"))));
-  EXPECT_THAT(top_block->GetValidPortForChannel("ch2"),
+  EXPECT_THAT(top_block->GetValidPortForChannel("ch2", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("ch2_valid"))));
-  EXPECT_THAT(top_block->GetReadyPortForChannel("ch2"),
+  EXPECT_THAT(top_block->GetReadyPortForChannel("ch2", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::InputPort("ch2_ready"))));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block0, p->GetBlock("top_proc__1"));
-  EXPECT_THAT(block0->GetChannelNames(), UnorderedElementsAre("ch0", "ch1"));
-  EXPECT_THAT(block0->GetDataPortForChannel("ch0"),
+  EXPECT_THAT(block0->GetChannelsWithMappedPorts(),
+              UnorderedElementsAre(Pair("ch0", xls::Direction::kReceive),
+                                   Pair("ch1", xls::Direction::kSend)));
+  EXPECT_THAT(block0->GetDataPortForChannel("ch0", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("ch0_data"))));
-  EXPECT_THAT(block0->GetValidPortForChannel("ch0"),
+  EXPECT_THAT(block0->GetValidPortForChannel("ch0", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("ch0_valid"))));
-  EXPECT_THAT(block0->GetReadyPortForChannel("ch0"),
+  EXPECT_THAT(block0->GetReadyPortForChannel("ch0", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::OutputPort("ch0_ready"))));
 
-  EXPECT_THAT(block0->GetDataPortForChannel("ch1"),
+  EXPECT_THAT(block0->GetDataPortForChannel("ch1", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("ch1_data"))));
-  EXPECT_THAT(block0->GetValidPortForChannel("ch1"),
+  EXPECT_THAT(block0->GetValidPortForChannel("ch1", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("ch1_valid"))));
-  EXPECT_THAT(block0->GetReadyPortForChannel("ch1"),
+  EXPECT_THAT(block0->GetReadyPortForChannel("ch1", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::InputPort("ch1_ready"))));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block1, p->GetBlock(proc1->name()));
-  EXPECT_THAT(block1->GetChannelNames(), UnorderedElementsAre("ch1", "ch2"));
-  EXPECT_THAT(block1->GetDataPortForChannel("ch1"),
+  EXPECT_THAT(block1->GetChannelsWithMappedPorts(),
+              UnorderedElementsAre(Pair("ch1", xls::Direction::kReceive),
+                                   Pair("ch2", xls::Direction::kSend)));
+  EXPECT_THAT(block1->GetDataPortForChannel("ch1", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("ch1_data"))));
-  EXPECT_THAT(block1->GetValidPortForChannel("ch1"),
+  EXPECT_THAT(block1->GetValidPortForChannel("ch1", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("ch1_valid"))));
-  EXPECT_THAT(block1->GetReadyPortForChannel("ch1"),
+  EXPECT_THAT(block1->GetReadyPortForChannel("ch1", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::OutputPort("ch1_ready"))));
 
-  EXPECT_THAT(block1->GetDataPortForChannel("ch2"),
+  EXPECT_THAT(block1->GetDataPortForChannel("ch2", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("ch2_data"))));
-  EXPECT_THAT(block1->GetValidPortForChannel("ch2"),
+  EXPECT_THAT(block1->GetValidPortForChannel("ch2", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("ch2_valid"))));
-  EXPECT_THAT(block1->GetReadyPortForChannel("ch2"),
+  EXPECT_THAT(block1->GetReadyPortForChannel("ch2", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::InputPort("ch2_ready"))));
 }
 

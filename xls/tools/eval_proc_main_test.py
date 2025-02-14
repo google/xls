@@ -189,53 +189,31 @@ reset {
 }
 combinational {
 }
-data_channels {
-  name: "in"
-  kind: CHANNEL_KIND_STREAMING
-  supported_ops: CHANNEL_OPS_RECEIVE_ONLY
-  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+channel_interfaces {
+  channel_name: "in"
+  direction: CHANNEL_DIRECTION_RECEIVE
   type {
     type_enum: BITS
     bit_count: 32
   }
-  metadata {
-    block_ports {
-      block_name: "ObserverTest"
-      data_port_name: "in_data"
-      ready_port_name: "in_rdy"
-      valid_port_name: "in_vld"
-    }
-    block_ports {
-      block_name: "ObserverTest"
-      data_port_name: "in_data"
-      ready_port_name: "in_rdy"
-      valid_port_name: "in_vld"
-    }
-  }
+  kind: CHANNEL_KIND_STREAMING
+  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+  data_port_name: "in_data"
+  ready_port_name: "in_rdy"
+  valid_port_name: "in_vld"
 }
-data_channels {
-  name: "out"
-  kind: CHANNEL_KIND_STREAMING
-  supported_ops: CHANNEL_OPS_SEND_ONLY
-  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+channel_interfaces {
+  channel_name: "out"
+  direction: CHANNEL_DIRECTION_SEND
   type {
     type_enum: BITS
     bit_count: 32
   }
-  metadata {
-    block_ports {
-      block_name: "ObserverTest"
-      data_port_name: "out_data"
-      ready_port_name: "out_rdy"
-      valid_port_name: "out_vld"
-    }
-    block_ports {
-      block_name: "ObserverTest"
-      data_port_name: "out_data"
-      ready_port_name: "out_rdy"
-      valid_port_name: "out_vld"
-    }
-  }
+  kind: CHANNEL_KIND_STREAMING
+  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+  data_port_name: "out_data"
+  ready_port_name: "out_rdy"
+  valid_port_name: "out_vld"
 }
 """
 

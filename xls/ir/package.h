@@ -301,7 +301,6 @@ class Package {
       ChannelConfig channel_config = ChannelConfig(),
       FlowControl flow_control = FlowControl::kReadyValid,
       ChannelStrictness strictness = kDefaultChannelStrictness,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
 
   // Create a channel without special flop control. Channels are used with
@@ -315,7 +314,6 @@ class Package {
       std::optional<FifoConfig> fifo_config,
       FlowControl flow_control = FlowControl::kReadyValid,
       ChannelStrictness strictness = kDefaultChannelStrictness,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt) {
     return CreateStreamingChannel(
         /*name=*/name, /*supported_ops=*/supported_ops, /*type=*/type,
@@ -323,12 +321,11 @@ class Package {
         /*channel_config=*/
         ChannelConfig(fifo_config, std::nullopt, std::nullopt),
         /*flow_control=*/flow_control, /*strictness=*/strictness,
-        /*metadata=*/metadata, /*id=*/id);
+        /*id=*/id);
   }
 
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
 
   // Variants which add a channel on a proc for new style procs.
@@ -340,11 +337,9 @@ class Package {
       ChannelConfig channel_config = ChannelConfig(),
       FlowControl flow_control = FlowControl::kReadyValid,
       ChannelStrictness strictness = kDefaultChannelStrictness,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannelInProc(
       std::string_view name, ChannelOps supported_ops, Type* type, Proc* proc,
-      const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
@@ -410,11 +405,6 @@ class Package {
       return *this;
     }
 
-    CloneChannelOverrides& OverrideMetadata(ChannelMetadataProto metadata) {
-      metadata_ = std::move(metadata);
-      return *this;
-    }
-
     std::optional<ChannelOps> supported_ops() const { return supported_ops_; }
     std::optional<absl::Span<const Value>> initial_values() const {
       return initial_values_;
@@ -424,7 +414,6 @@ class Package {
     }
     std::optional<FlowControl> flow_control() const { return flow_control_; }
     std::optional<ChannelStrictness> strictness() const { return strictness_; }
-    std::optional<ChannelMetadataProto> metadata() const { return metadata_; }
 
    private:
     std::optional<ChannelOps> supported_ops_;
@@ -432,7 +421,6 @@ class Package {
     std::optional<ChannelConfig> channel_config_;
     std::optional<FlowControl> flow_control_;
     std::optional<ChannelStrictness> strictness_;
-    std::optional<ChannelMetadataProto> metadata_;
   };
 
   // Clone channel, potentially from another package, with new name. Channel id

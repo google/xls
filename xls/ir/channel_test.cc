@@ -95,7 +95,7 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kReceiveOnly, p.GetBitsType(32),
       /*initial_values=*/{}, ChannelConfig(), FlowControl::kReadyValid,
-      ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
+      ChannelStrictness::kProvenMutuallyExclusive);
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.kind(), ChannelKind::kStreaming);
@@ -110,8 +110,7 @@ TEST(ChannelTest, ConstructStreamingChannel) {
 
 TEST(ChannelTest, ConstructSingleValueChannel) {
   Package p("my_package");
-  SingleValueChannel ch("foo", 42, ChannelOps::kSendOnly, p.GetBitsType(123),
-                        ChannelMetadataProto());
+  SingleValueChannel ch("foo", 42, ChannelOps::kSendOnly, p.GetBitsType(123));
 
   EXPECT_EQ(ch.name(), "foo");
   EXPECT_EQ(ch.kind(), ChannelKind::kSingleValue);
@@ -122,8 +121,7 @@ TEST(ChannelTest, StreamingChannelWithInitialValues) {
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
       {Value(UBits(11, 32)), Value(UBits(22, 32))}, ChannelConfig(),
-      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive,
-      ChannelMetadataProto());
+      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive);
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);
@@ -142,8 +140,7 @@ TEST(ChannelTest, StreamingChannelWithFifoDepth) {
       ChannelConfig(FifoConfig(/*depth=*/123, /*bypass=*/true,
                                /*register_push_outputs=*/true,
                                /*register_pop_outputs=*/false)),
-      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive,
-      ChannelMetadataProto());
+      FlowControl::kNone, ChannelStrictness::kProvenMutuallyExclusive);
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);
@@ -162,7 +159,7 @@ TEST(ChannelTest, StreamingChannelWithFifoConfigSerializesFifoConfigCorrectly) {
     return StreamingChannel(
         "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
         /*channel_config=*/ChannelConfig(fifo_config), FlowControl::kNone,
-        ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
+        ChannelStrictness::kProvenMutuallyExclusive);
   };
   EXPECT_THAT(ch_with_fifo_config(FifoConfig(/*depth=*/123, /*bypass=*/false,
                                              /*register_push_outputs=*/false,
@@ -202,8 +199,7 @@ TEST(ChannelTest, StreamingToStringParses) {
   StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetTypeForValue(initial_values.front()), initial_values,
                       ChannelConfig(), FlowControl::kReadyValid,
-                      ChannelStrictness::kProvenMutuallyExclusive,
-                      ChannelMetadataProto());
+                      ChannelStrictness::kProvenMutuallyExclusive);
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
             "chan my_channel((bits[32], bits[23]), initial_values={(1234, 33), "
@@ -224,7 +220,7 @@ TEST(ChannelTest, StreamingToStringParses) {
 TEST(ChannelTest, SingleValueToStringParses) {
   Package p("my_package");
   SingleValueChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
-                        p.GetBitsType(32), ChannelMetadataProto());
+                        p.GetBitsType(32));
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
             "chan my_channel(bits[32], id=42, kind=single_value, "
@@ -238,46 +234,6 @@ TEST(ChannelTest, SingleValueToStringParses) {
                            Parser::ParseChannel(channel_str, &other_p));
   EXPECT_EQ(parsed_ch->name(), "my_channel");
   EXPECT_EQ(parsed_ch->id(), 42);
-}
-
-TEST(ChannelTest, SingleValueChannelSetAndGetMetadata) {
-  Package p("my_package");
-
-  SingleValueChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
-                        p.GetBitsType(32), ChannelMetadataProto());
-
-  EXPECT_THAT(ch.metadata_block_ports(), IsEmpty());
-  ch.AddBlockPortMapping("my_block", "my_block_data");
-  EXPECT_THAT(
-      ch.metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "my_block"),
-          Property(&BlockPortMappingProto::data_port_name, "my_block_data"),
-          Property(&BlockPortMappingProto::has_valid_port_name, false),
-          Property(&BlockPortMappingProto::has_ready_port_name, false))));
-}
-
-TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
-  Package p("my_package");
-
-  {
-    StreamingChannel ch(
-        "my_channel_2", 45, ChannelOps::kSendOnly, p.GetBitsType(32),
-        /*initial_values=*/{}, ChannelConfig(), FlowControl::kNone,
-        ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
-
-    EXPECT_THAT(ch.metadata_block_ports(), IsEmpty());
-    ch.AddBlockPortMapping("my_block", "my_block_data", "my_block_valid",
-                           "my_block_ready");
-    EXPECT_THAT(
-        ch.metadata_block_ports(),
-        ElementsAre(AllOf(
-            Property(&BlockPortMappingProto::block_name, "my_block"),
-            Property(&BlockPortMappingProto::data_port_name, "my_block_data"),
-            Property(&BlockPortMappingProto::ready_port_name, "my_block_ready"),
-            Property(&BlockPortMappingProto::valid_port_name,
-                     "my_block_valid"))));
-  }
 }
 
 TEST(ChannelTest, NameLessThan) {

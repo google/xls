@@ -345,15 +345,13 @@ TEST(IrMatchersTest, SendOps) {
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
           /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
-          42));
+          ChannelStrictness::kProvenMutuallyExclusive, 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
           /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
-          123));
+          ChannelStrictness::kProvenMutuallyExclusive, 123));
 
   ProcBuilder b("test_proc", &p);
   auto my_token = b.StateElement("my_token", Value::Token());
@@ -408,15 +406,13 @@ TEST(IrMatchersTest, ReceiveOps) {
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
           /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
-          42));
+          ChannelStrictness::kProvenMutuallyExclusive, 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
           /*fifo_config=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
-          123));
+          ChannelStrictness::kProvenMutuallyExclusive, 123));
 
   ProcBuilder b("test_proc", &p);
   auto my_token = b.StateElement("my_token", Value::Token());

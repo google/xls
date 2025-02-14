@@ -266,14 +266,12 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
               /*channel_config=*/ChannelConfig(),
               /*flow_control=*/FlowControl::kReadyValid,
               /*strictness=*/
-              channel_ref->strictness().value_or(kDefaultChannelStrictness),
-              ChannelMetadataProto()));
+              channel_ref->strictness().value_or(kDefaultChannelStrictness)));
     } else {
       XLS_RET_CHECK_EQ(channel_ref->kind(), ChannelKind::kSingleValue);
       elaboration.interface_channels_.push_back(
           std::make_unique<SingleValueChannel>(channel_ref->name(), channel_id,
-                                               ops, channel_ref->type(),
-                                               ChannelMetadataProto()));
+                                               ops, channel_ref->type()));
     }
     ++channel_id;
     elaboration.interface_channel_instances_.push_back(

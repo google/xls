@@ -46,7 +46,6 @@
 #include "xls/codegen/mark_channel_fifos_pass.h"
 #include "xls/codegen/proc_block_conversion.h"
 #include "xls/codegen/vast/vast.h"
-#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -335,19 +334,11 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       // Ports are either all external IOs or all from instantiations.
       CHECK(input.IsExternal() || input.IsInstantiation());
 
-      XLS_ASSIGN_OR_RETURN(std::string data_name, StreamingIOName(*input.port));
-      XLS_ASSIGN_OR_RETURN(std::string valid_name,
-                           StreamingIOName(input.port_valid));
-      XLS_ASSIGN_OR_RETURN(std::string ready_name,
-                           StreamingIOName(input.port_ready));
-      down_cast<StreamingChannel*>(input.channel)
-          ->AddBlockPortMapping(block->name(), data_name, valid_name,
-                                ready_name);
-
       if (input.IsExternal()) {
         XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            input.channel, PortDirection::kInput, input.port.value()->GetName(),
-            input.port_valid->GetName(), input.port_ready->GetName()));
+            input.channel, xls::Direction::kReceive,
+            input.port.value()->GetName(), input.port_valid->GetName(),
+            input.port_ready->GetName()));
       }
     }
   }
@@ -361,19 +352,9 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
       // Ports are either all external IOs or all from instantiations.
       CHECK(output.IsExternal() || output.IsInstantiation());
 
-      XLS_ASSIGN_OR_RETURN(std::string data_name,
-                           StreamingIOName(*output.port));
-      XLS_ASSIGN_OR_RETURN(std::string valid_name,
-                           StreamingIOName(output.port_valid));
-      XLS_ASSIGN_OR_RETURN(std::string ready_name,
-                           StreamingIOName(output.port_ready));
-      down_cast<StreamingChannel*>(output.channel)
-          ->AddBlockPortMapping(block->name(), data_name, valid_name,
-                                ready_name);
-
       if (output.IsExternal()) {
         XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            output.channel, PortDirection::kOutput,
+            output.channel, xls::Direction::kSend,
             output.port.value()->GetName(), output.port_valid->GetName(),
             output.port_ready->GetName()));
       }
@@ -384,11 +365,8 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
     CHECK_NE(input.port, nullptr);
     CHECK_NE(input.channel, nullptr);
 
-    down_cast<SingleValueChannel*>(input.channel)
-        ->AddBlockPortMapping(block->name(), input.port->name());
-
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        input.channel, PortDirection::kInput, input.port->GetName(),
+        input.channel, xls::Direction::kReceive, input.port->GetName(),
         /*valid_port=*/std::nullopt,
         /*ready_port=*/std::nullopt));
   }
@@ -397,11 +375,8 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
     CHECK_NE(output.port, nullptr);
     CHECK_NE(output.channel, nullptr);
 
-    down_cast<SingleValueChannel*>(output.channel)
-        ->AddBlockPortMapping(block->name(), output.port->name());
-
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        output.channel, PortDirection::kOutput, output.port->GetName(),
+        output.channel, xls::Direction::kSend, output.port->GetName(),
         /*valid_port=*/std::nullopt,
         /*ready_port=*/std::nullopt));
   }

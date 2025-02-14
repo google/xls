@@ -58,7 +58,7 @@ namespace xls {
 std::string ChannelPortMetadata::ToString() const {
   std::string result = absl::StrFormat(
       "channel_ports(name=%s, type=%s, direction=%s, kind=%s", channel_name,
-      type->ToString(), direction == PortDirection::kInput ? "in" : "out",
+      type->ToString(), direction == Direction::kSend ? "send" : "receive",
       ChannelKindToString(channel_kind));
   if (flop_kind != FlopKind::kNone) {
     absl::StrAppendFormat(&result, ", flop=%s", FlopKindToString(flop_kind));
@@ -259,9 +259,11 @@ std::string Block::DumpIr() const {
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
                                     absl::StrJoin(port_strings, ", "));
 
-  for (const std::string& channel_name : GetChannelNames()) {
-    absl::StrAppendFormat(&res, "  #![%s]\n",
-                          channel_port_metadata_.at(channel_name).ToString());
+  for (const std::pair<std::string, Direction>& channel_direction :
+       GetChannelsWithMappedPorts()) {
+    absl::StrAppendFormat(
+        &res, "  #![%s]\n",
+        channel_port_metadata_.at(channel_direction).ToString());
   }
   for (Instantiation* instantiation : GetInstantiations()) {
     absl::StrAppendFormat(&res, "  %s\n", instantiation->ToString());
@@ -927,7 +929,7 @@ absl::StatusOr<Block*> Block::Clone(
 
 absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
   // Verify that the specified ports exist.
-  if (metadata.direction == PortDirection::kInput) {
+  if (metadata.direction == Direction::kReceive) {
     if (metadata.data_port.has_value()) {
       XLS_RET_CHECK(HasInputPort(metadata.data_port.value()))
           << absl::StrFormat(
@@ -950,7 +952,7 @@ absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
                  metadata.ready_port.value(), name(), metadata.channel_name);
     }
   } else {
-    CHECK_EQ(metadata.direction, PortDirection::kOutput);
+    CHECK_EQ(metadata.direction, Direction::kSend);
     if (metadata.data_port.has_value()) {
       XLS_RET_CHECK(HasOutputPort(metadata.data_port.value()))
           << absl::StrFormat(
@@ -975,20 +977,21 @@ absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
   }
   VLOG(3) << "AddChannelPortMetadata for block `" << name()
           << "`: " << metadata.ToString();
-  channel_port_metadata_[metadata.channel_name] = std::move(metadata);
+  channel_port_metadata_[{metadata.channel_name, metadata.direction}] =
+      std::move(metadata);
   return absl::OkStatus();
 }
 
 absl::Status Block::AddChannelPortMetadata(
-    Channel* channel, PortDirection direction,
-    std::optional<std::string> data_port, std::optional<std::string> valid_port,
+    Channel* channel, Direction direction, std::optional<std::string> data_port,
+    std::optional<std::string> valid_port,
     std::optional<std::string> ready_port) {
   FlopKind flop_kind;
   if (StreamingChannel* streaming_channel =
           dynamic_cast<StreamingChannel*>(channel);
       streaming_channel != nullptr) {
     flop_kind =
-        direction == PortDirection::kInput
+        direction == Direction::kReceive
             ? streaming_channel->channel_config().input_flop_kind().value_or(
                   FlopKind::kNone)
             : streaming_channel->channel_config().output_flop_kind().value_or(
@@ -1008,19 +1011,22 @@ absl::Status Block::AddChannelPortMetadata(
 }
 
 absl::StatusOr<ChannelPortMetadata> Block::GetChannelPortMetadata(
-    std::string_view channel_name) const {
+    std::string_view channel_name, Direction direction) const {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
-                       GetChannelPortMetadataInternal(channel_name));
+                       GetChannelPortMetadataInternal(channel_name, direction));
   return *metadata;
 }
 
 absl::StatusOr<const ChannelPortMetadata*>
-Block::GetChannelPortMetadataInternal(std::string_view channel_name) const {
-  auto it = channel_port_metadata_.find(channel_name);
+Block::GetChannelPortMetadataInternal(std::string_view channel_name,
+                                      Direction direction) const {
+  auto it = channel_port_metadata_.find(
+      std::pair<std::string, Direction>(std::string{channel_name}, direction));
   if (it == channel_port_metadata_.end()) {
-    return absl::NotFoundError(
-        absl::StrFormat("Block `%s` has no port metadata for channel `%s`",
-                        name(), channel_name));
+    return absl::NotFoundError(absl::StrFormat(
+        "Block `%s` has no port metadata for channel `%s` in the %s direction",
+        name(), channel_name,
+        direction == Direction::kSend ? "send" : "receive"));
   }
   return &it->second;
 }
@@ -1042,9 +1048,9 @@ absl::StatusOr<PortNode*> Block::GetPortNode(std::string_view name) const {
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetReadyPortForChannel(
-    std::string_view channel_name) {
+    std::string_view channel_name, Direction direction) {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
-                       GetChannelPortMetadataInternal(channel_name));
+                       GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->ready_port.has_value()) {
     return std::nullopt;
   }
@@ -1052,9 +1058,9 @@ absl::StatusOr<std::optional<PortNode*>> Block::GetReadyPortForChannel(
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetValidPortForChannel(
-    std::string_view channel_name) {
+    std::string_view channel_name, Direction direction) {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
-                       GetChannelPortMetadataInternal(channel_name));
+                       GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->valid_port.has_value()) {
     return std::nullopt;
   }
@@ -1062,22 +1068,23 @@ absl::StatusOr<std::optional<PortNode*>> Block::GetValidPortForChannel(
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetDataPortForChannel(
-    std::string_view channel_name) {
+    std::string_view channel_name, Direction direction) {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
-                       GetChannelPortMetadataInternal(channel_name));
+                       GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->data_port.has_value()) {
     return std::nullopt;
   }
   return GetPortNode(*metadata->data_port);
 }
 
-std::vector<std::string> Block::GetChannelNames() const {
-  std::vector<std::string> channel_names;
-  for (const auto& [name, _] : channel_port_metadata_) {
-    channel_names.push_back(name);
+std::vector<std::pair<std::string, Direction>>
+Block::GetChannelsWithMappedPorts() const {
+  std::vector<std::pair<std::string, Direction>> result;
+  for (const auto& [key, _] : channel_port_metadata_) {
+    result.push_back(key);
   }
-  std::sort(channel_names.begin(), channel_names.end());
-  return channel_names;
+  std::sort(result.begin(), result.end());
+  return result;
 }
 
 }  // namespace xls

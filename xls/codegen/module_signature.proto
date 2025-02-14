@@ -28,17 +28,16 @@ enum PortDirectionProto {
   PORT_DIRECTION_OUTPUT = 2;
 }
 
+enum ChannelDirectionProto {
+  CHANNEL_DIRECTION_INVALID = 0;
+  CHANNEL_DIRECTION_RECEIVE = 1;
+  CHANNEL_DIRECTION_SEND = 2;
+}
+
 enum ChannelKindProto {
   CHANNEL_KIND_INVALID = 0;
   CHANNEL_KIND_STREAMING = 1;
   CHANNEL_KIND_SINGLE_VALUE = 2;
-}
-
-enum ChannelOpsProto {
-  CHANNEL_OPS_INVALID = 0;
-  CHANNEL_OPS_SEND_ONLY = 1;
-  CHANNEL_OPS_RECEIVE_ONLY = 2;
-  CHANNEL_OPS_SEND_RECEIVE = 3;
 }
 
 enum ChannelFlowControlProto {
@@ -46,6 +45,7 @@ enum ChannelFlowControlProto {
   CHANNEL_FLOW_CONTROL_READY_VALID = 1;
 }
 
+// Data structure describing a port on a module.
 message PortProto {
   optional PortDirectionProto direction = 1;
   optional string name = 2;
@@ -59,16 +59,39 @@ message PortProto {
   optional TypeProto type = 4;
 }
 
+// Data structure describing the ports and metadata of a channel which exists on
+// the interface of the module. This binds particular ports (data, ready, valid)
+// back to the metadata about the channel for which the port is created. This
+// proto is only used for channels which appear on the interface of
+// blocks/modules. Loopback channels which do not appear on the interface of
+// blocks/modules do not have associated ChannelInterfaceProtos.
+message ChannelInterfaceProto {
+  optional string channel_name = 1;
+  optional ChannelDirectionProto direction = 2;
+  optional TypeProto type = 3;
+  optional ChannelKindProto kind = 4;
+  optional ChannelFlowControlProto flow_control = 5;
+  // TODO(meheff): Consider encapsulating these port names into a oneof for each
+  // of the channel kinds.
+  optional string data_port_name = 6;
+  optional string ready_port_name = 7;
+  optional string valid_port_name = 8;
+  optional FlopKindProto flop_kind = 9;
+}
+
+// Data structure describing a channel which is contained within a module. For
+// example, this proto may describe a channel represented by a FIFO
+// instantiation within the module.
 message ChannelProto {
   optional string name = 1;
   optional ChannelKindProto kind = 2;
-  optional ChannelOpsProto supported_ops = 3;
   optional ChannelFlowControlProto flow_control = 4;
   optional TypeProto type = 9;
-  optional ChannelConfigProto channel_config = 11;
-  optional ChannelMetadataProto metadata = 10;
+  optional FifoConfigProto fifo_config = 8;
 
-  reserved 8;  // former fifo_config
+  reserved 3;   // former supported_ops
+  reserved 10;  // former metadata
+  reserved 11;  // former channel_config
 }
 
 // A RW RAM port has a request side with a single address field, as well as
@@ -157,15 +180,6 @@ message FixedLatencyInterface {
   optional int64 latency = 1;
 }
 
-// Module uses ready/valid flow control on the input and output.
-message ReadyValidInterface {
-  // Port names for input and output ready/valid signaling.
-  optional string input_ready = 1;
-  optional string input_valid = 2;
-  optional string output_ready = 3;
-  optional string output_valid = 4;
-}
-
 // Describes a "valid" signal control scheme of pipeline registers. A single bit
 // "valid" input is added to the module. This signal should be asserted when the
 // data input ports(s) to the module are driven. The valid signal is passed
@@ -227,6 +241,8 @@ message ResetProto {
 }
 
 message BlockInstantiationProto {
+  optional string block_name = 2;
+  optional string instance_name = 3;
   ModuleSignatureProto block_signature = 1;
 }
 
@@ -261,8 +277,11 @@ message ModuleSignatureProto {
   // clk, ready/valid, etc.
   repeated PortProto data_ports = 2;
 
-  // The channels of the module.  Groups data ports together
-  repeated ChannelProto data_channels = 12;
+  // The channels defined within the module.
+  repeated ChannelProto channels = 12;
+
+  // Channels on the interface of the module.
+  repeated ChannelInterfaceProto channel_interfaces = 15;
 
   // The RAM ports of the module. These start off as channels that get rewritten
   // in a codegen pass. As they no longer resemble ordinary channels after the

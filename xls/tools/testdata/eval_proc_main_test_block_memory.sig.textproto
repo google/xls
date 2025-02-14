@@ -119,33 +119,31 @@ pipeline {
   latency: 3
   initiation_interval: 1
 }
-data_channels {
-  name: "in"
-  kind: CHANNEL_KIND_STREAMING
-  supported_ops: CHANNEL_OPS_RECEIVE_ONLY
-  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
-  metadata {
-    block_ports {
-      block_name: "Test_proc"
-      data_port_name: "in_data"
-      ready_port_name: "in_rdy"
-      valid_port_name: "in_vld"
-    }
+channel_interfaces {
+  channel_name: "in"
+  direction: DIRECTION_INPUT
+  type {
+    type_enum: BITS
+    bit_count: 32
   }
+  kind: CHANNEL_KIND_STREAMING
+  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+  data_port_name: "in_data"
+  ready_port_name: "in_rdy"
+  valid_port_name: "in_vld"
 }
-data_channels {
-  name: "out"
-  kind: CHANNEL_KIND_STREAMING
-  supported_ops: CHANNEL_OPS_SEND_ONLY
-  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
-  metadata {
-    block_ports {
-      block_name: "Test_proc"
-      data_port_name: "out_data"
-      ready_port_name: "out_rdy"
-      valid_port_name: "out_vld"
-    }
+channel_interfaces {
+  channel_name: "out"
+  direction: DIRECTION_OUTPUT
+  type {
+    type_enum: BITS
+    bit_count: 32
   }
+  kind: CHANNEL_KIND_STREAMING
+  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+  data_port_name: "out_data"
+  ready_port_name: "out_rdy"
+  valid_port_name: "out_vld"
 }
 rams {
   name: "mem"

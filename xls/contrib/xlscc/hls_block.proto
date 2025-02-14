@@ -31,7 +31,7 @@ message HLSChannel {
   optional ChannelType type = 3;
   optional int32 width_in_bits = 4;
   optional int32 depth = 5;  // For memories
-  optional xls.ChannelConfigProto.FlopKind flop_kind = 6;
+  optional xls.FlopKindProto flop_kind = 6;
 }
 
 message HLSBlock {

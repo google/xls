@@ -1645,101 +1645,6 @@ TEST(IrParserErrorTest, ParseStreamingChannelWithExtraFifoMetadata) {
             false);
 }
 
-TEST(IrParserErrorTest, ParseStreamingValueChannelWithBlockPortMapping) {
-  // For testing round-trip parsing.
-  std::string ch_ir_text;
-
-  {
-    Package p("my_package");
-    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
-                                               R"(chan meh(bits[32][4], id=0,
-                         kind=streaming, flow_control=ready_valid,
-                         ops=send_only,
-                         metadata="""block_ports { data_port_name : "data",
-                                                   block_name : "blk",
-                                                   ready_port_name : "rdy",
-                                                   valid_port_name: "vld"
-                                                 }"""))",
-                                               &p));
-    EXPECT_EQ(ch->name(), "meh");
-    EXPECT_EQ(ch->id(), 0);
-    EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
-
-    EXPECT_THAT(ch->metadata().block_ports(),
-                ElementsAre(AllOf(
-                    Property(&BlockPortMappingProto::block_name, "blk"),
-                    Property(&BlockPortMappingProto::data_port_name, "data"),
-                    Property(&BlockPortMappingProto::valid_port_name, "vld"),
-                    Property(&BlockPortMappingProto::ready_port_name, "rdy"))));
-
-    ch_ir_text = ch->ToString();
-  }
-
-  {
-    Package p("my_package_2");
-    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
-                             Parser::ParseChannel(ch_ir_text, &p));
-    EXPECT_EQ(ch->name(), "meh");
-
-    EXPECT_EQ(ch->id(), 0);
-
-    EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
-
-    EXPECT_THAT(ch->metadata().block_ports(),
-                ElementsAre(AllOf(
-                    Property(&BlockPortMappingProto::block_name, "blk"),
-                    Property(&BlockPortMappingProto::data_port_name, "data"),
-                    Property(&BlockPortMappingProto::valid_port_name, "vld"),
-                    Property(&BlockPortMappingProto::ready_port_name, "rdy"))));
-  }
-}
-
-TEST(IrParserErrorTest, ParseSingleValueChannelWithBlockPortMapping) {
-  // For testing round-trip parsing.
-  std::string ch_ir_text;
-
-  {
-    Package p("my_package");
-    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
-                                               R"(chan meh(bits[32][4], id=0,
-                         kind=single_value, ops=receive_only,
-                         metadata="""block_ports { data_port_name : "data",
-                                                   block_name : "blk"}"""))",
-                                               &p));
-    EXPECT_EQ(ch->name(), "meh");
-    EXPECT_EQ(ch->id(), 0);
-    EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
-
-    EXPECT_THAT(
-        ch->metadata().block_ports(),
-        ElementsAre(AllOf(
-            Property(&BlockPortMappingProto::block_name, "blk"),
-            Property(&BlockPortMappingProto::data_port_name, "data"),
-            Property(&BlockPortMappingProto::has_valid_port_name, false),
-            Property(&BlockPortMappingProto::has_ready_port_name, false))));
-
-    ch_ir_text = ch->ToString();
-  }
-
-  {
-    Package p("my_package_2");
-    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
-                             Parser::ParseChannel(ch_ir_text, &p));
-    EXPECT_EQ(ch->name(), "meh");
-
-    EXPECT_EQ(ch->id(), 0);
-    EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
-
-    EXPECT_THAT(
-        ch->metadata().block_ports(),
-        ElementsAre(AllOf(
-            Property(&BlockPortMappingProto::block_name, "blk"),
-            Property(&BlockPortMappingProto::data_port_name, "data"),
-            Property(&BlockPortMappingProto::has_valid_port_name, false),
-            Property(&BlockPortMappingProto::has_ready_port_name, false))));
-  }
-}
-
 TEST(IrParserErrorTest, ChannelParsingErrors) {
   Package p("my_package");
   EXPECT_THAT(Parser::ParseChannel(
@@ -1797,15 +1702,6 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected token of type \"literal\"")));
-
-  EXPECT_THAT(
-      Parser::ParseChannel(
-          R"(chan meh(bits[32][4], id=7, kind=streaming,
-                     ops=receive_only))",
-          &p)
-          .status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Mandatory keyword argument `metadata` not found")));
 
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(id=44, kind=streaming, ops=receive_only,

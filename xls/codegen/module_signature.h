@@ -35,7 +35,6 @@
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
-#include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -95,36 +94,35 @@ class ModuleSignatureBuilder {
   // Removes data input/output from the interface by name.
   absl::Status RemoveData(std::string_view name);
 
-  // Add a single value channel to the interface.
-  ModuleSignatureBuilder& AddSingleValueChannel(
-      std::string_view name, ChannelOps supported_ops,
-      const ChannelMetadataProto& metadata);
-
-  // Add a streaming channel to the interface.
+  // Add a channel used internally within the module.
+  ModuleSignatureBuilder& AddSingleValueChannel(std::string_view name,
+                                                Type* type);
   ModuleSignatureBuilder& AddStreamingChannel(
-      std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-      Type* type, ChannelConfig channel_config,
-      const ChannelMetadataProto& metadata);
+      std::string_view name, Type* type, FlowControl flow_control,
+      std::optional<FifoConfig> fifo_config = std::nullopt);
 
-  struct NameAndType {
-    std::string_view name;
-    Type* type;
-  };
-  struct FifoPorts {
-    std::string_view push_ready_name;
-    NameAndType push_data;
-    std::string_view push_valid_name;
-    std::string_view pop_ready_name;
-    NameAndType pop_data;
-    std::string_view pop_valid_name;
-  };
+  // Add a channel interface to the module.
+  ModuleSignatureBuilder& AddSingleValueChannelInterface(
+      std::string_view name, ChannelDirectionProto direction, Type* type,
+      std::string_view data_port_name, FlopKindProto flop_kind);
+  ModuleSignatureBuilder& AddStreamingChannelInterface(
+      std::string_view name, ChannelDirectionProto direction, Type* type,
+      FlowControl flow_control, std::optional<std::string> data_port_name,
+      std::optional<std::string> ready_port_name,
+      std::optional<std::string> valid_port_name, FlopKindProto flop_kind);
 
   ModuleSignatureBuilder& AddFifoInstantiation(
       Package* package, std::string_view instance_name,
       std::optional<std::string_view> channel_name, const Type* data_type,
       FifoConfig fifo_config);
+  ModuleSignatureBuilder& AddBlockInstantiation(Package* package,
+                                                std::string_view block_name,
+                                                std::string_view instance_name);
 
-  // Remove a streaming channel from the interface.
+  // Remove a channel interface from the module
+  absl::Status RemoveChannelInterface(std::string_view name);
+
+  // Remove a channel.
   absl::Status RemoveChannel(std::string_view name);
 
   // Struct to emulate named arguments for AddRam1RW as there are a lot of
@@ -207,17 +205,13 @@ class ModuleSignature {
   absl::Span<const PortProto> data_inputs() const { return data_inputs_; }
   absl::Span<const PortProto> data_outputs() const { return data_outputs_; }
 
-  // Returns the single value channels of the module.
-  absl::Span<const ChannelProto> single_value_channels() const {
-    return single_value_channels_;
-  }
-
-  // Returns the streaming channels of the module.
-  absl::Span<const ChannelProto> streaming_channels() const {
-    return streaming_channels_;
-  }
-
   absl::Span<const RamProto> rams() { return rams_; }
+
+  // Returns the channels defined within the module.
+  std::vector<ChannelProto> GetChannels();
+
+  // Returns the channels interfaces of the module.
+  std::vector<ChannelInterfaceProto> GetChannelInterfaces();
 
   absl::Span<const InstantiationProto> instantiations() {
     return instantiations_;
@@ -245,26 +239,31 @@ class ModuleSignature {
   absl::StatusOr<absl::flat_hash_map<std::string, Value>> ToKwargs(
       absl::Span<const Value> inputs) const;
 
-  absl::StatusOr<PortProto> GetInputPortProtoByName(
-      std::string_view name) const;
-  absl::StatusOr<PortProto> GetOutputPortProtoByName(
-      std::string_view name) const;
-  absl::StatusOr<ChannelProto> GetInputChannelProtoByName(
-      std::string_view name) const;
-  absl::StatusOr<ChannelProto> GetOutputChannelProtoByName(
-      std::string_view name) const;
-  absl::Span<const ChannelProto> GetInputChannels() const {
-    return input_channels_;
-  }
-  absl::Span<const ChannelProto> GetOutputChannels() const {
-    return output_channels_;
-  }
-  absl::StatusOr<std::string> GetChannelNameWith(
+  absl::StatusOr<PortProto> GetInputPortByName(std::string_view name) const;
+  absl::StatusOr<PortProto> GetOutputPortByName(std::string_view name) const;
+
+  absl::StatusOr<ChannelInterfaceProto> GetChannelInterfaceByName(
+      std::string_view channel_name) const;
+
+  std::vector<ChannelInterfaceProto> GetInputChannelInterfaces() const;
+  std::vector<ChannelInterfaceProto> GetOutputChannelInterfaces() const;
+
+  absl::StatusOr<std::string> GetChannelInterfaceNameForPort(
       std::string_view port_name) const;
+
+  absl::StatusOr<ChannelProto> GetChannel(std::string_view channel_name) const;
 
   // Replace the signature with block metrics created during codegen.
   // TODO(tedhong): 2022-01-28 Support incremental update of metrics.
   absl::Status ReplaceBlockMetrics(BlockMetricsProto block_metrics);
+
+  absl::Span<const InstantiationProto* const> GetInstantiations() const {
+    return proto_.instantiations();
+  }
+  absl::StatusOr<FifoInstantiationProto> GetFifoInstantiation(
+      std::string_view instance_name);
+  absl::StatusOr<BlockInstantiationProto> GetBlockInstantiation(
+      std::string_view instance_name);
 
  private:
   ModuleSignatureProto proto_;
@@ -274,29 +273,11 @@ class ModuleSignature {
   std::vector<PortProto> data_inputs_;
   std::vector<PortProto> data_outputs_;
 
-  // These channels also exist in the proto, but are duplicated here to enable
-  // the convenience methods single_value_channels() and streaming_channels()
-  std::vector<ChannelProto> single_value_channels_;
-  std::vector<ChannelProto> streaming_channels_;
-  std::vector<ChannelProto> input_channels_;
-  std::vector<ChannelProto> output_channels_;
-
   // Like the channels above, duplicate rams to enable a convenience method.
   std::vector<RamProto> rams_;
 
   // Duplicate instantiations to enable a convenience method.
   std::vector<InstantiationProto> instantiations_;
-
-  // Map from port name to channel name.
-  absl::flat_hash_map<std::string, std::string> port_name_to_channel_name;
-
-  // TODO(vmirian): 10-28-2022 Support I/O channels and I/O ports.
-  // Map from input/output port name to index in the input/output port vector.
-  absl::flat_hash_map<std::string, int64_t> input_port_map_;
-  absl::flat_hash_map<std::string, int64_t> output_port_map_;
-  // Map from channel name to index in the channel input/output vector.
-  absl::flat_hash_map<std::string, int64_t> input_channel_map_;
-  absl::flat_hash_map<std::string, int64_t> output_channel_map_;
 };
 
 // Abstraction gathering the Verilog text and module signature produced by the

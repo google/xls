@@ -26,7 +26,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/algorithm/container.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -121,8 +120,7 @@ void AbslStringify(Sink& sink, FlopKind value) {
   }
 }
 
-absl::StatusOr<std::optional<FlopKind>> FlopKindFromProto(
-    ChannelConfigProto::FlopKind f);
+absl::StatusOr<std::optional<FlopKind>> FlopKindFromProto(FlopKindProto f);
 
 inline std::string FlopKindToString(FlopKind kind) {
   return absl::StrCat(kind);
@@ -209,9 +207,6 @@ class Channel {
   Type* type() const { return type_; }
   absl::Span<const Value> initial_values() const { return initial_values_; }
 
-  // Returns the metadata associated with this channel.
-  const ChannelMetadataProto& metadata() const { return metadata_; }
-
   // Returns whether this channel can be used to send (receive) data.
   bool CanSend() const {
     return supported_ops() == ChannelOps::kSendOnly ||
@@ -220,20 +215,6 @@ class Channel {
   bool CanReceive() const {
     return supported_ops() == ChannelOps::kReceiveOnly ||
            supported_ops() == ChannelOps::kSendReceive;
-  }
-
-  absl::Span<const BlockPortMappingProto* const> metadata_block_ports() const {
-    return absl::MakeSpan(metadata_.block_ports());
-  }
-
-  std::optional<const BlockPortMappingProto*> GetMetadataBlockPort(
-      std::string_view block_name) const {
-    for (const BlockPortMappingProto& block_port : metadata_.block_ports()) {
-      if (block_port.block_name() == block_name) {
-        return &block_port;
-      }
-    }
-    return std::nullopt;
   }
 
   ChannelKind kind() const { return kind_; }
@@ -265,31 +246,15 @@ class Channel {
     }
   };
 
-  // Removes the block port mapping for the given block from metadata.
-  absl::Status RemoveBlockPortMapping(std::string_view block_name) {
-    std::vector<BlockPortMappingProto> updated_block_ports;
-    updated_block_ports.reserve(metadata_.block_ports().size() - 1);
-    absl::c_remove_copy_if(
-        metadata_.block_ports(), std::back_inserter(updated_block_ports),
-        [block_name](const BlockPortMappingProto& block_port) {
-          return block_port.block_name() == block_name;
-        });
-    metadata_.mutable_block_ports()->Assign(updated_block_ports.begin(),
-                                            updated_block_ports.end());
-    return absl::OkStatus();
-  }
-
  protected:
   Channel(std::string_view name, int64_t id, ChannelOps supported_ops,
-          ChannelKind kind, Type* type, absl::Span<const Value> initial_values,
-          const ChannelMetadataProto& metadata)
+          ChannelKind kind, Type* type, absl::Span<const Value> initial_values)
       : name_(name),
         id_(id),
         supported_ops_(supported_ops),
         kind_(kind),
         type_(type),
-        initial_values_(initial_values.begin(), initial_values.end()),
-        metadata_(metadata) {}
+        initial_values_(initial_values.begin(), initial_values.end()) {}
 
   std::string name_;
   int64_t id_;
@@ -297,7 +262,6 @@ class Channel {
   ChannelKind kind_;
   Type* type_;
   std::vector<Value> initial_values_;
-  ChannelMetadataProto metadata_;
 };
 
 // The flow control mechanism to use for streaming channels. This affects how
@@ -380,24 +344,12 @@ class StreamingChannel final : public Channel {
   StreamingChannel(std::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
                    ChannelConfig channel_config, FlowControl flow_control,
-                   ChannelStrictness strictness,
-                   const ChannelMetadataProto& metadata)
+                   ChannelStrictness strictness)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
-                initial_values, metadata),
+                initial_values),
         channel_config_(std::move(channel_config)),
         flow_control_(flow_control),
         strictness_(strictness) {}
-
-  void AddBlockPortMapping(std::string_view block_name,
-                           std::string_view data_port_name,
-                           std::string_view valid_port_name,
-                           std::string_view ready_port_name) {
-    BlockPortMappingProto& block_port = *metadata_.mutable_block_ports()->Add();
-    block_port.set_block_name(block_name);
-    block_port.set_data_port_name(data_port_name);
-    block_port.set_valid_port_name(valid_port_name);
-    block_port.set_ready_port_name(ready_port_name);
-  }
 
   std::optional<int64_t> GetFifoDepth() const {
     if (channel_config_.fifo_config()) {
@@ -427,17 +379,9 @@ class StreamingChannel final : public Channel {
 class SingleValueChannel final : public Channel {
  public:
   SingleValueChannel(std::string_view name, int64_t id,
-                     ChannelOps supported_ops, Type* type,
-                     const ChannelMetadataProto& metadata)
+                     ChannelOps supported_ops, Type* type)
       : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,
-                /*initial_values=*/{}, metadata) {}
-
-  void AddBlockPortMapping(std::string_view block_name,
-                           std::string_view data_port_name) {
-    BlockPortMappingProto& block_port = *metadata_.mutable_block_ports()->Add();
-    block_port.set_block_name(block_name);
-    block_port.set_data_port_name(data_port_name);
-  }
+                /*initial_values=*/{}) {}
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Channel* channel) {
@@ -446,6 +390,8 @@ inline std::ostream& operator<<(std::ostream& os, const Channel* channel) {
   return os;
 }
 
+// TODO(meheff): Rename to ChannelDirection to avoid conflict with
+// verilog::Direction.
 enum class Direction : int8_t { kSend, kReceive };
 
 std::string DirectionToString(Direction direction);

@@ -34,6 +34,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
@@ -54,9 +55,11 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/verifier.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
@@ -194,6 +197,20 @@ struct RamChannelRewriteTestParam {
   absl::Span<const std::string_view> ram_contents;
 };
 
+template <typename Sink>
+void AbslStringify(Sink& sink, RamChannelRewriteTestParam param) {
+  absl::Format(&sink, "RamChannelRewriteTestParam {\n");
+  absl::Format(&sink, "  test_name = %s\n", param.test_name);
+  absl::Format(&sink, "  pipeline_stages = %d\n", param.pipeline_stages);
+  absl::Format(&sink, "  ram_config_strings = {%s}\n",
+               absl::StrJoin(param.ram_config_strings, ", "));
+  absl::Format(&sink, "  expect_read_mask = %d\n", param.expect_read_mask);
+  absl::Format(&sink, "  expect_write_mask = %d\n", param.expect_write_mask);
+  absl::Format(&sink, "  ram_contents = {%s}\n",
+               absl::StrJoin(param.ram_contents, ", "));
+  absl::Format(&sink, "}");
+}
+
 class RamRewritePassTest
     : public testing::TestWithParam<
           std::tuple<RamChannelRewriteTestParam, CodegenPass*>> {
@@ -315,7 +332,8 @@ TEST_P(RamRewritePassTest, PortsUpdated) {
       .codegen_options = codegen_options,
   };
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(param.ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package,
+                           IrTestBase::ParsePackage(param.ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
       ScheduleAndBlockConvert(package.get(), codegen_options));
@@ -446,7 +464,8 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
       .codegen_options = codegen_options,
   };
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(param.ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package,
+                           IrTestBase::ParsePackage(param.ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
       ScheduleAndBlockConvert(package.get(), codegen_options));
@@ -611,8 +630,8 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
                       absl::StrCat(ram1r1w_config->ram_name(), "_rd_data"))));
     }
     for (auto& channel :
-         unit.metadata.at(unit.top_block).signature->streaming_channels()) {
-      EXPECT_THAT(channel_names, Not(Contains(Eq(channel.name()))));
+         unit.metadata.at(unit.top_block).signature->GetChannelInterfaces()) {
+      EXPECT_THAT(channel_names, Not(Contains(Eq(channel.channel_name()))));
     }
     for (auto& channel_name : channel_names) {
       EXPECT_THAT(unit.metadata.at(unit.top_block).signature->data_inputs(),
@@ -636,7 +655,8 @@ TEST_P(RamRewritePassTest, WriteCompletionRemoved) {
       .codegen_options = codegen_options,
   };
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(param.ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package,
+                           IrTestBase::ParsePackage(param.ir_text));
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
       ScheduleAndBlockConvert(package.get(), codegen_options));
@@ -1204,7 +1224,7 @@ proc my_proc(__state: bits[32], init={0}) {
 // Tests for checking invalid inputs on 1rw RAMs.
 TEST(RamRewritePassInvalidInputsTest, TestDefaultsWork1RW) {
   std::string ir_text = MakeTestProc1RW({});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"));
 }
 
@@ -1213,7 +1233,7 @@ TEST(RamRewritePassInvalidInputsTest, TestWriteMaskWorks1RW) {
       {.req_type = "(bits[32], bits[32], bits[4], (), bits[1], bits[1])",
        .send_value = "tuple(__state, __state, all_mask, empty_tuple, true_lit, "
                      "false_lit)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"));
 }
 
@@ -1222,7 +1242,7 @@ TEST(RamRewritePassInvalidInputsTest, TestReadMaskWorks1RW) {
       {.req_type = "(bits[32], bits[32], (), bits[4], bits[1], bits[1])",
        .send_value = "tuple(__state, __state, empty_tuple, all_mask, true_lit, "
                      "false_lit)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"));
 }
 
@@ -1232,7 +1252,7 @@ TEST(RamRewritePassInvalidInputsTest, InvalidChannelFlowControl1RW) {
       TestProc1RWVars{.req_chan_params = "kind=single_value, ops=send_only"});
   // The channels are single_value, so ready/valid ports are missing and the
   // pass will error.
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal));
 }
@@ -1241,7 +1261,7 @@ TEST(RamRewritePassInvalidInputsTest, InvalidReqChannelTypeNotTuple1RW) {
   // Try bits type instead of tuple for req channel
   std::string ir_text = MakeTestProc1RW(TestProc1RWVars{
       .req_type = "bits[32]", .send_value = "add(__state, __state)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Request must be a tuple type")));
@@ -1251,7 +1271,7 @@ TEST(RamRewritePassInvalidInputsTest, InvalidRespChannelTypeNotTuple1RW) {
   // Try bits type instead of tuple for resp channel
   std::string ir_text =
       MakeTestProc1RW(TestProc1RWVars{.resp_type = "bits[32]"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Response must be a tuple type")));
@@ -1264,7 +1284,7 @@ TEST(RamRewritePassInvalidInputsTest, WrongNumberRequestChannelEntries1RW) {
       .send_value =
           "tuple(__state, __state, empty_tuple, empty_tuple, true_lit, "
           "false_lit, false_lit)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1275,7 +1295,7 @@ TEST(RamRewritePassInvalidInputsTest, WrongNumberResponseChannelEntries1RW) {
   // Add an extra field to the response channel
   std::string ir_text =
       MakeTestProc1RW(TestProc1RWVars{.resp_type = "(bits[32], bits[1])"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1289,7 +1309,7 @@ TEST(RamRewritePassInvalidInputsTest, RequestElementNotBits1RW) {
       .send_value = "tuple(__state, __state, empty_tuple, empty_tuple, "
                     "true_lit, __token)",
   });
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1301,7 +1321,7 @@ TEST(RamRewritePassInvalidInputsTest, ResponseElementNotBits1RW) {
   // Replace re with a token (re must be bits[1])
   std::string ir_text =
       MakeTestProc1RW(TestProc1RWVars{.resp_type = "(token)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Response element rd_data (idx=0) must not "
@@ -1315,7 +1335,7 @@ TEST(RamRewritePassInvalidInputsTest, WeMustBeWidth1For1RW) {
       .send_value = "tuple(__state, __state, empty_tuple, empty_tuple, "
                     "__state, true_lit)",
   });
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1329,7 +1349,7 @@ TEST(RamRewritePassInvalidInputsTest, ReMustBeWidth1For1RW) {
       .send_value = "tuple(__state, __state, empty_tuple, empty_tuple, "
                     "true_lit, __state)",
   });
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1339,7 +1359,7 @@ TEST(RamRewritePassInvalidInputsTest, ReMustBeWidth1For1RW) {
 // Tests for checking invalid inputs on 1r1w RAMs.
 TEST(RamRewritePassInvalidInputsTest, TestDefaultsWork1R1W) {
   std::string ir_text = MakeTestProc1R1W({});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"));
 }
 
@@ -1347,7 +1367,7 @@ TEST(RamRewritePassInvalidInputsTest, TestWriteMaskWorks1R1W) {
   std::string ir_text =
       MakeTestProc1R1W({.wr_req_type = "(bits[32], bits[32], bits[4])",
                         .wr_send_value = "tuple(__state, __state, all_mask)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"));
 }
 
@@ -1355,7 +1375,7 @@ TEST(RamRewritePassInvalidInputsTest, TestReadMaskWorks1R1W) {
   std::string ir_text =
       MakeTestProc1R1W({.rd_req_type = "(bits[32], bits[4])",
                         .rd_send_value = "tuple(__state, all_mask)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"));
 }
 
@@ -1366,7 +1386,7 @@ TEST(RamRewritePassInvalidInputsTest,
       .rd_req_chan_params = "kind=single_value, ops=send_only"});
   // The channels are single_value, so ready/valid ports are missing and the
   // pass will error.
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal));
 }
@@ -1378,7 +1398,7 @@ TEST(RamRewritePassInvalidInputsTest,
       .rd_resp_chan_params = "kind=single_value, ops=receive_only"});
   // The channels are single_value, so ready/valid ports are missing and the
   // pass will error.
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal));
 }
@@ -1389,7 +1409,7 @@ TEST(RamRewritePassInvalidInputsTest, InvalidWriteChannelFlowControl1R1W) {
       .wr_req_chan_params = "kind=single_value, ops=send_only"});
   // The channels are single_value, so ready/valid ports are missing and the
   // pass will error.
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal));
 }
@@ -1398,7 +1418,7 @@ TEST(RamRewritePassInvalidInputsTest, InvalidReadReqChannelTypeNotTuple1R1W) {
   // Try bits type instead of tuple for req channel
   std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
       .rd_req_type = "bits[32]", .rd_send_value = "add(__state, __state)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("rd_req must be a tuple type")));
@@ -1408,7 +1428,7 @@ TEST(RamRewritePassInvalidInputsTest, InvalidWriteReqChannelTypeNotTuple1R1W) {
   // Try bits type instead of tuple for req channel
   std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
       .wr_req_type = "bits[32]", .wr_send_value = "add(__state, __state)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("wr_req must be a tuple type")));
@@ -1418,7 +1438,7 @@ TEST(RamRewritePassInvalidInputsTest, InvalidReadRespChannelTypeNotTuple1R1W) {
   // Try bits type instead of tuple for resp channel
   std::string ir_text =
       MakeTestProc1R1W(TestProc1R1WVars{.rd_resp_type = "bits[32]"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("rd_resp must be a tuple type")));
@@ -1430,7 +1450,7 @@ TEST(RamRewritePassInvalidInputsTest,
   std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
       .rd_req_type = "(bits[32], (), bits[1])",
       .rd_send_value = "tuple(__state, empty_tuple, true_lit)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1443,7 +1463,7 @@ TEST(RamRewritePassInvalidInputsTest,
   std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
       .wr_req_type = "(bits[32], bits[32], (), bits[1])",
       .wr_send_value = "tuple(__state, __state, empty_tuple, true_lit)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1455,7 +1475,7 @@ TEST(RamRewritePassInvalidInputsTest,
   // Add an extra field to the response channel
   std::string ir_text =
       MakeTestProc1R1W(TestProc1R1WVars{.rd_resp_type = "(bits[32], bits[1])"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
       StatusIs(absl::StatusCode::kInternal,
@@ -1468,7 +1488,7 @@ TEST(RamRewritePassInvalidInputsTest, ReadRequestElementNotBits1R1W) {
       .rd_req_type = "(token, ())",
       .rd_send_value = "tuple(__token, empty_tuple)",
   });
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(
       MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
       StatusIs(
@@ -1483,7 +1503,7 @@ TEST(RamRewritePassInvalidInputsTest, WriteRequestElementNotBits1R1W) {
       .wr_req_type = "(bits[32], token, ())",
       .wr_send_value = "tuple(__state, __token, empty_tuple)",
   });
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("wr_req element wr_data (idx=1) must not "
@@ -1494,7 +1514,7 @@ TEST(RamRewritePassInvalidInputsTest, ReadResponseElementNotBits1R1W) {
   // Replace rd_data with a token (data must be bits[1])
   std::string ir_text =
       MakeTestProc1R1W(TestProc1R1WVars{.rd_resp_type = "(token)"});
-  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, IrTestBase::ParsePackage(ir_text));
   EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("rd_resp element rd_data (idx=0) must not "

@@ -744,34 +744,36 @@ TEST_F(BlockConversionTest, StreamingChannelMetadataForSimpleProc) {
                            ProcToCombinationalBlock(proc, codegen_options()));
   Block* block = FindBlock(TestName(), &package);
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
-                           block->GetChannelPortMetadata("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelPortMetadata in_metadata,
+      block->GetChannelPortMetadata("in", xls::Direction::kReceive));
   EXPECT_EQ(in_metadata.channel_name, "in");
-  EXPECT_EQ(in_metadata.direction, PortDirection::kInput);
+  EXPECT_EQ(in_metadata.direction, xls::Direction::kReceive);
   EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
   EXPECT_THAT(in_metadata.valid_port, Optional(std::string{"in_vld"}));
   EXPECT_THAT(in_metadata.ready_port, Optional(std::string{"in_rdy"}));
 
-  EXPECT_THAT(block->GetDataPortForChannel("in"),
+  EXPECT_THAT(block->GetDataPortForChannel("in", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("in"))));
-  EXPECT_THAT(block->GetValidPortForChannel("in"),
+  EXPECT_THAT(block->GetValidPortForChannel("in", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("in_vld"))));
-  EXPECT_THAT(block->GetReadyPortForChannel("in"),
+  EXPECT_THAT(block->GetReadyPortForChannel("in", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::OutputPort("in_rdy"))));
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata out_metadata,
-                           block->GetChannelPortMetadata("out"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelPortMetadata out_metadata,
+      block->GetChannelPortMetadata("out", xls::Direction::kSend));
   EXPECT_EQ(out_metadata.channel_name, "out");
-  EXPECT_EQ(out_metadata.direction, PortDirection::kOutput);
+  EXPECT_EQ(out_metadata.direction, xls::Direction::kSend);
   EXPECT_THAT(out_metadata.data_port, Optional(std::string{"out"}));
   EXPECT_THAT(out_metadata.valid_port, Optional(std::string{"out_vld"}));
   EXPECT_THAT(out_metadata.ready_port, Optional(std::string{"out_rdy"}));
 
-  EXPECT_THAT(block->GetDataPortForChannel("out"),
+  EXPECT_THAT(block->GetDataPortForChannel("out", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("out"))));
-  EXPECT_THAT(block->GetValidPortForChannel("out"),
+  EXPECT_THAT(block->GetValidPortForChannel("out", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("out_vld"))));
-  EXPECT_THAT(block->GetReadyPortForChannel("out"),
+  EXPECT_THAT(block->GetReadyPortForChannel("out", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::InputPort("out_rdy"))));
 }
 
@@ -795,31 +797,37 @@ TEST_F(BlockConversionTest, SingleValueChannelMetadataForSimpleProc) {
                            ProcToCombinationalBlock(proc, codegen_options()));
   Block* block = FindBlock(TestName(), &package);
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata in_metadata,
-                           block->GetChannelPortMetadata("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelPortMetadata in_metadata,
+      block->GetChannelPortMetadata("in", xls::Direction::kReceive));
   EXPECT_EQ(in_metadata.channel_name, "in");
-  EXPECT_EQ(in_metadata.direction, PortDirection::kInput);
+  EXPECT_EQ(in_metadata.direction, xls::Direction::kReceive);
   EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
   EXPECT_THAT(in_metadata.valid_port, Eq(std::nullopt));
   EXPECT_THAT(in_metadata.ready_port, Eq(std::nullopt));
 
-  EXPECT_THAT(block->GetDataPortForChannel("in"),
+  EXPECT_THAT(block->GetDataPortForChannel("in", xls::Direction::kReceive),
               IsOkAndHolds(Optional(m::InputPort("in"))));
-  EXPECT_THAT(block->GetValidPortForChannel("in"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(block->GetReadyPortForChannel("in"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(block->GetValidPortForChannel("in", xls::Direction::kReceive),
+              IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(block->GetReadyPortForChannel("in", xls::Direction::kReceive),
+              IsOkAndHolds(std::nullopt));
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata out_metadata,
-                           block->GetChannelPortMetadata("out"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelPortMetadata out_metadata,
+      block->GetChannelPortMetadata("out", xls::Direction::kSend));
   EXPECT_EQ(out_metadata.channel_name, "out");
-  EXPECT_EQ(out_metadata.direction, PortDirection::kOutput);
+  EXPECT_EQ(out_metadata.direction, xls::Direction::kSend);
   EXPECT_THAT(out_metadata.data_port, Optional(std::string{"out"}));
   EXPECT_THAT(out_metadata.valid_port, Eq(std::nullopt));
   EXPECT_THAT(out_metadata.ready_port, Eq(std::nullopt));
 
-  EXPECT_THAT(block->GetDataPortForChannel("out"),
+  EXPECT_THAT(block->GetDataPortForChannel("out", xls::Direction::kSend),
               IsOkAndHolds(Optional(m::OutputPort("out"))));
-  EXPECT_THAT(block->GetValidPortForChannel("out"), IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(block->GetReadyPortForChannel("out"), IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(block->GetValidPortForChannel("out", xls::Direction::kSend),
+              IsOkAndHolds(std::nullopt));
+  EXPECT_THAT(block->GetReadyPortForChannel("out", xls::Direction::kSend),
+              IsOkAndHolds(std::nullopt));
 }
 
 TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
@@ -3827,11 +3835,6 @@ TEST_F(BlockConversionTest, IOSignatureFunctionBaseToPipelinedBlock) {
   pb.Send(out_streaming_rv, in1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  EXPECT_THAT(in_single_val->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(out_single_val->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(in_streaming_rv->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(out_streaming_rv->metadata_block_ports(), IsEmpty());
-
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
       RunPipelineSchedule(proc, TestDelayEstimator(),
@@ -3848,40 +3851,6 @@ TEST_F(BlockConversionTest, IOSignatureFunctionBaseToPipelinedBlock) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));
   XLS_VLOG_LINES(2, unit.top_block->DumpIr());
-
-  EXPECT_THAT(
-      in_single_val->metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
-          Property(&BlockPortMappingProto::data_port_name, "in_single_val"),
-          Property(&BlockPortMappingProto::has_ready_port_name, false),
-          Property(&BlockPortMappingProto::has_valid_port_name, false))));
-  EXPECT_THAT(
-      out_single_val->metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
-          Property(&BlockPortMappingProto::data_port_name, "out_single_val"),
-          Property(&BlockPortMappingProto::has_ready_port_name, false),
-          Property(&BlockPortMappingProto::has_valid_port_name, false))));
-  EXPECT_THAT(
-      in_streaming_rv->metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
-          Property(&BlockPortMappingProto::data_port_name, "in_streaming_data"),
-          Property(&BlockPortMappingProto::ready_port_name,
-                   "in_streaming_ready"),
-          Property(&BlockPortMappingProto::valid_port_name,
-                   "in_streaming_valid"))));
-  EXPECT_THAT(
-      out_streaming_rv->metadata_block_ports(),
-      ElementsAre(
-          AllOf(Property(&BlockPortMappingProto::block_name, "pipelined_proc"),
-                Property(&BlockPortMappingProto::data_port_name,
-                         "out_streaming_data"),
-                Property(&BlockPortMappingProto::ready_port_name,
-                         "out_streaming_ready"),
-                Property(&BlockPortMappingProto::valid_port_name,
-                         "out_streaming_valid"))));
 }
 
 TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
@@ -3916,48 +3885,11 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  EXPECT_THAT(in_single_val->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(out_single_val->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(in_streaming_rv->metadata_block_ports(), IsEmpty());
-  EXPECT_THAT(out_streaming_rv->metadata_block_ports(), IsEmpty());
-
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenPassUnit unit,
       ProcToCombinationalBlock(proc,
                                codegen_options().module_name("the_proc")));
   XLS_VLOG_LINES(2, unit.top_block->DumpIr());
-
-  EXPECT_THAT(
-      in_single_val->metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "the_proc"),
-          Property(&BlockPortMappingProto::data_port_name, "in_single_val"),
-          Property(&BlockPortMappingProto::has_ready_port_name, false),
-          Property(&BlockPortMappingProto::has_valid_port_name, false))));
-  EXPECT_THAT(
-      out_single_val->metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "the_proc"),
-          Property(&BlockPortMappingProto::data_port_name, "out_single_val"),
-          Property(&BlockPortMappingProto::has_ready_port_name, false),
-          Property(&BlockPortMappingProto::has_valid_port_name, false))));
-  EXPECT_THAT(
-      in_streaming_rv->metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "the_proc"),
-          Property(&BlockPortMappingProto::data_port_name, "in_streaming"),
-          Property(&BlockPortMappingProto::ready_port_name, "in_streaming_rdy"),
-          Property(&BlockPortMappingProto::valid_port_name,
-                   "in_streaming_vld"))));
-  EXPECT_THAT(
-      out_streaming_rv->metadata_block_ports(),
-      ElementsAre(AllOf(
-          Property(&BlockPortMappingProto::block_name, "the_proc"),
-          Property(&BlockPortMappingProto::data_port_name, "out_streaming"),
-          Property(&BlockPortMappingProto::ready_port_name,
-                   "out_streaming_rdy"),
-          Property(&BlockPortMappingProto::valid_port_name,
-                   "out_streaming_vld"))));
 }
 
 TEST_F(ProcConversionTestFixture, ProcSendDuringReset) {

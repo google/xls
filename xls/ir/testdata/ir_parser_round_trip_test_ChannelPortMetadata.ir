@@ -1,8 +1,8 @@
 package test
 
 block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1], out: bits[32]) {
-  #![channel_ports(name=bar, type=bits[32], direction=out, kind=single_value, data_port=out)]
-  #![channel_ports(name=foo, type=bits[32], direction=in, kind=streaming, flop=skid, data_port=in, ready_port=in_ready, valid_port=in_valid)]
+  #![channel_ports(name=bar, type=bits[32], direction=send, kind=single_value, data_port=out)]
+  #![channel_ports(name=foo, type=bits[32], direction=receive, kind=streaming, flop=skid, data_port=in, ready_port=in_ready, valid_port=in_valid)]
   in: bits[32] = input_port(name=in, id=7)
   in_valid: bits[1] = input_port(name=in_valid, id=8)
   data: bits[32] = literal(value=42, id=9)
