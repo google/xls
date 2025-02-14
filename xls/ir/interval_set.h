@@ -40,6 +40,14 @@ class IntervalSet {
   // on it.
   IntervalSet() : is_normalized_(true), bit_count_(-1) {}
 
+  // Returns an interval set of all the positive intervals of this set.
+  IntervalSet PositiveIntervals(bool with_zero = true) const;
+
+  // Returns an interval set of the absolute values of all the negative
+  // intervals of this set. The resulting set has the same bit-count as the
+  // current set.
+  IntervalSet NegativeAbsoluteIntervals() const;
+
   // Create an empty `IntervalSet` with the given bit count.
   explicit IntervalSet(int64_t bit_count)
       : is_normalized_(true), bit_count_(bit_count) {}

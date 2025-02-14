@@ -92,6 +92,9 @@ IntervalSet Neg(const IntervalSet& a);
 IntervalSet UMul(const IntervalSet& a, const IntervalSet& b,
                  int64_t output_bitwidth);
 IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b);
+IntervalSet SMul(const IntervalSet& a, const IntervalSet& b,
+                 int64_t output_bitwidth);
+IntervalSet SDiv(const IntervalSet& a, const IntervalSet& b);
 
 // Shift
 IntervalSet Shrl(const IntervalSet& a, const IntervalSet& b);

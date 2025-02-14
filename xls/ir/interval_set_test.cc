@@ -44,6 +44,9 @@ namespace {
 Interval MakeInterval(uint64_t start, uint64_t end, int64_t width) {
   return Interval(UBits(start, width), UBits(end, width));
 }
+Interval MakeSignedInterval(uint64_t start, uint64_t end, int64_t width) {
+  return Interval(SBits(start, width), SBits(end, width));
+}
 MATCHER_P3(IsInterval, low, high, bits,
            absl::StrFormat("Matches interval [%d, %d] (width: %d)", low, high,
                            bits)) {
@@ -453,6 +456,15 @@ TEST(IntervalTest, ZeroExtend) {
   EXPECT_EQ(extended.BitCount(), 60);
 }
 
+IntervalSet SignedIntervals(absl::Span<std::pair<int64_t, int64_t> const> v,
+                            int64_t bit_count = 32) {
+  IntervalSet set(bit_count);
+  for (const auto& [l, h] : v) {
+    set.AddInterval(MakeSignedInterval(l, h, bit_count));
+  }
+  set.Normalize();
+  return set;
+}
 IntervalSet Intervals(absl::Span<std::pair<int64_t, int64_t> const> v,
                       int64_t bit_count = 32) {
   IntervalSet set(bit_count);
@@ -545,6 +557,41 @@ TEST(IntervalSetTest, SignedIterator) {
     EXPECT_THAT(*it, IsInterval(128, 255, 8));
     ++it;
     EXPECT_TRUE(it == rng.end());
+  }
+}
+
+TEST(IntervalSetTest, PositiveIntervals) {
+  {
+    IntervalSet all_positive = SignedIntervals({{0, 4}, {8, 12}, {18, 127}}, 8);
+    EXPECT_EQ(all_positive, all_positive.PositiveIntervals(/*with_zero=*/true));
+  }
+  {
+    IntervalSet all_positive = SignedIntervals({{0, 4}, {8, 12}, {18, 127}}, 8);
+    EXPECT_EQ(Intervals({{1, 4}, {8, 12}, {18, 127}}, 8),
+              all_positive.PositiveIntervals(/*with_zero=*/false));
+  }
+  {
+    IntervalSet pos_and_neg =
+        SignedIntervals({{0, 4}, {8, 12}, {18, 127}, {-12, -1}}, 8);
+    EXPECT_EQ(Intervals({{0, 4}, {8, 12}, {18, 127}}, 8),
+              pos_and_neg.PositiveIntervals(/*with_zero=*/true));
+  }
+  {
+    IntervalSet neg = SignedIntervals({{-127, -22}, {-12, -1}}, 8);
+    EXPECT_EQ(Intervals({}, 8), neg.PositiveIntervals(/*with_zero=*/true));
+  }
+}
+
+TEST(IntervalSetTest, NegativeIntervals) {
+  {
+    IntervalSet all_negative = SignedIntervals({{-12, -8}, {-127, -18}}, 8);
+    EXPECT_EQ(Intervals({{8, 12}, {18, 127}}, 8),
+              all_negative.NegativeAbsoluteIntervals());
+  }
+  {
+    IntervalSet pos_and_neg =
+        SignedIntervals({{0, 4}, {8, 12}, {18, 127}, {-12, -1}}, 8);
+    EXPECT_EQ(Intervals({{1, 12}}, 8), pos_and_neg.NegativeAbsoluteIntervals());
   }
 }
 

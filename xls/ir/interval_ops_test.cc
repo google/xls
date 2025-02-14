@@ -472,6 +472,118 @@ void UDivZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 FUZZ_TEST(IntervalOpsTest, UDivZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
 
+TEST(IntervalOpsTest, SMul) {
+  {
+    IntervalSet lhs = FromSignedRanges({{1, 10}, {-30, -21}}, 64);
+    IntervalSet rhs = FromSignedRanges({{0, 0}}, 64);
+    EXPECT_EQ(SMul(lhs, rhs, 64), rhs);
+    EXPECT_EQ(SMul(rhs, lhs, 64), rhs);
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{-10, -5}, {200, 300}}, 64);
+    IntervalSet rhs = FromSignedRanges({{2, 4}}, 64);
+    EXPECT_EQ(SMul(lhs, rhs, 64),
+              FromSignedRanges({{-40, -10}, {400, 1200}}, 64));
+    EXPECT_EQ(SMul(rhs, lhs, 64),
+              FromSignedRanges({{-40, -10}, {400, 1200}}, 64));
+  }
+  {
+    // Overflow once.
+    IntervalSet lhs = FromSignedRanges({{2, 3}}, 8);
+    IntervalSet rhs = FromSignedRanges({{100, 100}}, 8);
+    EXPECT_EQ(SMul(lhs, rhs, 8), FromSignedRanges({{0, 44}, {-56, -1}}, 8));
+  }
+  {
+    // Overflow twice.
+    IntervalSet lhs = FromSignedRanges({{-20, -2}}, 8);
+    IntervalSet rhs = FromSignedRanges({{20, 60}}, 8);
+    EXPECT_EQ(SMul(lhs, rhs, 8), FromSignedRanges({{0, -1}}, 8));
+  }
+  {
+    // Multiply across sign boundary.
+    IntervalSet lhs = FromRanges({{/*int_max*/ 0x7f, /*int_min*/ 0x80}}, 8);
+    IntervalSet rhs = FromSignedRanges({{-2, -1}, {0, 2}}, 8);
+    EXPECT_EQ(SMul(lhs, rhs, 12),
+              FromSignedRanges({{-256, -127}, {0, 0}, {127, 256}}, 12));
+  }
+}
+
+void SMulZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "smul",
+      [](FunctionBuilder& fb, BValue l, BValue r) { return fb.SMul(l, r, 10); },
+      [](const auto& l, const auto& r) { return SMul(l, r, 10); }, lhs, rhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, SMulZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+TEST(IntervalOpsTest, SDiv) {
+  {
+    IntervalSet lhs = FromSignedRanges({{1, 10}, {-30, -21}}, 64);
+    IntervalSet rhs = FromSignedRanges({{0, 0}}, 64);
+    EXPECT_EQ(SDiv(lhs, rhs), FromSignedRanges(
+                                  {
+                                      {std::numeric_limits<int64_t>::max(),
+                                       std::numeric_limits<int64_t>::max()},
+                                      {std::numeric_limits<int64_t>::min(),
+                                       std::numeric_limits<int64_t>::min()},
+                                  },
+                                  64));
+    EXPECT_EQ(SDiv(rhs, lhs), FromRanges({{0, 0}}, 64));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{2, 12}, {100, 200}}, 16);
+    IntervalSet rhs = FromSignedRanges({{-2, -2}, {2, 2}}, 16);
+    EXPECT_EQ(SDiv(lhs, rhs),
+              FromSignedRanges({{-100, -50}, {-6, -1}, {1, 6}, {50, 100}}, 16));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{2, 12}, {100, 200}}, 16);
+    IntervalSet rhs = FromSignedRanges({{-2, 2}}, 16);
+    EXPECT_EQ(
+        SDiv(lhs, rhs),
+        FromSignedRanges(
+            {{-12, -1}, {-200, -50}, {1, 12}, {50, 200}, {0x7fff, 0x7fff}},
+            16));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{-12, -2}, {-200, -100}}, 16);
+    IntervalSet rhs = FromSignedRanges({{-2, 2}}, 16);
+    EXPECT_EQ(SDiv(lhs, rhs),
+              FromSignedRanges({{-12, -1},
+                                {-200, -50},
+                                {1, 12},
+                                {50, 200},
+                                {std::numeric_limits<int16_t>::min(),
+                                 std::numeric_limits<int16_t>::min()}},
+                               16));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{-12, -2}, {2, 12}}, 16);
+    IntervalSet rhs = FromSignedRanges({{-2, 2}}, 16);
+    EXPECT_EQ(SDiv(lhs, rhs),
+              FromSignedRanges({{-12, -1},
+                                {1, 12},
+                                {0x7fff, 0x7fff},
+                                {std::numeric_limits<int16_t>::min(),
+                                 std::numeric_limits<int16_t>::min()}},
+                               16));
+  }
+}
+
+void SDivZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "sdiv",
+      [](FunctionBuilder& fb, BValue l, BValue r) { return fb.SDiv(l, r); },
+      [](const auto& l, const auto& r) { return SDiv(l, r); }, lhs, rhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, SDivZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
 TEST(IntervalOpsTest, Shrl) {
   {
     IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);

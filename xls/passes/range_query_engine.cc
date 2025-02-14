@@ -1143,7 +1143,9 @@ absl::Status RangeQueryVisitor::HandleReverse(UnOp* reverse) {
 
 absl::Status RangeQueryVisitor::HandleSDiv(BinOp* div) {
   INITIALIZE_OR_SKIP(div);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, div->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, div->operand(1));
+  return SetIntervalSet(div, interval_ops::SDiv(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleSGe(CompareOp* ge) {
@@ -1183,7 +1185,10 @@ absl::Status RangeQueryVisitor::HandleSMod(BinOp* mod) {
 
 absl::Status RangeQueryVisitor::HandleSMul(ArithOp* mul) {
   INITIALIZE_OR_SKIP(mul);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, mul->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, mul->operand(1));
+  return SetIntervalSet(mul, interval_ops::SMul(l, r, mul->width()));
 }
 
 absl::Status RangeQueryVisitor::HandleSMulp(PartialProductOp* mul) {

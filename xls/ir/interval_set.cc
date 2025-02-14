@@ -198,6 +198,33 @@ bool IntervalSet::ForEachElement(
   return false;
 }
 
+IntervalSet IntervalSet::PositiveIntervals(bool with_zero) const {
+  CHECK(IsNormalized());
+  if (bit_count_ < 1) {
+    return IntervalSet();
+  }
+  return IntervalSet::Intersect(
+      *this, IntervalSet::Of({Interval(UBits(with_zero ? 0 : 1, bit_count_),
+                                       Bits::MaxSigned(bit_count_))}));
+}
+
+IntervalSet IntervalSet::NegativeAbsoluteIntervals() const {
+  CHECK(IsNormalized());
+  if (bit_count_ < 1) {
+    return IntervalSet();
+  }
+  IntervalSet segment = IntervalSet::Intersect(
+      *this, IntervalSet::Of({Interval(Bits::MinSigned(bit_count_),
+                                       SBits(-1, bit_count_))}));
+  IntervalSet res(bit_count_);
+  for (const Interval& interval : segment.Intervals()) {
+    res.AddInterval(Interval(bits_ops::Negate(interval.UpperBound()),
+                             bits_ops::Negate(interval.LowerBound())));
+  }
+  res.Normalize();
+  return res;
+}
+
 /* static */ bool IntervalSet::Disjoint(const IntervalSet& lhs,
                                         const IntervalSet& rhs) {
   CHECK(lhs.IsNormalized() && rhs.IsNormalized());

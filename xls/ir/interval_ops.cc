@@ -719,6 +719,63 @@ IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b) {
   results.Normalize();
   return results;
 }
+IntervalSet SMul(const IntervalSet& a, const IntervalSet& b,
+                 int64_t output_bitwidth) {
+  // Tonality depends on the sign of both sides so its easiest to simply
+  // calculate the 4 segments and combine them.
+  IntervalSet pos_a = a.PositiveIntervals(/*with_zero=*/false);
+  IntervalSet pos_b = b.PositiveIntervals(/*with_zero=*/false);
+  IntervalSet neg_a = a.NegativeAbsoluteIntervals();
+  IntervalSet neg_b = b.NegativeAbsoluteIntervals();
+  // Positive intervals
+  IntervalSet pos_pos = UMul(pos_a, pos_b, output_bitwidth);
+  IntervalSet neg_neg = UMul(neg_a, neg_b, output_bitwidth);
+  IntervalSet positives = IntervalSet::Combine(pos_pos, neg_neg);
+  if (a.CoversZero() || b.CoversZero()) {
+    positives = IntervalSet::Combine(
+        positives,
+        IntervalSet::Of({Interval::Precise(UBits(0, output_bitwidth))}));
+  }
+  // Negative intervals
+  IntervalSet pos_neg = UMul(pos_a, neg_b, output_bitwidth);
+  IntervalSet neg_pos = UMul(neg_a, pos_b, output_bitwidth);
+  IntervalSet negatives = Neg(IntervalSet::Combine(pos_neg, neg_pos));
+  return IntervalSet::Combine(positives, negatives);
+}
+
+IntervalSet SDiv(const IntervalSet& a, const IntervalSet& b) {
+  // Tonality depends on the sign of both sides so its easiest to simply
+  // calculate the 4 segments and combine them.
+  IntervalSet pos_a = a.PositiveIntervals(/*with_zero=*/false);
+  IntervalSet pos_b = b.PositiveIntervals(/*with_zero=*/false);
+  IntervalSet neg_a = a.NegativeAbsoluteIntervals();
+  IntervalSet neg_b = b.NegativeAbsoluteIntervals();
+
+  IntervalSet pos_pos = UDiv(pos_a, pos_b);
+  IntervalSet neg_neg = UDiv(neg_a, neg_b);
+  IntervalSet positives = IntervalSet::Combine(pos_pos, neg_neg);
+  IntervalSet pos_neg = UDiv(pos_a, neg_b);
+  IntervalSet neg_pos = UDiv(neg_a, pos_b);
+  IntervalSet negatives = Neg(IntervalSet::Combine(pos_neg, neg_pos));
+
+  IntervalSet res = IntervalSet::Combine(positives, negatives);
+
+  // Add in the values if there are zeros
+  if (a.CoversZero()) {
+    res.AddInterval(Interval::Precise(UBits(0, a.BitCount())));
+  }
+  if (b.CoversZero()) {
+    if (!a.LowerBound() || !a.LowerBound()->msb()) {
+      res.AddInterval(Interval::Precise(Bits::MaxSigned(a.BitCount())));
+    }
+    if (!a.UpperBound() || a.UpperBound()->msb()) {
+      res.AddInterval(Interval::Precise(Bits::MinSigned(a.BitCount())));
+    }
+  }
+  res.Normalize();
+  return res;
+}
+
 IntervalSet Shrl(const IntervalSet& a, const IntervalSet& b) {
   return PerformBinOp(
       [](const Bits& lhs, const Bits& rhs) -> OverflowResult {
