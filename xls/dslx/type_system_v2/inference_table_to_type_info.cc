@@ -44,6 +44,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -212,13 +213,33 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     }
     XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
     nodes_.push_back(node);
-    XLS_RETURN_IF_ERROR(node->name_def_tree()->Accept(this));
+    return node->name_def_tree()->Accept(this);
+  }
+
+  absl::Status HandleMatch(const Match* node) override {
+    for (const MatchArm* arm : node->arms()) {
+      XLS_RETURN_IF_ERROR(arm->Accept(this));
+    }
+    XLS_RETURN_IF_ERROR(node->matched()->Accept(this));
+    nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleMatchArm(const MatchArm* node) override {
+    for (const NameDefTree* name_def_tree : node->patterns()) {
+      XLS_RETURN_IF_ERROR(name_def_tree->Accept(this));
+    }
+    XLS_RETURN_IF_ERROR(node->expr()->Accept(this));
+    nodes_.push_back(node);
     return absl::OkStatus();
   }
 
   absl::Status HandleNameDefTree(const NameDefTree* node) override {
-    for (const NameDef* child : node->GetNameDefs()) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
+    if (!node->IsRestOfTupleLeaf()) {
+      nodes_.push_back(node);
+    }
+    for (auto child : node->Flatten()) {
+      XLS_RETURN_IF_ERROR(ToAstNode(child)->Accept(this));
     }
     return absl::OkStatus();
   }
@@ -566,6 +587,10 @@ class InferenceTableConverter {
       std::optional<const TypeAnnotation*> pre_unified_type = std::nullopt,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           type_annotation_accept_predicate = std::nullopt) {
+    // Don't generate type info for the rest of tuple wildcard.
+    if (node->kind() == AstNodeKind::kRestOfTuple) {
+      return absl::OkStatus();
+    }
     VLOG(5) << "Generate type info for node: " << node->ToString();
     if (pre_unified_type.has_value()) {
       VLOG(5) << "Using pre-unified type: " << (*pre_unified_type)->ToString();
@@ -594,12 +619,18 @@ class InferenceTableConverter {
       }
     }
 
-    // If we have a let assignment to a tuple type, destructure the
-    // assignment.
+    // If we have a let assignment or a NameDefTree to a tuple type, destructure
+    // the assignment.
     if (dynamic_cast<const TupleTypeAnnotation*>(*annotation) &&
-        dynamic_cast<const Let*>(node)) {
-      XLS_RETURN_IF_ERROR(DestructureLet(
-          parametric_context, dynamic_cast<const Let*>(node),
+        (dynamic_cast<const Let*>(node) ||
+         dynamic_cast<const NameDefTree*>(node))) {
+      const NameDefTree* name_def_tree = dynamic_cast<const NameDefTree*>(node);
+      if (name_def_tree == nullptr) {
+        const auto* let = dynamic_cast<const Let*>(node);
+        name_def_tree = let->name_def_tree();
+      }
+      XLS_RETURN_IF_ERROR(DestructureNameDefTree(
+          parametric_context, name_def_tree,
           dynamic_cast<const TupleTypeAnnotation*>(*annotation)));
     }
 
@@ -681,26 +712,31 @@ class InferenceTableConverter {
 
   // Applies the appropriate type annotations to the names on the LHS of a
   // destructuring let, using the unified annotation for the RHS.
-  absl::Status DestructureLet(
+  absl::Status DestructureNameDefTree(
       std::optional<const ParametricContext*> parametric_context,
-      const Let* node, const TupleTypeAnnotation* unified_rhs_type_annotation) {
-    const auto let = dynamic_cast<const Let*>(node);
+      const NameDefTree* node,
+      const TupleTypeAnnotation* unified_rhs_type_annotation) {
     const auto add_annotation =
         [&](AstNode* name_def, TypeOrAnnotation type,
             std::optional<InterpValue> _) -> absl::Status {
       if (std::holds_alternative<const TypeAnnotation*>(type)) {
         std::optional<const NameRef*> type_var =
             table_.GetTypeVariable(name_def);
-        if (type_var.has_value()) {
+
+        const auto* type_annotation = std::get<const TypeAnnotation*>(type);
+        if (type_var.has_value() &&
+            // Don't attach a TypeVariableTypeAnnotation because it is an
+            // indirect TypeAnnotation that may already link back to the node
+            // via the TypeVariable.
+            !dynamic_cast<const TypeVariableTypeAnnotation*>(type_annotation)) {
           XLS_RETURN_IF_ERROR(
               table_.AddTypeAnnotationToVariableForParametricContext(
-                  parametric_context, *type_var,
-                  std::get<const TypeAnnotation*>(type)));
+                  parametric_context, *type_var, type_annotation));
         }
       }
       return absl::OkStatus();
     };
-    return MatchTupleNodeToType(add_annotation, let->name_def_tree(),
+    return MatchTupleNodeToType(add_annotation, node,
                                 unified_rhs_type_annotation, file_table_,
                                 std::nullopt);
   }

@@ -65,6 +65,7 @@ cc_library(
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_cloner",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",

@@ -2897,6 +2897,167 @@ const Z:u31 = match X {
               TypecheckFails(HasSizeMismatch("u32", "u31")));
 }
 
+TEST(TypecheckV2Test, PatternMatch) {
+  EXPECT_THAT(R"(
+fn f(t: (u8, u32)) -> u32 {
+    match t {
+        (42, y) => y,
+        (_, y) => y + 1,
+    }
+}
+
+fn main() {
+    const VAL = f((42, 10));
+    let res = uN[VAL]:0;
+
+    let val2 = f((3, 10));
+    let res2 = uN[val2]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[10]"),
+                                      HasNodeWithType("res2", "uN[11]"),
+                                      HasNodeWithType("y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchToConstant) {
+  EXPECT_THAT(R"(
+const MY_FAVORITE_NUMBER = u8:42;
+
+fn f(t: (u8, u32)) -> u32 {
+    match t {
+        (MY_FAVORITE_NUMBER, y) => y,
+        (_, y) => y + 77,
+    }
+}
+
+fn main() {
+    const VAL = f((42, 10));
+    let res = uN[VAL]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[10]"),
+                                      HasNodeWithType("y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchNested) {
+  EXPECT_THAT(R"(
+const MY_FAVORITE_NUMBER = u8:42;
+
+fn f(t: (u8, (u16, u32))) -> u32 {
+    match t {
+        (MY_FAVORITE_NUMBER, (y, z)) => y as u32 + z,
+        (_, (y, 42)) => y as u32,
+        _ => 7,
+    }
+}
+
+fn main() {
+    const VAL = f((42, (10, 10))); // Returns 20
+    let res = uN[VAL]:0;
+
+    const VAL2 = f((40, (10, MY_FAVORITE_NUMBER as u32))); // Returns 10
+    let res2 = uN[VAL2]:0;
+
+    const VAL3 = f((40, (10, 0))); // Returns 7
+    let res3 = uN[VAL3]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[20]"),
+                                      HasNodeWithType("res2", "uN[10]"),
+                                      HasNodeWithType("res3", "uN[7]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchWithRange) {
+  EXPECT_THAT(R"(
+fn f(x: u32) -> u32 {
+    match x {
+        1..3 => u32:1,
+        _ => x,
+    }
+}
+
+fn main() {
+    let n = f(2);
+    let res = uN[n]:0;
+
+    let m = f(u32:6);
+    let res2 = uN[m]:0;
+
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[1]"),
+                                      HasNodeWithType("res2", "uN[6]"),
+                                      HasNodeWithType("1..3", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchWithConditional) {
+  EXPECT_THAT(R"(
+fn f(x: u2) -> u32 {
+    match x {
+        0..1 | 3 => 42,
+        _ => 10,
+    }
+}
+
+fn main() {
+    let n = f(u2:3);
+    let res = uN[n]:0;
+
+    let m = f(u2:2);
+    let res2 = uN[m]:0;
+
+    let o = f(u2:0);
+    let res3 = uN[o]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[42]"),
+                                      HasNodeWithType("res2", "uN[10]"),
+                                      HasNodeWithType("res3", "uN[42]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchWithParametric) {
+  EXPECT_THAT(R"(
+fn f<N: u8>(t: (u8, u32)) -> u32 {
+    match t {
+        (N, y) => y,
+        (_, y) => y + 1,
+    }
+}
+
+fn main() {
+    const VAL = f<u8:2>((2, 10));
+    let res = uN[VAL]:0;
+
+    let val2 = f<u8:2>((3, 10));
+    let res2 = uN[val2]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[10]"),
+                                      HasNodeWithType("res2", "uN[11]"))));
+}
+
+TEST(TypecheckV2Test, PatternMismatch) {
+  EXPECT_THAT(R"(fn f(t: (u8, u32)) -> u32 {
+    match t {
+        (u3:42, y) => y,
+        (_, y) => y + 1,
+    }
+}
+)",
+              TypecheckFails(HasSizeMismatch("uN[3]", "u8")));
+}
+
+TEST(TypecheckV2Test, PatternMatcherWrongType) {
+  EXPECT_THAT(R"(fn f(t: (u8, u32)) -> u32 {
+    match t {
+        42 => 0,
+        y => y + 1,
+    }
+}
+)",
+              TypecheckFails(HasTypeMismatch("(u8, u32)", "uN[6]")));
+}
+
 TEST(TypecheckV2Test, ZeroMacroNumber) {
   EXPECT_THAT("const Y = zero!<u10>();",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[10]")));

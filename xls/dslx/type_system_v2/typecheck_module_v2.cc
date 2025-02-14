@@ -269,16 +269,28 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleMatch(const Match* node) override {
     VLOG(5) << "HandleMatch: " << node->ToString();
-
     // Any `match` should be a descendant of some context-setting node and
     // should have a type that was set when its parent was visited. Each
     // arm of the `match` must match the type of the `match` itself.
     const NameRef* arm_type = *table_.GetTypeVariable(node);
+
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* matched_var_type,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, node->matched(),
+            GenerateInternalTypeVariableName(node->matched())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->matched(), matched_var_type));
+
     for (const MatchArm* arm : node->arms()) {
       XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arm->expr(), arm_type));
-      // TODO: also set type variables on each arm's patterns from
-      // node->matched()'s type, but that depends on destructured let, which
-      // isn't implemented yet.
+      for (const NameDefTree* pattern : arm->patterns()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(pattern, matched_var_type));
+        if (pattern->is_leaf()) {
+          XLS_RETURN_IF_ERROR(table_.SetTypeVariable(ToAstNode(pattern->leaf()),
+                                                     matched_var_type));
+        }
+      }
     }
     return DefaultHandler(node);
   }
@@ -337,6 +349,32 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // Annotate the whole tuple expression as (var:M0, var:M1, ...).
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node, module_.Make<TupleTypeAnnotation>(node->span(), member_types)));
+    return DefaultHandler(node);
+  }
+
+  // Recursively define tuple type annotations for the `NameDefTree`. This is
+  // similar to `HandleXlsTuple` but without access to an explicit type
+  // annotation. It's only necessary when a `NameDefTree` is not associated with
+  // a tuple (e.g., outside a `let` assignment).
+  absl::Status HandleNameDefTree(const NameDefTree* node) {
+    VLOG(5) << "HandleNameDefTree: " << node->ToString();
+    if (node->is_leaf()) {
+      return DefaultHandler(node);
+    }
+    std::vector<TypeAnnotation*> member_types;
+    for (const NameDefTree* child_node : node->nodes()) {
+      if (child_node->IsRestOfTupleLeaf()) {
+        continue;
+      }
+      XLS_RETURN_IF_ERROR(child_node->Accept(this));
+      XLS_ASSIGN_OR_RETURN(TypeAnnotation * member_type,
+                           GetOrMakeTypeAnnotationForNDF(child_node));
+
+      member_types.push_back(member_type);
+    }
+    TupleTypeAnnotation* tuple_annotation =
+        module_.Make<TupleTypeAnnotation>(node->span(), member_types);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, tuple_annotation));
     return DefaultHandler(node);
   }
 
@@ -925,21 +963,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeAnnotation(node, node->type_annotation()));
     }
-    // If the NameDefTree of the `let` is a leaf, then it shares a type with the
-    // overall let. Otherwise, define a separate type variable for each leaf of
-    // the NameDefTree.
     if (node->name_def_tree()->is_leaf()) {
-      AstNode* name_def = ToAstNode(node->name_def_tree()->leaf());
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(name_def, variable));
-    } else {
-      for (NameDef* name_def : node->name_def_tree()->GetNameDefs()) {
-        XLS_ASSIGN_OR_RETURN(
-            const NameRef* variable,
-            table_.DefineInternalVariable(
-                InferenceVariableKind::kType, ToAstNode(name_def),
-                GenerateInternalTypeVariableName(name_def)));
-        XLS_RETURN_IF_ERROR(table_.SetTypeVariable(name_def, variable));
-      }
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(
+          ToAstNode(node->name_def_tree()->leaf()), variable));
     }
     return DefaultHandler(node);
   }
@@ -1017,6 +1043,37 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return variable;
   }
 
+  // Helper to either read a type annotation or member variable for a
+  // `NameDefNode` or create one if it doesn't exist.
+  absl::StatusOr<TypeAnnotation*> GetOrMakeTypeAnnotationForNDF(
+      const NameDefTree* node) {
+    std::optional<const TypeAnnotation*> type = table_.GetTypeAnnotation(node);
+    if (type.has_value()) {
+      return const_cast<TypeAnnotation*>(*type);
+    }
+    const AstNode* definer_node =
+        node->is_leaf() ? ToAstNode(node->leaf()) : node;
+    std::optional<const NameRef*> member_var =
+        table_.GetTypeVariable(definer_node);
+    if (!member_var.has_value()) {
+      if (node->is_leaf()) {
+        XLS_ASSIGN_OR_RETURN(
+            member_var,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType, ToAstNode(node->leaf()),
+                GenerateInternalTypeVariableName(node)));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            member_var,
+            table_.DefineInternalVariable(
+                InferenceVariableKind::kType, const_cast<NameDefTree*>(node),
+                GenerateInternalTypeVariableName(node)));
+      }
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(definer_node, *member_var));
+    }
+    return module_.Make<TypeVariableTypeAnnotation>(*member_var);
+  }
+
   // Generates a name for an internal inference variable that will be used as
   // the type for the given node. The name is only relevant for traceability.
   template <typename T>
@@ -1053,6 +1110,11 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return absl::StrCat("internal_type_operand_",
                         BinopKindToString(binop->binop_kind()), "_at_",
                         binop->span().ToString(file_table_));
+  }
+  // Variant for `NameDefTree`.
+  std::string GenerateInternalTypeVariableName(const NameDefTree* node) {
+    return absl::StrCat("internal_type_ndf_at_",
+                        node->span().ToString(file_table_));
   }
 
   // Propagates the type from the def for `ref`, to `ref` itself in the
