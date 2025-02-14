@@ -97,9 +97,12 @@ xls_dslx_typechecked_module_get_type_info
 xls_format_preference_from_string
 xls_function_get_name
 xls_function_get_type
+xls_function_jit_free
+xls_function_jit_run
 xls_function_type_to_string
 xls_init_xls
 xls_interpret_function
+xls_make_function_jit
 xls_mangle_dslx_name
 xls_optimize_ir
 xls_package_free
@@ -113,12 +116,14 @@ xls_parse_typed_value
 xls_schedule_and_codegen_package
 xls_schedule_and_codegen_result_free
 xls_schedule_and_codegen_result_get_verilog_text
+xls_trace_messages_free
 xls_type_to_string
 xls_value_clone
 xls_value_eq
 xls_value_flatten_to_bits
 xls_value_free
 xls_value_from_bits
+xls_value_from_bits_owned
 xls_value_get_bits
 xls_value_get_element
 xls_value_get_element_count
