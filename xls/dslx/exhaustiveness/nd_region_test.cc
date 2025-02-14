@@ -14,8 +14,16 @@
 
 #include "xls/dslx/exhaustiveness/nd_region.h"
 
-#include "gmock/gmock.h"
+#include <algorithm>
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/types/span.h"
 #include "gtest/gtest.h"
+#include "xls/dslx/exhaustiveness/interp_value_interval.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 namespace {
