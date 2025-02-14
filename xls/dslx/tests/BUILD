@@ -678,6 +678,8 @@ dslx_lang_test(name = "std_lsb")
 
 dslx_lang_test(name = "std_alias")
 
+dslx_lang_test(name = "std_find_index_on_enum_array")
+
 filegroup(
     name = "mod_imported_file",
     srcs = ["mod_imported.x"],
