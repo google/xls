@@ -1,6 +1,6 @@
 package NoSendState
 
-chan c_chan(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan c_chan(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 top proc NoSendState(a: bits[32], b: bits[32], init={1, 1}) {
   literal.5: token = literal(value=token, id=5)

@@ -1583,9 +1583,9 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
 TEST_P(BlockGeneratorTest, LoopbackFifoInstantiation) {
   constexpr std::string_view ir_text = R"(package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan loopback(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, bypass=false, register_push_outputs=true, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan loopback(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, bypass=false, register_push_outputs=true)
 
 proc running_sum(first_cycle: bits[1], init={1}) {
   tkn: token = literal(value=token, id=1000)
@@ -1778,7 +1778,7 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
 
 TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithNonUpdateCase) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   tkn: token = literal(value=token, id=1000)
@@ -1836,7 +1836,7 @@ proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
 
 TEST_P(BlockGeneratorTest, DynamicStateFeedbackWithOnlyUpdateCases) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   tkn: token = literal(value=token, id=1000)
@@ -1894,7 +1894,7 @@ proc bad_alternator(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
 
 TEST_P(BlockGeneratorTest, TruncatedArrayIndices) {
   const std::string ir_text = R"(package test
-chan out(bits[7], id=10, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan out(bits[7], id=10, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 proc lookup_proc(x: bits[1], z: bits[1], init={0, 0}) {
   tkn: token = literal(value=token, id=1000)
@@ -2027,10 +2027,10 @@ TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
 
 TEST_P(BlockGeneratorTest, SelectWithTokens) {
   const std::string ir_text = R"(package test
-chan ctrl(bits[1], id=100, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan in0(bits[7], id=101, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan in1(bits[7], id=102, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan out(bits[7], id=103, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan ctrl(bits[1], id=100, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan in0(bits[7], id=101, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan in1(bits[7], id=102, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan out(bits[7], id=103, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 proc mux_proc(tkn: token, init={token}) {
   receive.1: (token, bits[1]) = receive(tkn, channel=ctrl, id=1)

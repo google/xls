@@ -1,7 +1,7 @@
 package test
 
-chan ch_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
-chan ch_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+chan ch_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, strictness=proven_mutually_exclusive)
+chan ch_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, strictness=proven_mutually_exclusive)
 
 proc my_proc() {
   my_token: token = literal(value=token, id=1)

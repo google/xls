@@ -4902,9 +4902,9 @@ TEST_F(ProcInliningPassTest, ProcWithNonblockingReceivesWithPassthrough) {
   // inlinining's correctness.
   constexpr std::string_view ir_text = R"(package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=$1, register_push_outputs=$2, register_pop_outputs=$2, metadata="")
-chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=$1, register_push_outputs=$2, register_pop_outputs=$2)
+chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(count: bits[32], init={0}) {
   tkn: token = literal(value=token)
@@ -4979,9 +4979,9 @@ TEST_F(ProcInliningPassTest, ProcWithConditionalNonblockingReceives) {
   // inlinining's correctness.
   constexpr std::string_view ir_text = R"(package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=$1, metadata="")
-chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, bypass=$1)
+chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(count: bits[32], init={0}) {
   tkn: token = literal(value=token)
@@ -5087,10 +5087,10 @@ proc output_passthrough(state: bits[1], init={1}) {
 TEST_F(ProcInliningPassTest, ProcWithExternalConditionalNonblockingReceives) {
   constexpr std::string_view ir_text = R"(package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=2, bypass=false, metadata="")
-chan out0(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan out1(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=2, bypass=false)
+chan out0(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan out1(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(count: bits[2], init={0}) {
   tkn: token = literal(value=token)
@@ -5144,9 +5144,9 @@ TEST_F(ProcInliningPassTest, NestedProcsUsingEmptyAfterAll) {
   // Uses tokens created using empty after_all.
   constexpr std::string_view ir_text = R"(package test
 
-chan data_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan data_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan from_inner_proc(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=true, register_push_outputs=false, register_pop_outputs=true, metadata="""""")
+chan data_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan data_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan from_inner_proc(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=true, register_push_outputs=false, register_pop_outputs=true)
 
 top proc foo(__state: (), init={()}) {
   tok: token = after_all(id=5)

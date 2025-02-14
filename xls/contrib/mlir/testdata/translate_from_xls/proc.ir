@@ -5,10 +5,10 @@ package simple_proc
 file_number 0 "./simple_proc.x"
 
 // CHECK-LABEL: xls.chan @ch_inp {send_supported = false} : i32
-chan ch_inp(bits[32], id=0, kind=streaming, ops=receive_only, metadata="")
+chan ch_inp(bits[32], id=0, kind=streaming, ops=receive_only)
 
 // CHECK-LABEL: xls.chan @ch_out {recv_supported = false} : i32
-chan ch_out(bits[32], id=1, kind=streaming, ops=send_only, metadata="")
+chan ch_out(bits[32], id=1, kind=streaming, ops=send_only)
 
 // CHECK-LABEL: xls.eproc @ident() zeroinitializer {
 // CHECK:         xls.yield

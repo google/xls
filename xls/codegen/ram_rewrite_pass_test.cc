@@ -722,9 +722,9 @@ constexpr RamChannelRewriteTestParam kTestParameters[] = {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RW",
         .ir_text = R"(package  test
-chan req((bits[32], bits[32], (), (), bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp((), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan req((bits[32], bits[32], (), (), bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp((), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -748,9 +748,9 @@ proc my_proc(__state: bits[32], init={0}) {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RWWithMask",
         .ir_text = R"(package  test
-chan req((bits[32], bits[32], bits[4], bits[4], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp((), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan req((bits[32], bits[32], bits[4], bits[4], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp((), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -777,11 +777,11 @@ proc my_proc(__state: bits[32], init={0}) {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RWWithExtraneousChannels",
         .ir_text = R"(package  test
-chan req((bits[32], bits[32], (), (), bits[1], bits[1]), id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp((), id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan extra0(bits[1], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan extra1(bits[1], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan req((bits[32], bits[32], (), (), bits[1], bits[1]), id=3, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp((), id=4, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan extra0(bits[1], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan extra1(bits[1], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -809,15 +809,15 @@ proc my_proc(__state: bits[32], init={0}) {
     RamChannelRewriteTestParam{
         .test_name = "32BitWithThree1RWRams",
         .ir_text = R"(package  test
-chan req0((bits[32], bits[32], (), (), bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp0((), id=6, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan req1((bits[32], bits[32], (), (), bits[1], bits[1]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan resp1((bits[32]), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp1((), id=7, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan req2((bits[32], bits[32], (), (), bits[1], bits[1]), id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan resp2((bits[32]), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp2((), id=8, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan req0((bits[32], bits[32], (), (), bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp0((), id=6, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan req1((bits[32], bits[32], (), (), bits[1], bits[1]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp1((bits[32]), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp1((), id=7, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan req2((bits[32], bits[32], (), (), bits[1], bits[1]), id=4, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp2((bits[32]), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp2((), id=8, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: (), init={()}) {
   __token: token = literal(value=token)
@@ -854,10 +854,10 @@ proc my_proc(__state: (), init={()}) {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1R1W",
         .ir_text = R"(package  test
-chan rd_req((bits[32], ()), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_req((bits[32], bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan rd_req((bits[32], ()), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_req((bits[32], bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -881,10 +881,10 @@ proc my_proc(__state: bits[32], init={0}) {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1R1WWithMask",
         .ir_text = R"(package  test
-chan rd_req((bits[32], bits[4]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_req((bits[32], bits[32], bits[4]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan rd_req((bits[32], bits[4]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_req((bits[32], bits[32], bits[4]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -911,12 +911,12 @@ proc my_proc(__state: bits[32], init={0}) {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1R1WWithExtraneousChannels",
         .ir_text = R"(package  test
-chan rd_req((bits[32], ()), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_req((bits[32], bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp((), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan extra0(bits[1], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan extra1(bits[1], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan rd_req((bits[32], ()), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_req((bits[32], bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_comp((), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan extra0(bits[1], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan extra1(bits[1], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -944,18 +944,18 @@ proc my_proc(__state: bits[32], init={0}) {
     RamChannelRewriteTestParam{
         .test_name = "32BitWithThree1R1WRams",
         .ir_text = R"(package  test
-chan rd_req0((bits[32], ()), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan rd_resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_req0((bits[32], bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp0((), id=9, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan rd_req1((bits[32], ()), id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan rd_resp1((bits[32]), id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_req1((bits[32], bits[32], ()), id=5, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp1((), id=10, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan rd_req2((bits[32], ()), id=6, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan rd_resp2((bits[32]), id=7, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_req2((bits[32], bits[32], ()), id=8, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp2((), id=11, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan rd_req0((bits[32], ()), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan rd_resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_req0((bits[32], bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_comp0((), id=9, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan rd_req1((bits[32], ()), id=3, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan rd_resp1((bits[32]), id=4, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_req1((bits[32], bits[32], ()), id=5, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_comp1((), id=10, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan rd_req2((bits[32], ()), id=6, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan rd_resp2((bits[32]), id=7, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_req2((bits[32], bits[32], ()), id=8, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_comp2((), id=11, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -991,13 +991,13 @@ proc my_proc(__state: bits[32], init={0}) {
     RamChannelRewriteTestParam{
         .test_name = "Simple32Bit1RWAnd1R1W",
         .ir_text = R"(package  test
-chan req0((bits[32], bits[32], (), (), bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp0((), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan rd_req1((bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan rd_resp1((bits[32]), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan wr_req1((bits[32], bits[32], ()), id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan wr_comp1((), id=6, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan req0((bits[32], bits[32], (), (), bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_comp0((), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan rd_req1((bits[32], ()), id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan rd_resp1((bits[32]), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan wr_req1((bits[32], bits[32], ()), id=4, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan wr_comp1((), id=6, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 
 proc my_proc(__state: bits[32], init={0}) {
@@ -1115,9 +1115,9 @@ std::string MakeTestProc1RW(TestProc1RWVars vars) {
   return absl::StrReplaceAll(
       R"(
   package test
-chan req($req_type, id=0, $req_chan_params, metadata="""""")
-chan resp($resp_type, id=1, $resp_chan_params, metadata="""""")
-chan wr_comp($wr_comp_type, id=2, $wr_comp_chan_params, metadata="""""")
+chan req($req_type, id=0, $req_chan_params)
+chan resp($resp_type, id=1, $resp_chan_params)
+chan wr_comp($wr_comp_type, id=2, $wr_comp_chan_params)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)
@@ -1173,10 +1173,10 @@ std::string MakeTestProc1R1W(TestProc1R1WVars vars) {
       R"(
 package test
 
-chan rd_req($rd_req_type, id=0, $rd_req_chan_params, metadata="""""")
-chan rd_resp($rd_resp_type, id=1, $rd_resp_chan_params, metadata="""""")
-chan wr_req($wr_req_type, id=2, $wr_req_chan_params, metadata="""""")
-chan wr_comp($wr_comp_type, id=3, $wr_comp_chan_params, metadata="""""")
+chan rd_req($rd_req_type, id=0, $rd_req_chan_params)
+chan rd_resp($rd_resp_type, id=1, $rd_resp_chan_params)
+chan wr_req($wr_req_type, id=2, $wr_req_chan_params)
+chan wr_comp($wr_comp_type, id=3, $wr_comp_chan_params)
 
 proc my_proc(__state: bits[32], init={0}) {
   __token: token = literal(value=token)

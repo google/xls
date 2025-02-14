@@ -85,9 +85,9 @@ package sample
 
 file_number 0 "fake_file.x"
 
-chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc add(__token: token, init={token}) {
   receive.4: (token, bits[32]) = receive(__token, channel=sample__operand_0, id=4)

@@ -1,8 +1,8 @@
 package SendState
 
-chan a_value_chan(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan b_value_chan(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan c_chan(bits[32], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan a_value_chan(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan b_value_chan(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan c_chan(bits[32], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 top proc SendState(a: bits[32], b: bits[32], init={1, 1}) {
   literal.9: token = literal(value=token, id=9)

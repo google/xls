@@ -657,14 +657,14 @@ TEST_P(ProcRuntimeTestBase, XNetwork) {
   const std::string kIrText = R"(
 package p
 
-chan i_a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
-chan i_b(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=none, metadata="")
-chan a_c(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=none, metadata="")
-chan b_c(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=none, metadata="")
-chan c_d(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=none, metadata="")
-chan c_e(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=none, metadata="")
-chan d_o(bits[32], id=6, kind=streaming, ops=send_only, flow_control=none, metadata="")
-chan e_o(bits[32], id=7, kind=streaming, ops=send_only, flow_control=none, metadata="")
+chan i_a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none)
+chan i_b(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=none)
+chan a_c(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=none)
+chan b_c(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=none)
+chan c_d(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=none)
+chan c_e(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=none)
+chan d_o(bits[32], id=6, kind=streaming, ops=send_only, flow_control=none)
+chan e_o(bits[32], id=7, kind=streaming, ops=send_only, flow_control=none)
 
 proc a(my_token: token, state: (), init={token, ()}) {
   literal.1: bits[32] = literal(value=1)

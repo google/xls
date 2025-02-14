@@ -165,7 +165,7 @@ TEST_F(TokenSimplificationPassTest, DuplicatedArgument2) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(tok: token, state: (), init={token, ()}) {
        literal.1: bits[32] = literal(value=10)
@@ -194,7 +194,7 @@ TEST_F(TokenSimplificationPassTest, UnrelatedArguments) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(tok: token, state: (), init={token, ()}) {
        literal.1: bits[32] = literal(value=10)
@@ -222,7 +222,7 @@ TEST_F(TokenSimplificationPassTest, ArgumentsWithDependencies) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(tok: token, state: (), init={token, ()}) {
        literal.1: bits[32] = literal(value=10)
@@ -245,7 +245,7 @@ TEST_F(TokenSimplificationPassTest, DoNotRelyOnInvokeForDependencies) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      fn test_fn(tok1: token, tok2: token) -> token {
        ret tok: token = param(name=tok2)

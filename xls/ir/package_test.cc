@@ -1007,8 +1007,7 @@ TEST_F(PackageTest, LinkChannelsAndProcs) {
 package my_package
 
 chan test_channel(
-  bits[32], id=0, kind=streaming, ops=send_receive,
-  flow_control=ready_valid, metadata="""""")
+  bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 top proc main(__state: (), init={()}) {
   __token: token = literal(value=token, id=1000)
@@ -1024,8 +1023,7 @@ top proc main(__state: (), init={()}) {
 package my_package2
 
 chan another_test_channel(
-  bits[32], id=0, kind=streaming, ops=send_receive,
-  flow_control=ready_valid, metadata="""""")
+  bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 
 top proc another_main(__state: (), init={()}) {
@@ -1055,8 +1053,7 @@ TEST_F(PackageTest, LinkChannelsAndProcsWithInvokes) {
 package my_package
 
 chan test_channel(
-  bits[32], id=0, kind=streaming, ops=send_receive,
-  flow_control=ready_valid, metadata="""""")
+  bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.15: bits[32] = add(x, y)
@@ -1077,8 +1074,7 @@ top proc main(__state: (), init={()}) {
 package my_package2
 
 chan another_test_channel(
-  bits[32], id=0, kind=streaming, ops=send_receive,
-  flow_control=ready_valid, metadata="""""")
+  bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret sub.15: bits[32] = sub(x, y)

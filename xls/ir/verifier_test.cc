@@ -251,7 +251,7 @@ TEST_F(VerifierTest, ProcMissingReceive) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
+chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none)
 
 proc my_proc(t: token, s: bits[32], init={token, 45}) {
   send.1: token = send(t, s, channel=ch)
@@ -271,7 +271,7 @@ TEST_F(VerifierTest, MultipleSendNodes) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none, metadata="""""")
+chan ch(bits[32], id=42, kind=streaming, ops=send_only, flow_control=none)
 
 proc my_proc(t: token, s: bits[32], init={token, 45}) {
   send.1: token = send(t, s, channel=ch)
@@ -292,7 +292,7 @@ TEST_F(VerifierTest, SendOnReceiveOnlyChannel) {
   std::string input = R"(
 package test_package
 
-chan ch(bits[32], id=42, kind=streaming, ops=receive_only, flow_control=none, metadata="""""")
+chan ch(bits[32], id=42, kind=streaming, ops=receive_only, flow_control=none)
 
 proc my_proc(t: token, s: bits[42], init={token, 45}) {
   send.1: token = send(t, s, channel=ch)
@@ -678,7 +678,7 @@ proc my_old_proc() {}
 TEST_F(VerifierTest, NewStyleProcAndGlobalChannels) {
   const std::string input = R"(package test
 
-chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
+chan ch(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none)
 
 proc my_new_proc<>() {}
 

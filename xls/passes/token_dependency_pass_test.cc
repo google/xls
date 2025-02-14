@@ -56,7 +56,7 @@ TEST_F(TokenDependencyPassTest, Simple) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: (), init={()}) {
        __token: token = literal(value=token, id=1000)
@@ -85,7 +85,7 @@ TEST_F(TokenDependencyPassTest, MultipleSends) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: (), init={()}) {
        __token: token = literal(value=token, id=1000)
@@ -122,7 +122,7 @@ TEST_F(TokenDependencyPassTest, DependentSends) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: (), init={()}) {
        __token: token = literal(value=token, id=1000)
@@ -157,7 +157,7 @@ TEST_F(TokenDependencyPassTest, DependentSendsMultipleReceives) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: (), init={()}) {
        __token: token = literal(value=token, id=1000)
@@ -195,7 +195,7 @@ TEST_F(TokenDependencyPassTest, SideEffectingNontokenOps) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=receive_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(init={}) {
        __token: token = literal(value=token, id=1000)
@@ -217,7 +217,7 @@ TEST_F(TokenDependencyPassTest, SupportsCrossActivationTokens) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: (bits[32], token, bits[32]), init={(1, token, 1)}) {
        a: bits[32] = tuple_index(__state, index=0)

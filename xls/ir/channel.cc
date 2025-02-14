@@ -27,6 +27,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
@@ -169,7 +170,7 @@ std::string Channel::ToString() const {
         &result, "initial_values={%s}, ",
         absl::StrJoin(initial_values(), ", ", UntypedValueFormatter));
   }
-  absl::StrAppendFormat(&result, "id=%d, kind=%s, ops=%s, ", id(),
+  absl::StrAppendFormat(&result, "id=%d, kind=%s, ops=%s", id(),
                         ChannelKindToString(kind_),
                         ChannelOpsToString(supported_ops()));
 
@@ -177,7 +178,7 @@ std::string Channel::ToString() const {
     const StreamingChannel* streaming_channel =
         down_cast<const StreamingChannel*>(this);
     absl::StrAppendFormat(
-        &result, "flow_control=%s, strictness=%s, ",
+        &result, ", flow_control=%s, strictness=%s",
         FlowControlToString(streaming_channel->GetFlowControl()),
         ChannelStrictnessToString(streaming_channel->GetStrictness()));
     const std::optional<ChannelConfig>& channel_config =
@@ -186,8 +187,8 @@ std::string Channel::ToString() const {
       if (channel_config->fifo_config()) {
         absl::StrAppendFormat(
             &result,
-            "fifo_depth=%d, bypass=%s, "
-            "register_push_outputs=%s, register_pop_outputs=%s, ",
+            ", fifo_depth=%d, bypass=%s, "
+            "register_push_outputs=%s, register_pop_outputs=%s",
             channel_config->fifo_config()->depth(),
             channel_config->fifo_config()->bypass() ? "true" : "false",
             channel_config->fifo_config()->register_push_outputs() ? "true"
@@ -196,20 +197,17 @@ std::string Channel::ToString() const {
                                                                   : "false");
       }
       if (channel_config->input_flop_kind()) {
-        absl::StrAppendFormat(&result, "input_flop_kind=%v, ",
+        absl::StrAppendFormat(&result, ", input_flop_kind=%v",
                               *channel_config->input_flop_kind());
       }
       if (channel_config->output_flop_kind()) {
-        absl::StrAppendFormat(&result, "output_flop_kind=%v, ",
+        absl::StrAppendFormat(&result, ", output_flop_kind=%v",
                               *channel_config->output_flop_kind());
       }
     }
   }
 
-  std::string metadata_textproto;
-  absl::StrAppendFormat(&result, "metadata=\"\"\"%s\"\"\")",
-                        metadata_textproto);
-
+  absl::StrAppend(&result, ")");
   return result;
 }
 

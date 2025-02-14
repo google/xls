@@ -311,10 +311,10 @@ TEST_F(DeadFunctionEliminationPassTest, ProcsUsingExternalChannels) {
   // is the only proc that doesn't use an external channel (channel d is
   // internal), so it should be removed by DFE.
   constexpr std::string_view ir_text = R"(package text
-chan a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan d(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
+chan a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan d(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 top proc test_proc0(state:(), init={()}) {
   tkn: token = literal(value=token)
@@ -373,8 +373,8 @@ TEST_F(DeadFunctionEliminationPassTest, TopProcWithNoChannelsWork) {
   // All the other procs are talking over internal channels and are therefore
   // not observable and can be removed.
   constexpr std::string_view ir_text = R"(package text
-chan a(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
-chan b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
+chan a(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid)
+chan b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 top proc test_proc0(state:(), init={()}) {
   next (state)
@@ -421,10 +421,10 @@ proc test_proc3(state:(), init={()}) {
 
 TEST_F(DeadFunctionEliminationPassTest, ProcsWithTopFnRemovesAllProcs) {
   constexpr std::string_view ir_text = R"(package text
-chan a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan a(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan b(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan c(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan d(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc test_proc0(state:(), init={()}) {
   next (state)

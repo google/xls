@@ -53,9 +53,9 @@ fn not_add(x: bits[32], y: bits[32]) -> bits[32] {
 NEG_PROC_IR = """package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 
 proc neg_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token)
@@ -87,11 +87,11 @@ fn gate_example(x: bits[32], y: bits[1]) -> bits[32] {
 MULTI_PROC_IR = """package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 chan internal(bits[32], id=1, kind=streaming, ops=send_receive,
-        flow_control=ready_valid, bypass=false, fifo_depth=1, metadata="")
+        flow_control=ready_valid, bypass=false, fifo_depth=1)
 chan out(bits[32], id=2, kind=streaming, ops=send_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 
 proc proc0(my_state: (), init={()}) {
   my_token: token = literal(value=token)
@@ -117,8 +117,8 @@ proc proc1(my_state: (), init={()}) {
 # Requires II of at least 2.
 HIGH_II_PROC_IR = """package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foobar_next(my_state: bits[32], init={0x1}) {
     my_token: token = literal(value=token, id=1)

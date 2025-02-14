@@ -1,6 +1,6 @@
 package test
 
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive)
 
 proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   my_token: token = state_read(state_element=my_token, id=9)

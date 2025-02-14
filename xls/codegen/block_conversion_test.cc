@@ -701,8 +701,8 @@ fn __implicit_token__main() -> () {
 TEST_F(BlockConversionTest, SimpleProc) {
   const std::string ir_text = R"(package test
 
-chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="""""")
-chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="""""")
+chan in(bits[32], id=0, kind=single_value, ops=receive_only)
+chan out(bits[32], id=1, kind=single_value, ops=send_only)
 
 proc my_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token, id=1)
@@ -1004,11 +1004,11 @@ TEST_F(BlockConversionTest, ChannelDefaultAndNonDefaultSuffixName) {
   const std::string ir_text = R"(package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
-        flow_control=ready_valid, metadata="")
-chan in2(bits[32], id=2, kind=single_value, ops=receive_only, metadata="")
-chan out2(bits[32], id=3, kind=single_value, ops=send_only, metadata="")
+        flow_control=ready_valid)
+chan in2(bits[32], id=2, kind=single_value, ops=receive_only)
+chan out2(bits[32], id=3, kind=single_value, ops=send_only)
 
 proc my_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token)
@@ -1088,14 +1088,10 @@ proc my_proc(my_state: (), init={()}) {
 TEST_F(BlockConversionTest, ProcWithMultipleInputChannels) {
   const std::string ir_text = R"(package test
 
-chan in0(bits[32], id=0, kind=single_value, ops=receive_only,
-        metadata="""""")
-chan in1(bits[32], id=1, kind=single_value, ops=receive_only,
-        metadata="""""")
-chan in2(bits[32], id=2, kind=single_value, ops=receive_only,
-        metadata="""""")
-chan out(bits[32], id=3, kind=single_value, ops=send_only,
-         metadata="""""")
+chan in0(bits[32], id=0, kind=single_value, ops=receive_only)
+chan in1(bits[32], id=1, kind=single_value, ops=receive_only)
+chan in2(bits[32], id=2, kind=single_value, ops=receive_only)
+chan out(bits[32], id=3, kind=single_value, ops=send_only)
 
 proc my_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token, id=1)
@@ -1133,8 +1129,8 @@ proc my_proc(my_state: (), init={()}) {
 
 TEST_F(BlockConversionTest, OnlyFIFOOutProc) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=single_value, ops=receive_only)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc my_proc(st: (), init={()}) {
   tkn: token = literal(value=token, id=1)
@@ -1164,8 +1160,8 @@ TEST_F(BlockConversionTest, NoRegsIfChannelsHaveNoFlopsSet) {
   constexpr std::string_view kIrText = R"(
 package my_package
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, input_flop_kind=none, output_flop_kind=none, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, input_flop_kind=none, output_flop_kind=none, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, input_flop_kind=none, output_flop_kind=none)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, input_flop_kind=none, output_flop_kind=none)
 
 top proc my_proc() {
   literal.16: token = literal(value=token, id=16)
@@ -1194,8 +1190,8 @@ top proc my_proc() {
 
 TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsTrue) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=single_value, ops=send_only)
 
 proc my_proc(st: (), init={()}) {
   tkn: token = literal(value=token, id=1)
@@ -1228,8 +1224,8 @@ proc my_proc(st: (), init={()}) {
 
 TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsFalse) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=single_value, ops=send_only)
 
 proc my_proc(st: (), init={()}) {
   tkn: token = literal(value=token, id=1)
@@ -1261,8 +1257,8 @@ proc my_proc(st: (), init={()}) {
 
 TEST_F(BlockConversionTest, UnconditionalSendRdyVldProc) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=single_value, ops=receive_only)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc my_proc(st: (), init={()}) {
   tkn: token = literal(value=token, id=1)
@@ -1685,8 +1681,8 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
 
 TEST_F(BlockConversionTest, FlopSingleValueChannelProc) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
-chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="")
+chan in(bits[32], id=0, kind=single_value, ops=receive_only)
+chan out(bits[32], id=1, kind=single_value, ops=send_only)
 
 proc my_proc(tkn: token, st: (), init={token, ()}) {
   receive.13: (token, bits[32]) = receive(tkn, channel=in, id=13)
@@ -3894,7 +3890,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
 
 TEST_F(ProcConversionTestFixture, ProcSendDuringReset) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc pipelined_proc(tkn: token, st: bits[32], init={token, 1}) {
   send.1: token = send(tkn, st, channel=out, id=1)
@@ -3954,9 +3950,9 @@ proc pipelined_proc(tkn: token, st: bits[32], init={token, 1}) {
 
 TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOne) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 #[initiation_interval(2)]
 proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
@@ -4035,9 +4031,9 @@ proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
 
 TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOneRandomStalls) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 #[initiation_interval(2)]
 proc pipelined_proc(tkn: token, st: bits[32], init={token, 0}) {
@@ -4697,12 +4693,12 @@ class ProcWithStateTest : public BlockConversionTest {
   void TestBlockWithSchedule(const xls::SchedulingOptions& scheduling_options) {
     const std::string ir_text = R"(package my_package
 
-  chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-  chan a_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-  chan b_in(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-  chan b_out(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-  chan c_in(bits[32], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-  chan c_out(bits[32], id=5, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+  chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+  chan a_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+  chan b_in(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid)
+  chan b_out(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid)
+  chan c_in(bits[32], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid)
+  chan c_out(bits[32], id=5, kind=streaming, ops=send_only, flow_control=ready_valid)
 
   top proc test_proc(st_0: bits[32], st_1: bits[32], st_2: bits[32], init={3, 5, 9}) {
     tkn: token = literal(value=token)
@@ -4980,8 +4976,8 @@ TEST_F(ProcConversionTestFixture, RecvDataFeedingSendPredicate) {
 
 TEST_F(ProcConversionTestFixture, SingleLoopbackChannel) {
   constexpr std::string_view ir_text = R"(package test
-chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_pop_outputs=true, register_push_outputs=true, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan loopback(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_pop_outputs=true, register_push_outputs=true)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   lit1: bits[32] = literal(value=1)
@@ -5028,9 +5024,9 @@ proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
 
 TEST_F(ProcConversionTestFixture, MultipleLoopbackChannel) {
   constexpr std::string_view ir_text = R"(package test
-chan loopback0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true, metadata="")
-chan loopback1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true, metadata="")
-chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan loopback0(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true)
+chan loopback1(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, register_push_outputs=true, register_pop_outputs=true)
+chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
   lit1: bits[32] = literal(value=1)
@@ -5085,7 +5081,7 @@ proc loopback_proc(tkn: token, st: bits[32], init={token, 1}) {
 
 TEST_F(ProcConversionTestFixture, ProcIdleWithoutInputChannels) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc proc_ut(tkn: token, st: bits[32], init={token, 0}) {
   lit1: bits[32] = literal(value=1)
@@ -5184,8 +5180,8 @@ proc proc_ut(tkn: token, st: bits[32], init={token, 0}) {
 
 TEST_F(ProcConversionTestFixture, ProcIdleWithStageZeroRecvIfs) {
   const std::string ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc proc_ut(st: bits[32], init={0}) {
   tkn: token = literal(value=token)
@@ -5322,7 +5318,7 @@ proc proc_ut(st: bits[32], init={0}) {
 TEST_F(ProcConversionTestFixture, b315378547) {
   const std::string ir_text = R"(package test
 
-chan out(bits[8], id=0, kind=single_value, ops=send_only, metadata="""""")
+chan out(bits[8], id=0, kind=single_value, ops=send_only)
 
 top proc proc_ut(_ZZN4Test4mainEvE1i__1: bits[8], init={4}) {
   tkn: token = literal(value=token)
@@ -5428,7 +5424,7 @@ TEST_F(BlockConversionTest, NoDanglingPipelinePointers) {
   constexpr std::string_view kIrText = R"(
 package subrosa
 
-chan chan_0(bits[3], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan chan_0(bits[3], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={token, 0, 0}) {
   literal.4: bits[18] = literal(value=0, id=4)
@@ -5468,7 +5464,7 @@ top proc proc_0(param: token, param__1: bits[18], param__2: bits[3], init={token
 
 TEST_F(ProcConversionTestFixture, ProcWithConditionalNextValues) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={token, 0, 0}) {
   lit1: bits[32] = literal(value=1)
@@ -5551,7 +5547,7 @@ proc slow_counter(tkn: token, counter: bits[32], odd_iteration: bits[1], init={t
 
 TEST_F(ProcConversionTestFixture, ProcWithDynamicStateFeedback) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc slow_counter(counter: bits[32], odd_iteration: bits[1], init={0, 0}) {
   tkn: token = literal(value=token)
@@ -5657,7 +5653,7 @@ class AddPredicate : public Proc::StateElementTransformer {
 
 TEST_F(ProcConversionTestFixture, ProcWithDynamicStateReads) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1], init={0, 5, 0}) {
   tkn: token = literal(value=token)
@@ -5775,7 +5771,7 @@ proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1],
 
 TEST_F(ProcConversionTestFixture, ProcWithComplexDynamicStateFeedback) {
   const std::string ir_text = R"(package test
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 proc alternating_counter(counter0: bits[32], counter1: bits[32], index: bits[1], init={0, 5, 0}) {
   tkn: token = literal(value=token)

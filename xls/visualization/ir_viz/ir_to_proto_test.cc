@@ -122,8 +122,8 @@ TEST_F(IrToProtoTest, SimpleProc) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
 package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
   tkn: token = literal(value=token)
@@ -151,8 +151,8 @@ TEST_F(IrToProtoTest, SimpleProcWithNextValue) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
 package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc the_proc(x: bits[32], y: bits[64], init={0, 42}) {
   tkn: token = literal(value=token)

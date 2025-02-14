@@ -2,7 +2,7 @@ package test_module
 
 file_number 0 "test_module.x"
 
-chan test_module__input_c(bits[32], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan test_module__input_c(bits[32], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 fn __itok__test_module__trace_and_add(__token: token id=1, __activated: bits[1] id=2, x: bits[32] id=3, y: bits[32][2] id=4) -> (token, bits[32]) {
   literal.5: bits[32] = literal(value=0, id=5)

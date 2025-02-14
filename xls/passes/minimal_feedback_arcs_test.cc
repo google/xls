@@ -148,8 +148,8 @@ class MinimalFeedbackArcsTest : public IrTestBase {};
 
 TEST_F(MinimalFeedbackArcsTest, SingleProcWithNoFeedback) {
   constexpr std::string_view ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(st: (), init={()}) {
   tkn: token = literal(value=token)
@@ -168,9 +168,9 @@ top proc foo(st: (), init={()}) {
 
 TEST_F(MinimalFeedbackArcsTest, SingleProcWithLoopbackButNoCycle) {
   constexpr std::string_view ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan internal(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan internal(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 top proc foo(st: (), init={()}) {
   tkn: token = literal(value=token)
@@ -195,9 +195,9 @@ top proc foo(st: (), init={()}) {
 
 TEST_F(MinimalFeedbackArcsTest, SingleProcWithLoopbackCycle) {
   constexpr std::string_view ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan internal(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan internal(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 top proc foo(st: (), init={()}) {
   tkn: token = literal(value=token)
@@ -230,11 +230,11 @@ TEST_F(MinimalFeedbackArcsTest, TwoProcsWithSplitAndJoin) {
   // │ └─────┘    └─────┘ │
   // └────────────────────┘
   constexpr std::string_view ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan internal0(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
-chan internal1(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
-chan internal2(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan internal0(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid)
+chan internal1(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid)
+chan internal2(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=ready_valid)
 
 top proc foo(st: (), init={()}) {
   tkn: token = literal(value=token)

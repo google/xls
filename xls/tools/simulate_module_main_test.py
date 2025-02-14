@@ -29,13 +29,13 @@ top fn add(x: bits[32], y: bits[32]) -> bits[32] {
 }
 """
 
-ADD_IR_PROC = '''package sample
+ADD_IR_PROC = """package sample
 
 file_number 0 "fake_file.x"
 
-chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc add(init={}) {
   __token: token = literal(value=token, id=1000)
@@ -49,14 +49,14 @@ top proc add(init={}) {
   result_val: bits[32] = add(operand_0_val, operand_1_val, id=11, pos=[(0,18,35)])
   tok_send: token = send(tok_recv, result_val, channel=sample__result, id=12)
 }
-'''
+"""
 
-PROC_WITH_NO_OUTPUT_CHANNEL = '''package sample
+PROC_WITH_NO_OUTPUT_CHANNEL = """package sample
 
 file_number 0 "fake_file.x"
 
-chan in0(bits[12], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan in1(bits[42], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan in0(bits[12], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan in1(bits[42], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid)
 
 top proc no_output_channels(init={}) {
   __token: token = literal(value=token, id=1000)
@@ -64,7 +64,7 @@ top proc no_output_channels(init={}) {
   recv0_token: token = tuple_index(recv0, index=0, id=11, pos=[(0,15,22)])
   recv1: (token, bits[42], bits[1]) = receive(recv0_token, channel=in1, blocking=false, id=36)
 }
-'''
+"""
 
 
 class SimulateModuleMainTest(test_base.TestCase):

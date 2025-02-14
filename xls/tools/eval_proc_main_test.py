@@ -70,11 +70,11 @@ PROC_REWRITTEN_MEMORY_IR_PATH = runfiles.get_path(
 # Block generated from the proc with:
 # --delay_model=unit --pipeline_stages=1 --reset=rst
 # TODO(allight): Rewrite test to be writable using a dslx source.
-OBSERVER_IR = '''
+OBSERVER_IR = """
 package ObserverTest
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""block_ports { block_name: "ObserverTest" data_port_name: "in_data" ready_port_name: "in_rdy" valid_port_name: "in_vld" }""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""block_ports { block_name: "ObserverTest" data_port_name: "out_data" ready_port_name: "out_rdy" valid_port_name: "out_vld" }""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 top proc ObserverTest(st: bits[32] id=78, init={0}) {
   literal.2: token = literal(value=token, id=2)
@@ -123,7 +123,7 @@ block ObserverTest(clk: clock, in_data: bits[32], in_vld: bits[1], out_data: bit
   out_vld: () = output_port(__out_data_valid_reg, name=out_vld, id=33)
   in_rdy: () = output_port(in_data_load_en, name=in_rdy, id=36)
 }
-'''
+"""
 
 OBSERVER_BLOCK_SIG = """
 module_name: "ObserverTest"

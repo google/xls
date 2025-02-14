@@ -204,8 +204,7 @@ TEST(ChannelTest, StreamingToStringParses) {
   EXPECT_EQ(channel_str,
             "chan my_channel((bits[32], bits[23]), initial_values={(1234, 33), "
             "(2222, 444)}, id=42, kind=streaming, ops=receive_only, "
-            "flow_control=ready_valid, strictness=proven_mutually_exclusive, "
-            "metadata=\"\"\"\"\"\")");
+            "flow_control=ready_valid, strictness=proven_mutually_exclusive)");
 
   // Create another package and try to parse the channel into the other
   // package. We can't use the existing package because adding the channel will
@@ -224,7 +223,7 @@ TEST(ChannelTest, SingleValueToStringParses) {
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
             "chan my_channel(bits[32], id=42, kind=single_value, "
-            "ops=receive_only, metadata=\"\"\"\"\"\")");
+            "ops=receive_only)");
 
   // Create another package and try to parse the channel into the other
   // package. We can't use the existing package because adding the channel will

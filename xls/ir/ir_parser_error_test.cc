@@ -606,7 +606,7 @@ fn bar(tkn: token, cond: bits[1], x: bits[3], y: bits[7]) -> token {
 TEST(IrParserErrorTest, ParseProcWithMixedNextValueStyles) {
   const std::string input = R"(package test
 
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive)
 
 proc my_proc(my_token: token, my_state_1: bits[32], my_state_2: bits[32], init={token, 42, 64}) {
   send.1: token = send(my_token, my_state_1, channel=ch, id=1)
@@ -626,7 +626,7 @@ proc my_proc(my_token: token, my_state_1: bits[32], my_state_2: bits[32], init={
 TEST(IrParserErrorTest, ParseProcWithBadNextParam) {
   const std::string input = R"(package test
 
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive)
 
 proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   send.1: token = send(my_token, my_state, channel=ch, id=1)
@@ -647,7 +647,7 @@ proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
 TEST(IrParserErrorTest, ParseProcWithBadNextValueType) {
   const std::string input = R"(package test
 
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive)
 
 proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   send.1: token = send(my_token, my_state, channel=ch, id=1)
@@ -695,7 +695,7 @@ TEST(IrParserErrorTest, InstantiateNonexistentProc) {
   const std::string input = R"(package test
 
 proc the_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
-  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
   proc_instantiation foo(ch, ch, proc=not_a_proc)
   next (my_token, my_state)
 }
@@ -713,7 +713,7 @@ proc og_proc(my_token: token, my_state: bits[32], init={token, 42}) {
 }
 
 proc the_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
-  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
   proc_instantiation foo(ch, ch, proc=og_proc)
   next (my_token, my_state)
 }
@@ -735,7 +735,7 @@ proc my_proc<in_ch: bits[32] in kind=streaming, out_ch: bits[32] out kind=stream
 }
 
 proc other_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
-  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
   proc_instantiation foo(ch, proc=my_proc)
   next (my_token, my_state)
 }
@@ -792,7 +792,7 @@ TEST(IrParserErrorTest, DeclareChannelInOldStyleProc) {
   Package p("my_package");
   const std::string input =
       R"(proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
-  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
   next (rcv_token, my_state)
 }
 )";
@@ -806,7 +806,7 @@ TEST(IrParserErrorTest, DeclareChannelInFunction) {
   Package p("my_package");
   const std::string input =
       R"(fn my_func()  -> bits[1] {
-  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+  chan ch(bits[32], id=0, kind=streaming, ops=send_receive,  flow_control=none, strictness=proven_mutually_exclusive)
   ret result: bits[1] = literal(value=0, id=1)
 }
 )";
@@ -819,7 +819,7 @@ TEST(IrParserErrorTest, NewStyleProcUsingGlobalChannel) {
   const std::string input =
       R"(package test
 
-chan ch(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, strictness=proven_mutually_exclusive)
 
 proc my_proc<>(my_token: token, my_state: bits[32], init={token, 42}) {
   rcv: (token, bits[32]) = receive(my_token, channel=ch)
@@ -1531,8 +1531,7 @@ TEST(IrParserErrorTest, ParseSendReceiveChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=single_value,
-                      ops=send_receive,
-                      metadata=""))",
+                      ops=send_receive))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -1548,8 +1547,7 @@ TEST(IrParserErrorTest, ParseSendReceiveChannelWithInitialValues) {
       Channel * ch,
       Parser::ParseChannel(
           R"(chan foo(bits[32], initial_values={2, 4, 5}, id=42, kind=streaming,
-                         flow_control=none, ops=send_receive,
-                         metadata=""))",
+                         flow_control=none, ops=send_receive))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -1567,8 +1565,7 @@ TEST(IrParserErrorTest, ParseSendReceiveChannelWithTupleType) {
                                              R"(chan foo((bits[32], bits[1]),
                       initial_values={(123, 1), (42, 0)},
                       id=42, kind=streaming, flow_control=ready_valid,
-                      ops=send_receive,
-                      metadata=""))",
+                      ops=send_receive))",
                                              &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_THAT(
@@ -1581,8 +1578,7 @@ TEST(IrParserErrorTest, ParseSendOnlyChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan bar((bits[32], bits[1]),
-                         id=7, kind=single_value, ops=send_only,
-                         metadata=""))",
+                         id=7, kind=single_value, ops=send_only))",
                                              &p));
   EXPECT_EQ(ch->name(), "bar");
   EXPECT_EQ(ch->id(), 7);
@@ -1594,8 +1590,7 @@ TEST(IrParserErrorTest, ParseReceiveOnlyChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan meh(bits[32][4], id=0,
-                         kind=single_value, ops=receive_only,
-                         metadata=""))",
+                         kind=single_value, ops=receive_only))",
                                              &p));
   EXPECT_EQ(ch->name(), "meh");
   EXPECT_EQ(ch->id(), 0);
@@ -1609,7 +1604,7 @@ TEST(IrParserErrorTest, ParseStreamingChannelWithStrictness) {
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=streaming,
                          flow_control=none, ops=send_receive,
-                         strictness=arbitrary_static_order, metadata=""""""))",
+                         strictness=arbitrary_static_order))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -1626,7 +1621,7 @@ TEST(IrParserErrorTest, ParseStreamingChannelWithExtraFifoMetadata) {
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=streaming,
                          flow_control=none, ops=send_receive, fifo_depth=3,
-                         bypass=false, metadata=""""""))",
+                         bypass=false))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -1649,36 +1644,29 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
   Package p("my_package");
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(bits[32][4], kind=single_value,
-                         ops=receive_only,
-                         metadata=""))",
+                         ops=receive_only))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Mandatory keyword argument `id` not found")));
 
   EXPECT_THAT(
-      Parser::ParseChannel(
-          R"(chan meh(bits[32][4], id=42, ops=receive_only,
-                         metadata=""))",
-          &p)
+      Parser::ParseChannel(R"(chan meh(bits[32][4], id=42, ops=receive_only))",
+                           &p)
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Mandatory keyword argument `kind` not found")));
 
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(bits[32][4], id=42, kind=bogus,
-                         ops=receive_only,
-                         metadata=""))",
+                         ops=receive_only))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Invalid channel kind \"bogus\"")));
 
   EXPECT_THAT(
-      Parser::ParseChannel(
-          R"(chan meh(bits[32][4], id=7, kind=streaming,
-                         metadata=""))",
-          &p)
+      Parser::ParseChannel(R"(chan meh(bits[32][4], id=7, kind=streaming))", &p)
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Mandatory keyword argument `ops` not found")));
@@ -1686,8 +1674,7 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
   // Unrepresentable initial value.
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(bits[4], initial_values={128}, kind=streaming,
-                         ops=send_receive, id=7,
-                         metadata=""))",
+                         ops=send_receive, id=7))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1696,25 +1683,21 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
   // Wrong initial value type.
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(bits[4], initial_values={(1, 2)}, kind=streaming,
-                         ops=send_receive, id=7
-                         metadata=""))",
+                         ops=send_receive, id=7))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected token of type \"literal\"")));
 
   EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(id=44, kind=streaming, ops=receive_only,
-                         metadata=""))",
-                  &p)
+                  R"(chan meh(id=44, kind=streaming, ops=receive_only))", &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected 'bits' keyword")));
 
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(bits[32], id=44, kind=streaming,
-                         ops=receive_only, bogus="totally!",
-                         metadata=""))",
+                         ops=receive_only, bogus="totally!"))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1723,7 +1706,7 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
   // Bad channel name.
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan 444meh(foo: bits[32], id=7, kind=streaming,
-                         ops=receive_only, metadata=""))",
+                         ops=receive_only))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1733,7 +1716,7 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
   EXPECT_THAT(
       Parser::ParseChannel(
           R"(chan meh(bits[32], id=44, kind=single_value,
-                         ops=receive_only, fifo_depth=123, metadata=""))",
+                         ops=receive_only, fifo_depth=123))",
           &p)
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1743,7 +1726,7 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
   EXPECT_THAT(
       Parser::ParseChannel(
           R"(chan meh(bits[32], id=44, kind=single_value, ops=receive_only,
-                         strictness=proven_mutually_exclusive, metadata=""))",
+                         strictness=proven_mutually_exclusive))",
           &p)
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1752,7 +1735,7 @@ TEST(IrParserErrorTest, ChannelParsingErrors) {
   // Bypass, register_push_outputs, or register_pop_outputs without fifo_depth.
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(bits[32], id=44, kind=streaming, ops=receive_only,
-                      bypass=true, metadata=""))",
+                      bypass=true))",
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1764,9 +1747,8 @@ TEST(IrParserErrorTest, PackageWithSingleDataElementChannels) {
 package test
 
 chan hbo(bits[32], id=0, kind=streaming, flow_control=none, ops=receive_only,
-            fifo_depth=42, metadata="")
-chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only,
-            metadata="")
+            fifo_depth=42)
+chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only)
 
 proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   receive.1: (token, bits[32]) = receive(my_token, channel=hbo)
@@ -2375,7 +2357,7 @@ TEST(IrParserErrorTest, ParseChannelAttribute) {
   std::string input = R"(package test
 
 #[initiation_interval(12)]
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none)
 )";
   EXPECT_THAT(
       Parser::ParsePackage(input),

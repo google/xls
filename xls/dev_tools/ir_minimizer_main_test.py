@@ -110,11 +110,11 @@ top fn foo(x: bits[32][8]) -> bits[1][8] {
 }
 """
 
-PROC = '''package testit
+PROC = """package testit
 
 file_number 0 "/tmp/testit.x"
 
-chan testit__output(bits[32], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan testit__output(bits[32], id=0, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 top proc __testit__main_0_next(__state: bits[32], init={3}) {
   __token: token = literal(value=token, id=1)
@@ -126,18 +126,18 @@ top proc __testit__main_0_next(__state: bits[32], init={3}) {
   add.8: bits[32] = add(__state, literal.7, id=8, pos=[(0,10,12)])
   next (add.8)
 }
-'''
+"""
 
-PROC_2 = '''package multi_proc
+PROC_2 = """package multi_proc
 
 file_number 0 "xls/jit/multi_proc.x"
 
-chan multi_proc__bytes_src(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan multi_proc__bytes_result(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan multi_proc__send_double_pipe(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan multi_proc__send_quad_pipe(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan multi_proc__recv_double_pipe(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan multi_proc__recv_quad_pipe(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan multi_proc__bytes_src(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan multi_proc__bytes_result(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan multi_proc__send_double_pipe(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan multi_proc__send_quad_pipe(bits[32], id=3, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan multi_proc__recv_double_pipe(bits[32], id=4, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan multi_proc__recv_quad_pipe(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 fn __multi_proc__double_it(n: bits[32]) -> bits[32] {
   ret add.2: bits[32] = add(n, n, id=2, pos=[(0,17,32)])
@@ -204,7 +204,7 @@ proc __multi_proc__proc_ten__proc_quad_0_next(__state: (), init={()}) {
   tuple.49: () = tuple(id=49, pos=[(0,42,15)])
   next (tuple.49)
 }
-'''
+"""
 
 
 def function_count(ir: str) -> int:
@@ -471,10 +471,10 @@ top fn foo() -> bits[32][3] {
     )
 
   def test_proc(self):
-    input_ir = '''package foo
+    input_ir = """package foo
 
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   tkn: token = literal(value=token, id=1000)
@@ -484,7 +484,7 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   send.4: token = send(tkn, baz, channel=output)
   next (tuple_index.3, foo, bar)
 }
-'''
+"""
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
@@ -500,10 +500,10 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
     self.assertIn('proc foo', minimized_ir)
 
   def test_proc_remove_sends(self):
-    input_ir = '''package foo
+    input_ir = """package foo
 
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   tkn: token = literal(value=token, id=1000)
@@ -513,7 +513,7 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   send.4: token = send(tkn, baz, channel=output)
   next (tuple_index.3, foo, bar)
 }
-'''
+"""
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
@@ -531,10 +531,10 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
     self.assertNotIn('send', minimized_ir)
 
   def test_remove_receives(self):
-    input_ir = '''package foo
+    input_ir = """package foo
 
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   tkn: token = literal(value=token, id=1000)
@@ -544,7 +544,7 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   send.4: token = send(tkn, baz, channel=output)
   next (tuple_index.3, foo, bar)
 }
-'''
+"""
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
@@ -562,10 +562,10 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
     self.assertIn('send', minimized_ir)
 
   def test_proc_remove_sends_and_receives(self):
-    input_ir = '''package foo
+    input_ir = """package foo
 
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   tkn: token = literal(value=token, id=1000)
@@ -575,7 +575,7 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   send.4: token = send(tkn, baz, channel=output)
   next (tuple_index.3, foo, bar)
 }
-'''
+"""
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true
@@ -594,10 +594,10 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
     self.assertNotIn('send', minimized_ir)
 
   def test_proc_preserve_channels(self):
-    input_ir = '''package foo
+    input_ir = """package foo
 
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   tkn: token = literal(value=token, id=1000)
@@ -607,7 +607,7 @@ top proc foo(foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
   send.4: token = send(tkn, baz, channel=output)
   next (tuple_index.3, foo, bar)
 }
-'''
+"""
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     self._write_sh_script(test_sh_file.full_path, [r'/usr/bin/env'])  # = true

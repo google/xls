@@ -1112,9 +1112,9 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
 
 TEST_P(PipelineGeneratorTest, IIGreaterThanOne) {
   const std::string ir_text = absl::Substitute(R"(package $0
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
-chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid)
+chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid)
 
 #[initiation_interval(2)]
 proc ii_greater_than_one(st: bits[32], init={0}) {

@@ -631,8 +631,7 @@ TEST(IrParserTest, ParseSendReceiveChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=single_value,
-                      ops=send_receive,
-                      metadata=""))",
+                      ops=send_receive))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -650,8 +649,7 @@ TEST(IrParserTest, ParseSendReceiveChannelWithInitialValues) {
       Channel * ch,
       Parser::ParseChannel(
           R"(chan foo(bits[32], initial_values={2, 4, 5}, id=42, kind=streaming,
-                         flow_control=none, ops=send_receive,
-                         metadata=""))",
+                         flow_control=none, ops=send_receive))",
           &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -669,8 +667,7 @@ TEST(IrParserTest, ParseSendReceiveChannelWithTupleType) {
                                              R"(chan foo((bits[32], bits[1]),
                       initial_values={(123, 1), (42, 0)},
                       id=42, kind=streaming, flow_control=ready_valid,
-                      ops=send_receive,
-                      metadata=""))",
+                      ops=send_receive))",
                                              &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_THAT(
@@ -683,8 +680,7 @@ TEST(IrParserTest, ParseSendOnlyChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan bar((bits[32], bits[1]),
-                         id=7, kind=single_value, ops=send_only,
-                         metadata=""))",
+                         id=7, kind=single_value, ops=send_only))",
                                              &p));
   EXPECT_EQ(ch->name(), "bar");
   EXPECT_EQ(ch->id(), 7);
@@ -696,8 +692,7 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
   Package p("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
                                              R"(chan meh(bits[32][4], id=0,
-                         kind=single_value, ops=receive_only,
-                         metadata=""))",
+                         kind=single_value, ops=receive_only))",
                                              &p));
   EXPECT_EQ(ch->name(), "meh");
   EXPECT_EQ(ch->id(), 0);
@@ -711,7 +706,7 @@ TEST(IrParserTest, ParseStreamingChannelWithStrictness) {
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=streaming,
                          flow_control=none, ops=send_receive,
-                         strictness=arbitrary_static_order, metadata=""""""))",
+                         strictness=arbitrary_static_order))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -728,7 +723,7 @@ TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadataNoFlops) {
                            Parser::ParseChannel(
                                R"(chan foo(bits[32], id=42, kind=streaming,
                          flow_control=none, ops=send_receive, fifo_depth=3,
-                         bypass=false, metadata=""""""))",
+                         bypass=false))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -754,7 +749,7 @@ TEST(IrParserTest, ParseStreamingChannelWithExtraFifoMetadata) {
                                R"(chan foo(bits[32], id=42, kind=streaming,
                          flow_control=none, ops=send_receive, fifo_depth=3,
                          input_flop_kind=skid, output_flop_kind=zero_latency,
-                         bypass=false, metadata=""""""))",
+                         bypass=false))",
                                &p));
   EXPECT_EQ(ch->name(), "foo");
   EXPECT_EQ(ch->id(), 42);
@@ -784,9 +779,8 @@ TEST(IrParserTest, PackageWithSingleDataElementChannels) {
 package test
 
 chan hbo(bits[32], id=0, kind=streaming, flow_control=none, ops=receive_only,
-            fifo_depth=42, metadata="")
-chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only,
-            metadata="")
+            fifo_depth=42)
+chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only)
 
 proc my_proc(my_token: token, my_state: bits[32], init={token, 42}) {
   receive.1: (token, bits[32]) = receive(my_token, channel=hbo)

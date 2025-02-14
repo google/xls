@@ -1,6 +1,6 @@
 package test
 
-chan foo(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=false, register_push_outputs=true, register_pop_outputs=true, metadata="""""")
+chan foo(bits[32], id=42, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, fifo_depth=1, bypass=false, register_push_outputs=true, register_pop_outputs=true)
 
 proc placeholder_channel_user(tok: token, init={token}) {
   tok: token = state_read(state_element=tok, id=13)

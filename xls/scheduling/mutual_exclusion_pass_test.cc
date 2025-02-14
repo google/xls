@@ -196,7 +196,7 @@ TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[2], init={0}) {
        literal.1: bits[2] = literal(value=1)
@@ -237,7 +237,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[1], init={0}) {
        not.1: bits[1] = not(__state)
@@ -260,11 +260,11 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      chan other_channel(
        bits[32], id=1, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[1], init={0}) {
        not.1: bits[1] = not(__state)
@@ -288,11 +288,11 @@ TEST_F(MutualExclusionPassTest, Complex) {
 
      chan test_channel(
        bits[2], id=0, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      chan other_channel(
        bits[2], id=1, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[2], init={0}) {
        literal.1: bits[2] = literal(value=1)
@@ -322,7 +322,7 @@ TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[1], init={0}) {
        __token: token = literal(value=token, id=1000)
@@ -351,7 +351,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[1], init={0}) {
        __token: token = literal(value=token, id=1000)
@@ -379,11 +379,11 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      chan other_channel(
        bits[32], id=1, kind=streaming, ops=send_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[1], init={0}) {
        __token: token = literal(value=token, id=1000)
@@ -412,7 +412,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
 
      chan test_channel(
        bits[1], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[1], init={0}) {
        __token: token = literal(value=token, id=1000)
@@ -441,11 +441,11 @@ TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
 
      chan test_channel(
        bits[32], id=0, kind=streaming, ops=send_receive,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      chan other_channel(
        bits[32], id=1, kind=streaming, ops=receive_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(__state: bits[1], init={0}) {
        __token: token = literal(value=token, id=1000)
@@ -664,11 +664,11 @@ TEST_F(MutualExclusionPassTest, RequiredMergeFails) {
 
      chan cin0(
        bits[32], id=0, kind=streaming, ops=receive_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      chan cin1(
        bits[32], id=1, kind=streaming, ops=receive_only,
-       flow_control=ready_valid, metadata="""""")
+       flow_control=ready_valid)
 
      top proc main(s: bits[1], init={0}) {
        not_s: bits[1] = not(s)
@@ -693,13 +693,11 @@ TEST_F(MutualExclusionPassTest, AvoidsCycles) {
 
      chan cin0(
        bits[32], id=0, kind=streaming, ops=receive_only,
-       flow_control=ready_valid, strictness=arbitrary_static_order,
-       metadata="""""")
+       flow_control=ready_valid, strictness=arbitrary_static_order)
 
      chan cin1(
        bits[32], id=1, kind=streaming, ops=receive_only,
-       flow_control=ready_valid, strictness=arbitrary_static_order,
-       metadata="""""")
+       flow_control=ready_valid, strictness=arbitrary_static_order)
 
      top proc main(s: bits[1], init={0}) {
        not_s: bits[1] = not(s)

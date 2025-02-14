@@ -2463,13 +2463,6 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
     }
     return absl::OkStatus();
   };
-  handlers["metadata"] = [&]() -> absl::Status {
-    // TODO(meheff): This is unused. Remove.
-    XLS_ASSIGN_OR_RETURN(
-        Token metadata_token,
-        scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
-    return absl::OkStatus();
-  };
   handlers["flow_control"] = [&]() -> absl::Status {
     XLS_ASSIGN_OR_RETURN(Token flow_control_token,
                          scanner_.PopTokenOrError(LexicalTokenType::kIdent));

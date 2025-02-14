@@ -47,9 +47,9 @@ top fn not_not_add(x: bits[32], y: bits[32]) -> bits[32] {
 PROC_IR = """package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 
 top proc proc_tst(my_state: (), init={()}) {
   my_token: token = literal(value=token)
@@ -64,9 +64,9 @@ top proc proc_tst(my_state: (), init={()}) {
 NEG_PROC_IR = """package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 
 top proc neg_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token)
@@ -82,9 +82,9 @@ top proc neg_proc(my_state: (), init={()}) {
 NEG_NEG_PROC_IR = """package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 
 top proc neg_neg_proc(my_state: (), init={()}) {
   my_token: token = literal(value=token)
@@ -101,9 +101,9 @@ top proc neg_neg_proc(my_state: (), init={()}) {
 PROC_IR_WITH_ASSERT = """package test
 
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
-        flow_control=ready_valid, metadata="")
+        flow_control=ready_valid)
 
 top proc proc_tst(my_state: (), init={()}) {
   my_token: token = literal(value=token)

@@ -1,7 +1,7 @@
 package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive)
 
 <span id="ir-function-f0" class="ir-function">top proc <span id="ir-function-def-f0" class="ir-function-identifier" data-identifier="f0">the_proc</span>(x: bits[32], y: bits[64], init={0, 42}) {
   <span id="ir-node-def-f0_15" class="ir-node-identifier ir-node-identifier-f0_15" data-node-id="f0_15" data-function-id="f0">tkn</span>: token = literal(value=token, id=15)
