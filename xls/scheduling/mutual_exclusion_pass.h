@@ -96,12 +96,6 @@ class Predicates {
 // returning this new predicate.
 absl::StatusOr<Node*> AddPredicate(Predicates* p, Node* node, Node* pred);
 
-// Add predicates to all nodes postdominated by a select, where the predicate is
-// of the form `selector == case_number`. This function goes to great lengths
-// to not create messy/redundant predicates that would need to be cleaned up by
-// another pass.
-absl::Status AddSelectPredicates(Predicates* p, FunctionBase* f);
-
 // Use an SMT solver to populate the given `Predicates*` with information about
 // whether nodes are used in a mutually exclusive way.
 absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f,
