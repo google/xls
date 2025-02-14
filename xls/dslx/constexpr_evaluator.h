@@ -66,21 +66,20 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   // In all other cases, `type` can be nullptr.
   ~ConstexprEvaluator() override = default;
 
+  absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) override;
   absl::Status HandleArray(const Array* expr) override;
   absl::Status HandleAttr(const Attr* expr) override;
   absl::Status HandleBinop(const Binop* expr) override;
-  absl::Status HandleStatementBlock(const StatementBlock* expr) override;
   absl::Status HandleCast(const Cast* expr) override;
   absl::Status HandleChannelDecl(const ChannelDecl* expr) override;
   absl::Status HandleColonRef(const ColonRef* expr) override;
+  absl::Status HandleConditional(const Conditional* expr) override;
   absl::Status HandleConstAssert(const ConstAssert* const_assert) override;
   absl::Status HandleFor(const For* expr) override;
-  absl::Status HandleFunctionRef(const FunctionRef* expr) override;
   absl::Status HandleFormatMacro(const FormatMacro* expr) override {
     return absl::OkStatus();
   }
-  absl::Status HandleZeroMacro(const ZeroMacro* expr) override;
-  absl::Status HandleAllOnesMacro(const AllOnesMacro* expr) override;
+  absl::Status HandleFunctionRef(const FunctionRef* expr) override;
   absl::Status HandleIndex(const Index* expr) override;
   absl::Status HandleInvocation(const Invocation* expr) override;
   absl::Status HandleLambda(const Lambda* expr) override;
@@ -92,16 +91,17 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleSpawn(const Spawn* expr) override {
     return absl::OkStatus();
   }
-  absl::Status HandleString(const String* expr) override;
-  absl::Status HandleStructInstance(const StructInstance* expr) override;
   absl::Status HandleSplatStructInstance(
       const SplatStructInstance* expr) override;
-  absl::Status HandleConditional(const Conditional* expr) override;
+  absl::Status HandleStatementBlock(const StatementBlock* expr) override;
+  absl::Status HandleString(const String* expr) override;
+  absl::Status HandleStructInstance(const StructInstance* expr) override;
   absl::Status HandleTupleIndex(const TupleIndex* expr) override;
   absl::Status HandleUnop(const Unop* expr) override;
   absl::Status HandleUnrollFor(const UnrollFor* expr) override;
   absl::Status HandleVerbatimNode(const VerbatimNode* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
+  absl::Status HandleZeroMacro(const ZeroMacro* expr) override;
 
  private:
   absl::Status HandleExternRef(const NameRef* name_ref, const NameDef* name_def,

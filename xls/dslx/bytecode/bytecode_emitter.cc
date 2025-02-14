@@ -1103,47 +1103,46 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       return absl::OkStatus();
     }
 
+    if (name_ref->identifier() == "bit_count") {
+      return HandleBuiltinBitCount(node);
+    }
     if (name_ref->identifier() == "decode") {
       return HandleBuiltinDecode(node);
     }
-
-    if (name_ref->identifier() == "widening_cast") {
-      return HandleBuiltinWideningCast(node);
-    }
-
-    if (name_ref->identifier() == "bit_count") {
-      return HandleBuiltinBitCount(node);
+    if (name_ref->identifier() == "checked_cast") {
+      return HandleBuiltinCheckedCast(node);
     }
     if (name_ref->identifier() == "element_count") {
       return HandleBuiltinElementCount(node);
     }
+    if (name_ref->identifier() == "widening_cast") {
+      return HandleBuiltinWideningCast(node);
+    }
 
-    if (name_ref->identifier() == "checked_cast") {
-      return HandleBuiltinCheckedCast(node);
+    if (name_ref->identifier() == "join") {
+      return HandleBuiltinJoin(node);
     }
-    if (name_ref->identifier() == "send") {
-      return HandleBuiltinSend(node);
+    if (name_ref->identifier() == "token") {
+      return HandleBuiltinToken(node);
     }
-    if (name_ref->identifier() == "send_if") {
-      return HandleBuiltinSendIf(node);
-    }
+
     if (name_ref->identifier() == "recv") {
       return HandleBuiltinRecv(node);
     }
     if (name_ref->identifier() == "recv_if") {
       return HandleBuiltinRecvIf(node);
     }
-    if (name_ref->identifier() == "recv_non_blocking") {
-      return HandleBuiltinRecvNonBlocking(node);
-    }
     if (name_ref->identifier() == "recv_if_non_blocking") {
       return HandleBuiltinRecvIfNonBlocking(node);
     }
-    if (name_ref->identifier() == "join") {
-      return HandleBuiltinJoin(node);
+    if (name_ref->identifier() == "recv_non_blocking") {
+      return HandleBuiltinRecvNonBlocking(node);
     }
-    if (name_ref->identifier() == "token") {
-      return HandleBuiltinToken(node);
+    if (name_ref->identifier() == "send") {
+      return HandleBuiltinSend(node);
+    }
+    if (name_ref->identifier() == "send_if") {
+      return HandleBuiltinSendIf(node);
     }
   }
 

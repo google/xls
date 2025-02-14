@@ -26,50 +26,54 @@
 
 namespace xls::dslx {
 
-#define XLS_DSLX_BUILTIN_EACH(X)          \
-  X("and_reduce", kAndReduce)             \
-  X("array_rev", kArrayRev)               \
-  X("array_size", kArraySize)             \
-  X("bit_count", kBitCount)               \
-  X("element_count", kElementCount)       \
-  X("assert_eq", kAssertEq)               \
-  X("assert_lt", kAssertLt)               \
-  X("bit_slice_update", kBitSliceUpdate)  \
-  X("checked_cast", kCheckedCast)         \
-  X("clz", kClz)                          \
-  X("cover!", kCover)                     \
-  X("ctz", kCtz)                          \
-  X("gate!", kGate)                       \
-  X("enumerate", kEnumerate)              \
-  X("fail!", kFail)                       \
-  X("assert!", kAssert)                   \
-  X("map", kMap)                          \
-  X("decode", kDecode)                    \
-  X("encode", kEncode)                    \
-  X("one_hot", kOneHot)                   \
-  X("one_hot_sel", kOneHotSel)            \
-  X("or_reduce", kOrReduce)               \
-  X("priority_sel", kPriorityhSel)        \
-  X("range", kRange)                      \
-  X("rev", kRev)                          \
-  X("zip", kZip)                          \
-  X("widening_cast", kWideningCast)       \
-  X("signex", kSignex)                    \
-  X("smulp", kSMulp)                      \
-  X("array_slice", kArraySlice)           \
-  X("trace!", kTrace)                     \
-  X("umulp", kUMulp)                      \
-  X("update", kUpdate)                    \
-  X("xor_reduce", kXorReduce)             \
-  X("join", kJoin)                        \
-  X("token", kToken)                      \
-  /* send/recv routines */                \
-  X("send", kSend)                        \
-  X("send_if", kSendIf)                   \
-  X("recv", kRecv)                        \
-  X("recv_if", kRecvIf)                   \
-  X("recv_nonblocking", kRecvNonBlocking) \
-  X("recv_if_nonblocking", kRecvIfNonBlocking)
+#define XLS_DSLX_BUILTIN_EACH(X)               \
+  /* keep-sorted start */                      \
+  X("and_reduce", kAndReduce)                  \
+  X("array_rev", kArrayRev)                    \
+  X("array_size", kArraySize)                  \
+  X("array_slice", kArraySlice)                \
+  X("assert_eq", kAssertEq)                    \
+  X("assert!", kAssert)                        \
+  X("assert_lt", kAssertLt)                    \
+  X("bit_count", kBitCount)                    \
+  X("bit_slice_update", kBitSliceUpdate)       \
+  X("checked_cast", kCheckedCast)              \
+  X("clz", kClz)                               \
+  X("cover!", kCover)                          \
+  X("ctz", kCtz)                               \
+  X("decode", kDecode)                         \
+  X("element_count", kElementCount)            \
+  X("encode", kEncode)                         \
+  X("enumerate", kEnumerate)                   \
+  X("fail!", kFail)                            \
+  X("gate!", kGate)                            \
+  X("map", kMap)                               \
+  X("one_hot", kOneHot)                        \
+  X("one_hot_sel", kOneHotSel)                 \
+  X("or_reduce", kOrReduce)                    \
+  X("priority_sel", kPriorityhSel)             \
+  X("range", kRange)                           \
+  X("rev", kRev)                               \
+  X("signex", kSignex)                         \
+  X("smulp", kSMulp)                           \
+  X("trace!", kTrace)                          \
+  X("umulp", kUMulp)                           \
+  X("update", kUpdate)                         \
+  X("widening_cast", kWideningCast)            \
+  X("xor_reduce", kXorReduce)                  \
+  X("zip", kZip)                               \
+  /* keep-sorted end */                        \
+  X("join", kJoin)                             \
+  X("token", kToken)                           \
+  /* send/recv routines */                     \
+  /* keep-sorted start */                      \
+  X("recv", kRecv)                             \
+  X("recv_nonblocking", kRecvNonBlocking)      \
+  X("recv_if", kRecvIf)                        \
+  X("recv_if_nonblocking", kRecvIfNonBlocking) \
+  X("send", kSend)                             \
+  X("send_if", kSendIf)                        \
+  /* keep-sorted end */
 
 // Enum that represents all the DSLX builtin functions.
 //

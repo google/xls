@@ -329,12 +329,14 @@ class FunctionConverterVisitor : public AstNodeVisitor {
     return converter_->Handle##__type(node);                 \
   }
 
-  TRAVERSE_DISPATCH(Unop)
+  // keep-sorted start
+  TRAVERSE_DISPATCH(AllOnesMacro)
   TRAVERSE_DISPATCH(Binop)
+  TRAVERSE_DISPATCH(Unop)
+  TRAVERSE_DISPATCH(UnrollFor)
   TRAVERSE_DISPATCH(XlsTuple)
   TRAVERSE_DISPATCH(ZeroMacro)
-  TRAVERSE_DISPATCH(AllOnesMacro)
-  TRAVERSE_DISPATCH(UnrollFor)
+  // keep-sorted end
 
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
@@ -343,10 +345,12 @@ class FunctionConverterVisitor : public AstNodeVisitor {
     return converter_->Handle##__type(node);                 \
   }
 
-  NO_TRAVERSE_DISPATCH(Param)
+  // keep-sorted start
   NO_TRAVERSE_DISPATCH(NameRef)
   NO_TRAVERSE_DISPATCH(Number)
+  NO_TRAVERSE_DISPATCH(Param)
   NO_TRAVERSE_DISPATCH(String)
+  // keep-sorted end
 
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
@@ -355,11 +359,12 @@ class FunctionConverterVisitor : public AstNodeVisitor {
     return converter_->Handle##__type(node);                 \
   }
 
-  NO_TRAVERSE_DISPATCH_VISIT(Attr)
+  // keep-sorted start
   NO_TRAVERSE_DISPATCH_VISIT(Array)
-  NO_TRAVERSE_DISPATCH_VISIT(StatementBlock)
+  NO_TRAVERSE_DISPATCH_VISIT(Attr)
   NO_TRAVERSE_DISPATCH_VISIT(Cast)
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
+  NO_TRAVERSE_DISPATCH_VISIT(Conditional)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantDef)
   NO_TRAVERSE_DISPATCH_VISIT(For)
   NO_TRAVERSE_DISPATCH_VISIT(FormatMacro)
@@ -370,9 +375,10 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Range)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Statement)
+  NO_TRAVERSE_DISPATCH_VISIT(StatementBlock)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
-  NO_TRAVERSE_DISPATCH_VISIT(Conditional)
   NO_TRAVERSE_DISPATCH_VISIT(TupleIndex)
+  // keep-sorted end
 
   // A macro used for AST types that we never expect to visit (if we do we
   // provide an error message noting it was unexpected).
@@ -399,19 +405,19 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(WildcardPattern)
   // keep-sorted end
   // keep-sorted start
+  INVALID(AnyTypeAnnotation)
   INVALID(ArrayTypeAnnotation)
   INVALID(BuiltinTypeAnnotation)
   INVALID(ChannelTypeAnnotation)
+  INVALID(ElementTypeAnnotation)
+  INVALID(FunctionTypeAnnotation)
+  INVALID(MemberTypeAnnotation)
+  INVALID(ParamTypeAnnotation)
+  INVALID(ReturnTypeAnnotation)
   INVALID(SelfTypeAnnotation)
   INVALID(TupleTypeAnnotation)
   INVALID(TypeRefTypeAnnotation)
   INVALID(TypeVariableTypeAnnotation)
-  INVALID(MemberTypeAnnotation)
-  INVALID(ElementTypeAnnotation)
-  INVALID(FunctionTypeAnnotation)
-  INVALID(ReturnTypeAnnotation)
-  INVALID(ParamTypeAnnotation)
-  INVALID(AnyTypeAnnotation)
   // keep-sorted end
 
   // The visitor operates within a function, so none of these should be visible.
@@ -425,12 +431,12 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Lambda)
   INVALID(Module)
   INVALID(Proc)
+  INVALID(ProcDef)
   INVALID(ProcMember)
   INVALID(QuickCheck)
   INVALID(Spawn)
   INVALID(StructDef)
   INVALID(StructMemberNode)
-  INVALID(ProcDef)
   INVALID(TypeAlias)
   INVALID(Use)
   INVALID(UseTreeEntry)
@@ -2362,31 +2368,33 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   absl::flat_hash_map<std::string,
                       decltype(&FunctionConverter::HandleBuiltinClz)>
       map = {
+          // keep-sorted start
+          {"and_reduce", &FunctionConverter::HandleBuiltinAndReduce},
           {"array_rev", &FunctionConverter::HandleBuiltinArrayRev},
           {"array_size", &FunctionConverter::HandleBuiltinArraySize},
+          {"array_slice", &FunctionConverter::HandleBuiltinArraySlice},
+          {"bit_count", &FunctionConverter::HandleBuiltinBitCount},
+          {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
+          {"checked_cast", &FunctionConverter::HandleBuiltinCheckedCast},
           {"clz", &FunctionConverter::HandleBuiltinClz},
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
-          {"gate!", &FunctionConverter::HandleBuiltinGate},
-          {"signex", &FunctionConverter::HandleBuiltinSignex},
           {"decode", &FunctionConverter::HandleBuiltinDecode},
+          {"element_count", &FunctionConverter::HandleBuiltinElementCount},
           {"encode", &FunctionConverter::HandleBuiltinEncode},
+          {"gate!", &FunctionConverter::HandleBuiltinGate},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
-          {"priority_sel", &FunctionConverter::HandleBuiltinPrioritySel},
-          {"array_slice", &FunctionConverter::HandleBuiltinArraySlice},
-          {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
-          {"rev", &FunctionConverter::HandleBuiltinRev},
-          {"zip", &FunctionConverter::HandleBuiltinZip},
-          {"and_reduce", &FunctionConverter::HandleBuiltinAndReduce},
           {"or_reduce", &FunctionConverter::HandleBuiltinOrReduce},
-          {"xor_reduce", &FunctionConverter::HandleBuiltinXorReduce},
-          {"widening_cast", &FunctionConverter::HandleBuiltinWideningCast},
-          {"checked_cast", &FunctionConverter::HandleBuiltinCheckedCast},
-          {"bit_count", &FunctionConverter::HandleBuiltinBitCount},
-          {"element_count", &FunctionConverter::HandleBuiltinElementCount},
-          {"update", &FunctionConverter::HandleBuiltinUpdate},
-          {"umulp", &FunctionConverter::HandleBuiltinUMulp},
+          {"priority_sel", &FunctionConverter::HandleBuiltinPrioritySel},
+          {"rev", &FunctionConverter::HandleBuiltinRev},
+          {"signex", &FunctionConverter::HandleBuiltinSignex},
           {"smulp", &FunctionConverter::HandleBuiltinSMulp},
+          {"umulp", &FunctionConverter::HandleBuiltinUMulp},
+          {"update", &FunctionConverter::HandleBuiltinUpdate},
+          {"widening_cast", &FunctionConverter::HandleBuiltinWideningCast},
+          {"xor_reduce", &FunctionConverter::HandleBuiltinXorReduce},
+          {"zip", &FunctionConverter::HandleBuiltinZip},
+          // keep-sorted end
       };
   auto it = map.find(called_name);
   if (it == map.end()) {

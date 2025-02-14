@@ -46,6 +46,7 @@
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
 #define XLS_DSLX_EXPR_NODE_EACH(X) \
+  /* keep-sorted start */          \
   X(AllOnesMacro)                  \
   X(Array)                         \
   X(Attr)                          \
@@ -77,12 +78,14 @@
   X(VerbatimNode)                  \
   X(XlsTuple)                      \
   X(ZeroMacro)
+/* keep-sorted end */
 
 // Higher-order macro for all the AST node leaf types (non-abstract).
 //
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X) \
+  /* keep-sorted start */         \
   X(BuiltinNameDef)               \
   X(ConstantDef)                  \
   X(EnumDef)                      \
@@ -112,20 +115,23 @@
   X(UseTreeEntry)                 \
   X(WidthSlice)                   \
   X(WildcardPattern)              \
+  /* keep-sorted end */           \
   /* type annotations */          \
+  /* keep-sorted start */         \
+  X(AnyTypeAnnotation)            \
   X(ArrayTypeAnnotation)          \
   X(BuiltinTypeAnnotation)        \
   X(ChannelTypeAnnotation)        \
+  X(ElementTypeAnnotation)        \
+  X(FunctionTypeAnnotation)       \
+  X(MemberTypeAnnotation)         \
+  X(ParamTypeAnnotation)          \
+  X(ReturnTypeAnnotation)         \
   X(SelfTypeAnnotation)           \
   X(TupleTypeAnnotation)          \
   X(TypeRefTypeAnnotation)        \
   X(TypeVariableTypeAnnotation)   \
-  X(MemberTypeAnnotation)         \
-  X(ElementTypeAnnotation)        \
-  X(FunctionTypeAnnotation)       \
-  X(ReturnTypeAnnotation)         \
-  X(ParamTypeAnnotation)          \
-  X(AnyTypeAnnotation)            \
+  /* keep-sorted end */           \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
