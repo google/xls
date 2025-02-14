@@ -13,5 +13,5 @@
 // limitations under the License.
 
 fn main() -> s8 {
-  s8:256
+  s8:128
 }

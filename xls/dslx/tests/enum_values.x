@@ -57,8 +57,8 @@ fn enum_values_narrow_from_unsigned() {
 enum MyEnumSigned : s2 {
     A = 0,
     B = 1,
-    C = 2,
-    D = 3,
+    C = -2,
+    D = -1,
 }
 
 #[test]

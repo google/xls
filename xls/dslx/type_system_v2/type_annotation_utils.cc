@@ -212,11 +212,12 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
           number.span(), BuiltinType::kBool,
           module.GetOrCreateBuiltinNameDef("bool"));
     case NumberKind::kOther:
-      std::pair<bool, Bits> sign_magnitude;
-      XLS_ASSIGN_OR_RETURN(sign_magnitude, GetSignAndMagnitude(number.text()));
-      const auto& [sign, magnitude] = sign_magnitude;
-      return CreateUnOrSnAnnotation(module, number.span(), sign,
-                                    magnitude.bit_count() + (sign ? 1 : 0));
+      XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]),
+                           GetSignAndMagnitude(number.text()));
+      const bool is_negative = sign == Sign::kNegative;
+      return CreateUnOrSnAnnotation(
+          module, number.span(), is_negative,
+          magnitude.bit_count() + (is_negative ? 1 : 0));
   }
 }
 

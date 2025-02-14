@@ -2587,7 +2587,7 @@ struct Point { x: s8, y: u32 }
 struct OtherPoint { x: s8, y: u32 }
 fn f(x: Point) -> Point { x }
 fn g() -> Point {
-  let shp = OtherPoint { x: s8:255, y: u32:1024 };
+  let shp = OtherPoint { x: s8:-1, y: u32:1024 };
   f(shp)
 }
 )"),
@@ -2928,7 +2928,7 @@ TEST(TypecheckStructInstanceTest, AccessMissingMember) {
 
 TEST(TypecheckStructInstanceTest, WrongType) {
   EXPECT_THAT(TypecheckStructInstance(
-                  "fn f() -> Point { Point { y: u8:42, x: s8:255 } }"),
+                  "fn f() -> Point { Point { y: u8:42, x: s8:-1 } }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("uN[32] vs uN[8]")));
 }
@@ -2942,20 +2942,20 @@ TEST(TypecheckStructInstanceTest, MissingFieldX) {
 
 TEST(TypecheckStructInstanceTest, MissingFieldY) {
   EXPECT_THAT(
-      TypecheckStructInstance("fn f() -> Point { Point { x: s8: 255 } }"),
+      TypecheckStructInstance("fn f() -> Point { Point { x: s8: -1 } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Struct instance is missing member(s): 'y'")));
 }
 
 TEST(TypecheckStructInstanceTest, OutOfOrderOk) {
   XLS_EXPECT_OK(TypecheckStructInstance(
-      "fn f() -> Point { Point { y: u32:42, x: s8:255 } }"));
+      "fn f() -> Point { Point { y: u32:42, x: s8:-1 } }"));
 }
 
 TEST(TypecheckStructInstanceTest, ProvideExtraFieldZ) {
   EXPECT_THAT(
       TypecheckStructInstance(
-          "fn f() -> Point { Point { x: s8:255, y: u32:42, z: u32:1024 } }"),
+          "fn f() -> Point { Point { x: s8:-1, y: u32:42, z: u32:1024 } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Struct \'Point\' has no member \'z\', but it was "
                          "provided by this instance.")));
@@ -2964,7 +2964,7 @@ TEST(TypecheckStructInstanceTest, ProvideExtraFieldZ) {
 TEST(TypecheckStructInstanceTest, DuplicateFieldY) {
   EXPECT_THAT(
       TypecheckStructInstance(
-          "fn f() -> Point { Point { x: s8:255, y: u32:42, y: u32:1024 } }"),
+          "fn f() -> Point { Point { x: s8:-1, y: u32:42, y: u32:1024 } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Duplicate value seen for \'y\' in this \'Point\' "
                          "struct instance.")));
@@ -2975,7 +2975,7 @@ TEST(TypecheckStructInstanceTest, StructIncompatibleWithTupleEquivalent) {
       TypecheckStructInstance(R"(
 fn f(x: (s8, u32)) -> (s8, u32) { x }
 fn g() -> (s8, u32) {
-  let p = Point { x: s8:255, y: u32:1024 };
+  let p = Point { x: s8:-1, y: u32:1024 };
   f(p)
 }
 )"),

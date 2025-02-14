@@ -312,7 +312,7 @@ static std::optional<bool> TryEvaluateAsBool(const Expr* expr) {
     return number->text() == "true";
   }
   if (number->number_kind() == NumberKind::kOther) {
-    absl::StatusOr<std::pair<bool, Bits>> sm =
+    absl::StatusOr<std::pair<Sign, Bits>> sm =
         GetSignAndMagnitude(number->text());
     if (sm.ok() && sm->second.bit_count() <= 1) {
       // Note: the zero value is given as a bit count of zero.

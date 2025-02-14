@@ -41,13 +41,12 @@ class BigIntTest : public ::testing::Test {
   }
 
   BigInt MakeBigInt(std::string_view hex_string) {
-    std::pair<bool, Bits> sign_magnitude =
-        GetSignAndMagnitude(hex_string).value();
-    if (sign_magnitude.first) {
+    auto [sign, magnitude] = GetSignAndMagnitude(hex_string).value();
+    if (sign == Sign::kNegative) {
       // Negative number (leading '-').
-      return BigInt::Negate(BigInt::MakeUnsigned(sign_magnitude.second));
+      return BigInt::Negate(BigInt::MakeUnsigned(magnitude));
     }
-    return BigInt::MakeUnsigned(sign_magnitude.second);
+    return BigInt::MakeUnsigned(magnitude);
   }
 };
 

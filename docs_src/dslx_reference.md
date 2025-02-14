@@ -1198,30 +1198,17 @@ fn test_literal_initialization() {
 ```
 
 When constructing literals, DSLX will trigger an error if the constant will not
-fit in a bit array of the annotated sized. So for example, trying to construct
+fit in a bit array of the annotated size. So for example, trying to construct
 the literal `u8:256` will trigger an error of the form:
 
 `TypeInferenceError: uN[8] Value '256' does not fit in the bitwidth of a uN[8]
-(8)`
+(8). Valid values are [0, 255].`
 
-But what about `s8:128` ? This is a valid literal, even though a signed 8-bit
-integer cannot represent it. The following code offers a clue.
+This also applies to signed values, such as `s8:128`; this would also trigger an
+error of the form:
 
-```dslx
-#[test]
-fn test_signed_literal_initialization() {
-    assert_eq(s8:128, s8:-128);
-    assert_eq(s8:128, s8:0b10000000);
-}
-```
-
-What is happening here is that 128 is being used as a *bit pattern* rather than
-as the *number* 128 to initialize the literal. It is only when the bit pattern
-cannot fit in the width of the literal that an error is triggered.
-
-**Note that this behavior is different from Rust, where it will trigger an
-error, but the fact that DSLX considers this valid may change in the
-[future](https://github.com/google/xls/issues/471).**
+`TypeInferenceError: sN[8] Value '128' does not fit in the bitwidth of a sN[8]
+(8). Valid values are [-128, 127].`
 
 ### Grouping Expression
 

@@ -1273,7 +1273,7 @@ class Number : public Expr {
   const std::string& text() const { return text_; }
 
   // Determines whether the number fits in the given `bit_count`.
-  absl::StatusOr<bool> FitsInType(int64_t bit_count) const;
+  absl::StatusOr<bool> FitsInType(int64_t bit_count, bool is_signed) const;
 
   // Turns the text for this number into a Bits object with the given bit_count.
   absl::StatusOr<Bits> GetBits(int64_t bit_count,

@@ -48,7 +48,7 @@ fn shl_parametric<N: u32>() -> sN[16] {
 }
 
 fn shr_signed() -> sN[4] {
-    let x = sN[4]:8;
+    let x = sN[4]:-8;
     x >> 2
 }
 
@@ -66,9 +66,7 @@ fn test_shifts() {
     assert_eq(s16:80, shl_literal_power_of_two());
     assert_eq(s16:80, shl_parametric<u32:4>());
 
-    // TODO(https://github.com/google/xls/issues/471): 2022-01-27 Re-enable
-    // (or modify) after resolving this issue.
-    // assert_eq(s4:14, shr_signed());
+    assert_eq(s4:-2, shr_signed());
     assert_eq(u4:2, shr_unsigned());
 }
 

@@ -14,16 +14,16 @@
 
 #[test]
 fn test_casts() {
-    assert_eq(s1:1, u1:1 as xN[true][1]);
-    assert_eq(u1:1, s1:1 as xN[false][1]);
+    assert_eq(s1:-1, u1:1 as xN[true][1]);
+    assert_eq(u1:1, s1:-1 as xN[false][1]);
 }
 
 #[test]
 fn test_widening_casts() {
-    assert_eq(s2:0b11, s1:1 as xN[true][2]);
+    assert_eq(s2:0b11, s1:-1 as xN[true][2]);
     assert_eq(u2:0b01, u1:1 as xN[false][2]);
 
-    assert_eq(s2:0b11, xN[true][1]:1 as s2);
+    assert_eq(s2:0b11, xN[true][1]:-1 as s2);
     assert_eq(u2:0b01, xN[false][1]:1 as u2);
 }
 

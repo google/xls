@@ -398,7 +398,7 @@ TEST(TypecheckV2Test, ConcatWithSignedBitsLhsFails) {
 
 TEST(TypecheckV2Test, ConcatWithSignedBitsRhsFails) {
   EXPECT_THAT(
-      "const X = u8:3 ++ s1:1;",
+      "const X = u8:3 ++ s1:-1;",
       TypecheckFails(HasSubstr(
           "Concatenation requires operand types to both be unsigned bits")));
 }

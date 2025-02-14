@@ -120,9 +120,9 @@ fn min_test_unsigned() {
 #[test]
 fn min_test_signed() {
     assert_eq(s1:0, min(s1:0, s1:0));
-    assert_eq(s1:-1, min(s1:0, s1:1));
-    assert_eq(s1:-1, min(s1:1, s1:0));
-    assert_eq(s1:-1, min(s1:1, s1:1));
+    assert_eq(s1:-1, min(s1:0, s1:-1));
+    assert_eq(s1:-1, min(s1:-1, s1:0));
+    assert_eq(s1:-1, min(s1:-1, s1:-1));
 
     assert_eq(s2:-2, min(s2:0, s2:-2));
     assert_eq(s2:-1, min(s2:0, s2:-1));

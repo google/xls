@@ -92,9 +92,8 @@ absl::StatusOr<bool> Token::IsNegative() const {
   if (type() != LexicalTokenType::kLiteral) {
     return absl::InternalError("Can only get sign for literal tokens.");
   }
-  std::pair<bool, Bits> pair;
-  XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(value()));
-  return pair.first;
+  XLS_ASSIGN_OR_RETURN((auto [sign, bits]), GetSignAndMagnitude(value()));
+  return sign == Sign::kNegative;
 }
 
 absl::StatusOr<Bits> Token::GetValueBits() const {

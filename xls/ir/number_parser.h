@@ -18,6 +18,7 @@
 #define XLS_IR_NUMBER_PARSER_H_
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -31,10 +32,17 @@ namespace xls {
 // width necessary to represent the produced value.
 constexpr int64_t kMinimumBitCount = -1;
 
-// Returns a bool indicating whether the literal token is negative, and a Bits
-// containing the magnitude. The Bits value is the minimum width necessary to
-// hold the (necessarily) unsigned magnitude.
-absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
+enum class Sign : uint8_t {
+  kUnspecified,
+  kPositive,
+  kNegative,
+};
+
+// Returns a signedness indicating whether the literal token is negative (or if
+// the signedness is unspecified), and a Bits containing the magnitude. The Bits
+// value is the minimum width necessary to hold the (necessarily) unsigned
+// magnitude.
+absl::StatusOr<std::pair<Sign, Bits>> GetSignAndMagnitude(
     std::string_view input);
 
 // Parses the given string as a number and returns the result as a Bits

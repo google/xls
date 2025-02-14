@@ -220,7 +220,9 @@ absl::Status TryEnsureFitsInType(const Number& number,
         file_table);
   };
 
-  XLS_ASSIGN_OR_RETURN(bool fits_in_type, number.FitsInType(bit_count));
+  XLS_ASSIGN_OR_RETURN(
+      bool fits_in_type,
+      number.FitsInType(bit_count, maybe_signed.value_or(false)));
   if (!fits_in_type) {
     return does_not_fit();
   }

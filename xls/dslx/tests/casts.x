@@ -14,16 +14,16 @@
 
 #[test]
 fn casts() {
-    assert_eq(s1:1, u1:1 as s1);
-    assert_eq(u1:1, s1:1 as u1);
+    assert_eq(s1:-1, u1:1 as s1);
+    assert_eq(u1:1, s1:-1 as u1);
 
     // TODO(tedhong): 2023-05-15 Have this fail typecheck.
-    assert_eq(s2:-1, s1:1 as s2);
+    assert_eq(s2:-1, s1:-1 as s2);
     assert_eq(s2:-1, s1:-1 as s2);
 
     // Trivial casts.
     assert_eq(u1:1, u1:1 as u1);
-    assert_eq(s1:1, s1:1 as s1);
+    assert_eq(s1:-1, s1:-1 as s1);
     assert_eq(s1:-1, s1:-1 as s1);
 }
 

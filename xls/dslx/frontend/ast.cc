@@ -2611,7 +2611,8 @@ std::string Number::ToStringInternal() const {
 
 std::string Number::ToStringNoType() const { return text_; }
 
-absl::StatusOr<bool> Number::FitsInType(int64_t bit_count) const {
+absl::StatusOr<bool> Number::FitsInType(int64_t bit_count,
+                                        bool is_signed) const {
   XLS_RET_CHECK_GE(bit_count, 0);
   switch (number_kind_) {
     case NumberKind::kBool:
@@ -2619,8 +2620,10 @@ absl::StatusOr<bool> Number::FitsInType(int64_t bit_count) const {
     case NumberKind::kCharacter:
       return bit_count >= CHAR_BIT;
     case NumberKind::kOther: {
-      XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
-      auto [sign, bits] = sm;
+      XLS_ASSIGN_OR_RETURN((auto [sign, bits]), GetSignAndMagnitude(text_));
+      if (is_signed && bits.msb() && sign == Sign::kPositive) {
+        return bit_count > bits.bit_count();
+      }
       return bit_count >= bits.bit_count();
     }
   }
@@ -2643,8 +2646,7 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count,
       return bits_ops::ZeroExtend(result, bit_count);
     }
     case NumberKind::kOther: {
-      XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
-      auto [sign, bits] = sm;
+      XLS_ASSIGN_OR_RETURN((auto [sign, bits]), GetSignAndMagnitude(text_));
       XLS_RET_CHECK_GE(bits.bit_count(), 0);
       XLS_RET_CHECK(bit_count >= bits.bit_count()) << absl::StreamFormat(
           "Internal error: %s Cannot fit number value %s in %d bits; %d "
@@ -2652,7 +2654,7 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count,
           span().ToString(file_table), text_, bit_count, bits.bit_count(),
           ToString());
       bits = bits_ops::ZeroExtend(bits, bit_count);
-      if (sign) {
+      if (sign == Sign::kNegative) {
         bits = bits_ops::Negate(bits);
       }
       return bits;

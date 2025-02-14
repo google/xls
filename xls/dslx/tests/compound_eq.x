@@ -17,7 +17,7 @@
 type TestBlob = (s2[2], (u2, u1), bool);
 
 fn main() -> bool {
-    let x = ([s2:0, s2:3], (u2:1, u1:0), true);
+    let x = ([s2:0, s2:-1], (u2:1, u1:0), true);
     x == x
 }
 

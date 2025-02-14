@@ -126,7 +126,7 @@ absl::StatusOr<Bits> ParseUnsignedNumberWithoutPrefix(std::string_view input,
                                    bit_count);
 }
 
-absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
+absl::StatusOr<std::pair<Sign, Bits>> GetSignAndMagnitude(
     std::string_view input) {
   // Literal numbers can be one of:
   //   1) decimal numbers, eg '123'
@@ -138,11 +138,14 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot parse empty string as a number."));
   }
-  bool is_negative = false;
+  Sign sign = Sign::kUnspecified;
   // The substring containing the actual numeric characters.
   std::string_view numeric_substring = input;
   if (input[0] == '-') {
-    is_negative = true;
+    sign = Sign::kNegative;
+    numeric_substring = numeric_substring.substr(1);
+  } else if (input[0] == '+') {
+    sign = Sign::kPositive;
     numeric_substring = numeric_substring.substr(1);
   }
   FormatPreference format = FormatPreference::kUnsignedDecimal;
@@ -159,17 +162,22 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
     }
     numeric_substring = numeric_substring.substr(2);
   }
+  if ((format == FormatPreference::kDefault ||
+       format == FormatPreference::kUnsignedDecimal ||
+       format == FormatPreference::kSignedDecimal) &&
+      sign == Sign::kUnspecified) {
+    // On a decimal number, unspecified sign implies it's positive.
+    sign = Sign::kPositive;
+  }
   XLS_ASSIGN_OR_RETURN(Bits value,
                        ParseUnsignedNumberHelper(numeric_substring, format,
                                                  /*orig_string=*/input));
-  return std::make_pair(is_negative, value);
+  return std::make_pair(sign, value);
 }
 
 absl::StatusOr<Bits> ParseNumber(std::string_view input) {
-  std::pair<bool, Bits> pair;
-  XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
-  bool is_negative = pair.first;
-  const Bits& magnitude = pair.second;
+  XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]), GetSignAndMagnitude(input));
+  bool is_negative = sign == Sign::kNegative;
   if (is_negative && !magnitude.IsZero()) {
     Bits result = bits_ops::Negate(
         bits_ops::ZeroExtend(magnitude, magnitude.bit_count() + 1));
@@ -187,21 +195,18 @@ absl::StatusOr<Bits> ParseNumber(std::string_view input) {
 }
 
 absl::StatusOr<uint64_t> ParseNumberAsUint64(std::string_view input) {
-  std::pair<bool, Bits> pair;
-  XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
-  bool is_negative = pair.first;
-  if ((is_negative && !pair.second.IsZero()) || pair.second.bit_count() > 64) {
+  XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]), GetSignAndMagnitude(input));
+  bool is_negative = sign == Sign::kNegative;
+  if ((is_negative && !magnitude.IsZero()) || magnitude.bit_count() > 64) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Value is not representable as an uint64_t: %s", input));
   }
-  return pair.second.ToUint64();
+  return magnitude.ToUint64();
 }
 
 absl::StatusOr<int64_t> ParseNumberAsInt64(std::string_view input) {
-  std::pair<bool, Bits> pair;
-  XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
-  bool is_negative = pair.first;
-  Bits magnitude = pair.second;
+  XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]), GetSignAndMagnitude(input));
+  bool is_negative = sign == Sign::kNegative;
   auto not_representable = [&]() {
     return absl::InvalidArgumentError(
         absl::StrFormat("Value is not representable as an int64_t: %s", input));
@@ -237,10 +242,8 @@ absl::StatusOr<bool> ParseNumberAsBool(std::string_view input) {
   if (input == "false") {
     return false;
   }
-  std::pair<bool, Bits> pair;
-  XLS_ASSIGN_OR_RETURN(pair, GetSignAndMagnitude(input));
-  Bits magnitude = pair.second;
-  bool is_negative = pair.first;
+  XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]), GetSignAndMagnitude(input));
+  bool is_negative = sign == Sign::kNegative;
   auto not_representable = [&]() {
     return absl::InvalidArgumentError(
         absl::StrFormat("Value is not representable as a bool: %s", input));
