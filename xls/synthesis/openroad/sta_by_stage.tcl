@@ -15,7 +15,7 @@ set netlist $::env(NETLIST)
 set liberty $::env(LIBERTY)
 set top $::env(TOP)
 set all_liberties [split $::env(ADDITIONAL_LIBERTIES) ","]
-lappend all_liberties $liberty
+set all_liberties [linsert $all_liberties 0 $liberty]
 
 sta::redirect_file_begin $sta_log
 
@@ -35,7 +35,6 @@ report_units
 #
 puts "Total design"
 sta::clear_sta
-sta::clear_network
 read_verilog $netlist
 link_design  $top
 report_checks -unconstrained
@@ -44,7 +43,6 @@ report_checks -unconstrained
 # Find stage module names
 #
 sta::clear_sta
-sta::clear_network
 read_verilog $netlist
 link_design  $top
 set stagemods [get_cells "p*mod"]
@@ -62,7 +60,6 @@ puts "\n\n"
 foreach stage $snames {
     puts "\n\nTiming ${stage}"
     sta::clear_sta
-    sta::clear_network
     read_verilog $netlist
     link_design $stage
     report_checks -unconstrained -path_delay max -fields {slew cap input nets fanout} -format full_clock_expanded
