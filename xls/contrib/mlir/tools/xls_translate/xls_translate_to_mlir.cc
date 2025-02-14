@@ -1464,12 +1464,6 @@ absl::StatusOr<Operation*> translateFunction(::xls::Function& xls_func,
 absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
                                          OpBuilder& builder, MLIRContext* ctx,
                                          TranslationState& state) {
-  // Detect legacy procs with marked `next` node instead of `next_value` nodes.
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
-  bool is_legacy_proc =
-      (xls_proc.next_values().empty() && xls_proc.GetStateElementCount());
-
   // New function base scope
   state.newFunctionBaseContext(/*is_proc=*/true);
 
@@ -1513,24 +1507,11 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
       if (!err.ok()) {
         return err;
       }
-
-      if (is_legacy_proc) {
-        // Track all state elements for which this node defines their next
-        // value.
-        // TODO: google/xls#1520 - remove this once fully transitioned over to
-        // `next_value` nodes.
-        for (auto state_elem_idx : xls_proc.GetNextStateIndices(n)) {
-          state_elem_next_value[xls_proc.GetStateElement(state_elem_idx)
-                                    ->name()] = *state_value;
-        }
-      }
-
       continue;  // StateRead get directly added to the ssa context and don't
                  // otherwise map to a MLIR operation.
     }
 
     if (n->Is<::xls::Next>()) {
-      assert(!is_legacy_proc && "Legacy procs don't use next_value nodes");
       auto xls_next = n->As<::xls::Next>();
       auto state_elem_name = xls_next->state_read()
                                  ->As<::xls::StateRead>()
@@ -1543,77 +1524,63 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
     if (!op.ok()) {
       return op;
     }
-
-    if (is_legacy_proc) {
-      // Track all state elements for which this node defines their next
-      // value:
-      // TODO: google/xls#1520 - remove this once fully transitioned over to
-      // `next_value` nodes.
-      for (auto state_elem_idx : xls_proc.GetNextStateIndices(n)) {
-        state_elem_next_value[xls_proc.GetStateElement(state_elem_idx)
-                                  ->name()] = (*op)->getResult(0);
-      }
-    }
   }
 
   // Generate NextValueOps:
-  if (!is_legacy_proc) {
-    for (auto* state_elem : xls_proc.StateElements()) {
-      // All Next nodes that contribue to this state element:
-      std::vector<::xls::Next*> elem_next_value_ops =
-          next_value_ops[state_elem->name()];
+  for (auto* state_elem : xls_proc.StateElements()) {
+    // All Next nodes that contribute to this state element:
+    std::vector<::xls::Next*> elem_next_value_ops =
+        next_value_ops[state_elem->name()];
 
-      if (elem_next_value_ops.empty()) {
-        return absl::InternalError(absl::StrCat(
-            "No `next_value` nodes for state element ", state_elem->name()));
+    if (elem_next_value_ops.empty()) {
+      return absl::InternalError(absl::StrCat(
+          "No `next_value` nodes for state element ", state_elem->name()));
+    }
+
+    if (elem_next_value_ops.size() == 1 &&
+        !elem_next_value_ops[0]->predicate().has_value()) {
+      // State element defined by single Next node without predicate. No MLIR
+      // NextValueOp needed - directly feed YieldOp from value:
+      auto redundant_next_node = elem_next_value_ops[0];
+      auto next_value = state.getMlirValue(redundant_next_node->value()->id());
+      if (!next_value.ok()) {
+        return next_value.status();
       }
+      state_elem_next_value[state_elem->name()] = *next_value;
+    } else {
+      // Generate new NextValueOp:
+      SmallVector<Value> values_vec{};
+      SmallVector<Value> predicates_vec{};
 
-      if (elem_next_value_ops.size() == 1 &&
-          !elem_next_value_ops[0]->predicate().has_value()) {
-        // State element defined by single Next node without predicate. No MLIR
-        // NextValueOp needed - directly feed YieldOp from value:
-        auto redundant_next_node = elem_next_value_ops[0];
-        auto next_value =
-            state.getMlirValue(redundant_next_node->value()->id());
-        if (!next_value.ok()) {
-          return next_value.status();
-        }
-        state_elem_next_value[state_elem->name()] = *next_value;
-      } else {
-        // Generate new NextValueOp:
-        SmallVector<Value> values_vec{};
-        SmallVector<Value> predicates_vec{};
-
-        for (auto* next_value_op : elem_next_value_ops) {
-          if (!next_value_op->predicate().has_value()) {
-            return absl::InternalError(absl::StrCat(
-                "`next_value` nodes for state element ", state_elem->name(),
-                " lacks predicate but there are multiple `next_value` nodes."));
-          }
-
-          auto val = state.getMlirValue(next_value_op->value()->id());
-          if (!val.ok()) {
-            return val.status();
-          }
-          values_vec.push_back(*val);
-
-          auto predicate =
-              state.getMlirValue(next_value_op->predicate().value()->id());
-          if (!predicate.ok()) {
-            return val.status();
-          }
-          predicates_vec.push_back(*predicate);
+      for (auto* next_value_op : elem_next_value_ops) {
+        if (!next_value_op->predicate().has_value()) {
+          return absl::InternalError(absl::StrCat(
+              "`next_value` nodes for state element ", state_elem->name(),
+              " lacks predicate but there are multiple `next_value` nodes."));
         }
 
-        auto elem_type = translateType(state_elem->type(), builder, ctx);
+        auto val = state.getMlirValue(next_value_op->value()->id());
+        if (!val.ok()) {
+          return val.status();
+        }
+        values_vec.push_back(*val);
 
-        builder.setInsertionPointToEnd(body);
-        auto next = builder.create<NextValueOp>(
-            builder.getUnknownLoc(), elem_type, ValueRange(predicates_vec),
-            ValueRange(values_vec));
-
-        state_elem_next_value[state_elem->name()] = next;
+        auto predicate =
+            state.getMlirValue(next_value_op->predicate().value()->id());
+        if (!predicate.ok()) {
+          return val.status();
+        }
+        predicates_vec.push_back(*predicate);
       }
+
+      auto elem_type = translateType(state_elem->type(), builder, ctx);
+
+      builder.setInsertionPointToEnd(body);
+      auto next = builder.create<NextValueOp>(
+          builder.getUnknownLoc(), elem_type, ValueRange(predicates_vec),
+          ValueRange(values_vec));
+
+      state_elem_next_value[state_elem->name()] = next;
     }
   }
 

@@ -112,30 +112,10 @@ class Proc : public FunctionBase {
     return state_name_uniquer_.GetSanitizedUniqueName(name);
   }
 
-  // Returns the nodes holding the next recurrent state value.
-  //
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  absl::Span<Node* const> NextState() const { return next_state_; }
-  Node* GetNextStateElement(int64_t index) const {
-    return NextState().at(index);
-  }
-
-  // Return the state element indices for which the given `node` is the next
-  // recurrent state value for that element.
-  //
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  absl::btree_set<int64_t> GetNextStateIndices(Node* node) const;
-
   // Returns the type of the given state element.
   Type* GetStateElementType(int64_t index) const {
     return StateElements().at(index)->type();
   }
-
-  // Sets the next recurrent state value for the state element of the given
-  // index. Node type must match the type of the state element.
-  //
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  absl::Status SetNextStateElement(int64_t index, Node* next);
 
   // Replace all state elements with new state parameters and the given initial
   // values. The next state nodes are set to the newly created state parameter
@@ -406,14 +386,6 @@ class Proc : public FunctionBase {
   // deletion of a state element is O(n) with the number of state elements. If
   // this is a problem, a linked list might be used instead.
   std::vector<StateElement*> state_vec_;
-
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  std::vector<Node*> next_state_;
-
-  // A map from the `next_state_` nodes back to the indices they control.
-  //
-  // TODO: Remove this once fully transitioned over to `next_value` nodes.
-  absl::flat_hash_map<Node*, absl::btree_set<int64_t>> next_state_indices_;
 
   // All channel references in this proc. Channel references can be part of the
   // interface or the references of channels declared in this proc.

@@ -914,7 +914,7 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
               ElementsAre(m::Next(m::StateRead("z"), m::StateRead("z"))));
 }
 
-TEST(FunctionBuilderTest, ProcWithNextStateElement) {
+TEST(FunctionBuilderTest, ProcWithNextValue) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
   BValue x = pb.StateElement("x", Value(UBits(1, 1)));
@@ -928,7 +928,7 @@ TEST(FunctionBuilderTest, ProcWithNextStateElement) {
                       /*predicate=*/m::StateRead("x")));
 }
 
-TEST(FunctionBuilderTest, ProcWithNextStateElementBadPredicate) {
+TEST(FunctionBuilderTest, ProcWithNextValueBadPredicate) {
   Package p("p");
   ProcBuilder pb("the_proc", &p);
   BValue x = pb.StateElement("x", Value(UBits(1, 32)));

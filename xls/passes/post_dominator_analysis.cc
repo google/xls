@@ -108,15 +108,16 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
       }
       user_postdominators.push_back(postdominators.at(user));
     }
-    // The postdominators of a node is the intersection of the lists of
-    // postdominators for its users plus the node itself.
-    postdominators[node] = IntersectSortedLists(user_postdominators);
     // If a node has an implicit use, then there exists an alternate path to a
     // root node other than its users, so it can't be dominated by anything
     // other than itself.
     if (f->HasImplicitUse(node)) {
-      postdominators[node] = std::vector<NodeIndex>();
+      postdominators[node] = std::vector<NodeIndex>({i});
+      continue;
     }
+    // The postdominators of a node is the intersection of the lists of
+    // postdominators for its users plus the node itself.
+    postdominators[node] = IntersectSortedLists(user_postdominators);
     postdominators[node].push_back(i);
   }
 

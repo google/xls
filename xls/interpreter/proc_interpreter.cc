@@ -314,16 +314,9 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
     }
   }
 
-  // Proc completed execution of the Tick. Pass the next proc state to the
-  // continuation.
-  //
-  // TODO: Simplify this once fully transitioned over to `next_value` nodes.
-  std::vector<Value> next_state;
-  next_state.resize(proc()->GetStateElementCount());
-  for (int64_t index = 0; index < proc()->NextState().size(); ++index) {
-    next_state[index] =
-        ir_interpreter.ResolveAsValue(proc()->GetNextStateElement(index));
-  }
+  // Proc completed execution of the Tick. Let the active next_values update the
+  // proc state, then pass it to the continuation.
+  std::vector<Value> next_state = cont->GetState();
   for (const auto& [state_element, next_values] : cont->GetActiveNextValues()) {
     if (next_values.size() > 1) {
       return absl::AlreadyExistsError(absl::StrFormat(

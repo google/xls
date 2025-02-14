@@ -762,18 +762,13 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
         [&](Register* r) -> Node* { return *block->GetRegisterWrite(r); });
     return out;
   }
-  // The outputs of a proc are the next state values.
+  // The outputs of a proc are the next state values - which will be stored in
+  // the memory locations for the state reads.
   Proc* proc = function_base->AsProcOrDie();
   std::vector<Node*> outputs;
-  if (proc->next_values().empty()) {
-    // TODO(epastor): Remove this when we no longer support the old-style `next
-    // (...)` line with next-state values.
-    outputs.insert(outputs.end(), proc->NextState().begin(),
-                   proc->NextState().end());
-  } else {
-    absl::c_transform(proc->StateElements(), std::back_inserter(outputs),
-                      [&](StateElement* st) { return proc->GetStateRead(st); });
-  }
+  outputs.reserve(proc->StateElements().size());
+  absl::c_transform(proc->StateElements(), std::back_inserter(outputs),
+                    [&](StateElement* st) { return proc->GetStateRead(st); });
   return outputs;
 }
 

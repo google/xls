@@ -131,26 +131,12 @@ absl::StatusOr<bool> SimplifyProcState(Proc* proc,
   StateRead* old_state_read = proc->GetStateRead(state_element);
   const Value& old_init_value = state_element->initial_value();
   Value new_init_value = Value::Tuple(old_init_value.elements());
-  Node* old_next_state = proc->GetNextStateElement(old_state_index);
-  VLOG(3) << "Old Next state: " << old_next_state->ToString();
-  XLS_ASSIGN_OR_RETURN(Node * next_state_as_tuple,
-                       ConvertArrayToTuple(old_next_state));
 
   ArrayToTupleStateTransformer transformer;
-  XLS_ASSIGN_OR_RETURN(
-      StateRead * new_state_read,
-      proc->TransformStateElement(proc->GetStateRead(state_element),
-                                  new_init_value, transformer));
-  // TODO: google/xls#1520 - remove when next_value is the one true way
   XLS_RETURN_IF_ERROR(
-      proc->SetNextStateElement(old_state_index, old_state_read));
-  XLS_ASSIGN_OR_RETURN(
-      int64_t new_state_index,
-      proc->GetStateElementIndex(new_state_read->state_element()));
-  if (proc->next_values(new_state_read).empty()) {
-    XLS_RETURN_IF_ERROR(
-        proc->SetNextStateElement(new_state_index, next_state_as_tuple));
-  }
+      proc->TransformStateElement(proc->GetStateRead(state_element),
+                                  new_init_value, transformer)
+          .status());
 
   std::vector<Next*> old_next_values(proc->next_values(old_state_read).begin(),
                                      proc->next_values(old_state_read).end());

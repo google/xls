@@ -230,6 +230,7 @@ TEST_F(PostDominatorAnalysisTest, MultipleOutputs) {
   BValue x = pb.StateElement("x", Value(UBits(0, 1)));
   BValue y = pb.StateElement("y", Value(UBits(0, 1)));
   BValue z = pb.And(x, y);
+  pb.Next(x, x);
   BValue next_y = pb.Next(y, z);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<PostDominatorAnalysis> analysis,

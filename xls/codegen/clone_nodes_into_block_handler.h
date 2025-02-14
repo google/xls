@@ -393,7 +393,6 @@ class CloneNodesIntoBlockHandler {
     XLS_ASSIGN_OR_RETURN(int64_t index,
                          proc->GetStateElementIndex(state_element));
 
-    CHECK_EQ(proc->GetNextStateElement(index), next->state_read());
     StateRegister& state_register = *result_.state_registers.at(index);
     state_register.next_values.push_back(
         {.stage = stage,

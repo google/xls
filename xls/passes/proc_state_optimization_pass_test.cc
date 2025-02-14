@@ -45,15 +45,15 @@ using ::testing::ElementsAre;
 using ::testing::UnorderedElementsAre;
 
 enum class NextValueType : std::uint8_t {
-  kNextStateElements,
+  kNextStateVector,
   kNextValueNodes,
 };
 
 template <typename Sink>
 void AbslStringify(Sink& sink, NextValueType e) {
   absl::Format(&sink, "%s",
-               e == NextValueType::kNextStateElements ? "NextStateElements"
-                                                      : "NextValueNodes");
+               e == NextValueType::kNextStateVector ? "NextStateVector"
+                                                    : "NextValueNodes");
 }
 
 class BaseProcStateOptimizationPassTest : public IrTestBase {
@@ -73,7 +73,7 @@ class ProcStateOptimizationPassTest
   absl::StatusOr<Proc*> BuildProc(ProcBuilder& pb,
                                   absl::Span<const BValue> next_state) {
     switch (GetParam()) {
-      case NextValueType::kNextStateElements:
+      case NextValueType::kNextStateVector:
         return pb.Build(next_state);
       case NextValueType::kNextValueNodes: {
         for (int64_t index = 0; index < next_state.size(); ++index) {
@@ -89,7 +89,7 @@ class ProcStateOptimizationPassTest
   absl::StatusOr<Proc*> BuildProc(TokenlessProcBuilder& pb,
                                   absl::Span<const BValue> next_state) {
     switch (GetParam()) {
-      case NextValueType::kNextStateElements:
+      case NextValueType::kNextStateVector:
         return pb.Build(next_state);
       case NextValueType::kNextValueNodes: {
         for (int64_t index = 0; index < next_state.size(); ++index) {
@@ -431,7 +431,7 @@ TEST_P(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
 }
 
 INSTANTIATE_TEST_SUITE_P(NextValueTypes, ProcStateOptimizationPassTest,
-                         testing::Values(NextValueType::kNextStateElements,
+                         testing::Values(NextValueType::kNextStateVector,
                                          NextValueType::kNextValueNodes),
                          testing::PrintToStringParamName());
 

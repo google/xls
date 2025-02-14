@@ -930,21 +930,13 @@ absl::Status Node::ReplaceUsesWith(Node* replacement,
 
 absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
   bool changed = false;
+  // Only functions have implicitly-used nodes, for their return value.
   if (function_base()->IsFunction()) {
     Function* function = function_base()->AsFunctionOrDie();
     if (this == function->return_value()) {
       XLS_RETURN_IF_ERROR(function->set_return_value(replacement));
       changed = true;
     }
-  } else if (function_base()->IsProc()) {
-    Proc* proc = function_base()->AsProcOrDie();
-    for (int64_t index : proc->GetNextStateIndices(this)) {
-      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, replacement));
-      changed = true;
-    }
-  } else {
-    XLS_RET_CHECK(function_base()->IsBlock());
-    // Blocks have no implicit uses.
   }
   return changed;
 }

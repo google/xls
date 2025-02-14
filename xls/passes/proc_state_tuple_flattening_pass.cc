@@ -145,7 +145,6 @@ struct AbstractStateElement {
   Value initial_value;
   Node* placeholder;
   std::optional<Node*> read_predicate;
-  Node* next;
   std::vector<NextValue> next_values;
 };
 
@@ -156,37 +155,15 @@ absl::Status ReplaceProcState(Proc* proc,
   std::vector<std::string> names;
   std::vector<Value> init_values;
   std::vector<std::optional<Node*>> read_predicates;
-  std::vector<Node*> nexts;
   names.reserve(elements.size());
   init_values.reserve(elements.size());
   read_predicates.reserve(elements.size());
-  nexts.reserve(elements.size());
   for (const AbstractStateElement& element : elements) {
     names.push_back(element.name);
     init_values.push_back(element.initial_value);
     read_predicates.push_back(element.read_predicate);
-    nexts.push_back(element.next);
   }
-  if (absl::c_all_of(elements, [](const AbstractStateElement& element) {
-        return element.next_values.empty();
-      })) {
-    XLS_RETURN_IF_ERROR(
-        proc->ReplaceState(names, init_values, read_predicates, nexts));
-  } else {
-    XLS_RETURN_IF_ERROR(proc->ReplaceState(names, init_values));
-    for (int64_t i = 0; i < elements.size(); ++i) {
-      const AbstractStateElement& element = elements.at(i);
-      if (element.next != element.placeholder) {
-        XLS_RETURN_IF_ERROR(
-            proc->MakeNode<Next>(
-                    SourceInfo(),
-                    /*state_read=*/proc->GetStateRead(proc->GetStateElement(i)),
-                    /*value=*/element.next,
-                    /*predicate=*/std::nullopt)
-                .status());
-      }
-    }
-  }
+  XLS_RETURN_IF_ERROR(proc->ReplaceState(names, init_values, read_predicates));
   for (int64_t i = 0; i < elements.size(); ++i) {
     for (const NextValue& next_value : elements[i].next_values) {
       XLS_RETURN_IF_ERROR(
@@ -220,27 +197,6 @@ absl::Status FlattenState(Proc* proc) {
         DecomposeValue(state_element->initial_value());
     const int64_t num_components = init_values.size();
 
-    std::vector<Node*> next_state;
-    if (proc->GetNextStateElement(state_index) != state_read) {
-      // Create a copy of the next state node. This is necessary because the
-      // next state node may be a state parameter which we will be removing via
-      // Proc::ReplaceState before adding and connecting the newly created state
-      // params. The copy then serves as a placeholder after the old state param
-      // has been deleted.
-      XLS_ASSIGN_OR_RETURN(
-          Node * next_state_copy,
-          proc->MakeNode<UnOp>(state_read->loc(),
-                               proc->GetNextStateElement(state_index),
-                               Op::kIdentity));
-      identities.push_back(next_state_copy);
-
-      XLS_ASSIGN_OR_RETURN(next_state, DecomposeNode(next_state_copy));
-
-      XLS_RET_CHECK_EQ(next_state.size(), num_components);
-    }
-    // Otherwise, the empty next_state vector will signal that the param uses
-    // itself as its next state element.
-
     // Construct a StateElement for each component of the flattened state
     // element.
     std::vector<Node*> placeholders;
@@ -259,12 +215,6 @@ absl::Status FlattenState(Proc* proc) {
           element.placeholder,
           proc->MakeNode<Literal>(state_read->loc(), init_values[i]));
       element.read_predicate = state_read->predicate();
-      if (next_state.empty()) {
-        // The next element for this param is just itself; we preserve that.
-        element.next = element.placeholder;
-      } else {
-        element.next = next_state[i];
-      }
 
       placeholders.push_back(element.placeholder);
       elements.push_back(std::move(element));

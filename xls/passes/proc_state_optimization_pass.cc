@@ -103,24 +103,6 @@ absl::StatusOr<bool> RemoveConstantStateElements(Proc* proc,
     StateRead* state_read = proc->GetStateRead(state_element);
     const Value& initial_value = state_element->initial_value();
 
-    // TODO(epastor): Remove this once we no longer use next-state elements.
-    if (proc->next_values(state_read).empty()) {
-      Node* next_state = proc->GetNextStateElement(i);
-      if (next_state == state_read) {
-        // The state element never changes, so it's definitely constant.
-        to_remove.push_back(i);
-        continue;
-      }
-
-      std::optional<Value> next_state_value =
-          query_engine.KnownValue(next_state);
-      if (next_state_value.has_value() && *next_state_value == initial_value) {
-        // We know the state never changes.
-        to_remove.push_back(i);
-      }
-      continue;
-    }
-
     bool never_changes = true;
     for (Next* next : proc->next_values(state_read)) {
       if (next->value() == state_read) {
@@ -384,9 +366,6 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
   XLS_ASSIGN_OR_RETURN(StateRead * state_machine_read,
                        proc->AppendStateElement(
                            state_machine_name, ZeroOfType(state_machine_type)));
-  XLS_ASSIGN_OR_RETURN(
-      int64_t state_machine_index,
-      proc->GetStateElementIndex(state_machine_read->state_element()));
 
   {
     XLS_ASSIGN_OR_RETURN(
@@ -408,15 +387,10 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
             SourceInfo(), machine_too_large,
             std::vector<Node*>({machine_plus_one, state_machine_read}),
             std::nullopt));
-    // TODO(epastor): Clean this up once we no longer use next-state elements.
-    if (proc->next_values().empty()) {
-      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(state_machine_index, sel));
-    } else {
-      XLS_RETURN_IF_ERROR(
-          proc->MakeNode<Next>(SourceInfo(), /*state_read=*/state_machine_read,
-                               /*value=*/sel, /*predicate=*/std::nullopt)
-              .status());
-    }
+    XLS_RETURN_IF_ERROR(
+        proc->MakeNode<Next>(SourceInfo(), /*state_read=*/state_machine_read,
+                             /*value=*/sel, /*predicate=*/std::nullopt)
+            .status());
   }
 
   std::vector<Node*> initial_state_literals;
@@ -429,43 +403,39 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
     initial_state_literals.push_back(init);
   }
 
-  Node* chain_constant;
-  if (proc->next_values(proc->GetStateRead(chain.front())).empty()) {
-    chain_constant = proc->GetNextStateElement(chain.front());
-  } else {
     CHECK_EQ(proc->next_values(proc->GetStateRead(chain.front())).size(), 1);
     Next* next_value =
         *proc->next_values(proc->GetStateRead(chain.front())).begin();
     CHECK(next_value->predicate() == std::nullopt &&
           query_engine.IsFullyKnown(next_value->value()));
-    chain_constant = next_value->value();
-  }
-  CHECK(chain_constant != nullptr && query_engine.IsFullyKnown(chain_constant));
-  XLS_ASSIGN_OR_RETURN(
-      Literal * chain_literal,
-      proc->MakeNode<Literal>(chain_constant->loc(),
-                              *query_engine.KnownValue(chain_constant)));
+    Node* chain_constant = next_value->value();
+    CHECK(chain_constant != nullptr &&
+          query_engine.IsFullyKnown(chain_constant));
+    XLS_ASSIGN_OR_RETURN(
+        Literal * chain_literal,
+        proc->MakeNode<Literal>(chain_constant->loc(),
+                                *query_engine.KnownValue(chain_constant)));
 
-  absl::btree_set<int64_t, std::greater<int64_t>> indices_to_remove;
-  for (int64_t chain_index = 0; chain_index < chain.size(); ++chain_index) {
-    int64_t state_index = chain.at(chain_index);
-    std::vector<Node*> cases = initial_state_literals;
-    CHECK_GE(cases.size(), chain_index);
-    cases.resize(chain_index + 1);
-    std::reverse(cases.begin(), cases.end());
-    absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-        proc->next_values(proc->GetStateRead(state_index));
-    for (Next* next : next_values) {
-      XLS_RETURN_IF_ERROR(
-          next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
-      XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
+    absl::btree_set<int64_t, std::greater<int64_t>> indices_to_remove;
+    for (int64_t chain_index = 0; chain_index < chain.size(); ++chain_index) {
+      int64_t state_index = chain.at(chain_index);
+      std::vector<Node*> cases = initial_state_literals;
+      CHECK_GE(cases.size(), chain_index);
+      cases.resize(chain_index + 1);
+      std::reverse(cases.begin(), cases.end());
+      absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
+          proc->next_values(proc->GetStateRead(state_index));
+      for (Next* next : next_values) {
+        XLS_RETURN_IF_ERROR(
+            next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+        XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
+      }
+      XLS_RETURN_IF_ERROR(proc->GetStateRead(state_index)
+                              ->ReplaceUsesWithNew<Select>(state_machine_read,
+                                                           cases, chain_literal)
+                              .status());
+      indices_to_remove.insert(state_index);
     }
-    XLS_RETURN_IF_ERROR(proc->GetStateRead(state_index)
-                            ->ReplaceUsesWithNew<Select>(state_machine_read,
-                                                         cases, chain_literal)
-                            .status());
-    indices_to_remove.insert(state_index);
-  }
   for (int64_t state_index : indices_to_remove) {
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(state_index));
   }
@@ -483,16 +453,6 @@ absl::StatusOr<bool> ConvertConstantChainsToStateMachines(
     Proc* proc, QueryEngine& query_engine) {
   bool changed = false;
   for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    if (query_engine.IsFullyKnown(proc->GetNextStateElement(i))) {
-      XLS_RETURN_IF_ERROR(ConstantChainToStateMachine(proc, {i}, query_engine));
-      changed = true;
-
-      // Repopulate the query engine in case we need to use it again.
-      XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
-
-      continue;
-    }
-
     const absl::btree_set<Next*, Node::NodeIdLessThan>& next_values =
         proc->next_values(proc->GetStateRead(i));
     if (next_values.size() != 1) {

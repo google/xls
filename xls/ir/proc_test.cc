@@ -194,7 +194,6 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetStateElement(2)->name(), "x");
   EXPECT_EQ(proc->GetStateElement(3)->name(), "baz");
   EXPECT_EQ(proc->GetStateElement(4)->name(), "bar");
-  EXPECT_THAT(proc->GetNextStateIndices(zero_literal), IsEmpty());
 
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc p(foo: bits[32], tkn: token, x: bits[32], baz: "
@@ -243,39 +242,6 @@ TEST_F(ProcTest, StatelessProc) {
   EXPECT_EQ(proc->GetStateFlatBitCount(), 0);
 
   EXPECT_EQ(proc->DumpIr(), "proc p() {\n}\n");
-}
-
-TEST_F(ProcTest, InvalidTokenType) {
-  auto p = CreatePackage();
-  ProcBuilder pb("p", p.get());
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.AfterAll({tkn}), add}));
-
-  // Try setting invalid typed nodes as the next token/state.
-  EXPECT_THAT(
-      proc->SetNextStateElement(0, add.node()),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "type bits[32] does not match proc state element type token")));
-}
-
-TEST_F(ProcTest, InvalidStateType) {
-  auto p = CreatePackage();
-  ProcBuilder pb("p", p.get());
-  BValue tkn = pb.StateElement("tkn", Value::Token());
-  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.AfterAll({tkn}), add}));
-
-  EXPECT_THAT(
-      proc->SetNextStateElement(1, tkn.node()),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr(
-              "type token does not match proc state element type bits[32]")));
 }
 
 TEST_F(ProcTest, ReplaceStateThatStillHasUse) {

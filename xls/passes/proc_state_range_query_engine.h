@@ -68,19 +68,7 @@ class ProcStateRangeQueryEngine final : public QueryEngine {
   // populated if this is false but it is no different than a union of ternary
   // and range analyses.
   inline static bool CanAnalyzeProcStateEvolution(FunctionBase* f) {
-    if (!f->IsProc()) {
-      return false;
-    }
-    Proc* p = f->AsProcOrDie();
-    if (!p->next_values().empty()) {
-      return true;
-    }
-    for (int64_t i = 0; i < p->GetStateElementCount(); ++i) {
-      if (p->GetNextStateElement(i) != p->GetStateRead(p->GetStateElement(i))) {
-        return false;
-      }
-    }
-    return true;
+    return f->IsProc();
   }
 
   LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {

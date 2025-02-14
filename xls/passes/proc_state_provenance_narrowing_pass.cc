@@ -250,12 +250,6 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
 absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options,
     PassResults* results) const {
-  // Make sure we've got the next-value nodes we need to actually do the
-  // analysis
-  XLS_RET_CHECK(!proc->next_values().empty() || proc->NextState().empty())
-      << "Proc state provenance narrowing pass run on IR without "
-         "next-nodes. Unable to analyze proc: "
-      << proc;
   // Query engine to identify writes of (parts of) the initial value.
   TernaryQueryEngine tqe;
   XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,

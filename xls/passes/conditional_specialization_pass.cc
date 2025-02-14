@@ -959,34 +959,11 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     //
     // If this node has an implicit use then we can't propagate any conditions
     // from the users because this value is unconditionally live and therefore
-    // its computed value should not be changed. (However, we ignore the
-    // implicit use of a StateRead that's only used to declare that the
-    // corresponding state element is unchanged, since that's safe in this
-    // context.)
+    // its computed value should not be changed.
     //
     // Similarly, if this node is a StateRead's predicate, then its value can
     // affect throughput and so shouldn't be changed.
-    XLS_ASSIGN_OR_RETURN(
-        bool has_real_implicit_use, [&]() -> absl::StatusOr<bool> {
-          if (!f->HasImplicitUse(node)) {
-            return false;
-          }
-          if (!node->Is<StateRead>()) {
-            return true;
-          }
-          Proc* proc = f->AsProcOrDie();
-          absl::btree_set<int64_t> next_state_indices =
-              proc->GetNextStateIndices(node);
-          if (next_state_indices.size() != 1) {
-            return true;
-          }
-          int64_t next_state_index = *next_state_indices.begin();
-          XLS_ASSIGN_OR_RETURN(int64_t index,
-                               proc->GetStateElementIndex(
-                                   node->As<StateRead>()->state_element()));
-          return index != next_state_index;
-        }());
-    if (!has_real_implicit_use &&
+    if (!f->HasImplicitUse(node) &&
         absl::c_none_of(node->users(),
                         [](Node* user) { return user->Is<StateRead>(); })) {
       VLOG(4) << absl::StreamFormat(

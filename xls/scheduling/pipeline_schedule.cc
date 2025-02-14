@@ -243,14 +243,6 @@ absl::Status PipelineSchedule::Verify() const {
     Proc* proc = function_base()->AsProcOrDie();
     int64_t worst_case_throughput = proc->GetInitiationInterval().value_or(1);
     if (worst_case_throughput >= 1) {
-      for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-        Node* state_read = proc->GetStateRead(index);
-        Node* next_state = proc->GetNextStateElement(index);
-        // Verify that we determine the new state within II cycles of accessing
-        // the current param.
-        XLS_RET_CHECK_LT(cycle(next_state),
-                         cycle(state_read) + worst_case_throughput);
-      }
       for (Next* next : proc->next_values()) {
         Node* state_read = next->state_read();
         // Verify that no write happens before the corresponding read.
@@ -489,22 +481,6 @@ absl::Status PipelineSchedule::VerifyConstraints(
         continue;
       }
       Proc* proc = function_base_->AsProcOrDie();
-      for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
-        StateRead* state_read = proc->GetStateRead(index);
-        Node* next_state = proc->GetNextStateElement(index);
-        int64_t backedge_length =
-            cycle_map_.at(next_state) - cycle_map_.at(state_read);
-        if (backedge_length > max_backedge) {
-          return absl::ResourceExhaustedError(absl::StrFormat(
-              "Scheduling constraint violated: state read %s was scheduled %d "
-              "cycle%s before node %s, its next value, which violates the "
-              "constraint that we can achieve a worst-case throughput of one "
-              "iteration per %d cycle%s without external stalls.",
-              state_read->GetName(), backedge_length, plural_s(backedge_length),
-              next_state->ToString(), worst_case_throughput.value_or(1),
-              plural_s(worst_case_throughput.value_or(1))));
-        }
-      }
       for (Next* next : proc->next_values()) {
         StateRead* state_read = next->state_read()->As<StateRead>();
         int64_t backedge_length =

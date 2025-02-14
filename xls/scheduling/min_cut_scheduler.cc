@@ -189,7 +189,7 @@ absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
       XLS_RETURN_IF_ERROR(bounds->TightenNodeUb(node, 0));
       XLS_RETURN_IF_ERROR(bounds->PropagateUpperBounds());
     }
-    for (Node* node : proc->NextState()) {
+    for (Node* node : proc->next_values()) {
       XLS_RETURN_IF_ERROR(bounds->TightenNodeUb(node, 0));
       XLS_RETURN_IF_ERROR(bounds->PropagateUpperBounds());
     }

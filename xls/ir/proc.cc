@@ -94,16 +94,6 @@ std::string Proc::DumpIr() const {
     }
     absl::StrAppend(&res, "  ", node->ToString(), "\n");
   }
-
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
-  if (next_values_.empty() && !state_elements_.empty()) {
-    auto node_formatter = [](std::string* s, Node* node) {
-      absl::StrAppend(s, node->GetName());
-    };
-    absl::StrAppend(&res, "  next (",
-                    absl::StrJoin(next_state_, ", ", node_formatter), ")\n");
-  }
   absl::StrAppend(&res, "}\n");
   return res;
 }
@@ -152,28 +142,6 @@ std::optional<int64_t> Proc::MaybeGetStateElementIndex(
     return std::distance(state_vec_.begin(), it);
   }
   return std::nullopt;
-}
-
-absl::btree_set<int64_t> Proc::GetNextStateIndices(Node* node) const {
-  auto it = next_state_indices_.find(node);
-  if (it == next_state_indices_.end()) {
-    return absl::btree_set<int64_t>();
-  }
-  return it->second;
-}
-
-absl::Status Proc::SetNextStateElement(int64_t index, Node* next) {
-  if (next->GetType() != GetStateElementType(index)) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Cannot set next state element %d to \"%s\"; type %s does not match "
-        "proc state element type %s",
-        index, next->GetName(), next->GetType()->ToString(),
-        GetStateElementType(index)->ToString()));
-  }
-  next_state_indices_[next_state_[index]].erase(index);
-  next_state_[index] = next;
-  next_state_indices_[next].insert(index);
-  return absl::OkStatus();
 }
 
 absl::Status Proc::ReplaceState(
@@ -291,11 +259,6 @@ absl::StatusOr<StateRead*> Proc::ReplaceStateElement(
     state_name = UniquifyStateName(requested_state_name);
   }
 
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
-  next_state_indices_[next_state_[index]].erase(index);
-  next_state_[index] = nullptr;
-
   XLS_RETURN_IF_ERROR(RemoveNode(old_state_read));
 
   state_elements_[state_name] = std::make_unique<StateElement>(
@@ -318,11 +281,6 @@ absl::StatusOr<StateRead*> Proc::ReplaceStateElement(
         next_state.value()->GetType()->ToString(), init_value.ToString()));
   }
 
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
-  next_state_[index] = state_read;
-  next_state_indices_[state_read].insert(index);
-
   if (next_state.has_value()) {
     XLS_RETURN_IF_ERROR(MakeNode<Next>(SourceInfo(), state_read, *next_state,
                                        /*predicate=*/std::nullopt)
@@ -342,22 +300,6 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
       return entry.second.get() == state_element;
     }));
   }
-
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
-  if (index < GetStateElementCount() - 1) {
-    for (auto& [_, indices] : next_state_indices_) {
-      // Relabel all indices > `index`.
-      auto it = indices.upper_bound(index);
-      absl::btree_set<int64_t> relabeled_indices(indices.begin(), it);
-      for (; it != indices.end(); ++it) {
-        relabeled_indices.insert((*it) - 1);
-      }
-      indices = std::move(relabeled_indices);
-    }
-  }
-  next_state_indices_[next_state_[index]].erase(index);
-  next_state_.erase(next_state_.begin() + index);
 
   StateElement* old_state_element = GetStateElement(index);
   StateRead* old_state_read = state_reads_.at(old_state_element);
@@ -386,7 +328,6 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
     const Value& init_value, std::optional<Node*> read_predicate,
     std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
-  const bool is_append = (index == GetStateElementCount());
   std::string state_name = UniquifyStateName(requested_state_name);
   state_elements_[state_name] = std::make_unique<StateElement>(
       state_name, package()->GetTypeForValue(init_value), init_value);
@@ -397,8 +338,6 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
                                                    read_predicate, state_name));
   state_reads_[state_element] = state_read;
 
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
   if (next_state.has_value()) {
     if (!ValueConformsToType(init_value, next_state.value()->GetType())) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -411,46 +350,11 @@ absl::StatusOr<StateRead*> Proc::InsertStateElement(
                                        /*predicate=*/std::nullopt)
                             .status());
   }
-  if (!is_append) {
-    for (auto& [_, indices] : next_state_indices_) {
-      // Relabel all indices >= `index`.
-      auto it = indices.lower_bound(index);
-      absl::btree_set<int64_t> relabeled_indices(indices.begin(), it);
-      for (; it != indices.end(); ++it) {
-        relabeled_indices.insert((*it) + 1);
-      }
-      indices = std::move(relabeled_indices);
-    }
-  }
-  next_state_.insert(next_state_.begin() + index, state_read);
-  next_state_indices_[next_state_[index]].insert(index);
 
   return state_read;
 }
 
-bool Proc::HasImplicitUse(Node* node) const {
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
-  if (auto it = next_state_indices_.find(node);
-      it != next_state_indices_.end() && !it->second.empty()) {
-    if (node->Is<StateRead>() && it->second.size() == 1) {
-      // This is a state read that's used to define the next value of a single
-      // state element. If that state element is the same one being read, then
-      // this shouldn't count as an implicit use, because it just marks that
-      // this state element is never implicitly changed.
-      int64_t state_index = *it->second.begin();
-      if (node == GetStateRead(state_index) &&
-          absl::c_any_of(next_values(node->As<StateRead>()), [](Next* next) {
-            return !next->predicate().has_value();
-          })) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  return false;
-}
+bool Proc::HasImplicitUse(Node* node) const { return false; }
 
 absl::StatusOr<Proc*> Proc::Clone(
     std::string_view new_name, Package* target_package,
@@ -666,13 +570,6 @@ absl::StatusOr<Proc*> Proc::Clone(
         break;
       }
     }
-  }
-
-  // TODO: google/xls#1520 - remove this once fully transitioned over to
-  // `next_value` nodes.
-  for (int64_t i = 0; i < GetStateElementCount(); ++i) {
-    XLS_RETURN_IF_ERROR(cloned_proc->SetNextStateElement(
-        i, original_to_clone.at(GetNextStateElement(i))));
   }
 
   return cloned_proc;

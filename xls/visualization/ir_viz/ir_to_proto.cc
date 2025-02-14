@@ -89,22 +89,6 @@ absl::flat_hash_map<FunctionBase*, std::string> GetFunctionIds(
   return function_ids;
 }
 
-std::vector<int64_t> GetAssociatedStateIndices(Node* node) {
-  if (!node->function_base()->IsProc()) {
-    return {};
-  }
-  Proc* proc = node->function_base()->AsProcOrDie();
-  std::vector<int64_t> state_indices;
-  if (node->Is<StateRead>()) {
-    state_indices.push_back(
-        *proc->GetStateElementIndex(node->As<StateRead>()->state_element()));
-  }
-  absl::c_copy(proc->GetNextStateIndices(node),
-               std::back_inserter(state_indices));
-  absl::c_sort(state_indices);
-  return state_indices;
-}
-
 std::optional<int64_t> MaybeGetStateReadIndex(Node* node) {
   if (node->Is<StateRead>() && node->function_base()->IsProc()) {
     return node->function_base()
@@ -298,13 +282,6 @@ absl::Status WrapNodeDefInSpan(
   std::vector<std::pair<std::string, std::string>> data = {
       {"node-id", node_id},
       {"function-id", function_ids.at(node->function_base())}};
-  if (std::vector<int64_t> state_indices = GetAssociatedStateIndices(node);
-      !state_indices.empty()) {
-    data.push_back({"state-element", absl::StrJoin(state_indices, ",")});
-    for (int64_t state_index : state_indices) {
-      classes.push_back(absl::StrFormat("state-element-%d", state_index));
-    }
-  }
   XLS_RETURN_IF_ERROR(WrapTextInSpan(node->GetName(),
                                      /*dom_id=*/
                                      absl::StrFormat("ir-node-def-%s", node_id),
@@ -328,24 +305,6 @@ absl::Status WrapNodeUseInSpan(
       /*data=*/
       {{"node-id", def_id},
        {"function-id", function_ids.at(def->function_base())}},
-      str));
-  return absl::OkStatus();
-}
-
-// Wraps the node identifier of `next` appearing in a next statement.
-absl::Status WrapNextNodeInSpan(
-    Node* next,
-    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
-    std::string* str) {
-  std::string next_id = GetNodeUniqueId(next, function_ids);
-  XLS_RETURN_IF_ERROR(WrapTextInSpan(
-      next->GetName(),
-      /*dom_id=*/std::nullopt,
-      /*classes=*/
-      {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", next_id)},
-      /*data=*/
-      {{"node-id", next_id},
-       {"function-id", function_ids.at(next->function_base())}},
       str));
   return absl::OkStatus();
 }
@@ -446,28 +405,6 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
                                    /*dom_id=*/std::nullopt, &line));
       }
 
-      lines.push_back(std::string{line});
-      continue;
-    }
-
-    // Match proc next statement:
-    //
-    //   next (a, b, c)
-    //
-    // =>
-    //
-    //   next(<span>a</span>, <span>b</span>, <span>c</span>)
-    if (RE2::PartialMatch(line, R"(^\s*next\s*\()")) {
-      XLS_RET_CHECK(current_function->IsProc());
-      Proc* current_proc = current_function->AsProcOrDie();
-
-      // Wrap the next elements in spans.
-      if (current_proc->next_values().empty()) {
-        for (Node* next_state : current_proc->NextState()) {
-          XLS_RETURN_IF_ERROR(
-              WrapNextNodeInSpan(next_state, function_ids, &line));
-        }
-      }
       lines.push_back(std::string{line});
       continue;
     }

@@ -228,9 +228,7 @@ absl::Status RealMain(std::string_view input_path) {
                     return node->As<Next>()->state_read() ==
                            proc->GetStateRead(state_element);
                   }
-                  return node ==
-                         proc->GetNextStateElement(
-                             *proc->GetStateElementIndex(state_element));
+                  return false;
                 }));
         std::cout << CriticalPathToString(state_critical_path) << "\n";
       }

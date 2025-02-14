@@ -785,19 +785,6 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
   // A Proc cannot have any parameters.
   XLS_RET_CHECK(proc->params().empty());
 
-  // A Proc has zero or more state elements, which may be tokens.
-  XLS_RET_CHECK_EQ(proc->GetStateElementCount(), proc->NextState().size());
-  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    StateRead* state_read = proc->GetStateRead(i);
-    Node* next_state = proc->GetNextStateElement(i);
-    if (next_state != state_read) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Proc %s uses nontrivial next-state values on its 'next' line (e.g., "
-          "%s); all procs are now required to use next_value nodes.",
-          proc->name(), next_state->GetName()));
-    }
-  }
-
   return absl::OkStatus();
 }
 

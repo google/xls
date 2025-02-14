@@ -95,16 +95,6 @@ UnionFind<Node*> FindUntupleGroups(FunctionBase* f) {
       array_groups.Union(n->As<Next>()->state_read(), n->As<Next>()->value());
     }
   }
-  // For non-next procs the param needs to have the same repr as the node which
-  // updates it.
-  if (f->IsProc()) {
-    for (const auto& [state_element, update_value] :
-         iter::zip(f->AsProcOrDie()->StateElements(),
-                   f->AsProcOrDie()->NextState())) {
-      array_groups.Union(f->AsProcOrDie()->GetStateRead(state_element),
-                         update_value);
-    }
-  }
   return array_groups;
 }
 
@@ -129,27 +119,17 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindExternalGroups(
     XLS_RET_CHECK(f->IsProc());
     // Don't mess with params that are only used in identity updates. Would
     // infinite loop otherwise since we don't remove these very often.
-    if (f->AsProcOrDie()->next_values().empty()) {
-      for (const auto& [state_element, update] :
-           iter::zip(f->AsProcOrDie()->StateElements(),
-                     f->AsProcOrDie()->NextState())) {
-        if (f->AsProcOrDie()->GetStateRead(state_element) == update) {
-          excluded.insert(groups.Find(update));
-        }
-      }
-    } else {
-      for (StateElement* state_element : f->AsProcOrDie()->StateElements()) {
-        StateRead* state_read = f->AsProcOrDie()->GetStateRead(state_element);
-        if (absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
-              if (n->Is<Next>()) {
-                Next* nxt = n->As<Next>();
-                return nxt->state_read() == nxt->value() &&
-                       nxt->state_read() == state_read;
-              }
-              return false;
-            })) {
-          excluded.insert(groups.Find(state_read));
-        }
+    for (StateElement* state_element : f->AsProcOrDie()->StateElements()) {
+      StateRead* state_read = f->AsProcOrDie()->GetStateRead(state_element);
+      if (absl::c_all_of(state_read->users(), [&](Node* n) -> bool {
+            if (n->Is<Next>()) {
+              Next* nxt = n->As<Next>();
+              return nxt->state_read() == nxt->value() &&
+                     nxt->state_read() == state_read;
+            }
+            return false;
+          })) {
+        excluded.insert(groups.Find(state_read));
       }
     }
   }
@@ -254,36 +234,6 @@ class UntupleVisitor : public DfsVisitorWithDefault {
 
   bool changed() const { return changed_; }
   absl::Status DefaultHandler(Node* n) override { return absl::OkStatus(); }
-
-  absl::Status FixupImplicitUses(Proc* proc, int64_t initial_param_count) {
-    // For each of the original state elements.
-    XLS_RET_CHECK(changed_) << "Called without changes.";
-    for (const auto& [idx, state_element, update_value] :
-         iter::zip(iter::range(initial_param_count), proc->StateElements(),
-                   proc->NextState())) {
-      StateRead* state_read = proc->GetStateRead(state_element);
-      if (!CanUntuple(state_read)) {
-        continue;
-      }
-      XLS_RET_CHECK(CanUntuple(update_value));
-      // Link up all the new state elements.
-      XLS_RET_CHECK(components_.contains(state_read));
-      XLS_RET_CHECK(components_.contains(update_value));
-      for (const auto& [new_state_read, new_update_value] : iter::zip(
-               components_.at(state_read), components_.at(update_value))) {
-        XLS_RET_CHECK(new_state_read->Is<StateRead>());
-        XLS_ASSIGN_OR_RETURN(
-            int64_t new_state_element_idx,
-            proc->GetStateElementIndex(
-                new_state_read->As<StateRead>()->state_element()));
-        XLS_RETURN_IF_ERROR(
-            proc->SetNextStateElement(new_state_element_idx, new_update_value));
-      }
-      // Set the old state element to identity.
-      XLS_RETURN_IF_ERROR(proc->SetNextStateElement(idx, state_read));
-    }
-    return absl::OkStatus();
-  }
 
   absl::Status HandleEq(CompareOp* eq) override {
     if (!CanUntuple(eq->operand(0))) {
@@ -664,20 +614,8 @@ absl::StatusOr<bool> ArrayUntuplePass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> excluded,
                        FindExternalGroups(f, groups));
   UntupleVisitor vis(groups, excluded);
-  int64_t initial_state_count =
-      f->IsProc() ? f->AsProcOrDie()->StateElements().size() : -1;
   for (Node* n : TopoSort(f)) {
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&vis)) << n;
-  }
-  if (vis.changed() && f->IsProc() && f->AsProcOrDie()->next_values().empty()) {
-    // Fixup old-style-next procs.
-    // TODO(allight): Remove once fully moved over to next-value operations.  It
-    // would be pretty simple to make the pass only affect state elements that
-    // are updated through next-values but ordering of passes makes doing it
-    // this way incompatible with also letting other proc-state opts get a look
-    // at this.
-    XLS_RETURN_IF_ERROR(
-        vis.FixupImplicitUses(f->AsProcOrDie(), initial_state_count));
   }
   // XLS_RETURN_IF_ERROR(f->Accept(&vis));
   return vis.changed();

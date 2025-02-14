@@ -289,18 +289,6 @@ absl::StatusOr<int64_t> FindMinimumWorstCaseThroughput(
   // Extract the worst-case throughput from this schedule as an upper bound.
   int64_t pessimistic_worst_case_throughput = 1;
   if (f->IsProc()) {
-    using StateIndex = int64_t;
-    for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
-      Node* const state_read = proc->GetStateRead(i);
-      Node* const next = proc->GetNextStateElement(i);
-      if (next == state_read) {
-        continue;
-      }
-      const int64_t backedge_length =
-          schedule_cycle_map[next] - schedule_cycle_map[state_read];
-      pessimistic_worst_case_throughput =
-          std::max(pessimistic_worst_case_throughput, backedge_length + 1);
-    }
     for (Next* next : proc->next_values()) {
       Node* state_read = next->state_read();
       const int64_t backedge_length =
