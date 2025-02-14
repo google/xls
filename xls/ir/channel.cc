@@ -282,28 +282,29 @@ std::ostream& operator<<(std::ostream& os, ChannelStrictness in) {
   return os;
 }
 
-std::string DirectionToString(Direction direction) {
+std::string ChannelDirectionToString(ChannelDirection direction) {
   switch (direction) {
-    case Direction::kSend:
+    case ChannelDirection::kSend:
       return "send";
-    case Direction::kReceive:
+    case ChannelDirection::kReceive:
       return "receive";
   }
 }
 
-absl::StatusOr<Direction> DirectionFromString(std::string_view str) {
+absl::StatusOr<ChannelDirection> ChannelDirectionFromString(
+    std::string_view str) {
   if (str == "send") {
-    return Direction::kSend;
+    return ChannelDirection::kSend;
   }
   if (str == "receive") {
-    return Direction::kReceive;
+    return ChannelDirection::kReceive;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid direction %s.", str));
 }
 
-std::ostream& operator<<(std::ostream& os, Direction direction) {
-  os << DirectionToString(direction);
+std::ostream& operator<<(std::ostream& os, ChannelDirection direction) {
+  os << ChannelDirectionToString(direction);
   return os;
 }
 
@@ -324,7 +325,7 @@ ChannelRef AsChannelRef(ReceiveChannelRef ref) {
 SendChannelRef AsSendChannelRefOrDie(ChannelRef ref) {
   if (std::holds_alternative<ChannelReference*>(ref)) {
     ChannelReference* cref = std::get<ChannelReference*>(ref);
-    CHECK_EQ(cref->direction(), Direction::kSend);
+    CHECK_EQ(cref->direction(), ChannelDirection::kSend);
     return down_cast<SendChannelReference*>(cref);
   }
   return std::get<Channel*>(ref);
@@ -333,7 +334,7 @@ SendChannelRef AsSendChannelRefOrDie(ChannelRef ref) {
 ReceiveChannelRef AsReceiveChannelRefOrDie(ChannelRef ref) {
   if (std::holds_alternative<ChannelReference*>(ref)) {
     ChannelReference* cref = std::get<ChannelReference*>(ref);
-    CHECK_EQ(cref->direction(), Direction::kReceive);
+    CHECK_EQ(cref->direction(), ChannelDirection::kReceive);
     return down_cast<ReceiveChannelReference*>(cref);
   }
   return std::get<Channel*>(ref);
@@ -377,7 +378,7 @@ std::string ChannelReference::ToString() const {
         "strictness=%s", ChannelStrictnessToString(strictness_.value())));
   }
   return absl::StrFormat("%s: %s %s %s", name(), type()->ToString(),
-                         direction() == Direction::kSend ? "out" : "in",
+                         direction() == ChannelDirection::kSend ? "out" : "in",
                          absl::StrJoin(keyword_strs, " "));
 }
 

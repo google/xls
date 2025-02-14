@@ -336,7 +336,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 
       if (input.IsExternal()) {
         XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            input.channel, xls::Direction::kReceive,
+            input.channel, ChannelDirection::kReceive,
             input.port.value()->GetName(), input.port_valid->GetName(),
             input.port_ready->GetName()));
       }
@@ -354,7 +354,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 
       if (output.IsExternal()) {
         XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-            output.channel, xls::Direction::kSend,
+            output.channel, ChannelDirection::kSend,
             output.port.value()->GetName(), output.port_valid->GetName(),
             output.port_ready->GetName()));
       }
@@ -366,7 +366,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
     CHECK_NE(input.channel, nullptr);
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        input.channel, xls::Direction::kReceive, input.port->GetName(),
+        input.channel, ChannelDirection::kReceive, input.port->GetName(),
         /*valid_port=*/std::nullopt,
         /*ready_port=*/std::nullopt));
   }
@@ -376,7 +376,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
     CHECK_NE(output.channel, nullptr);
 
     XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-        output.channel, xls::Direction::kSend, output.port->GetName(),
+        output.channel, ChannelDirection::kSend, output.port->GetName(),
         /*valid_port=*/std::nullopt,
         /*ready_port=*/std::nullopt));
   }

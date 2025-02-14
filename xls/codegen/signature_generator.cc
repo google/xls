@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -140,15 +139,13 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
   }
 
   // Add interface channels. Iterate through the block metadata.
-  for (const std::pair<std::string, xls::Direction>& channel_direction :
-       block->GetChannelsWithMappedPorts()) {
-    XLS_ASSIGN_OR_RETURN(
-        ChannelPortMetadata metadata,
-        block->GetChannelPortMetadata(channel_direction.first,
-                                      channel_direction.second));
-    ChannelDirectionProto direction =
-        metadata.direction == xls::Direction::kSend ? CHANNEL_DIRECTION_SEND
-                                                    : CHANNEL_DIRECTION_RECEIVE;
+  for (const auto& [channel, direction] : block->GetChannelsWithMappedPorts()) {
+    XLS_ASSIGN_OR_RETURN(ChannelPortMetadata metadata,
+                         block->GetChannelPortMetadata(channel, direction));
+    ChannelDirectionProto direction_proto =
+        metadata.direction == ChannelDirection::kSend
+            ? CHANNEL_DIRECTION_SEND
+            : CHANNEL_DIRECTION_RECEIVE;
     switch (metadata.channel_kind) {
       case ChannelKind::kStreaming: {
         FlowControl flow_control =
@@ -156,14 +153,14 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
                 ? FlowControl::kReadyValid
                 : FlowControl::kNone;
         b.AddStreamingChannelInterface(
-            metadata.channel_name, direction, metadata.type, flow_control,
+            metadata.channel_name, direction_proto, metadata.type, flow_control,
             metadata.data_port, metadata.ready_port, metadata.valid_port,
             ToProtoFlop(metadata.flop_kind));
         break;
       }
       case ChannelKind::kSingleValue:
         b.AddSingleValueChannelInterface(
-            metadata.channel_name, direction, metadata.type,
+            metadata.channel_name, direction_proto, metadata.type,
             metadata.data_port.value(), ToProtoFlop(metadata.flop_kind));
         break;
     }

@@ -1531,12 +1531,12 @@ absl::StatusOr<ProcInstantiation*> Parser::ParseProcInstantiation(Proc* proc) {
         instantiated_proc.value()->interface()[i];
     if (!proc->HasChannelReference(channel_arg_names[i],
                                    interface_channel->direction())) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("No such %s channel `%s` for proc instantiation arg "
-                          "%d in proc instantiation `%s` @ %s",
-                          DirectionToString(interface_channel->direction()),
-                          channel_arg_names[i], i, instantiation_name.value(),
-                          instantiation_name.pos().ToHumanString()));
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "No such %s channel `%s` for proc instantiation arg "
+          "%d in proc instantiation `%s` @ %s",
+          ChannelDirectionToString(interface_channel->direction()),
+          channel_arg_names[i], i, instantiation_name.value(),
+          instantiation_name.pos().ToHumanString()));
     }
     XLS_ASSIGN_OR_RETURN(
         ChannelReference * channel_arg,
@@ -1950,11 +1950,11 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         XLS_ASSIGN_OR_RETURN(Token direction_token,
                              scanner_.PopTokenOrError(LexicalTokenType::kIdent,
                                                       "channel direction"));
-        Direction direction;
+        ChannelDirection direction;
         if (direction_token.value() == "in") {
-          direction = Direction::kReceive;
+          direction = ChannelDirection::kReceive;
         } else if (direction_token.value() == "out") {
-          direction = Direction::kSend;
+          direction = ChannelDirection::kSend;
         } else {
           return absl::InvalidArgumentError(absl::StrFormat(
               "Invalid direction string `%s`, expected `in` or `out`",
@@ -2004,11 +2004,11 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         }
 
         switch (direction) {
-          case Direction::kSend:
+          case ChannelDirection::kSend:
             interface_channels.push_back(std::make_unique<SendChannelReference>(
                 channel_name.value(), type, kind, strictness));
             break;
-          case Direction::kReceive:
+          case ChannelDirection::kReceive:
             interface_channels.push_back(
                 std::make_unique<ReceiveChannelReference>(
                     channel_name.value(), type, kind, strictness));
@@ -2077,7 +2077,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
                                       /*should_verify=*/false);
     for (const std::unique_ptr<ChannelReference>& channel_ref :
          interface_channels) {
-      if (channel_ref->direction() == Direction::kReceive) {
+      if (channel_ref->direction() == ChannelDirection::kReceive) {
         XLS_RETURN_IF_ERROR(builder
                                 ->AddInputChannel(channel_ref->name(),
                                                   channel_ref->type(),
@@ -2650,7 +2650,7 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
   if (attribute_name.value() == "channel_ports") {
     std::optional<std::string> channel_name;
     std::optional<Type*> type;
-    std::optional<Direction> direction;
+    std::optional<ChannelDirection> direction;
     std::optional<ChannelKind> channel_kind;
     std::optional<FlopKind> flop_kind;
     std::optional<std::string> data_port;
@@ -2671,9 +2671,9 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
     handlers["direction"] = [&]() -> absl::Status {
       XLS_ASSIGN_OR_RETURN(std::string direction_string, ParseIdentifier());
       if (direction_string == "receive") {
-        direction = Direction::kReceive;
+        direction = ChannelDirection::kReceive;
       } else if (direction_string == "send") {
-        direction = Direction::kSend;
+        direction = ChannelDirection::kSend;
       } else {
         return absl::InvalidArgumentError(
             absl::StrFormat("Invalid direction `%s`", direction_string));

@@ -439,7 +439,7 @@ absl::Status VerifyBlockChannelMetadata(Block* block) {
   for (const auto& [channel, direction] : block->GetChannelsWithMappedPorts()) {
     XLS_ASSIGN_OR_RETURN(ChannelPortMetadata metadata,
                          block->GetChannelPortMetadata(channel, direction));
-    if (metadata.direction == Direction::kReceive) {
+    if (metadata.direction == ChannelDirection::kReceive) {
       if (metadata.data_port.has_value()) {
         XLS_RET_CHECK(block->HasInputPort(*metadata.data_port))
             << absl::StrFormat(
@@ -481,7 +481,7 @@ absl::Status VerifyBlockChannelMetadata(Block* block) {
       }
 
     } else {
-      XLS_RET_CHECK_EQ(metadata.direction, Direction::kSend);
+      XLS_RET_CHECK_EQ(metadata.direction, ChannelDirection::kSend);
       if (metadata.data_port.has_value()) {
         XLS_RET_CHECK(block->HasOutputPort(*metadata.data_port))
             << absl::StrFormat(
@@ -619,7 +619,7 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
   // interface and channel definitions. Map value is used to track how many
   // times channel reference appears in the interface and channel definitions
   // (should always be one).
-  absl::flat_hash_map<std::pair<std::string_view, Direction>, int>
+  absl::flat_hash_map<std::pair<std::string_view, ChannelDirection>, int>
       channel_references;
   for (const std::unique_ptr<ChannelReference>& channel_ref :
        proc->channel_references()) {
@@ -628,24 +628,25 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
              .second) {
       return absl::InternalError(absl::StrFormat(
           "Duplicate channel reference, name `%s` and direction `%s`",
-          channel_ref->name(), DirectionToString(channel_ref->direction())));
+          channel_ref->name(),
+          ChannelDirectionToString(channel_ref->direction())));
     }
   }
 
   // Verifies that the channel reference with the given name and direction exist
   // and is unique.
-  auto check_channel_ref_unique = [&](std::string_view name,
-                                      Direction direction) -> absl::Status {
+  auto check_channel_ref_unique =
+      [&](std::string_view name, ChannelDirection direction) -> absl::Status {
     if (!channel_references.contains({name, direction})) {
       return absl::InternalError(
           absl::StrFormat("Channel reference with name `%s` and direction `%s` "
                           "does not exist in list of channel references",
-                          name, DirectionToString(direction)));
+                          name, ChannelDirectionToString(direction)));
     }
     if (--channel_references[{name, direction}] != 0) {
       return absl::InternalError(absl::StrFormat(
           "Duplicate channel reference, name `%s` and direction `%s`", name,
-          DirectionToString(direction)));
+          ChannelDirectionToString(direction)));
     }
     return absl::OkStatus();
   };
@@ -668,9 +669,9 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
                           channel->name(), proc->name()));
     }
     XLS_RETURN_IF_ERROR(
-        check_channel_ref_unique(channel->name(), Direction::kSend));
+        check_channel_ref_unique(channel->name(), ChannelDirection::kSend));
     XLS_RETURN_IF_ERROR(
-        check_channel_ref_unique(channel->name(), Direction::kReceive));
+        check_channel_ref_unique(channel->name(), ChannelDirection::kReceive));
   }
 
   // All channel references returned by Proc::GetChannelReferences should be
@@ -682,14 +683,15 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
       return absl::InternalError(absl::StrFormat(
           "%s channel reference `%s` appears in Proc::GetChannelReferences() "
           "but not in the interface or declared channels",
-          DirectionToString(channel_ref->direction()), channel_ref->name()));
+          ChannelDirectionToString(channel_ref->direction()),
+          channel_ref->name()));
     }
   }
 
   for (Node* node : proc->nodes()) {
     if (node->Is<Send>()) {
       if (!proc->HasChannelReference(node->As<Send>()->channel_name(),
-                                     Direction::kSend)) {
+                                     ChannelDirection::kSend)) {
         return absl::InternalError(absl::StrFormat(
             "No send channel reference `%s` in proc `%s`, used by node `%s`",
             node->As<Send>()->channel_name(), proc->name(), node->GetName()));
@@ -697,7 +699,7 @@ static absl::Status VerifyProcScopedChannels(Proc* proc) {
     }
     if (node->Is<Receive>()) {
       if (!proc->HasChannelReference(node->As<Receive>()->channel_name(),
-                                     Direction::kReceive)) {
+                                     ChannelDirection::kReceive)) {
         return absl::InternalError(absl::StrFormat(
             "No receive channel reference `%s` in proc `%s`, used by node `%s`",
             node->As<Receive>()->channel_name(), proc->name(),
@@ -748,9 +750,10 @@ static absl::Status VerifyProcInstantiations(Proc* proc) {
             "channel argument %d (`%s`) to be %s, got %s",
             instantiation->name(), proc->name(), i,
             instantiation->channel_args()[i]->name(),
-            DirectionToString(
+            ChannelDirectionToString(
                 instantiation->proc()->interface()[i]->direction()),
-            DirectionToString(instantiation->channel_args()[i]->direction())));
+            ChannelDirectionToString(
+                instantiation->channel_args()[i]->direction())));
       }
       if (instantiation->channel_args()[i]->type() !=
           instantiation->proc()->interface()[i]->type()) {

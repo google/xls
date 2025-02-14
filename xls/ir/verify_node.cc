@@ -143,14 +143,15 @@ class NodeChecker : public DfsVisitor {
     Type* channel_type;
     if (proc->is_new_style_proc()) {
       if (!proc->HasChannelReference(receive->channel_name(),
-                                     Direction::kReceive)) {
+                                     ChannelDirection::kReceive)) {
         return absl::InternalError(
             absl::StrFormat("No receivable channel named `%s`, node %s",
                             receive->channel_name(), receive->GetName()));
       }
-      XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
-                           proc->GetChannelReference(receive->channel_name(),
-                                                     Direction::kReceive));
+      XLS_ASSIGN_OR_RETURN(
+          ChannelReference * channel_ref,
+          proc->GetChannelReference(receive->channel_name(),
+                                    ChannelDirection::kReceive));
       channel_type = channel_ref->type();
     } else {
       if (!receive->package()->HasChannelWithName(receive->channel_name())) {
@@ -199,7 +200,8 @@ class NodeChecker : public DfsVisitor {
     Type* channel_type;
     bool channel_can_send = true;
     if (proc->is_new_style_proc()) {
-      if (!proc->HasChannelReference(send->channel_name(), Direction::kSend)) {
+      if (!proc->HasChannelReference(send->channel_name(),
+                                     ChannelDirection::kSend)) {
         return absl::InternalError(
             absl::StrFormat("No sendable channel named `%s`, node %s",
                             send->channel_name(), send->GetName()));
@@ -208,7 +210,7 @@ class NodeChecker : public DfsVisitor {
                            proc->GetSendChannelReference(send->channel_name()));
 
       channel_type = channel_ref->type();
-      channel_can_send = channel_ref->direction() == Direction::kSend;
+      channel_can_send = channel_ref->direction() == ChannelDirection::kSend;
 
     } else {
       if (!send->package()->HasChannelWithName(send->channel_name())) {

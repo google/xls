@@ -96,7 +96,7 @@ class AdapterBuilder {
 
     // Add input/output for adapted channel.
     ChannelReference* adapted_channel_ref_in_adapter;
-    if (adapted_channel->direction() == Direction::kSend) {
+    if (adapted_channel->direction() == ChannelDirection::kSend) {
       XLS_ASSIGN_OR_RETURN(
           adapted_channel_ref_in_adapter,
           proc_builder->AddOutputChannel(

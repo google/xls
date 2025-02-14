@@ -933,7 +933,7 @@ class ChannelNode : public Node {
   static constexpr std::array<Op, 2> kOps = {Op::kReceive, Op::kSend};
 
   ChannelNode(const SourceInfo& loc, Op op, Type* type,
-              std::string_view channel_name, Direction direction,
+              std::string_view channel_name, ChannelDirection direction,
               bool has_predicate, std::string_view name, FunctionBase* function)
       : Node(op, type, loc, name, function),
         channel_name_(channel_name),
@@ -944,7 +944,7 @@ class ChannelNode : public Node {
   absl::StatusOr<ChannelRef> GetChannelRef() const;
 
   // Returns the direction this node communicates on the channel.
-  Direction direction() const { return direction_; }
+  ChannelDirection direction() const { return direction_; }
 
   // Returns the type of the data payload communicated on the channel.
   Type* GetPayloadType() const;
@@ -988,7 +988,7 @@ class ChannelNode : public Node {
 
  private:
   std::string channel_name_;
-  Direction direction_;
+  ChannelDirection direction_;
   bool has_predicate_;
 };
 

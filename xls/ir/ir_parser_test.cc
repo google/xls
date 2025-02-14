@@ -1021,21 +1021,22 @@ block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelPortMetadata foo_metadata,
-      b->GetChannelPortMetadata("foo", Direction::kReceive));
+      b->GetChannelPortMetadata("foo", ChannelDirection::kReceive));
   EXPECT_EQ(foo_metadata.channel_name, "foo");
   EXPECT_EQ(foo_metadata.type, pkg->GetBitsType(32));
-  EXPECT_EQ(foo_metadata.direction, Direction::kReceive);
+  EXPECT_EQ(foo_metadata.direction, ChannelDirection::kReceive);
   EXPECT_EQ(foo_metadata.channel_kind, ChannelKind::kStreaming);
   EXPECT_EQ(foo_metadata.flop_kind, FlopKind::kSkid);
   EXPECT_THAT(foo_metadata.data_port, Optional(Eq("in")));
   EXPECT_THAT(foo_metadata.ready_port, Optional(Eq("in_ready")));
   EXPECT_THAT(foo_metadata.valid_port, Optional(Eq("in_valid")));
 
-  XLS_ASSERT_OK_AND_ASSIGN(ChannelPortMetadata bar_metadata,
-                           b->GetChannelPortMetadata("bar", Direction::kSend));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ChannelPortMetadata bar_metadata,
+      b->GetChannelPortMetadata("bar", ChannelDirection::kSend));
   EXPECT_EQ(bar_metadata.channel_name, "bar");
   EXPECT_EQ(bar_metadata.type, pkg->GetBitsType(32));
-  EXPECT_EQ(bar_metadata.direction, Direction::kSend);
+  EXPECT_EQ(bar_metadata.direction, ChannelDirection::kSend);
   EXPECT_EQ(bar_metadata.channel_kind, ChannelKind::kSingleValue);
   EXPECT_EQ(bar_metadata.flop_kind, FlopKind::kNone);
   EXPECT_THAT(bar_metadata.data_port, Optional(Eq("out")));

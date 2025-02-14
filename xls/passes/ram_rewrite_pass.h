@@ -52,7 +52,8 @@ absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(
     std::string_view name);
 std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel);
 
-Direction GetRamLogicalChannelDirection(RamLogicalChannel logical_channel);
+ChannelDirection GetRamLogicalChannelDirection(
+    RamLogicalChannel logical_channel);
 
 // If mask_width is defined, return bits[mask_width]. Otherwise, there are no
 // masks, which we represent with an empty tuple. The empty tuple will be

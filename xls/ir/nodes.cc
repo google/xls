@@ -495,8 +495,8 @@ Receive::Receive(const SourceInfo& loc, Node* token,
                  FunctionBase* function)
     : ChannelNode(loc, Op::kReceive,
                   GetReceiveType(function, channel_name, is_blocking),
-                  channel_name, Direction::kReceive, predicate.has_value(),
-                  name, function),
+                  channel_name, ChannelDirection::kReceive,
+                  predicate.has_value(), name, function),
       is_blocking_(is_blocking) {
   CHECK(IsOpClass<Receive>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Receive`.";
@@ -518,8 +518,8 @@ Send::Send(const SourceInfo& loc, Node* token, Node* data,
            std::optional<Node*> predicate, std::string_view channel_name,
            std::string_view name, FunctionBase* function)
     : ChannelNode(loc, Op::kSend, function->package()->GetTokenType(),
-                  channel_name, Direction::kSend, predicate.has_value(), name,
-                  function) {
+                  channel_name, ChannelDirection::kSend, predicate.has_value(),
+                  name, function) {
   CHECK(IsOpClass<Send>(op_))
       << "Op `" << op_ << "` is not a valid op for Node class `Send`.";
   AddOperand(token);

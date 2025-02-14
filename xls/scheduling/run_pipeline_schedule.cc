@@ -331,9 +331,10 @@ bool IsExternalIoNode(ChannelNode* node,
   if (proc->is_new_style_proc()) {
     // Channels are proc-scoped.
     absl::StatusOr<ChannelReference*> channel_reference =
-        proc->GetChannelReference(
-            node->As<ChannelNode>()->channel_name(),
-            node->Is<Send>() ? Direction::kSend : Direction::kReceive);
+        proc->GetChannelReference(node->As<ChannelNode>()->channel_name(),
+                                  node->Is<Send>()
+                                      ? ChannelDirection::kSend
+                                      : ChannelDirection::kReceive);
     CHECK_OK(channel_reference.status());
     CHECK(elab.has_value());
     for (ChannelInstance* channel_instance :

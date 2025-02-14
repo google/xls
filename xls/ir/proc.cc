@@ -401,7 +401,7 @@ absl::StatusOr<Proc*> Proc::Clone(
   }
   if (is_new_style_proc()) {
     for (ChannelReference* channel_ref : interface()) {
-      if (channel_ref->direction() == Direction::kSend) {
+      if (channel_ref->direction() == ChannelDirection::kSend) {
         XLS_RETURN_IF_ERROR(
             cloned_proc
                 ->AddOutputChannelReference(
@@ -651,7 +651,7 @@ absl::StatusOr<Channel*> Proc::GetChannel(std::string_view name) {
 }
 
 absl::StatusOr<ChannelRef> Proc::GetChannelRef(std::string_view name,
-                                               Direction direction) {
+                                               ChannelDirection direction) {
   if (is_new_style_proc()) {
     return GetChannelReference(name, direction);
   }
@@ -697,8 +697,9 @@ absl::StatusOr<ChannelReference*> Proc::AddInterfaceChannelReference(
           "Cannot add channel `%s` to proc `%s`. Already an "
           "%s channel of same name on the proc.",
           channel_ref->name(), name(),
-          other_channel_ref->direction() == Direction::kReceive ? "input"
-                                                                : "output"));
+          other_channel_ref->direction() == ChannelDirection::kReceive
+              ? "input"
+              : "output"));
     }
   }
   channel_references_.push_back(std::move(channel_ref));
@@ -721,9 +722,9 @@ absl::StatusOr<SendChannelReference*> Proc::AddOutputChannel(
 }
 
 absl::StatusOr<ChannelReference*> Proc::AddInterfaceChannel(
-    std::string_view name, Direction direction, Type* type, ChannelKind kind,
-    std::optional<ChannelStrictness> strictness) {
-  if (direction == Direction::kSend) {
+    std::string_view name, ChannelDirection direction, Type* type,
+    ChannelKind kind, std::optional<ChannelStrictness> strictness) {
+  if (direction == ChannelDirection::kSend) {
     return AddOutputChannel(name, type, kind, strictness);
   }
   return AddInputChannel(name, type, kind, strictness);
@@ -761,7 +762,7 @@ absl::StatusOr<ProcInstantiation*> Proc::AddProcInstantiation(
 }
 
 bool Proc::HasChannelReference(std::string_view name,
-                               Direction direction) const {
+                               ChannelDirection direction) const {
   CHECK(is_new_style_proc());
   for (const std::unique_ptr<ChannelReference>& channel_ref :
        channel_references_) {
@@ -773,7 +774,7 @@ bool Proc::HasChannelReference(std::string_view name,
 }
 
 absl::StatusOr<ChannelReference*> Proc::GetChannelReference(
-    std::string_view name, Direction direction) const {
+    std::string_view name, ChannelDirection direction) const {
   XLS_RET_CHECK(is_new_style_proc());
   for (const std::unique_ptr<ChannelReference>& channel_ref :
        channel_references_) {
@@ -783,14 +784,14 @@ absl::StatusOr<ChannelReference*> Proc::GetChannelReference(
   }
   return absl::NotFoundError(
       absl::StrFormat("No %s channel reference `%s` in proc `%s`",
-                      DirectionToString(direction), name, this->name()));
+                      ChannelDirectionToString(direction), name, this->name()));
 }
 
 absl::StatusOr<SendChannelReference*> Proc::GetSendChannelReference(
     std::string_view name) const {
   XLS_RET_CHECK(is_new_style_proc());
   XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
-                       GetChannelReference(name, Direction::kSend));
+                       GetChannelReference(name, ChannelDirection::kSend));
   return down_cast<SendChannelReference*>(channel_ref);
 }
 
@@ -798,7 +799,7 @@ absl::StatusOr<ReceiveChannelReference*> Proc::GetReceiveChannelReference(
     std::string_view name) const {
   XLS_RET_CHECK(is_new_style_proc());
   XLS_ASSIGN_OR_RETURN(ChannelReference * channel_ref,
-                       GetChannelReference(name, Direction::kReceive));
+                       GetChannelReference(name, ChannelDirection::kReceive));
   return down_cast<ReceiveChannelReference*>(channel_ref);
 }
 

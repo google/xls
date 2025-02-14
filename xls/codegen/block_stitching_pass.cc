@@ -233,7 +233,7 @@ absl::Status ExposeStreamingOutput(
                           .status());
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      output->channel, xls::Direction::kSend, output->port.value()->GetName(),
+      output->channel, ChannelDirection::kSend, output->port.value()->GetName(),
       output->port_valid->GetName(), output->port_ready->GetName()));
 
   return absl::OkStatus();
@@ -277,8 +277,9 @@ absl::Status ExposeStreamingInput(
       block->AddOutputPort(input->port_ready->GetName(), block_ready).status());
 
   XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
-      input->channel, xls::Direction::kReceive, input->port.value()->GetName(),
-      input->port_valid->GetName(), input->port_ready->GetName()));
+      input->channel, ChannelDirection::kReceive,
+      input->port.value()->GetName(), input->port_valid->GetName(),
+      input->port_ready->GetName()));
 
   return absl::OkStatus();
 }
@@ -322,7 +323,7 @@ absl::Status StitchSingleValueChannel(
         input_node, container->AddInputPort(subblock_input->port->GetName(),
                                             subblock_input->port->GetType()));
     XLS_RETURN_IF_ERROR(container->AddChannelPortMetadata(
-        channel, xls::Direction::kReceive, subblock_input->port->GetName(),
+        channel, ChannelDirection::kReceive, subblock_input->port->GetName(),
         /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt));
   }
   if (has_input) {
@@ -342,7 +343,7 @@ absl::Status StitchSingleValueChannel(
       container->AddOutputPort(subblock_output->port->GetName(), input_node)
           .status());
   return container->AddChannelPortMetadata(
-      channel, xls::Direction::kSend, subblock_output->port->GetName(),
+      channel, ChannelDirection::kSend, subblock_output->port->GetName(),
       /*valid_port=*/std::nullopt, /*ready_port=*/std::nullopt);
 }
 

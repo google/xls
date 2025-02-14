@@ -132,7 +132,7 @@ absl::StatusOr<ReqBlockPorts> GetReqBlockPorts(Block* block,
                                                std::string_view channel_name) {
   XLS_ASSIGN_OR_RETURN(
       ChannelPortMetadata metadata,
-      block->GetChannelPortMetadata(channel_name, xls::Direction::kSend));
+      block->GetChannelPortMetadata(channel_name, ChannelDirection::kSend));
   XLS_RET_CHECK(metadata.data_port.has_value())
       << absl::StreamFormat("No data port for channel `%s` in block `%s`",
                             channel_name, block->name());
@@ -158,7 +158,7 @@ absl::StatusOr<RespBlockPorts> GetRespBlockPorts(
     Block* block, std::string_view channel_name) {
   XLS_ASSIGN_OR_RETURN(
       ChannelPortMetadata metadata,
-      block->GetChannelPortMetadata(channel_name, xls::Direction::kReceive));
+      block->GetChannelPortMetadata(channel_name, ChannelDirection::kReceive));
   XLS_RET_CHECK(metadata.data_port.has_value())
       << absl::StreamFormat("No data port for channel `%s` in block `%s`",
                             channel_name, block->name());

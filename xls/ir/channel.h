@@ -390,19 +390,18 @@ inline std::ostream& operator<<(std::ostream& os, const Channel* channel) {
   return os;
 }
 
-// TODO(meheff): Rename to ChannelDirection to avoid conflict with
-// verilog::Direction.
-enum class Direction : int8_t { kSend, kReceive };
+enum class ChannelDirection : int8_t { kSend, kReceive };
 
-std::string DirectionToString(Direction direction);
-absl::StatusOr<Direction> DirectionFromString(std::string_view str);
-std::ostream& operator<<(std::ostream& os, Direction direction);
-inline Direction InvertDirection(Direction d) {
+std::string ChannelDirectionToString(ChannelDirection direction);
+absl::StatusOr<ChannelDirection> ChannelDirectionFromString(
+    std::string_view str);
+std::ostream& operator<<(std::ostream& os, ChannelDirection direction);
+inline ChannelDirection InvertChannelDirection(ChannelDirection d) {
   switch (d) {
-    case Direction::kSend:
-      return Direction::kReceive;
-    case Direction::kReceive:
-      return Direction::kSend;
+    case ChannelDirection::kSend:
+      return ChannelDirection::kReceive;
+    case ChannelDirection::kReceive:
+      return ChannelDirection::kSend;
   }
 }
 
@@ -433,7 +432,7 @@ class ChannelReference {
   Type* type() const { return type_; }
   ChannelKind kind() const { return kind_; }
   std::optional<ChannelStrictness> strictness() const { return strictness_; }
-  virtual Direction direction() const = 0;
+  virtual ChannelDirection direction() const = 0;
 
   std::string ToString() const;
 
@@ -450,7 +449,9 @@ class SendChannelReference : public ChannelReference {
                        std::optional<ChannelStrictness> strictness)
       : ChannelReference(name, type, kind, strictness) {}
   ~SendChannelReference() override = default;
-  Direction direction() const override { return Direction::kSend; }
+  ChannelDirection direction() const override {
+    return ChannelDirection::kSend;
+  }
 };
 
 class ReceiveChannelReference : public ChannelReference {
@@ -459,7 +460,9 @@ class ReceiveChannelReference : public ChannelReference {
                           std::optional<ChannelStrictness> strictness)
       : ChannelReference(name, type, kind, strictness) {}
   ~ReceiveChannelReference() override = default;
-  Direction direction() const override { return Direction::kReceive; }
+  ChannelDirection direction() const override {
+    return ChannelDirection::kReceive;
+  }
 };
 
 // Abstraction holding pointers hold both ends of a particular channel.

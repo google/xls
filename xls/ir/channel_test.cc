@@ -255,5 +255,17 @@ TEST(ChannelTest, NameLessThan) {
               ElementsAre(m::Channel("a"), m::Channel("b"), m::Channel("c")));
 }
 
+TEST(ChannelTest, ChannelDirectionTest) {
+  EXPECT_EQ(ChannelDirectionToString(ChannelDirection::kSend), "send");
+  EXPECT_EQ(ChannelDirectionToString(ChannelDirection::kReceive), "receive");
+
+  EXPECT_THAT(ChannelDirectionFromString("send"),
+              IsOkAndHolds(ChannelDirection::kSend));
+  EXPECT_THAT(ChannelDirectionFromString("receive"),
+              IsOkAndHolds(ChannelDirection::kReceive));
+  EXPECT_THAT(ChannelDirectionFromString("foo"),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
 }  // namespace
 }  // namespace xls

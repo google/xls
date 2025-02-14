@@ -255,7 +255,7 @@ absl::Status ProcElaboration::BuildInstanceMaps(ProcInstance* proc_instance) {
   for (ChannelReference* channel_ref : top->interface()) {
     // TODO(https://github.com/google/xls/issues/869): Add options for
     // fifo-config, strictness, etc.
-    ChannelOps ops = channel_ref->direction() == Direction::kSend
+    ChannelOps ops = channel_ref->direction() == ChannelDirection::kSend
                          ? ChannelOps::kSendOnly
                          : ChannelOps::kReceiveOnly;
     if (channel_ref->kind() == ChannelKind::kStreaming) {
@@ -355,15 +355,15 @@ absl::StatusOr<ChannelInstance*> ProcElaboration::GetChannelInstance(
   XLS_ASSIGN_OR_RETURN(ProcInstantiationPath path, CreatePath(path_str));
   XLS_ASSIGN_OR_RETURN(ProcInstance * proc_instance, GetProcInstance(path));
   if (proc_instance->proc()->HasChannelReference(channel_name,
-                                                 Direction::kReceive)) {
+                                                 ChannelDirection::kReceive)) {
     XLS_RETURN_IF_ERROR(
         proc_instance->proc()
-            ->GetChannelReference(channel_name, Direction::kReceive)
+            ->GetChannelReference(channel_name, ChannelDirection::kReceive)
             .status());
   } else {
     XLS_RETURN_IF_ERROR(
         proc_instance->proc()
-            ->GetChannelReference(channel_name, Direction::kSend)
+            ->GetChannelReference(channel_name, ChannelDirection::kSend)
             .status());
   }
   return proc_instance->GetChannelInstance(channel_name);

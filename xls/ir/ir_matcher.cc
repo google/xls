@@ -465,7 +465,7 @@ bool TupleIndexMatcher::MatchAndExplain(
 }
 
 static bool MatchChannel(
-    std::string_view channel, ::xls::Proc* proc, ::xls::Direction direction,
+    std::string_view channel, ::xls::Proc* proc, ChannelDirection direction,
     const ::testing::Matcher<::xls::ChannelRef>& channel_matcher,
     ::testing::MatchResultListener* listener) {
   absl::StatusOr<::xls::ChannelRef> channel_status =
@@ -497,11 +497,11 @@ bool ChannelNodeMatcher::MatchAndExplain(
   if (!channel_matcher_.has_value()) {
     return true;
   }
-  Direction direction;
+  ChannelDirection direction;
   if (node->Is<::xls::Send>()) {
-    direction = Direction::kSend;
+    direction = ChannelDirection::kSend;
   } else if (node->Is<::xls::Receive>()) {
-    direction = Direction::kReceive;
+    direction = ChannelDirection::kReceive;
   } else {
     LOG(FATAL) << absl::StrFormat(
         "Expected send or receive node, got node `%s` with op `%s`",

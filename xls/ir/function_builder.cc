@@ -1136,14 +1136,14 @@ absl::StatusOr<SendChannelReference*> ProcBuilder::AddOutputChannel(
 
 bool ProcBuilder::HasSendChannelRef(std::string_view name) const {
   if (proc()->is_new_style_proc()) {
-    return proc()->HasChannelReference(name, Direction::kSend);
+    return proc()->HasChannelReference(name, ChannelDirection::kSend);
   }
   return package()->HasChannelWithName(name);
 }
 
 bool ProcBuilder::HasReceiveChannelRef(std::string_view name) const {
   if (proc()->is_new_style_proc()) {
-    return proc()->HasChannelReference(name, Direction::kReceive);
+    return proc()->HasChannelReference(name, ChannelDirection::kReceive);
   }
   return package()->HasChannelWithName(name);
 }

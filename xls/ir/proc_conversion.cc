@@ -53,7 +53,8 @@ struct ChannelProcMap {
 
   // Map from (proc, channel) pair to the operations (send and/or receive) which
   // the proc performs on the channel.
-  absl::flat_hash_map<std::pair<Proc*, Channel*>, absl::btree_set<Direction>>
+  absl::flat_hash_map<std::pair<Proc*, Channel*>,
+                      absl::btree_set<ChannelDirection>>
       directions;
 
   // Returns true if the given channel is a send-receive channel which is only
@@ -82,7 +83,8 @@ absl::StatusOr<ChannelProcMap> GetChannelProcMap(Package* package) {
         channel_map.channel_to_procs[channel].insert(proc.get());
         channel_map.proc_to_channels[proc.get()].insert(channel);
         channel_map.directions[{proc.get(), channel}].insert(
-            node->Is<Receive>() ? Direction::kReceive : Direction::kSend);
+            node->Is<Receive>() ? ChannelDirection::kReceive
+                                : ChannelDirection::kSend);
       }
     }
   }
@@ -104,14 +106,14 @@ absl::Status DeclareChannelInProc(Proc* proc, Channel* channel) {
 }
 
 absl::Status AddInterfaceChannel(Proc* proc, Channel* channel,
-                                 Direction direction) {
+                                 ChannelDirection direction) {
   std::optional<ChannelStrictness> strictness;
   if (StreamingChannel* streaming_channel =
           dynamic_cast<StreamingChannel*>(channel)) {
     strictness = streaming_channel->GetStrictness();
   }
   std::unique_ptr<ChannelReference> channel_ref;
-  if (direction == Direction::kSend) {
+  if (direction == ChannelDirection::kSend) {
     channel_ref = std::make_unique<SendChannelReference>(
         channel->name(), channel->type(), channel->kind(), strictness);
   } else {
@@ -152,8 +154,8 @@ absl::Status ConvertPackageToNewStyleProcs(Package* package) {
       XLS_RETURN_IF_ERROR(
           AddInterfaceChannel(top, channel,
                               channel->supported_ops() == ChannelOps::kSendOnly
-                                  ? Direction::kSend
-                                  : Direction::kReceive));
+                                  ? ChannelDirection::kSend
+                                  : ChannelDirection::kReceive));
     } else if (channel_map.IsLoopbackChannel(channel)) {
       // Loopback channels are declared in the procs in which they are used.
       XLS_RET_CHECK_EQ(channel_map.channel_to_procs[channel].size(), 1);
@@ -183,7 +185,7 @@ absl::Status ConvertPackageToNewStyleProcs(Package* package) {
                             "channel is not a loopback channel",
                             proc->name(), channel->name()));
       }
-      Direction direction =
+      ChannelDirection direction =
           *channel_map.directions.at({proc.get(), channel}).begin();
       XLS_RETURN_IF_ERROR(AddInterfaceChannel(proc.get(), channel, direction));
       XLS_ASSIGN_OR_RETURN(

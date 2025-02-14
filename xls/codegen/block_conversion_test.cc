@@ -746,34 +746,34 @@ TEST_F(BlockConversionTest, StreamingChannelMetadataForSimpleProc) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelPortMetadata in_metadata,
-      block->GetChannelPortMetadata("in", xls::Direction::kReceive));
+      block->GetChannelPortMetadata("in", ChannelDirection::kReceive));
   EXPECT_EQ(in_metadata.channel_name, "in");
-  EXPECT_EQ(in_metadata.direction, xls::Direction::kReceive);
+  EXPECT_EQ(in_metadata.direction, ChannelDirection::kReceive);
   EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
   EXPECT_THAT(in_metadata.valid_port, Optional(std::string{"in_vld"}));
   EXPECT_THAT(in_metadata.ready_port, Optional(std::string{"in_rdy"}));
 
-  EXPECT_THAT(block->GetDataPortForChannel("in", xls::Direction::kReceive),
+  EXPECT_THAT(block->GetDataPortForChannel("in", ChannelDirection::kReceive),
               IsOkAndHolds(Optional(m::InputPort("in"))));
-  EXPECT_THAT(block->GetValidPortForChannel("in", xls::Direction::kReceive),
+  EXPECT_THAT(block->GetValidPortForChannel("in", ChannelDirection::kReceive),
               IsOkAndHolds(Optional(m::InputPort("in_vld"))));
-  EXPECT_THAT(block->GetReadyPortForChannel("in", xls::Direction::kReceive),
+  EXPECT_THAT(block->GetReadyPortForChannel("in", ChannelDirection::kReceive),
               IsOkAndHolds(Optional(m::OutputPort("in_rdy"))));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelPortMetadata out_metadata,
-      block->GetChannelPortMetadata("out", xls::Direction::kSend));
+      block->GetChannelPortMetadata("out", ChannelDirection::kSend));
   EXPECT_EQ(out_metadata.channel_name, "out");
-  EXPECT_EQ(out_metadata.direction, xls::Direction::kSend);
+  EXPECT_EQ(out_metadata.direction, ChannelDirection::kSend);
   EXPECT_THAT(out_metadata.data_port, Optional(std::string{"out"}));
   EXPECT_THAT(out_metadata.valid_port, Optional(std::string{"out_vld"}));
   EXPECT_THAT(out_metadata.ready_port, Optional(std::string{"out_rdy"}));
 
-  EXPECT_THAT(block->GetDataPortForChannel("out", xls::Direction::kSend),
+  EXPECT_THAT(block->GetDataPortForChannel("out", ChannelDirection::kSend),
               IsOkAndHolds(Optional(m::OutputPort("out"))));
-  EXPECT_THAT(block->GetValidPortForChannel("out", xls::Direction::kSend),
+  EXPECT_THAT(block->GetValidPortForChannel("out", ChannelDirection::kSend),
               IsOkAndHolds(Optional(m::OutputPort("out_vld"))));
-  EXPECT_THAT(block->GetReadyPortForChannel("out", xls::Direction::kSend),
+  EXPECT_THAT(block->GetReadyPortForChannel("out", ChannelDirection::kSend),
               IsOkAndHolds(Optional(m::InputPort("out_rdy"))));
 }
 
@@ -799,34 +799,34 @@ TEST_F(BlockConversionTest, SingleValueChannelMetadataForSimpleProc) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelPortMetadata in_metadata,
-      block->GetChannelPortMetadata("in", xls::Direction::kReceive));
+      block->GetChannelPortMetadata("in", ChannelDirection::kReceive));
   EXPECT_EQ(in_metadata.channel_name, "in");
-  EXPECT_EQ(in_metadata.direction, xls::Direction::kReceive);
+  EXPECT_EQ(in_metadata.direction, ChannelDirection::kReceive);
   EXPECT_THAT(in_metadata.data_port, Optional(std::string{"in"}));
   EXPECT_THAT(in_metadata.valid_port, Eq(std::nullopt));
   EXPECT_THAT(in_metadata.ready_port, Eq(std::nullopt));
 
-  EXPECT_THAT(block->GetDataPortForChannel("in", xls::Direction::kReceive),
+  EXPECT_THAT(block->GetDataPortForChannel("in", ChannelDirection::kReceive),
               IsOkAndHolds(Optional(m::InputPort("in"))));
-  EXPECT_THAT(block->GetValidPortForChannel("in", xls::Direction::kReceive),
+  EXPECT_THAT(block->GetValidPortForChannel("in", ChannelDirection::kReceive),
               IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(block->GetReadyPortForChannel("in", xls::Direction::kReceive),
+  EXPECT_THAT(block->GetReadyPortForChannel("in", ChannelDirection::kReceive),
               IsOkAndHolds(std::nullopt));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ChannelPortMetadata out_metadata,
-      block->GetChannelPortMetadata("out", xls::Direction::kSend));
+      block->GetChannelPortMetadata("out", ChannelDirection::kSend));
   EXPECT_EQ(out_metadata.channel_name, "out");
-  EXPECT_EQ(out_metadata.direction, xls::Direction::kSend);
+  EXPECT_EQ(out_metadata.direction, ChannelDirection::kSend);
   EXPECT_THAT(out_metadata.data_port, Optional(std::string{"out"}));
   EXPECT_THAT(out_metadata.valid_port, Eq(std::nullopt));
   EXPECT_THAT(out_metadata.ready_port, Eq(std::nullopt));
 
-  EXPECT_THAT(block->GetDataPortForChannel("out", xls::Direction::kSend),
+  EXPECT_THAT(block->GetDataPortForChannel("out", ChannelDirection::kSend),
               IsOkAndHolds(Optional(m::OutputPort("out"))));
-  EXPECT_THAT(block->GetValidPortForChannel("out", xls::Direction::kSend),
+  EXPECT_THAT(block->GetValidPortForChannel("out", ChannelDirection::kSend),
               IsOkAndHolds(std::nullopt));
-  EXPECT_THAT(block->GetReadyPortForChannel("out", xls::Direction::kSend),
+  EXPECT_THAT(block->GetReadyPortForChannel("out", ChannelDirection::kSend),
               IsOkAndHolds(std::nullopt));
 }
 

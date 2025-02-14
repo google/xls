@@ -56,10 +56,11 @@
 namespace xls {
 
 std::string ChannelPortMetadata::ToString() const {
-  std::string result = absl::StrFormat(
-      "channel_ports(name=%s, type=%s, direction=%s, kind=%s", channel_name,
-      type->ToString(), direction == Direction::kSend ? "send" : "receive",
-      ChannelKindToString(channel_kind));
+  std::string result =
+      absl::StrFormat("channel_ports(name=%s, type=%s, direction=%s, kind=%s",
+                      channel_name, type->ToString(),
+                      direction == ChannelDirection::kSend ? "send" : "receive",
+                      ChannelKindToString(channel_kind));
   if (flop_kind != FlopKind::kNone) {
     absl::StrAppendFormat(&result, ", flop=%s", FlopKindToString(flop_kind));
   }
@@ -259,7 +260,7 @@ std::string Block::DumpIr() const {
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
                                     absl::StrJoin(port_strings, ", "));
 
-  for (const std::pair<std::string, Direction>& channel_direction :
+  for (const std::pair<std::string, ChannelDirection>& channel_direction :
        GetChannelsWithMappedPorts()) {
     absl::StrAppendFormat(
         &res, "  #![%s]\n",
@@ -929,7 +930,7 @@ absl::StatusOr<Block*> Block::Clone(
 
 absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
   // Verify that the specified ports exist.
-  if (metadata.direction == Direction::kReceive) {
+  if (metadata.direction == ChannelDirection::kReceive) {
     if (metadata.data_port.has_value()) {
       XLS_RET_CHECK(HasInputPort(metadata.data_port.value()))
           << absl::StrFormat(
@@ -952,7 +953,7 @@ absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
                  metadata.ready_port.value(), name(), metadata.channel_name);
     }
   } else {
-    CHECK_EQ(metadata.direction, Direction::kSend);
+    CHECK_EQ(metadata.direction, ChannelDirection::kSend);
     if (metadata.data_port.has_value()) {
       XLS_RET_CHECK(HasOutputPort(metadata.data_port.value()))
           << absl::StrFormat(
@@ -983,15 +984,15 @@ absl::Status Block::AddChannelPortMetadata(ChannelPortMetadata metadata) {
 }
 
 absl::Status Block::AddChannelPortMetadata(
-    Channel* channel, Direction direction, std::optional<std::string> data_port,
-    std::optional<std::string> valid_port,
+    Channel* channel, ChannelDirection direction,
+    std::optional<std::string> data_port, std::optional<std::string> valid_port,
     std::optional<std::string> ready_port) {
   FlopKind flop_kind;
   if (StreamingChannel* streaming_channel =
           dynamic_cast<StreamingChannel*>(channel);
       streaming_channel != nullptr) {
     flop_kind =
-        direction == Direction::kReceive
+        direction == ChannelDirection::kReceive
             ? streaming_channel->channel_config().input_flop_kind().value_or(
                   FlopKind::kNone)
             : streaming_channel->channel_config().output_flop_kind().value_or(
@@ -1011,7 +1012,7 @@ absl::Status Block::AddChannelPortMetadata(
 }
 
 absl::StatusOr<ChannelPortMetadata> Block::GetChannelPortMetadata(
-    std::string_view channel_name, Direction direction) const {
+    std::string_view channel_name, ChannelDirection direction) const {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
                        GetChannelPortMetadataInternal(channel_name, direction));
   return *metadata;
@@ -1019,14 +1020,15 @@ absl::StatusOr<ChannelPortMetadata> Block::GetChannelPortMetadata(
 
 absl::StatusOr<const ChannelPortMetadata*>
 Block::GetChannelPortMetadataInternal(std::string_view channel_name,
-                                      Direction direction) const {
-  auto it = channel_port_metadata_.find(
-      std::pair<std::string, Direction>(std::string{channel_name}, direction));
+                                      ChannelDirection direction) const {
+  auto it =
+      channel_port_metadata_.find(std::pair<std::string, ChannelDirection>(
+          std::string{channel_name}, direction));
   if (it == channel_port_metadata_.end()) {
     return absl::NotFoundError(absl::StrFormat(
         "Block `%s` has no port metadata for channel `%s` in the %s direction",
         name(), channel_name,
-        direction == Direction::kSend ? "send" : "receive"));
+        direction == ChannelDirection::kSend ? "send" : "receive"));
   }
   return &it->second;
 }
@@ -1048,7 +1050,7 @@ absl::StatusOr<PortNode*> Block::GetPortNode(std::string_view name) const {
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetReadyPortForChannel(
-    std::string_view channel_name, Direction direction) {
+    std::string_view channel_name, ChannelDirection direction) {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
                        GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->ready_port.has_value()) {
@@ -1058,7 +1060,7 @@ absl::StatusOr<std::optional<PortNode*>> Block::GetReadyPortForChannel(
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetValidPortForChannel(
-    std::string_view channel_name, Direction direction) {
+    std::string_view channel_name, ChannelDirection direction) {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
                        GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->valid_port.has_value()) {
@@ -1068,7 +1070,7 @@ absl::StatusOr<std::optional<PortNode*>> Block::GetValidPortForChannel(
 }
 
 absl::StatusOr<std::optional<PortNode*>> Block::GetDataPortForChannel(
-    std::string_view channel_name, Direction direction) {
+    std::string_view channel_name, ChannelDirection direction) {
   XLS_ASSIGN_OR_RETURN(const ChannelPortMetadata* metadata,
                        GetChannelPortMetadataInternal(channel_name, direction));
   if (!metadata->data_port.has_value()) {
@@ -1077,9 +1079,9 @@ absl::StatusOr<std::optional<PortNode*>> Block::GetDataPortForChannel(
   return GetPortNode(*metadata->data_port);
 }
 
-std::vector<std::pair<std::string, Direction>>
+std::vector<std::pair<std::string, ChannelDirection>>
 Block::GetChannelsWithMappedPorts() const {
-  std::vector<std::pair<std::string, Direction>> result;
+  std::vector<std::pair<std::string, ChannelDirection>> result;
   for (const auto& [key, _] : channel_port_metadata_) {
     result.push_back(key);
   }

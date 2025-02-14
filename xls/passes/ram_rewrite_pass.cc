@@ -76,7 +76,7 @@ struct RamMetadata {
 // proc-scoped ChannelReference is returned, otherwise a global channel is
 // returned.
 absl::StatusOr<ChannelRef> GetChannelRef(Package* p, std::string_view name,
-                                         Direction direction,
+                                         ChannelDirection direction,
                                          std::optional<Proc*> proc_scope) {
   if (proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
@@ -239,7 +239,7 @@ absl::StatusOr<RamChannel> CreateRamChannel(
     std::string_view name, Type* type, absl::Span<const Value> initial_values,
     std::optional<FifoConfig> fifo_config, FlowControl flow_control,
     ChannelStrictness strictness) {
-  Direction direction = GetRamLogicalChannelDirection(logical_channel);
+  ChannelDirection direction = GetRamLogicalChannelDirection(logical_channel);
   if (metadata.proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
     XLS_ASSIGN_OR_RETURN(
@@ -257,8 +257,8 @@ absl::StatusOr<RamChannel> CreateRamChannel(
       Channel * channel,
       p->CreateStreamingChannel(
           name,
-          direction == Direction::kSend ? ChannelOps::kSendOnly
-                                        : ChannelOps::kReceiveOnly,
+          direction == ChannelDirection::kSend ? ChannelOps::kSendOnly
+                                               : ChannelOps::kReceiveOnly,
           type, initial_values, fifo_config, flow_control, strictness));
   return RamChannel{.logical_channel = logical_channel, .channel_ref = channel};
 }
@@ -794,7 +794,7 @@ absl::Status ReplaceChannelReferences(Package* p, const RamMetadata& metadata,
     // channel and replace this send with a new send to the new channel.
     XLS_ASSIGN_OR_RETURN(ChannelRef old_channel,
                          GetChannelRef(send->package(), send->channel_name(),
-                                       Direction::kSend, proc_scope));
+                                       ChannelDirection::kSend, proc_scope));
     auto it = reverse_from_mapping.find(old_channel);
     if (it == reverse_from_mapping.end()) {
       return absl::OkStatus();
@@ -820,7 +820,7 @@ absl::Status ReplaceChannelReferences(Package* p, const RamMetadata& metadata,
     XLS_ASSIGN_OR_RETURN(
         ChannelRef old_channel,
         GetChannelRef(receive->package(), receive->channel_name(),
-                      Direction::kReceive, proc_scope));
+                      ChannelDirection::kReceive, proc_scope));
     auto it = reverse_from_mapping.find(old_channel);
     if (it == reverse_from_mapping.end()) {
       return absl::OkStatus();
@@ -935,19 +935,20 @@ std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel) {
   }
 }
 
-Direction GetRamLogicalChannelDirection(RamLogicalChannel logical_channel) {
+ChannelDirection GetRamLogicalChannelDirection(
+    RamLogicalChannel logical_channel) {
   switch (logical_channel) {
     case RamLogicalChannel::kAbstractReadReq:
     case RamLogicalChannel::kAbstractWriteReq:
     case RamLogicalChannel::k1RWReq:
     case RamLogicalChannel::k1R1WReadReq:
     case RamLogicalChannel::k1R1WWriteReq:
-      return Direction::kSend;
+      return ChannelDirection::kSend;
     case RamLogicalChannel::kAbstractReadResp:
     case RamLogicalChannel::k1RWResp:
     case RamLogicalChannel::k1R1WReadResp:
     case RamLogicalChannel::kWriteCompletion:
-      return Direction::kReceive;
+      return ChannelDirection::kReceive;
   }
 }
 

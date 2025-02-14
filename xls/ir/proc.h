@@ -296,7 +296,7 @@ class Proc : public FunctionBase {
   // Returns the ChannelRef referring to the global channel or proc-scoped
   // channel (new-style procs) with the given name.
   absl::StatusOr<ChannelRef> GetChannelRef(std::string_view name,
-                                           Direction direction);
+                                           ChannelDirection direction);
 
   bool ChannelIsOwnedByProc(Channel* channel);
 
@@ -308,7 +308,8 @@ class Proc : public FunctionBase {
       std::string_view name, Type* type, ChannelKind kind,
       std::optional<ChannelStrictness> strictness = std::nullopt);
   absl::StatusOr<ChannelReference*> AddInterfaceChannel(
-      std::string_view name, Direction direction, Type* type, ChannelKind kind,
+      std::string_view name, ChannelDirection direction, Type* type,
+      ChannelKind kind,
       std::optional<ChannelStrictness> strictness = std::nullopt);
 
   // Remove a channel from the interface of the proc. ChannelReferences later
@@ -335,11 +336,12 @@ class Proc : public FunctionBase {
 
   // Returns whether this proc has a channel reference of the given name. Only
   // can be called for new style procs.
-  bool HasChannelReference(std::string_view name, Direction direction) const;
+  bool HasChannelReference(std::string_view name,
+                           ChannelDirection direction) const;
 
   // Returns the (Send/Receive) channel reference with the given name.
   absl::StatusOr<ChannelReference*> GetChannelReference(
-      std::string_view name, Direction direction) const;
+      std::string_view name, ChannelDirection direction) const;
   absl::StatusOr<SendChannelReference*> GetSendChannelReference(
       std::string_view name) const;
   absl::StatusOr<ReceiveChannelReference*> GetReceiveChannelReference(
