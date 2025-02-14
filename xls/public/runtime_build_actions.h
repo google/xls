@@ -52,6 +52,15 @@ namespace xls {
 // command line flag option that indicates what DSL stdlib path to use instead.
 std::string_view GetDefaultDslxStdlibPath();
 
+struct ConvertDslxToIrOptions {
+  std::string_view dslx_stdlib_path;
+  absl::Span<const std::filesystem::path> additional_search_paths;
+  absl::Span<const std::string_view> enable_warnings;
+  absl::Span<const std::string_view> disable_warnings;
+  bool warnings_as_errors = true;
+  std::vector<std::string>* warnings_out = nullptr;
+};
+
 // Converts the specified DSLX text into XLS IR text.
 //
 // Args:
@@ -66,14 +75,12 @@ std::string_view GetDefaultDslxStdlibPath();
 //    modules.
 absl::StatusOr<std::string> ConvertDslxToIr(
     std::string_view dslx, std::string_view path, std::string_view module_name,
-    std::string_view dslx_stdlib_path,
-    absl::Span<const std::filesystem::path> additional_search_paths);
+    const ConvertDslxToIrOptions& options);
 
 // As above, but uses a filesystem path to retrieve the DSLX module contents.
 // "path" should end with ".x" suffix, the path will determine the module name.
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    const std::filesystem::path& path, std::string_view dslx_stdlib_path,
-    absl::Span<const std::filesystem::path> additional_search_paths);
+    const std::filesystem::path& path, const ConvertDslxToIrOptions& options);
 
 // Optimizes the generated XLS IR with the given top-level entity (e.g.,
 // function, proc, etc).

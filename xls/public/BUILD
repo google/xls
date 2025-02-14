@@ -47,6 +47,7 @@ cc_library(
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
@@ -61,7 +62,9 @@ cc_library(
         "//xls/tools:proto_to_dslx",
         "//xls/tools:scheduling_options_flags_cc_proto",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -164,6 +167,7 @@ cc_library(
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 

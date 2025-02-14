@@ -14,6 +14,7 @@
 
 #include "xls/public/c_api.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <string>
@@ -61,6 +62,106 @@ TEST(XlsCApiTest, ConvertDslxToIrSimple) {
   ASSERT_NE(ir_out, nullptr);
 
   EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
+}
+
+TEST(XlsCApiTest, ConvertDslxToIrWithWarningsSet) {
+  const std::string kProgram = "fn id() { let x = u32:1; }";
+  const char* additional_search_paths[] = {};
+  const std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
+
+  {
+    char* error_out = nullptr;
+    char* ir_out = nullptr;
+
+    absl::Cleanup free_cstrs([&] {
+      xls_c_str_free(error_out);
+      xls_c_str_free(ir_out);
+    });
+
+    LOG(INFO)
+        << "converting with warnings in default state, should see warning...";
+    char** warnings = nullptr;
+    size_t warnings_count = 0;
+    absl::Cleanup free_warnings(
+        [&] { xls_c_strs_free(warnings, warnings_count); });
+
+    bool ok = xls_convert_dslx_to_ir_with_warnings(
+        kProgram.c_str(), "my_module.x", "my_module",
+        /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths,
+        0,
+        /*enable_warnings=*/nullptr, 0, /*disable_warnings=*/nullptr, 0,
+        /*warnings_as_errors=*/true, &warnings, &warnings_count, &error_out,
+        &ir_out);
+
+    // Check we got the warning data even though the return code is non-ok.
+    ASSERT_EQ(warnings_count, 1);
+    ASSERT_NE(warnings, nullptr);
+    ASSERT_NE(warnings[0], nullptr);
+    EXPECT_THAT(warnings[0], HasSubstr("is not used in function"));
+
+    // Since we set warnings-as-errors to true, we should have gotten "not ok"
+    // back.
+    ASSERT_FALSE(ok);
+    ASSERT_EQ(ir_out, nullptr);
+    EXPECT_THAT(error_out, HasSubstr("Conversion of DSLX to IR failed due to "
+                                     "warnings during parsing/typechecking."));
+  }
+
+  // Now try with the warning disabled.
+  {
+    char* error_out = nullptr;
+    char* ir_out = nullptr;
+
+    absl::Cleanup free_cstrs([&] {
+      xls_c_str_free(error_out);
+      xls_c_str_free(ir_out);
+    });
+    const char* enable_warnings[] = {};
+    const char* disable_warnings[] = {"unused_definition"};
+    LOG(INFO) << "converting with warning disabled, should not see warning...";
+    bool ok = xls_convert_dslx_to_ir_with_warnings(
+        kProgram.c_str(), "my_module.x", "my_module",
+        /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths,
+        0, enable_warnings, 0, disable_warnings, 1, /*warnings_as_errors=*/true,
+        /*warnings_out=*/nullptr, /*warnings_out_count=*/nullptr, &error_out,
+        &ir_out);
+    ASSERT_TRUE(ok);
+    ASSERT_EQ(error_out, nullptr);
+    ASSERT_NE(ir_out, nullptr);
+  }
+}
+
+TEST(XlsCApiTest, ConvertWithNoWarnings) {
+  const std::string kProgram = "fn id(x: u32) -> u32 { x }";
+  const std::string dslx_stdlib_path = std::string(xls::kDefaultDslxStdlibPath);
+  const char* additional_search_paths[] = {};
+  char* error_out = nullptr;
+  char* ir_out = nullptr;
+
+  absl::Cleanup free_cstrs([&] {
+    xls_c_str_free(error_out);
+    xls_c_str_free(ir_out);
+  });
+
+  char** warnings = nullptr;
+  size_t warnings_count = 0;
+  absl::Cleanup free_warnings(
+      [&] { xls_c_strs_free(warnings, warnings_count); });
+
+  bool ok = xls_convert_dslx_to_ir_with_warnings(
+      kProgram.c_str(), "my_module.x", "my_module",
+      /*dslx_stdlib_path=*/dslx_stdlib_path.c_str(), additional_search_paths, 0,
+      /*enable_warnings=*/nullptr, 0, /*disable_warnings=*/nullptr, 0,
+      /*warnings_as_errors=*/true, &warnings, &warnings_count, &error_out,
+      &ir_out);
+  ASSERT_TRUE(ok);
+  ASSERT_EQ(error_out, nullptr);
+  ASSERT_NE(ir_out, nullptr);
+  EXPECT_THAT(ir_out, HasSubstr("fn __my_module__id"));
+  // Validate that in the no-warnings case we get a zero count and also a
+  // nullptr value populating our warnings ptr.
+  ASSERT_EQ(warnings_count, 0);
+  ASSERT_EQ(warnings, nullptr);
 }
 
 TEST(XlsCApiTest, ConvertDslxToIrError) {

@@ -24,13 +24,15 @@
 
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/ir/format_preference.h"
 #include "xls/public/c_api_format_preference.h"
 
 namespace xls {
 
-std::vector<std::filesystem::path> ToCpp(const char* additional_search_paths[],
-                                         size_t additional_search_paths_count) {
+std::vector<std::filesystem::path> ToCppPaths(
+    const char* additional_search_paths[],
+    size_t additional_search_paths_count) {
   std::vector<std::filesystem::path> additional_search_paths_cpp;
   additional_search_paths_cpp.reserve(additional_search_paths_count);
   for (size_t i = 0; i < additional_search_paths_count; ++i) {
@@ -41,10 +43,39 @@ std::vector<std::filesystem::path> ToCpp(const char* additional_search_paths[],
   return additional_search_paths_cpp;
 }
 
+std::vector<std::string_view> ToCppStringViews(const char* strings[],
+                                               size_t strings_count) {
+  std::vector<std::string_view> strings_cpp;
+  strings_cpp.reserve(strings_count);
+  for (size_t i = 0; i < strings_count; ++i) {
+    const char* string = strings[i];
+    CHECK(string != nullptr);
+    strings_cpp.push_back(string);
+  }
+  return strings_cpp;
+}
+
 char* ToOwnedCString(std::string_view s) { return strndup(s.data(), s.size()); }
 
-// Helper function that we can use to adapt to the common C API pattern when
-// we're returning an `absl::StatusOr<std::string>` value.
+void ToOwnedCStrings(absl::Span<const std::string> cpp, char*** c_out,
+                     size_t* c_out_count) {
+  CHECK(c_out != nullptr);
+  CHECK(c_out_count != nullptr);
+
+  // For the empty array case we avoid a needless zero-sized allocation.
+  if (cpp.empty()) {
+    *c_out = nullptr;
+    *c_out_count = 0;
+    return;
+  }
+
+  *c_out = new char*[cpp.size()];
+  *c_out_count = cpp.size();
+  for (size_t i = 0; i < cpp.size(); ++i) {
+    (*c_out)[i] = ToOwnedCString(cpp[i]);
+  }
+}
+
 bool ReturnStringHelper(absl::StatusOr<std::string>& to_return,
                         char** error_out, char** value_out) {
   if (to_return.ok()) {

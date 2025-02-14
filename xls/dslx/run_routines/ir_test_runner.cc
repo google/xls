@@ -204,7 +204,7 @@ absl::StatusOr<std::unique_ptr<AbstractParsedTestRunner>> MakeRunner(
       .emit_fail_as_assert = true,
       .verify_ir = false,
       .warnings_as_errors = false,
-      .enabled_warnings = kNoWarningsSet,
+      .warnings = kNoWarningsSet,
       .convert_tests = true,
   };
   absl::flat_hash_map<std::string, std::unique_ptr<Package>> packages;

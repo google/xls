@@ -20,7 +20,9 @@
 #include <string_view>
 
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
@@ -35,6 +37,7 @@
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/virtualizable_file_system.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/package.h"
 #include "xls/passes/optimization_pass.h"
@@ -50,27 +53,50 @@ std::string_view GetDefaultDslxStdlibPath() { return kDefaultDslxStdlibPath; }
 
 absl::StatusOr<std::string> ConvertDslxToIr(
     std::string_view dslx, std::string_view path, std::string_view module_name,
-    std::string_view dslx_stdlib_path,
-    absl::Span<const std::filesystem::path> additional_search_paths) {
-  VLOG(5) << "path: " << path << " module name: " << module_name
-          << " stdlib_path: " << dslx_stdlib_path;
+    const ConvertDslxToIrOptions& options) {
+  VLOG(5) << "ConvertDslxToIr; path: " << path
+          << " module name: " << module_name
+          << " warnings_as_errors: " << options.warnings_as_errors;
+
+  std::string enable_warnings_str = absl::StrJoin(options.enable_warnings, ",");
+  std::string disable_warnings_str =
+      absl::StrJoin(options.disable_warnings, ",");
+  XLS_ASSIGN_OR_RETURN(
+      dslx::WarningKindSet warnings_set,
+      dslx::GetWarningsSetFromFlags(enable_warnings_str, disable_warnings_str));
+
   dslx::ImportData import_data(dslx::CreateImportData(
-      std::string(dslx_stdlib_path), additional_search_paths,
-      dslx::kDefaultWarningsSet, std::make_unique<dslx::RealFilesystem>()));
+      std::string(options.dslx_stdlib_path), options.additional_search_paths,
+      warnings_set, std::make_unique<dslx::RealFilesystem>()));
+
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule typechecked,
       dslx::ParseAndTypecheck(dslx, path, module_name, &import_data));
-  return dslx::ConvertModule(typechecked.module, &import_data,
-                             dslx::ConvertOptions{});
+
+  const dslx::WarningCollector& warnings = typechecked.warnings;
+  if (options.warnings_out != nullptr) {
+    for (const dslx::WarningCollector::Entry& entry : warnings.warnings()) {
+      options.warnings_out->push_back(entry.message);
+    }
+  }
+  if (options.warnings_as_errors && !warnings.empty()) {
+    return absl::InvalidArgumentError(
+        "Conversion of DSLX to IR failed due to warnings during "
+        "parsing/typechecking.");
+  }
+
+  return dslx::ConvertModule(
+      typechecked.module, &import_data,
+      dslx::ConvertOptions{
+          .warnings_as_errors = options.warnings_as_errors,
+      });
 }
 
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    const std::filesystem::path& path, std::string_view dslx_stdlib_path,
-    absl::Span<const std::filesystem::path> additional_search_paths) {
+    const std::filesystem::path& path, const ConvertDslxToIrOptions& options) {
   XLS_ASSIGN_OR_RETURN(std::string dslx, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, dslx::ExtractModuleName(path));
-  return ConvertDslxToIr(dslx, std::string{path}, module_name, dslx_stdlib_path,
-                         additional_search_paths);
+  return ConvertDslxToIr(dslx, std::string{path}, module_name, options);
 }
 
 absl::StatusOr<std::string> OptimizeIr(std::string_view ir,
