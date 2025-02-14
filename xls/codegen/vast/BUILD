@@ -27,7 +27,6 @@ cc_library(
     srcs = ["vast.cc"],
     hdrs = ["vast.h"],
     deps = [
-        "//xls/codegen:module_signature_cc_proto",
         "//xls/common:indent",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
@@ -46,7 +45,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Subset-of-verilog AST, suitable for combining as datastructures before
+// Subset-of-verilog AST, suitable for combining as data structures before
 // emission.
 
 #ifndef XLS_CODEGEN_VAST_VAST_H_
@@ -38,7 +38,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -894,18 +893,6 @@ class EventControl final : public Statement {
  private:
   Expression* event_expression_;
 };
-
-// Specifies input/output direction (e.g. for a port).
-enum class Direction {
-  kInput,
-  kOutput,
-};
-
-std::string ToString(Direction direction);
-inline std::ostream& operator<<(std::ostream& os, Direction d) {
-  os << ToString(d);
-  return os;
-}
 
 // Represents a Verilog expression.
 class Expression : public VastNode {
@@ -2241,17 +2228,21 @@ class ModuleConditionalDirective final : public VastNode {
   std::vector<std::pair<std::string, ModuleSection*>> alternates_;
 };
 
-// Represents a module port.
-// TODO(meheff): 2021/04/26 Sink this data type into Module as a nested type and
-// remove superfluous proto conversion (or even remove it).
-struct Port {
-  static Port FromProto(const PortProto& proto, VerilogFile* file);
+// Specifies input/output direction.
+enum class ModulePortDirection {
+  kInput,
+  kOutput,
+};
 
-  absl::StatusOr<PortProto> ToProto() const;
+std::string ToString(ModulePortDirection direction);
+std::ostream& operator<<(std::ostream& os, ModulePortDirection d);
+
+// Represents a module port.
+struct ModulePort {
   const std::string& name() const { return wire->GetName(); }
   std::string ToString() const;
 
-  Direction direction;
+  ModulePortDirection direction;
   Def* wire;
 };
 
@@ -2304,17 +2295,18 @@ class Module final : public VastNode {
 
   ModuleSection* top() { return &top_; }
 
-  absl::Span<const Port> ports() const { return ports_; }
+  absl::Span<const ModulePort> ports() const { return ports_; }
   const std::string& name() const { return name_; }
 
   std::string Emit(LineInfo* line_info) const final;
 
  private:
   // Add the given Def as a port on the module.
-  LogicRef* AddPortDef(Direction direction, Def* def, const SourceInfo& loc);
+  LogicRef* AddPortDef(ModulePortDirection direction, Def* def,
+                       const SourceInfo& loc);
 
   std::string name_;
-  std::vector<Port> ports_;
+  std::vector<ModulePort> ports_;
 
   ModuleSection top_;
 };

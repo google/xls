@@ -17,10 +17,10 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -33,8 +33,6 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
-#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -325,17 +323,6 @@ std::string SanitizeIdentifier(std::string_view name) {
   return sanitized;
 }
 
-std::string ToString(Direction direction) {
-  switch (direction) {
-    case Direction::kInput:
-      return "input";
-    case Direction::kOutput:
-      return "output";
-    default:
-      return "<invalid direction>";
-  }
-}
-
 std::string DataType::EmitWithIdentifier(LineInfo* line_info,
                                          std::string_view identifier) const {
   std::string base = Emit(line_info);
@@ -530,29 +517,25 @@ std::string MacroStatementBlock::Emit(LineInfo* line_info) const {
   return result;
 }
 
-Port Port::FromProto(const PortProto& proto, VerilogFile* f) {
-  Port port;
-  port.direction = proto.direction() == PORT_DIRECTION_INPUT
-                       ? Direction::kInput
-                       : Direction::kOutput;
-  port.wire = f->Make<WireDef>(SourceInfo(), proto.name(),
-                               f->BitVectorType(proto.width(), SourceInfo()));
-  return port;
+std::string ToString(ModulePortDirection direction) {
+  switch (direction) {
+    case ModulePortDirection::kInput:
+      return "input";
+    case ModulePortDirection::kOutput:
+      return "output";
+    default:
+      return "<invalid direction>";
+  }
 }
 
-std::string Port::ToString() const {
-  return absl::StrFormat("Port(dir=%s, name=\"%s\")",
-                         verilog::ToString(direction), name());
+std::ostream& operator<<(std::ostream& os, ModulePortDirection d) {
+  os << ToString(d);
+  return os;
 }
 
-absl::StatusOr<PortProto> Port::ToProto() const {
-  PortProto proto;
-  proto.set_direction(direction == Direction::kInput ? PORT_DIRECTION_INPUT
-                                                     : PORT_DIRECTION_OUTPUT);
-  proto.set_name(wire->GetName());
-  XLS_ASSIGN_OR_RETURN(int64_t width, wire->data_type()->FlatBitCountAsInt64());
-  proto.set_width(width);
-  return proto;
+std::string ModulePort::ToString() const {
+  return absl::StrFormat("ModulePort(dir=%s, name=\"%s\")",
+                         xls::verilog::ToString(direction), name());
 }
 
 VerilogFunction::VerilogFunction(std::string_view name, DataType* result_type,
@@ -623,16 +606,16 @@ std::string VerilogFunctionCall::Emit(LineInfo* line_info) const {
   return result;
 }
 
-LogicRef* Module::AddPortDef(Direction direction, Def* def,
+LogicRef* Module::AddPortDef(ModulePortDirection direction, Def* def,
                              const SourceInfo& loc) {
-  ports_.push_back(Port{.direction = direction, .wire = def});
+  ports_.push_back(ModulePort{.direction = direction, .wire = def});
   return file()->Make<LogicRef>(loc, def);
 }
 
 LogicRef* Module::AddInput(std::string_view name, DataType* type,
                            const SourceInfo& loc) {
   return AddPortDef(
-      Direction::kInput,
+      ModulePortDirection::kInput,
       type->IsUserDefined()
           ? static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type))
           : static_cast<Def*>(file()->Make<WireDef>(loc, name, type)),
@@ -642,7 +625,7 @@ LogicRef* Module::AddInput(std::string_view name, DataType* type,
 LogicRef* Module::AddOutput(std::string_view name, DataType* type,
                             const SourceInfo& loc) {
   return AddPortDef(
-      Direction::kOutput,
+      ModulePortDirection::kOutput,
       type->IsUserDefined()
           ? static_cast<Def*>(file()->Make<UserDefinedDef>(loc, name, type))
           : static_cast<Def*>(file()->Make<WireDef>(loc, name, type)),
@@ -1203,13 +1186,14 @@ std::string Module::Emit(LineInfo* line_info) const {
     LineInfoIncrease(line_info, 1);
     absl::StrAppend(
         &result,
-        absl::StrJoin(ports_, ",\n  ", [=](std::string* out, const Port& port) {
-          std::string wire_str = port.wire->EmitNoSemi(line_info);
-          CHECK(CannotStripWhitespace(wire_str));
-          absl::StrAppendFormat(out, "%s %s", ToString(port.direction),
-                                wire_str);
-          LineInfoIncrease(line_info, 1);
-        }));
+        absl::StrJoin(ports_, ",\n  ",
+                      [=](std::string* out, const ModulePort& port) {
+                        std::string wire_str = port.wire->EmitNoSemi(line_info);
+                        CHECK(CannotStripWhitespace(wire_str));
+                        absl::StrAppendFormat(
+                            out, "%s %s", ToString(port.direction), wire_str);
+                        LineInfoIncrease(line_info, 1);
+                      }));
     absl::StrAppend(&result, "\n);\n");
     LineInfoIncrease(line_info, 1);
   }

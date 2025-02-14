@@ -76,17 +76,17 @@ static absl::StatusOr<ModuleSignature> GenerateModuleSignature(
     Module* module, std::optional<std::string_view> clk_name,
     std::optional<ResetProto> reset) {
   ModuleSignatureBuilder b(module->name());
-  for (const Port& port : module->ports()) {
+  for (const ModulePort& port : module->ports()) {
     // The clock and reset should not be added as a data input.
     if ((clk_name.has_value() && port.name() == clk_name.value()) ||
         (reset.has_value() && port.name() == reset->name())) {
       continue;
     }
     const int64_t width = port.wire->data_type()->WidthAsInt64().value();
-    if (port.direction == Direction::kInput) {
+    if (port.direction == ModulePortDirection::kInput) {
       b.AddDataInputAsBits(port.name(), width);
     } else {
-      CHECK_EQ(port.direction, Direction::kOutput);
+      CHECK_EQ(port.direction, ModulePortDirection::kOutput);
       b.AddDataOutputAsBits(port.name(), width);
     }
   }
