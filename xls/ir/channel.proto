@@ -49,15 +49,6 @@ message ChannelConfigProto {
   // It is an error to include this for non-streaming channels.
   optional FifoConfigProto fifo = 1;
 
-  // TODO(meheff): Remove when uses have been removed.
-  enum FlopKindProtoDeprecated {
-    FLOP_KIND_DEFAULT = 0;
-    FLOP_KIND_NONE = 1;
-    FLOP_KIND_FLOP = 2;
-    FLOP_KIND_SKID = 3;
-    FLOP_KIND_ZERO_LATENCY = 4;
-  }
-
   // Flop to put before all inputs associated with this channel.
   FlopKindProto flop_inputs = 2;
   // Flop to put before all outputs associated with this channel.
