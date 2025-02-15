@@ -20,8 +20,6 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -29,6 +27,8 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "verible/common/lsp/lsp-file-utils.h"
 #include "verible/common/lsp/lsp-protocol.h"
 #include "xls/common/file/filesystem.h"
@@ -305,6 +305,36 @@ TEST(LanguageServerAdapterTest, InlayHintForLetStatement) {
       << "got: " << DebugString(hint.position)
       << " want: " << DebugString(want_position);
   EXPECT_EQ(hint.label, ": uN[32]");
+}
+
+// Shows that we do not get inlay hints for parametric functions.
+TEST(LanguageServerAdapterTest, InlayHintForDistinctRoutine) {
+  LanguageServerAdapter adapter(GetDslxStdlibUri(), /*dslx_paths=*/{});
+  const LspUri kUri("file:///fake/path/test.x");
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(
+pub fn distinct<COUNT: u32, N: u32, S: bool>(items: xN[S][N][COUNT], valid: bool[COUNT]) -> bool {
+    const INIT_ALL_DISTINCT = true;
+    for (i, all_distinct) in range(u32:0, COUNT) {
+        for (j, all_distinct) in range(u32:0, COUNT) {
+            if i != j && valid[i] && valid[j] && items[i] == items[j] {
+                false
+            } else {
+                all_distinct
+            }
+        }(all_distinct)
+    }(INIT_ALL_DISTINCT)
+}
+
+#[test]
+fn test_simple_nondistinct() { assert_eq(distinct(u2[2]:[1, 1], bool[2]:[true, true]), false) }
+)"));
+
+  const auto kInputRange =
+      verible::lsp::Range{.start = verible::lsp::Position{1, 0},
+                          .end = verible::lsp::Position{20, 0}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::InlayHint> hints,
+                           adapter.InlayHint(kUri, kInputRange));
+  EXPECT_TRUE(hints.empty());
 }
 
 TEST(LanguageServerAdapterTest, FindDefinitionAcrossFiles) {

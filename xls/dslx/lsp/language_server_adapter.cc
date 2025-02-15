@@ -350,11 +350,13 @@ LanguageServerAdapter::InlayHint(LspUri uri,
         const auto* name_def_tree = let->name_def_tree();
         std::optional<Type*> maybe_type = type_info.GetItem(name_def_tree);
         if (!maybe_type.has_value()) {
-          // Should not happen, but if it does somehow we don't want to crash
-          // the language server.
-          LspLog() << "No type information available for: "
-                   << name_def_tree->ToString() << " @ "
-                   << name_def_tree->span().ToString(file_table);
+          // This can happen because we have a parametric function -- we don't
+          // have concrete types because it could be instantiated in different
+          // ways from different invocations.
+          VLOG(5) << "InlayHint; no type information available for: "
+                  << name_def_tree->ToString() << " @ "
+                  << name_def_tree->span().ToString(file_table) << " within `"
+                  << let->ToString() << "`";
           continue;
         }
         const Type& type = *maybe_type.value();
