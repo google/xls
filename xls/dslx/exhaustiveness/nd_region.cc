@@ -14,8 +14,22 @@
 
 #include "xls/dslx/exhaustiveness/nd_region.h"
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/base/attributes.h"
+#include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "xls/dslx/exhaustiveness/interp_value_interval.h"
+#include "xls/dslx/interp_value.h"
+
 namespace xls::dslx {
 namespace {
 

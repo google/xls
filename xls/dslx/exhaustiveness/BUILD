@@ -24,7 +24,6 @@ cc_library(
     hdrs = ["interp_value_interval.h"],
     deps = [
         "//xls/dslx:interp_value",
-        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -36,8 +35,7 @@ cc_test(
     deps = [
         ":interp_value_interval",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
         "@googletest//:gtest",
     ],
 )
@@ -51,7 +49,9 @@ cc_library(
         "//xls/dslx:interp_value",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -60,11 +60,11 @@ cc_test(
     name = "nd_region_test",
     srcs = ["nd_region_test.cc"],
     deps = [
+        ":interp_value_interval",
         ":nd_region",
         "//xls/common:xls_gunit_main",
-        "//xls/common/fuzzing:fuzztest",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )
@@ -84,6 +84,9 @@ cc_library(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -92,16 +95,22 @@ cc_test(
     srcs = ["exhaustiveness_match_test.cc"],
     deps = [
         ":match_exhaustiveness_checker",
-        "//xls/common:visitor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:virtualizable_file_system",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
-        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
         "@googletest//:gtest",
     ],
 )

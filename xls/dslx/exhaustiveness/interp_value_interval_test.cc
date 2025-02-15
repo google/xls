@@ -14,8 +14,8 @@
 
 #include "xls/dslx/exhaustiveness/interp_value_interval.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
