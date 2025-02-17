@@ -1841,10 +1841,10 @@ std::string Unop::ToStringInternal() const {
   if (WeakerThan(operand_->GetPrecedence(), GetPrecedenceWithoutParens())) {
     Parenthesize(&operand);
   }
-  return absl::StrFormat("%s%s", UnopKindToString(unop_kind_), operand);
+  return absl::StrFormat("%s%s", UnopKindFormat(unop_kind_), operand);
 }
 
-std::string UnopKindToString(UnopKind k) {
+std::string UnopKindFormat(UnopKind k) {
   switch (k) {
     case UnopKind::kInvert:
       return "!";
