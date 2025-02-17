@@ -603,6 +603,17 @@ fn f() -> u32 {
   XLS_EXPECT_OK(main_module.status()) << main_module.status();
 }
 
+TEST(TypecheckTest, UseOfStdlibModule) {
+  constexpr std::string_view kProgram = R"(#![feature(use_syntax)]
+use std;
+
+fn main() -> u32 {
+  std::popcount(u32:42)
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckTest, FailsOnProcWithImplAsImportedStructMember) {
   constexpr std::string_view kImported = R"(
 pub proc Foo {

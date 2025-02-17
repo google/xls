@@ -3056,7 +3056,8 @@ absl::StatusOr<TypeRef*> Parser::ParseModTypeRef(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(
       BoundNode bn, bindings.ResolveNodeOrError(
                         *start_tok.GetValue(), start_tok.span(), file_table()));
-  if (!std::holds_alternative<Import*>(bn)) {
+  if (!std::holds_alternative<Import*>(bn) &&
+      !std::holds_alternative<UseTreeEntry*>(bn)) {
     return ParseErrorStatus(
         start_tok.span(),
         absl::StrFormat("Expected module for module-reference; got %s",

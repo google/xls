@@ -43,6 +43,7 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_expression.h"
@@ -240,6 +241,22 @@ std::string TypeDim::ToString() const {
   // dimension data -- we need to allow for e.g. signed types which may not end
   // up in any particular dimension position.
   return BitsToString(std::get<InterpValue>(value_).GetBitsOrDie());
+}
+
+ModuleType::~ModuleType() = default;
+
+absl::Status ModuleType::Accept(TypeVisitor& v) const {
+  return v.HandleModule(*this);
+}
+
+std::string ModuleType::ToStringInternal(FullyQualify fully_qualify,
+                                         const FileTable*) const {
+  return absl::StrFormat("typeof(module:%s)", module_.name());
+}
+
+absl::StatusOr<std::unique_ptr<Type>> ModuleType::MapSize(
+    const MapFn& f) const {
+  return std::make_unique<ModuleType>(module_);
 }
 
 static std::string VariantToString(
@@ -476,6 +493,10 @@ bool Type::IsTuple() const {
 
 bool Type::IsFunction() const {
   return dynamic_cast<const FunctionType*>(this) != nullptr;
+}
+
+bool Type::IsModule() const {
+  return dynamic_cast<const ModuleType*>(this) != nullptr;
 }
 
 const EnumType& Type::AsEnum() const {

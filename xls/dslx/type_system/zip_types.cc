@@ -168,6 +168,11 @@ class ZipTypeVisitor : public TypeVisitor {
     return callbacks_.NoteTypeMismatch(lhs, lhs_parent_, rhs_, rhs_parent_);
   }
 
+  absl::Status HandleModule(const ModuleType& lhs) override {
+    return absl::InvalidArgumentError("Cannot zip module types; got: " +
+                                      lhs.ToString());
+  }
+
   const Type& rhs_;
   const Type* lhs_parent_;
   const Type* rhs_parent_;

@@ -321,6 +321,16 @@ absl::StatusOr<TupleTypeProto> ToProto(const TupleType& tuple_type,
   return proto;
 }
 
+absl::StatusOr<TokenTypeProto> ToProto(const TokenType& token_type,
+                                       const FileTable& file_table) {
+  return TokenTypeProto();
+}
+
+absl::StatusOr<ModuleTypeProto> ToProto(const ModuleType& module_type,
+                                        const FileTable& file_table) {
+  return ModuleTypeProto();
+}
+
 absl::StatusOr<ArrayTypeProto> ToProto(const ArrayType& array_type,
                                        const FileTable& file_table) {
   ArrayTypeProto proto;
@@ -427,46 +437,82 @@ absl::StatusOr<ChannelTypeProto> ToProto(const ChannelType& channel_type,
   return proto;
 }
 
+class ToProtoVisitor : public TypeVisitor {
+ public:
+  ToProtoVisitor(const FileTable& file_table) : file_table_(file_table) {}
+
+  absl::Status HandleBits(const BitsType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_bits_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleBitsConstructor(const BitsConstructorType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_bits_constructor_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleFunction(const FunctionType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_fn_type(), ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleTuple(const TupleType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_tuple_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleArray(const ArrayType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_array_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleStruct(const StructType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_struct_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleProc(const ProcType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_proc_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleEnum(const EnumType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_enum_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleMeta(const MetaType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_meta_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleToken(const TokenType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_token_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleChannel(const ChannelType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_channel_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+  absl::Status HandleModule(const ModuleType& type) override {
+    XLS_ASSIGN_OR_RETURN(*proto_.mutable_module_type(),
+                         ToProto(type, file_table_));
+    return absl::OkStatus();
+  }
+
+  TypeProto PopResult() { return std::move(proto_); }
+
+ private:
+  TypeProto proto_;
+  const FileTable& file_table_;
+};
+
 absl::StatusOr<TypeProto> ToProto(const Type& type,
                                   const FileTable& file_table) {
-  TypeProto proto;
-  if (const auto* bits = dynamic_cast<const BitsType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_bits_type(),
-                         ToProto(*bits, file_table));
-  } else if (const auto* bc = dynamic_cast<const BitsConstructorType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_bits_constructor_type(),
-                         ToProto(*bc, file_table));
-  } else if (const auto* fn = dynamic_cast<const FunctionType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_fn_type(), ToProto(*fn, file_table));
-  } else if (const auto* tuple = dynamic_cast<const TupleType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_tuple_type(),
-                         ToProto(*tuple, file_table));
-  } else if (const auto* array = dynamic_cast<const ArrayType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_array_type(),
-                         ToProto(*array, file_table));
-  } else if (const auto* struct_type = dynamic_cast<const StructType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_struct_type(),
-                         ToProto(*struct_type, file_table));
-  } else if (const auto* proc_type = dynamic_cast<const ProcType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_proc_type(),
-                         ToProto(*proc_type, file_table));
-  } else if (const auto* enum_type = dynamic_cast<const EnumType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_type(),
-                         ToProto(*enum_type, file_table));
-  } else if (const auto* meta_type = dynamic_cast<const MetaType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_meta_type(),
-                         ToProto(*meta_type, file_table));
-  } else if (const auto* channel_type =
-                 dynamic_cast<const ChannelType*>(&type)) {
-    XLS_ASSIGN_OR_RETURN(*proto.mutable_channel_type(),
-                         ToProto(*channel_type, file_table));
-  } else if (dynamic_cast<const TokenType*>(&type) != nullptr) {
-    proto.mutable_token_type();
-  } else {
-    return absl::UnimplementedError("TypeInfoToProto: convert Type to proto: " +
-                                    type.ToString());
-  }
-  return proto;
+  ToProtoVisitor visitor(file_table);
+  XLS_RETURN_IF_ERROR(type.Accept(visitor));
+  return visitor.PopResult();
 }
 
 absl::StatusOr<AstNodeTypeInfoProto> ToProto(const AstNode& node,
@@ -617,6 +663,13 @@ absl::StatusOr<std::unique_ptr<Type>> FromProto(const TypeProto& ctp,
 
       return std::make_unique<EnumType>(*enum_def, std::move(size),
                                         /*is_signed=*/etp.is_signed(), members);
+    }
+    case TypeProto::TypeOneofCase::kModuleType: {
+      return absl::UnimplementedError(
+          "TypeInfoFromProto: not yet implemented for "
+          "TypeProto->Type "
+          "conversion: " +
+          ctp.ShortDebugString());
     }
     case TypeProto::TypeOneofCase::kFnType: {
       const FunctionTypeProto& ftp = ctp.fn_type();

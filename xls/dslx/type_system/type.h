@@ -186,6 +186,7 @@ class TupleType;
 class ArrayType;
 class MetaType;
 class BitsConstructorType;
+class ModuleType;
 
 // Abstract base class for a Type visitor.
 class TypeVisitor {
@@ -203,6 +204,7 @@ class TypeVisitor {
   virtual absl::Status HandleTuple(const TupleType& t) = 0;
   virtual absl::Status HandleArray(const ArrayType& t) = 0;
   virtual absl::Status HandleMeta(const MetaType& t) = 0;
+  virtual absl::Status HandleModule(const ModuleType& t) = 0;
 };
 
 class TypeVisitorWithDefault : public TypeVisitor {
@@ -240,6 +242,9 @@ class TypeVisitorWithDefault : public TypeVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleMeta(const MetaType& t) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleModule(const ModuleType& t) override {
     return absl::OkStatus();
   }
 };
@@ -402,6 +407,7 @@ class Type {
   bool IsMeta() const;
   bool IsTuple() const;
   bool IsFunction() const;
+  bool IsModule() const;
 
   const StructType& AsStruct() const;
   const ProcType& AsProc() const;
@@ -873,6 +879,48 @@ class BitsConstructorType : public Type {
 
  private:
   TypeDim is_signed_;
+};
+
+// Represents an existential type for a given module's identity. This
+// representation allows us to place the type of a module-reference AST node
+// into the type information mapping.
+class ModuleType : public Type {
+ public:
+  explicit ModuleType(const Module& module) : module_(module) {}
+  ~ModuleType() override;
+
+  absl::Status Accept(TypeVisitor& v) const override;
+  absl::StatusOr<std::unique_ptr<Type>> MapSize(const MapFn& f) const override;
+
+  bool operator==(const Type& other) const override {
+    if (auto* o = dynamic_cast<const ModuleType*>(&other)) {
+      return &module_ == &o->module_;
+    }
+    return false;
+  }
+
+  std::string ToStringInternal(FullyQualify fully_qualify,
+                               const FileTable* file_table) const override;
+
+  bool HasEnum() const override { return false; }
+  bool HasToken() const override { return false; }
+  bool IsAggregate() const override { return false; }
+
+  std::string GetDebugTypeName() const override { return "module"; }
+
+  std::vector<TypeDim> GetAllDims() const override { return {}; }
+  absl::StatusOr<TypeDim> GetTotalBitCount() const override {
+    return absl::InvalidArgumentError("Module types have no size");
+  }
+
+  std::unique_ptr<Type> CloneToUnique() const override {
+    return std::make_unique<ModuleType>(module_);
+  }
+
+  const Module& module() const { return module_; }
+
+ private:
+  const Module& module_;
 };
 
 // Represents a bits type (either signed or unsigned).

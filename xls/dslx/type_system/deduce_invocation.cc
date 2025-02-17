@@ -29,6 +29,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -202,7 +203,7 @@ static absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(
     return *struct_fn;
   }
 
-  std::optional<Import*> import = ref->ResolveImportSubject();
+  std::optional<ImportSubject> import = ref->ResolveImportSubject();
   if (!import.has_value()) {
     return TypeInferenceErrorStatus(
         ref->span(), nullptr,
@@ -213,10 +214,10 @@ static absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(
   }
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << ref->ToString();
-  std::optional<const ImportedInfo*> imported_info =
-      ctx->type_info()->GetImported(*import);
-  XLS_RET_CHECK(imported_info.has_value());
-  Module* module = imported_info.value()->module;
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported_info,
+                       ctx->type_info()->GetImportedOrError(import.value()));
+  Module* module = imported_info->module;
+
   XLS_ASSIGN_OR_RETURN(Function * resolved,
                        GetMemberOrTypeInferenceError<Function>(
                            module, ref->attr(), ref->span()));
@@ -514,6 +515,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceFormatMacro(const FormatMacro* node,
     absl::Status HandleMeta(const MetaType& t) override {
       return TypeInferenceErrorStatus(
           span_, &t, ": Cannot format an expression with meta type",
+          ctx_->file_table());
+    }
+    absl::Status HandleModule(const ModuleType& t) override {
+      return TypeInferenceErrorStatus(
+          span_, &t, ": Cannot format an expression with module type",
           ctx_->file_table());
     }
 

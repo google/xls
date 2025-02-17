@@ -1722,6 +1722,10 @@ class Use : public AstNode {
   UseTreeEntry* root_;
 };
 
+// Both a `UseTreeEntry` and an `Import` are nodes that directly indicate a
+// module being imported. See e.g. `ColonRef::ResolveImportSubject`.
+using ImportSubject = std::variant<UseTreeEntry*, Import*>;
+
 // Represents a module-value or enum-value style reference when the LHS
 // expression is unknown; e.g. when accessing a member in a module:
 //
@@ -1760,7 +1764,7 @@ class ColonRef : public Expr {
   //
   // Note: if the value is not nullopt, it will be a valid pointer (not
   // nullptr).
-  std::optional<Import*> ResolveImportSubject() const;
+  std::optional<ImportSubject> ResolveImportSubject() const;
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kPaths;
