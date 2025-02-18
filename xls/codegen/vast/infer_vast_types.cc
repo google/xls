@@ -287,6 +287,8 @@ class TypeInferenceVisitor {
       case OperatorKind::kNegate:
       case OperatorKind::kBitwiseNot:
         return OperatorSizeTreatment::kContextDependentUnary;
+      case OperatorKind::kCaseEq:
+      case OperatorKind::kCaseNe:
       case OperatorKind::kEq:
       case OperatorKind::kNe:
       case OperatorKind::kEqX:

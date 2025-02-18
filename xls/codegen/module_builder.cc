@@ -1184,12 +1184,13 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
   Expression* disable_iff = file_->Make<SystemFunctionCall>(
       asrt->loc(), "isunknown", std::vector<Expression*>({condition}));
   if (reset().has_value()) {
-    // Disable the assert when in reset.
-    disable_iff = file_->LogicalOr(
-        reset()->active_low ? static_cast<Expression*>(file_->LogicalNot(
-                                  reset()->signal, asrt->loc()))
-                            : static_cast<Expression*>(reset()->signal),
-        disable_iff, asrt->loc());
+    // Disable the assert when in reset or when the reset signal is undefined.
+    Expression* reset_not_active_value =
+        file_->Literal1(reset()->active_low, asrt->loc());
+    Expression* reset_not_active = file_->CaseNotEquals(
+        reset()->signal, reset_not_active_value, asrt->loc());
+
+    disable_iff = file_->LogicalOr(reset_not_active, disable_iff, asrt->loc());
   }
 
   if (clock() == nullptr) {

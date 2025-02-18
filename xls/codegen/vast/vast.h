@@ -978,7 +978,9 @@ class FourValueBinaryLiteral final : public Expression {
 // Specifies the kind of an `Operator` expression.
 enum class OperatorKind {
   kEq,
+  kCaseEq,
   kNe,
+  kCaseNe,
   kEqX,
   kNeX,
   kGe,
@@ -2548,8 +2550,16 @@ class VerilogFile {
                          const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kNe);
   }
+  BinaryInfix* CaseNotEquals(Expression* lhs, Expression* rhs,
+                             const SourceInfo& loc) {
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kCaseNe);
+  }
   BinaryInfix* Equals(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kEq);
+  }
+  BinaryInfix* CaseEquals(Expression* lhs, Expression* rhs,
+                          const SourceInfo& loc) {
+    return Make<BinaryInfix>(loc, lhs, rhs, OperatorKind::kCaseEq);
   }
   BinaryInfix* GreaterThanEquals(Expression* lhs, Expression* rhs,
                                  const SourceInfo& loc) {

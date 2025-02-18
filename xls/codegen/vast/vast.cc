@@ -181,7 +181,11 @@ int Precedence(OperatorKind kind) {
       return 6;
     case OperatorKind::kEq:
       return 6;
+    case OperatorKind::kCaseEq:
+      return 6;
     case OperatorKind::kNeX:
+      return 6;
+    case OperatorKind::kCaseNe:
       return 6;
     case OperatorKind::kEqX:
       return 6;
@@ -208,8 +212,12 @@ std::string_view OperatorString(OperatorKind kind) {
       return "&";
     case OperatorKind::kNe:
       return "!=";
+    case OperatorKind::kCaseNe:
+      return "!==";
     case OperatorKind::kEq:
       return "==";
+    case OperatorKind::kCaseEq:
+      return "===";
     case OperatorKind::kGe:
       return ">=";
     case OperatorKind::kGt:

@@ -1862,6 +1862,8 @@ TEST_P(VastTest, DeferredImmediateAssertionTest) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* rst = m->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo());
+  Expression* rst_asserted =
+      f.CaseNotEquals(rst, f.Literal1(0, SourceInfo()), SourceInfo());
   LogicRef* a =
       m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
 
@@ -1872,12 +1874,13 @@ TEST_P(VastTest, DeferredImmediateAssertionTest) {
       /*error_message=*/"");
   m->Add<DeferredImmediateAssertion>(
       SourceInfo(), f.Equals(a, f.Literal(0x9, 8, SourceInfo()), SourceInfo()),
-      /*disable_iff=*/rst,
+      /*disable_iff=*/rst_asserted,
       /*label=*/"my_label",
       /*error_message=*/"");
   m->Add<DeferredImmediateAssertion>(
-      SourceInfo(), f.Equals(a, f.Literal(0x42, 8, SourceInfo()), SourceInfo()),
-      /*disable_iff=*/rst,
+      SourceInfo(),
+      f.CaseEquals(a, f.Literal(0x42, 8, SourceInfo()), SourceInfo()),
+      /*disable_iff=*/rst_asserted,
       /*label=*/"",
       /*error_message=*/"a does not equal 0x42");
 
@@ -1888,8 +1891,8 @@ TEST_P(VastTest, DeferredImmediateAssertionTest) {
   input wire [7:0] a
 );
   assert final (a == 8'h00) else $fatal(0);
-  my_label: assert final (rst || a == 8'h09) else $fatal(0);
-  assert final (rst || a == 8'h42) else $fatal(0, "a does not equal 0x42");
+  my_label: assert final (rst !== 1'h0 || a == 8'h09) else $fatal(0);
+  assert final (rst !== 1'h0 || a === 8'h42) else $fatal(0, "a does not equal 0x42");
 endmodule)");
 }
 
@@ -1914,13 +1917,15 @@ TEST_P(VastTest, ConcurrentAssertionTest) {
   m->Add<ConcurrentAssertion>(
       SourceInfo(), f.Equals(a, f.Literal(0x9, 8, SourceInfo()), SourceInfo()),
       /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
-      /*disable_iff=*/rst,
+      /*disable_iff=*/
+      f.CaseNotEquals(rst, f.Literal1(0, SourceInfo()), SourceInfo()),
       /*label=*/"my_label",
       /*error_message=*/"");
   m->Add<ConcurrentAssertion>(
       SourceInfo(), f.Equals(a, f.Literal(0x42, 8, SourceInfo()), SourceInfo()),
       /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
-      /*disable_iff=*/rst,
+      /*disable_iff=*/
+      f.CaseNotEquals(rst, f.Literal1(0, SourceInfo()), SourceInfo()),
       /*label=*/"",
       /*error_message=*/"a does not equal 0x42");
 
@@ -1932,8 +1937,8 @@ TEST_P(VastTest, ConcurrentAssertionTest) {
   input wire [7:0] a
 );
   assert property (@(posedge clk) a == 8'h00) else $fatal(0);
-  my_label: assert property (@(posedge clk) disable iff (rst) a == 8'h09) else $fatal(0);
-  assert property (@(posedge clk) disable iff (rst) a == 8'h42) else $fatal(0, "a does not equal 0x42");
+  my_label: assert property (@(posedge clk) disable iff (rst !== 1'h0) a == 8'h09) else $fatal(0);
+  assert property (@(posedge clk) disable iff (rst !== 1'h0) a == 8'h42) else $fatal(0, "a does not equal 0x42");
 endmodule)");
 }
 
