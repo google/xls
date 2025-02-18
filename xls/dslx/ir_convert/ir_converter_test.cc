@@ -3351,5 +3351,52 @@ TEST(IrConverterTest, UseTreeEntryCallInParametric) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, MatchExhaustiveMultiplePatternLastArm) {
+  constexpr std::string_view program = R"(
+fn main(x: u2) -> u32 {
+  match x {
+    u2:0 | u2:1 => u32:0,
+    u2:2 | u2:3 => u32:1,
+  }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MatchExhaustiveOneRangeAndValueInSingleArm) {
+  constexpr std::string_view program = R"(
+  fn main(x: u2) -> u32 {
+    match x {
+      u2:0..u2:3 | u2:3 => u32:42,
+    }
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, MatchExhaustiveRangeInTrailingArm) {
+  constexpr std::string_view program = R"(
+  fn main(x: u2) -> u32 {
+    match x {
+      u2:3 => u32:42,
+      u2:0..u2:3 => u32:64,
+    }
+  }
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
