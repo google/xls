@@ -79,7 +79,7 @@ cc_xls_ir_jit_wrapper(
     src = ":some_caps_streaming_configured.ir",
     jit_wrapper_args = {
         "class_name": "SomeCaps",
-        "namespace": "xls::examples",
+        "namespace": "dslx::examples",
     },
     visibility = ["//xls:xls_internal"],
     wrapper_type = PROC_WRAPPER_TYPE,
@@ -135,7 +135,7 @@ cc_xls_ir_jit_wrapper(
     src = ":manaul_chan_caps_streaming_configured_opt_ir",
     jit_wrapper_args = {
         "class_name": "SomeCapsOpt",
-        "namespace": "xls::examples",
+        "namespace": "dslx::examples",
     },
     visibility = ["//xls:xls_internal"],
     wrapper_type = PROC_WRAPPER_TYPE,

@@ -17,13 +17,13 @@ namespace {{ wrapped.namespace }} {
 
 class {{ wrapped.class_name }} final : public xls::BaseProcJitWrapper {
  public:
-  static std::tuple<std::unique_ptr<Package>, std::unique_ptr<ProcRuntime>>
+  static std::tuple<std::unique_ptr<xls::Package>, std::unique_ptr<xls::ProcRuntime>>
   TakeRuntime(std::unique_ptr<{{ wrapped.class_name }}> r) {
     return BaseProcJitWrapper::TakeRuntimeBase(std::move(r));
   }
 
   static absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>> Create(
-    const EvaluatorOptions& options = EvaluatorOptions());
+    const xls::EvaluatorOptions& options = xls::EvaluatorOptions());
 
 {% for chan in wrapped.incoming_channels %}
   absl::Status SendTo{{ chan.camel_name }}(xls::Value v) {

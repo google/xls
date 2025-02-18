@@ -38,9 +38,9 @@ static constexpr std::array<uint8_t, {{len(wrapped.aot_entrypoint.SerializeToStr
   {{wrapped.aot_entrypoint.SerializeToString() | list | join(", ")}}
 };
 
-static constexpr std::array<BaseProcJitWrapper::AotEntrypoint, {{len(wrapped.aot_entrypoint.entrypoint)}}> kFunctionPointers = {
+static constexpr std::array<xls::BaseProcJitWrapper::AotEntrypoint, {{len(wrapped.aot_entrypoint.entrypoint)}}> kFunctionPointers = {
 {% for e in wrapped.aot_entrypoint.entrypoint %}
-  BaseProcJitWrapper::AotEntrypoint{
+  xls::BaseProcJitWrapper::AotEntrypoint{
       .proc_name = "{{e.xls_function_identifier}}",
       .function_ptr = {{e.function_symbol}}
   },
@@ -52,7 +52,7 @@ static constexpr std::string_view kIrText =
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<{{ wrapped.class_name }}>>
-{{ wrapped.class_name }}::Create(const EvaluatorOptions& options) {
+{{ wrapped.class_name }}::Create(const xls::EvaluatorOptions& options) {
   return xls::BaseProcJitWrapper::Create<{{wrapped.class_name}}>(
             kIrText,
             kProcName,

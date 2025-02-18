@@ -115,14 +115,14 @@ std::array<uint8_t, 8> StrArray(std::string_view sv) {
   return ret;
 }
 TEST(JitWrapperTest, Proc2) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCaps::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, dslx::examples::SomeCaps::Create());
   XLS_ASSERT_OK(jit->Tick());
   EXPECT_THAT(jit->Tick(),
               absl_testing::StatusIs(absl::StatusCode::kInternal,
                                      testing::ContainsRegex("deadlock")));
 }
 TEST(JitWrapperTest, Proc) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCaps::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, dslx::examples::SomeCaps::Create());
   XLS_ASSERT_OK(
       jit->SendToStringInput({'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}));
   XLS_ASSERT_OK(
@@ -183,7 +183,7 @@ TEST(JitWrapperTest, Proc) {
 }
 
 TEST(JitWrapperTest, ProcTickUnitlBlocked) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCaps::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, dslx::examples::SomeCaps::Create());
   XLS_ASSERT_OK(
       jit->SendToStringInput({'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}));
   XLS_ASSERT_OK(
@@ -206,7 +206,7 @@ TEST(JitWrapperTest, ProcTickUnitlBlocked) {
 }
 
 TEST(JitWrapperTest, ProcOptIrWrapper) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, examples::SomeCapsOpt::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, dslx::examples::SomeCapsOpt::Create());
   XLS_ASSERT_OK(
       jit->SendToExternalInputWire({'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'}));
   XLS_ASSERT_OK(
