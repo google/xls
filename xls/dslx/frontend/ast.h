@@ -635,11 +635,12 @@ class ParamTypeAnnotation : public TypeAnnotation {
 };
 
 // Used internally in type inference to indicate an unknown type that is
-// replaceable in unification with any known type.
+// replaceable in unification with any known type. If `multiple` is true, it
+// represents a placeholder for more than one type.
 class AnyTypeAnnotation : public TypeAnnotation {
  public:
-  explicit AnyTypeAnnotation(Module* owner)
-      : TypeAnnotation(owner, Span::None()) {}
+  explicit AnyTypeAnnotation(Module* owner, bool multiple = false)
+      : TypeAnnotation(owner, Span::None()), multiple_(multiple) {}
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleAnyTypeAnnotation(this);
@@ -654,6 +655,11 @@ class AnyTypeAnnotation : public TypeAnnotation {
   }
 
   std::string ToString() const override { return "Any"; };
+
+  bool multiple() const { return multiple_; }
+
+ private:
+  bool multiple_;
 };
 
 // Represents an array type annotation; e.g. `u32[5]`.

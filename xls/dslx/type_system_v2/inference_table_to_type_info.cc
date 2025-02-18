@@ -213,7 +213,10 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     }
     XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
     nodes_.push_back(node);
-    return node->name_def_tree()->Accept(this);
+    for (const NameDef* name_def : node->name_def_tree()->GetNameDefs()) {
+      XLS_RETURN_IF_ERROR(name_def->Accept(this));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleMatch(const Match* node) override {
@@ -231,6 +234,10 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
     }
     XLS_RETURN_IF_ERROR(node->expr()->Accept(this));
     nodes_.push_back(node);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleRestOfTuple(const RestOfTuple* node) override {
     return absl::OkStatus();
   }
 
@@ -1519,10 +1526,18 @@ class InferenceTableConverter {
     XLS_RETURN_IF_ERROR(ResolveVariableTypeAnnotations(
         parametric_context, annotations, accept_predicate));
     FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
-      return dynamic_cast<const AnyTypeAnnotation*>(annotation) == nullptr;
+      const auto* any_annotation =
+          dynamic_cast<const AnyTypeAnnotation*>(annotation);
+      return any_annotation == nullptr || any_annotation->multiple();
     });
     if (annotations.empty()) {
       return module_.Make<AnyTypeAnnotation>();
+    }
+    FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
+      return dynamic_cast<const AnyTypeAnnotation*>(annotation) == nullptr;
+    });
+    if (annotations.empty()) {
+      return module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
     }
     if (annotations.size() == 1 &&
         !GetStructOrProcRef(annotations[0]).has_value()) {
@@ -1542,10 +1557,6 @@ class InferenceTableConverter {
           return TypeMismatchErrorWithParametricResolution(
               parametric_context, annotations[0], annotation);
         }
-        // Since all but one must have been fabricated by us, they should have
-        // the same structure.
-        CHECK_EQ(tuple_annotation->members().size(),
-                 first_tuple_annotation->members().size());
         tuple_annotations.push_back(tuple_annotation);
       }
       return UnifyTupleTypeAnnotations(parametric_context, tuple_annotations,
@@ -1657,19 +1668,47 @@ class InferenceTableConverter {
   }
 
   // Unifies multiple annotations for a tuple. This function assumes the
-  // passed-in array is nonempty and the member counts match. Unifying a tuple
-  // type amounts to unifying the annotations for each member.
+  // passed-in array is nonempty. It attempts to expand any `AnyTypeAnnotations`
+  // with `multiple=true` to match the size of the first annotation.. Unifying a
+  // tuple type amounts to unifying the annotations for each member.
   absl::StatusOr<const TupleTypeAnnotation*> UnifyTupleTypeAnnotations(
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TupleTypeAnnotation*> annotations, const Span& span,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
     const int member_count = annotations[0]->members().size();
+    std::vector<const TupleTypeAnnotation*> expanded_annotations;
+
+    for (const TupleTypeAnnotation* tuple_annotation : annotations) {
+      if (tuple_annotation->members().size() != member_count) {
+        // If the sizes don't match, the annotation must contain an
+        // `AnyAnnotation` with `multiple = true`. Attempt to expand the
+        // multiple any to match the size.
+        std::vector<TypeAnnotation*> expanded_members;
+        expanded_members.reserve(member_count);
+        int delta = member_count - tuple_annotation->members().size();
+        for (auto* member : tuple_annotation->members()) {
+          const auto* any_annotation = dynamic_cast<AnyTypeAnnotation*>(member);
+          if (any_annotation != nullptr && any_annotation->multiple()) {
+            for (int i = 0; i < delta + 1; i++) {
+              expanded_members.push_back(module_.Make<AnyTypeAnnotation>());
+            }
+          } else {
+            expanded_members.push_back(member);
+          }
+        }
+        tuple_annotation = module_.Make<TupleTypeAnnotation>(
+            tuple_annotation->span(), expanded_members);
+      }
+      CHECK_EQ(tuple_annotation->members().size(), member_count);
+      expanded_annotations.push_back(tuple_annotation);
+    }
+
     std::vector<TypeAnnotation*> unified_member_annotations(member_count);
     for (int i = 0; i < member_count; i++) {
       std::vector<const TypeAnnotation*> annotations_for_member;
       annotations_for_member.reserve(annotations.size());
-      for (const TupleTypeAnnotation* annotation : annotations) {
+      for (const TupleTypeAnnotation* annotation : expanded_annotations) {
         annotations_for_member.push_back(annotation->members()[i]);
       }
       XLS_ASSIGN_OR_RETURN(

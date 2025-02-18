@@ -1057,7 +1057,7 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleAnyTypeAnnotation(const AnyTypeAnnotation* n) override {
-    old_to_new_[n] = module_->Make<AnyTypeAnnotation>();
+    old_to_new_[n] = module_->Make<AnyTypeAnnotation>(n->multiple());
     return absl::OkStatus();
   }
 

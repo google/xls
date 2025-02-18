@@ -2919,6 +2919,69 @@ fn main() {
                                       HasNodeWithType("y", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, PatternMatchWithRestOfTuple) {
+  EXPECT_THAT(R"(
+fn f(t: (u8, u32, u32, u32)) -> u32 {
+    match t {
+        (42, .., y) => y,
+        (_, .., y) => y + 1,
+    }
+}
+fn main() {
+    const VAL = f((42, 0, 0, 10));
+    let res = uN[VAL]:0;
+
+    let val2 = f((3, 0, 0,10));
+    let res2 = uN[val2]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[10]"),
+                                      HasNodeWithType("res2", "uN[11]"),
+                                      HasNodeWithType("y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchWithRestOfTupleIsOne) {
+  EXPECT_THAT(R"(
+fn f(t: (u8, u32, u32)) -> u32 {
+    match t {
+        (42, .., y) => y,
+        (_, .., y) => y + 1,
+    }
+}
+fn main() {
+    const VAL = f((42, 0, 10));
+    let res = uN[VAL]:0;
+
+    let val2 = f((3, 0, 10));
+    let res2 = uN[val2]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[10]"),
+                                      HasNodeWithType("res2", "uN[11]"),
+                                      HasNodeWithType("y", "uN[32]"))));
+}
+
+TEST(TypecheckV2Test, PatternMatchWithRestOfTupleIsNone) {
+  EXPECT_THAT(R"(
+fn f(t: (u8, u32)) -> u32 {
+    match t {
+        (42, .., y) => y,
+        (_, .., y) => y + 1,
+    }
+}
+fn main() {
+    const VAL = f((42, 10));
+    let res = uN[VAL]:0;
+
+    let val2 = f((3, 10));
+    let res2 = uN[val2]:0;
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("res", "uN[10]"),
+                                      HasNodeWithType("res2", "uN[11]"),
+                                      HasNodeWithType("y", "uN[32]"))));
+}
+
 TEST(TypecheckV2Test, PatternMatchToConstant) {
   EXPECT_THAT(R"(
 const MY_FAVORITE_NUMBER = u8:42;
@@ -3618,6 +3681,22 @@ fn main() {
 )",
               TypecheckSucceeds(AllOf(HasNodeWithType("C", "uN[16]"),
                                       HasNodeWithType("z", "uN[4]"))));
+}
+
+TEST(TypecheckV2Test, LetWithRestOfTupleInParametricFn) {
+  EXPECT_THAT(R"(
+fn f<N: u32, M: u32 = {N * 2}>(x: uN[N]) -> (uN[N], uN[M]) {
+  let (y,.., z) = (x + uN[N]:1, u15:0, u6:7, uN[M]:3);
+  (y, z)
+}
+
+fn main() {
+  let (c, _) = f<16>(uN[16]:5);
+  let (_, z) = f<4>(uN[4]:0);
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("c", "uN[16]"),
+                                      HasNodeWithType("z", "uN[8]"))));
 }
 
 TEST(TypecheckV2Test, BadTupleAnnotation) {

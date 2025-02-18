@@ -352,6 +352,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleRestOfTuple(const RestOfTuple* node) override {
+    VLOG(5) << "HandleRestOfTuple: " << node->ToString();
+    TypeAnnotation* any_type =
+        module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
+    return table_.SetTypeAnnotation(node, any_type);
+  }
+
   // Recursively define tuple type annotations for the `NameDefTree`. This is
   // similar to `HandleXlsTuple` but without access to an explicit type
   // annotation. It's only necessary when a `NameDefTree` is not associated with
@@ -363,9 +370,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     }
     std::vector<TypeAnnotation*> member_types;
     for (const NameDefTree* child_node : node->nodes()) {
-      if (child_node->IsRestOfTupleLeaf()) {
-        continue;
-      }
       XLS_RETURN_IF_ERROR(child_node->Accept(this));
       XLS_ASSIGN_OR_RETURN(TypeAnnotation * member_type,
                            GetOrMakeTypeAnnotationForNDF(child_node));
