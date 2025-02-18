@@ -101,6 +101,13 @@ constexpr riegeli::CsvHeaderConstant kNodeHeader = {"name",
                                                     "range",
                                                     "all_locs"};
 riegeli::CsvRecord NodeRecord(const viz::Node& node) {
+  std::string locations =
+      absl::StrJoin(node.loc(), "\n", [](std::string* out, const auto& loc) {
+        absl::StrAppend(out, loc.file(), ":", loc.line());
+      });
+  // Trim off whitespace
+  locations.erase(0, locations.find_first_not_of(" \n\r\t"));
+  locations.erase(locations.find_last_not_of(" \n\r\t") + 1);
   return riegeli::CsvRecord(
       *kNodeHeader,
       {
@@ -142,10 +149,7 @@ riegeli::CsvRecord NodeRecord(const viz::Node& node) {
               : "",
           node.loc_size() == 1 ? ToFieldValue(node.loc()[0].line()) : "",
           node.attributes().has_ranges() ? node.attributes().ranges() : "",
-          absl::StrJoin(node.loc(), "\n",
-                        [](std::string* out, const auto& loc) {
-                          absl::StrAppend(out, loc.file(), ":", loc.line());
-                        }),
+          locations,
       });
 }
 
