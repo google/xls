@@ -86,15 +86,14 @@ def load_external_repositories():
         build_file = "//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
     )
 
-    # Released 2024-09-13, current as of 2024-10-16.
-    ORTOOLS_VERSION = "9.11"
+    # Released 2025-02-17
+    # Also filed https://github.com/google/or-tools/issues/4551 to make available in BCR
+    ORTOOLS_VERSION = "9.12"
     http_archive(
         name = "com_google_ortools",
         urls = ["https://github.com/google/or-tools/archive/refs/tags/v{tag}.tar.gz".format(tag = ORTOOLS_VERSION)],
-        integrity = "sha256-9qC9W58wWKoagUt5jbXTk8Meycu2EDSGcomXtJqxJ7w=",
+        integrity = "sha256-3np0PI7Al6uJBsHgDqeC7opP5OwpfhXXvfOhh7L4gpw=",
         strip_prefix = "or-tools-" + ORTOOLS_VERSION,
-        patches = ["//dependency_support:com_google_ortools/ortools-no-rulescc.patch"],
-        patch_args = ["-p1"],
     )
 
     # Used in C++ tests of the ZSTD Module
