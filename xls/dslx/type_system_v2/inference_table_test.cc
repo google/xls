@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -59,9 +60,12 @@ class InferenceTableTest : public ::testing::Test {
   }
 
   absl::StatusOr<TypeInfo*> ConvertTableToTypeInfo() {
-    XLS_ASSIGN_OR_RETURN(TypeInfo * ti, InferenceTableToTypeInfo(
-                                            *table_, *module_, *import_data_,
-                                            *warning_collector_, file_table_));
+    std::unique_ptr<Module> empty =
+        std::make_unique<Module>("test", /*fs_path=*/std::nullopt, file_table_);
+    XLS_ASSIGN_OR_RETURN(
+        TypeInfo * ti, InferenceTableToTypeInfo(
+                           *table_, *module_, *import_data_,
+                           *warning_collector_, file_table_, std::move(empty)));
     return ti;
   }
 

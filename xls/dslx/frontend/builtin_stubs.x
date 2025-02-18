@@ -14,32 +14,30 @@
 
 fn and_reduce<N: u32>(x: uN[N]) -> u1;
 
-fn assert_lt<N: u32>(x: xN[N], y: xN[N]) -> ();
+fn assert_lt<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
 
-fn assert!<N: u32>(x: bool, y: u8[N]) -> ();
+fn assert!<N: u32>(x: bool, msg: u8[N]) -> ();
 
 fn bit_slice_update<N: u32, U: u32, V: u32>(x: uN[N], y: uN[U], z: uN[V]) -> uN[N];
 
 fn clz<N: u32>(x: uN[N]) -> uN[N];
 
-fn cover!<N: u32>(x: u8[N], y: u1) -> ();
+fn cover!<N: u32>(msg: u8[N], y: u1) -> ();
 
 fn ctz<N: u32>(x: uN[N]) -> uN[N];
 
-fn one_hot<N: u32, M:u32={N+1}>(x: uN[N], y: u1) -> uN[M];
+fn one_hot<N: u32, M: u32={N + 1}>(x: uN[N], y: u1) -> uN[M];
 
-fn one_hot_sel<N: u32, M: u32>(x: uN[N], y: xN[M][N]) -> xN[M];
+fn one_hot_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N]) -> xN[S][M];
 
 fn or_reduce<N: u32>(x: uN[N]) -> u1;
 
-fn priority_sel<N: u32, M: u32>(x: uN[N], y: xN[M][N], z: xN[M]) -> xN[M];
+fn priority_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N], z: xN[S][M]) -> xN[S][M];
 
 fn rev<N: u32>(x: uN[N]) -> uN[N];
 
-fn signex<N: u32, M: u32>(x: xN[M], y: xN[N]) -> xN[N];
+fn signex<NS: bool, N: u32, MS: bool, M: u32>(x: xN[MS][M], y: xN[NS][N]) -> xN[NS][N];
 
-fn smulp<N: u32>(x: sN[N], y: sN[N]) -> (uN[N], uN[N]);
+fn smulp<N: u32>(x: sN[N], y: sN[N]) -> (sN[N], sN[N]);
 
 fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
-
-fn xor_reduce<N: u32>(x: uN[N]) -> u1;

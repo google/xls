@@ -210,7 +210,7 @@ class TypeInfo {
 
   // Sets the type associated with the given AST node.
   void SetItem(const AstNode* key, const Type& value) {
-    CHECK_EQ(key->owner(), module_);
+    CHECK_EQ(key->owner(), module_) << key->ToString();
     dict_[key] = value.CloneToUnique();
   }
   void SetItem(const AstNode* key, std::unique_ptr<Type> value) {

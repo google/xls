@@ -164,6 +164,8 @@ class InferenceTableImpl : public InferenceTable {
   absl::StatusOr<const NameRef*> DefineInternalVariable(
       InferenceVariableKind kind, AstNode* definer,
       std::string_view name) override {
+    VLOG(6) << "DefineInternalVariable of kind " << (int)kind << " with name "
+            << name << " and definer: " << definer->ToString();
     CHECK(definer->GetSpan().has_value());
     Span span = *definer->GetSpan();
     const NameDef* name_def =
@@ -177,6 +179,9 @@ class InferenceTableImpl : public InferenceTable {
 
   absl::StatusOr<const NameRef*> DefineParametricVariable(
       const ParametricBinding& binding) override {
+    VLOG(6) << "DefineParametricVariable of type "
+            << binding.type_annotation()->ToString() << " with name "
+            << binding.name_def()->ToString();
     XLS_ASSIGN_OR_RETURN(
         InferenceVariableKind kind,
         TypeAnnotationToInferenceVariableKind(binding.type_annotation()));
@@ -327,6 +332,8 @@ class InferenceTableImpl : public InferenceTable {
   absl::Status SetTypeVariable(const AstNode* node,
                                const NameRef* type) override {
     XLS_ASSIGN_OR_RETURN(InferenceVariable * variable, GetVariable(type));
+    VLOG(6) << "SetTypeVariable node " << node->ToString() << "; type "
+            << type->ToString() << " variable " << variable->ToString();
     if (variable->kind() != InferenceVariableKind::kType) {
       return absl::InvalidArgumentError(
           absl::Substitute("Setting the type of $0 to non-type variable: $1",
@@ -403,6 +410,7 @@ class InferenceTableImpl : public InferenceTable {
     for (const auto& [node, data] : node_data_) {
       absl::StrAppendFormat(&result, "Node: %s\n", node->ToString());
       absl::StrAppendFormat(&result, "  Address: 0x%x\n", (uint64_t)node);
+      absl::StrAppendFormat(&result, "  Module: %s\n", node->owner()->name());
       if (data.type_variable.has_value()) {
         absl::StrAppendFormat(&result, "  Variable: %s\n",
                               (*data.type_variable)->name());
@@ -425,6 +433,8 @@ class InferenceTableImpl : public InferenceTable {
       absl::StrAppendFormat(&result, "Variable: %s\n", variable->name());
       absl::StrAppendFormat(&result, "  NameDef address: 0x%x\n",
                             (uint64_t)(name_def));
+      absl::StrAppendFormat(&result, "  Module: %s\n",
+                            variable->definer()->owner()->name());
       const auto annotations =
           type_annotations_per_type_variable_.find(variable.get());
       if (annotations != type_annotations_per_type_variable_.end() &&

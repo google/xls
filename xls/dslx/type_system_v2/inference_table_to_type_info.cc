@@ -86,7 +86,10 @@ struct FunctionAndTargetObject {
   const Function* function = nullptr;
   const std::optional<Expr*> target_object;
   std::optional<const ParametricContext*> target_struct_context;
-  bool is_builtin = false;
+  // This is part of a temporary hack to allow type checking of certain
+  // builtins. Built-ins in the builtin_stubs.x file will NOT have this
+  // value set to true.
+  bool is_special_builtin = false;
 };
 
 // Performs a clone of `input` with preservation of nodes that we never want to
@@ -300,16 +303,28 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
 // `TypeInfo`.
 class InferenceTableConverter {
  public:
-  InferenceTableConverter(InferenceTable& table, Module& module,
-                          ImportData& import_data,
-                          WarningCollector& warning_collector,
-                          TypeInfo* base_type_info, const FileTable& file_table)
+  InferenceTableConverter(
+      InferenceTable& table, Module& module, ImportData& import_data,
+      WarningCollector& warning_collector, TypeInfo* base_type_info,
+      const FileTable& file_table,
+      std::optional<std::unique_ptr<InferenceTableConverter>>
+          builtins_converter)
       : table_(table),
         module_(module),
         import_data_(import_data),
         warning_collector_(warning_collector),
         base_type_info_(base_type_info),
-        file_table_(file_table) {}
+        file_table_(file_table),
+        builtins_converter_(std::move(builtins_converter)) {}
+
+  bool IsBuiltin(const Function* node) {
+    // It's a builtin if we're the builtin converter and it's in the builtin
+    // module.
+    if (builtins_converter_.has_value()) {
+      return (*builtins_converter_)->IsBuiltin(node);
+    }
+    return module_.GetFunction(node->identifier()).has_value();
+  }
 
   // Converts all type info for the subtree rooted at `node`. `function` is
   // the containing function of the subtree, if any. `parametric_context` is
@@ -327,7 +342,21 @@ class InferenceTableConverter {
       std::optional<const ParametricContext*> parametric_context,
       bool filter_param_type_annotations = false) {
     VLOG(5) << "ConvertSubtree: " << node->ToString()
+            << " of module: " << module_.name()
             << " in context: " << ToString(parametric_context);
+    if (function.has_value() && IsBuiltin(*function)) {
+      // "Converting" a built-in function is unnecessary and fraught, so
+      // we skip it.
+      return absl::OkStatus();
+    }
+    if (node->owner()->name() != module_.name()) {
+      // use the other one ?
+      VLOG(5) << "Wrong module in ConvertSubtree; delegating to builtins "
+                 "converter";
+      return (*builtins_converter_)
+          ->ConvertSubtree(node, function, parametric_context,
+                           filter_param_type_annotations);
+    }
     ConversionOrderVisitor visitor(
         parametric_context.has_value() &&
         (node == function || (node->parent() != nullptr &&
@@ -390,15 +419,18 @@ class InferenceTableConverter {
       const Invocation* invocation, std::optional<const Function*> caller,
       std::optional<const ParametricContext*> caller_context) {
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString()
+            << " with module: " << invocation->owner()->name()
+            << " in module: " << module_.name()
             << " in context: " << ToString(caller_context);
     XLS_ASSIGN_OR_RETURN(
         const FunctionAndTargetObject function_and_target_object,
         ResolveFunction(invocation->callee(), caller, caller_context));
 
     // This is a temporary hack for type-checking annotations we generate that
-    // contain invocations of builtins like `element_count`. We can remove this
-    // when we have normal type checking for builtin functions.
-    if (function_and_target_object.is_builtin) {
+    // contain invocations of *certain* builtins like `element_count`. We can
+    // remove this when we have type checking for builtin functions with <T:
+    // type> parametrics.
+    if (function_and_target_object.is_special_builtin) {
       for (ExprOrType parametric : invocation->explicit_parametrics()) {
         VLOG(5) << "Convert parametric of builtin: "
                 << ToAstNode(parametric)->ToString();
@@ -598,7 +630,9 @@ class InferenceTableConverter {
     if (node->kind() == AstNodeKind::kRestOfTuple) {
       return absl::OkStatus();
     }
-    VLOG(5) << "Generate type info for node: " << node->ToString();
+    VLOG(5) << "GenerateTypeInfo for node: " << node->ToString()
+            << " with owner: " << node->owner()->name()
+            << " for module: " << module_.name();
     if (pre_unified_type.has_value()) {
       VLOG(5) << "Using pre-unified type: " << (*pre_unified_type)->ToString();
     }
@@ -1104,6 +1138,8 @@ class InferenceTableConverter {
   absl::StatusOr<InterpValue> Evaluate(
       const ParametricContextScopedExpr& scoped_expr) {
     VLOG(7) << "Evaluate: " << scoped_expr.expr()->ToString()
+            << " with owner: " << scoped_expr.expr()->owner()
+            << " in module: " << module_.name()
             << " in context: " << ToString(scoped_expr.context());
     TypeInfo* type_info = base_type_info_;
     // Note that `scoped_expr` will not have a `context()` in a case like
@@ -1135,7 +1171,10 @@ class InferenceTableConverter {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> type,
                          Concretize(type_annotation, parametric_context));
     type_info->SetItem(expr, *type);
-    type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
+    if (type_annotation->owner() == &module_) {
+      // Prevent bleed-over from a different module.
+      type_info->SetItem(type_annotation, MetaType(type->CloneToUnique()));
+    }
     // TODO: https://github.com/google/xls/issues/193 - The if-statement below
     // is here temporarily to enable easy testing of parametric variables in
     // inference_table_test. The equivalent is done by `TypecheckModuleV2`, and
@@ -1173,15 +1212,36 @@ class InferenceTableConverter {
       if (target.has_value()) {
         function_node = *target;
       }
-    } else if (const auto* name_ref = dynamic_cast<const NameRef*>(callee);
-               name_ref != nullptr) {
+    } else if (const auto* name_ref = dynamic_cast<const NameRef*>(callee)) {
+      // Either a local function or a built-in function call.
       if (std::holds_alternative<const NameDef*>(name_ref->name_def())) {
         const NameDef* def = std::get<const NameDef*>(name_ref->name_def());
         function_node = def->definer();
-      } else {
-        // For now, we don't resolve actual builtin functions; just the fact
-        // that they are builtins.
-        return FunctionAndTargetObject{.is_builtin = true};
+      } else if (std::holds_alternative<BuiltinNameDef*>(
+                     name_ref->name_def())) {
+        if (builtins_converter_.has_value()) {
+          // Delegate to builtins converter.
+          VLOG(5) << "ResolveFunction of builtin; delegating";
+          return (*builtins_converter_)
+              ->ResolveFunction(callee, caller_function, caller_context);
+        }
+        // Look it up in our module
+        BuiltinNameDef* def = std::get<BuiltinNameDef*>(name_ref->name_def());
+        auto fn_name = def->identifier();
+        std::optional<Function*> builtin_fn = module_.GetFunction(fn_name);
+        if (builtin_fn.has_value()) {
+          function_node = *builtin_fn;
+        } else if (fn_name == "array_size" || fn_name == "bit_count" ||
+                   fn_name == "element_count") {
+          VLOG(5) << "Could not find built-in function " << fn_name
+                  << "; special-casing for now";
+          return FunctionAndTargetObject{.is_special_builtin = true};
+        } else {
+          return TypeInferenceErrorStatus(
+              name_ref->span(), nullptr,
+              absl::Substitute("Cannot find built-in method `$0`", fn_name),
+              file_table_);
+        }
       }
     } else if (const auto* attr = dynamic_cast<const Attr*>(callee)) {
       XLS_RETURN_IF_ERROR(
@@ -2592,21 +2652,32 @@ class InferenceTableConverter {
   absl::flat_hash_map<const ParametricContext*,
                       absl::flat_hash_map<const NameDef*, ExprOrType>>
       parametric_value_exprs_;
+  std::optional<std::unique_ptr<InferenceTableConverter>> builtins_converter_;
 };
 
 }  // namespace
 
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
     InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table) {
+    WarningCollector& warning_collector, const FileTable& file_table,
+    std::unique_ptr<Module> builtins_module) {
+  VLOG(1) << "InferenceTableToTypeInfo: module " << &module;
   VLOG(5) << "Inference table before conversion:";
   VLOG(5) << table.ToString();
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * base_type_info,
                        import_data.type_info_owner().New(&module));
+  XLS_ASSIGN_OR_RETURN(
+      TypeInfo * builtins_type_info,
+      import_data.type_info_owner().New(std::move(builtins_module.get())));
+  std::optional<std::unique_ptr<InferenceTableConverter>> builtins_converter =
+      std::make_unique<InferenceTableConverter>(
+          table, *builtins_module, import_data, warning_collector,
+          builtins_type_info, file_table,
+          /*builtins_converter=*/std::nullopt);
   InferenceTableConverter converter(table, module, import_data,
                                     warning_collector, base_type_info,
-                                    file_table);
+                                    file_table, std::move(builtins_converter));
   XLS_RETURN_IF_ERROR(
       converter.ConvertSubtree(&module, /*function=*/std::nullopt,
                                /*parametric_context=*/std::nullopt));

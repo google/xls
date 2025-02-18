@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_INFERENCE_TABLE_TO_TYPE_INFO_H_
 
+#include <memory>
+
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/module.h"
@@ -31,7 +33,8 @@ namespace xls::dslx {
 // inference.
 absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
     InferenceTable& table, Module& module, ImportData& import_data,
-    WarningCollector& warning_collector, const FileTable& file_table);
+    WarningCollector& warning_collector, const FileTable& file_table,
+    std::unique_ptr<Module> builtins_module);
 
 }  // namespace xls::dslx
 

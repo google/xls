@@ -38,6 +38,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtin_stubs_utils.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/deduce_utils.h"
@@ -1250,11 +1251,20 @@ absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
                                             ImportData* import_data,
                                             WarningCollector* warnings) {
   std::unique_ptr<InferenceTable> table = InferenceTable::Create(*module);
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> builtins_module,
+                       LoadBuiltinStubs());
+  PopulateInferenceTableVisitor builtins_visitor(*builtins_module, *table,
+                                                 import_data->file_table());
+  XLS_RETURN_IF_ERROR((*builtins_module).Accept(&builtins_visitor));
+
   PopulateInferenceTableVisitor visitor(*module, *table,
                                         import_data->file_table());
   XLS_RETURN_IF_ERROR(module->Accept(&visitor));
+
   return InferenceTableToTypeInfo(*table, *module, *import_data, *warnings,
-                                  import_data->file_table());
+                                  import_data->file_table(),
+                                  std::move(builtins_module));
 }
 
 }  // namespace xls::dslx

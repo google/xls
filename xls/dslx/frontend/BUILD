@@ -637,3 +637,21 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "builtin_stubs_utils",
+    srcs = ["builtin_stubs_utils.cc"],
+    hdrs = ["builtin_stubs_utils.h"],
+    data = ["builtin_stubs.x"],
+    deps = [
+        ":ast",
+        ":parser",
+        ":pos",
+        ":scanner",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
