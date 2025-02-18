@@ -1083,43 +1083,45 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   // the type for the given node. The name is only relevant for traceability.
   template <typename T>
   std::string GenerateInternalTypeVariableName(const T* node) {
-    return absl::Substitute("internal_type_$0_at_$1", node->identifier(),
-                            node->span().ToString(file_table_));
+    return absl::Substitute("internal_type_$0_at_$1_in_$2", node->identifier(),
+                            node->span().ToString(file_table_), module_.name());
   }
   // Specialization for `Expr` nodes, which do not have an identifier.
   template <>
   std::string GenerateInternalTypeVariableName(const Expr* node) {
-    return absl::StrCat("internal_type_expr_at_",
-                        node->span().ToString(file_table_));
+    return absl::Substitute("internal_type_expr_at_$0_in_$1",
+                            node->span().ToString(file_table_), module_.name());
   }
   // Specialization for `Let` nodes, which do not have an identifier.
   template <>
   std::string GenerateInternalTypeVariableName(const Let* node) {
-    return absl::StrCat("internal_type_let_at_",
-                        node->span().ToString(file_table_));
+    return absl::Substitute("internal_type_let_at_$0_in_$1",
+                            node->span().ToString(file_table_), module_.name());
   }
   // Specialization for `Array` nodes.
   template <>
   std::string GenerateInternalTypeVariableName(const Array* node) {
-    return absl::StrCat("internal_type_array_element_at_",
-                        node->span().ToString(file_table_));
+    return absl::Substitute("internal_type_array_element_at_$0_in_$1",
+                            node->span().ToString(file_table_), module_.name());
   }
   // Variant for an actual struct member expr.
   std::string GenerateInternalTypeVariableName(
       const StructMemberNode* formal_member, const Expr* actual_member) {
-    return absl::StrCat("internal_type_actual_member_", formal_member->name(),
-                        "_at_", actual_member->span().ToString(file_table_));
+    return absl::Substitute(
+        "internal_type_actual_member_$0_at_$1_in_$2", formal_member->name(),
+        actual_member->span().ToString(file_table_), module_.name());
   }
   // Variant for operands of a binary operator.
   std::string GenerateInternalTypeVariableName(const Binop* binop) {
-    return absl::StrCat("internal_type_operand_",
-                        BinopKindToString(binop->binop_kind()), "_at_",
-                        binop->span().ToString(file_table_));
+    return absl::Substitute("internal_type_operand_$0_at_$1_in_$2",
+                            BinopKindToString(binop->binop_kind()),
+                            binop->span().ToString(file_table_),
+                            module_.name());
   }
   // Variant for `NameDefTree`.
   std::string GenerateInternalTypeVariableName(const NameDefTree* node) {
-    return absl::StrCat("internal_type_ndf_at_",
-                        node->span().ToString(file_table_));
+    return absl::Substitute("internal_type_ndf_at_$0_in_$1",
+                            node->span().ToString(file_table_), module_.name());
   }
 
   // Propagates the type from the def for `ref`, to `ref` itself in the
