@@ -116,5 +116,36 @@ TEST_F(StatelessQueryEngineTest, OneHotMsb) {
   EXPECT_TRUE(query_engine.ExactlyOneBitTrue(f->return_value()));
 }
 
+TEST_F(StatelessQueryEngineTest, ZeroExtend) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.ZeroExtend(fb.Param("p", p.GetBitsType(13)), 16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b000X_XXXX_XXXX_XXXX");
+}
+
+TEST_F(StatelessQueryEngineTest, Concat) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.Concat({fb.Literal(UBits(0b101, 3)), fb.Param("p", p.GetBitsType(10)),
+             fb.Literal(UBits(0b010, 3))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b101X_XXXX_XXXX_X010");
+}
+
+TEST_F(StatelessQueryEngineTest, ZeroExtendConcat) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.Concat({fb.Literal(UBits(0, 3)), fb.Param("p", p.GetBitsType(13))});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b000X_XXXX_XXXX_XXXX");
+}
+
 }  // namespace
 }  // namespace xls

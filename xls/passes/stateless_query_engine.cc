@@ -21,10 +21,12 @@
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "cppitertools/reversed.hpp"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -87,6 +89,23 @@ StatelessQueryEngine::GetTernary(Node* node) const {
                  }
                  return ternary_ops::BitsToTernary(v.bits());
                })
+        .AsShared();
+  }
+
+  if (node->op() == Op::kConcat) {
+    TernaryVector vec(node->BitCountOrDie(), TernaryValue::kUnknown);
+    auto it = vec.begin();
+    for (Node* operand : iter::reversed(node->operands())) {
+      std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
+          GetTernary(operand);
+      if (!ternary.has_value()) {
+        it += operand->BitCountOrDie();
+        continue;
+      }
+      it = absl::c_copy(ternary->Get({}), it);
+    }
+    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(node->GetType(),
+                                                                std::move(vec))
         .AsShared();
   }
 
