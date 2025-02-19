@@ -764,8 +764,9 @@ BValue convertOp(CountedForOp counted_for_op, TranslationState& state,
     auto apfloat = float_attr.getValue();
     auto apint = apfloat.bitcastToAPInt();
     llvm::APInt sign = apint.getHiBits(1).trunc(1);
-    llvm::APInt mantissa = apint.extractBits(mantissa_width, exponent_width);
-    llvm::APInt exponent = apint.extractBits(exponent_width, 0);
+    llvm::APInt exponent = apint.extractBits(exponent_width, mantissa_width);
+    llvm::APInt mantissa = apint.extractBits(mantissa_width, 0);
+
     return ::xls::Value::Tuple({
         ::xls::Value(convertAPInt(sign)),
         ::xls::Value(convertAPInt(exponent)),
