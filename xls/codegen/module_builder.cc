@@ -544,8 +544,7 @@ LogicRef* ModuleBuilder::DeclareVariable(std::string_view name,
                           SourceInfo(), declaration_section());
 }
 
-bool ModuleBuilder::CanEmitAsInlineExpression(
-    Node* node, std::optional<absl::Span<Node* const>> users_of_expression) {
+bool ModuleBuilder::CanEmitAsInlineExpression(Node* node) {
   if (node->GetType()->IsArray()) {
     // TODO(meheff): With system verilog we can do array assignment.
     return false;
@@ -557,16 +556,16 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
     return false;
   }
 
-  std::vector<Node*> users_vec;
-  absl::Span<Node* const> users;
-  if (users_of_expression.has_value()) {
-    users = *users_of_expression;
-  } else {
-    users_vec.insert(users_vec.begin(), node->users().begin(),
-                     node->users().end());
-    users = users_vec;
-  }
-  for (Node* user : users) {
+  for (Node* user : node->users()) {
+    // Assert predicates are either:
+    //   (1) emitted as a format string
+    //   (2) emitted multiple times by the default assertion format
+    //
+    // In both cases, we don't want to emit the predicate as a large inline
+    // expression.
+    if (user->Is<Assert>() && CanEmitAsserts()) {
+      return false;
+    }
     for (int64_t i = 0; i < user->operand_count(); ++i) {
       if (user->operand(i) == node && OperandMustBeNamedReference(user, i)) {
         return false;
@@ -796,6 +795,17 @@ absl::StatusOr<SelectorProperties> ModuleBuilder::GetSelectorProperties(
     never_zero = query_engine_->AtLeastOneBitTrue(selector);
   }
   return SelectorProperties{.never_zero = never_zero};
+}
+
+// We emit asserts if at least one of the following is true:
+//   (1) We are targeting SystemVerilog. In this case, we have a default
+//   assertion format.
+//   (2) We have an op-override for assertions. In this case, we use the
+//   assertion format specified by the op-override, so it doesn't matter that we
+//   don't have a default way of writing assertions in Verilog.
+bool ModuleBuilder::CanEmitAsserts() const {
+  return options_.use_system_verilog() ||
+         options_.GetOpOverride(Op::kAssert).has_value();
 }
 
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
@@ -1163,8 +1173,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
 
 absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     xls::Assert* asrt, Expression* condition) {
-  if (!options_.use_system_verilog()) {
-    // Asserts are a SystemVerilog only feature.
+  if (!CanEmitAsserts()) {
     // TODO(meheff): 2021/02/27 We should raise an error here or possibly emit a
     // construct like: if (!condition) $display("Assert failed ...");
     LOG(WARNING) << "Asserts are only supported in SystemVerilog.";

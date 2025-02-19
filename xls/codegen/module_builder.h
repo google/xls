@@ -94,9 +94,7 @@ class ModuleBuilder {
   // are the users 'node' in the emitted Verilog to consider when determining
   // whether node can be emitted inline. If not specified all users of node are
   // considered.
-  bool CanEmitAsInlineExpression(Node* node,
-                                 std::optional<absl::Span<Node* const>>
-                                     users_of_expression = std::nullopt);
+  bool CanEmitAsInlineExpression(Node* node);
 
   // Returns the given node as a Verilog expression. 'inputs' contains the
   // operand expressions for the node.
@@ -338,6 +336,9 @@ class ModuleBuilder {
   // Uses query_engine_ to compute selector properties. If query_engine_ is not
   // populated, it will populate first.
   absl::StatusOr<SelectorProperties> GetSelectorProperties(Node* selector);
+
+  // Returns true if the module builder is configured to emit asserts.
+  bool CanEmitAsserts() const;
 
   std::string module_name_;
   VerilogFile* file_;

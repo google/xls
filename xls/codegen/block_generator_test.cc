@@ -582,7 +582,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(assert property (@(posedge my_clk) disable iff ($sampled(my_rst !== 1'h0 || $isunknown(a_d < 32'h0000_002a))) a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
+              R"(assert property (@(posedge my_clk) disable iff ($sampled(my_rst !== 1'h0 || $isunknown(ult_7))) ult_7) else $fatal(0, "a is not greater than 42");)"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
@@ -602,7 +602,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(`MY_ASSERT(a_d < 32'h0000_002a, "a is not greater than 42", my_clk, my_rst))"));
+              R"(`MY_ASSERT(ult_7, "a is not greater than 42", my_clk, my_rst))"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
@@ -647,7 +647,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(assert property (@(posedge my_clk) disable iff ($sampled($isunknown(a < 32'h0000_002a))) a < 32'h0000_002a) else $fatal(0, "a is not greater than 42");)"));
+              R"(assert property (@(posedge my_clk) disable iff ($sampled($isunknown(ult_4))) ult_4) else $fatal(0, "a is not greater than 42");)"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
@@ -667,7 +667,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(the_label: `MY_ASSERT(a < 32'h0000_002a, "a is not greater than 42") // the_label)"));
+              R"(the_label: `MY_ASSERT(ult_4, "a is not greater than 42") // the_label)"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
@@ -714,10 +714,8 @@ TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
   {
     XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                              GenerateVerilog(block, codegen_options()));
-    EXPECT_THAT(
-        verilog,
-        HasSubstr(
-            R"(assert final ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a))"));
+    EXPECT_THAT(verilog,
+                HasSubstr(R"(assert final ($isunknown(ult_4) || ult_4))"));
   }
 
   {
@@ -730,8 +728,7 @@ TEST_P(BlockGeneratorTest, AssertCombinationalOrMissingClock) {
                            R"(ASSERT({label}, {condition}, "{message}"))"))));
     EXPECT_THAT(
         verilog,
-        HasSubstr(
-            R"(ASSERT(the_label, a < 32'h0000_002a, "a is not greater than 42"))"));
+        HasSubstr(R"(ASSERT(the_label, ult_4, "a is not greater than 42"))"));
   }
 
   EXPECT_THAT(GenerateVerilog(
@@ -775,7 +772,7 @@ TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
     EXPECT_THAT(
         verilog,
         HasSubstr(
-            R"(`MY_ASSERT(x < 32'h0000_002a, "x is not greater than 42", clk, rst))"));
+            R"(`MY_ASSERT(ult_10, "x is not greater than 42", clk, rst))"));
   } else {
     EXPECT_THAT(verilog, Not(HasSubstr("assert")));
   }
