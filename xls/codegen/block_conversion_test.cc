@@ -88,16 +88,13 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::_;
-using ::testing::AllOf;
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Ge;
 using ::testing::HasSubstr;
-using ::testing::IsEmpty;
 using ::testing::Optional;
 using ::testing::Pair;
-using ::testing::Property;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
 

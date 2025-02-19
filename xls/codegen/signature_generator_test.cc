@@ -48,9 +48,6 @@ namespace verilog {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
-using ::testing::ElementsAre;
-using ::testing::IsEmpty;
-using ::testing::Property;
 
 TEST(SignatureGeneratorTest, CombinationalBlock) {
   Package package("test");
