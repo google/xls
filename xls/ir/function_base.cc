@@ -37,6 +37,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_scanner.h"
@@ -161,6 +162,9 @@ absl::Status FunctionBase::RemoveNode(Node* node) {
     next_values_by_state_read_.at(state_read).erase(next);
     std::erase(next_values_, next);
   }
+  for (ChangeListener* listener : change_listeners_) {
+    listener->NodeDeleted(node);
+  }
   auto node_it = node_iterators_.find(node);
   XLS_RET_CHECK(node_it != node_iterators_.end());
   nodes_.erase(node_it->second);
@@ -255,6 +259,9 @@ Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
   }
   Node* ptr = node.get();
   node_iterators_[ptr] = nodes_.insert(nodes_.end(), std::move(node));
+  for (ChangeListener* listener : change_listeners_) {
+    listener->NodeAdded(ptr);
+  }
   return ptr;
 }
 

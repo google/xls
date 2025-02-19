@@ -22,6 +22,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 #include "absl/container/inlined_vector.h"
@@ -32,6 +33,7 @@
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -41,6 +43,9 @@ namespace xls {
 class Package;
 class Node;
 class FunctionBase;
+
+absl::Span<ChangeListener* const> GetChangeListeners(
+    FunctionBase* function_base);
 
 // Forward declaration to avoid circular dependency.
 class DfsVisitor;
@@ -141,10 +146,7 @@ class Node {
   absl::StatusOr<bool> ReplaceImplicitUsesWith(Node* replacement);
 
   // Swaps the operands at indices 'a' and 'b' in the operands sequence.
-  void SwapOperands(int64_t a, int64_t b) {
-    // Operand/user chains already set up properly.
-    std::swap(operands_[a], operands_[b]);
-  }
+  void SwapOperands(int64_t a, int64_t b);
 
   // Returns true if analysis indicates that this node always produces the
   // same value as 'other' when run with the same operands. The analysis is

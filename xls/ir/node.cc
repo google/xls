@@ -38,6 +38,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
@@ -72,6 +73,9 @@ void Node::AddOperand(Node* operand) {
   operand->AddUser(this);
   VLOG(3) << " " << operand->GetName()
           << " user now: " << operand->GetUsersString();
+  for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->OperandAdded(this);
+  }
 }
 
 void Node::AddOperands(absl::Span<Node* const> operands) {
@@ -828,19 +832,22 @@ bool Node::ReplaceOperand(Node* old_operand, Node* new_operand) {
     return true;
   }
   ++package()->transform_metrics().operands_replaced;
-  bool did_replace = false;
+  std::vector<int64_t> replaced_operands;
   for (int64_t i = 0; i < operand_count(); ++i) {
     if (operands_[i] == old_operand) {
-      if (!did_replace && new_operand != nullptr) {
+      if (replaced_operands.empty() && new_operand != nullptr) {
         // Now we know we're definitely using this new operand.
         new_operand->AddUser(this);
       }
-      did_replace = true;
+      replaced_operands.push_back(i);
       operands_[i] = new_operand;
     }
   }
   old_operand->RemoveUser(this);
-  return did_replace;
+  for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->OperandChanged(this, old_operand, replaced_operands);
+  }
+  return !replaced_operands.empty();
 }
 
 absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
@@ -858,13 +865,15 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
   new_operand->AddUser(this);
   operands_[operand_no] = new_operand;
 
-  for (Node* operand : operands()) {
-    if (operand == old_operand) {
-      return absl::OkStatus();
-    }
+  if (absl::c_none_of(operands(), [old_operand](Node* operand) {
+        return operand == old_operand;
+      })) {
+    // old_operand is no longer an operand of this node.
+    old_operand->RemoveUser(this);
   }
-  // old_operand is no longer an operand of this node.
-  old_operand->RemoveUser(this);
+  for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->OperandChanged(this, old_operand, operand_no);
+  }
   return absl::OkStatus();
 }
 
@@ -875,13 +884,15 @@ absl::Status Node::RemoveOptionalOperand(int64_t operand_no) {
 
   operands_.pop_back();
 
-  for (Node* operand : operands()) {
-    if (operand == old_operand) {
-      return absl::OkStatus();
-    }
+  if (absl::c_none_of(operands(), [old_operand](Node* operand) {
+        return operand == old_operand;
+      })) {
+    // old_operand is no longer an operand of this node.
+    old_operand->RemoveUser(this);
   }
-  // old_operand is no longer an operand of this node.
-  old_operand->RemoveUser(this);
+  for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->OperandRemoved(this, old_operand);
+  }
   return absl::OkStatus();
 }
 
@@ -939,6 +950,20 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
     }
   }
   return changed;
+}
+
+void Node::SwapOperands(int64_t a, int64_t b) {
+  // Operand/user chains already set up properly.
+  Node* old_a = operands_[a];
+  Node* old_b = operands_[b];
+  operands_[b] = old_a;
+  for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->OperandChanged(this, old_b, b);
+  }
+  operands_[a] = old_b;
+  for (ChangeListener* listener : GetChangeListeners(function_base_)) {
+    listener->OperandChanged(this, old_a, a);
+  }
 }
 
 bool Node::OpIn(absl::Span<const Op> choices) const {

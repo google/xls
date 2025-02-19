@@ -270,6 +270,10 @@ class AbstractEvaluator {
     return Shift(input, amount, /*right=*/false, /*arithmetic=*/false);
   }
 
+  Vector DynamicBitSlice(Span input, Span start, int64_t width) {
+    return BitSlice(ShiftRightLogical(input, start), /*start=*/0, width);
+  }
+
   Vector BitSliceUpdate(Span input, int64_t start, Span value) {
     if (start > input.size()) {
       return Vector(input.begin(), input.end());

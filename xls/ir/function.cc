@@ -25,12 +25,15 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -39,6 +42,18 @@
 #include "xls/ir/type.h"
 
 namespace xls {
+
+absl::Status Function::set_return_value(Node* n) {
+  XLS_RET_CHECK_EQ(n->function_base(), this) << absl::StreamFormat(
+      "Return value node %s is not in this function %s (is in function %s)",
+      n->GetName(), name(), n->function_base()->name());
+  Node* old_return_value = return_value_;
+  return_value_ = n;
+  for (ChangeListener* listener : change_listeners_) {
+    listener->ReturnValueChanged(this, old_return_value);
+  }
+  return absl::OkStatus();
+}
 
 FunctionType* Function::GetType() {
   std::vector<Type*> arg_types;

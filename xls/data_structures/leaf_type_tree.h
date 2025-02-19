@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -966,6 +967,12 @@ void SimpleUpdateFrom(
 template <typename T>
 LeafTypeTree<T> Clone(LeafTypeTreeView<T> ltt) {
   return LeafTypeTree<T>(ltt.type(), ltt.elements());
+}
+
+// Clones the given view into a separate LeafTypeTree object.
+template <typename T>
+std::unique_ptr<LeafTypeTree<T>> CloneToHeap(LeafTypeTreeView<T> ltt) {
+  return std::make_unique<LeafTypeTree<T>>(ltt.type(), ltt.elements());
 }
 
 // Calls the given function on each leaf element. The element type, element

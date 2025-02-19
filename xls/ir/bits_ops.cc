@@ -52,6 +52,13 @@ Bits TruncateOrSignExtend(Bits bits, int64_t bit_count) {
 
 }  // namespace
 
+int64_t UnsignedBitsToSaturatedInt64(const Bits& bits) {
+  if (bits.FitsInNBitsUnsigned(63)) {
+    return bits.ToUint64().value();
+  }
+  return std::numeric_limits<int64_t>::max();
+}
+
 Bits And(const Bits& lhs, const Bits& rhs) {
   CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {

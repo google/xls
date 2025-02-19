@@ -594,6 +594,7 @@ cc_library(
     ],
     deps = [
         ":bits",
+        ":change_listener",
         ":channel",
         ":channel_cc_proto",
         ":channel_ops",
@@ -2225,6 +2226,12 @@ cc_library(
     name = "op_list",
     hdrs = ["op_list.h"],
     visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "change_listener",
+    hdrs = ["change_listener.h"],
+    deps = ["@com_google_absl//absl/types:span"],
 )
 
 proto_library(

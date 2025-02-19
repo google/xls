@@ -17,7 +17,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -147,10 +146,7 @@ class DataflowVisitor : public DfsVisitorWithDefault {
     if (std::optional<Bits> start_bits =
             query_engine_.KnownValueAsBits(array_slice->start());
         start_bits.has_value()) {
-      int64_t start = std::numeric_limits<int64_t>::max();
-      if (start_bits->FitsInNBitsUnsigned(63)) {
-        start = static_cast<int64_t>(*start_bits->ToUint64());
-      }
+      const int64_t start = bits_ops::UnsignedBitsToSaturatedInt64(*start_bits);
       XLS_ASSIGN_OR_RETURN(
           LeafTypeTree<LeafT> slice_value,
           leaf_type_tree::SliceArray(array_slice->GetType()->AsArrayOrDie(),

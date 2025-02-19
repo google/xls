@@ -25,8 +25,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -48,13 +46,7 @@ class Function : public FunctionBase {
   Node* return_value() const { return return_value_; }
 
   // Sets the node that serves as the return value of this function.
-  absl::Status set_return_value(Node* n) {
-    XLS_RET_CHECK_EQ(n->function_base(), this) << absl::StreamFormat(
-        "Return value node %s is not in this function %s (is in function %s)",
-        n->GetName(), name(), n->function_base()->name());
-    return_value_ = n;
-    return absl::OkStatus();
-  }
+  absl::Status set_return_value(Node* n);
 
   FunctionType* GetType();
 

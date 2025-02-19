@@ -33,6 +33,7 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
@@ -45,13 +46,6 @@
 namespace xls {
 namespace {
 
-int64_t ToSaturatedInt64(const Bits& b) {
-  if (b.FitsInNBitsUnsigned(63)) {
-    return b.ToUint64().value();
-  }
-  return std::numeric_limits<int64_t>::max();
-}
-
 // Calls 'f' with a view restricted to each possible index value given the
 // ternaries in indices.
 template <typename Func>
@@ -63,7 +57,7 @@ absl::Status ForEachPossibleIndex(
   }
   // Get each possibility on this level and go on to the next one.
   for (const Bits& possibility : ternary_ops::AllBitsValues(indices.front())) {
-    int64_t idx = ToSaturatedInt64(possibility);
+    int64_t idx = bits_ops::UnsignedBitsToSaturatedInt64(possibility);
     if (idx >= view.type()->AsArrayOrDie()->size() - 1) {
       // OOB (or exact last-element) on this dimension. Get the results for
       // sub-arrays but then we can stop.
@@ -92,7 +86,7 @@ absl::Status MergeEntriesForUpdate(
   }
   XLS_ASSIGN_OR_RETURN(ArrayType * arr, out.type()->AsArray());
   for (const Bits& v : ternary_ops::AllBitsValues(indices.front())) {
-    int64_t idx = ToSaturatedInt64(v);
+    int64_t idx = bits_ops::UnsignedBitsToSaturatedInt64(v);
     if (idx >= arr->size()) {
       break;
     }
@@ -212,7 +206,7 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
                          GetCompoundValue(slice->array()));
     std::vector<CompoundValue> possibilities;
     for (const Bits& idx : ternary_ops::AllBitsValues(start)) {
-      int64_t off = ToSaturatedInt64(idx);
+      int64_t off = bits_ops::UnsignedBitsToSaturatedInt64(idx);
       XLS_ASSIGN_OR_RETURN(
           auto current_slice,
           leaf_type_tree::SliceArray(slice->GetType()->AsArrayOrDie(),
@@ -242,8 +236,8 @@ class TernaryNodeEvaluator : public AbstractNodeEvaluator<TernaryEvaluator> {
       XLS_ASSIGN_OR_RETURN(ArrayType * arr, array.type()->AsArray());
       // Get the actual location we are writing to.
       for (int64_t j = 0; j < indices.size(); ++j) {
-        int64_t int_offset =
-            ToSaturatedInt64(*ternary_ops::AllBitsValues(indices[j]).begin());
+        int64_t int_offset = bits_ops::UnsignedBitsToSaturatedInt64(
+            *ternary_ops::AllBitsValues(indices[j]).begin());
         if (int_offset >= arr->size()) {
           // OOB Write. Don't do anything
           return SetValue(update, std::move(result));

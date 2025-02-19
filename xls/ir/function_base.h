@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/name_uniquer.h"
@@ -201,6 +202,16 @@ class FunctionBase {
     return foreign_function_;
   }
 
+  absl::Span<ChangeListener* const> ChangeListeners() const {
+    return change_listeners_;
+  }
+  void RegisterChangeListener(ChangeListener* listener) {
+    change_listeners_.push_back(listener);
+  }
+  void UnregisterChangeListener(ChangeListener* listener) {
+    std::erase(change_listeners_, listener);
+  }
+
   template <typename Sink>
   friend void AbslStringify(Sink& sink, const FunctionBase& fb) {
     absl::Format(&sink, "%s", fb.name());
@@ -245,7 +256,14 @@ class FunctionBase {
       NameUniquer(/*separator=*/"__", GetIrReservedWords());
 
   std::optional<xls::ForeignFunctionData> foreign_function_;
+
+  std::vector<ChangeListener*> change_listeners_;
 };
+
+inline absl::Span<ChangeListener* const> GetChangeListeners(
+    FunctionBase* function_base) {
+  return function_base->ChangeListeners();
+}
 
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function);
 
