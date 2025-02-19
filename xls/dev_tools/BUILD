@@ -455,6 +455,7 @@ cc_binary(
     srcs = ["check_ir_equivalence_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":tool_timeout",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -467,11 +468,9 @@ cc_binary(
         "//xls/ir:proc_testutils",
         "//xls/ir:value",
         "//xls/passes:dce_pass",
-        "//xls/passes:inlining_pass",
-        "//xls/passes:map_inlining_pass",
         "//xls/passes:optimization_pass",
+        "//xls/passes:optimization_pass_pipeline",
         "//xls/passes:pass_base",
-        "//xls/passes:unroll_pass",
         "//xls/scheduling:proc_state_legalization_pass",
         "//xls/scheduling:scheduling_pass",
         "//xls/solvers:z3_ir_equivalence",
@@ -484,7 +483,6 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
     ],
 )
 

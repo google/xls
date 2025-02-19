@@ -31,12 +31,12 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/time/time.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dev_tools/tool_timeout.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function.h"
@@ -49,11 +49,9 @@
 #include "xls/ir/proc_testutils.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/passes/inlining_pass.h"
-#include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/unroll_pass.h"
 #include "xls/scheduling/proc_state_legalization_pass.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/solvers/z3_ir_equivalence.h"
@@ -88,19 +86,17 @@ ABSL_FLAG(int, mismatch_exit_code, 255,
           "Value to exit with if equivalence is not proven.");
 ABSL_FLAG(int, match_exit_code, 0,
           "Value to exit with if equivalence is not proven.");
-ABSL_FLAG(absl::Duration, timeout, absl::InfiniteDuration(),
-          "How long to wait for any proof to complete.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
 namespace {
 
 absl::StatusOr<solvers::z3::ProverResult> CheckFunctionEquivalence(
-    Function* f1, Function* f2, absl::Duration timeout) {
-  return solvers::z3::TryProveEquivalence(f1, f2, timeout);
+    Function* f1, Function* f2) {
+  return solvers::z3::TryProveEquivalence(f1, f2);
 }
 absl::StatusOr<solvers::z3::ProverResult> CheckProcEquivalence(
-    Proc* p1, Proc* p2, int64_t activation_count, absl::Duration timeout) {
+    Proc* p1, Proc* p2, int64_t activation_count) {
   XLS_ASSIGN_OR_RETURN(
       Function * f1,
       UnrollProcToFunction(p1, activation_count, /*include_state=*/false),
@@ -109,7 +105,7 @@ absl::StatusOr<solvers::z3::ProverResult> CheckProcEquivalence(
       Function * f2,
       UnrollProcToFunction(p2, activation_count, /*include_state=*/false),
       _ << "Unable to unroll: " << p2->DumpIr());
-  return CheckFunctionEquivalence(f1, f2, timeout);
+  return CheckFunctionEquivalence(f1, f2);
 }
 
 absl::StatusOr<std::vector<std::string>> CounterexampleParams(
@@ -227,8 +223,8 @@ class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
 
 absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
                               const std::string& entry,
-                              std::optional<int64_t> activation_count,
-                              absl::Duration timeout) {
+                              std::optional<int64_t> activation_count) {
+  auto timeout = StartTimeoutTimer();
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
     XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
@@ -248,10 +244,7 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   // TODO(b/154025625): Replace this with a new InliningPass.
   OptimizationCompoundPass inlining_passes(
       "inlining_passes", "All inlining and next-value passes.");
-  inlining_passes.Add<MapInliningPass>();
-  inlining_passes.Add<UnrollPass>();
-  inlining_passes.Add<InliningPass>();
-  inlining_passes.Add<DeadCodeEliminationPass>();
+  inlining_passes.Add<UnrollingAndInliningPassGroup>();
   inlining_passes.Add<ProcStateLegalizationPassShim>();
   inlining_passes.Add<DeadCodeEliminationPass>();
   // Zero-len bits are hard for z3 to handle. Just turn them all into zero-bit
@@ -266,11 +259,8 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   OptimizationPassOptions options;
   PassResults results;
   for (const auto& package : packages) {
-    bool keep_going = true;
-    while (keep_going) {
-      XLS_ASSIGN_OR_RETURN(
-          keep_going, inlining_passes.Run(package.get(), options, &results));
-    }
+    XLS_RETURN_IF_ERROR(
+        inlining_passes.Run(package.get(), options, &results).status());
   }
 
   std::vector<FunctionBase*> functions;
@@ -283,9 +273,9 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
     if (!functions[1]->IsFunction()) {
       return absl::InvalidArgumentError("Both inputs must be functions");
     }
-    XLS_ASSIGN_OR_RETURN(result, CheckFunctionEquivalence(
-                                     functions[0]->AsFunctionOrDie(),
-                                     functions[1]->AsFunctionOrDie(), timeout));
+    XLS_ASSIGN_OR_RETURN(
+        result, CheckFunctionEquivalence(functions[0]->AsFunctionOrDie(),
+                                         functions[1]->AsFunctionOrDie()));
   } else if (functions[0]->IsProc()) {
     if (!functions[1]->IsProc()) {
       return absl::InvalidArgumentError("Both inputs must be procs");
@@ -294,10 +284,10 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
       return absl::InvalidArgumentError(
           "a positive activation is required for proc equivalence checking");
     }
-    XLS_ASSIGN_OR_RETURN(result,
-                         CheckProcEquivalence(functions[0]->AsProcOrDie(),
-                                              functions[1]->AsProcOrDie(),
-                                              *activation_count, timeout));
+    XLS_ASSIGN_OR_RETURN(
+        result,
+        CheckProcEquivalence(functions[0]->AsProcOrDie(),
+                             functions[1]->AsProcOrDie(), *activation_count));
   } else {
     return absl::InternalError(
         "Block equivalence checking not supported currently.");
@@ -327,8 +317,7 @@ int main(int argc, char** argv) {
       xls::InitXls(kUsage, argc, argv);
   QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
   auto result = xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),
-                              absl::GetFlag(FLAGS_activation_count),
-                              absl::GetFlag(FLAGS_timeout));
+                              absl::GetFlag(FLAGS_activation_count));
   if (!result.ok()) {
     return xls::ExitStatus(result.status());
   }
