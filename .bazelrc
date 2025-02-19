@@ -1,6 +1,14 @@
 common --enable_bzlmod
 common --enable_platform_specific_config
 
+# By default, Bazel compiles *.cc files for tests with -fPIC and for binaries
+# without it resulting in a large number of duplicate compilations.
+# The linker can deal with both, so we can always compile with -fPIC
+# and use the object files in dynamic (=tests) and static (=binaries) contexts.
+# (There might be a minimal overhead even in statically linked binaries. To
+# be benchmarked)
+common --force_pic
+
 # We require the lockfile to be up-to-date for the requested deps.
 # Read https://bazel.build/external/lockfile for more details and instructions
 # on how to update the lockfile.
