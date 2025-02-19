@@ -70,8 +70,8 @@ absl::StatusOr<ChannelMaps> ComputeChannelMaps(Package* package) {
 }  // namespace
 
 absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
-    Package* p, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Package* p, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;

@@ -30,6 +30,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/solvers/z3_ir_equivalence_testutils.h"
@@ -46,14 +47,16 @@ class ProcStateNarrowingPassTest : public IrTestBase {
     ScopedRecordIr sri(p->package());
     ProcStateNarrowingPass pass;
     PassResults r;
-    return pass.Run(p->package(), {}, &r);
+    OptimizationContext ctx;
+    return pass.Run(p->package(), {}, &r, &ctx);
   }
 
   absl::StatusOr<bool> RunProcStateCleanup(Proc* p) {
     ScopedRecordIr sri(p->package(), "cleanup", /*with_initial=*/false);
     ProcStateOptimizationPass psop;
     PassResults r;
-    return psop.Run(p->package(), {}, &r);
+    OptimizationContext ctx;
+    return psop.Run(p->package(), {}, &r, &ctx);
   }
 };
 

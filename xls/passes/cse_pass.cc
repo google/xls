@@ -128,7 +128,7 @@ absl::StatusOr<bool> RunCse(FunctionBase* f,
 
 absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   return RunCse(f, nullptr, common_literals_);
 }
 

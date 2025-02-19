@@ -22,6 +22,7 @@
 
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/literal_uncommoning_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/scheduling/mutual_exclusion_pass.h"
 #include "xls/scheduling/pipeline_scheduling_pass.h"
@@ -33,7 +34,7 @@
 namespace xls {
 
 std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
-    int64_t opt_level) {
+    int64_t opt_level, OptimizationContext* context) {
   auto top = std::make_unique<SchedulingCompoundPass>(
       "scheduling", "Top level scheduling pass pipeline");
   top->AddInvariantChecker<SchedulingChecker>();
@@ -46,17 +47,17 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
   top->Add<MutualExclusionPass>();
   if (opt_level > 0) {
     top->Add<SchedulingWrapperPass>(
-        std::make_unique<FixedPointSimplificationPass>(), opt_level,
+        std::make_unique<FixedPointSimplificationPass>(), context, opt_level,
         eliminate_noop_next);
   }
   top->Add<SchedulingWrapperPass>(std::make_unique<LiteralUncommoningPass>(),
-                                  opt_level, eliminate_noop_next);
+                                  context, opt_level, eliminate_noop_next);
   top->Add<PipelineSchedulingPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                                  opt_level, eliminate_noop_next);
+                                  context, opt_level, eliminate_noop_next);
   top->Add<MutualExclusionPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                                  opt_level, eliminate_noop_next);
+                                  context, opt_level, eliminate_noop_next);
   top->Add<PipelineSchedulingPass>();
 
   return top;

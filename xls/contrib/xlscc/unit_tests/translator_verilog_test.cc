@@ -59,11 +59,12 @@ absl::Status SimplifyAndInline(xls::Package* package) {
       xls::CreateOptimizationPassPipeline();
   xls::OptimizationPassOptions options;
   xls::PassResults results;
+  xls::OptimizationContext context;
 
   // This pass wants a delay estimator
   options.skip_passes = {"bdd_cse"};
 
-  return pipeline->Run(package, options, &results).status();
+  return pipeline->Run(package, options, &results, &context).status();
 }
 
 // What's being tested here is that the IR produced is generatable by the

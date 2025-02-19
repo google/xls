@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "xls/codegen/codegen_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls::verilog {
 
@@ -28,7 +29,10 @@ class BlockConversionDeadTokenRemovalPass : public CodegenCompoundPass {
  public:
   static constexpr std::string_view kName =
       "block_conversion_dead_token_removal";
-  explicit BlockConversionDeadTokenRemovalPass();
+  explicit BlockConversionDeadTokenRemovalPass(OptimizationContext* context);
+
+ private:
+  OptimizationContext* context_;
 };
 
 }  // namespace xls::verilog

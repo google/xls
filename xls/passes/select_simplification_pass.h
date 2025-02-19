@@ -40,7 +40,7 @@ class SelectSimplificationPassBase : public OptimizationFunctionBasePass {
 
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results) const override;
+      PassResults* results, OptimizationContext* context) const override;
 
   bool range_analysis_;
 };

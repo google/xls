@@ -150,8 +150,8 @@ absl::StatusOr<bool> SimplifyProcState(Proc* proc,
 }  // namespace
 
 absl::StatusOr<bool> ProcStateArrayFlatteningPass::RunOnProcInternal(
-    Proc* proc, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   bool changed = false;
   // Iterate over state via index as SimplifyProcState() may invalidate proc
   // state.

@@ -46,12 +46,12 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
 namespace xls {
@@ -1609,14 +1609,21 @@ absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
 
 absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   bool changed = false;
 
-  std::vector<std::unique_ptr<QueryEngine>> query_engines;
-  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
+  std::vector<QueryEngine*> unowned_query_engines;
+  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  if (context == nullptr) {
+    owned_query_engines.push_back(std::make_unique<LazyTernaryQueryEngine>());
+  } else {
+    unowned_query_engines.push_back(
+        context->SharedQueryEngine<LazyTernaryQueryEngine>(func));
+  }
 
-  UnionQueryEngine query_engine(std::move(query_engines));
+  UnionQueryEngine query_engine(std::move(owned_query_engines),
+                                std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   // Replace known OOB indicates with clamped value. This helps later

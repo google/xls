@@ -661,6 +661,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:verifier",
+        "//xls/passes:optimization_pass",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:scheduling_options",

@@ -57,7 +57,8 @@ class ArrayUntuplePassTest : public IrTestBase {
     pass.Add<DataflowSimplificationPass>();
     pass.Add<DeadCodeEliminationPass>();
     PassResults res;
-    return pass.Run(p, {}, &res);
+    OptimizationContext context;
+    return pass.Run(p, {}, &res, &context);
   }
 };
 
@@ -128,7 +129,8 @@ TEST_F(ArrayUntuplePassTest, EmptyTupleArray) {
   // No point doing anything with empty tuple arrays.
   ArrayUntuplePass pass;
   PassResults res;
-  ASSERT_THAT(pass.Run(p.get(), {}, &res), IsOkAndHolds(false));
+  OptimizationContext ctx;
+  ASSERT_THAT(pass.Run(p.get(), {}, &res, &ctx), IsOkAndHolds(false));
 }
 
 TEST_F(ArrayUntuplePassTest, MaybeUpdate) {

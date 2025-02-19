@@ -29,13 +29,18 @@ namespace xls::verilog {
 // useful for adding an optimization or transformation pass (most passes in
 // xls/passes are OptimizationFunctionBasePasses) to the codegen pipeline. The
 // wrapped pass is run on the block being lowered to Verilog.
+//
+// Takes the OptimizationContext object at construction, since it's specific to
+// optimization passes & cannot be passed via a codegen pass's Run function.
 class CodegenWrapperPass : public CodegenPass {
  public:
   explicit CodegenWrapperPass(
-      std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass)
+      std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass,
+      OptimizationContext* context)
       : CodegenPass(absl::StrFormat("codegen_%s", wrapped_pass->short_name()),
                     absl::StrFormat("%s (codegen)", wrapped_pass->long_name())),
-        wrapped_pass_(std::move(wrapped_pass)) {}
+        wrapped_pass_(std::move(wrapped_pass)),
+        context_(context) {}
   ~CodegenWrapperPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
@@ -44,6 +49,7 @@ class CodegenWrapperPass : public CodegenPass {
 
  private:
   std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass_;
+  OptimizationContext* context_;
 };
 
 }  // namespace xls::verilog

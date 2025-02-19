@@ -87,7 +87,8 @@ class ChannelLegalizationPass : public OptimizationPass {
  protected:
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
-                                   PassResults* results) const override;
+                                   PassResults* results,
+                                   OptimizationContext* context) const override;
 };
 
 }  // namespace xls

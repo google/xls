@@ -44,6 +44,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -251,8 +252,9 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
   sched_options.scheduling_options = scheduling_options;
   sched_options.delay_estimator = delay_estimator;
   sched_options.synthesizer = synthesizer;
+  OptimizationContext context;
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateSchedulingPassPipeline(scheduling_options.opt_level());
+      CreateSchedulingPassPipeline(scheduling_options.opt_level(), &context);
   SchedulingPassResults results;
   XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
   auto scheduling_unit =

@@ -195,8 +195,9 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
   pass_options.use_context_narrowing_analysis =
       absl::GetFlag(FLAGS_use_context_narrowing_analysis);
   PassResults pass_results;
+  OptimizationContext context;
   XLS_RETURN_IF_ERROR(
-      pipeline->Run(package, pass_options, &pass_results).status());
+      pipeline->Run(package, pass_options, &pass_results, &context).status());
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Optimization time: %dms\n",
                                   DurationToMs(total_time));

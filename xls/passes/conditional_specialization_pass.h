@@ -43,7 +43,7 @@ class ConditionalSpecializationPass : public OptimizationFunctionBasePass {
   bool use_bdd_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results) const override;
+      PassResults* results, OptimizationContext* context) const override;
 };
 
 }  // namespace xls

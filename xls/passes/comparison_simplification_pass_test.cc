@@ -40,8 +40,9 @@ class ComparisonSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
+    OptimizationContext context;
     return ComparisonSimplificationPass().Run(p, OptimizationPassOptions(),
-                                              &results);
+                                              &results, &context);
   }
 };
 

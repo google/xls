@@ -43,9 +43,9 @@ class ProcStateArrayFlatteningPass : public OptimizationProcPass {
   ~ProcStateArrayFlatteningPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
-                                         const OptimizationPassOptions& options,
-                                         PassResults* results) const override;
+  absl::StatusOr<bool> RunOnProcInternal(
+      Proc* proc, const OptimizationPassOptions& options, PassResults* results,
+      OptimizationContext* context) const override;
 };
 
 }  // namespace xls

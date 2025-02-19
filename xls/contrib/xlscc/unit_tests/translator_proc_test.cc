@@ -7985,8 +7985,10 @@ TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
     xls::OptimizationPassOptions options =
         xls::OptimizationPassOptions().WithOptLevel(3);
     xls::PassResults results;
+    xls::OptimizationContext context;
 
-    XLS_ASSERT_OK(pipeline->Run(package_.get(), options, &results).status());
+    XLS_ASSERT_OK(
+        pipeline->Run(package_.get(), options, &results, &context).status());
   }
 
   int64_t multiply_op_count = 0;

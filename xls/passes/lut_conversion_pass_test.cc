@@ -39,7 +39,9 @@ class LutConversionPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return LutConversionPass().Run(p, OptimizationPassOptions(), &results);
+    OptimizationContext context;
+    return LutConversionPass().Run(p, OptimizationPassOptions(), &results,
+                                   &context);
   }
 };
 

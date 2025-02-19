@@ -50,15 +50,16 @@ class UselessIORemovalPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
+    OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(
-        bool changed,
-        UselessIORemovalPass().Run(p, OptimizationPassOptions(), &results));
+        bool changed, UselessIORemovalPass().Run(p, OptimizationPassOptions(),
+                                                 &results, &context));
     // Run dce to clean things up.
     for (FunctionBase* f : p->GetFunctionBases()) {
-      XLS_RETURN_IF_ERROR(
-          DeadCodeEliminationPass()
-              .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
-              .status());
+      XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                              .RunOnFunctionBase(f, OptimizationPassOptions(),
+                                                 &results, &context)
+                              .status());
     }
     // Return whether useless IO removal changed anything.
     return changed;

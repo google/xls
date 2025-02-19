@@ -53,12 +53,12 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/dataflow_visitor.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
 namespace xls {
@@ -476,19 +476,25 @@ absl::StatusOr<bool> ConvertConstantChainsToStateMachines(
 }  // namespace
 
 absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
-    Proc* proc, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(bool zero_width_changed,
                        RemoveZeroWidthStateElements(proc));
   changed = changed || zero_width_changed;
 
-  std::vector<std::unique_ptr<QueryEngine>> query_engines;
-  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
-  UnionQueryEngine query_engine(std::move(query_engines));
-  XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
+  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
+  std::vector<QueryEngine*> unowned_query_engines;
+  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  if (context == nullptr) {
+    owned_query_engines.push_back(std::make_unique<LazyTernaryQueryEngine>());
+  } else {
+    unowned_query_engines.push_back(
+        context->SharedQueryEngine<LazyTernaryQueryEngine>(proc));
+  }
+  UnionQueryEngine query_engine(std::move(owned_query_engines),
+                                std::move(unowned_query_engines));
 
   // Run constant state-element removal to fixed point; should usually take just
   // one additional pass to verify, except for chains like next_s1 := s1,
@@ -498,9 +504,6 @@ absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
   do {
     XLS_ASSIGN_OR_RETURN(constant_changed,
                          RemoveConstantStateElements(proc, query_engine));
-    if (constant_changed) {
-      XLS_RETURN_IF_ERROR(query_engine.Populate(proc).status());
-    }
     changed = changed || constant_changed;
   } while (constant_changed);
 

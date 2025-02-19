@@ -42,11 +42,13 @@
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
-std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
+std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
+    OptimizationContext* context) {
   auto top = std::make_unique<CodegenCompoundPass>(
       "codegen", "Top level codegen pass pipeline");
   top->AddInvariantChecker<CodegenChecker>();
@@ -99,20 +101,23 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Remove any identity ops which might have been added earlier in the
   // pipeline.
-  top->Add<CodegenWrapperPass>(std::make_unique<IdentityRemovalPass>());
+  top->Add<CodegenWrapperPass>(std::make_unique<IdentityRemovalPass>(),
+                               context);
 
   // Do some trivial simplifications to any flow control logic added during code
   // generation.
   top->Add<CodegenWrapperPass>(
-      std::make_unique<CsePass>(/*common_literals=*/false));
-  top->Add<CodegenWrapperPass>(std::make_unique<BasicSimplificationPass>());
+      std::make_unique<CsePass>(/*common_literals=*/false), context);
+  top->Add<CodegenWrapperPass>(std::make_unique<BasicSimplificationPass>(),
+                               context);
 
   // Swap out fifo instantiations with materialized fifos if required by codegen
   // options.
   top->Add<MaybeMaterializeInternalFifoPass>();
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
-  top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+  top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
+                               context);
 
   // Legalize names.
   top->Add<NameLegalizationPass>();
@@ -124,7 +129,8 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 }
 
 absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
-                                            Block* block) {
+                                            Block* block,
+                                            OptimizationContext* context) {
   std::unique_ptr<CodegenCompoundPass> pipeline = CreateCodegenPassPipeline();
   CodegenPassUnit unit(block->package(), block);
   CodegenPassResults results;

@@ -66,17 +66,18 @@ class SelectSimplificationPassTest
  protected:
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
+    OptimizationContext context;
     if (GetParam() == AnalysisType::kTernary) {
       SelectSimplificationPass tern_pass;
       XLS_ASSIGN_OR_RETURN(
-          bool changed,
-          tern_pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results));
+          bool changed, tern_pass.RunOnFunctionBase(
+                            f, OptimizationPassOptions(), &results, &context));
       return changed;
     }
     SelectRangeSimplificationPass range_pass;
     XLS_ASSIGN_OR_RETURN(
-        bool changed,
-        range_pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results));
+        bool changed, range_pass.RunOnFunctionBase(f, OptimizationPassOptions(),
+                                                   &results, &context));
     return changed;
   }
 };

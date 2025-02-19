@@ -45,9 +45,10 @@ class ProcStateProvenanceNarrowingPassTest : public IrTestBase {
  public:
   absl::StatusOr<bool> RunPass(Proc* p) {
     PassResults res;
+    OptimizationContext ctx;
     ProcStateProvenanceNarrowingPass pass;
     ScopedRecordIr sri(p->package());
-    return pass.Run(p->package(), {}, &res);
+    return pass.Run(p->package(), {}, &res, &ctx);
   }
   absl::StatusOr<bool> RunProcStateCleanup(Proc* p) {
     ScopedRecordIr sri(p->package(), "cleanup", /*with_initial=*/false);
@@ -55,7 +56,8 @@ class ProcStateProvenanceNarrowingPassTest : public IrTestBase {
     pipeline.Add<ProcStateOptimizationPass>();
     pipeline.Add<DeadCodeEliminationPass>();
     PassResults r;
-    return pipeline.Run(p->package(), {}, &r);
+    OptimizationContext ctx;
+    return pipeline.Run(p->package(), {}, &r, &ctx);
   }
 };
 

@@ -54,9 +54,11 @@ fn unrollable() -> bits[32] {
                            Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("unrollable"));
   PassResults results;
+  OptimizationContext context;
   UnrollPass pass;
-  EXPECT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(true));
+  EXPECT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Invoke(m::Literal(2),
                         m::Invoke(m::Literal(0), m::Literal(0), m::Literal(0)),

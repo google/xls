@@ -106,7 +106,9 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   pass_options.bisect_limit = options.bisect_limit;
   pass_options.record_metrics = options.metrics != nullptr;
   PassResults results;
-  XLS_RETURN_IF_ERROR(pipeline->Run(package, pass_options, &results).status());
+  OptimizationContext context;
+  XLS_RETURN_IF_ERROR(
+      pipeline->Run(package, pass_options, &results, &context).status());
   if (options.metrics) {
     *options.metrics = results.aggregate_results.ToProto();
   }

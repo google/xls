@@ -46,12 +46,14 @@ class InliningPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Inline(Package* package) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(
-        bool changed,
-        InliningPass().Run(package, OptimizationPassOptions(), &results));
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .Run(package, OptimizationPassOptions(), &results)
-                            .status());
+    OptimizationContext context;
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         InliningPass().Run(package, OptimizationPassOptions(),
+                                            &results, &context));
+    XLS_RETURN_IF_ERROR(
+        DeadCodeEliminationPass()
+            .Run(package, OptimizationPassOptions(), &results, &context)
+            .status());
     return changed;
   }
 };

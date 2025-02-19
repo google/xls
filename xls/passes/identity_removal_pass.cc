@@ -29,7 +29,7 @@ namespace xls {
 // identities with their respective operands.
 absl::StatusOr<bool> IdentityRemovalPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   bool changed = false;
   for (Node* node : f->nodes()) {
     if (node->op() == Op::kIdentity) {

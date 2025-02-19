@@ -21,6 +21,7 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
@@ -40,7 +41,7 @@ absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
 // After BlockConversion further Block passes in Codegen Pass are needed
 // before BlockGeneration can lower the Block IR to Verilog.
 std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(
-    const CodegenOptions& options);
+    const CodegenOptions& options, OptimizationContext* context = nullptr);
 
 }  // namespace xls::verilog
 

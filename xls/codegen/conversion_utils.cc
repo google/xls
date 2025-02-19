@@ -45,6 +45,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/passes/dataflow_simplification_pass.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls::verilog {
 // For each output streaming channel add a corresponding ready port (input
@@ -298,11 +299,15 @@ absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   CodegenPassOptions pass_options;
   CodegenCompoundPass ccp("block_conversion_dead_token_removal",
                           "Dead token removal during block-conversion process");
+  OptimizationContext context;
   ccp.AddInvariantChecker<CodegenChecker>();
-  ccp.Add<CodegenWrapperPass>(std::make_unique<DataflowSimplificationPass>());
-  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+  ccp.Add<CodegenWrapperPass>(std::make_unique<DataflowSimplificationPass>(),
+                              &context);
+  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
+                              &context);
   ccp.Add<RegisterLegalizationPass>();
-  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+  ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
+                              &context);
 
   XLS_RETURN_IF_ERROR(ccp.Run(unit, pass_options, &pass_results).status());
   // Nodes like cover and assert have token types and will cause

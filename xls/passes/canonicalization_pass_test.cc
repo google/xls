@@ -53,7 +53,9 @@ class CanonicalizePassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return CanonicalizationPass().Run(p, OptimizationPassOptions(), &results);
+    OptimizationContext context;
+    return CanonicalizationPass().Run(p, OptimizationPassOptions(), &results,
+                                      &context);
   }
 };
 

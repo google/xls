@@ -908,7 +908,7 @@ absl::StatusOr<bool> EliminateNoopNext(FunctionBase* f) {
 
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   bool changed = false;
   if (options.eliminate_noop_next) {
     XLS_ASSIGN_OR_RETURN(changed, EliminateNoopNext(f));

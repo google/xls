@@ -41,12 +41,12 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
 namespace xls {
@@ -572,23 +572,23 @@ absl::StatusOr<bool> StrengthReduceNode(
 
 absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
-  std::vector<std::unique_ptr<QueryEngine>> query_engines;
-  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+    PassResults* results, OptimizationContext* context) const {
+  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
+  std::vector<QueryEngine*> unowned_query_engines;
+  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  if (context == nullptr) {
+    owned_query_engines.push_back(std::make_unique<LazyTernaryQueryEngine>());
+  } else {
+    unowned_query_engines.push_back(
+        context->SharedQueryEngine<LazyTernaryQueryEngine>(f));
+  }
 
-  UnionQueryEngine query_engine(std::move(query_engines));
+  UnionQueryEngine query_engine(std::move(owned_query_engines),
+                                std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,
                        FindReducibleAdds(f, query_engine));
-  // Note: because we introduce new nodes into the graph that were not present
-  // for the original QueryEngine analysis, we may get less effective
-  // optimizations for these new nodes due to a lack of data.
-  //
-  // TODO(leary): 2019-09-05: We can eventually implement incremental
-  // recomputation of the bit tracking data for newly introduced nodes so the
-  // information is always fresh and precise.
   bool modified = false;
   for (Node* node : TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,

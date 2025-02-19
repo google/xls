@@ -36,7 +36,7 @@ MapInliningPass::MapInliningPass()
 
 absl::StatusOr<bool> MapInliningPass::RunOnFunctionBaseInternal(
     FunctionBase* function, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   bool changed = false;
   std::vector<Node*> map_nodes;
   for (Node* node : function->nodes()) {

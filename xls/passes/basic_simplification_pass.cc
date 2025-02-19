@@ -491,7 +491,7 @@ absl::StatusOr<bool> MatchPatterns(Node* n) {
 
 absl::StatusOr<bool> BasicSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   return TransformNodesToFixedPoint(f, MatchPatterns);
 }
 

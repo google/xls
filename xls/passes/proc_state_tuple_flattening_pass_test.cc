@@ -100,16 +100,19 @@ class ProcStateFlatteningPassTest
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
+    OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          ProcStateTupleFlatteningPass().Run(
-                             p, OptimizationPassOptions(), &results));
+                             p, OptimizationPassOptions(), &results, &context));
     // Run dataflow_simplification and dce to clean things up.
-    XLS_RETURN_IF_ERROR(DataflowSimplificationPass()
-                            .Run(p, OptimizationPassOptions(), &results)
-                            .status());
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .Run(p, OptimizationPassOptions(), &results)
-                            .status());
+    XLS_RETURN_IF_ERROR(
+        DataflowSimplificationPass()
+            .Run(p, OptimizationPassOptions(), &results, &context)
+            .status());
+    XLS_RETURN_IF_ERROR(
+        DeadCodeEliminationPass()
+            .Run(p, OptimizationPassOptions(), &results, &context)
+            .status());
     return changed;
   }
 };

@@ -63,7 +63,7 @@ class ArchitectNumber : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results) const override {
+      PassResults* results, OptimizationContext* context) const override {
     Node* original = f->AsFunctionOrDie()->return_value();
     if (!original->GetType()->IsBits()) {
       return false;
@@ -104,7 +104,7 @@ class LevelUpPass : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results) const override {
+      PassResults* results, OptimizationContext* context) const override {
     bool changed = false;
     for (Node* n : TopoSort(f)) {
       if (n->Is<Literal>() && n->GetType()->IsBits() &&
@@ -132,7 +132,8 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturn) {
   ASSERT_THAT(fb.Build(), absl_testing::IsOk());
   ArchitectNumber pass;
   PassResults results;
-  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results),
+  OptimizationContext context;
+  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results, &context),
               absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
@@ -147,7 +148,8 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturnInCompound) {
   ASSERT_THAT(fb.Build(), absl_testing::IsOk());
   ArchitectNumber pass;
   PassResults results;
-  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results),
+  OptimizationContext context;
+  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results, &context),
               absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
@@ -162,6 +164,7 @@ TEST_F(PassBaseTest, BisectLimitMid) {
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
   OptimizationCompoundPass opt("opt", "opt");
   PassResults results;
+  OptimizationContext context;
   for (int i = 0; i < 4; ++i) {
     opt.Add<LevelUpPass>();
     opt.Add<DeadCodeEliminationPass>();
@@ -170,7 +173,7 @@ TEST_F(PassBaseTest, BisectLimitMid) {
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 4}),
-              &results),
+              &results, &context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(2, 64)));
   EXPECT_EQ(f->node_count(), 1);
@@ -183,6 +186,7 @@ TEST_F(PassBaseTest, BisectLimitAfterEnd) {
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
   OptimizationCompoundPass opt("opt", "opt");
   PassResults results;
+  OptimizationContext context;
   for (int i = 0; i < 4; ++i) {
     opt.Add<LevelUpPass>();
     opt.Add<DeadCodeEliminationPass>();
@@ -191,7 +195,7 @@ TEST_F(PassBaseTest, BisectLimitAfterEnd) {
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 8}),
-              &results),
+              &results, &context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 64)));
   EXPECT_EQ(f->node_count(), 1);
@@ -218,10 +222,11 @@ TEST_F(PassBaseTest, BisectLimitInFixedPoint) {
     opt.AddOwned(std::move(fp));
   }
   PassResults results;
+  OptimizationContext context;
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 16}),
-              &results),
+              &results, &context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(8, 16)));
   EXPECT_EQ(f->node_count(), 1);
@@ -249,12 +254,13 @@ TEST_F(PassBaseTest, BisectLimitInMiddleOfFixedPoint) {
     opt.AddOwned(std::move(fp));
   }
   PassResults results;
+  OptimizationContext context;
   // Run 3 times all the way through then the first 3 passes of one last
   // go-around.
   EXPECT_THAT(opt.Run(p.get(),
                       OptimizationPassOptions(
                           PassOptionsBase{.bisect_limit = (3 * 4 + 3)}),
-                      &results),
+                      &results, &context),
               IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 16)));
   EXPECT_EQ(f->node_count(), 1);
@@ -274,6 +280,7 @@ TEST_F(PassBaseTest, BisectLimitZero) {
   XLS_ASSERT_OK_AND_ASSIGN(auto* f, fb.Build());
   OptimizationCompoundPass opt("opt", "opt");
   PassResults results;
+  OptimizationContext context;
   for (int i = 0; i < 4; ++i) {
     opt.Add<LevelUpPass>();
     opt.Add<DeadCodeEliminationPass>();
@@ -282,7 +289,7 @@ TEST_F(PassBaseTest, BisectLimitZero) {
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 0}),
-              &results),
+              &results, &context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 64)));
   EXPECT_EQ(f->node_count(), 1);

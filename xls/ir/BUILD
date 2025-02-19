@@ -2149,6 +2149,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/passes:dce_pass",
+        "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",

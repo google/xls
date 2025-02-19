@@ -44,10 +44,11 @@ class BddSimplificationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Function* f, int64_t opt_level = kMaxOptLevel) {
     PassResults results;
+    OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(
-        bool changed,
-        BddSimplificationPass().RunOnFunctionBase(
-            f, OptimizationPassOptions().WithOptLevel(opt_level), &results));
+        bool changed, BddSimplificationPass().RunOnFunctionBase(
+                          f, OptimizationPassOptions().WithOptLevel(opt_level),
+                          &results, &context));
     return changed;
   }
 };

@@ -43,16 +43,17 @@ class SelectLiftingPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
+    OptimizationContext context;
 
     // Run the select lifting pass.
     XLS_ASSIGN_OR_RETURN(bool changed,
                          SelectLiftingPass().RunOnFunctionBase(
-                             f, OptimizationPassOptions(), &results));
+                             f, OptimizationPassOptions(), &results, &context));
 
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context)
             .status());
 
     // Return whether select lifting changed anything.

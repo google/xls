@@ -117,8 +117,8 @@ std::optional<ReceiveData> MatchUselessSelectAfterReceive(
 }  // namespace
 
 absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
-    Proc* proc, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;

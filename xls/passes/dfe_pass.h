@@ -39,7 +39,8 @@ class DeadFunctionEliminationPass : public OptimizationPass {
   // Iterate all nodes and mark and eliminate unreachable functions.
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
-                                   PassResults* results) const override;
+                                   PassResults* results,
+                                   OptimizationContext* context) const override;
 };
 
 }  // namespace xls

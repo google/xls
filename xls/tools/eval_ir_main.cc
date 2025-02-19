@@ -526,8 +526,10 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
           arg_sets, absl::GetFlag(FLAGS_use_llvm_jit));
     }
     PassResults results;
+    OptimizationContext context;
     XLS_RETURN_IF_ERROR(
-        pipeline->Run(package, OptimizationPassOptions(), &results).status());
+        pipeline->Run(package, OptimizationPassOptions(), &results, &context)
+            .status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
                              cov.observer(), "after optimizations",

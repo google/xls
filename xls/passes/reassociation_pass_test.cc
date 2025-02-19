@@ -50,7 +50,9 @@ class ReassociationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return ReassociationPass().Run(p, OptimizationPassOptions(), &results);
+    OptimizationContext context;
+    return ReassociationPass().Run(p, OptimizationPassOptions(), &results,
+                                   &context);
   }
 };
 

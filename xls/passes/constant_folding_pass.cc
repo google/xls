@@ -60,7 +60,7 @@ bool NodeIsConstantFoldable(Node* node, QueryEngine& query_engine) {
 
 absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;

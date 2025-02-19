@@ -44,9 +44,10 @@ class ReceiveDefaultValueSimplificationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Proc* proc, int64_t opt_level = kMaxOptLevel) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         ReceiveDefaultValueSimplificationPass().RunOnProc(
-                             proc, OptimizationPassOptions(), &results));
+    OptimizationContext context;
+    XLS_ASSIGN_OR_RETURN(
+        bool changed, ReceiveDefaultValueSimplificationPass().RunOnProc(
+                          proc, OptimizationPassOptions(), &results, &context));
     return changed;
   }
 };

@@ -25,8 +25,9 @@ absl::StatusOr<bool> CodegenWrapperPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     CodegenPassResults* results) const {
   XLS_ASSIGN_OR_RETURN(
-      bool res, wrapped_pass_->Run(unit->package,
-                                   OptimizationPassOptions(options), results));
+      bool res,
+      wrapped_pass_->Run(unit->package, OptimizationPassOptions(options),
+                         results, context_));
   if (res) {
     unit->GcMetadata();
   }

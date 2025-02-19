@@ -1528,9 +1528,10 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
 
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   bool changed = false;
   bool pass_changed = false;
+  StatelessQueryEngine query_engine;
   do {
     pass_changed = false;
     for (Node* n : ReverseTopoSort(f)) {
@@ -1539,7 +1540,7 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
       }
       XLS_ASSIGN_OR_RETURN(
           bool node_changed,
-          MatchArithPatterns(options.opt_level, n, StatelessQueryEngine()));
+          MatchArithPatterns(options.opt_level, n, query_engine));
       if (node_changed) {
         pass_changed = true;
       }

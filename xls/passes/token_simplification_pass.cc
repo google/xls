@@ -301,7 +301,7 @@ int64_t NumberOfTokensInType(Type* type) {
 
 absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   for (Node* node : f->nodes()) {
     if (NumberOfTokensInType(node->GetType()) > 1) {
       return false;

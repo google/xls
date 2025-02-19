@@ -71,7 +71,7 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
                          OptimizationPassOptions(options)
                              .WithOptLevel(opt_level_)
                              .WithEliminateNoopNext(eliminate_noop_next_),
-                         results));
+                         results, context_));
   if (!changed) {
     return false;
   }

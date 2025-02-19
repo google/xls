@@ -52,8 +52,10 @@ class TableSwitchPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(FunctionBase* f) {
     PassResults results;
+    OptimizationContext context;
     TableSwitchPass pass;
-    return pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results);
+    return pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results,
+                                  &context);
   }
 
   // Returns a vector holding the results of the given function when run with
@@ -339,13 +341,15 @@ fn main(index: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
+  OptimizationContext context;
   TableSwitchPass pass;
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
-  ASSERT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(true));
+  ASSERT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array,
       Value::UBitsArray({3335, 2, 889798, 436, 1235, 555, 434}, 32));
@@ -385,13 +389,15 @@ fn main(index: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
+  OptimizationContext context;
   TableSwitchPass pass;
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> before_data,
                            GetBeforeData(f, kNumLiterals));
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
-  ASSERT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(true));
+  ASSERT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array,
       Value::UBitsArray({3335, 2, 889798, 436, 1235, 555, 434}, 32));
@@ -414,9 +420,11 @@ fn main(index: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
+  OptimizationContext context;
   TableSwitchPass pass;
-  EXPECT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(false));
+  EXPECT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(false));
 }
 
 // Verifies that a single literal switch is _not_ converted into a table
@@ -434,9 +442,11 @@ fn main(index: bits[32]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
+  OptimizationContext context;
   TableSwitchPass pass;
-  EXPECT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(false));
+  EXPECT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(false));
 }
 
 // Verifies that TableSwitch only allows binary selects.
@@ -468,9 +478,11 @@ fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   PassResults results;
+  OptimizationContext context;
   TableSwitchPass pass;
-  EXPECT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(false));
+  EXPECT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(false));
 }
 
 // Verifies that non-zero index sets, even with holes (e.g., [1, 2, 3, 5]), can
@@ -750,9 +762,11 @@ fn main(x4: bits[62], x1: bits[25], x2: bits[24]) -> bits[62] {
                            ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
   PassResults results;
+  OptimizationContext context;
   TableSwitchPass pass;
-  ASSERT_THAT(pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(false));
+  ASSERT_THAT(
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(false));
 }
 
 TEST_F(TableSwitchPassTest, FullIndexSpace) {

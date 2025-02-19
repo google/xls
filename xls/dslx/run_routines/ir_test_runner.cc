@@ -147,7 +147,8 @@ class IrRunner : public AbstractParsedTestRunner {
     // entering livelock we run DFE on the package.
     DeadFunctionEliminationPass dfe;
     PassResults pr;
-    XLS_RETURN_IF_ERROR(dfe.Run(package, {}, &pr).status());
+    XLS_RETURN_IF_ERROR(
+        dfe.Run(package, {}, &pr, /*context=*/nullptr).status());
     // Get the corresponding entries.
     XLS_ASSIGN_OR_RETURN(auto* top, package->GetTopAsProc());
     XLS_ASSIGN_OR_RETURN(

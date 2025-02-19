@@ -216,8 +216,8 @@ absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
 }
 
 absl::StatusOr<bool> InliningPass::RunInternal(
-    Package* p, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Package* p, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   bool changed = false;
   // Inline all the invokes of each function where functions are processed in a
   // post order of the call graph (leaves first). This ensures that when a

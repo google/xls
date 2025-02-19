@@ -603,7 +603,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
 
 absl::StatusOr<bool> ArrayUntuplePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   if (!f->IsFunction() && !f->IsProc()) {
     // Don't mess with blocks.
     return false;

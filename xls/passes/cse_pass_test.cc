@@ -60,13 +60,14 @@ class CsePassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
+    OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(
-        bool changed,
-        CsePass().RunOnFunctionBase(f, OptimizationPassOptions(), &results));
+        bool changed, CsePass().RunOnFunctionBase(f, OptimizationPassOptions(),
+                                                  &results, &context));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context)
             .status());
     // Return whether cse changed anything.
     return changed;
@@ -114,9 +115,11 @@ TEST_F(CsePassTest, TwoIdenticalLiteralsNoLiteralCommoning) {
                                                        p.get()));
   EXPECT_EQ(f->node_count(), 3);
   PassResults results;
-  EXPECT_THAT(CsePass(/*common_literals=*/false)
-                  .RunOnFunctionBase(f, OptimizationPassOptions(), &results),
-              IsOkAndHolds(false));
+  OptimizationContext context;
+  EXPECT_THAT(
+      CsePass(/*common_literals=*/false)
+          .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      IsOkAndHolds(false));
   EXPECT_EQ(f->node_count(), 3);
 }
 

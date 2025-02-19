@@ -39,7 +39,7 @@ class SparsifySelectPass : public OptimizationFunctionBasePass {
   // Sparsify selects using range analysis.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results) const override;
+      PassResults* results, OptimizationContext* context) const override;
 };
 
 }  // namespace xls

@@ -59,9 +59,11 @@ class RamRewritePassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Package* p,
                            absl::Span<RamRewrite const> ram_rewrites) {
     PassResults results;
+    OptimizationContext context;
     OptimizationPassOptions options;
     options.ram_rewrites = ram_rewrites;
-    return CreateOptimizationPassPipeline()->Run(p, options, &results);
+    return CreateOptimizationPassPipeline()->Run(p, options, &results,
+                                                 &context);
   }
 
   std::unique_ptr<TokenlessProcBuilder> MakeProcBuilder(Package* p,

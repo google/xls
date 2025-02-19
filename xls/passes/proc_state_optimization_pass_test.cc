@@ -60,8 +60,9 @@ class BaseProcStateOptimizationPassTest : public IrTestBase {
  protected:
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
+    OptimizationContext context;
     return ProcStateOptimizationPass().Run(p, OptimizationPassOptions(),
-                                           &results);
+                                           &results, &context);
   }
 };
 class ProcStateOptimizationPassTest

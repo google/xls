@@ -52,25 +52,29 @@ class ConcatSimplificationPassTest : public IrTestBase {
     while (changed) {
       changed = false;
       PassResults results;
-      XLS_ASSIGN_OR_RETURN(bool concat_changed,
-                           ConcatSimplificationPass().RunOnFunctionBase(
-                               f, OptimizationPassOptions(), &results));
+      OptimizationContext context;
+      XLS_ASSIGN_OR_RETURN(
+          bool concat_changed,
+          ConcatSimplificationPass().RunOnFunctionBase(
+              f, OptimizationPassOptions(), &results, &context));
       changed = changed || concat_changed;
       any_concat_changed = any_concat_changed || concat_changed;
 
       // Run other passes to clean things up.
-      XLS_ASSIGN_OR_RETURN(bool dce_changed,
-                           DeadCodeEliminationPass().RunOnFunctionBase(
-                               f, OptimizationPassOptions(), &results));
+      XLS_ASSIGN_OR_RETURN(
+          bool dce_changed,
+          DeadCodeEliminationPass().RunOnFunctionBase(
+              f, OptimizationPassOptions(), &results, &context));
       changed = changed || dce_changed;
-      XLS_ASSIGN_OR_RETURN(bool slice_changed,
-                           BitSliceSimplificationPass().RunOnFunctionBase(
-                               f, OptimizationPassOptions(), &results));
+      XLS_ASSIGN_OR_RETURN(
+          bool slice_changed,
+          BitSliceSimplificationPass().RunOnFunctionBase(
+              f, OptimizationPassOptions(), &results, &context));
       changed = changed || slice_changed;
 
-      XLS_ASSIGN_OR_RETURN(bool cse_changed,
-                           BddCsePass().RunOnFunctionBase(
-                               f, OptimizationPassOptions(), &results));
+      XLS_ASSIGN_OR_RETURN(bool cse_changed, BddCsePass().RunOnFunctionBase(
+                                                 f, OptimizationPassOptions(),
+                                                 &results, &context));
       changed = changed || cse_changed;
     }
 

@@ -47,8 +47,9 @@ class BasicSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return BasicSimplificationPass().Run(p, OptimizationPassOptions(),
-                                         &results);
+    OptimizationContext context;
+    return BasicSimplificationPass().Run(p, OptimizationPassOptions(), &results,
+                                         &context);
   }
 };
 

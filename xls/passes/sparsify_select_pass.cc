@@ -153,7 +153,7 @@ static absl::Status SparsifySelect(FunctionBase* f, Select* select,
 
 absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   RangeQueryEngine engine;
   XLS_RETURN_IF_ERROR(engine.Populate(f).status());
 

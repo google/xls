@@ -53,9 +53,9 @@ class RemoveUnusedReceivesPass : public OptimizationProcPass {
                              "Remove unused receives") {}
 
  protected:
-  absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
-                                         const OptimizationPassOptions& opts,
-                                         PassResults* results) const override {
+  absl::StatusOr<bool> RunOnProcInternal(
+      Proc* proc, const OptimizationPassOptions& opts, PassResults* results,
+      OptimizationContext* context) const override {
     bool changed = false;
     for (Node* n : TopoSort(proc)) {
       if (n->Is<Receive>()) {
@@ -237,7 +237,8 @@ absl::StatusOr<std::unique_ptr<Package>> ExtractStateElementsInNewPackage(
   cleanup.Add<DeadCodeEliminationPass>();
   cleanup.Add<RemoveUnusedReceivesPass>();
   PassResults results;
-  XLS_RETURN_IF_ERROR(cleanup.Run(pkg.get(), {}, &results).status());
+  OptimizationContext context;
+  XLS_RETURN_IF_ERROR(cleanup.Run(pkg.get(), {}, &results, &context).status());
   return pkg;
 }
 

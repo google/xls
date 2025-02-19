@@ -15,11 +15,13 @@
 #ifndef XLS_PASSES_UNION_QUERY_ENGINE_H_
 #define XLS_PASSES_UNION_QUERY_ENGINE_H_
 
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
@@ -109,18 +111,23 @@ class UnownedUnionQueryEngine : public QueryEngine {
 // will be fixed at some point.
 class UnionQueryEngine : public UnownedUnionQueryEngine {
  public:
-  explicit UnionQueryEngine(std::vector<std::unique_ptr<QueryEngine>> engines)
-      : UnownedUnionQueryEngine(ToUnownedVector(engines)),
+  // If any `unowned_engines` are provided, they must live at least as long as
+  // this query engine does.
+  explicit UnionQueryEngine(std::vector<std::unique_ptr<QueryEngine>> engines,
+                            std::vector<QueryEngine*> unowned_engines = {})
+      : UnownedUnionQueryEngine(ToUnownedVector(engines, unowned_engines)),
         owned_engines_(std::move(engines)) {}
 
  private:
   static std::vector<QueryEngine*> ToUnownedVector(
-      absl::Span<std::unique_ptr<QueryEngine> const> ptrs) {
+      absl::Span<std::unique_ptr<QueryEngine> const> ptrs,
+      absl::Span<QueryEngine* const> unowned_ptrs) {
     std::vector<QueryEngine*> result;
-    result.reserve(ptrs.size());
+    result.reserve(ptrs.size() + unowned_ptrs.size());
     for (const auto& ptr : ptrs) {
       result.push_back(ptr.get());
     }
+    absl::c_copy(unowned_ptrs, std::back_inserter(result));
     return result;
   }
   std::vector<std::unique_ptr<QueryEngine>> owned_engines_;

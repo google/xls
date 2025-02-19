@@ -64,6 +64,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/bit_provenance_analysis.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -2204,16 +2205,23 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results) const {
-  std::vector<std::unique_ptr<QueryEngine>> query_engines;
-  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+    PassResults* results, OptimizationContext* context) const {
+  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
+  std::vector<QueryEngine*> unowned_query_engines;
+  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  if (context == nullptr) {
+    owned_query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+  } else {
+    unowned_query_engines.push_back(
+        context->SharedQueryEngine<LazyTernaryQueryEngine>(func));
+  }
   if (range_analysis_) {
-    query_engines.push_back(std::make_unique<RangeQueryEngine>());
+    owned_query_engines.push_back(std::make_unique<RangeQueryEngine>());
   }
   VLOG(2) << "Range analysis is " << std::boolalpha << range_analysis_;
 
-  UnionQueryEngine query_engine(std::move(query_engines));
+  UnionQueryEngine query_engine(std::move(owned_query_engines),
+                                std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,

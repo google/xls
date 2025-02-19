@@ -145,8 +145,8 @@ absl::Status RemoveSignBits(StateRead* state_read, const Value& orig_init_value,
 // once assuming that state elements are relatively independent of one
 // another/additional information won't reveal more opportunities.
 absl::StatusOr<bool> ProcStateNarrowingPass::RunOnProcInternal(
-    Proc* proc, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   XLS_RET_CHECK(ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(proc))
       << "Unable to analyze the proc: " << proc;
   ProcStateRangeQueryEngine qe;

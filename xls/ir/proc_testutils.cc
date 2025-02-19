@@ -43,6 +43,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -322,8 +323,9 @@ absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
   // might as well get rid of them to avoid making z3 scan through them.
   DeadCodeEliminationPass dce;
   PassResults pass_results;
+  OptimizationContext context;
   XLS_RETURN_IF_ERROR(
-      dce.RunOnFunctionBase(result, {}, &pass_results).status());
+      dce.RunOnFunctionBase(result, {}, &pass_results, &context).status());
 
   VLOG(2) << "Proc: \n" << p->DumpIr() << "To Func: \n" << result->DumpIr();
 

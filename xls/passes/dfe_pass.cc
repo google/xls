@@ -163,8 +163,8 @@ absl::StatusOr<FunctionBaseLiveness> ProcLiveness(Proc* top) {
 // Starting from the return_value(s), DFS over all nodes. Unvisited
 // nodes, or parameters, are dead.
 absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
-    Package* p, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Package* p, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   std::optional<FunctionBase*> top = p->GetTop();
   if (!top.has_value()) {
     return false;
@@ -187,6 +187,9 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   for (FunctionBase* f : p->GetFunctionBases()) {
     if (!reached.contains(f)) {
       VLOG(2) << "Removing: " << f->name();
+      if (context != nullptr) {
+        context->Abandon(f);
+      }
       XLS_RETURN_IF_ERROR(p->RemoveFunctionBase(f));
       changed = true;
     }

@@ -47,8 +47,9 @@ class DeadCodeEliminationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(FunctionBase* f) {
     PassResults results;
+    OptimizationContext context;
     return DeadCodeEliminationPass().RunOnFunctionBase(
-        f, OptimizationPassOptions(), &results);
+        f, OptimizationPassOptions(), &results, &context);
   }
 };
 

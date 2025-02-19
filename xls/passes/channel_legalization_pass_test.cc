@@ -105,8 +105,9 @@ class ChannelLegalizationPassTest
  protected:
   absl::StatusOr<bool> Run(Package* package) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         ChannelLegalizationPass().Run(package, {}, &results));
+    OptimizationContext context;
+    XLS_ASSIGN_OR_RETURN(bool changed, ChannelLegalizationPass().Run(
+                                           package, {}, &results, &context));
     XLS_RETURN_IF_ERROR(VerifyPackage(package));
     return changed;
   }
@@ -1118,7 +1119,8 @@ class MutuallyExclusiveChannelLegalizationPassTest
             ChannelStrictnessToString(
                 ChannelStrictness::kProvenMutuallyExclusive))));
     PassResults results;
-    return ChannelLegalizationPass().Run(p.get(), {}, &results);
+    OptimizationContext context;
+    return ChannelLegalizationPass().Run(p.get(), {}, &results, &context);
   }
 };
 
@@ -1158,7 +1160,8 @@ class SingleValueChannelLegalizationPassTest : public TestWithParam<TestParam> {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                          Parser::ParsePackage(substituted_ir_text));
     PassResults results;
-    return ChannelLegalizationPass().Run(p.get(), {}, &results);
+    OptimizationContext context;
+    return ChannelLegalizationPass().Run(p.get(), {}, &results, &context);
   }
 };
 

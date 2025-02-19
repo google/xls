@@ -62,6 +62,7 @@
 #include "xls/ir/value_utils.h"
 #include "xls/passes/aliasing_query_engine.h"
 #include "xls/passes/context_sensitive_range_query_engine.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -1805,30 +1806,41 @@ void AnalysisLog(FunctionBase* f, const QueryEngine& query_engine) {
   }
 }
 
-absl::StatusOr<AliasingQueryEngine> GetQueryEngine(FunctionBase* f,
-                                                   AnalysisType analysis) {
-  std::vector<std::unique_ptr<QueryEngine>> engines;
-  engines.push_back(std::make_unique<StatelessQueryEngine>());
+absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
+    FunctionBase* f, AnalysisType analysis, OptimizationContext* context) {
+  std::vector<std::unique_ptr<QueryEngine>> owned_engines;
+  std::vector<QueryEngine*> unowned_engines;
+  owned_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  auto add_ternary_engine = [&]() {
+    if (context == nullptr) {
+      owned_engines.push_back(std::make_unique<TernaryQueryEngine>());
+    } else {
+      unowned_engines.push_back(
+          context->SharedQueryEngine<LazyTernaryQueryEngine>(f));
+    }
+  };
   if (analysis == AnalysisType::kRangeWithContext) {
     if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
       // NB ProcStateRange already includes a ternary qe
-      engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
+      owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
     } else {
-      engines.push_back(std::make_unique<TernaryQueryEngine>());
+      add_ternary_engine();
     }
-    engines.push_back(std::make_unique<ContextSensitiveRangeQueryEngine>());
+    owned_engines.push_back(
+        std::make_unique<ContextSensitiveRangeQueryEngine>());
   } else if (analysis == AnalysisType::kRange) {
     if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
       // NB ProcStateRange already includes a ternary qe
-      engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
+      owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
     } else {
-      engines.push_back(std::make_unique<TernaryQueryEngine>());
-      engines.push_back(std::make_unique<RangeQueryEngine>());
+      add_ternary_engine();
+      owned_engines.push_back(std::make_unique<RangeQueryEngine>());
     }
   } else {
-    engines.push_back(std::make_unique<TernaryQueryEngine>());
+    add_ternary_engine();
   }
-  auto query_engine = std::make_unique<UnionQueryEngine>(std::move(engines));
+  auto query_engine = std::make_unique<UnionQueryEngine>(
+      std::move(owned_engines), std::move(unowned_engines));
   XLS_RETURN_IF_ERROR(query_engine->Populate(f).status());
   if (VLOG_IS_ON(3)) {
     AnalysisLog(f, *query_engine);
@@ -1840,9 +1852,9 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(FunctionBase* f,
 
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   XLS_ASSIGN_OR_RETURN(AliasingQueryEngine query_engine,
-                       GetQueryEngine(f, RealAnalysis(options)));
+                       GetQueryEngine(f, RealAnalysis(options), context));
 
   PredicateDominatorAnalysis pda = PredicateDominatorAnalysis::Run(f);
   SpecializedQueryEngines sqe(RealAnalysis(options), pda, query_engine);

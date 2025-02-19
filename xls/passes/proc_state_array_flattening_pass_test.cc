@@ -47,18 +47,19 @@ absl::StatusOr<bool> RunArrayFlattening(Proc* p) {
   PassResults results;
   bool changed = false;
   bool changed_this_iteration = true;
+  OptimizationContext context;
   while (changed_this_iteration) {
     XLS_ASSIGN_OR_RETURN(changed_this_iteration,
                          ProcStateArrayFlatteningPass().RunOnProc(
-                             p, OptimizationPassOptions(), &results));
+                             p, OptimizationPassOptions(), &results, &context));
     // Run dce and constant folding to clean things up.
     XLS_RETURN_IF_ERROR(
         ConstantFoldingPass()
-            .RunOnFunctionBase(p, OptimizationPassOptions(), &results)
+            .RunOnFunctionBase(p, OptimizationPassOptions(), &results, &context)
             .status());
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .RunOnFunctionBase(p, OptimizationPassOptions(), &results)
+            .RunOnFunctionBase(p, OptimizationPassOptions(), &results, &context)
             .status());
     changed = changed || changed_this_iteration;
   }

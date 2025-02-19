@@ -67,7 +67,8 @@ class NarrowingPassTestBase : public IrTestBase {
     PassResults results;
     OptimizationPassOptions options;
     options.convert_array_index_to_select = 2;
-    return NarrowingPass(analysis()).Run(p, options, &results);
+    OptimizationContext context;
+    return NarrowingPass(analysis()).Run(p, options, &results, &context);
   }
 };
 

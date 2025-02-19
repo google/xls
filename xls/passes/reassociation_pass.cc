@@ -609,7 +609,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f,
 
 absl::StatusOr<bool> ReassociationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   StatelessQueryEngine query_engine;
   XLS_ASSIGN_OR_RETURN(bool reassoc_subtracts_changed,
                        ReassociateSubtracts(f, query_engine));

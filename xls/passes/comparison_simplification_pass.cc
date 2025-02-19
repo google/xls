@@ -323,7 +323,7 @@ absl::StatusOr<bool> TransformDerivedComparisons(FunctionBase* f) {
 
 absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;

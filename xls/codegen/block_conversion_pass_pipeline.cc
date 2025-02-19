@@ -35,6 +35,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls::verilog {
@@ -93,7 +94,7 @@ absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
 }
 
 std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(
-    const CodegenOptions& options) {
+    const CodegenOptions& options, OptimizationContext* context) {
   auto top = std::make_unique<CodegenCompoundPass>(
       "codegen", "Top level codegen IR to Block pass pipeline");
 
@@ -106,7 +107,7 @@ std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(
     top->Add<ConvertProcsToPipelinedBlocksPass>();
   }
 
-  top->Add<BlockConversionDeadTokenRemovalPass>();
+  top->Add<BlockConversionDeadTokenRemovalPass>(context);
   top->Add<UpdateChannelMetadataPass>();
 
   return top;

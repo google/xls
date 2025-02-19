@@ -37,7 +37,9 @@ class LiteralUncommoningPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return LiteralUncommoningPass().Run(p, OptimizationPassOptions(), &results);
+    OptimizationContext context;
+    return LiteralUncommoningPass().Run(p, OptimizationPassOptions(), &results,
+                                        &context);
   }
 };
 

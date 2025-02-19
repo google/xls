@@ -960,8 +960,8 @@ Type* GetMaskType(Package* package, std::optional<int64_t> mask_width) {
 }
 
 absl::StatusOr<bool> RamRewritePass::RunInternal(
-    Package* p, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Package* p, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   // Given the mapping from logical names (e.g. read_req) to physical names
   // (e.g. channel_for_read_req_0), build a new mapping from logical names ->
   // Channel objects.

@@ -54,10 +54,11 @@ class NextValueOptimizationPassTest : public IrTestBase {
     PassResults results;
     OptimizationPassOptions options;
     options.split_next_value_selects = split_next_value_selects;
+    OptimizationContext context;
     return NextValueOptimizationPass(
                split_depth_limit.value_or(
                    NextValueOptimizationPass::kDefaultMaxSplitDepth))
-        .Run(p, options, &results);
+        .Run(p, options, &results, &context);
   }
 };
 

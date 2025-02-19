@@ -33,6 +33,7 @@
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -67,7 +68,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
   pass_options.delay_estimator = delay_estimator;
 
   CodegenPassResults results;
-  XLS_RETURN_IF_ERROR(CreateBlockConversionPassPipeline(options)
+  OptimizationContext context;
+  XLS_RETURN_IF_ERROR(CreateBlockConversionPassPipeline(options, &context)
                           ->Run(&unit, pass_options, &results)
                           .status());
 
@@ -84,8 +86,9 @@ absl::StatusOr<ModuleGeneratorResult> GenerateModuleText(
     pass_options.codegen_options.emit_as_pipeline(false);
   }
 
-  XLS_RETURN_IF_ERROR(
-      CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
+  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(&context)
+                          ->Run(&unit, pass_options, &results)
+                          .status());
   XLS_RET_CHECK(unit.top_block != nullptr &&
                 unit.metadata.contains(unit.top_block) &&
                 unit.metadata.at(unit.top_block).signature.has_value());

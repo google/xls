@@ -33,7 +33,7 @@ namespace xls {
 
 absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   auto is_deletable = [](Node* n) {
     // Don't remove invokes, they will be removed by inlining. The invoked
     // functions could have side effects, so DCE shouldn't remove them.

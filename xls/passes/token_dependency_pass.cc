@@ -42,7 +42,7 @@ namespace xls {
 
 absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 
   auto relation_to_string = [](const NodeRelation& relation) {

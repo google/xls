@@ -50,6 +50,7 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dataflow_graph_analysis.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -357,16 +358,23 @@ absl::StatusOr<bool> SimplifyNode(
 
 absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   if (!options.narrowing_enabled()) {
     return false;
   }
 
-  std::vector<std::unique_ptr<QueryEngine>> query_engines;
-  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
+  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
+  std::vector<QueryEngine*> unowned_query_engines;
+  if (context == nullptr) {
+    owned_query_engines.push_back(std::make_unique<TernaryQueryEngine>());
+  } else {
+    unowned_query_engines.push_back(
+        context->SharedQueryEngine<LazyTernaryQueryEngine>(func));
+  }
 
-  UnionQueryEngine query_engine(std::move(query_engines));
+  UnionQueryEngine query_engine(std::move(owned_query_engines),
+                                std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   std::optional<DataflowGraphAnalysis> dataflow_graph_analysis;

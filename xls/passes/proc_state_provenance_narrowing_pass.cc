@@ -39,9 +39,11 @@
 #include "xls/ir/ternary.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bit_provenance_analysis.h"
+#include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
@@ -195,7 +197,7 @@ class NarrowTransform final : public Proc::StateElementTransformer {
 
 absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
                                    const Bits& initial_bits,
-                                   const TernaryQueryEngine& tqe,
+                                   const QueryEngine& query_engine,
                                    const BitProvenanceAnalysis& provenance) {
   Bits unchanged_bits = Bits::AllOnes(initial_bits.bit_count());
   StateRead* state_read = proc->GetStateRead(state_element);
@@ -208,7 +210,7 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
       return unchanged_bits;
     }
     std::optional<SharedLeafTypeTree<TernaryVector>> ternary =
-        tqe.GetTernary(next->value());
+        query_engine.GetTernary(next->value());
     Bits ternary_known_unchanged =
         ternary.has_value()
             ? bits_ops::Not(
@@ -248,13 +250,20 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
 }  // namespace
 
 absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
-    Proc* proc, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    Proc* proc, const OptimizationPassOptions& options, PassResults* results,
+    OptimizationContext* context) const {
   // Query engine to identify writes of (parts of) the initial value.
-  TernaryQueryEngine tqe;
+  QueryEngine* qe;
+  std::optional<TernaryQueryEngine> tqe;
+  if (context == nullptr) {
+    tqe.emplace();
+    XLS_RETURN_IF_ERROR(tqe->Populate(proc).status());
+    qe = &*tqe;
+  } else {
+    qe = context->SharedQueryEngine<LazyTernaryQueryEngine>(proc);
+  }
   XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,
                        BitProvenanceAnalysis::Create(proc));
-  XLS_RETURN_IF_ERROR(tqe.Populate(proc).status());
   bool made_changes = false;
 
   std::vector<std::tuple<StateElement*, NarrowTransform, Bits>> transforms;
@@ -270,7 +279,7 @@ absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
     const Bits& initial_bits = init.bits();
     XLS_ASSIGN_OR_RETURN(
         Bits unchanged_bits,
-        UnchangedBits(proc, state_element, initial_bits, tqe, provenance));
+        UnchangedBits(proc, state_element, initial_bits, *qe, provenance));
     // Do the actual splitting
     if (unchanged_bits.IsZero()) {
       VLOG(3) << "Unable to narrow " << state_element->name()

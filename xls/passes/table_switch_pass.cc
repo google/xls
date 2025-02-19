@@ -417,7 +417,7 @@ absl::StatusOr<std::optional<Value>> LinksToTable(
 
 absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;

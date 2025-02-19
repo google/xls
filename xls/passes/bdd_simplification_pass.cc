@@ -440,7 +440,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   std::vector<std::unique_ptr<QueryEngine>> query_engines;
   query_engines.push_back(std::make_unique<StatelessQueryEngine>());
   query_engines.push_back(std::make_unique<BddQueryEngine>(

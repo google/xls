@@ -162,7 +162,7 @@ absl::StatusOr<bool> MaybeReplaceWithArrayOfExistingNodes(
 
 absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results) const {
+    PassResults* results, OptimizationContext* context) const {
   NodeSourceDataflowVisitor visitor;
   XLS_RETURN_IF_ERROR(func->Accept(&visitor));
   bool changed = false;

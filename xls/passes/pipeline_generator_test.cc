@@ -65,7 +65,7 @@ class CountPass final : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results) const override {
+      PassResults* results, OptimizationContext* context) const override {
     if (pass_remain_ == 0) {
       return false;
     }
@@ -96,7 +96,7 @@ class RecordPass final : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results) const override {
+      PassResults* results, OptimizationContext* context) const override {
     // Just increment return literal by 1.
     XLS_RET_CHECK(f->IsFunction());
     XLS_RET_CHECK(f->AsFunctionOrDie()->return_value()->Is<Literal>());
@@ -197,7 +197,8 @@ TEST_F(PassBaseTest, PipelineGeneratorSingle) {
       gen.GeneratePipeline(
           "count_pass_a(1) dce count_pass_b(1) dce count_pass_a(1) dce"));
   PassResults res;
-  ASSERT_THAT(pipeline->Run(p.get(), OptimizationPassOptions{}, &res),
+  OptimizationContext ctx;
+  ASSERT_THAT(pipeline->Run(p.get(), OptimizationPassOptions{}, &res, &ctx),
               IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(), m::Literal(3));
@@ -215,7 +216,8 @@ TEST_F(PassBaseTest, PipelineGeneratorFixedPoint) {
       auto pipeline,
       gen.GeneratePipeline("[dce count_pass_a(4)] [dce count_pass_b(3)] dce"));
   PassResults res;
-  ASSERT_THAT(pipeline->Run(p.get(), OptimizationPassOptions{}, &res),
+  OptimizationContext ctx;
+  ASSERT_THAT(pipeline->Run(p.get(), OptimizationPassOptions{}, &res, &ctx),
               IsOkAndHolds(true));
 
   EXPECT_THAT(f->return_value(), m::Literal(7));
@@ -287,8 +289,10 @@ TEST_F(PassBaseTest, PipelineGeneratorCapOptLevelOptions) {
                                           &pipeline_proto));
   XLS_ASSERT_OK_AND_ASSIGN(auto pipeline, gen.GeneratePipeline(pipeline_proto));
   PassResults res;
+  OptimizationContext ctx;
   ASSERT_THAT(
-      pipeline->Run(p.get(), OptimizationPassOptions().WithOptLevel(100), &res),
+      pipeline->Run(p.get(), OptimizationPassOptions().WithOptLevel(100), &res,
+                    &ctx),
       absl_testing::IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Literal(Value::Tuple({
                                      Value(UBits(100, 32)),
@@ -338,9 +342,10 @@ TEST_F(PassBaseTest, PipelineGeneratorMinOptLevel) {
       &pipeline_proto));
   XLS_ASSERT_OK_AND_ASSIGN(auto pipeline, gen.GeneratePipeline(pipeline_proto));
   PassResults res;
-  ASSERT_THAT(
-      pipeline->Run(p.get(), OptimizationPassOptions().WithOptLevel(1), &res),
-      absl_testing::IsOkAndHolds(true));
+  OptimizationContext ctx;
+  ASSERT_THAT(pipeline->Run(p.get(), OptimizationPassOptions().WithOptLevel(1),
+                            &res, &ctx),
+              absl_testing::IsOkAndHolds(true));
   EXPECT_EQ(gen.a_count(), 2);
   EXPECT_EQ(gen.b_count(), 2);
 }

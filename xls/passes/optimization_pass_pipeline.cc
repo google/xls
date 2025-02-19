@@ -304,8 +304,10 @@ absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
   std::unique_ptr<OptimizationCompoundPass> pipeline =
       CreateOptimizationPassPipeline();
   PassResults results;
-  return pipeline->Run(
-      package, OptimizationPassOptions().WithOptLevel(opt_level), &results);
+  OptimizationContext context;
+  return pipeline->Run(package,
+                       OptimizationPassOptions().WithOptLevel(opt_level),
+                       &results, &context);
 }
 
 absl::Status OptimizationPassPipelineGenerator::AddPassToPipeline(
