@@ -74,3 +74,9 @@ cc_binary(
         "@com_google_absl//absl/types:span",
     ],
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

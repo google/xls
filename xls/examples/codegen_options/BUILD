@@ -115,3 +115,9 @@ build_test(
         ":f_func_as_comb_sv",
     ],
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

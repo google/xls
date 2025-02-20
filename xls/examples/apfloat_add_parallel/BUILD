@@ -74,3 +74,9 @@ cc_test(
         "@googletest//:gtest",
     ],
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

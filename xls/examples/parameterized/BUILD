@@ -83,3 +83,9 @@ xls_ir_verilog(
     },
     verilog_file = "design.v",
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

@@ -52,7 +52,7 @@ xls_dslx_test(
 filegroup(
     name = "x_files",
     srcs = glob(["*.x"]),
-    visibility = ["//visibility:private"],
+    visibility = ["//xls:xls_internal"],
 )
 
 xls_dslx_library(

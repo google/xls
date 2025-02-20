@@ -45,3 +45,9 @@ xls_dslx_opt_ir(
     dslx_top = "matmul_4x4",
     library = ":matmul_4x4_dslx",
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
