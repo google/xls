@@ -2335,6 +2335,12 @@ TEST_F(ParserTest, ModuleWithParametric) {
 })");
 }
 
+TEST_F(ParserTest, DISABLED_ModuleWithParametricType) {
+  RoundTrip(R"(fn parametric<T: type>() -> u32 {
+    zero!<T>()
+})");
+}
+
 TEST_F(ParserTest, ParametricInvocation) { RoundTripExpr("f<u32:2>()", {"f"}); }
 
 TEST_F(ParserTest, ParametricInvocationWithCastToTypeAlias) {

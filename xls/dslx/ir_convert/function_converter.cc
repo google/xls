@@ -390,7 +390,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   // These are always custom-visited (i.e. traversed to in a specialized way
   // from their parent nodes).
   // keep-sorted start
-  INVALID(FunctionRef);
+  INVALID(FunctionRef)
   INVALID(MatchArm)
   INVALID(NameDef)
   INVALID(NameDefTree)
@@ -411,6 +411,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(ChannelTypeAnnotation)
   INVALID(ElementTypeAnnotation)
   INVALID(FunctionTypeAnnotation)
+  INVALID(GenericTypeAnnotation)
   INVALID(MemberTypeAnnotation)
   INVALID(ParamTypeAnnotation)
   INVALID(ReturnTypeAnnotation)

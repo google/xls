@@ -1123,6 +1123,12 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleGenericTypeAnnotation(
+      const GenericTypeAnnotation* n) override {
+    old_to_new_[n] = module_->Make<GenericTypeAnnotation>(n->span());
+    return absl::OkStatus();
+  }
+
   const absl::flat_hash_map<const AstNode*, AstNode*>& old_to_new() {
     return old_to_new_;
   }

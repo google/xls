@@ -2208,6 +2208,11 @@ class DeduceVisitor : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleGenericTypeAnnotation(
+      const GenericTypeAnnotation* n) override {
+    return Fatal(n);
+  }
+
   absl::StatusOr<std::unique_ptr<Type>>& result() { return result_; }
 
  private:

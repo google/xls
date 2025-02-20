@@ -2684,6 +2684,7 @@ std::string TypeAlias::ToString() const {
       "%s%stype %s = %s;", MakeExternTypeAttr(extern_type_name_),
       is_public_ ? "pub " : "", identifier(), type_annotation_.ToString());
 }
+
 // -- class Array
 
 Array::~Array() = default;
@@ -2724,5 +2725,9 @@ Span ExprOrTypeSpan(const ExprOrType& expr_or_type) {
       },
       expr_or_type);
 }
+
+// class GenericTypeAnnotation
+
+GenericTypeAnnotation::~GenericTypeAnnotation() = default;
 
 }  // namespace xls::dslx

@@ -90,6 +90,7 @@
   X(ConstantDef)                  \
   X(EnumDef)                      \
   X(Function)                     \
+  X(GenericTypeAnnotation)        \
   X(Import)                       \
   X(Impl)                         \
   X(MatchArm)                     \
@@ -723,6 +724,31 @@ class SelfTypeAnnotation : public TypeAnnotation {
 
  private:
   bool explicit_type_;
+};
+
+// Represents the `type` in a `<T: type>` annotation.
+class GenericTypeAnnotation : public TypeAnnotation {
+ public:
+  static std::string_view GetDebugTypeName() { return "generic type"; }
+
+  GenericTypeAnnotation(Module* owner, Span span)
+      : TypeAnnotation(owner, span) {}
+
+  ~GenericTypeAnnotation() override;
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleGenericTypeAnnotation(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "GenericTypeAnnotation";
+  }
+
+  std::string ToString() const override { return "type"; }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {};
+  }
 };
 
 // Represents the definition point of a built-in name.
