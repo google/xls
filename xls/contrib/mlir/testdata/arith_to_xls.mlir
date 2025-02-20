@@ -200,6 +200,14 @@ func.func @fptosi8(%arg0: bf16) -> i8 attributes { "xls" = true } {
   return %0 : i8
 }
 
+// CHECK-LABEL: @negate
+// CHECK: xls.call_dslx
+// CHECK-SAME: neg
+func.func @negate(%arg0: bf16) -> bf16 attributes { "xls" = true } {
+  %0 = arith.negf %arg0 : bf16
+  return %0 : bf16
+}
+
 // Check that we can convert an sproc's next region too.
 // CHECK-LABEL: @sproc
 // CHECK: next (

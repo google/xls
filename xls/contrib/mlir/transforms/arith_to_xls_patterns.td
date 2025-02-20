@@ -117,6 +117,9 @@ def : Pat<(Arith_ConstantOp NonIndexAttr:$val),
 // The extension and truncation library.
 defvar ExtLib = CS<"xls/contrib/mlir/stdlib/fp_ext_trunc.x">;
 
+def : Pat<(Arith_NegFOp:$op $a, /*FastMathFlags=*/$_),
+  (Xls_CallDslxOp (FloatLib $a), CS<"negate">, (variadic $a), ConstUnitAttr)>;
+
 // Emits a binary float library call.
 class FloatLibcall<Op Op, string Name> :
     Pat<(Op:$op $a, $b, /*FastMathFlags=*/$_),

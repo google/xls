@@ -518,6 +518,7 @@ cc_binary(
 filegroup(
     name = "stdlib",
     srcs = glob(["stdlib/*.x"]),
+    visibility = [":__subpackages__"],
 )
 
 cc_library(
