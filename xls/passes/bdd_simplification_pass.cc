@@ -441,12 +441,9 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext* context) const {
-  std::vector<std::unique_ptr<QueryEngine>> query_engines;
-  query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  query_engines.push_back(std::make_unique<BddQueryEngine>(
-      BddFunction::kDefaultPathLimit, IsCheapForBdds));
-
-  UnionQueryEngine query_engine(std::move(query_engines));
+  auto query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(),
+      BddQueryEngine(BddFunction::kDefaultPathLimit, IsCheapForBdds));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;

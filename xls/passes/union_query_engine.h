@@ -15,9 +15,11 @@
 #ifndef XLS_PASSES_UNION_QUERY_ENGINE_H_
 #define XLS_PASSES_UNION_QUERY_ENGINE_H_
 
+#include <cstddef>
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -118,6 +120,20 @@ class UnionQueryEngine : public UnownedUnionQueryEngine {
       : UnownedUnionQueryEngine(ToUnownedVector(engines, unowned_engines)),
         owned_engines_(std::move(engines)) {}
 
+  // Helper to create a union-query-engine with a compile constant set of
+  // engines. All engines must be movable.
+  template <typename... Engines>
+  static UnionQueryEngine Of(Engines... e) {
+    std::vector<std::unique_ptr<QueryEngine>> vec =
+        MakeVec<sizeof...(Engines), Engines...>(std::forward<Engines>(e)...);
+    // Reverse the list so that the order of arguments is the same as the order
+    // in the list of unique_ptr<QueryEngine> we use to construct the actual
+    // UnionQueryEngine. NB Assuming well-behaved QEs this should never be
+    // semantically meaningful but it makes debugging easier.
+    absl::c_reverse(vec);
+    return UnionQueryEngine(std::move(vec));
+  }
+
  private:
   static std::vector<QueryEngine*> ToUnownedVector(
       absl::Span<std::unique_ptr<QueryEngine> const> ptrs,
@@ -131,6 +147,24 @@ class UnionQueryEngine : public UnownedUnionQueryEngine {
     return result;
   }
   std::vector<std::unique_ptr<QueryEngine>> owned_engines_;
+
+  template <size_t kCnt, typename E>
+    requires(std::is_base_of_v<QueryEngine, E>)
+  static std::vector<std::unique_ptr<QueryEngine>> MakeVec(E e) {
+    std::vector<std::unique_ptr<QueryEngine>> res;
+    res.reserve(kCnt);
+    res.push_back(std::make_unique<E>(std::move(e)));
+    return res;
+  }
+
+  template <size_t kCnt, typename E, typename... Engines>
+    requires(std::is_base_of_v<QueryEngine, E>)
+  static std::vector<std::unique_ptr<QueryEngine>> MakeVec(E e, Engines... es) {
+    std::vector<std::unique_ptr<QueryEngine>> res =
+        MakeVec<kCnt, Engines...>(std::forward<Engines>(es)...);
+    res.emplace_back(std::make_unique<E>(std::move(e)));
+    return res;
+  }
 };
 
 }  // namespace xls

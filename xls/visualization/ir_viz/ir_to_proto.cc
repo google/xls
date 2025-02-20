@@ -175,13 +175,9 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
                  << critical_path.status();
   }
 
-  std::vector<std::unique_ptr<QueryEngine>> engines;
-  engines.emplace_back(
-      std::make_unique<BddQueryEngine>(BddFunction::kDefaultPathLimit));
-  engines.emplace_back(std::make_unique<TernaryQueryEngine>());
-  engines.emplace_back(std::make_unique<RangeQueryEngine>());
-  engines.emplace_back(std::make_unique<ProcStateRangeQueryEngine>());
-  UnionQueryEngine query_engine(std::move(engines));
+  auto query_engine = UnionQueryEngine::Of(
+      BddQueryEngine(BddFunction::kDefaultPathLimit), TernaryQueryEngine(),
+      RangeQueryEngine(), ProcStateRangeQueryEngine());
   XLS_RETURN_IF_ERROR(query_engine.Populate(function).status());
 
   for (Node* node : function->nodes()) {
