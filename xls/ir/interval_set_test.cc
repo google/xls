@@ -595,6 +595,30 @@ TEST(IntervalSetTest, NegativeIntervals) {
   }
 }
 
+TEST(IntervalSetTest, IterateWithEndAndStartAdjacent) {
+  IntervalSet set = Intervals({{0, 7}, {15, 15}}, 4);
+  auto it = set.Values().begin();
+  EXPECT_THAT(*it, UBits(0, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(1, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(2, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(3, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(4, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(5, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(6, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(7, 4));
+  ++it;
+  EXPECT_THAT(*it, UBits(15, 4));
+  ++it;
+  EXPECT_TRUE(it == set.Values().end());
+}
+
 void IntersectionIsSmaller(const IntervalSet& lhs, const IntervalSet& rhs) {
   IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
   std::optional<uint64_t> intersection_size = intersection.Size();

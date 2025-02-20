@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <functional>
 #include <list>
 #include <optional>
 #include <string>
@@ -185,17 +184,6 @@ IntervalSet IntervalSet::ZeroExtend(int64_t bit_width) const {
   }
   result.Normalize();
   return result;
-}
-
-bool IntervalSet::ForEachElement(
-    const std::function<bool(const Bits&)>& callback) const {
-  CHECK(is_normalized_);
-  for (const Interval& interval : intervals_) {
-    if (interval.ForEachElement(callback)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 IntervalSet IntervalSet::PositiveIntervals(bool with_zero) const {

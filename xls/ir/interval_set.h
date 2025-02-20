@@ -17,13 +17,16 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <iosfwd>
+#include <iterator>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/base/macros.h"
 #include "absl/log/check.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/iterator_range.h"
 #include "xls/ir/bits.h"
@@ -149,6 +152,95 @@ class IntervalSet {
   // only positive or negative numbers.
   xabsl::iterator_range<SignedIntervalIterator> SignedIntervals() const;
 
+  // A lazy iterator of the bits values in this interval set.
+  class ValuesIterator {
+   public:
+    using difference_type = std::ptrdiff_t;
+    using value_type = Interval::ValuesIterator::value_type;
+    using reference = Interval::ValuesIterator::reference;
+    using pointer = Interval::ValuesIterator::pointer;
+    using iterator_category = std::forward_iterator_tag;
+
+    ValuesIterator(ValuesIterator&&) = default;
+    ValuesIterator(const ValuesIterator&) = default;
+    ValuesIterator& operator=(ValuesIterator&&) = default;
+    ValuesIterator& operator=(const ValuesIterator&) = default;
+
+    const Bits& operator*() const { return *cur_value_; }
+    const Bits* operator->() const { return cur_value_.operator->(); }
+    ValuesIterator& operator++() {
+      CHECK(cur_interval_ != end_interval_) << "Incr after end!";
+      CHECK(cur_value_ != cur_end_) << "Incr after end val!";
+      ++cur_value_;
+      if (cur_value_ == cur_end_) {
+        ++cur_interval_;
+        if (cur_interval_ != end_interval_) {
+          cur_value_ = cur_interval_->begin();
+          cur_end_ = cur_interval_->end();
+        }
+      }
+      return *this;
+    }
+    ValuesIterator operator++(int) {
+      ValuesIterator tmp = *this;
+      ++*this;
+      return tmp;
+    }
+
+    template <typename Sink>
+    friend void AbslStringify(Sink& sink, const ValuesIterator& it) {
+      if (it.cur_interval_ == it.end_interval_) {
+        absl::Format(&sink, "END");
+      } else {
+        absl::Format(&sink, "%v", *it);
+      }
+    }
+
+    bool operator==(const ValuesIterator& o) const {
+      return (cur_interval_ == o.cur_interval_ &&
+              cur_interval_ == end_interval_) ||
+             (cur_interval_ == o.cur_interval_ && cur_value_ == o.cur_value_);
+    }
+
+   private:
+    explicit ValuesIterator(absl::Span<const Interval>::const_iterator cur,
+                            absl::Span<const Interval>::const_iterator end,
+                            Interval::ValuesIterator&& cur_value,
+                            Interval::ValuesIterator&& cur_end)
+        : cur_interval_(cur),
+          end_interval_(end),
+          cur_value_(std::move(cur_value)),
+          cur_end_(std::move(cur_end)) {}
+    bool InSplit() const;
+
+    absl::Span<const Interval>::const_iterator cur_interval_;
+    absl::Span<const Interval>::const_iterator end_interval_;
+    Interval::ValuesIterator cur_value_;
+    Interval::ValuesIterator cur_end_;
+
+    friend class IntervalSet;
+  };
+  // Get all the values contained in the interval_set. The set must be
+  // normalized prior to calling this. The iteration order is unsigned values
+  // from the lowest to the highest.
+  xabsl::iterator_range<ValuesIterator> Values() const {
+    CHECK(is_normalized_);
+    if (intervals_.empty()) {
+      return xabsl::make_range(
+          ValuesIterator(Intervals().begin(), Intervals().end(),
+                         Interval::ValuesIterator::None(),
+                         Interval::ValuesIterator::None()),
+          ValuesIterator(Intervals().begin(), Intervals().end(),
+                         Interval::ValuesIterator::None(),
+                         Interval::ValuesIterator::None()));
+    }
+    return xabsl::make_range(
+        ValuesIterator(Intervals().begin(), Intervals().end(),
+                       Intervals().front().begin(), Intervals().front().end()),
+        ValuesIterator(Intervals().end(), Intervals().end(),
+                       Intervals().back().end(), Intervals().back().end()));
+  }
+
   // Returns the `BitCount()` of all intervals in the interval set.
   int64_t BitCount() const {
     CHECK_GE(bit_count_, 0);
@@ -196,11 +288,23 @@ class IntervalSet {
   // Call the given function on each point contained within this set of
   // intervals. The function returns a `bool` that, if true, ends the iteration
   // early and results in `ForEachElement` returning true. If the iteration does
-  // not end early, false is returned.
+  // not end early, false is returned. Generally you should prefer the Values
+  // interface.
   //
   // CHECK fails if this interval set is not normalized, as that can lead to
   // unexpectedly calling the callback on the same point twice.
-  bool ForEachElement(const std::function<bool(const Bits&)>& callback) const;
+  template <typename Func>
+    requires(std::is_invocable_r_v<bool, Func, const Bits&>)
+  ABSL_DEPRECATE_AND_INLINE()
+  bool ForEachElement(Func callback) const {
+    CHECK(is_normalized_);
+    for (const Bits& b : Values()) {
+      if (callback(b)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   // Returns a normalized set of intervals comprising the union of the two given
   // interval sets.

@@ -52,8 +52,8 @@ Bits XorReduce(const Bits& operand);
 
 // Various arithmetic operations. The width of all inputs must be equal, and the
 // returned Bits object is truncated to the same width as the input.
-Bits Increment(const Bits& x);
-Bits Decrement(const Bits& x);
+Bits Increment(Bits x);
+Bits Decrement(Bits x);
 Bits Add(const Bits& lhs, const Bits& rhs);
 Bits Sub(const Bits& lhs, const Bits& rhs);
 

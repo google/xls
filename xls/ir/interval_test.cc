@@ -483,5 +483,16 @@ TEST(IntervalTest, ZeroExtend) {
   EXPECT_EQ(extended.BitCount(), 30);
 }
 
+TEST(IntervalTest, IterMaximalImproper) {
+  Interval interval(UBits(2, 2), UBits(1, 2));
+  EXPECT_THAT(interval.Elements(),
+              ElementsAre(UBits(2, 2), UBits(3, 2), UBits(0, 2), UBits(1, 2)));
+}
+
+TEST(IntervalTest, IterSingleElement) {
+  Interval interval(UBits(2, 20), UBits(2, 20));
+  EXPECT_THAT(interval.Elements(), ElementsAre(UBits(2, 20)));
+}
+
 }  // namespace
 }  // namespace xls

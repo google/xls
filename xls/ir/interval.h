@@ -15,14 +15,20 @@
 #ifndef XLS_IR_INTERVAL_H_
 #define XLS_IR_INTERVAL_H_
 
+#include <stdbool.h>
+
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <iosfwd>
+#include <iterator>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "absl/base/macros.h"
 #include "absl/log/check.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -134,17 +140,98 @@ class Interval {
   // subsets are allowed). Does not accept improper intervals.
   static bool IsSubsetOf(const Interval& lhs, const Interval& rhs);
 
+  // A lazy iterator of the values in this interval.
+  //
+  // TODO(allight): Implement the random-access iterator interface. NB
+  // random-access iterator requires constant-time indexing.
+  class ValuesIterator {
+   public:
+    using difference_type = std::ptrdiff_t;
+    using value_type = Bits;
+    using reference = const Bits&;
+    using pointer = const Bits*;
+    using iterator_category = std::forward_iterator_tag;
+    static ValuesIterator None() { return ValuesIterator(Bits(0), false); }
+
+    ValuesIterator(ValuesIterator&&) = default;
+    ValuesIterator(const ValuesIterator&) = default;
+    ValuesIterator& operator=(ValuesIterator&&) = default;
+    ValuesIterator& operator=(const ValuesIterator&) = default;
+
+    const Bits& operator*() const { return cur_value_; }
+    const Bits* operator->() const { return &cur_value_; }
+    ValuesIterator& operator++() {
+      cur_value_ = bits_ops::Increment(std::move(cur_value_));
+      is_first_and_maximal = false;
+      return *this;
+    }
+    ValuesIterator operator++(int) {
+      ValuesIterator tmp = *this;
+      ++*this;
+      return tmp;
+    }
+
+    bool operator==(const ValuesIterator& o) const {
+      return cur_value_ == o.cur_value_ &&
+             is_first_and_maximal == o.is_first_and_maximal;
+    }
+
+   private:
+    explicit ValuesIterator(const Bits& cur, bool is_first_and_maximal)
+        : cur_value_(cur), is_first_and_maximal(is_first_and_maximal) {}
+    Bits cur_value_;
+    bool is_first_and_maximal;
+
+    friend class Interval;
+  };
+
+  // Begin lazy iterator fo the elements of the interval.
+  ValuesIterator begin() const {
+    EnsureValid();
+    // If we are a maximal interval we need to be sure to not consider the first
+    // element the end.
+    return ValuesIterator(lower_bound_, /*is_first_and_maximal=*/IsMaximal());
+  }
+  ValuesIterator cbegin() const { return begin(); }
+
+  // End Iterator of the elements of the interval.
+  ValuesIterator end() const {
+    EnsureValid();
+    return ValuesIterator(bits_ops::Increment(upper_bound_),
+                          /*is_first_and_maximal=*/false);
+  }
+  ValuesIterator cend() const { return end(); }
+
   // Iterate over every point in the interval, calling the given callback for
   // each point. If the callback returns `true`, terminate the iteration early
   // and return `true`. Otherwise, continue the iteration until all points have
-  // been visited and return `false`.
-  bool ForEachElement(const std::function<bool(const Bits&)>& callback) const;
+  // been visited and return `false`. The iterator interface should be prefered
+  // to this.
+  template <typename Func>
+    requires(std::is_invocable_r_v<bool, Func, const Bits&>)
+  ABSL_DEPRECATE_AND_INLINE()
+  bool ForEachElement(Func callback) const {
+    EnsureValid();
+    for (const Bits& b : *this) {
+      if (callback(b)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-  // This is similar to `ForEachElement`, except it accumulates the result
-  // into a `std::vector<Bits>` instead of using a callback. This is often
-  // impractical as it will use a lot of memory, but can be useful temporarily
-  // for debugging.
-  std::vector<Bits> Elements() const;
+  // This simply collects the results of iterating over this interval into a
+  // `std::vector<Bits>` for convenience. This is often impractical as it will
+  // use a lot of memory, but can be useful temporarily for debugging. Prefer
+  // using the iterator interface above which generates the elements lazily.
+  std::vector<Bits> Elements() const {
+    std::vector<Bits> elems;
+    elems.reserve(Size().value_or(1));
+    for (const Bits& b : *this) {
+      elems.push_back(b);
+    }
+    return elems;
+  };
 
   // Returns the number of points contained within the interval as a `Bits`.
   //

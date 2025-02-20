@@ -191,44 +191,6 @@ bool Interval::IsSubsetOf(const Interval& lhs, const Interval& rhs) {
          bits_ops::UGreaterThanOrEqual(rhs.UpperBound(), lhs.UpperBound());
 }
 
-bool Interval::ForEachElement(
-    const std::function<bool(const Bits&)>& callback) const {
-  EnsureValid();
-  if (bits_ops::UEqual(lower_bound_, upper_bound_)) {
-    return callback(lower_bound_);
-  }
-  Bits value = lower_bound_;
-  if (IsImproper()) {
-    Bits max = Bits::AllOnes(BitCount());
-    while (bits_ops::ULessThan(value, max)) {
-      if (callback(value)) {
-        return true;
-      }
-      value = bits_ops::Increment(value);
-    }
-    if (callback(value)) {
-      return true;
-    }
-    value = UBits(0, BitCount());
-  }
-  while (bits_ops::ULessThan(value, upper_bound_)) {
-    if (callback(value)) {
-      return true;
-    }
-    value = bits_ops::Increment(value);
-  }
-  return callback(value);
-}
-
-std::vector<Bits> Interval::Elements() const {
-  std::vector<Bits> result;
-  ForEachElement([&result](const Bits& value) {
-    result.push_back(value);
-    return false;
-  });
-  return result;
-}
-
 Bits Interval::SizeBits() const {
   EnsureValid();
 
@@ -285,8 +247,11 @@ bool Interval::IsMaximal() const {
   if (BitCount() == 0) {
     return true;
   }
-  return bits_ops::UEqual(lower_bound_, UBits(0, BitCount())) &&
-         bits_ops::UEqual(upper_bound_, Bits::AllOnes(BitCount()));
+  if (IsImproper()) {
+    // Means upper is less than lower.
+    return bits_ops::UEqual(bits_ops::Increment(upper_bound_), lower_bound_);
+  }
+  return lower_bound_.IsZero() && upper_bound_.IsAllOnes();
 }
 
 bool Interval::IsTrueWhenAndWith(const Bits& value) const {

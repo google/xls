@@ -229,8 +229,8 @@ Bits Sub(const Bits& lhs, const Bits& rhs) {
   return TruncateOrSignExtend(std::move(diff), lhs.bit_count());
 }
 
-Bits Increment(const Bits& x) {
-  InlineBitmap result = x.bitmap();
+Bits Increment(Bits x) {
+  InlineBitmap result = std::move(x).bitmap();
   for (int64_t i = 0; i < result.word_count(); ++i) {
     uint64_t word = result.GetWord(i);
     if (word < std::numeric_limits<uint64_t>::max()) {
@@ -242,8 +242,8 @@ Bits Increment(const Bits& x) {
   return Bits::FromBitmap(std::move(result));
 }
 
-Bits Decrement(const Bits& x) {
-  InlineBitmap result = x.bitmap();
+Bits Decrement(Bits x) {
+  InlineBitmap result = std::move(x).bitmap();
   for (int64_t i = 0; i < result.word_count(); ++i) {
     uint64_t word = result.GetWord(i);
     if (word > 0) {
