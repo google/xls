@@ -403,39 +403,38 @@ absl::Status ConstantChainToStateMachine(Proc* proc,
     initial_state_literals.push_back(init);
   }
 
-    CHECK_EQ(proc->next_values(proc->GetStateRead(chain.front())).size(), 1);
-    Next* next_value =
-        *proc->next_values(proc->GetStateRead(chain.front())).begin();
-    CHECK(next_value->predicate() == std::nullopt &&
-          query_engine.IsFullyKnown(next_value->value()));
-    Node* chain_constant = next_value->value();
-    CHECK(chain_constant != nullptr &&
-          query_engine.IsFullyKnown(chain_constant));
-    XLS_ASSIGN_OR_RETURN(
-        Literal * chain_literal,
-        proc->MakeNode<Literal>(chain_constant->loc(),
-                                *query_engine.KnownValue(chain_constant)));
+  CHECK_EQ(proc->next_values(proc->GetStateRead(chain.front())).size(), 1);
+  Next* next_value =
+      *proc->next_values(proc->GetStateRead(chain.front())).begin();
+  CHECK(next_value->predicate() == std::nullopt &&
+        query_engine.IsFullyKnown(next_value->value()));
+  Node* chain_constant = next_value->value();
+  CHECK(chain_constant != nullptr && query_engine.IsFullyKnown(chain_constant));
+  XLS_ASSIGN_OR_RETURN(
+      Literal * chain_literal,
+      proc->MakeNode<Literal>(chain_constant->loc(),
+                              *query_engine.KnownValue(chain_constant)));
 
-    absl::btree_set<int64_t, std::greater<int64_t>> indices_to_remove;
-    for (int64_t chain_index = 0; chain_index < chain.size(); ++chain_index) {
-      int64_t state_index = chain.at(chain_index);
-      std::vector<Node*> cases = initial_state_literals;
-      CHECK_GE(cases.size(), chain_index);
-      cases.resize(chain_index + 1);
-      std::reverse(cases.begin(), cases.end());
-      absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
-          proc->next_values(proc->GetStateRead(state_index));
-      for (Next* next : next_values) {
-        XLS_RETURN_IF_ERROR(
-            next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
-        XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
-      }
-      XLS_RETURN_IF_ERROR(proc->GetStateRead(state_index)
-                              ->ReplaceUsesWithNew<Select>(state_machine_read,
-                                                           cases, chain_literal)
-                              .status());
-      indices_to_remove.insert(state_index);
+  absl::btree_set<int64_t, std::greater<int64_t>> indices_to_remove;
+  for (int64_t chain_index = 0; chain_index < chain.size(); ++chain_index) {
+    int64_t state_index = chain.at(chain_index);
+    std::vector<Node*> cases = initial_state_literals;
+    CHECK_GE(cases.size(), chain_index);
+    cases.resize(chain_index + 1);
+    std::reverse(cases.begin(), cases.end());
+    absl::btree_set<Next*, Node::NodeIdLessThan> next_values =
+        proc->next_values(proc->GetStateRead(state_index));
+    for (Next* next : next_values) {
+      XLS_RETURN_IF_ERROR(
+          next->ReplaceUsesWithNew<Literal>(Value::Tuple({})).status());
+      XLS_RETURN_IF_ERROR(proc->RemoveNode(next));
     }
+    XLS_RETURN_IF_ERROR(proc->GetStateRead(state_index)
+                            ->ReplaceUsesWithNew<Select>(state_machine_read,
+                                                         cases, chain_literal)
+                            .status());
+    indices_to_remove.insert(state_index);
+  }
   for (int64_t state_index : indices_to_remove) {
     XLS_RETURN_IF_ERROR(proc->RemoveStateElement(state_index));
   }
