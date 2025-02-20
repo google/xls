@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -62,6 +63,11 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement);
 // children of the original node.
 absl::StatusOr<AstNode*> CloneAst(const AstNode* root,
                                   CloneReplacer replacer = &NoopCloneReplacer);
+
+// Variant that returns all the old->new pairs in the cloned subtree.
+absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
+CloneAstAndGetAllPairs(const AstNode* root,
+                       CloneReplacer replacer = &NoopCloneReplacer);
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(
     const Module& module, CloneReplacer replacer = &NoopCloneReplacer);

@@ -92,24 +92,6 @@ struct FunctionAndTargetObject {
   bool is_special_builtin = false;
 };
 
-// Performs a clone of `input` with preservation of nodes that we never want to
-// clone for type inference purposes. These include type definitions and self
-// types, which have their real types assigned to them in the `InferenceTable`.
-absl::StatusOr<AstNode*> SafeClone(const AstNode* input,
-                                   CloneReplacer replacer) {
-  return CloneAst(
-      input,
-      ChainCloneReplacers(
-          [](const AstNode* node) -> absl::StatusOr<std::optional<AstNode*>> {
-            if (dynamic_cast<const SelfTypeAnnotation*>(node) != nullptr) {
-              return const_cast<AstNode*>(node);
-            }
-            return std::nullopt;
-          },
-          ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
-                              std::move(replacer))));
-}
-
 // A utility that flattens type annotation trees, with expansion of encountered
 // type variables, instead of unification of those variables. This is in
 // contrast to `ResolveVariableTypeAnnotations`, which converts encountered
@@ -577,6 +559,9 @@ class InferenceTableConverter {
         GetParametricFreeType(CreateFunctionTypeAnnotation(module_, *function),
                               parametric_value_exprs_.at(parametric_context),
                               parametric_context->self_type()));
+    XLS_RETURN_IF_ERROR(
+        ConvertSubtree(parametric_free_type, caller, caller_context));
+
     const FunctionTypeAnnotation* parametric_free_function_type =
         down_cast<const FunctionTypeAnnotation*>(parametric_free_type);
 
@@ -1141,6 +1126,7 @@ class InferenceTableConverter {
             << " with owner: " << scoped_expr.expr()->owner()
             << " in module: " << module_.name()
             << " in context: " << ToString(scoped_expr.context());
+
     TypeInfo* type_info = base_type_info_;
     // Note that `scoped_expr` will not have a `context()` in a case like
     //  fn foo<X: u32>(...) { ... }
@@ -1305,7 +1291,7 @@ class InferenceTableConverter {
       const ParametricContext* context) {
     absl::flat_hash_map<std::string, InterpValue> values;
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
-    absl::flat_hash_map<std::string, const NameDef*> binding_name_defs;
+    absl::flat_hash_map<std::string, const ParametricBinding*> bindings;
     auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
       if (implicit_parametrics.empty()) {
         return absl::OkStatus();
@@ -1318,7 +1304,7 @@ class InferenceTableConverter {
       return absl::OkStatus();
     };
     for (const ParametricBinding* binding : context->parametric_bindings()) {
-      binding_name_defs.emplace(binding->identifier(), binding->name_def());
+      bindings.emplace(binding->identifier(), binding);
       std::optional<ParametricContextScopedExpr> expr =
           table_.GetParametricValue(*binding->name_def(), *context);
       if (expr.has_value()) {
@@ -1343,12 +1329,11 @@ class InferenceTableConverter {
     // from type annotations.
     absl::flat_hash_map<const NameDef*, ExprOrType> actual_parametrics;
     for (const auto& [name, value] : values) {
-      const NameDef* binding_name_def = binding_name_defs.at(name);
-      actual_parametrics.emplace(
-          binding_name_def,
-          module_.Make<Number>(binding_name_def->span(),
-                               value.ToString(/*humanize=*/true),
-                               NumberKind::kOther, nullptr));
+      const ParametricBinding* binding = bindings.at(name);
+      XLS_ASSIGN_OR_RETURN(Number * value_expr,
+                           MakeTypeCheckedNumber(binding->span(), value,
+                                                 binding->type_annotation()));
+      actual_parametrics.emplace(binding->name_def(), value_expr);
     }
     if (callee_struct_context.has_value()) {
       for (const auto& [name_def, expr] :
@@ -1585,6 +1570,8 @@ class InferenceTableConverter {
           accept_predicate) {
     XLS_RETURN_IF_ERROR(ResolveVariableTypeAnnotations(
         parametric_context, annotations, accept_predicate));
+    // Remove all singular `Any` annotations, and if that's all we had, the
+    // result is one singular `Any`.
     FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
       const auto* any_annotation =
           dynamic_cast<const AnyTypeAnnotation*>(annotation);
@@ -1593,6 +1580,8 @@ class InferenceTableConverter {
     if (annotations.empty()) {
       return module_.Make<AnyTypeAnnotation>();
     }
+    // Remove all multiple `Any` annotations, and if that's all we had, the
+    // result is one multiple `Any`.
     FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
       return dynamic_cast<const AnyTypeAnnotation*>(annotation) == nullptr;
     });
@@ -1844,12 +1833,13 @@ class InferenceTableConverter {
         const TypeAnnotation* unified_element_type,
         UnifyTypeAnnotations(parametric_context, element_type_annotations, span,
                              accept_predicate));
+    XLS_ASSIGN_OR_RETURN(
+        Number * size_expr,
+        MakeTypeCheckedNumber(
+            annotations[0]->span(), unified_dim->size,
+            CreateU32Annotation(module_, annotations[0]->span())));
     return module_.Make<ArrayTypeAnnotation>(
-        span, const_cast<TypeAnnotation*>(unified_element_type),
-        module_.Make<Number>(annotations[0]->span(),
-                             absl::StrCat(unified_dim->size),
-                             NumberKind::kOther,
-                             /*type_annotation=*/nullptr));
+        span, const_cast<TypeAnnotation*>(unified_element_type), size_expr);
   }
 
   // Unifies multiple annotations for a function type. This assumes the
@@ -1977,11 +1967,10 @@ class InferenceTableConverter {
           Concretize(binding->type_annotation(), parametric_context));
       instance_type_info->SetItem(binding->name_def(), *binding_type);
       instance_type_info->NoteConstExpr(binding->name_def(), value);
-      resolved_parametrics.emplace(
-          binding->identifier(),
-          module_.Make<Number>(binding->span(),
-                               value.ToString(/*humanize=*/true),
-                               NumberKind::kOther, nullptr));
+      XLS_ASSIGN_OR_RETURN(Number * value_expr,
+                           MakeTypeCheckedNumber(binding->span(), value,
+                                                 binding->type_annotation()));
+      resolved_parametrics.emplace(binding->identifier(), value_expr);
       return absl::OkStatus();
     };
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
@@ -2106,8 +2095,8 @@ class InferenceTableConverter {
       if (i >= struct_or_proc_ref.parametrics.size()) {
         XLS_ASSIGN_OR_RETURN(
             AstNode * clone,
-            SafeClone(binding->expr(),
-                      NameRefMapper(parametrics_and_constants)));
+            table_.Clone(binding->expr(),
+                         NameRefMapper(parametrics_and_constants)));
         value_expr = dynamic_cast<Expr*>(clone);
       } else {
         value_expr = struct_or_proc_ref.parametrics[i];
@@ -2154,7 +2143,8 @@ class InferenceTableConverter {
             return std::nullopt;
           });
     }
-    XLS_ASSIGN_OR_RETURN(AstNode * clone, SafeClone(type, std::move(replacer)));
+    XLS_ASSIGN_OR_RETURN(AstNode * clone,
+                         table_.Clone(type, std::move(replacer)));
     const auto* result = dynamic_cast<const TypeAnnotation*>(clone);
     CHECK(result != nullptr);
     return result;
@@ -2185,7 +2175,7 @@ class InferenceTableConverter {
     bool replaced_anything = false;
     XLS_ASSIGN_OR_RETURN(
         AstNode * clone,
-        SafeClone(
+        table_.Clone(
             annotation,
             [&](const AstNode* node)
                 -> absl::StatusOr<std::optional<AstNode*>> {
@@ -2637,6 +2627,26 @@ class InferenceTableConverter {
       return signedness_mismatch_error();
     }
     return *x;
+  }
+
+  // Fabricates a `Number` node and sets the given type annotation for it in the
+  // inference table.
+  absl::StatusOr<Number*> MakeTypeCheckedNumber(
+      const Span& span, const InterpValue& value,
+      const TypeAnnotation* type_annotation) {
+    VLOG(5) << "Creating type-checked number: " << value.ToString()
+            << " of type: " << type_annotation->ToString();
+    Number* number = module_.Make<Number>(
+        span, value.ToString(/*humanize=*/true), NumberKind::kOther, nullptr);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(number, type_annotation));
+    return number;
+  }
+
+  // Variant that takes a raw `int64_t` value for the number.
+  absl::StatusOr<Number*> MakeTypeCheckedNumber(
+      const Span& span, int64_t value, const TypeAnnotation* type_annotation) {
+    return MakeTypeCheckedNumber(span, InterpValue::MakeS64(value),
+                                 type_annotation);
   }
 
   InferenceTable& table_;

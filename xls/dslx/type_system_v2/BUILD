@@ -26,6 +26,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
         "//xls/dslx/frontend:module",
@@ -94,6 +95,7 @@ cc_test(
     deps = [
         ":inference_table",
         ":inference_table_to_type_info",
+        ":type_annotation_utils",
         ":type_system_test_utils",
         "//xls/common:casts",
         "//xls/common:xls_gunit_main",
@@ -104,6 +106,7 @@ cc_test(
         "//xls/dslx:warning_collector",
         "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:pos",

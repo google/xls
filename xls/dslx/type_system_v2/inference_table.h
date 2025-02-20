@@ -34,6 +34,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
@@ -338,6 +339,10 @@ class InferenceTable {
   GetTypeAnnotationsForTypeVariable(
       std::optional<const ParametricContext*> parametric_context,
       const NameRef* variable) const = 0;
+
+  // Clones the given `input` subtree and the table data for each node.
+  virtual absl::StatusOr<AstNode*> Clone(const AstNode* input,
+                                         CloneReplacer replacer) = 0;
 
   // Converts the table to string for debugging purposes.
   virtual std::string ToString() const = 0;

@@ -39,6 +39,7 @@
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
@@ -398,6 +399,26 @@ class InferenceTableImpl : public InferenceTable {
     const auto it = colon_ref_targets_.find(colon_ref);
     return it == colon_ref_targets_.end() ? std::nullopt
                                           : std::make_optional(it->second);
+  }
+
+  absl::StatusOr<AstNode*> Clone(const AstNode* input,
+                                 CloneReplacer replacer) override {
+    absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
+    XLS_ASSIGN_OR_RETURN(
+        all_pairs,
+        CloneAstAndGetAllPairs(
+            input, ChainCloneReplacers(&PreserveTypeDefinitionsReplacer,
+                                       std::move(replacer))));
+    for (const auto& [old_node, new_node] : all_pairs) {
+      if (old_node != new_node) {
+        const auto it = node_data_.find(old_node);
+        if (it != node_data_.end()) {
+          NodeData copy = it->second;
+          node_data_.emplace(new_node, std::move(copy));
+        }
+      }
+    }
+    return all_pairs.at(input);
   }
 
   std::string ToString() const override {

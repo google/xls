@@ -2079,6 +2079,30 @@ const Y = foo<true, 11>();
                   HasNodeWithType("const Y = foo<true, 11>();", "sN[11]"))));
 }
 
+TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfCastedDifference) {
+  EXPECT_THAT(R"(
+fn f<A: s32, B: s32>(a: u32) -> uN[(B - A) as u32] {
+   a as uN[(B - A) as u32]
+}
+const X = f<1, 3>(50);
+const Y = f<1, 4>(50);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[2]"),
+                                      HasNodeWithType("Y", "uN[3]"))));
+}
+
+TEST(TypecheckV2Test, FunctionReturningIntegerOfSumOfInferredParametrics) {
+  EXPECT_THAT(R"(
+fn f<A: u32, B: u32>(a: uN[A], b: uN[B]) -> uN[A + B] {
+   a as uN[A + B] + b as uN[A + B]
+}
+const X = f(u16:30, u8:40);
+const Y = f(u32:30, u40:40);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[24]"),
+                                      HasNodeWithType("Y", "uN[72]"))));
+}
+
 TEST(TypecheckV2Test, ParametricFunctionTakingIntegerOfParameterizedSize) {
   EXPECT_THAT(R"(
 fn foo<N: u32>(a: uN[N]) -> uN[N] { a }

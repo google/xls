@@ -1196,18 +1196,27 @@ CloneReplacer NameRefReplacer(const NameDef* def, Expr* replacement) {
   };
 }
 
-absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
+absl::StatusOr<absl::flat_hash_map<const AstNode*, AstNode*>>
+CloneAstAndGetAllPairs(const AstNode* root, CloneReplacer replacer) {
   if (dynamic_cast<const Module*>(root) != nullptr) {
     return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
   }
   XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> root_replacement,
                        replacer(root));
   if (root_replacement.has_value()) {
-    return *root_replacement;
+    return absl::flat_hash_map<const AstNode*, AstNode*>{
+        {root, *root_replacement}};
   }
   AstCloner cloner(root->owner(), std::move(replacer));
   XLS_RETURN_IF_ERROR(root->Accept(&cloner));
-  return cloner.old_to_new().at(root);
+  return cloner.old_to_new();
+}
+
+absl::StatusOr<AstNode*> CloneAst(const AstNode* root, CloneReplacer replacer) {
+  absl::flat_hash_map<const AstNode*, AstNode*> all_pairs;
+  XLS_ASSIGN_OR_RETURN(all_pairs,
+                       CloneAstAndGetAllPairs(root, std::move(replacer)));
+  return all_pairs.at(root);
 }
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(const Module& module,

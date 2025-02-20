@@ -23,6 +23,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/casts.h"
@@ -30,6 +32,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -1855,6 +1858,36 @@ use foo::bar::{baz::{bat, qux}, ipsum};)";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(*module.get()));
   EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, CloneAstAndGetAllPairs) {
+  constexpr std::string_view kProgram =
+      R"(
+fn foo(a: u32, b: u32) -> u32 {
+  a + b
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  absl::flat_hash_map<const AstNode*, AstNode*> clones;
+  XLS_ASSERT_OK_AND_ASSIGN(clones,
+                           CloneAstAndGetAllPairs(foo, &NoopCloneReplacer));
+  absl::flat_hash_set<const AstNode*> original_nodes = FlattenToSet(foo);
+  // This is EXPECT_GE because the cloner traverses nodes that are suppressed by
+  // GetChildren() while the flattener doesn't.
+  EXPECT_GE(clones.size(), original_nodes.size());
+  absl::flat_hash_set<const AstNode*> cloned_nodes =
+      FlattenToSet(clones.at(foo));
+  for (const AstNode* original : original_nodes) {
+    const auto it = clones.find(original);
+    EXPECT_NE(it, clones.end());
+    EXPECT_NE(it->second, original);
+    EXPECT_TRUE(cloned_nodes.contains(it->second));
+  }
 }
 
 }  // namespace
