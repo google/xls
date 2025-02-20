@@ -1677,8 +1677,7 @@ DocRef Fmt(const AllOnesMacro& n, Comments& comments, DocArena& arena) {
 }
 
 DocRef Fmt(const Unop& n, Comments& comments, DocArena& arena) {
-  std::vector<DocRef> pieces = {
-      arena.MakeText(UnopKindToString(n.unop_kind()))};
+  std::vector<DocRef> pieces = {arena.MakeText(UnopKindFormat(n.unop_kind()))};
   if (WeakerThan(n.operand()->GetPrecedence(), n.GetPrecedence())) {
     pieces.push_back(arena.oparen());
     pieces.push_back(Fmt(*n.operand(), comments, arena));

@@ -518,7 +518,7 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceUnop(const Unop* node,
         node->span(), operand_type.get(),
         absl::StrFormat(
             "Unary operation `%s` can only be applied to bits-typed operands.",
-            UnopKindToString(node->unop_kind())),
+            UnopKindFormat(node->unop_kind())),
         ctx->file_table());
   }
 
@@ -698,12 +698,20 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceBinop(const Binop* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Type> rhs,
                        ctx->DeduceAndResolve(node->rhs()));
 
-  if (*lhs != *rhs) {
+  if (*lhs != *rhs && !lhs->IsFunction()) {
     return ctx->TypeMismatchError(
         node->span(), node->lhs(), *lhs, node->rhs(), *rhs,
         absl::StrFormat("Could not deduce type for "
                         "binary operation '%s'",
                         BinopKindFormat(node->binop_kind())));
+  }
+
+  if (lhs->IsFunction()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Cannot use operator `%s` on functions.",
+                        BinopKindFormat(node->binop_kind())),
+        ctx->file_table());
   }
 
   if (auto* enum_type = dynamic_cast<EnumType*>(lhs.get());
