@@ -399,7 +399,7 @@ fn test_signex() {
 
 Note that both `s` and `u` contain the same bits in the above example.
 
-### `slice`
+### `array_slice`
 
 Array-slice built-in operation. Note that the "want" argument is *not* used as a
 value, but is just used to reflect the desired slice type. (Prior to constexprs
@@ -407,7 +407,7 @@ being passed to built-in functions, this was the canonical way to reflect a
 constexpr in the type system.) Has the following signature:
 
 ```
-fn slice<T: type, N: u32, M: u32, S: u32>(xs: T[N], start: uN[M], want: T[S]) -> T[S]
+fn array_slice<T: type, N: u32, M: u32, S: u32>(xs: T[N], start: uN[M], want: T[S]) -> T[S]
 ```
 
 ### `rev`
