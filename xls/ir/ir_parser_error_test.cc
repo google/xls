@@ -44,7 +44,6 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Optional;
-using ::testing::Property;
 
 TEST(IrParserErrorTest, DuplicateKeywordArgs) {
   Package p("my_package");

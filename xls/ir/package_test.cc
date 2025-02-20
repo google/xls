@@ -43,12 +43,8 @@ namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
-using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
-using ::testing::IsEmpty;
-using ::testing::Not;
-using ::testing::Property;
 
 class PackageTest : public IrTestBase {};
 

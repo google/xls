@@ -50,7 +50,6 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::Optional;
-using ::testing::Property;
 
 // EXPECTS that the two given strings are similar modulo extra whitespace.
 static void ExpectStringsSimilar(

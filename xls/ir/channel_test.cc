@@ -43,8 +43,6 @@ using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
-using ::testing::IsEmpty;
-using ::testing::Property;
 
 TEST(ChannelTest, ChannelOpsToString) {
   EXPECT_EQ(ChannelOpsToString(ChannelOps::kSendOnly), "send_only");
