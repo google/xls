@@ -325,6 +325,7 @@
   X(kBool, BOOL, "bool")          \
   X(kChan, CHAN, "chan")          \
   X(kSelfType, SELF_TYPE, "Self") \
+  X(kType, TYPE, "type")          \
   XLS_DSLX_SIZED_TYPE_KEYWORDS(X) \
   /* done */
 

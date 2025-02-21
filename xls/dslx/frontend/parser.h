@@ -283,8 +283,10 @@ class Parser : public TokenParser {
   // Parses an AST construct that refers to a type; e.g. a name or a colon-ref.
   absl::StatusOr<TypeRef*> ParseTypeRef(Bindings& bindings, const Token& tok);
 
+  // allow_generic_type indicates `T: type` is allowed.
   absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(
-      Bindings& bindings, std::optional<Token> first = std::nullopt);
+      Bindings& bindings, std::optional<Token> first = std::nullopt,
+      bool allow_generic_type = false);
 
   // Parses the parametrics and dims after a `TypeRef` that the caller has
   // already parsed, producing a `TypeAnnotation` for the whole thing.

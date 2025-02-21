@@ -850,7 +850,7 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
-    Bindings& bindings, std::optional<Token> first) {
+    Bindings& bindings, std::optional<Token> first, bool allow_generic_type) {
   XLS_ASSIGN_OR_RETURN(ExpressionDepthGuard expr_depth, BumpExpressionDepth());
 
   VLOG(5) << "ParseTypeAnnotation @ " << GetPos();
@@ -866,6 +866,9 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
     if (tok.GetKeyword() == Keyword::kSelfType) {
       return module_->Make<SelfTypeAnnotation>(tok.span(),
                                                /*explicit_type=*/true);
+    }
+    if (allow_generic_type && tok.GetKeyword() == Keyword::kType) {
+      return module_->Make<GenericTypeAnnotation>(tok.span());
     }
     if (tok.GetKeyword() == Keyword::kChan) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
@@ -3552,7 +3555,8 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on parametric"));
-    XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+    XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
+                         ParseTypeAnnotation(bindings, std::nullopt, true));
     XLS_ASSIGN_OR_RETURN(bool dropped_equals, TryDropToken(TokenKind::kEquals));
     Expr* expr = nullptr;
     if (dropped_equals) {
