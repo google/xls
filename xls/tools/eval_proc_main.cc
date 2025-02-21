@@ -551,10 +551,10 @@ InterpretBlockSignature(
             channel.flow_control() == verilog::CHANNEL_FLOW_CONTROL_READY_VALID,
         .channel_data = channel.data_port_name(),
     };
-    if (channel.direction() == verilog::PORT_DIRECTION_OUTPUT) {
+    if (channel.direction() == verilog::CHANNEL_DIRECTION_SEND) {
       // Output channel
       info.port_input = false;
-    } else if (channel.direction() == verilog::PORT_DIRECTION_INPUT) {
+    } else if (channel.direction() == verilog::CHANNEL_DIRECTION_RECEIVE) {
       // Input channel
       info.port_input = true;
     } else {
