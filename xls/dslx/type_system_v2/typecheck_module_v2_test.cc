@@ -4949,7 +4949,7 @@ fn h() -> u8 { MyU8::MIN }
 )",
       TypecheckSucceeds(AllOf(
           HasNodeWithType("MyU8", "u8"), HasNodeWithType("f", "() -> u8"),
-          HasNodeWithType("g", "() -> u8"), HasNodeWithType("MyU8", "u8"), )));
+          HasNodeWithType("g", "() -> u8"), HasNodeWithType("MyU8", "u8"))));
 }
 
 TEST(TypecheckV2Test, TypeAliasOfStructWithBoundParametrics) {
@@ -4982,7 +4982,7 @@ fn f() -> uN[3] {
               TypecheckSucceeds(
                   AllOf(HasNodeWithType("f", "() -> uN[3]"),
                         HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"),
-                        HasNodeWithType("x", "S { x: uN[3], y: uN[4] }"), )));
+                        HasNodeWithType("x", "S { x: uN[3], y: uN[4] }"))));
 }
 }  // namespace
 }  // namespace xls::dslx
