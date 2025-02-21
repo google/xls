@@ -364,7 +364,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   // similar to `HandleXlsTuple` but without access to an explicit type
   // annotation. It's only necessary when a `NameDefTree` is not associated with
   // a tuple (e.g., outside a `let` assignment).
-  absl::Status HandleNameDefTree(const NameDefTree* node) {
+  absl::Status HandleNameDefTree(const NameDefTree* node) override {
     VLOG(5) << "HandleNameDefTree: " << node->ToString();
     if (node->is_leaf()) {
       return DefaultHandler(node);

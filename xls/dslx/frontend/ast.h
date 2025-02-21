@@ -1850,12 +1850,27 @@ class Param : public AstNode {
   Span span_;
 };
 
+#define XLS_DSLX_UNOP_KIND_EACH(X)                 \
+  /* one's complement inversion (bit flip) */      \
+  X(kInvert, "INVERT", "!")                        \
+  /* two's complement aritmetic negation (~x+1) */ \
+  X(kNegate, "NEGATE", "-")
+
 enum class UnopKind : uint8_t {
-  kInvert,  // one's complement inversion (bit flip)
-  kNegate,  // two's complement aritmetic negation (~x+1)
+#define FIRST_COMMA(A, ...) A,
+  XLS_DSLX_UNOP_KIND_EACH(FIRST_COMMA)
+#undef FIRST_COMMA
 };
 
-std::string UnopKindToString(UnopKind k);
+inline constexpr UnopKind kAllUnopKinds[] = {
+#define FIRST_COMMA(A, ...) UnopKind::A,
+    XLS_DSLX_UNOP_KIND_EACH(FIRST_COMMA)
+#undef FIRST_COMMA
+};
+
+// Analogous to `BinopKindFormat`, returns the string representation of the
+// given unary operation kind; e.g. "!"
+std::string UnopKindFormat(UnopKind kind);
 
 // Represents a unary operation expression; e.g. `!x`.
 class Unop : public Expr {
@@ -1926,6 +1941,12 @@ class Unop : public Expr {
 enum class BinopKind : uint8_t {
 #define FIRST_COMMA(A, ...) A,
   XLS_DSLX_BINOP_KIND_EACH(FIRST_COMMA)
+#undef FIRST_COMMA
+};
+
+inline constexpr BinopKind kAllBinopKinds[] = {
+#define FIRST_COMMA(A, ...) BinopKind::A,
+    XLS_DSLX_BINOP_KIND_EACH(FIRST_COMMA)
 #undef FIRST_COMMA
 };
 

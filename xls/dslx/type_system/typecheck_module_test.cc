@@ -4457,6 +4457,45 @@ fn main() -> u32 {
                                  "should be a type and not a value.")));
 }
 
+// Note: we use two different type signatures here for the two functions being
+// binop'd -- this can help show any place we assume we can "diff" the two
+// function types when they're not type-compatible.
+TEST(TypecheckTest, BinaryOpsOnFunctionType) {
+  const std::string kProgramTemplate = R"(fn f() -> u32 { u32:42 }
+fn g() -> u8 { u8:43 }
+
+fn main() {
+  f {op} g
+}
+)";
+  for (BinopKind binop : kAllBinopKinds) {
+    std::string program = absl::StrReplaceAll(
+        kProgramTemplate, {{"{op}", BinopKindFormat(binop)}});
+    EXPECT_THAT(Typecheck(program).status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AnyOf(HasSubstr("can only be applied to"),
+                               HasSubstr("requires operand types to be"),
+                               HasSubstr("Cannot use operator"))));
+  }
+}
+
+TEST(TypecheckTest, UnaryOpsOnFunctionType) {
+  const std::string kProgramTemplate = R"(fn f() -> u32 { u32:42 }
+fn main() -> u32 {
+  {op} f
+}
+)";
+  for (UnopKind unop : kAllUnopKinds) {
+    std::string program =
+        absl::StrReplaceAll(kProgramTemplate, {{"{op}", UnopKindFormat(unop)}});
+    EXPECT_THAT(Typecheck(program).status(),
+                StatusIs(absl::StatusCode::kInvalidArgument,
+                         AnyOf(HasSubstr("can only be applied to"),
+                               HasSubstr("requires operand types to be"),
+                               HasSubstr("Cannot use operator"))));
+  }
+}
+
 // Table-oriented test that lets us validate that *types on parameters* are
 // compatible with *particular values* that should be type-compatible.
 TEST(PassValueToIdentityFnTest, ParameterVsValue) {

@@ -1301,6 +1301,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('Match is already exhaustive', stderr)
 
+  def test_logical_and_on_functions(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/logical_and_on_functions.x'
+    )
+    self.assertIn('TypeInferenceError:', stderr)
+    self.assertIn(
+        'Cannot use operator `&&` on functions.',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
