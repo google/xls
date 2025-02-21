@@ -637,11 +637,48 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleIndex(const Index* node) override {
+    // Whether it's a normal index op or a slice, the LHS, which is the original
+    // array, always has its own unification context.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* lhs_variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
+            GenerateInternalTypeVariableName(node->lhs())));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
+    auto* lhs_tvta = module_.Make<TypeVariableTypeAnnotation>(lhs_variable);
+
     if (std::holds_alternative<Slice*>(node->rhs()) ||
         std::holds_alternative<WidthSlice*>(node->rhs())) {
-      return absl::UnimplementedError(
-          "Type inference version 2 is a work in progress and does not yet "
-          "support slices.");
+      XLS_ASSIGN_OR_RETURN(StartAndWidthExprs start_and_width,
+                           CreateSliceStartAndWidthExprs(
+                               module_, lhs_tvta, ToAstNode(node->rhs())));
+
+      // A slice is kind of the opposite of a concat binop, producing an array
+      // with the element type of the original, and an element count that should
+      // be at most that of the original. We can tell the requested width of the
+      // new array here, at least as an `Expr`, but we rely on
+      // `ValidateConcreteType` to eventually decide if that width, given the
+      // requested start index, stays within the bounds of the original array.
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, module_.Make<ArrayTypeAnnotation>(
+                    node->span(),
+                    module_.Make<ElementTypeAnnotation>(
+                        lhs_tvta, /*tuple_index=*/std::nullopt,
+                        /*allow_bit_vector_destructuring=*/true),
+                    start_and_width.width)));
+
+      XLS_RETURN_IF_ERROR(
+          table_.SetSliceStartAndWidthExprs(node, start_and_width));
+
+      // Type-check the nontrivial, fabricated expressions, constraining them to
+      // s32.
+      VLOG(6) << "Type-checking expanded slice start: "
+              << start_and_width.start->ToString()
+              << " and width: " << start_and_width.width->ToString();
+      XLS_RETURN_IF_ERROR(HandleSliceBoundInternal(start_and_width.start));
+      XLS_RETURN_IF_ERROR(HandleSliceBoundInternal(start_and_width.width));
+
+      return DefaultHandler(node);
     }
 
     // A node like `array[i]` is basically a binary operator with independent
@@ -649,12 +686,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // must be some kind of array. The "some kind of array" part is not
     // capturable in the table, but readily verifiable at the end of type
     // inference, so we defer that.
-    XLS_ASSIGN_OR_RETURN(
-        const NameRef* lhs_variable,
-        table_.DefineInternalVariable(
-            InferenceVariableKind::kType, const_cast<Expr*>(node->lhs()),
-            GenerateInternalTypeVariableName(node->lhs())));
-    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->lhs(), lhs_variable));
     Expr* index = std::get<Expr*>(node->rhs());
     XLS_ASSIGN_OR_RETURN(
         const NameRef* rhs_variable,
@@ -667,8 +698,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
     // The type of the entire expr is then ElementType(lhs_variable).
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node, module_.Make<ElementTypeAnnotation>(
-                  module_.Make<TypeVariableTypeAnnotation>(lhs_variable))));
+        node, module_.Make<ElementTypeAnnotation>(lhs_tvta)));
     return DefaultHandler(node);
   }
 
@@ -839,9 +869,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             table_.SetTypeVariable(parametric_value_expr, type_variable));
         XLS_RETURN_IF_ERROR(parametric_value_expr->Accept(this));
       } else {
-        return absl::UnimplementedError(
-            "Type inference version 2 is a work in progress and "
-            "does not yet support type parametrics.");
+        XLS_RETURN_IF_ERROR(
+            std::get<TypeAnnotation*>(parametric)->Accept(this));
       }
     }
 
@@ -1099,6 +1128,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return absl::Substitute("internal_type_expr_at_$0_in_$1",
                             node->span().ToString(file_table_), module_.name());
   }
+
   // Specialization for `Let` nodes, which do not have an identifier.
   template <>
   std::string GenerateInternalTypeVariableName(const Let* node) {
@@ -1247,6 +1277,20 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "Declaration type is unsupported kind: "
             << annotations[0]->ToString() << " for " << node->ToString();
     return std::nullopt;
+  }
+
+  // Type-checks a fabricated longhand slice bound expression. Expressions in
+  // this context are always constrained to s32.
+  absl::Status HandleSliceBoundInternal(const Expr* bound) {
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<Expr*>(bound),
+                                      GenerateInternalTypeVariableName(bound)));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(bound, variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        bound, CreateS32Annotation(module_, bound->span())));
+    return bound->Accept(this);
   }
 
   Module& module_;

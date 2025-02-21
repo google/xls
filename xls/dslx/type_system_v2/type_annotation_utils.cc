@@ -30,6 +30,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
@@ -37,7 +38,6 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
@@ -91,6 +91,58 @@ Expr* CreateElementCountInvocation(Module& module, TypeAnnotation* annotation) {
                                  std::vector<ExprOrType>{annotation});
 }
 
+Number* CreateS32Zero(Module& module, const Span& span) {
+  return module.Make<Number>(span, "0", NumberKind::kOther,
+                             CreateS32Annotation(module, span));
+}
+
+// Expands the `Expr` for a slice bound, which may be `nullptr`, into its
+// longhand form. For example, in `x[-3:]`, the `-3` actually means
+// `element_count<typeof(x)>() - 3`. The null `Expr` for the RHS bound means
+// `element_count<typeof(x)>()`. Since it's not in a position to decide whether
+// a non-null expr is negative, this utility will produce an `Expr` like `if
+// bound < 0 { element_count<typeof(x)> + bound } else { bound }` and ultimately
+// `ConstExprEvaluator`, given the right context, can evaluate that.
+// TODO - https://github.com/google/xls/issues/193: The bounds are supposed to
+// be clamped such that the expanded start is in [0, element_count<typeof(x)>())
+// and the expanded limit is in [start, element_count<typeof(x)>()). We should
+// add an integer clamping builtin and do this in a follow-up, because it would
+// be quite messy without that.
+absl::StatusOr<Expr*> ExpandSliceBoundExpr(Module& module,
+                                           TypeAnnotation* source_array_type,
+                                           Expr* bound, bool start) {
+  if (bound == nullptr) {
+    return start ? CreateS32Zero(module, source_array_type->span())
+                 : CreateElementCountInvocation(module, source_array_type);
+  }
+  // The following is the AST we generate here:
+  // if bound < 0 { element_count<source_array_type>() + bound } else { bound }
+  XLS_ASSIGN_OR_RETURN(AstNode * bound_copy1, CloneAst(bound));
+  XLS_ASSIGN_OR_RETURN(AstNode * bound_copy2, CloneAst(bound));
+  XLS_ASSIGN_OR_RETURN(AstNode * bound_copy3, CloneAst(bound));
+  Expr* bound_less_than_zero = module.Make<Binop>(
+      bound->span(), BinopKind::kLt, down_cast<Expr*>(bound_copy1),
+      CreateS32Zero(module, bound->span()), Span::None());
+  Statement::Wrapped wrapped_add = *Statement::NodeToWrapped(module.Make<Binop>(
+      bound->span(), BinopKind::kAdd,
+      module.Make<Cast>(bound->span(),
+                        CreateElementCountInvocation(module, source_array_type),
+                        CreateS32Annotation(module, bound->span())),
+      down_cast<Expr*>(bound_copy2), Span::None()));
+  Statement::Wrapped wrapped_bound =
+      *Statement::NodeToWrapped(down_cast<Expr*>(bound_copy3));
+  return module.Make<Conditional>(
+      bound->span(), bound_less_than_zero,
+      module.Make<StatementBlock>(
+          bound->span(),
+          std::vector<Statement*>{module.Make<Statement>(wrapped_add)},
+          /*trailing_semi=*/false),
+      module.Make<StatementBlock>(
+          bound->span(),
+          std::vector<Statement*>{module.Make<Statement>(wrapped_bound)},
+          /*trailing_semi=*/false));
+}
+
 }  // namespace
 
 TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
@@ -122,6 +174,11 @@ TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span) {
 TypeAnnotation* CreateU32Annotation(Module& module, const Span& span) {
   return module.Make<BuiltinTypeAnnotation>(
       span, BuiltinType::kU32, module.GetOrCreateBuiltinNameDef("u32"));
+}
+
+TypeAnnotation* CreateS32Annotation(Module& module, const Span& span) {
+  return module.Make<BuiltinTypeAnnotation>(
+      span, BuiltinType::kS32, module.GetOrCreateBuiltinNameDef("s32"));
 }
 
 TypeAnnotation* CreateStructAnnotation(
@@ -318,6 +375,37 @@ Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
   return module.Make<Binop>(
       lhs->span(), BinopKind::kAdd, CreateElementCountInvocation(module, lhs),
       CreateElementCountInvocation(module, rhs), Span::None());
+}
+
+absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
+    Module& module, TypeAnnotation* source_array_type, const AstNode* slice) {
+  CHECK(slice->kind() == AstNodeKind::kSlice ||
+        slice->kind() == AstNodeKind::kWidthSlice);
+  if (const auto* width_slice = dynamic_cast<const WidthSlice*>(slice)) {
+    XLS_ASSIGN_OR_RETURN(
+        Expr * start,
+        ExpandSliceBoundExpr(module, source_array_type, width_slice->start(),
+                             /*start=*/true));
+    // In a width slice, the LHS is the start index and the RHS is a type
+    // annotation whose element count is the number of elements the slice is
+    // asking to extract from the source array.
+    return StartAndWidthExprs{
+        .start = start,
+        .width = CreateElementCountInvocation(module, width_slice->width())};
+  }
+  const auto* bounded_slice = dynamic_cast<const Slice*>(slice);
+  XLS_ASSIGN_OR_RETURN(
+      Expr * limit,
+      ExpandSliceBoundExpr(module, source_array_type, bounded_slice->limit(),
+                           /*start=*/false));
+  XLS_ASSIGN_OR_RETURN(
+      Expr * start,
+      ExpandSliceBoundExpr(module, source_array_type, bounded_slice->start(),
+                           /*start=*/true));
+  return StartAndWidthExprs{
+      .start = start,
+      .width = module.Make<Binop>(*slice->GetSpan(), BinopKind::kSub, limit,
+                                  start, Span::None())};
 }
 
 }  // namespace xls::dslx

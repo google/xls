@@ -16,12 +16,15 @@
 #include <optional>
 #include <variant>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_node.h"
@@ -106,14 +109,14 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleIndex(const Index* index) override {
-    const Type& lhs_type = **ti_.GetItem(index->lhs());
-    XLS_RETURN_IF_ERROR(
-        ValidateArrayTypeForIndex(*index, lhs_type, file_table_));
-    if (std::holds_alternative<Expr*>(index->rhs())) {
-      const Type& rhs_type = **ti_.GetItem(std::get<Expr*>(index->rhs()));
-      return ValidateArrayIndex(*index, lhs_type, rhs_type, ti_, file_table_);
-    }
-    return absl::OkStatus();
+    return absl::visit(
+        Visitor{[&](Slice* slice) { return ValidateSliceLhs(index); },
+                [&](WidthSlice* width_slice) -> absl::Status {
+                  XLS_RETURN_IF_ERROR(ValidateSliceLhs(index));
+                  return ValidateWidthSlice(index, width_slice);
+                },
+                [&](Expr* expr) { return ValidateNonSliceIndex(index); }},
+        index->rhs());
   }
 
   absl::Status HandleTupleIndex(const TupleIndex* tuple_index) override {
@@ -242,6 +245,49 @@ class TypeValidator : public AstNodeVisitorWithDefault {
             "either both-arrays or both-bits; got lhs: `%s`; rhs: `%s`",
             lhs->ToString(), rhs->ToString()),
         file_table_);
+  }
+
+  absl::Status ValidateSliceLhs(const Index* index) {
+    const Type& lhs_type = **ti_.GetItem(index->lhs());
+    // Type inference v2 deduces array slices, while in v1 this was a planned
+    // task that was never done. For now, we artificially restrict it after the
+    // fact, in case there are downstream issues.
+    std::optional<BitsLikeProperties> lhs_bits_like = GetBitsLike(lhs_type);
+    if (!lhs_bits_like.has_value()) {
+      return TypeInferenceErrorStatus(index->span(), &lhs_type,
+                                      "Value to slice is not of 'bits' type.",
+                                      file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(bool lhs_is_signed,
+                         lhs_bits_like->is_signed.GetAsBool());
+    if (lhs_is_signed) {
+      return TypeInferenceErrorStatus(index->span(), &lhs_type,
+                                      "Bit slice LHS must be unsigned.",
+                                      file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateWidthSlice(const Index* index,
+                                  const WidthSlice* width_slice) {
+    const Type& width_type = **ti_.GetItem(width_slice->width());
+    if (!IsBitsLike(width_type)) {
+      return TypeInferenceErrorStatus(
+          index->span(), &width_type,
+          "A bits type is required for a width-based slice.", file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ValidateNonSliceIndex(const Index* index) {
+    const Type& lhs_type = **ti_.GetItem(index->lhs());
+    XLS_RETURN_IF_ERROR(
+        ValidateArrayTypeForIndex(*index, lhs_type, file_table_));
+    if (std::holds_alternative<Expr*>(index->rhs())) {
+      const Type& rhs_type = **ti_.GetItem(std::get<Expr*>(index->rhs()));
+      return ValidateArrayIndex(*index, lhs_type, rhs_type, ti_, file_table_);
+    }
+    return absl::OkStatus();
   }
 
   const Type* type_;

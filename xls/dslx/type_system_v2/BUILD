@@ -23,6 +23,7 @@ cc_library(
     srcs = ["inference_table.cc"],
     hdrs = ["inference_table.h"],
     deps = [
+        ":type_annotation_utils",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
@@ -237,6 +238,7 @@ cc_library(
     srcs = ["type_annotation_utils.cc"],
     hdrs = ["type_annotation_utils.h"],
     deps = [
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
@@ -244,7 +246,6 @@ cc_library(
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:module",
         "//xls/dslx/frontend:pos",
-        "//xls/ir:bits",
         "//xls/ir:number_parser",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log:check",
@@ -260,6 +261,7 @@ cc_library(
     srcs = ["validate_concrete_type.cc"],
     hdrs = ["validate_concrete_type.h"],
     deps = [
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
@@ -272,9 +274,11 @@ cc_library(
         "//xls/dslx/type_system:type",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:unwrap_meta_type",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
     ],
 )

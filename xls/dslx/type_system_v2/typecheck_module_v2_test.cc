@@ -2056,6 +2056,16 @@ const Y = foo<17>();
                         HasNodeWithType("const Y = foo<17>();", "uN[17]"))));
 }
 
+TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfNPlus1Size) {
+  EXPECT_THAT(R"(
+fn foo<N: u32>(a: uN[N + 1]) -> uN[N + 1] { a }
+const X = foo<16>(1);
+const Y = foo<17>(2);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[17]"),
+                                      HasNodeWithType("Y", "uN[18]"))));
+}
+
 TEST(TypecheckV2Test, ParametricFunctionReturningIntegerOfParameterSignedness) {
   EXPECT_THAT(R"(
 fn foo<S: bool>() -> xN[S][32] { 5 }
@@ -4984,5 +4994,131 @@ fn f() -> uN[3] {
                         HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"),
                         HasNodeWithType("x", "S { x: uN[3], y: uN[4] }"))));
 }
+
+TEST(TypecheckV2Test, SliceOfBitsLiteral) {
+  EXPECT_THAT("const X = 0b100111[0:2];", TopNodeHasType("uN[2]"));
+}
+
+TEST(TypecheckV2Test, SliceOfBitsConstant) {
+  EXPECT_THAT(R"(
+const X = u6:0b100111;
+const Y = X[0:2];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, SliceWithOneNegativeAndOnePositiveIndex) {
+  EXPECT_THAT(R"(
+const X = u6:0b100111;
+const Y = X[-2:6];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, SliceWithBothNegativeIndices) {
+  EXPECT_THAT(R"(
+const X = u6:0b100111;
+const Y = X[-4:-2];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, SliceWithPositiveStartAndNoEnd) {
+  EXPECT_THAT(R"(
+const X = u6:0b100111;
+const Y = X[2:];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[4]")));
+}
+
+TEST(TypecheckV2Test, SliceWithNoStartAndPositiveEnd) {
+  EXPECT_THAT(R"(
+const X = u6:0b100111;
+const Y = X[:4];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[4]")));
+}
+
+TEST(TypecheckV2Test, SliceWithNegativeStartAndNoEnd) {
+  EXPECT_THAT(R"(
+const X = u6:0b100111;
+const Y = X[-3:];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[3]")));
+}
+
+TEST(TypecheckV2Test, SliceWithNoStartAndNegativeEnd) {
+  EXPECT_THAT(R"(
+const X = u6:0b100111;
+const Y = X[:-2];
+)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[4]")));
+}
+
+TEST(TypecheckV2Test, SliceByConstants) {
+  EXPECT_THAT(R"(
+const X = s32:0;
+const Y = s32:2;
+const Z = 0b100111[X:Y];
+)",
+              TypecheckSucceeds(HasNodeWithType("Z", "uN[2]")));
+}
+
+TEST(TypecheckV2Test, SliceByParametrics) {
+  EXPECT_THAT(R"(
+fn f<A: s32, B: s32>(value: u32) -> uN[(B - A) as u32] { value[A:B] }
+const X = f<1, 3>(0b100111);
+const Y = f<1, 4>(0b100111);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[2]"),
+                                      HasNodeWithType("Y", "uN[3]"))));
+}
+
+TEST(TypecheckV2Test, SliceOfNonBitsFails) {
+  EXPECT_THAT(
+      "const X = [u32:1, 2, 3][0:2];",
+      TypecheckFails(HasSubstr("Value to slice is not of 'bits' type.")));
+}
+
+TEST(TypecheckV2Test, SliceOfSignedBitsFails) {
+  EXPECT_THAT("const X = (s6:0b011100)[0:4];",
+              TypecheckFails(HasSubstr("Bit slice LHS must be unsigned.")));
+}
+
+TEST(TypecheckV2Test, WidthSliceOfBits) {
+  EXPECT_THAT("const X = 0b100111[2+:u3];", TopNodeHasType("uN[3]"));
+}
+
+TEST(TypecheckV2Test, WidthSliceOfBitsWithNegativeStart) {
+  EXPECT_THAT("const X = 0b100111[-5+:u3];", TopNodeHasType("uN[3]"));
+}
+
+TEST(TypecheckV2Test, WidthSliceWithNonBitsWidthAnnotationFails) {
+  EXPECT_THAT("const X = 0b100111[0+:u2[2]];",
+              TypecheckFails(HasSubstr(
+                  "A bits type is required for a width-based slice")));
+}
+
+TEST(TypecheckV2Test, WidthSliceOfNonBitsFails) {
+  EXPECT_THAT(
+      "const X = [u32:1, u32:2, u32:3][0+:u32];",
+      TypecheckFails(HasSubstr("Value to slice is not of 'bits' type.")));
+}
+
+TEST(TypecheckV2Test, WidthSliceOfSignedBitsFails) {
+  EXPECT_THAT("const X = (s6:0b011100)[0+:u4];",
+              TypecheckFails(HasSubstr("Bit slice LHS must be unsigned.")));
+}
+
+TEST(TypecheckV2Test, WidthSliceByParametrics) {
+  EXPECT_THAT(R"(
+fn f<A: s32, B: u32>(value: u32) -> uN[B] { value[A+:uN[B]] }
+const X = f<2, 3>(0b100111);
+const Y = f<1, 4>(0b100111);
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("X", "uN[3]"),
+                                      HasNodeWithType("Y", "uN[4]"))));
+}
+
 }  // namespace
 }  // namespace xls::dslx

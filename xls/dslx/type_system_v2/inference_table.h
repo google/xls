@@ -37,6 +37,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 
@@ -343,6 +344,15 @@ class InferenceTable {
   // Clones the given `input` subtree and the table data for each node.
   virtual absl::StatusOr<AstNode*> Clone(const AstNode* input,
                                          CloneReplacer replacer) = 0;
+
+  // Stores the expanded, absolute start and width expressions for a slice,
+  // which need to eventually be concretized and added to `TypeInfo`.
+  virtual absl::Status SetSliceStartAndWidthExprs(
+      const AstNode* node, StartAndWidthExprs start_and_width) = 0;
+
+  // Retrieves the previously stored start and width expressions for a slice.
+  virtual std::optional<StartAndWidthExprs> GetSliceStartAndWidthExprs(
+      const AstNode* node) = 0;
 
   // Converts the table to string for debugging purposes.
   virtual std::string ToString() const = 0;

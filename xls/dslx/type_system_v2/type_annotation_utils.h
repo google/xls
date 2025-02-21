@@ -45,6 +45,12 @@ struct SignednessAndBitCountResult {
   std::variant<int64_t, const Expr*> bit_count;
 };
 
+// An `Expr`-ified rendition of the `StartAndWidth` struct used by `TypeInfo`.
+struct StartAndWidthExprs {
+  Expr* start;
+  Expr* width;
+};
+
 // Creates an annotation for `uN[bit_count]` or `sN[bit_count]` depending on the
 // value of `is_signed`.
 TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
@@ -69,6 +75,9 @@ TypeAnnotation* CreateBoolAnnotation(Module& module, const Span& span);
 // this, e.g. a type that we evaluate array dimensions and similar undecorated
 // values to.
 TypeAnnotation* CreateU32Annotation(Module& module, const Span& span);
+
+// Creates an `s32` type annotation.
+TypeAnnotation* CreateS32Annotation(Module& module, const Span& span);
 
 // Creates an annotation referring to the given struct definition with the given
 // parametric arguments.
@@ -132,6 +141,13 @@ CloneReplacer NameRefMapper(
 // element_count<rhs>()`.
 Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
                             TypeAnnotation* rhs);
+
+// Converts a `Slice` or `WidthSlice` node into a `StartAndWidthExprs` struct.
+// The values given in the slice node are used verbatim when absolute, but when
+// an index in the slice is negative, which has the meaning `size - abs(index)`,
+// it is converted into `element_count<source_array_type>() + index`.
+absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
+    Module& module, TypeAnnotation* source_array_type, const AstNode* slice);
 
 }  // namespace xls::dslx
 

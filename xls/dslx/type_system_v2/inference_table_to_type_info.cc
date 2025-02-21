@@ -323,6 +323,15 @@ class InferenceTableConverter {
       const AstNode* node, std::optional<const Function*> function,
       std::optional<const ParametricContext*> parametric_context,
       bool filter_param_type_annotations = false) {
+    // Avoid converting a subtree multiple times, as a performance optimization.
+    // Evaluation functions convert the `Expr` they are being asked to evaluate
+    // in case it is fabricated. For an `Expr` that is actually present in the
+    // original AST, this should be a no-op.
+    if (!filter_param_type_annotations &&
+        !converted_subtrees_[parametric_context].insert(node).second) {
+      return absl::OkStatus();
+    }
+
     VLOG(5) << "ConvertSubtree: " << node->ToString()
             << " of module: " << module_.name()
             << " in context: " << ToString(parametric_context);
@@ -419,7 +428,8 @@ class InferenceTableConverter {
         XLS_RETURN_IF_ERROR(
             ConvertSubtree(ToAstNode(parametric), caller, caller_context));
       }
-      return absl::OkStatus();
+      return GenerateTypeInfo(caller_context, invocation,
+                              CreateU32Annotation(module_, invocation->span()));
     }
 
     const Function* function = function_and_target_object.function;
@@ -690,6 +700,8 @@ class InferenceTableConverter {
     }
     ti->SetItem(node, **type);
     XLS_RETURN_IF_ERROR(NoteIfConstExpr(parametric_context, node, **type, ti));
+    VLOG(5) << "Generated type: " << (*ti->GetItem(node))->ToString()
+            << " for node: " << node->ToString();
     return absl::OkStatus();
   }
 
@@ -790,6 +802,7 @@ class InferenceTableConverter {
     if (it != parametric_context_type_info_.end()) {
       return struct_context;
     }
+    converted_parametric_envs_.emplace(struct_context, parametric_env);
     XLS_ASSIGN_OR_RETURN(TypeInfo * ti, import_data_.type_info_owner().New(
                                             &module_, base_type_info_));
     parametric_context_type_info_.emplace(struct_context, ti);
@@ -1038,6 +1051,53 @@ class InferenceTableConverter {
     if (const auto* let = dynamic_cast<const Let*>(node)) {
       return NoteLetIfConstExpr(let, type, ti);
     }
+    if (const auto* index = dynamic_cast<const Index*>(node)) {
+      // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
+      // the real type info, mirroring the `StartAndWidthExprs` that we store in
+      // the `InferenceTable`.
+      if (std::holds_alternative<Slice*>(index->rhs())) {
+        XLS_RETURN_IF_ERROR(ConcretizeSlice(parametric_context, index, ti));
+      }
+    }
+    return absl::OkStatus();
+  }
+
+  // Adds the concrete start and width value of the slice requested by the given
+  // `index` node to the given `TypeInfo`.
+  absl::Status ConcretizeSlice(
+      std::optional<const ParametricContext*> parametric_context,
+      const Index* index, TypeInfo* ti) {
+    std::optional<StartAndWidthExprs> start_and_width_exprs =
+        table_.GetSliceStartAndWidthExprs(index);
+    CHECK(start_and_width_exprs.has_value());
+    StartAndWidth concrete_start_and_width;
+    XLS_ASSIGN_OR_RETURN(
+        concrete_start_and_width.start,
+        EvaluateU32OrExpr(parametric_context, start_and_width_exprs->start));
+    XLS_ASSIGN_OR_RETURN(
+        concrete_start_and_width.width,
+        EvaluateU32OrExpr(parametric_context, start_and_width_exprs->width));
+    const Type& array_type = **ti->GetItem(index->lhs());
+    int64_t array_size;
+    if (array_type.IsArray()) {
+      XLS_ASSIGN_OR_RETURN(array_size,
+                           array_type.AsArray().size().GetAsInt64());
+    } else {
+      std::optional<BitsLikeProperties> bits_like = GetBitsLike(array_type);
+      CHECK(bits_like.has_value());
+      XLS_ASSIGN_OR_RETURN(array_size, bits_like->size.GetAsInt64());
+    }
+    concrete_start_and_width.start =
+        std::max(0L, std::min(concrete_start_and_width.start, array_size));
+    concrete_start_and_width.width =
+        std::max(0L, std::min(concrete_start_and_width.width,
+                              array_size - concrete_start_and_width.start));
+    ti->AddSliceStartAndWidth(
+        std::get<Slice*>(index->rhs()),
+        parametric_context.has_value()
+            ? converted_parametric_envs_.at(*parametric_context)
+            : ParametricEnv{},
+        concrete_start_and_width);
     return absl::OkStatus();
   }
 
@@ -1503,6 +1563,9 @@ class InferenceTableConverter {
       return std::get<bool>(value_or_expr);
     }
     const Expr* expr = std::get<const Expr*>(value_or_expr);
+
+    XLS_RETURN_IF_ERROR(ConvertSubtree(expr, std::nullopt, parametric_context));
+
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         Evaluate(ParametricContextScopedExpr(
@@ -1518,6 +1581,9 @@ class InferenceTableConverter {
       return std::get<int64_t>(value_or_expr);
     }
     const Expr* expr = std::get<const Expr*>(value_or_expr);
+
+    XLS_RETURN_IF_ERROR(ConvertSubtree(expr, std::nullopt, parametric_context));
+
     std::optional<const TypeAnnotation*> type_annotation =
         table_.GetTypeAnnotation(expr);
     if (!type_annotation.has_value()) {
@@ -1783,13 +1849,6 @@ class InferenceTableConverter {
     for (int i = 0; i < annotations.size(); i++) {
       const ArrayTypeAnnotation* annotation = annotations[i];
       element_type_annotations.push_back(annotation->element_type());
-      // An array dim that we fabricate internally, e.g. for a concat result,
-      // will not be scheduled for conversion normally because it's not attached
-      // to the rest of the AST. If it invokes builtins, we may need it
-      // converted in order to evaluate it. If this dim doesn't meet this
-      // criteria, this will be a no-op.
-      XLS_RETURN_IF_ERROR(
-          ConvertSubtree(annotation->dim(), std::nullopt, parametric_context));
 
       XLS_ASSIGN_OR_RETURN(
           int64_t current_dim,
@@ -2688,6 +2747,9 @@ class InferenceTableConverter {
                       absl::flat_hash_map<const NameDef*, ExprOrType>>
       parametric_value_exprs_;
   std::optional<std::unique_ptr<InferenceTableConverter>> builtins_converter_;
+  absl::flat_hash_map<std::optional<const ParametricContext*>,
+                      absl::flat_hash_set<const AstNode*>>
+      converted_subtrees_;
 };
 
 }  // namespace

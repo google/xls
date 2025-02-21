@@ -35,6 +35,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/status_macros.h"
@@ -44,6 +45,7 @@
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
 namespace xls::dslx {
 namespace {
@@ -137,6 +139,7 @@ struct NodeData {
   size_t order_added;
   std::optional<const TypeAnnotation*> type_annotation;
   std::optional<const InferenceVariable*> type_variable;
+  std::optional<StartAndWidthExprs> slice_start_and_width_exprs;
 };
 
 // The mutable data for a `ParametricContext` in an `InferenceTable`.
@@ -425,6 +428,14 @@ class InferenceTableImpl : public InferenceTable {
     std::string result;
     absl::flat_hash_map<const AstNode*, std::vector<const ParametricContext*>>
         contexts_per_node;
+    auto annotation_to_string = [this](std::string_view indent,
+                                       const TypeAnnotation* annotation) {
+      return absl::Substitute(
+          std::string(indent) + "Annotation: $0; Auto literal: $1\n",
+          annotation->ToString(),
+          auto_literal_annotations_.contains(annotation));
+    };
+
     for (const auto& context : parametric_contexts_) {
       contexts_per_node[context->node()].push_back(context.get());
     }
@@ -437,8 +448,14 @@ class InferenceTableImpl : public InferenceTable {
                               (*data.type_variable)->name());
       }
       if (data.type_annotation.has_value()) {
-        absl::StrAppendFormat(&result, "  Annotation: %s\n",
-                              (*data.type_annotation)->ToString());
+        absl::StrAppend(&result,
+                        annotation_to_string("  ", *data.type_annotation));
+      }
+      if (data.slice_start_and_width_exprs.has_value()) {
+        absl::StrAppend(&result, "  Start: %s\n",
+                        data.slice_start_and_width_exprs->start->ToString());
+        absl::StrAppend(&result, "  Width: %s\n",
+                        data.slice_start_and_width_exprs->width->ToString());
       }
       const std::vector<const ParametricContext*>& contexts =
           contexts_per_node[node];
@@ -462,8 +479,8 @@ class InferenceTableImpl : public InferenceTable {
           !annotations->second.empty()) {
         absl::StrAppendFormat(&result, "  Annotations:\n");
         for (int i = 0; i < annotations->second.size(); i++) {
-          absl::StrAppendFormat(&result, "    %d: %s\n", i,
-                                annotations->second[i]->ToString());
+          absl::StrAppend(&result,
+                          annotation_to_string("    ", annotations->second[i]));
         }
       }
       for (const auto& context : parametric_contexts_) {
@@ -491,6 +508,20 @@ class InferenceTableImpl : public InferenceTable {
       }
     }
     return result;
+  }
+
+  absl::Status SetSliceStartAndWidthExprs(
+      const AstNode* node, StartAndWidthExprs start_and_width) override {
+    return MutateAndCheckNodeData(node, [&](NodeData& data) {
+      data.slice_start_and_width_exprs = start_and_width;
+    });
+  }
+
+  std::optional<StartAndWidthExprs> GetSliceStartAndWidthExprs(
+      const AstNode* node) override {
+    const auto it = node_data_.find(node);
+    return it == node_data_.end() ? std::nullopt
+                                  : it->second.slice_start_and_width_exprs;
   }
 
  private:
