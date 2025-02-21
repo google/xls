@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype test and library
+# pytype binary, test, library
+load("@rules_python//python:proto.bzl", "py_proto_library")
+# Load proto_library
+# cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
@@ -70,4 +73,95 @@ py_test(
         "//xls/common:runfiles",
         "@abseil-py//absl/testing:absltest",
     ],
+)
+
+py_library(
+    name = "ir_diff",
+    srcs = ["ir_diff.py"],
+    deps = [
+        requirement("networkx"),
+    ],
+)
+
+py_library(
+    name = "ir_diff_utils",
+    srcs = ["ir_diff_utils.py"],
+    deps = [
+        ":ir_diff",
+        requirement("matplotlib"),
+        requirement("networkx"),
+    ],
+)
+
+py_library(
+    name = "ir_patch_gen",
+    srcs = ["ir_patch_gen.py"],
+    deps = [
+        ":ir_diff",
+        ":ir_patch_py_pb2",
+        ":xls_types",
+        ":xls_values",
+    ],
+)
+
+py_library(
+    name = "xls_types",
+    srcs = ["xls_types.py"],
+    deps = ["//xls/ir:xls_type_py_pb2"],
+)
+
+py_library(
+    name = "xls_values",
+    srcs = ["xls_values.py"],
+    deps = [
+        ":xls_types",
+        "//xls/ir:xls_value_py_pb2",
+    ],
+)
+
+py_binary(
+    name = "ir_diff_main",
+    srcs = ["ir_diff_main.py"],
+    deps = [
+        ":ir_diff",
+        ":ir_diff_utils",
+        ":ir_patch_gen",
+        ":xls_ir_to_networkx",
+        "@abseil-py//absl:app",
+        "@abseil-py//absl/flags",
+    ],
+)
+
+py_test(
+    name = "ir_diff_main_test",
+    srcs = ["ir_diff_main_test.py"],
+    data = [
+        ":ir_diff_main",
+        "//xls/examples:riscv_simple.ir",  # unopt
+        "//xls/examples:riscv_simple.opt.ir",  #opt
+    ],
+    deps = [
+        ":ir_patch_py_pb2",
+        "//xls/common:runfiles",
+        "@abseil-py//absl/testing:absltest",
+    ],
+)
+
+proto_library(
+    name = "ir_patch_proto",
+    srcs = ["ir_patch.proto"],
+    deps = [
+        "//xls/ir:xls_type_proto",
+        "//xls/ir:xls_value_proto",
+    ],
+)
+
+py_proto_library(
+    name = "ir_patch_py_pb2",
+    deps = [":ir_patch_proto"],
+)
+
+cc_proto_library(
+    name = "ir_patch_cc_proto",
+    deps = [":ir_patch_proto"],
 )

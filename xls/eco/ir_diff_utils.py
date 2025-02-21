@@ -17,10 +17,12 @@
 
 import os
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import matplotlib.pyplot as plt
 import networkx as nx
+
+from xls.eco import ir_diff
 
 
 def visualize_ir(graph: nx.DiGraph) -> None:
@@ -137,13 +139,15 @@ def get_graph_stats(graph: nx.DiGraph) -> dict[str, Any]:
   return stats
 
 
-def interpret_edit_paths(edit_paths, idx=None, output_path=None) -> None:
+def interpret_edit_paths(
+    edit_paths: ir_diff.OptimizedEditPaths,
+    output_path: Optional[str] = None,
+) -> None:
   """Writes sorted and grouped edit paths to a file or prints them to console.
 
   Args:
     edit_paths: A collection of edit paths containing edit paths for nodes and
       edges.
-    idx: The index of the edit paths to be interpreted.
     output_path: The path to the output file to which the edit paths are
       written.
 
@@ -151,19 +155,9 @@ def interpret_edit_paths(edit_paths, idx=None, output_path=None) -> None:
     None (function writes the data to a file).
   """
   out = []
-  if isinstance(edit_paths, list):
-    if idx is not None:
-      out.append(f"Path cost:\t{edit_paths[idx][2]}")
-      out.extend(_interpret_edit_paths(edit_paths[idx]))
-    else:
-      for i, path in enumerate(edit_paths):
-        out.append(f"{i}. Path cost:\t{path[2]}")
-        out.extend(_interpret_edit_paths(path))
-  elif isinstance(edit_paths, tuple):
-    out.append(f"\nOptimal Paths cost:\t{edit_paths[1]}")
-    out.extend(_interpret_edit_paths(edit_paths[0][0]))
-  else:
-    raise ValueError("Unsupported edit paths data type")
+  optimal_prefix = "Optimal" if edit_paths.optimal else ""
+  out.append(f"\n{optimal_prefix}Paths cost:\t{edit_paths.cost}")
+  out.extend(_interpret_edit_paths(edit_paths))
   if output_path:
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
@@ -172,42 +166,51 @@ def interpret_edit_paths(edit_paths, idx=None, output_path=None) -> None:
     print("\n".join(out))
 
 
-def _interpret_edit_paths(path) -> list[str]:  # pylint: disable=g-bare-generic
+def _interpret_edit_paths(edit_paths: ir_diff.OptimizedEditPaths) -> list[str]:
   """Interprets a single edit path set to a list of strings.
 
   Args:
-    path: A tuple or list containing a list of node edits and a list of edge
-      edits.
+    edit_paths: Edit paths to be interpreted.
 
   Returns:
     A list of strings describing the edit path.
   """
-  insertions = []
-  deletions = []
-  updates = []
-  for node in path[0]:
+  node_insertions = []
+  edge_insertions = []
+  node_deletions = []
+  edge_deletions = []
+  node_updates = []
+  edge_updates = []
+  for node in edit_paths.node_edit_paths:
     if node[0] is None and node[1] is not None:
-      insertions.insert(0, f"\tInsert node {node[1]}")
+      node_insertions.insert(0, f"\tInsert node {node[1]}")
     elif node[1] is None and node[0] is not None:
-      deletions.insert(0, f"\tDelete node {node[0]}")
+      node_deletions.insert(0, f"\tDelete node {node[0]}")
     elif node[0] is not None and node[1] is not None and node[0] != node[1]:
-      updates.insert(0, f"\tChange node {node[0]} to {node[1]}")
+      node_updates.insert(0, f"\tChange node {node[0]} to {node[1]}")
     elif node[0] == node[1]:
       continue  # keep node, no change
     else:
       print("Warning: Unsupported node edit operation")
-  for edge in path[1]:
+  for edge in edit_paths.edge_edit_paths:
     if edge[0] is None and edge[1] is not None:  # Insert edge
-      insertions.insert(-1, f"\tInsert edge {edge[1]}")
+      edge_insertions.insert(-1, f"\tInsert edge {edge[1]}")
     elif edge[1] is None and edge[0] is not None:  # Delete edge
-      deletions.insert(-1, f"\tDelete edge {edge[0]}")
+      edge_deletions.insert(-1, f"\tDelete edge {edge[0]}")
     elif edge[0] is not None and edge[1] is not None and edge[0] != edge[1]:
-      updates.insert(-1, f"\tChange edge {edge[0]} to {edge[1]}")
+      edge_updates.insert(-1, f"\tChange edge {edge[0]} to {edge[1]}")
     elif edge[0] == edge[1]:
       continue  # keep edge, no change
     else:
       print("Warning: Unsupported edge edit operation")
-  return sorted(deletions) + sorted(insertions) + sorted(updates)
+  return (
+      sorted(edge_deletions)
+      + sorted(node_deletions)
+      + sorted(node_insertions)
+      + sorted(node_updates)
+      + sorted(edge_updates)
+      + sorted(edge_insertions)
+  )
 
 
 def timer(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:

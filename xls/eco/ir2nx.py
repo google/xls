@@ -18,6 +18,7 @@
 import re
 import networkx as nx
 from xls.eco import xls_types
+from xls.eco import xls_values
 
 
 class IrParser:
@@ -244,187 +245,6 @@ class IrParser:
       else:
         raise ValueError(f"Unknown bool: {string}")
 
-  def _parse_data_type(self, dtype_string):
-    """Parses a string representation of a data type in the IR format and returns a `DataType` object.
-
-    Args:
-        dtype_string (str): A string representing the data type in the IR
-          format.
-
-    Returns:
-        DataType: A `DataType` object containing information about the parsed
-        data type.
-    Raises:
-        ValueError: If an unrecognized data type format is encountered.
-    """
-    match = re.search(r"id=.*$", dtype_string)
-    dtype_string = dtype_string if not match else dtype_string[: match.start()]
-    dtype_string = dtype_string.strip()
-    if dtype_string == "()":
-      return self._parse_tuple_type(None)
-    elif re.search(r"^(?!bits\[\d+\]$|token$).*\[\d+\]$", dtype_string):
-      return self._parse_array_type(dtype_string)
-    elif dtype_string.startswith("bits"):
-      return self._parse_bits_type(dtype_string)
-    elif dtype_string == "token":
-      return xls_types.TokenType()
-    elif dtype_string.startswith("(") and dtype_string.endswith(")"):
-      return self._parse_tuple_type(dtype_string[1:-1])
-    else:
-      raise ValueError(f"Unknown dtype: {dtype_string}")
-
-  def _parse_bits_type(self, bits_type_string):
-    match = re.search(r"bits\[(\d+)\]", bits_type_string)
-    if match:
-      return xls_types.BitsType(bit_count=int(match.group(1)))
-    else:
-      raise ValueError(f"Unknown dtype: {bits_type_string}")
-
-  def _parse_array_type(self, array_type_string):
-    last_bracket_pos = array_type_string.rfind("[")
-    type_part = array_type_string[:last_bracket_pos]
-    size_part = array_type_string[last_bracket_pos + 1 : -1]
-    size = int(size_part)
-    array_element = self._parse_data_type(type_part)
-    return xls_types.ArrayType(array_size=size, array_element=array_element)
-
-  def _parse_tuple_type(self, tuple_type_string):
-    """Parses a string representing a tuple data type in the IR format and returns a string representation.
-
-    This function assumes the tuple data type is specified directly within the
-    `dtype_string` using parentheses to enclose the element data types separated
-    by commas.
-
-    Args:
-        tuple_type_string (str): A string representing the data type in the IR
-          format, expected to be in the format "tuple(type1, type2, ...)".
-
-    Returns:
-        str: A string representation of the tuple data type, following the
-        format "tuple(type1, type2, ...)".
-    Raises:
-        ValueError: If the `dtype_string` format is not valid for a tuple type
-                    (e.g., missing parentheses or invalid separators).
-    """
-    elements = []
-    depth = 0
-    last_split = 0
-    if tuple_type_string is None:
-      return xls_types.TupleType(tuple_elements=elements)
-    for i, char in enumerate(tuple_type_string):
-      if char == "(":
-        depth += 1
-      elif char == ")":
-        depth -= 1
-      elif char == "," and depth == 0:
-        elements.append(
-            self._parse_data_type(tuple_type_string[last_split:i].strip())
-        )
-        last_split = i + 1
-    elements.append(
-        self._parse_data_type(tuple_type_string[last_split:].strip())
-    )
-    return xls_types.TupleType(tuple_elements=elements)
-
-  def _parse_value(self, value_string, idx=0):
-    """Parses a value from a string representation.
-
-    Args:
-      value_string (str): The string representation of the value.
-      idx (int): The current index in the string.
-
-    Returns:
-      int, xls_types.ValueType: A value and the data type of the value.
-
-    Raises:
-      ValueError: If the value is not properly formatted.
-    """
-    while idx < len(value_string):
-      if value_string[idx] == "[":
-        return self._parse_value_array(value_string, idx + 1)
-      elif value_string[idx] == "(":
-        return self._parse_value_tuple(value_string, idx + 1)
-      elif value_string[idx].isdigit():
-        return self._parse_value_bits(value_string, idx)
-      elif value_string[idx] == "t":
-        if value_string[idx : idx + 5] != "token":
-          raise ValueError(
-              f"Unknown dtype at index {idx}: {value_string[idx:idx+5]}"
-          )
-        return (idx + 5, xls_types.TokenValue())
-      else:
-        raise ValueError(f"Unknown dtype at index {idx}: {value_string[idx]}")
-    raise ValueError("Unexpected end of value")
-
-  def _parse_value_array(self, value_string, idx):
-    """Parses an array value from a string representation.
-
-    Args:
-      value_string (str): The string representation of the array value.
-      idx (int): The current index in the string.
-
-    Returns:
-      list[int], xls_types.ValueType: A list of values and the data type of the
-      array value.
-
-    Raises:
-      ValueError: If the array value is not properly formatted.
-    """
-    elements = []
-    while idx < len(value_string):
-      if value_string[idx] == "]":
-        return idx + 1, xls_types.ArrayValue(elements=elements)
-      elif value_string[idx] in " ,":
-        idx += 1
-      else:
-        idx, element = self._parse_value(value_string, idx)
-        elements.append(element)
-    raise ValueError("Unexpected end of array")
-
-  def _parse_value_tuple(self, value_string, idx):
-    """Parses a tuple value from a string representation.
-
-    Args:
-      value_string (str): The string representation of the tuple value.
-      idx (int): The current index in the string.
-
-    Returns:
-      Tuple[int, xls_types.ValueType]: A tuple of values and the data type
-      of the tuple value.
-
-    Raises:
-      ValueError: If the tuple value is not properly formatted.
-    """
-    elements = []
-    while idx < len(value_string):
-      if value_string[idx] == ")":
-        return idx + 1, xls_types.TupleValue(elements=elements)
-      if value_string[idx] in " ,":
-        idx += 1
-      else:
-        idx, element = self._parse_value(value_string, idx)
-        elements.append(element)
-    raise ValueError("Unexpected end of tuple")
-
-  def _parse_value_bits(self, value_string, idx):
-    """Parses a bits value from a string representation.
-
-    Args:
-      value_string (str): The string representation of the bits value.
-      idx (int): The current index in the string.
-
-    Returns:
-      int, xls_types.ValueType: A list of values and the data type of the
-      bits value.
-
-    Raises:
-      ValueError: If the bits value is not properly formatted.
-    """
-    start_idx = idx
-    while idx < len(value_string) and value_string[idx].isdigit():
-      idx += 1
-    return idx, xls_types.BitsValue(data=int(value_string[start_idx:idx]))
-
   def _parse_top_fn(self, line):
     line = line.split("->")[0]  # Drop return type
     start_index = line.find("(") + 1  # Skip "top fn " and opening parenthesis
@@ -450,7 +270,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "after_all"
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     self.graph.add_node(
         node_name,
         op=op,
@@ -500,8 +320,8 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "literal"
-    data_type = self._parse_data_type(data_type_str)
-    value = self._parse_value(details["value"])[1]
+    data_type = xls_types.parse_data_type(data_type_str)
+    value = xls_values.parse_value(details["value"])[1]
     value = self._map_bit_counts_to_value_types(data_type, value)
     self.graph.add_node(
         node_name,
@@ -530,8 +350,8 @@ class IrParser:
     node_name = param_str.split(":")[0].strip()
     op = "param"
     data_type_str = param_str.split(":")[1].strip()
-    data_type = self._parse_data_type(data_type_str)
-    init = self._parse_value(init_str)[1] if init_str is not None else None
+    data_type = xls_types.parse_data_type(data_type_str)
+    init = xls_values.parse_value(init_str)[1] if init_str is not None else None
     init = (
         self._map_bit_counts_to_value_types(data_type, init)
         if init is not None
@@ -569,7 +389,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     operand = details["operand"].strip()
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     self.graph.add_node(
         node_name,
         op=op,
@@ -611,7 +431,7 @@ class IrParser:
     )
     match = regex.match(line)
     details = match.groupdict() if match else None
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     operands = [details["lhs"], details["rhs"]]
     operand_data_types = [
         self.graph.nodes[operand]["data_type"] for operand in operands
@@ -660,7 +480,7 @@ class IrParser:
     regex = re.compile(rf"{op}\((?P<operands>[^)]*?),\s*id=(?P<id>\d+)")
     match = regex.match(line)
     details = match.groupdict() if match else None
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     operands = [operand.strip() for operand in details["operands"].split(",")]
     dtype_strs = [
         self.graph.nodes[operand]["cost_attributes"]["dtype_str"]
@@ -710,7 +530,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     operands = [item.strip() for item in details["operands"].split(",")]
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     selector = details["selector"]
     default = details["default"] if details["default"] else None
     operand_dtype_strs = (
@@ -772,7 +592,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "array_index"
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     array = details["array"]
     operands = [operand.strip() for operand in details["operands"].split(",")]
     assumed_in_bounds = (
@@ -827,7 +647,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "array_update"
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     array = details["array"]
     value = details["value"]
     operands = [operand.strip() for operand in details["operands"].split(",")]
@@ -882,7 +702,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "bit_slice"
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     operand = details["operand"]
     start = int(details["start"])
     width = int(details["width"])
@@ -929,7 +749,7 @@ class IrParser:
     match = regex.match(line)
     op = "tuple_index"
     details = match.groupdict() if match else None
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     operand = details["operand"]
     index = int(details["index"])
     self.graph.add_node(
@@ -969,7 +789,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "one_hot"
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     operand = details["operand"]
     lsb_prio = self._str2bool(details["lsb_prio"])
     self.graph.add_node(
@@ -1004,7 +824,7 @@ class IrParser:
         ValueError: If the format of the sign extension line is unexpected or
         invalid.
     """
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     op = line.split("(", 1)[0].strip()
     regex = re.compile(
         rf"{op}\((?P<operand>\w+(\.\d+)?),\s*new_bit_count=(?P<new_bit_count>\d+),\s*id=(?P<id>\d+)"
@@ -1046,7 +866,7 @@ class IrParser:
     )
     match = regex.match(line)
     details = match.groupdict() if match else None
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     op = "receive"
     channel = details["channel"]
     predicate = details["predicate"] if details["predicate"] else None
@@ -1090,7 +910,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "send"
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     data = details["data"]
     channel = details["channel"]
     predicate = details["predicate"] if details["predicate"] else None
@@ -1132,7 +952,7 @@ class IrParser:
     match = regex.match(line)
     details = match.groupdict() if match else None
     op = "next_value"
-    data_type = self._parse_data_type(data_type_str)
+    data_type = xls_types.parse_data_type(data_type_str)
     param = details["param"]
     value = details["value"]
     operand_dtype_strs = [
