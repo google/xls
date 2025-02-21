@@ -154,7 +154,8 @@ class ElaborationContext
   }
 
   void instantiateEproc(const EprocAndChannels& eprocAndChannels,
-                        ArrayRef<value_type> globalChannels) {
+                        ArrayRef<value_type> globalChannels,
+                        StringAttr nameHint = {}) {
     EprocOp eproc = eprocAndChannels.eproc;
     ArrayRef<value_type> localChannels = eprocAndChannels.channels;
     assert(globalChannels.size() == localChannels.size());
@@ -165,13 +166,14 @@ class ElaborationContext
         llvm::map_to_vector(globalChannels, flatchan);
     SmallVector<Attribute> localSymbols =
         llvm::map_to_vector(localChannels, flatchan);
-    builder.create<InstantiateEprocOp>(eproc.getLoc(), eproc.getSymName(),
-                                       builder.getArrayAttr(globalSymbols),
-                                       builder.getArrayAttr(localSymbols));
+    builder.create<InstantiateEprocOp>(
+        eproc.getLoc(), eproc.getSymName(), builder.getArrayAttr(globalSymbols),
+        builder.getArrayAttr(localSymbols), nameHint);
   }
 
   void instantiateExternEproc(ExternSprocOp externSproc,
-                              ArrayRef<value_type> globalChannels) {
+                              ArrayRef<value_type> globalChannels,
+                              StringAttr nameHint = {}) {
     auto flatchan = [](value_type chan) -> Attribute {
       return FlatSymbolRefAttr::get(chan.getSymNameAttr());
     };
@@ -180,7 +182,7 @@ class ElaborationContext
     StringAttr symName = externSproc.getSymNameAttr();
     builder.create<InstantiateExternEprocOp>(
         externSproc.getLoc(), symName, builder.getArrayAttr(globalSymbols),
-        externSproc.getBoundaryChannelNames());
+        externSproc.getBoundaryChannelNames(), nameHint);
   }
 
   SymbolTable& getSymbolTable() { return symbolTable; }
@@ -258,7 +260,7 @@ class ElaborationInterpreter
     XLS_ASSIGN_OR_RETURN(auto results,
                          Interpret(sproc.getSpawns(), arguments, ctx));
     auto eproc_channels = ctx.createEproc(sproc);
-    ctx.instantiateEproc(eproc_channels, results);
+    ctx.instantiateEproc(eproc_channels, results, op.getNameHintAttr());
     return absl::OkStatus();
   }
 
@@ -271,7 +273,7 @@ class ElaborationInterpreter
           op.getCallee().getLeafReference().str(),
           externSproc.getChannelArgumentTypes().size(), arguments.size()));
     }
-    ctx.instantiateExternEproc(externSproc, arguments);
+    ctx.instantiateExternEproc(externSproc, arguments, op.getNameHintAttr());
     return absl::OkStatus();
   }
 

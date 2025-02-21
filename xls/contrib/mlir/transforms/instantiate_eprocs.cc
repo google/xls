@@ -63,12 +63,16 @@ class InstantiateEprocPattern : public OpRewritePattern<InstantiateEprocOp> {
       return failure();
     }
 
-    int instantiationIndex = eprocToInstantiationIndex[eproc]++;
+    int instantiationIndex =
+        eprocToInstantiationIndex[{eproc, op.getNameAttr()}]++;
     Operation* cloned = rewriter.clone(*eproc);
 
     StringAttr name = eprocToOriginalName.contains(eproc)
                           ? eprocToOriginalName.at(eproc)
                           : eprocName;
+    if (op.getNameAttr()) {
+      name = op.getNameAttr();
+    }
     if (instantiationIndex > 0) {
       name = rewriter.getStringAttr(
           llvm::formatv("{0}_{1}", name, instantiationIndex));
@@ -98,7 +102,8 @@ class InstantiateEprocPattern : public OpRewritePattern<InstantiateEprocOp> {
  private:
   SymbolTable& symbolTable;
   DenseMap<EprocOp, StringAttr> eprocToOriginalName;
-  mutable DenseMap<EprocOp, int> eprocToInstantiationIndex;
+  mutable DenseMap<std::pair<EprocOp, StringAttr>, int>
+      eprocToInstantiationIndex;
 };
 
 }  // namespace

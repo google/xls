@@ -424,8 +424,8 @@ xls.eproc @eproc(%arg: i32) zeroinitializer attributes {min_pipeline_stages = 2 
 // CHECK: xls.instantiate_eproc @eproc ()
 xls.instantiate_eproc @eproc ()
 
-// CHECK: xls.instantiate_eproc @eproc (@mychan as @vector_chan)
-xls.instantiate_eproc @eproc (@mychan as @vector_chan)
+// CHECK: xls.instantiate_eproc @eproc as "different_name" (@mychan as @vector_chan)
+xls.instantiate_eproc @eproc as "different_name" (@mychan as @vector_chan)
 
 // CHECK-LABEL: func @blocking_receive
 func.func @blocking_receive(%arg0: !xls.token, %arg1: i1) -> i32 {
@@ -455,10 +455,12 @@ func.func @send(%arg0: !xls.token, %arg1: i32, %arg2: i1) -> !xls.token {
   return %result : !xls.token
 }
 
+// CHECK-LABEL: xls.sproc @sproc
 xls.sproc @sproc() {
   spawns {
     %0, %1 = xls.schan<i32>("mychan")
-    xls.spawn @mytarget(%1, %0) : !xls.schan<i32, in>, !xls.schan<i32, out>
+    // CHECK: xls.spawn @mytarget(%in, %out) name_hint("name")
+    xls.spawn @mytarget(%1, %0) name_hint("name") : !xls.schan<i32, in>, !xls.schan<i32, out>
     xls.yield
   }
   next (%state: i32) zeroinitializer {
@@ -521,6 +523,9 @@ func.func @trace_cond(%arg0: i32, %tkn: !xls.token, %cond: i1) -> !xls.token {
 xls.chan @c1 : i32
 xls.chan @c2 : i32
 xls.instantiate_extern_eproc "external" ("arg0" as @c1, "result0" as @c2)
+
+// CHECK-LABEL: xls.instantiate_extern_eproc "external" as "different_name" ("arg0" as @c1, "result0" as @c2)
+xls.instantiate_extern_eproc "external" as "different_name" ("arg0" as @c1, "result0" as @c2)
 
 // CHECK-LABEL: xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)
 xls.extern_sproc @external_sproc (arg0: !xls.schan<i32, in>, result0: !xls.schan<i32, out>)

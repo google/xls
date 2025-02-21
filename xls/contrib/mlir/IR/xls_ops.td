@@ -1668,14 +1668,19 @@ def Xls_InstantiateEprocOp : Xls_Op<"instantiate_eproc", [DeclareOpInterfaceMeth
     During instantiation, the eproc will be cloned, and references to the local
     channels will be replaced with references to the global channels. The
     original eproc will be removed after instantiation.
+
+    `name` is the name of the instantiated eproc. If not specified, the
+    original eproc's name is used. Both are used as a hint; the final name may
+    require suffixing to avoid collisions.
   }];
   let arguments = (ins
     FlatSymbolRefAttr:$eproc,
     FlatSymbolRefArrayAttr:$global_channels,
-    FlatSymbolRefArrayAttr:$local_channels
+    FlatSymbolRefArrayAttr:$local_channels,
+    OptionalAttr<StrAttr>:$name
   );
   let assemblyFormat = [{
-    $eproc custom<ZippedSymbols>($global_channels, $local_channels) attr-dict
+    $eproc (`as` $name^)? custom<ZippedSymbols>($global_channels, $local_channels) attr-dict
   }];
 }
 
@@ -1692,14 +1697,19 @@ def Xls_InstantiateExternEprocOp : Xls_Op<"instantiate_extern_eproc", []> {
 
     The target eproc is referred to by an opaque string. The interpretation of
     this string is left to the user.
+
+    `name` is the name of the instantiated eproc. If not specified, the
+    original eproc's name is used. Both are used as a hint; the final name may
+    require suffixing to avoid collisions.
   }];
   let arguments = (ins
     StrAttr:$eproc_name,
     FlatSymbolRefArrayAttr:$global_channels,
-    StrArrayAttr:$boundary_channel_names
+    StrArrayAttr:$boundary_channel_names,
+    OptionalAttr<StrAttr>:$name
   );
   let assemblyFormat = [{
-    $eproc_name custom<ZippedSymbols>($global_channels, $boundary_channel_names) attr-dict
+    $eproc_name (`as` $name^)? custom<ZippedSymbols>($global_channels, $boundary_channel_names) attr-dict
   }];
 }
 
@@ -1929,13 +1939,17 @@ def Xls_SpawnOp : Xls_Op<"spawn", [
   let summary = "spawn sproc";
   let description = [{
     Spawns an sproc.
+
+    `name_hint` is a hint for the name of the eproc that will be created by the
+    elaboration pass for this SpawnOp.
   }];
   let arguments = (ins
     Variadic<Xls_SchanType>:$channels,
-    SymbolRefAttr:$callee
+    SymbolRefAttr:$callee,
+    OptionalAttr<StrAttr>:$name_hint
   );
   let assemblyFormat = [{
-    $callee `(` operands `)` attr-dict `:` type(operands)
+    $callee `(` operands `)` (`name_hint` `(` $name_hint^ `)`)? attr-dict `:` type(operands)
   }];
   let extraClassDeclaration = [{
     SprocOp resolveCallee(::mlir::SymbolTableCollection* symbolTable = nullptr);

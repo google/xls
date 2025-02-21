@@ -1,5 +1,5 @@
 // RUN: xls_opt -elaborate-procs -split-input-file %s 2>&1 | FileCheck %s
-// CHECK:       xls.chan @req : i32
+// CHECK-LABEL:       xls.chan @req : i32
 // CHECK-NEXT:  xls.chan @resp : i32
 // CHECK-NEXT:  xls.chan @rom1_req : i32
 // CHECK-NEXT:  xls.chan @rom1_resp : i32
@@ -15,7 +15,7 @@
 // CHECK-NEXT:  xls.instantiate_eproc @rom (@rom_arg0 as @rom1_req, @rom_arg1 as @rom1_resp)
 // CHECK-NEXT:  xls.chan @rom2_req : i32
 // CHECK-NEXT:  xls.chan @rom2_resp : i32
-// CHECK-NEXT:  xls.instantiate_eproc @rom (@rom_arg0 as @rom2_req, @rom_arg1 as @rom2_resp)
+// CHECK-NEXT:  xls.instantiate_eproc @rom as "dram" (@rom_arg0 as @rom2_req, @rom_arg1 as @rom2_resp)
 // CHECK-NEXT:  xls.eproc @proxy(%arg0: i32) zeroinitializer discardable attributes {min_pipeline_stages = 3 : i64} {
 // CHECK-NEXT:    %0 = xls.after_all  : !xls.token
 // CHECK-NEXT:    %tkn_out, %result = xls.blocking_receive %0, @proxy_arg0 : i32
@@ -64,7 +64,7 @@ xls.sproc @proxy(%req: !xls.schan<i32, in>, %resp: !xls.schan<i32, out>) attribu
     xls.spawn @rom(%rom1_req_in, %rom1_resp_out) : !xls.schan<i32, in>, !xls.schan<i32, out>
     %rom2_req_out, %rom2_req_in = xls.schan<i32>("rom2_req")
     %rom2_resp_out, %rom2_resp_in = xls.schan<i32>("rom2_resp")
-    xls.spawn @rom(%rom2_req_in, %rom2_resp_out) : !xls.schan<i32, in>, !xls.schan<i32, out>
+    xls.spawn @rom(%rom2_req_in, %rom2_resp_out) name_hint("dram") : !xls.schan<i32, in>, !xls.schan<i32, out>
     xls.yield %req, %resp, %rom1_req_out, %rom1_resp_in : !xls.schan<i32, in>, !xls.schan<i32, out>, !xls.schan<i32, out>, !xls.schan<i32, in>
   }
   next (%req: !xls.schan<i32, in>, %resp: !xls.schan<i32, out>, %rom_req: !xls.schan<i32, out>, %rom_resp: !xls.schan<i32, in>, %state: i32) zeroinitializer {
@@ -92,9 +92,9 @@ xls.sproc @rom(%req: !xls.schan<i32, in>, %resp: !xls.schan<i32, out>) top attri
 
 // -----
 
-// CHECK: xls.chan @req : i32
+// CHECK-LABEL: xls.chan @req : i32
 // CHECK-NEXT: xls.chan @resp : i32
-// CHECK-NEXT: xls.instantiate_extern_eproc "external" ("req" as @req, "resp" as @resp)
+// CHECK-NEXT: xls.instantiate_extern_eproc "external" as "e" ("req" as @req, "resp" as @resp)
 xls.extern_sproc @external(req: !xls.schan<i32, in>, resp: !xls.schan<i32, out>)
 
 // CHECK: xls.chan @main_arg0 : i32
@@ -104,7 +104,7 @@ xls.sproc @main() top {
   spawns {
     %req_out, %req_in = xls.schan<i32>("req")
     %resp_out, %resp_in = xls.schan<i32>("resp")
-    xls.spawn @external(%req_in, %resp_out) : !xls.schan<i32, in>, !xls.schan<i32, out>
+    xls.spawn @external(%req_in, %resp_out) name_hint("e") : !xls.schan<i32, in>, !xls.schan<i32, out>
     xls.yield %req_out, %resp_in : !xls.schan<i32, out>, !xls.schan<i32, in>
   }
   next (%req: !xls.schan<i32, out>, %resp: !xls.schan<i32, in>, %state: i32) zeroinitializer {

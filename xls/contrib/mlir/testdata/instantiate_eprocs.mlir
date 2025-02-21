@@ -1,7 +1,7 @@
 // RUN: xls_opt -instantiate-eprocs -symbol-dce -split-input-file %s 2>&1 | FileCheck %s
 
 // CHECK-LABEL: xls.chan @InstantiateTwice : i32
-// CHECK: xls.eproc @p_1
+// CHECK: xls.eproc @different_name
 // CHECK-SAME: min_pipeline_stages = 3
 // CHECK: xls.blocking_receive %0, @InstantiateTwice
 // CHECK: xls.eproc @p
@@ -17,7 +17,7 @@ xls.eproc @p(%arg0: i32) zeroinitializer discardable attributes {min_pipeline_st
   xls.yield %arg0 : i32
 }
 
-xls.instantiate_eproc @p (@Local as @InstantiateTwice)
+xls.instantiate_eproc @p as "different_name" (@Local as @InstantiateTwice)
 xls.instantiate_eproc @p (@Local as @InstantiateTwice2)
 
 // -----

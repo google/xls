@@ -183,9 +183,11 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
           [&](FlatSymbolRefAttr ref) {
             return symbolTable.lookupNearestSymbolFrom<ChanOp>(op, ref);
           });
+      StringRef idealInstanceName =
+          instantiate.getName().value_or(instantiate.getEproc());
       std::string instanceName =
-          absl::StrCat(instantiate.getEproc().str(), "_",
-                       instantiationCount[instantiate.getEproc()]++);
+          absl::StrCat(idealInstanceName.str(), "_",
+                       instantiationCount[idealInstanceName]++);
       AddInstantiation(localChannels, globalChannels, clk, rst, top,
                        instantiate.getEproc().str(), instanceName, channelRefs,
                        options);
@@ -201,9 +203,10 @@ LogicalResult XlsStitch(ModuleOp op, llvm::raw_ostream& output,
         [&](FlatSymbolRefAttr ref) {
           return symbolTable.lookupNearestSymbolFrom<ChanOp>(op, ref);
         });
-    std::string instanceName =
-        absl::StrCat(instantiate.getEprocName().str(), "_",
-                     instantiationCount[instantiate.getEprocName()]++);
+    StringRef idealInstanceName =
+        instantiate.getName().value_or(instantiate.getEprocName());
+    std::string instanceName = absl::StrCat(
+        idealInstanceName.str(), "_", instantiationCount[idealInstanceName]++);
     AddInstantiation(localChannels, globalChannels, clk, rst, top,
                      instantiate.getEprocName().str(), instanceName,
                      channelRefs, options);

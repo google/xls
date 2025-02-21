@@ -207,7 +207,8 @@ void populateController(SprocOp controller, scf::ForOp forOp,
       createChannels(b, "body_result", innerChanTypes);
 
   auto spawnArgs = concat(innerInArgChans, innerOutResultChans);
-  b.create<SpawnOp>(spawnArgs, SymbolRefAttr::get(body.getSymNameAttr()));
+  b.create<SpawnOp>(spawnArgs, SymbolRefAttr::get(body.getSymNameAttr()),
+                    nullptr);
 
   Value innerIndvarArg = innerOutArgChans.front();
   ValueRange innerIterArgs =
@@ -433,8 +434,8 @@ LogicalResult convertForOpToSprocCall(scf::ForOp forOp,
   auto [recvChanOuts, recvChanIns] =
       createChannels(builder, "for_result", forOp.getResultTypes());
   auto spawnArgs = concat(sendChanIns, recvChanOuts);
-  builder.create<SpawnOp>(spawnArgs,
-                          SymbolRefAttr::get(controller.getSymNameAttr()));
+  builder.create<SpawnOp>(
+      spawnArgs, SymbolRefAttr::get(controller.getSymNameAttr()), nullptr);
 
   Value token = builder.create<AfterAllOp>();
   SmallVector<Value> tokens;
