@@ -573,18 +573,10 @@ absl::StatusOr<bool> StrengthReduceNode(
 absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results, OptimizationContext* context) const {
-  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
-  std::vector<QueryEngine*> unowned_query_engines;
-  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  if (context == nullptr) {
-    owned_query_engines.push_back(std::make_unique<LazyTernaryQueryEngine>());
-  } else {
-    unowned_query_engines.push_back(
-        context->SharedQueryEngine<LazyTernaryQueryEngine>(f));
-  }
+  auto query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(),
+      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, f));
 
-  UnionQueryEngine query_engine(std::move(owned_query_engines),
-                                std::move(unowned_query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,

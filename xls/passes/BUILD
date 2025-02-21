@@ -631,12 +631,15 @@ cc_library(
         ":pass_registry",
         ":pipeline_generator",
         ":query_engine",
+        ":query_engine_helpers",
         "//xls/common:math_util",
+        "//xls/common:visitor",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ram_rewrite_cc_proto",
         "//xls/ir:value",
+        "@com_google_absl//absl/base:nullability",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
@@ -1233,7 +1236,10 @@ cc_test(
 cc_library(
     name = "query_engine",
     srcs = ["query_engine.cc"],
-    hdrs = ["query_engine.h"],
+    hdrs = [
+        "forwarding_query_engine.h",
+        "query_engine.h",
+    ],
     deps = [
         ":predicate_state",
         "//xls/data_structures:leaf_type_tree",
@@ -1251,6 +1257,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -3721,5 +3728,14 @@ cc_test(
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
         "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "query_engine_helpers",
+    hdrs = ["query_engine_helpers.h"],
+    deps = [
+        ":query_engine",
+        "//xls/common:visitor",
     ],
 )

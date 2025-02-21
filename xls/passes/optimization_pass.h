@@ -26,8 +26,10 @@
 #include <type_traits>
 #include <typeindex>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -35,17 +37,20 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/ir/value.h"
+#include "xls/passes/forwarding_query_engine.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_pipeline.pb.h"
 #include "xls/passes/pass_registry.h"
 #include "xls/passes/pipeline_generator.h"
 #include "xls/passes/query_engine.h"
+#include "xls/passes/query_engine_helpers.h"
 
 namespace xls {
 
@@ -201,6 +206,26 @@ class OptimizationContext {
       absl::flat_hash_map<std::type_index, std::shared_ptr<QueryEngine>>>
       shared_query_engines_;
 };
+
+// Construct a query engine that forwards to the shared implementation from
+// 'ctx' on 'f' if the context is not null and otherwise creates a new engine
+// using the given args.
+//
+// TODO(allight): It might be nice to put this in OptimizationContext and force
+// there to always be a value there.
+template <typename QueryEngineT, typename... Args>
+  requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
+MaybeOwnedForwardingQueryEngine<QueryEngineT> GetSharedQueryEngine(
+    absl::Nullable<OptimizationContext*> ctx, absl::Nonnull<FunctionBase*> f,
+    Args... args) {
+  if (ctx == nullptr) {
+    // No context so construct a new engine.
+    return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
+        QueryEngineT(std::forward<Args>(args)...));
+  }
+  return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
+      ctx->SharedQueryEngine<QueryEngineT>(f));
+}
 
 // An object containing information about the invocation of a pass (single call
 // to PassBase::Run).

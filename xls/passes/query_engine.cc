@@ -19,7 +19,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -28,6 +27,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -41,6 +41,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
+#include "xls/passes/forwarding_query_engine.h"
 #include "xls/passes/predicate_state.h"
 
 namespace xls {
@@ -358,105 +359,36 @@ std::string QueryEngine::ToString(Node* node) const {
       [](const TernaryVector& v) -> std::string { return xls::ToString(v); });
 }
 
-// A forwarder for query engine.
-class ForwardingQueryEngine final : public QueryEngine {
+namespace {
+class BaseForwardingQueryEngine final : public ForwardingQueryEngine {
  public:
-  explicit ForwardingQueryEngine(const QueryEngine& real) : real_(real) {}
+  explicit BaseForwardingQueryEngine(const QueryEngine& qe) : qe_(qe) {}
+
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
-    return absl::UnimplementedError("Cannot populate forwarding engine!");
+    return absl::UnimplementedError(
+        "Populate not supported on specialized query engines.");
   }
 
-  bool IsTracked(Node* node) const override { return real_.IsTracked(node); }
-
-  std::optional<SharedLeafTypeTree<TernaryVector>> GetTernary(
-      Node* node) const override {
-    return real_.GetTernary(node);
-  };
-
-  std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
-      const absl::flat_hash_set<PredicateState>& state) const override {
-    return real_.SpecializeGivenPredicate(state);
+ protected:
+  QueryEngine& real() final {
+    LOG(FATAL) << "Mutable view not supported";
+    ABSL_UNREACHABLE();
   }
-
-  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
-    return real_.GetIntervals(node);
-  }
-
-  bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
-    return real_.AtMostOneTrue(bits);
-  }
-
-  bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override {
-    return real_.AtLeastOneTrue(bits);
-  }
-
-  bool Implies(const TreeBitLocation& a,
-               const TreeBitLocation& b) const override {
-    return real_.Implies(a, b);
-  }
-
-  std::optional<Bits> ImpliedNodeValue(
-      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
-      Node* node) const override {
-    return real_.ImpliedNodeValue(predicate_bit_values, node);
-  }
-
-  std::optional<TernaryVector> ImpliedNodeTernary(
-      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
-      Node* node) const override {
-    return real_.ImpliedNodeTernary(predicate_bit_values, node);
-  }
-
-  bool KnownEquals(const TreeBitLocation& a,
-                   const TreeBitLocation& b) const override {
-    return real_.KnownEquals(a, b);
-  }
-
-  bool KnownNotEquals(const TreeBitLocation& a,
-                      const TreeBitLocation& b) const override {
-    return real_.KnownNotEquals(a, b);
-  }
-
-  bool AtMostOneBitTrue(Node* node) const override {
-    return real_.AtMostOneBitTrue(node);
-  }
-  bool AtLeastOneBitTrue(Node* node) const override {
-    return real_.AtLeastOneBitTrue(node);
-  }
-  bool ExactlyOneBitTrue(Node* node) const override {
-    return real_.ExactlyOneBitTrue(node);
-  }
-  bool IsKnown(const TreeBitLocation& bit) const override {
-    return real_.IsKnown(bit);
-  }
-  std::optional<bool> KnownValue(const TreeBitLocation& bit) const override {
-    return real_.KnownValue(bit);
-  }
-  std::optional<Value> KnownValue(Node* node) const override {
-    return real_.KnownValue(node);
-  }
-  bool IsAllZeros(Node* n) const override { return real_.IsAllZeros(n); }
-  bool IsAllOnes(Node* n) const override { return real_.IsAllOnes(n); }
-  bool IsFullyKnown(Node* n) const override { return real_.IsFullyKnown(n); }
-  Bits MaxUnsignedValue(Node* node) const override {
-    return real_.MaxUnsignedValue(node);
-  }
-  Bits MinUnsignedValue(Node* node) const override {
-    return real_.MinUnsignedValue(node);
-  }
+  const QueryEngine& real() const final { return qe_; }
 
  private:
-  const QueryEngine& real_;
+  const QueryEngine& qe_;
 };
 
+}  // namespace
 std::unique_ptr<QueryEngine> QueryEngine::SpecializeGivenPredicate(
     const absl::flat_hash_set<PredicateState>& state) const {
-  return std::make_unique<ForwardingQueryEngine>(*this);
+  return std::make_unique<BaseForwardingQueryEngine>(*this);
 }
 
 std::unique_ptr<QueryEngine> QueryEngine::SpecializeGiven(
     const absl::flat_hash_map<Node*, ValueKnowledge>& givens) const {
-  return std::make_unique<ForwardingQueryEngine>(*this);
+  return std::make_unique<BaseForwardingQueryEngine>(*this);
 }
 
 }  // namespace xls

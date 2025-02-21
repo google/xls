@@ -483,17 +483,9 @@ absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
                        RemoveZeroWidthStateElements(proc));
   changed = changed || zero_width_changed;
 
-  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
-  std::vector<QueryEngine*> unowned_query_engines;
-  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  if (context == nullptr) {
-    owned_query_engines.push_back(std::make_unique<LazyTernaryQueryEngine>());
-  } else {
-    unowned_query_engines.push_back(
-        context->SharedQueryEngine<LazyTernaryQueryEngine>(proc));
-  }
-  UnionQueryEngine query_engine(std::move(owned_query_engines),
-                                std::move(unowned_query_engines));
+  auto query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(),
+      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, proc));
 
   // Run constant state-element removal to fixed point; should usually take just
   // one additional pass to verify, except for chains like next_s1 := s1,

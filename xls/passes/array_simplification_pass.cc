@@ -1612,18 +1612,9 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     PassResults* results, OptimizationContext* context) const {
   bool changed = false;
 
-  std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
-  std::vector<QueryEngine*> unowned_query_engines;
-  owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  if (context == nullptr) {
-    owned_query_engines.push_back(std::make_unique<LazyTernaryQueryEngine>());
-  } else {
-    unowned_query_engines.push_back(
-        context->SharedQueryEngine<LazyTernaryQueryEngine>(func));
-  }
-
-  UnionQueryEngine query_engine(std::move(owned_query_engines),
-                                std::move(unowned_query_engines));
+  auto query_engine = UnionQueryEngine::Of(
+      StatelessQueryEngine(),
+      GetSharedQueryEngine<LazyTernaryQueryEngine>(context, func));
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
 
   // Replace known OOB indicates with clamped value. This helps later
