@@ -92,12 +92,16 @@ IntervalSet Neg(const IntervalSet& a);
 IntervalSet UMul(const IntervalSet& a, const IntervalSet& b,
                  int64_t output_bitwidth);
 IntervalSet UDiv(const IntervalSet& a, const IntervalSet& b);
+IntervalSet UMod(const IntervalSet& a, const IntervalSet& b);
 IntervalSet SMul(const IntervalSet& a, const IntervalSet& b,
                  int64_t output_bitwidth);
 IntervalSet SDiv(const IntervalSet& a, const IntervalSet& b);
+IntervalSet SMod(const IntervalSet& a, const IntervalSet& b);
 
 // Shift
+IntervalSet Shll(const IntervalSet& a, const IntervalSet& b);
 IntervalSet Shrl(const IntervalSet& a, const IntervalSet& b);
+IntervalSet Shra(const IntervalSet& a, const IntervalSet& b);
 
 // Encode/decode
 IntervalSet Decode(const IntervalSet& a, int64_t width);
@@ -119,10 +123,28 @@ IntervalSet BitSlice(const IntervalSet& a, int64_t start, int64_t width);
 // Cmp
 IntervalSet Eq(const IntervalSet& a, const IntervalSet& b);
 IntervalSet Ne(const IntervalSet& a, const IntervalSet& b);
-IntervalSet SLt(const IntervalSet& a, const IntervalSet& b);
-IntervalSet SGt(const IntervalSet& a, const IntervalSet& b);
+
 IntervalSet ULt(const IntervalSet& a, const IntervalSet& b);
-IntervalSet UGt(const IntervalSet& a, const IntervalSet& b);
+inline IntervalSet UGt(const IntervalSet& a, const IntervalSet& b) {
+  return ULt(b, a);
+}
+inline IntervalSet ULe(const IntervalSet& a, const IntervalSet& b) {
+  return Not(ULt(b, a));
+}
+inline IntervalSet UGe(const IntervalSet& a, const IntervalSet& b) {
+  return Not(ULt(a, b));
+}
+
+IntervalSet SLt(const IntervalSet& a, const IntervalSet& b);
+inline IntervalSet SGt(const IntervalSet& a, const IntervalSet& b) {
+  return SLt(b, a);
+}
+inline IntervalSet SLe(const IntervalSet& a, const IntervalSet& b) {
+  return Not(SLt(b, a));
+}
+inline IntervalSet SGe(const IntervalSet& a, const IntervalSet& b) {
+  return Not(SLt(a, b));
+}
 
 // Misc
 IntervalSet Gate(const IntervalSet& cond, const IntervalSet& val);

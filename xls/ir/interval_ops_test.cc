@@ -505,6 +505,17 @@ void UDivZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 FUZZ_TEST(IntervalOpsTest, UDivZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
 
+void UModZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "umod",
+      [](FunctionBuilder& fb, BValue l, BValue r) { return fb.UMod(l, r); },
+      [](const auto& l, const auto& r) { return UMod(l, r); }, lhs, rhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, UModZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
 TEST(IntervalOpsTest, SMul) {
   {
     IntervalSet lhs = FromSignedRanges({{1, 10}, {-30, -21}}, 64);
@@ -635,6 +646,105 @@ void SDivZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
       /*bits=*/8);
 }
 FUZZ_TEST(IntervalOpsTest, SDivZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+TEST(IntervalOpsTest, SMod) {
+  IntervalSet lhs = FromSignedRanges({{-128, 127}}, 8);
+  IntervalSet rhs = FromSignedRanges({{-1, 106}}, 8);
+  EXPECT_EQ(SMod(lhs, rhs), FromSignedRanges({{-105, 105}}, 8));
+}
+
+void SModZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "smod",
+      [](FunctionBuilder& fb, BValue l, BValue r) { return fb.SMod(l, r); },
+      [](const auto& l, const auto& r) { return SMod(l, r); }, lhs, rhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, SModZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+TEST(IntervalOpsTest, Shll) {
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{1, 1}}, 16);
+    EXPECT_EQ(Shll(lhs, rhs), FromRanges({{4, 22}, {200, 400}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 2}}, 16);
+    EXPECT_EQ(Shll(lhs, rhs), FromRanges({{2, 44}, {100, 800}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{1, 2}}, 16);
+    EXPECT_EQ(Shll(lhs, rhs), FromRanges({{4, 44}, {200, 800}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 0}}, 16);
+    EXPECT_EQ(Shll(lhs, rhs), FromRanges({{0, 11}, {100, 200}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 1}, {3, 3}}, 16);
+    EXPECT_EQ(Shll(lhs, rhs),
+              FromRanges({{2, 88}, {100, 400}, {800, 1600}}, 16));
+  }
+  {
+    IntervalSet lhs = FromRanges({{0, 0}, {254, 255}}, 8);
+    IntervalSet rhs = FromRanges({{1, 198}}, 8);
+    EXPECT_EQ(Shll(lhs, rhs), FromRanges({{0, 255}}, 8));
+  }
+}
+void ShllZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "shll",
+      [](FunctionBuilder& fb, BValue l, BValue r) { return fb.Shll(l, r); },
+      [](const auto& l, const auto& r) { return Shll(l, r); }, lhs, rhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, ShllZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+TEST(IntervalOpsTest, Shra) {
+  {
+    IntervalSet lhs = FromSignedRanges({{-2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{1, 1}}, 16);
+    EXPECT_EQ(Shra(lhs, rhs), FromSignedRanges({{-1, 5}, {50, 100}}, 16));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{-2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 2}}, 16);
+    EXPECT_EQ(Shra(lhs, rhs), FromSignedRanges({{-2, 11}, {25, 200}}, 16));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{1, 2}}, 16);
+    EXPECT_EQ(Shra(lhs, rhs), FromSignedRanges({{0, 5}, {25, 100}}, 16));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{0, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 0}}, 16);
+    EXPECT_EQ(Shra(lhs, rhs), FromSignedRanges({{0, 11}, {100, 200}}, 16));
+  }
+  {
+    IntervalSet lhs = FromSignedRanges({{-2, 11}, {100, 200}}, 16);
+    IntervalSet rhs = FromRanges({{0, 1}, {3, 3}}, 16);
+    EXPECT_EQ(Shra(lhs, rhs), FromSignedRanges({{-2, 25}, {50, 200}}, 16));
+  }
+}
+void ShraZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "shra",
+      [](FunctionBuilder& fb, BValue l, BValue r) { return fb.Shra(l, r); },
+      [](const auto& l, const auto& r) { return Shra(l, r); }, lhs, rhs,
+      /*bits=*/8);
+}
+FUZZ_TEST(IntervalOpsTest, ShraZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
 
 TEST(IntervalOpsTest, Shrl) {
@@ -888,6 +998,7 @@ void NeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 }
 FUZZ_TEST(IntervalOpsTest, NeZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
 void SLtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
   BinaryOpFuzz(
@@ -898,6 +1009,18 @@ void SLtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 }
 FUZZ_TEST(IntervalOpsTest, SLtZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+void SLeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+               absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "sle",
+      [&](FunctionBuilder& fb, BValue l, BValue r) { return fb.SLe(l, r); },
+      SLe, lhs, rhs,
+      /*bits=*/16);
+}
+FUZZ_TEST(IntervalOpsTest, SLeZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
 void SGtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
   BinaryOpFuzz(
@@ -907,6 +1030,17 @@ void SGtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
       /*bits=*/16);
 }
 FUZZ_TEST(IntervalOpsTest, SGtZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+void SGeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+               absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "sge",
+      [&](FunctionBuilder& fb, BValue l, BValue r) { return fb.SGe(l, r); },
+      SGe, lhs, rhs,
+      /*bits=*/16);
+}
+FUZZ_TEST(IntervalOpsTest, SGeZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
 
 void ULtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
@@ -920,6 +1054,17 @@ void ULtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
 FUZZ_TEST(IntervalOpsTest, ULtZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
 
+void ULeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+               absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "ule",
+      [&](FunctionBuilder& fb, BValue l, BValue r) { return fb.ULe(l, r); },
+      ULe, lhs, rhs,
+      /*bits=*/16);
+}
+FUZZ_TEST(IntervalOpsTest, ULeZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
 void UGtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
                absl::Span<std::pair<int64_t, int64_t> const> rhs) {
   BinaryOpFuzz(
@@ -929,6 +1074,17 @@ void UGtZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
       /*bits=*/16);
 }
 FUZZ_TEST(IntervalOpsTest, UGtZ3Fuzz)
+    .WithDomains(IntervalDomain(8), IntervalDomain(8));
+
+void UGeZ3Fuzz(absl::Span<std::pair<int64_t, int64_t> const> lhs,
+               absl::Span<std::pair<int64_t, int64_t> const> rhs) {
+  BinaryOpFuzz(
+      "uge",
+      [&](FunctionBuilder& fb, BValue l, BValue r) { return fb.UGe(l, r); },
+      UGe, lhs, rhs,
+      /*bits=*/16);
+}
+FUZZ_TEST(IntervalOpsTest, UGeZ3Fuzz)
     .WithDomains(IntervalDomain(8), IntervalDomain(8));
 
 TEST(IntervalOpsTest, MinimumBitCount) {

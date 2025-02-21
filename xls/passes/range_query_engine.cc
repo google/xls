@@ -1152,8 +1152,7 @@ absl::Status RangeQueryVisitor::HandleSGe(CompareOp* ge) {
   INITIALIZE_OR_SKIP(ge);
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, ge->operand(0));
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, ge->operand(1));
-  return SetIntervalSet(
-      ge, interval_ops::Or(interval_ops::SGt(l, r), interval_ops::Eq(l, r)));
+  return SetIntervalSet(ge, interval_ops::SGe(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleSGt(CompareOp* gt) {
@@ -1167,8 +1166,7 @@ absl::Status RangeQueryVisitor::HandleSLe(CompareOp* le) {
   INITIALIZE_OR_SKIP(le);
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, le->operand(0));
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, le->operand(1));
-  return SetIntervalSet(
-      le, interval_ops::Or(interval_ops::SLt(l, r), interval_ops::Eq(l, r)));
+  return SetIntervalSet(le, interval_ops::SLe(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleSLt(CompareOp* lt) {
@@ -1180,7 +1178,9 @@ absl::Status RangeQueryVisitor::HandleSLt(CompareOp* lt) {
 
 absl::Status RangeQueryVisitor::HandleSMod(BinOp* mod) {
   INITIALIZE_OR_SKIP(mod);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, mod->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, mod->operand(1));
+  return SetIntervalSet(mod, interval_ops::SMod(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleSMul(ArithOp* mul) {
@@ -1255,12 +1255,16 @@ absl::Status RangeQueryVisitor::HandleSend(Send* send) {
 
 absl::Status RangeQueryVisitor::HandleShll(BinOp* shll) {
   INITIALIZE_OR_SKIP(shll);
-  return absl::OkStatus();  // TODO(taktoa): implement
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(a, shll->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(b, shll->operand(1));
+  return SetIntervalSet(shll, interval_ops::Shll(a, b));
 }
 
 absl::Status RangeQueryVisitor::HandleShra(BinOp* shra) {
   INITIALIZE_OR_SKIP(shra);
-  return absl::OkStatus();  // TODO(taktoa): implement: signed
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(a, shra->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(b, shra->operand(1));
+  return SetIntervalSet(shra, interval_ops::Shra(a, b));
 }
 
 absl::Status RangeQueryVisitor::HandleShrl(BinOp* shrl) {
@@ -1337,8 +1341,7 @@ absl::Status RangeQueryVisitor::HandleUGe(CompareOp* ge) {
 
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, ge->operand(0));
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, ge->operand(1));
-  return SetIntervalSet(
-      ge, interval_ops::Or(interval_ops::UGt(l, r), interval_ops::Eq(l, r)));
+  return SetIntervalSet(ge, interval_ops::UGe(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleUGt(CompareOp* gt) {
@@ -1354,8 +1357,7 @@ absl::Status RangeQueryVisitor::HandleULe(CompareOp* le) {
 
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, le->operand(0));
   ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, le->operand(1));
-  return SetIntervalSet(
-      le, interval_ops::Or(interval_ops::ULt(l, r), interval_ops::Eq(l, r)));
+  return SetIntervalSet(le, interval_ops::ULe(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleULt(CompareOp* lt) {
@@ -1368,7 +1370,10 @@ absl::Status RangeQueryVisitor::HandleULt(CompareOp* lt) {
 
 absl::Status RangeQueryVisitor::HandleUMod(BinOp* mod) {
   INITIALIZE_OR_SKIP(mod);
-  return absl::OkStatus();  // TODO(taktoa): implement
+
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(l, mod->operand(0));
+  ASSIGN_INTERVAL_SET_REF_OR_RETURN(r, mod->operand(1));
+  return SetIntervalSet(mod, interval_ops::UMod(l, r));
 }
 
 absl::Status RangeQueryVisitor::HandleUMul(ArithOp* mul) {

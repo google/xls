@@ -1928,7 +1928,7 @@ TEST_F(RangeQueryEngineTest, UGt) {
   XLS_ASSERT_OK(engine.Populate(f));
   EXPECT_EQ("0b1", engine.ToString(expr.node()));
 
-  // When the interval sets are precise and equal, returns unknown.
+  // When the interval sets are precise and equal, returns false.
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
       x.node(), BitsLTT(x.node(), {
@@ -1939,7 +1939,7 @@ TEST_F(RangeQueryEngineTest, UGt) {
                                       Interval(UBits(200, 20), UBits(200, 20)),
                                   }));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ("0bX", engine.ToString(expr.node()));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint and less than, returns false.
   engine = RangeQueryEngine();
@@ -2050,7 +2050,7 @@ TEST_F(RangeQueryEngineTest, ULt) {
   XLS_ASSERT_OK(engine.Populate(f));
   EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
-  // When the interval sets are precise and equal, returns unknown.
+  // When the interval sets are precise and equal, returns false.
   engine = RangeQueryEngine();
   engine.SetIntervalSetTree(
       x.node(), BitsLTT(x.node(), {
@@ -2061,7 +2061,7 @@ TEST_F(RangeQueryEngineTest, ULt) {
                                       Interval(UBits(200, 20), UBits(200, 20)),
                                   }));
   XLS_ASSERT_OK(engine.Populate(f));
-  EXPECT_EQ("0bX", engine.ToString(expr.node()));
+  EXPECT_EQ("0b0", engine.ToString(expr.node()));
 
   // When the interval sets are disjoint and less than, returns true.
   engine = RangeQueryEngine();
