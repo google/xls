@@ -4839,5 +4839,150 @@ TEST(TypecheckV2BuiltinTest, Umulp) {
   EXPECT_THAT(R"(const Y = umulp(u16:10, u16:20);)",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[16])")));
 }
+
+TEST(TypecheckV2Test, TypeAliasSelfReference) {
+  EXPECT_THAT(
+      "type T=uN[T::A as u2];",
+      TypecheckFails(HasSubstr("Cannot find a definition for name: \"T\"")));
+}
+
+TEST(TypecheckV2Test, CastToXbitsBasedBoolArray) {
+  EXPECT_THAT(R"(
+const ARRAY_SIZE = u32:44;
+type MyXn = xN[bool:0x0][1];  // equivalent to a bool
+
+fn main() -> bool[44] {
+  let x: u44 = 0;
+  // Equivalent to casting bits to corresponding bool array.
+  x as MyXn[ARRAY_SIZE]
+}
+
+fn f() {
+  let n = main();
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[44]"),
+                                      HasNodeWithType("n", "uN[1][44]"))));
+}
+
+TEST(TypecheckV2Test, TypeAlias) {
+  EXPECT_THAT(R"(
+type MyTypeAlias = (u32, u8);
+fn id(x: MyTypeAlias) -> MyTypeAlias { x }
+fn f() -> MyTypeAlias { id((42, 127)) }
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("x", "(uN[32], uN[8])"),
+                  HasNodeWithType("id", "((uN[32], uN[8])) -> (uN[32], uN[8])"),
+                  HasNodeWithType("f", "() -> (uN[32], uN[8])"))));
+}
+
+TEST(TypecheckV2Test, TypeAliasInParametricFn) {
+  EXPECT_THAT(R"(
+fn f<T: u32>() -> uN[T] {
+  type Ret = uN[T];
+  Ret:0
+}
+
+fn main() {
+  let x = f<8>();
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "uN[8]")));
+}
+
+TEST(TypecheckV2Test, TypeAliasInGlobalConstant) {
+  EXPECT_THAT(
+      R"(
+type MyTypeAlias = (u32, u8);
+const MY_TUPLE : MyTypeAlias = (u32:42, u8:127);
+)",
+      TypecheckSucceeds(HasNodeWithType("MY_TUPLE", "(uN[32], uN[8])")));
+}
+
+TEST(TypecheckV2Test, TypeAliasInLet) {
+  EXPECT_THAT(
+      R"(
+type MyTypeAlias = (u32, u8);
+fn f() -> u8 {
+  let some_val: MyTypeAlias = (5, 10);
+  some_val.1
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("some_val", "(uN[32], uN[8])")));
+}
+
+TEST(TypecheckV2Test, TypeAliasCircularReference) {
+  EXPECT_THAT(R"(
+type MyTypeAlias = AnotherAlias;
+type AnotherAlias = MyTypeAlias;
+
+fn id(x: AnotherAlias) -> AnotherAlias { x }
+fn f() -> AnotherAlias { id((42, 127)) }
+)",
+              TypecheckFails(HasSubstr(
+                  "Cannot find a definition for name: \"AnotherAlias\"")));
+}
+
+TEST(TypecheckV2Test, TypeAliasMultipleLevels) {
+  EXPECT_THAT(R"(
+type MyTypeAlias = (u32, u8);
+type AnotherAlias = MyTypeAlias;
+
+fn id(x: AnotherAlias) -> AnotherAlias { x }
+fn f() -> AnotherAlias { id((42, 127)) }
+)",
+              TypecheckSucceeds(AllOf(
+                  HasNodeWithType("x", "(uN[32], uN[8])"),
+                  HasNodeWithType("id", "((uN[32], uN[8])) -> (uN[32], uN[8])"),
+                  HasNodeWithType("f", "() -> (uN[32], uN[8])"))));
+}
+
+// ColonRefs not fully supported yet.
+TEST(TypecheckV2Test, DISABLED_ColonRefTypeAlias) {
+  EXPECT_THAT(
+      R"(
+type MyU8 = u8;
+fn f() -> u8 { MyU8::MAX }
+fn g() -> u8 { MyU8::ZERO }
+fn h() -> u8 { MyU8::MIN }
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("MyU8", "u8"), HasNodeWithType("f", "() -> u8"),
+          HasNodeWithType("g", "() -> u8"), HasNodeWithType("MyU8", "u8"), )));
+}
+
+TEST(TypecheckV2Test, TypeAliasOfStructWithBoundParametrics) {
+  EXPECT_THAT(R"(
+struct S<X: u32, Y: u32> {
+  x: bits[X],
+  y: bits[Y],
+}
+type MyS = S<3, 4>;
+fn f() -> MyS { MyS {x: 3, y: 4 } }
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("f", "() -> S { x: uN[3], y: uN[4] }"),
+                        HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"))));
+}
+
+// TODO(erinzmoore): Fix propagation of type parametrics through type aliases.
+TEST(TypecheckV2Test, DISABLED_ElementInTypeAliasOfStructWithBoundParametrics) {
+  EXPECT_THAT(R"(
+struct S<X: u32, Y: u32> {
+  x: bits[X],
+  y: bits[Y],
+}
+type MyS = S<3, 4>;
+fn f() -> uN[3] {
+  let x = MyS {x: 3, y: 4 };
+  x.x
+}
+)",
+              TypecheckSucceeds(
+                  AllOf(HasNodeWithType("f", "() -> uN[3]"),
+                        HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"),
+                        HasNodeWithType("x", "S { x: uN[3], y: uN[4] }"), )));
+}
 }  // namespace
 }  // namespace xls::dslx

@@ -975,6 +975,13 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleTypeAlias(const TypeAlias* node) override {
+    VLOG(5) << "HandleTypeAlias: " << node->ToString();
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeAnnotation(&node->name_def(), &node->type_annotation()));
+    return DefaultHandler(node);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     for (AstNode* child : node->GetChildren(/*want_types=*/true)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));

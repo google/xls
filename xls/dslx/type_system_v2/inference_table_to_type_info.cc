@@ -2243,6 +2243,31 @@ class InferenceTableConverter {
               }
               return std::nullopt;
             }));
+
+    // If the result is a `TypeRefTypeAnnotation`, check if it resolves to a
+    // different type in the inference table.
+    XLS_ASSIGN_OR_RETURN(
+        clone,
+        table_.Clone(
+            clone,
+            [&](const AstNode* node)
+                -> absl::StatusOr<std::optional<AstNode*>> {
+              std::optional<const TypeAnnotation*> latest =
+                  dynamic_cast<const TypeAnnotation*>(node);
+              while (latest.has_value() &&
+                     dynamic_cast<const TypeRefTypeAnnotation*>(*latest)) {
+                const auto* type_ref =
+                    dynamic_cast<const TypeRefTypeAnnotation*>(*latest);
+                latest =
+                    table_.GetTypeAnnotation(ToAstNode(TypeDefinitionGetNameDef(
+                        type_ref->type_ref()->type_definition())));
+                if (latest.has_value()) {
+                  node = const_cast<TypeAnnotation*>(*latest);
+                  replaced_anything = true;
+                }
+              }
+              return const_cast<AstNode*>(node);
+            }));
     if (!replaced_anything) {
       VLOG(6) << "No variables needed resolution in: "
               << annotation->ToString();
