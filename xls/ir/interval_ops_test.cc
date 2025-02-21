@@ -125,6 +125,14 @@ IntervalSet FromRanges(absl::Span<std::pair<int64_t, int64_t> const> ranges,
   res.Normalize();
   return res;
 }
+IntervalSet FromValues(absl::Span<int64_t const> ranges, int64_t bits) {
+  IntervalSet res(bits);
+  for (const auto& v : ranges) {
+    res.AddInterval(Interval::Precise(UBits(v, bits)));
+  }
+  res.Normalize();
+  return res;
+}
 
 IntervalSet FromTernaryString(std::string_view sv,
                               int64_t max_unknown_bits = 4) {
@@ -204,6 +212,24 @@ TEST(IntervalOpsTest, FromTernarySegmentsExtended) {
   // Only allow 1 segment
   EXPECT_EQ(FromTernaryString("0b1X1_X1X0X", /*max_unknown_bits=*/0),
             FromRanges({{0b10000000, 0b11111111}}, 8));
+}
+
+TEST(IntervalOpsTest, ExactResultsForSmallRanges) {
+  // Only 8 possible multiplies so try them all.
+  IntervalSet lhs = FromRanges({{1234, 1235}}, 64);
+  IntervalSet rhs = FromRanges({{0, 3}}, 64);
+  IntervalSet res = FromValues(
+      {
+          0,  // 1234 * 0, 1235 * 0
+          1234 * 1,
+          1235 * 1,
+          1234 * 2,
+          1235 * 2,
+          1234 * 3,
+          1235 * 3,
+      },
+      128);
+  EXPECT_EQ(UMul(lhs, rhs, 128), res);
 }
 
 void OpFuzz(
@@ -423,7 +449,14 @@ TEST(IntervalOpsTest, UMul) {
   {
     IntervalSet lhs = FromRanges({{2, 3}}, 8);
     IntervalSet rhs = FromRanges({{100, 100}}, 8);
-    EXPECT_EQ(UMul(lhs, rhs, 8), FromRanges({{200, 255}, {0, 44}}, 8));
+    // (3 * 100) % 256 == 44
+    EXPECT_EQ(UMul(lhs, rhs, 8), FromRanges({{200, 200}, {44, 44}}, 8));
+  }
+  {
+    IntervalSet lhs = FromRanges({{2, 3}}, 8);
+    IntervalSet rhs = FromRanges({{100, 110}}, 8);
+    // (3 * 110) % 256 == 74
+    EXPECT_EQ(UMul(lhs, rhs, 8), FromRanges({{200, 255}, {0, 74}}, 8));
   }
 }
 
@@ -491,7 +524,13 @@ TEST(IntervalOpsTest, SMul) {
     // Overflow once.
     IntervalSet lhs = FromSignedRanges({{2, 3}}, 8);
     IntervalSet rhs = FromSignedRanges({{100, 100}}, 8);
-    EXPECT_EQ(SMul(lhs, rhs, 8), FromSignedRanges({{0, 44}, {-56, -1}}, 8));
+    EXPECT_EQ(SMul(lhs, rhs, 8), FromSignedRanges({{44, 44}, {-56, -56}}, 8));
+  }
+  {
+    // Overflow once without exact calculations.
+    IntervalSet lhs = FromSignedRanges({{2, 3}}, 8);
+    IntervalSet rhs = FromSignedRanges({{100, 110}}, 8);
+    EXPECT_EQ(SMul(lhs, rhs, 8), FromSignedRanges({{0, 74}, {-56, -1}}, 8));
   }
   {
     // Overflow twice.
@@ -503,8 +542,22 @@ TEST(IntervalOpsTest, SMul) {
     // Multiply across sign boundary.
     IntervalSet lhs = FromRanges({{/*int_max*/ 0x7f, /*int_min*/ 0x80}}, 8);
     IntervalSet rhs = FromSignedRanges({{-2, -1}, {0, 2}}, 8);
+    EXPECT_EQ(SMul(lhs, rhs, 12), FromSignedRanges({{0, 0},
+                                                    {127, 128},
+                                                    {254, 254},
+                                                    {256, 256},
+                                                    {-256, -256},
+                                                    {-254, -254},
+                                                    {-128, -127}},
+                                                   12));
+  }
+  {
+    // Multiply across sign boundary without exact calculations.
+    IntervalSet lhs =
+        FromRanges({{/*int_max - 0xf*/ 0x70, /*int_min + 0xf*/ 0x8f}}, 8);
+    IntervalSet rhs = FromSignedRanges({{-2, -1}, {0, 2}}, 8);
     EXPECT_EQ(SMul(lhs, rhs, 12),
-              FromSignedRanges({{-256, -127}, {0, 0}, {127, 256}}, 12));
+              FromSignedRanges({{0, 0}, {112, 256}, {-256, -112}}, 12));
   }
 }
 

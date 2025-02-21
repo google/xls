@@ -26,8 +26,10 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "xls/common/iter_util.h"
+#include "xls/common/iterator_range.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
@@ -321,11 +323,70 @@ struct OverflowResult {
 template <typename Calculate>
   requires(
       std::is_invocable_r_v<OverflowResult, Calculate, absl::Span<Bits const>>)
+std::optional<IntervalSet> MaybePerformExactCalculation(
+    Calculate calc, absl::Span<ArgumentBehavior const> behaviors,
+    absl::Span<IntervalSet const> input_operands, int64_t result_bit_size) {
+  // If all arguments are size-preserving we don't need to do anything at all
+  // since the preserving property ensures that precision is maintained.
+  if (absl::c_all_of(behaviors, [](const ArgumentBehavior& b) {
+        return b.size_preserving;
+      })) {
+    return std::nullopt;
+  }
+  // How many exact calculations we are willing to perform.
+  static constexpr int64_t kMaxExactCalculations = 16;
+  int64_t required_calculations = 1;
+  for (const IntervalSet& is : input_operands) {
+    // required_calculations *= is.Size();
+    auto size = is.Size();
+    if (!size || *size > kMaxExactCalculations || *size <= 0 ||
+        required_calculations * (*size) > kMaxExactCalculations) {
+      return std::nullopt;
+    }
+    required_calculations *= *size;
+  }
+
+  VLOG(3) << "Doing " << required_calculations << " exact calculations";
+
+  // We have a small number of actual values to try, just try all of them for
+  // best precision.
+  using ValueIter = xabsl::iterator_range<IntervalSet::ValuesIterator>;
+  std::vector<ValueIter> intervals;
+  intervals.reserve(input_operands.size());
+  for (const IntervalSet& i : input_operands) {
+    intervals.push_back(i.Values());
+  }
+  IntervalSet results(result_bit_size);
+  auto handle_combo =
+      [&](absl::Span<const IntervalSet::ValuesIterator> values_ptrs) -> bool {
+    std::vector<Bits> values;
+    values.reserve(values_ptrs.size());
+    for (const auto& value_ptr : values_ptrs) {
+      values.push_back(*value_ptr);
+    }
+    results.AddInterval(Interval::Precise(calc(values).result));
+    return false;
+  };
+  IteratorProduct<ValueIter>(intervals, handle_combo);
+  results.Normalize();
+  return std::move(results);
+}
+
+template <typename Calculate>
+  requires(
+      std::is_invocable_r_v<OverflowResult, Calculate, absl::Span<Bits const>>)
 IntervalSet PerformVariadicOp(Calculate calc,
                               absl::Span<ArgumentBehavior const> behaviors,
                               absl::Span<IntervalSet const> input_operands,
                               int64_t result_bit_size) {
   CHECK_EQ(input_operands.size(), behaviors.size());
+
+  std::optional<IntervalSet> exact_result = MaybePerformExactCalculation(
+      calc, behaviors, input_operands, result_bit_size);
+  if (exact_result) {
+    // VLOG(2) << "Got exact results: " << exact_result->ToString();
+    return *exact_result;
+  }
 
   std::vector<IntervalSet> operands;
   operands.reserve(input_operands.size());
