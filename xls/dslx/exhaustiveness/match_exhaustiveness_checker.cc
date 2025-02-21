@@ -356,6 +356,7 @@ NdIntervalWithEmpty PatternToInterval(const NameDefTree& pattern,
   // Each leaf describes some range in its dimension that it matches on --
   // together, they describe an n-dimensional interval.
   std::vector<std::optional<InterpValueInterval>> intervals;
+  intervals.reserve(pattern_leaves.size());
   for (int64_t i = 0; i < pattern_leaves.size(); ++i) {
     intervals.push_back(PatternToIntervalInternal(
         pattern_leaves[i], *leaf_types[i], type_info, import_data));
