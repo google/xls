@@ -16,3 +16,10 @@ fn seemingly_can_fail(x: u32) -> u32 { if x != x { fail!("should_be_impossible",
 
 #[quickcheck]
 fn prop_effectively_identity(x: u32) -> bool { seemingly_can_fail(x) == x }
+
+// As above, but tests exhaustive input stimulus generation for the signature.
+#[quickcheck(exhaustive)]
+fn prop_effectively_identity_small_space(x: u2) -> bool {
+    let y = x as u32;
+    seemingly_can_fail(y) == y
+}

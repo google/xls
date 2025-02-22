@@ -692,6 +692,21 @@ TEST(ValueTest, FromProtoMaxBitSize) {
   }
 }
 
+// We need this functionality so that we can craft tokens to feed to function
+// signatures, e.g. in exhaustive quickchecks.
+TEST(ValueTest, CanPopulateTokenFromEmptyBitmap) {
+  Value v = Value::Token();
+  BitPushBuffer push_buffer;
+  v.FlattenTo(&push_buffer);
+  InlineBitmap bitmap = push_buffer.ToBitmap();
+  ASSERT_TRUE(bitmap.empty());
+
+  TokenType token_type;
+  Value v2 = ZeroOfType(&token_type);
+  XLS_ASSERT_OK(v2.PopulateFrom(BitmapView(bitmap)));
+  EXPECT_EQ(v, v2);
+}
+
 void ProtoValueRoundTripWorks(const ValueProto& v) {
   auto value = Value::FromProto(v, /*max_bit_size=*/1 << 16);
   if (!value.ok()) {
