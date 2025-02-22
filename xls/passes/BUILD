@@ -1745,6 +1745,7 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:source_location",
+        "//xls/ir:ternary",
         "//xls/ir:type",
         "//xls/ir:value",
         "@com_google_absl//absl/algorithm:container",

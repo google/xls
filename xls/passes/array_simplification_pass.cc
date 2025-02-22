@@ -43,6 +43,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -203,6 +204,11 @@ struct SimplifyResult {
         .changed = true,
         .new_worklist_nodes = std::vector<Node*>(new_worklist_nodes.begin(),
                                                  new_worklist_nodes.end())};
+  }
+  static SimplifyResult ChangedFromVector(
+      std::vector<Node*>&& new_worklist_nodes) {
+    return SimplifyResult{.changed = true,
+                          .new_worklist_nodes = std::move(new_worklist_nodes)};
   }
 };
 
@@ -377,7 +383,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayIndex(
               ->ReplaceUsesWithNew<Select>(selector, cases, default_value)
               .status());
     }
-    return SimplifyResult::Changed(new_array_indexes);
+    return SimplifyResult::ChangedFromVector(std::move(new_array_indexes));
   }
 
   // An array index which indexes into a kArrayConcat operation and whose first
@@ -779,7 +785,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
 
     if (array_update->assumed_in_bounds()) {
       XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(wrapped_value));
-      return SimplifyResult::Changed(new_array_ops);
+      return SimplifyResult::ChangedFromVector(std::move(new_array_ops));
     }
 
     XLS_ASSIGN_OR_RETURN(
@@ -791,7 +797,7 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
             indices_in_bounds, absl::MakeConstSpan({wrapped_value}),
             array_update->array_to_update()));
     new_array_ops.push_back(select);
-    return SimplifyResult::Changed(new_array_ops);
+    return SimplifyResult::ChangedFromVector(std::move(new_array_ops));
   }
 
   // Try to simplify a kArray operation followed by an ArrayUpdate operation
@@ -824,39 +830,69 @@ absl::StatusOr<SimplifyResult> SimplifyArrayUpdate(
   if (array_update->array_to_update()->Is<Array>() &&
       HasSingleUse(array_update->array_to_update()) &&
       !array_update->indices().empty() &&
-      query_engine.IsFullyKnown(array_update->indices().front())) {
+      (SplitsEnabled(opt_level) ||
+       query_engine.IsFullyKnown(array_update->indices().front()))) {
+    Array* array_to_update = array_update->array_to_update()->As<Array>();
     Node* idx = array_update->indices().front();
-    if (array_update->assumed_in_bounds() ||
-        IndexIsDefinitelyInBounds(idx, array_update->GetType()->AsArrayOrDie(),
-                                  query_engine)) {
-      VLOG(2) << absl::StrFormat("Hoist array update above array: %s",
-                                 array_update->ToString());
-
-      // Indices are always interpreted as unsigned numbers.
-      XLS_ASSIGN_OR_RETURN(uint64_t operand_no,
-                           query_engine.KnownValueAsBits(idx)->ToUint64());
-      Array* array = array_update->array_to_update()->As<Array>();
-
-      Node* replacement_array_operand;
-      if (array_update->indices().size() == 1) {
-        // idx was the only element of the index. The array-update operation can
-        // be elided.
-        replacement_array_operand = array_update->update_value();
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            replacement_array_operand,
-            func->MakeNode<ArrayUpdate>(array_update->loc(),
-                                        array->operand(operand_no),
-                                        array_update->update_value(),
-                                        array_update->indices().subspan(1),
-                                        array_update->assumed_in_bounds()));
+    TernaryVector idx_ternary = query_engine.GetTernary(idx)->Get({});
+    VLOG(2) << absl::StrFormat("Hoist array update above array: %s",
+                               array_update->ToString());
+    std::vector<Node*> changed_nodes;
+    for (int64_t concrete_index = 0; concrete_index < array_to_update->size();
+         ++concrete_index) {
+      // Check if it's possible for this entry to be updated.
+      if (Bits::MinBitCountUnsigned(concrete_index) > idx_ternary.size()) {
+        continue;
       }
-      XLS_RETURN_IF_ERROR(
-          array->ReplaceOperandNumber(operand_no, replacement_array_operand));
-      XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array));
+      Bits concrete_index_bits = UBits(concrete_index, idx_ternary.size());
+      if (!ternary_ops::IsCompatible(idx_ternary, concrete_index_bits)) {
+        continue;
+      }
 
-      return SimplifyResult::Changed({array, replacement_array_operand});
+      Node* replacement_entry;
+      if (array_update->indices().size() == 1) {
+        // idx was the only element of the index. The array-update operation
+        // can be elided.
+        replacement_entry = array_update->update_value();
+      } else {
+        std::string name;
+        if (array_update->HasAssignedName()) {
+          name =
+              absl::StrCat(array_update->GetName(), "__entry_", concrete_index);
+        }
+        XLS_ASSIGN_OR_RETURN(
+            replacement_entry,
+            func->MakeNodeWithName<ArrayUpdate>(
+                array_update->loc(), array_to_update->operand(concrete_index),
+                array_update->update_value(),
+                array_update->indices().subspan(1),
+                array_update->assumed_in_bounds(), name));
+      }
+      // If the index is fully known, then since we're compatible, this entry
+      // is always replaced. Otherwise, we replace if the index matches.
+      if (!ternary_ops::IsFullyKnown(idx_ternary)) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * concrete_index_literal,
+            array_update->function_base()->MakeNode<Literal>(
+                array_update->loc(), Value(concrete_index_bits)));
+        XLS_ASSIGN_OR_RETURN(
+            Node * index_matches,
+            array_update->function_base()->MakeNode<CompareOp>(
+                array_update->loc(), idx, concrete_index_literal, Op::kEq));
+        XLS_ASSIGN_OR_RETURN(
+            replacement_entry,
+            array_update->function_base()->MakeNode<PrioritySelect>(
+                array_update->loc(), index_matches,
+                absl::MakeConstSpan({replacement_entry}),
+                array_to_update->operand(concrete_index)));
+        changed_nodes.push_back(replacement_entry);
+      }
+      XLS_RETURN_IF_ERROR(array_to_update->ReplaceOperandNumber(
+          concrete_index, replacement_entry));
     }
+    XLS_RETURN_IF_ERROR(array_update->ReplaceUsesWith(array_to_update));
+    changed_nodes.push_back(array_to_update);
+    return SimplifyResult::ChangedFromVector(std::move(changed_nodes));
   }
 
   // Replace sequential updates which effectively update one element with a
@@ -1582,7 +1618,7 @@ absl::StatusOr<SimplifyResult> SimplifySelectOfArrays(Node* select) {
   // The nodes to add to the worklist are all the selected elements and the
   // newly created array node. Reuse selected_elements for this purpose.
   selected_elements.push_back(new_array);
-  return SimplifyResult::Changed(selected_elements);
+  return SimplifyResult::ChangedFromVector(std::move(selected_elements));
 }
 
 // Simplify various forms of a select of array-typed values.

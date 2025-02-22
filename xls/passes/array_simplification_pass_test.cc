@@ -297,9 +297,11 @@ TEST_F(ArraySimplificationPassTest, IndexingArrayUpdateOperationUnknownIndex) {
   fb.ArrayIndex(array_update, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  ASSERT_THAT(Run(f), IsOkAndHolds(false));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::ArrayIndex(m::ArrayUpdate(), {m::Literal(1)}));
+              m::PrioritySelect(m::Eq(m::Param("idx"), m::Literal(1)),
+                                /*cases=*/{m::Param("q")},
+                                /*default_value=*/m::Param("x")));
 }
 
 TEST_F(ArraySimplificationPassTest,
@@ -315,12 +317,23 @@ TEST_F(ArraySimplificationPassTest,
   fb.ArrayIndex(array_update, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  // Though this is an array_index of an array_update and they have the same
-  // index, we can't optimize this because of different behaviors of OOB access
-  // for array_index and array_update operations.
-  ASSERT_THAT(Run(f), IsOkAndHolds(false));
-  EXPECT_THAT(f->return_value(), m::ArrayIndex(m::ArrayUpdate(),
-                                               /*indices=*/{m::Param()}));
+  ASSERT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::Select(m::Param("idx"), /*cases=*/
+                {m::PrioritySelect(m::Eq(m::Param("idx"), m::Literal(0)),
+                                   /*cases=*/{m::Param("q")},
+                                   /*default_value=*/m::Param("w")),
+                 m::PrioritySelect(m::Eq(m::Param("idx"), m::Literal(1)),
+                                   /*cases=*/{m::Param("q")},
+                                   /*default_value=*/m::Param("x")),
+                 m::PrioritySelect(m::Eq(m::Param("idx"), m::Literal(2)),
+                                   /*cases=*/{m::Param("q")},
+                                   /*default_value=*/m::Param("y"))},
+                /*default_value=*/
+                m::PrioritySelect(m::Eq(m::Param("idx"), m::Literal(3)),
+                                  /*cases=*/{m::Param("q")},
+                                  /*default_value=*/m::Param("z"))));
 }
 
 TEST_F(ArraySimplificationPassTest, IndexingArrayParameter) {
