@@ -4,7 +4,7 @@ werkzeug==3.0.6
 itsdangerous>=2.0
 click==8.1.3
 markupsafe==2.1.1
-matplotlib==3.9.1
+matplotlib==3.10.0
 networkx==3.3.0
 termcolor==1.1.0
 psutil==5.7.0
