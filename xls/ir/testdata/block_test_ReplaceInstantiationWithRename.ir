@@ -1,0 +1,28 @@
+package ReplaceInstantiationWithRename
+
+block sub_block(a: bits[32], b: bits[32], x: bits[32], y: bits[32]) {
+  a: bits[32] = input_port(name=a, id=1)
+  b: bits[32] = input_port(name=b, id=2)
+  x: () = output_port(a, name=x, id=3)
+  y: () = output_port(b, name=y, id=4)
+}
+
+block add_block(a_renamed: bits[32], b: bits[32], x_renamed: bits[32], y: bits[32]) {
+  a_renamed: bits[32] = input_port(name=a_renamed, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a_renamed, b, id=7)
+  x_renamed: () = output_port(add.7, name=x_renamed, id=8)
+  y: () = output_port(b, name=y, id=9)
+}
+
+block my_block(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32]) {
+  instantiation inst_add(block=add_block, kind=block)
+  in0: bits[32] = input_port(name=in0, id=10)
+  in1: bits[32] = input_port(name=in1, id=11)
+  instantiation_input.18: () = instantiation_input(in0, instantiation=inst_add, port_name=a_renamed, id=18)
+  instantiation_input.19: () = instantiation_input(in1, instantiation=inst_add, port_name=b, id=19)
+  instantiation_output.20: bits[32] = instantiation_output(instantiation=inst_add, port_name=x_renamed, id=20)
+  instantiation_output.21: bits[32] = instantiation_output(instantiation=inst_add, port_name=y, id=21)
+  out0: () = output_port(instantiation_output.20, name=out0, id=16)
+  out1: () = output_port(instantiation_output.21, name=out1, id=17)
+}

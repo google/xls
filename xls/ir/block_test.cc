@@ -27,6 +27,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/visitor.h"
@@ -85,6 +86,11 @@ class BlockTest : public IrTestBase {
 
   std::vector<std::string> GetOutputPortNames(Block* block) {
     return NodeNames(block->GetOutputPorts());
+  }
+
+  void ExpectIr(std::string_view got, std::string_view test_name) {
+    ExpectEqualToGoldenFile(
+        absl::StrFormat("xls/ir/testdata/block_test_%s.ir", test_name), got);
   }
 };
 
@@ -1000,6 +1006,73 @@ block my_block(in0: bits[32], in1: bits[32], out0: bits[32], out1: bits[32]) {
   out1: () = output_port(instantiation_output.26, name=out1, id=22)
 }
 )");
+}
+
+TEST_F(BlockTest, ReplaceInstantiationWithRename) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  BlockBuilder sub_bb("sub_block", p.get());
+  {
+    BValue a = sub_bb.InputPort("a", u32);
+    BValue b = sub_bb.InputPort("b", u32);
+    sub_bb.OutputPort("x", a);
+    sub_bb.OutputPort("y", b);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Block * sub_block, sub_bb.Build());
+  BlockBuilder add_bb("add_block", p.get());
+  {
+    BValue a_renamed = add_bb.InputPort("a_renamed", u32);
+    BValue b = add_bb.InputPort("b", u32);
+    add_bb.OutputPort("x_renamed", add_bb.Add(a_renamed, b));
+    add_bb.OutputPort("y", b);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Block * add_block, add_bb.Build());
+
+  BlockBuilder bb("my_block", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * instantiation,
+      bb.block()->AddBlockInstantiation("inst", sub_block));
+  {
+    BValue in0 = bb.InputPort("in0", u32);
+    BValue in1 = bb.InputPort("in1", u32);
+    bb.InstantiationInput(instantiation, "a", in0);
+    BValue out0 = bb.InstantiationOutput(instantiation, "x");
+    bb.InstantiationInput(instantiation, "b", in1);
+    BValue out1 = bb.InstantiationOutput(instantiation, "y");
+    bb.OutputPort("out0", out0);
+    bb.OutputPort("out1", out1);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto inst_add,
+                           block->AddBlockInstantiation("inst_add", add_block));
+
+  // Replacing without rename should fail since port names do not match:
+  EXPECT_THAT(block->ReplaceInstantiationWith(instantiation, inst_add),
+              absl_testing::StatusIs(absl::StatusCode::kInternal,
+                                     testing::ContainsRegex("Type mismatch")));
+
+  // Replacing with rename of non-existent port should fail:
+  EXPECT_THAT(block->ReplaceInstantiationWith(instantiation, inst_add,
+                                              {{"does_not_exist", "a2"}}),
+              absl_testing::StatusIs(
+                  absl::StatusCode::kInternal,
+                  testing::ContainsRegex("rename port that does not exist")));
+
+  // Replacing with rename of port to used name should fail:
+  EXPECT_THAT(
+      block->ReplaceInstantiationWith(instantiation, inst_add, {{"a", "b"}}),
+      absl_testing::StatusIs(absl::StatusCode::kInternal,
+                             testing::ContainsRegex("name already exists")));
+
+  // Replacing with acceptable rename:
+  EXPECT_THAT(
+      block->ReplaceInstantiationWith(instantiation, inst_add,
+                                      {{"a", "a_renamed"}, {"x", "x_renamed"}}),
+
+      absl_testing::IsOk());
+  ExpectIr(p->DumpIr(), TestName());
 }
 
 }  // namespace
