@@ -879,9 +879,9 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "test_f_calls_parametric_f",
-)
+dslx_lang_test(name = "test_f_calls_parametric_f")
+
+dslx_lang_test(name = "test_assert_helper")
 
 dslx_lang_test(name = "array_concat")
 

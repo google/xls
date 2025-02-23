@@ -24,7 +24,18 @@ namespace xls::dslx {
 
 struct BuiltinsData {
   std::string signature;
-  bool is_ast_node;
+
+  // Indicates whether this builtin is represented in the AST as a "first class
+  // node" or as an invocation of a builtin name-definition. Most builtins don't
+  // need to be AST nodes and thus this is false by default, which is the most
+  // common case.
+  bool is_ast_node = false;
+
+  // Indicates whether this builtin requires an implicit token parameter when it
+  // is used/invoked within a function. For most builtins this is not required,
+  // but built-ins that demand a token like `assert!`, `cover!`, `fail!` etc do
+  // have this set.
+  bool requires_implicit_token = false;
 };
 
 // Map from the name of the parametric builtin function; e.g. `assert_eq` to a

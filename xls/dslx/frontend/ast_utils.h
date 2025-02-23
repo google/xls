@@ -17,7 +17,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -41,9 +40,15 @@ namespace xls::dslx {
 bool IsBuiltinFn(Expr* callee,
                  std::optional<std::string_view> target = std::nullopt);
 
-// Returns the name of `callee` if it's a builtin function and an error
-// otherwise.
-absl::StatusOr<std::string> GetBuiltinName(Expr* callee);
+// Returns the name of the builtin function referred to by `callee` if it is a
+// builtin function. If `callee` isn't a builtin function, returns std::nullopt.
+std::optional<std::string_view> GetBuiltinFnName(Expr* callee);
+
+// Returns true if `callee` refers to a builtin function that requires an
+// implicit token parameter.
+//
+// Precondition: `IsBuiltinFn(callee)`.
+bool GetBuiltinFnRequiresImplicitToken(Expr* callee);
 
 // Resolves the given TypeDefinition to a struct definition node local to the
 // module.
