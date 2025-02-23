@@ -693,6 +693,26 @@ TEST(QuickcheckTest, Seeding) {
   EXPECT_EQ(results1, results2);
 }
 
+TEST(QuickcheckTest, ProofFailure) {
+  constexpr std::string_view kProgram = R"(
+#[quickcheck(exhaustive)]
+fn quickcheck_that_fails(x: u1) -> bool {
+  x != x
+}
+)";
+  ParseAndProveOptions options;
+  options.vfs_factory = [&] {
+    return std::make_unique<UniformContentFilesystem>(kProgram, "test.x");
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           ParseAndProve(kProgram, "test", "test.x", options));
+  EXPECT_THAT(result.test_result_data,
+              IsTestResult(TestResult::kSomeFailed, 1, 0, 1));
+  EXPECT_THAT(result.counterexamples.size(), 1);
+  EXPECT_THAT(result.counterexamples.begin()->second,
+              testing::ElementsAre(Value(UBits(0, 1))));
+}
+
 TEST_P(ParseAndTestTest, DeadlockedProc) {
   // Test proc never sends to the subproc, so network is deadlocked.
   constexpr std::string_view kProgram = R"(
