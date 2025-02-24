@@ -330,20 +330,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     member_types.reserve(node->members().size());
     for (int i = 0; i < node->members().size(); ++i) {
       Expr* member = node->members()[i];
-      XLS_ASSIGN_OR_RETURN(const NameRef* member_variable,
-                           table_.DefineInternalVariable(
-                               InferenceVariableKind::kType, member,
-                               GenerateInternalTypeVariableName(member)));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(member, member_variable));
+      TypeAnnotation* element_annotation = nullptr;
       if (tuple_annotation.has_value()) {
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            member,
-            module_.Make<ElementTypeAnnotation>(
-                *tuple_annotation,
-                module_.Make<Number>((*tuple_annotation)->span(),
-                                     absl::StrCat(i), NumberKind::kOther,
-                                     /*type_annotation=*/nullptr))));
+        element_annotation = module_.Make<ElementTypeAnnotation>(
+            *tuple_annotation,
+            module_.Make<Number>((*tuple_annotation)->span(), absl::StrCat(i),
+                                 NumberKind::kOther,
+                                 /*type_annotation=*/nullptr));
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(member, element_annotation));
       }
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* member_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, member,
+              GenerateInternalTypeVariableName(member), element_annotation));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(member, member_variable));
       member_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(member_variable));
     }
@@ -528,11 +530,15 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     for (int i = 0; i < members.size(); i++) {
       const auto& [name, actual_member] = members[i];
       const StructMemberNode* formal_member = struct_def->members()[i];
+      TypeAnnotation* member_type = module_.Make<MemberTypeAnnotation>(
+          struct_variable_type, formal_member->name());
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_member, member_type));
       XLS_ASSIGN_OR_RETURN(
           const NameRef* member_type_variable,
           table_.DefineInternalVariable(
               InferenceVariableKind::kType, const_cast<Expr*>(actual_member),
-              GenerateInternalTypeVariableName(formal_member, actual_member)));
+              GenerateInternalTypeVariableName(formal_member, actual_member),
+              member_type));
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(actual_member, member_type_variable));
       XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -610,17 +616,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
     // Create a variable for the element type, and assign it to all the
     // elements.
+    TypeAnnotation* element_annotation = nullptr;
+    if (array_annotation.has_value()) {
+      element_annotation =
+          module_.Make<ElementTypeAnnotation>(*array_annotation);
+    }
     XLS_ASSIGN_OR_RETURN(
         const NameRef* element_type_variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<Array*>(node),
-                                      GenerateInternalTypeVariableName(node)));
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Array*>(node),
+            GenerateInternalTypeVariableName(node), element_annotation));
     for (Expr* member : node->members()) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(member, element_type_variable));
-      if (array_annotation.has_value()) {
-        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-            member, module_.Make<ElementTypeAnnotation>(*array_annotation)));
+      if (element_annotation != nullptr) {
+        XLS_RETURN_IF_ERROR(
+            table_.SetTypeAnnotation(member, element_annotation));
       }
     }
     Expr* element_count = module_.Make<Number>(
@@ -745,7 +756,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         const NameRef* return_type_variable,
         table_.DefineInternalVariable(InferenceVariableKind::kType,
                                       const_cast<Function*>(node),
-                                      GenerateInternalTypeVariableName(node)));
+                                      GenerateInternalTypeVariableName(node),
+                                      function_type_annotation->return_type()));
     XLS_RETURN_IF_ERROR(
         table_.SetTypeVariable(node->body(), return_type_variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
@@ -907,25 +919,25 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     }
     for (int i = 0; i < node->args().size(); i++) {
       const Expr* arg = node->args()[i];
+      // In a case like `foo.fn(arg0, arg1)`, `foo` is the implicit first actual
+      // argument, hence `arg0` and `arg1` are actually at index 1 and 2 among
+      // the params in the `FunctionTypeAnnotation`.
+      const int arg_index_including_implicit_self = i + self_arg_offset;
+      TypeAnnotation* arg_annotation = module_.Make<ParamTypeAnnotation>(
+          module_.Make<TypeVariableTypeAnnotation>(function_type_variable),
+          arg_index_including_implicit_self);
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(arg, arg_annotation));
       XLS_ASSIGN_OR_RETURN(
           const NameRef* arg_type_variable,
           table_.DefineInternalVariable(
               InferenceVariableKind::kType, const_cast<Expr*>(arg),
               absl::Substitute("$0_actual_arg_$1",
-                               GenerateInternalTypeVariableName(arg), i)));
-      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arg, arg_type_variable));
-
-      // In a case like `foo.fn(arg0, arg1)`, `foo` is the implicit first actual
-      // argument, hence `arg0` and `arg1` are actually at index 1 and 2 among
-      // the params in the `FunctionTypeAnnotation`.
-      const int arg_index_including_implicit_self = i + self_arg_offset;
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          arg,
-          module_.Make<ParamTypeAnnotation>(
-              module_.Make<TypeVariableTypeAnnotation>(function_type_variable),
-              arg_index_including_implicit_self)));
+                               GenerateInternalTypeVariableName(arg), i),
+              arg_annotation));
       arg_types.push_back(
           module_.Make<TypeVariableTypeAnnotation>(arg_type_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(arg, arg_type_variable));
+
       XLS_RETURN_IF_ERROR(arg->Accept(this));
     }
 
@@ -988,9 +1000,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleLet: " << node->ToString();
     XLS_ASSIGN_OR_RETURN(
         const NameRef* variable,
-        table_.DefineInternalVariable(InferenceVariableKind::kType,
-                                      const_cast<Let*>(node),
-                                      GenerateInternalTypeVariableName(node)));
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<Let*>(node),
+            GenerateInternalTypeVariableName(node), node->type_annotation()));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
     if (node->type_annotation() != nullptr) {
@@ -1071,10 +1083,11 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   template <typename T>
   absl::StatusOr<const NameRef*> DefineTypeVariableForVariableOrConstant(
       const T* node) {
-    XLS_ASSIGN_OR_RETURN(const NameRef* variable,
-                         table_.DefineInternalVariable(
-                             InferenceVariableKind::kType, const_cast<T*>(node),
-                             GenerateInternalTypeVariableName(node)));
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* variable,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, const_cast<T*>(node),
+            GenerateInternalTypeVariableName(node), node->type_annotation()));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->name_def(), variable));
     if (node->type_annotation() != nullptr) {
@@ -1248,34 +1261,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     if (!type_variable.has_value()) {
       return std::nullopt;
     }
-    // Note: the nullopt `parametric_context` is safe here because all of the
-    // processing in this whole class happens before any `ParametricContext`
-    // objects exist, therefore none of the data in the table at this point can
-    // be dependent on any `ParametricContext`.
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<const TypeAnnotation*> annotations,
-        table_.GetTypeAnnotationsForTypeVariable(
-            /*parametric_context=*/std::nullopt, *type_variable));
-    if (annotations.empty()) {
-      VLOG(5) << "No declaration type annotation for " << node->ToString();
-      return std::nullopt;
-    }
-    // If > 1, the caller is ignoring the "before imposing an annotation on the
-    // RHS" precondition.
-    CHECK_EQ(annotations.size(), 1);
-
+    XLS_ASSIGN_OR_RETURN(std::optional<const TypeAnnotation*> annotation,
+                         table_.GetDeclarationTypeAnnotation(*type_variable));
     // Constraining the annotation type here improves error messages in
     // situations where there is a type mismatch for an entire array/tuple.
     // We allow indirect member/element annotations through at this point,
     // because we can't yet prove whether they amount to something expected.
-    if (dynamic_cast<const T*>(annotations[0]) ||
-        dynamic_cast<const MemberTypeAnnotation*>(annotations[0]) ||
-        dynamic_cast<const ElementTypeAnnotation*>(annotations[0]) ||
-        dynamic_cast<const ParamTypeAnnotation*>(annotations[0])) {
-      return annotations[0];
+    if (annotation.has_value()) {
+      if (dynamic_cast<const T*>(*annotation) ||
+          dynamic_cast<const MemberTypeAnnotation*>(*annotation) ||
+          dynamic_cast<const ElementTypeAnnotation*>(*annotation) ||
+          dynamic_cast<const ParamTypeAnnotation*>(*annotation)) {
+        return annotation;
+      }
+      VLOG(5) << "Declaration type is unsupported kind: "
+              << (*annotation)->ToString() << " for " << node->ToString();
     }
-    VLOG(5) << "Declaration type is unsupported kind: "
-            << annotations[0]->ToString() << " for " << node->ToString();
     return std::nullopt;
   }
 

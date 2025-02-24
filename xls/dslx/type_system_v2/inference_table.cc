@@ -166,8 +166,8 @@ class InferenceTableImpl : public InferenceTable {
   explicit InferenceTableImpl(Module& module) : module_(module) {}
 
   absl::StatusOr<const NameRef*> DefineInternalVariable(
-      InferenceVariableKind kind, AstNode* definer,
-      std::string_view name) override {
+      InferenceVariableKind kind, AstNode* definer, std::string_view name,
+      std::optional<const TypeAnnotation*> declaration_annotation) override {
     VLOG(6) << "DefineInternalVariable of kind " << (int)kind << " with name "
             << name << " and definer: " << definer->ToString();
     CHECK(definer->GetSpan().has_value());
@@ -178,6 +178,11 @@ class InferenceTableImpl : public InferenceTable {
         module_.Make<NameRef>(span, std::string(name), name_def);
     AddVariable(name_def, std::make_unique<InferenceVariable>(
                               definer, name_ref, kind, /*parametric=*/false));
+    if (declaration_annotation.has_value()) {
+      XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable,
+                           GetVariable(name_ref));
+      declaration_type_annotations.emplace(variable, *declaration_annotation);
+    }
     return name_ref;
   }
 
@@ -366,6 +371,16 @@ class InferenceTableImpl : public InferenceTable {
         it->second.type_variable;
     return variable.has_value() ? std::make_optional((*variable)->name_ref())
                                 : std::nullopt;
+  }
+
+  absl::StatusOr<std::optional<const TypeAnnotation*>>
+  GetDeclarationTypeAnnotation(const NameRef* ref) const override {
+    XLS_ASSIGN_OR_RETURN(const InferenceVariable* variable, GetVariable(ref));
+    const auto it = declaration_type_annotations.find(variable);
+    if (it == declaration_type_annotations.end()) {
+      return std::nullopt;
+    }
+    return it->second;
   }
 
   absl::StatusOr<std::vector<const TypeAnnotation*>>
@@ -585,6 +600,9 @@ class InferenceTableImpl : public InferenceTable {
   absl::flat_hash_map<const InferenceVariable*,
                       std::vector<const TypeAnnotation*>>
       type_annotations_per_type_variable_;
+  // The type annotations that were declared by the user.
+  absl::flat_hash_map<const InferenceVariable*, const TypeAnnotation*>
+      declaration_type_annotations;
   // The `AstNode` objects that have associated data.
   absl::flat_hash_map<const AstNode*, NodeData> node_data_;
   // Parametric contexts and the corresponding information about parametric

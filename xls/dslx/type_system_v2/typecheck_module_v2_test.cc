@@ -895,6 +895,47 @@ const Y = uN[X]:1;
       TypecheckFails(HasSizeMismatch("s31", "u32")));
 }
 
+TEST(TypecheckV2Test, ArrayOfTuples) {
+  EXPECT_THAT(
+      R"(
+fn tuple_fn() -> u32 {
+   let x = [(1, 2, 3), (3, 4, 5), (5, 6, 7), (7, 8, 9)];
+   x[0].1
+}
+)",
+      TypecheckSucceeds(HasNodeWithType("x", "(uN[3], uN[4], uN[4])[4]")));
+}
+
+TEST(TypecheckV2Test, NestedTuples) {
+  EXPECT_THAT(
+      R"(
+const X = (((0, 1, 2, 3), 4, (5, 6, 7), 8), (9, (10, 11, 12)), 13);
+)",
+      TypecheckSucceeds(HasNodeWithType(
+          "X",
+          "(((uN[0], uN[1], uN[2], uN[2]), uN[3], (uN[3], uN[3], uN[3]), "
+          "uN[4]), (uN[4], (uN[4], uN[4], uN[4])), uN[4])")));
+}
+
+TEST(TypecheckV2Test, NestedArraysAndTuples) {
+  EXPECT_THAT(
+      R"(
+const X = (((0, 1, 2, 3), 4, [5, 6, 7], 8), (9, (10, [11, 12])), 13);
+)",
+      TypecheckSucceeds(
+          HasNodeWithType("X",
+                          "(((uN[0], uN[1], uN[2], uN[2]), uN[3], uN[3][3], "
+                          "uN[4]), (uN[4], (uN[4], uN[4][2])), uN[4])")));
+}
+
+TEST(TypecheckV2Test, NestedArrays) {
+  EXPECT_THAT(
+      R"(
+const X = [[[0, 1, 2], [2, 3, 4], [4, 5, 6]], [[6, 7, 8], [8, 9, 10], [10, 11, 12]]];
+)",
+      TypecheckSucceeds(HasNodeWithType("X", "uN[4][3][3][2]")));
+}
+
 TEST(TypecheckV2Test, XnAnnotationWithNonBoolLiteralSignednessFails) {
   EXPECT_THAT("const Y = xN[2][32]:1;",
               TypecheckFails(HasSizeMismatch("bool", "uN[2]")));
