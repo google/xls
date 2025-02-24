@@ -68,6 +68,20 @@ def : FCmpPat<"uno", (Xls_CallDslxOp (FloatLib $lhs), CS<"is_nan">,
                                      (variadic (Arith_AddFOp $lhs, $rhs, $fmf)),
                                      ConstUnitAttr)>;
 
+class OppositeFCmpPat<string s, string r> :
+    Pat<(Arith_CmpFOp:$op ConstantEnumCase<Arith_CmpFPredicateAttr, s>, $lhs,
+                          $rhs, $fmf),
+        (Xls_XorOp (variadic
+          (Arith_CmpFOp ConstantEnumCase<Arith_CmpFPredicateAttr, r>, $lhs,
+                        $rhs, $fmf, (returnType $op))))>;
+
+def : OppositeFCmpPat<"ugt", "ole">;
+def : OppositeFCmpPat<"uge", "olt">;
+def : OppositeFCmpPat<"ult", "oge">;
+def : OppositeFCmpPat<"ule", "ogt">;
+def : OppositeFCmpPat<"une", "oeq">;
+def : OppositeFCmpPat<"ord", "uno">;
+
 def : BinaryOpOverflowPat<Arith_ShLIOp, Xls_ShllOp>;
 def : BinaryOpPat<Arith_ShRUIOp, Xls_ShrlOp>;
 def : BinaryOpPat<Arith_ShRSIOp, Xls_ShraOp>;
@@ -133,36 +147,118 @@ def : Pat<(Arith_ExtFOp:$op $a, /*FastMathFlags=*/$_),
           (Xls_CallDslxOp ExtLib, CS<"ext">, (variadic $a), ConstUnitAttr)>;
 
 def : Pat<(Arith_TruncFOp:$op $a, /*RoundingMode=*/$_, /*FastMathFlags=*/$_),
-          (Xls_CallDslxOp ExtLib, CS<"trunc">, (variadic $a), ConstUnitAttr)>;
+          (Xls_CallDslxOp ExtLib, CS<"trunc">, (variadic $a), ConstUnitAttr),
+          [(ScalarOrTensorOf<F32> $a)]>;
 
-def : Pat<(Arith_SIToFPOp:$op I32:$a),
-          (Xls_CallDslxOp (FloatLib $op), CS<"from_int32">, (variadic $a), ConstUnitAttr),
+multiclass FloatToIntegralPat<Op fptoi, Op itofp, Op exti, string u> {
+  def : Pat<(itofp:$op I32:$a),
+          (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int32">, (variadic $a),
+                          ConstUnitAttr),
           [(ScalarOrTensorOf<F32> $op)]>;
 
-def : Pat<(Arith_SIToFPOp:$op I32:$a),
-          (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
-            (variadic (Arith_SIToFPOp $a, (returnType "$_builder.getF32Type()"))), ConstUnitAttr),
-          [(ScalarOrTensorOf<BF16> $op)]>;
+  def : Pat<(itofp:$op I32:$a),
+            (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
+              (variadic (itofp $a, (returnType "$_builder.getF32Type()"))),
+              ConstUnitAttr),
+            [(ScalarOrTensorOf<BF16> $op)]>;
 
-def : Pat<(Arith_SIToFPOp:$op I8:$a),
-          (Xls_CallDslxOp (FloatLib $op), CS<"from_int8">, (variadic $a), ConstUnitAttr),
-          [(ScalarOrTensorOf<BF16> $op)]>;
+  def : Pat<(itofp:$op I16:$a),
+          (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int32">,
+                          (variadic (exti $a, (returnType "$_builder.getI32Type()"))),
+                          ConstUnitAttr),
+          [(ScalarOrTensorOf<F32> $op)]>;
 
-def : Pat<(Arith_FPToSIOp:$op F32:$a),
-          (Xls_CallDslxOp (FloatLib $a), CS<"to_int32">, (variadic $a), ConstUnitAttr),
-          [(ScalarOrTensorOf<I32> $op)]>;
+  def : Pat<(itofp:$op I16:$a),
+            (Xls_CallDslxOp (FloatLib $op), CS<"from_float32">,
+              (variadic (itofp $a, (returnType "$_builder.getF32Type()"))),
+              ConstUnitAttr),
+            [(ScalarOrTensorOf<BF16> $op)]>;
 
-def : Pat<(Arith_FPToSIOp:$op BF16:$a),
-          (Xls_CallDslxOp (FloatLib $a), CS<"to_int16">, (variadic $a), ConstUnitAttr),
-          [(ScalarOrTensorOf<I16> $op)]>;
+  def : Pat<(itofp:$op I8:$a),
+            (Xls_CallDslxOp (FloatLib $op), CS<"from_"#u#"int8">, (variadic $a),
+                            ConstUnitAttr),
+            [(ScalarOrTensorOf<BF16> $op)]>;
 
-// TODO(jmolloy): to_int8 doesn't exist, so truncating the result of to_int16
-// seems like a reasonable approximation but I don't know if it's bit accurate.
-def : Pat<(Arith_FPToSIOp:$op BF16:$a),
+  def : Pat<(fptoi:$op F32:$a),
+            (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int32">, (variadic $a),
+                            ConstUnitAttr),
+            [(ScalarOrTensorOf<I32> $op)]>;
+
+  def : Pat<(fptoi:$op BF16:$a),
+            (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
+                            ConstUnitAttr),
+            [(ScalarOrTensorOf<I16> $op)]>;
+
+  // TODO(jmolloy): to_int8 doesn't exist, so truncating the result of to_int16
+  // seems like a reasonable approximation but I don't know if it's bit accurate.
+  def : Pat<(fptoi:$op BF16:$a),
+            (Arith_TruncIOp
+              (Xls_CallDslxOp (FloatLib $a), CS<"to_"#u#"int16">, (variadic $a),
+                              ConstUnitAttr,
+                              (returnType "$_builder.getI16Type()"))),
+            [(ScalarOrTensorOf<I8> $op)]>;
+}
+
+defm : FloatToIntegralPat<Arith_FPToSIOp, Arith_SIToFPOp, Arith_ExtSIOp, "">;
+defm : FloatToIntegralPat<Arith_FPToUIOp, Arith_UIToFPOp, Arith_ExtUIOp, "u">;
+
+defvar IntOfFloatBitwidth = NativeCodeCall<
+  "$_builder.getIntegerType($0.getType().getIntOrFloatBitWidth())">;
+defvar FloatOfIntBitwidth = NativeCodeCall<
+  "$_builder.getF32Type()">;
+
+class BitwidthGreaterThan<int x> : CPred<
+  "$_self.getIntOrFloatBitWidth() > " # x>;
+class BitwidthLessThan<int x> : CPred<
+  "$_self.getIntOrFloatBitWidth() < " # x>;
+
+// (fpto[us]i x) -> (extsi (fpto[us]i x:f32)) for types with bitwidth > 32.
+def : Pat<(Arith_FPToSIOp:$op $a),
+          (Arith_ExtSIOp
+            (Arith_FPToSIOp $a,
+            (returnType (IntOfFloatBitwidth $a)))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthGreaterThan<32>]>> $op)]>;
+def : Pat<(Arith_FPToUIOp:$op $a),
+          (Arith_ExtUIOp
+            (Arith_FPToUIOp $a,
+            (returnType (IntOfFloatBitwidth $a)))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthGreaterThan<32>]>> $op)]>;
+// ([us]itofp x) -> ([us]itofp (trunc x)) for types with bitwidth > 32.
+def : Pat<(Arith_SIToFPOp:$op $a),
+          (Arith_SIToFPOp
+            (Arith_TruncIOp $a, (returnType "$_builder.getI32Type()"))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthGreaterThan<32>]>> $a)]>;
+def : Pat<(Arith_UIToFPOp:$op $a),
+          (Arith_UIToFPOp
+            (Arith_TruncIOp $a, (returnType "$_builder.getI32Type()"))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthGreaterThan<32>]>> $a)]>;
+
+// (fpto[us]i x) -> (trunc (fpto[us]i x:f32)) for types with bitwidth < 32.
+def : Pat<(Arith_FPToSIOp:$op $a),
           (Arith_TruncIOp
-            (Xls_CallDslxOp (FloatLib $a), CS<"to_int16">, (variadic $a),
-                            ConstUnitAttr, (returnType "$_builder.getI16Type()"))),
-          [(ScalarOrTensorOf<I8> $op)]>;
+            (Arith_FPToSIOp $a, (returnType (IntOfFloatBitwidth $a)))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthLessThan<32>]>> $op)]>;
+def : Pat<(Arith_FPToUIOp:$op $a),
+          (Arith_TruncIOp
+            (Arith_FPToUIOp $a, (returnType (IntOfFloatBitwidth $a)))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthLessThan<32>]>> $op)]>;
+// ([us]itofp x) -> ([us]itofp (ext[us]i x)) for types with bitwidth < 32.
+def : Pat<(Arith_SIToFPOp:$op $a),
+          (Arith_SIToFPOp
+            (Arith_ExtSIOp $a, (returnType (IntOfFloatBitwidth $op)))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthLessThan<32>]>> $a)]>;
+def : Pat<(Arith_UIToFPOp:$op $a),
+          (Arith_UIToFPOp
+            (Arith_ExtUIOp $a, (returnType (IntOfFloatBitwidth $op)))),
+          [(ScalarOrTensorOf<ConfinedType<AnyInteger,
+                             [BitwidthLessThan<32>]>> $a)]>;
 
 // Creates a `SelOp` with two `cases` (and no `otherwise` operand). This wrapper
 // is needed because DRR doesn't deal well with the `AttrSizedOperandSegments`

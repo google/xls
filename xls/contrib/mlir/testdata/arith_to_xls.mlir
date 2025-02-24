@@ -1,5 +1,6 @@
 // RUN: xls_opt -arith-to-xls -canonicalize %s 2>&1 | FileCheck %s
 
+
 // CHECK-LABEL: @constants
 // CHECK-DAG: arith.constant 1
 // CHECK-DAG: arith.constant dense
@@ -153,12 +154,50 @@ func.func @si32tofp16(%arg0: i32) -> bf16 attributes { "xls" = true } {
   return %0 : bf16
 }
 
+// CHECK-LABEL: @uitofp32
+// CHECK: xls.call_dslx
+// CHECK-SAME: from_uint32
+// CHECK-SAME: (i32) -> f32
+func.func @uitofp32(%arg0: i32) -> f32 attributes { "xls" = true } {
+  %0 = arith.uitofp %arg0 : i32 to f32
+  return %0 : f32
+}
+
+// CHECK-LABEL: @uitofp16
+// CHECK: xls.call_dslx
+// CHECK-SAME: from_uint8
+// CHECK-SAME: (i8) -> bf16
+func.func @uitofp16(%arg0: i8) -> bf16 attributes { "xls" = true } {
+  %0 = arith.uitofp %arg0 : i8 to bf16
+  return %0 : bf16
+}
+
+// CHECK-LABEL: @ui32tofp16
+// CHECK: xls.call_dslx
+// CHECK-SAME: from_uint32
+// CHECK: xls.call_dslx
+// CHECK-SAME: from_float32
+func.func @ui32tofp16(%arg0: i32) -> bf16 attributes { "xls" = true } {
+  %0 = arith.uitofp %arg0 : i32 to bf16
+  return %0 : bf16
+}
+
 // CHECK-LABEL: @eq
 // CHECK:  xls.call_dslx
 // CHECK-SAME: eq_2
 // CHECK-SAME: (f32, f32) -> i1
 func.func @eq(%arg0: f32, %arg1: f32) -> i1 attributes { "xls" = true } {
   %0 = arith.cmpf oeq, %arg0, %arg1 : f32
+  return %0 : i1
+}
+
+// CHECK-LABEL: @ne
+// CHECK: xls.call_dslx
+// CHECK-SAME: eq_2
+// CHECK-SAME: (f32, f32) -> i1
+// CHECK-NEXT: xls.xor
+func.func @ne(%arg0: f32, %arg1: f32) -> i1 attributes { "xls" = true } {
+  %0 = arith.cmpf une, %arg0, %arg1 : f32
   return %0 : i1
 }
 
@@ -198,6 +237,103 @@ func.func @fptosi16(%arg0: bf16) -> i16 attributes { "xls" = true } {
 func.func @fptosi8(%arg0: bf16) -> i8 attributes { "xls" = true } {
   %0 = arith.fptosi %arg0 : bf16 to i8
   return %0 : i8
+}
+
+// CHECK-LABEL: @fptoui32
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_uint32
+// CHECK-SAME: (f32) -> i32
+func.func @fptoui32(%arg0: f32) -> i32 attributes { "xls" = true } {
+  %0 = arith.fptoui %arg0 : f32 to i32
+  return %0 : i32
+}
+
+// CHECK-LABEL: @fptoui16
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_uint16
+// CHECK-SAME: (bf16) -> i16
+func.func @fptoui16(%arg0: bf16) -> i16 attributes { "xls" = true } {
+  %0 = arith.fptoui %arg0 : bf16 to i16
+  return %0 : i16
+}
+
+// CHECK-LABEL: @fptoui8
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_uint16
+// CHECK-SAME: (bf16) -> i16
+// CHECK-NEXT: xls.bit_slice %0 {start = 0 : i64, width = 8 : i64} : (i16) -> i8
+func.func @fptoui8(%arg0: bf16) -> i8 attributes { "xls" = true } {
+  %0 = arith.fptoui %arg0 : bf16 to i8
+  return %0 : i8
+}
+
+// CHECK-LABEL: @fptoui64
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_uint32
+// CHECK-SAME: (f32) -> i32
+// CHECK-NEXT: xls.zero_ext %0 : (i32) -> i64
+func.func @fptoui64(%arg0: f32) -> i64 attributes { "xls" = true } {
+  %0 = arith.fptoui %arg0 : f32 to i64
+  return %0 : i64
+}
+
+// CHECK-LABEL: @fp16toui64
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_uint16
+// CHECK-SAME: (bf16) -> i16
+// CHECK-NEXT: xls.zero_ext %0 : (i16) -> i64
+func.func @fp16toui64(%arg0: bf16) -> i64 attributes { "xls" = true } {
+  %0 = arith.fptoui %arg0 : bf16 to i64
+  return %0 : i64
+}
+
+// CHECK-LABEL: @ui64tofp16
+// CHECK: xls.bit_slice
+// CHECK-NEXT: xls.call_dslx
+// CHECK-SAME: from_uint32
+// CHECK-NEXT: xls.call_dslx
+// CHECK-SAME: from_float32
+// CHECK-SAME: (f32) -> bf16
+func.func @ui64tofp16(%arg0: i64) -> bf16 attributes { "xls" = true } {
+  %0 = arith.uitofp %arg0 : i64 to bf16
+  return %0 : bf16
+}
+
+// CHECK-LABEL: @si4tofp16
+// CHECK: xls.call_dslx
+// CHECK-SAME: from_int32
+// CHECK-NEXT: from_float32
+func.func @si4tofp16(%arg0: i4) -> bf16 attributes { "xls" = true } {
+  %0 = arith.sitofp %arg0 : i4 to bf16
+  return %0 : bf16
+}
+
+// CHECK-LABEL: @fp16tosi4
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_int16
+// CHECK-NEXT: xls.bit_slice %0 {start = 0 : i64, width = 4 : i64} : (i16) -> i4
+func.func @fp16tosi4(%arg0: bf16) -> i4 attributes { "xls" = true } {
+  %0 = arith.fptosi %arg0 : bf16 to i4
+  return %0 : i4
+}
+
+// CHECK-LABEL: @fp32toui4
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_uint32
+// CHECK-NEXT: xls.bit_slice %0 {start = 0 : i64, width = 4 : i64} : (i32) -> i4
+func.func @fp32toui4(%arg0: f32) -> i4 attributes { "xls" = true } {
+  %0 = arith.fptoui %arg0 : f32 to i4
+  return %0 : i4
+}
+
+// CHECK-LABEL: @fptosi64
+// CHECK: xls.call_dslx
+// CHECK-SAME: to_int32
+// CHECK-SAME: (f32) -> i32
+// CHECK-NEXT: xls.sign_ext %0 : (i32) -> i64
+func.func @fptosi64(%arg0: f32) -> i64 attributes { "xls" = true } {
+  %0 = arith.fptosi %arg0 : f32 to i64
+  return %0 : i64
 }
 
 // CHECK-LABEL: @negate
