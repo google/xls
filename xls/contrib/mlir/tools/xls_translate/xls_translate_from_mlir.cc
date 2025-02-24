@@ -782,8 +782,9 @@ BValue convertOp(ConstantScalarOp op, const TranslationState& state,
   if (auto int_attr = dyn_cast<IntegerAttr>(op.getValue())) {
     // TODO(jmolloy): ConstantScalarOp always has I64Attr regardless of the
     // type, so we need special handling here.
-    auto int_type = cast<IntegerType>(op.getType());
-    auto int_val = int_attr.getValue().zextOrTrunc(int_type.getWidth());
+    auto int_type = dyn_cast<IntegerType>(op.getType());
+    unsigned bit_width = int_type ? int_type.getWidth() : /*IndexType*/ 32u;
+    auto int_val = int_attr.getValue().zextOrTrunc(bit_width);
     return fb.Literal(convertAPInt(int_val), state.getLoc(op));
   }
   return fb.Literal(convertConstantAttr(op.getValue()), state.getLoc(op));
