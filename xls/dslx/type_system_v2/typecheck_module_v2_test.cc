@@ -5126,6 +5126,18 @@ TEST(TypecheckV2Test, SliceOfSignedBitsFails) {
               TypecheckFails(HasSubstr("Bit slice LHS must be unsigned.")));
 }
 
+TEST(TypecheckV2Test, SliceBeforeStartFails) {
+  EXPECT_THAT("const X = (u6:0b011100)[-7:4];",
+              TypecheckFails(
+                  HasSubstr("Slice range out of bounds for array of size 6")));
+}
+
+TEST(TypecheckV2Test, SliceAfterEndFails) {
+  EXPECT_THAT("const X = (u6:0b011100)[0:7];",
+              TypecheckFails(
+                  HasSubstr("Slice range out of bounds for array of size 6")));
+}
+
 TEST(TypecheckV2Test, WidthSliceOfBits) {
   EXPECT_THAT("const X = 0b100111[2+:u3];", TopNodeHasType("uN[3]"));
 }
@@ -5149,6 +5161,18 @@ TEST(TypecheckV2Test, WidthSliceOfNonBitsFails) {
 TEST(TypecheckV2Test, WidthSliceOfSignedBitsFails) {
   EXPECT_THAT("const X = (s6:0b011100)[0+:u4];",
               TypecheckFails(HasSubstr("Bit slice LHS must be unsigned.")));
+}
+
+TEST(TypecheckV2Test, WidthSliceBeforeStartFails) {
+  EXPECT_THAT("const X = (u6:0b011100)[-7+:u4];",
+              TypecheckFails(
+                  HasSubstr("Slice range out of bounds for array of size 6")));
+}
+
+TEST(TypecheckV2Test, WidthSliceAfterEndFails) {
+  EXPECT_THAT("const X = (u6:0b011100)[3+:u4];",
+              TypecheckFails(
+                  HasSubstr("Slice range out of bounds for array of size 6")));
 }
 
 TEST(TypecheckV2Test, WidthSliceByParametrics) {

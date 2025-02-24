@@ -1055,7 +1055,8 @@ class InferenceTableConverter {
       // A `Slice` actually has its bounds stored in `TypeInfo` out-of-band from
       // the real type info, mirroring the `StartAndWidthExprs` that we store in
       // the `InferenceTable`.
-      if (std::holds_alternative<Slice*>(index->rhs())) {
+      if (std::holds_alternative<Slice*>(index->rhs()) ||
+          std::holds_alternative<WidthSlice*>(index->rhs())) {
         XLS_RETURN_IF_ERROR(ConcretizeSlice(parametric_context, index, ti));
       }
     }
@@ -1087,17 +1088,25 @@ class InferenceTableConverter {
       CHECK(bits_like.has_value());
       XLS_ASSIGN_OR_RETURN(array_size, bits_like->size.GetAsInt64());
     }
-    concrete_start_and_width.start =
-        std::max(0L, std::min(concrete_start_and_width.start, array_size));
-    concrete_start_and_width.width =
-        std::max(0L, std::min(concrete_start_and_width.width,
-                              array_size - concrete_start_and_width.start));
-    ti->AddSliceStartAndWidth(
-        std::get<Slice*>(index->rhs()),
-        parametric_context.has_value()
-            ? converted_parametric_envs_.at(*parametric_context)
-            : ParametricEnv{},
-        concrete_start_and_width);
+
+    if (concrete_start_and_width.start < 0 ||
+        concrete_start_and_width.start + concrete_start_and_width.width >
+            array_size) {
+      return TypeInferenceErrorStatus(
+          index->span(), nullptr,
+          absl::StrCat("Slice range out of bounds for array of size ",
+                       array_size),
+          file_table_);
+    }
+
+    if (std::holds_alternative<Slice*>(index->rhs())) {
+      ti->AddSliceStartAndWidth(
+          std::get<Slice*>(index->rhs()),
+          parametric_context.has_value()
+              ? converted_parametric_envs_.at(*parametric_context)
+              : ParametricEnv{},
+          concrete_start_and_width);
+    }
     return absl::OkStatus();
   }
 
