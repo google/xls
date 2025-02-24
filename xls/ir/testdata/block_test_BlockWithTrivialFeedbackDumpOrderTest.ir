@@ -1,0 +1,5 @@
+block my_block(clk: clock) {
+  reg x(bits[32])
+  register_read.1: bits[32] = register_read(register=x, id=1)
+  register_write.2: () = register_write(register_read.1, register=x, id=2)
+}

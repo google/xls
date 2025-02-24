@@ -1,0 +1,8 @@
+block cloned(x: bits[32], y: bits[32], z: bits[32], a: bits[32], b: bits[32], c: bits[32]) {
+  x: bits[32] = input_port(name=x, id=7)
+  y: bits[32] = input_port(name=y, id=8)
+  z: bits[32] = input_port(name=z, id=9)
+  a: () = output_port(x, name=a, id=11)
+  b: () = output_port(x, name=b, id=10)
+  c: () = output_port(x, name=c, id=12)
+}
