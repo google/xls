@@ -58,102 +58,172 @@ class BaseOperation {
  public:
   virtual ~BaseOperation() = default;
   virtual absl::flat_hash_map<std::string, Value> InputSet() const = 0;
+  // Coerce operation into an operation of the given bitwidth but otherwise
+  // equivalent semantics.
+  virtual std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const = 0;
 };
 struct Push : public BaseOperation {
-  explicit Push(int32_t v) : v(v) {}
-  int32_t v;
-
+  explicit Push(int32_t v) : v(UBits(v, 32)) {}
+  explicit Push(Bits v) : v(v) {}
+  Bits v;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(v, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
     };
+    if (v.bit_count() > 0) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] = Value(v);
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<Push>(
+        Push(Bits::FromBitmap(v.bitmap().WithSize(count))));
   }
 };
 struct Pop : public BaseOperation {
+  explicit Pop() : bit_count(32) {};
+  explicit Pop(int64_t bit_count) : bit_count(bit_count) {};
+  int64_t bit_count;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(0xf0f0f0f0, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
         {std::string(FifoInstantiation::kPushValidPortName),
          Value::Bool(false)},
     };
+    if (bit_count > 0) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] =
+          Value(UBits(0xf0f0f0f0, 32));
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<Pop>(Pop(count));
   }
 };
 struct PushAndPop : public BaseOperation {
-  explicit PushAndPop(int32_t v) : v(v) {}
-  uint32_t v;
+  explicit PushAndPop(int32_t v) : v(UBits(v, 32)) {}
+  explicit PushAndPop(Bits v) : v(v) {}
+  Bits v;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(v, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
         {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
     };
+    if (v.bit_count() > 0) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] = Value(v);
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<PushAndPop>(
+        PushAndPop(Bits::FromBitmap(v.bitmap().WithSize(count))));
   }
 };
 struct NotReady : public BaseOperation {
+  explicit NotReady() : bit_count(32) {};
+  explicit NotReady(int64_t bit_count) : bit_count(bit_count) {};
+  int64_t bit_count;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(false)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(987654321, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushValidPortName),
          Value::Bool(false)},
     };
+    if (bit_count > 0) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] =
+          Value(UBits(987654321, bit_count));
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<NotReady>(NotReady(count));
   }
 };
 struct ResetOp : public BaseOperation {
+  explicit ResetOp() : bit_count(32) {};
+  explicit ResetOp(int64_t bit_count) : bit_count(bit_count) {};
+  int64_t bit_count;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushValidPortName),
          Value::Bool(false)},
     };
+    if (bit_count > 0) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] =
+          Value(UBits(123456789, bit_count));
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<ResetOp>(ResetOp(count));
   }
 };
 struct ResetPop : public BaseOperation {
+  explicit ResetPop() : bit_count(32) {};
+  explicit ResetPop(int64_t bit_count) : bit_count(bit_count) {};
+  int64_t bit_count;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
         {std::string(FifoInstantiation::kPushValidPortName),
          Value::Bool(false)},
     };
+    if (bit_count) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] =
+          Value(UBits(123456789, bit_count));
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<ResetPop>(ResetPop(count));
   }
 };
 struct ResetPush : public BaseOperation {
+  explicit ResetPush() : bit_count(32) {};
+  explicit ResetPush(int64_t bit_count) : bit_count(bit_count) {};
+  int64_t bit_count;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(false)},
         {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
     };
+    if (bit_count > 0) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] =
+          Value(UBits(123456789, bit_count));
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<ResetPush>(ResetPush(count));
   }
 };
 struct ResetPushPop : public BaseOperation {
+  explicit ResetPushPop() : bit_count(32) {};
+  explicit ResetPushPop(int64_t bit_count) : bit_count(bit_count) {};
+  int64_t bit_count;
   absl::flat_hash_map<std::string, Value> InputSet() const override {
-    return {
+    absl::flat_hash_map<std::string, Value> result = {
         {std::string(FifoInstantiation::kResetPortName), Value::Bool(true)},
-        {std::string(FifoInstantiation::kPushDataPortName),
-         Value(UBits(123456789, 32))},
         {std::string(FifoInstantiation::kPopReadyPortName), Value::Bool(true)},
         {std::string(FifoInstantiation::kPushValidPortName), Value::Bool(true)},
     };
+    if (bit_count > 0) {
+      result[std::string(FifoInstantiation::kPushDataPortName)] =
+          Value(UBits(123456789, bit_count));
+    }
+    return result;
+  }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::make_unique<ResetPushPop>(ResetPushPop(count));
   }
 };
 class Operation : public BaseOperation,
@@ -165,18 +235,52 @@ class Operation : public BaseOperation,
   absl::flat_hash_map<std::string, Value> InputSet() const override {
     return std::visit([&](auto v) { return v.InputSet(); }, *this);
   }
+  std::unique_ptr<BaseOperation> WithBitWidth(int64_t count) const override {
+    return std::visit([&](auto v) { return v.WithBitWidth(count); }, *this);
+  }
 };
 
-inline auto FifoConfigDomain() {
+struct FifoTestParam {
+  int64_t data_bit_count;
+  FifoConfig config;
+};
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const FifoTestParam& value) {
+  absl::Format(&sink,
+               "kBitCount%iDepth%i%sBypass%sRegPushOutputs%sRegPopOutputs",
+               value.data_bit_count, value.config.depth(),
+               value.config.bypass() ? "" : "No",
+               value.config.register_push_outputs() ? "" : "No",
+               value.config.register_pop_outputs() ? "" : "No");
+}
+
+inline auto FifoTestParamDomain() {
   return fuzztest::Filter(
-      [](const FifoConfig& config) {
-        return !(config.depth() == 1 && config.register_pop_outputs());
+      [](const FifoTestParam& params) {
+        if (params.config.depth() == 0 &&
+            (!params.config.bypass() || params.config.register_push_outputs() ||
+             params.config.register_pop_outputs())) {
+          // Unsupported configurations of depth=0 fifos.
+          return false;
+        }
+        if (params.config.depth() == 1 &&
+            params.config.register_pop_outputs()) {
+          // Unsupported configuration of depth=1 fifo with
+          // register_pop_outputs.
+          return false;
+        }
+
+        return true;
       },
-      fuzztest::ConstructorOf<FifoConfig>(
-          /*depth=*/fuzztest::InRange(1, 10),
-          /*bypass=*/fuzztest::Arbitrary<bool>(),
-          /*register_push_outputs=*/fuzztest::Arbitrary<bool>(),
-          /*register_pop_outputs=*/fuzztest::Arbitrary<bool>()));
+      fuzztest::ConstructorOf<FifoTestParam>(
+          /*data_bit_count=*/fuzztest::OneOf(fuzztest::Just(0),
+                                             fuzztest::Just(32)),
+          fuzztest::ConstructorOf<FifoConfig>(
+              /*depth=*/fuzztest::InRange(0, 10),
+              /*bypass=*/fuzztest::Arbitrary<bool>(),
+              /*register_push_outputs=*/fuzztest::Arbitrary<bool>(),
+              /*register_pop_outputs=*/fuzztest::Arbitrary<bool>())));
 }
 
 inline auto OperationDomain() {
