@@ -92,11 +92,33 @@ namespace {
 constexpr int kUnitSpaces = 7;
 constexpr int kQuickcheckSpaces = 15;
 
+// Helper routine for handling an error that occurs as the result of a test
+// execution. Prints the error and that the test failed to stderr. Adds the test
+// case to the accumulated test result data in `result`.
+//
+// Generally we expect that errors should be positional, but we will
+// present it as an internal error if it is not instead of crashing because it
+// results in better UX at this level of handling.
+//
+// Precondition: status must not be OK.
+//
+// Args:
+// - result: the test result data to update
+// - status: the status, e.g. a positional error that resulted from running
+// - test_name: the name of the test (note that these are tests like a
+// `--test_filter` flag would target)
+// - start_pos: the position of the test construct
+// - start: the time this particular test started
+// - duration: the duration of the test
+// - is_quickcheck: whether this is a quickcheck test
+// - file_table: the file table to use for error reporting
+// - vfs: the virtual file system to use for error reporting
 void HandleError(TestResultData& result, const absl::Status& status,
                  std::string_view test_name, const Pos& start_pos,
                  const absl::Time& start, const absl::Duration& duration,
                  bool is_quickcheck, FileTable& file_table,
                  VirtualizableFilesystem& vfs) {
+  CHECK(!status.ok()) << "HandleError called with status that is OK";
   VLOG(1) << "Handling error; status: " << status
           << " test_name: " << test_name;
   absl::StatusOr<PositionalErrorData> data =
@@ -112,7 +134,9 @@ void HandleError(TestResultData& result, const absl::Status& status,
   } else {
     // If we can't extract positional data we log the error and put the error
     // status into the "failed" prompted.
-    LOG(ERROR) << "Internal error: " << status;
+    LOG(ERROR) << "Internal error -- test " << test_name
+               << " failed with a status that did not have DSLX position data: "
+               << status;
     suffix = absl::StrCat(": internal error: ", status.ToString());
     one_liner = suffix;
   }
@@ -591,8 +615,7 @@ static absl::Status RunQuickChecksIfJitEnabled(
     const absl::Duration duration = absl::Now() - test_case_start;
     if (!status.ok()) {
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  duration,
-                  /*is_quickcheck=*/true, file_table, vfs);
+                  duration, /*is_quickcheck=*/true, file_table, vfs);
     } else {
       result.AddTestCase(test_xml::TestCase{
           .name = quickcheck_name,
@@ -615,8 +638,8 @@ static absl::Status RunQuickChecksIfJitEnabled(
 absl::StatusOr<ParseAndProveResult> ParseAndProve(
     std::string_view program, std::string_view module_name,
     std::string_view filename, const ParseAndProveOptions& options) {
-  const absl::Time start = absl::Now();
-  TestResultData result(start, /*test_cases=*/{});
+  const absl::Time parse_and_prove_start = absl::Now();
+  TestResultData result(parse_and_prove_start, /*test_cases=*/{});
 
   std::unique_ptr<VirtualizableFilesystem> vfs;
   if (options.vfs_factory != nullptr) {
@@ -632,7 +655,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm.ok()) {
     if (TryPrintError(tm.status(), file_table, import_data.vfs())) {
-      result.Finish(TestResult::kParseOrTypecheckError, absl::Now() - start);
+      result.Finish(TestResult::kParseOrTypecheckError,
+                    absl::Now() - parse_and_prove_start);
       return ParseAndProveResult{.test_result_data = result};
     }
     return tm.status();
@@ -647,7 +671,8 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
   }
 
   if (options.warnings_as_errors && !tm->warnings.warnings().empty()) {
-    result.Finish(TestResult::kFailedWarnings, absl::Now() - start);
+    result.Finish(TestResult::kFailedWarnings,
+                  absl::Now() - parse_and_prove_start);
     return ParseAndProveResult{.test_result_data = result};
   }
 
@@ -668,7 +693,6 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     Function* f = quickcheck->fn();
     VLOG(1) << "Found quickcheck function: " << f->identifier();
     std::cerr << "[ RUN QUICKCHECK        ] " << quickcheck_name << '\n';
-    absl::Status status;
 
     auto test_case_start = absl::Now();
 
@@ -688,42 +712,43 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
         .package = std::make_unique<Package>(entry_module->name())};
     Package& package = *conv.package;
 
-    status = ConvertOneFunctionIntoPackage(entry_module, f, &import_data,
-                                           /*parametric_env=*/nullptr,
-                                           ConvertOptions{}, &conv);
-    if (!status.ok()) {
+    // Helper that prevents us from mishandling various errors in the routine
+    // via single use point.
+    auto handle_if_error = [&](absl::Status status) {
+      if (status.ok()) {
+        return false;
+      }
       HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
-                  import_data.vfs());
+                  absl::Now() - test_case_start, /*is_quickcheck=*/true,
+                  file_table, import_data.vfs());
+      return true;
+    };
+
+    const absl::Status convert_status = ConvertOneFunctionIntoPackage(
+        entry_module, f, &import_data,
+        /*parametric_env=*/nullptr, ConvertOptions{}, &conv);
+    if (handle_if_error(convert_status)) {
       continue;
     }
 
     // Note: we need this to eliminate unoptimized IR constructs that are not
     // currently handled for translation; e.g. bounded-for-loops and non-inlined
     // function calls.
-    status = RunOptimizationPassPipeline(&package).status();
-    if (!status.ok()) {
-      HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
-                  import_data.vfs());
+    const absl::Status opt_status =
+        RunOptimizationPassPipeline(&package).status();
+    if (handle_if_error(opt_status)) {
       continue;
     }
 
-    absl::StatusOr<std::string> ir_function_name = MangleDslxName(
+    const absl::StatusOr<std::string> ir_function_name = MangleDslxName(
         entry_module->name(), f->identifier(), CallingConvention::kTypical);
-    if (!ir_function_name.ok()) {
-      HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
-                  import_data.vfs());
+    if (handle_if_error(ir_function_name.status())) {
       continue;
     }
 
-    absl::StatusOr<xls::Function*> ir_function =
+    const absl::StatusOr<xls::Function*> ir_function =
         package.GetFunction(*ir_function_name);
-    if (!ir_function.ok()) {
-      HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
-                  import_data.vfs());
+    if (handle_if_error(ir_function.status())) {
       continue;
     }
 
@@ -733,10 +758,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
         *ir_function, (*ir_function)->return_value(),
         solvers::z3::Predicate::NotEqualToZero(), absl::InfiniteDuration());
 
-    if (!proven.ok()) {
-      HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                  absl::Now() - start, /*is_quickcheck=*/true, file_table,
-                  import_data.vfs());
+    if (handle_if_error(proven.status())) {
       continue;
     }
 
@@ -773,16 +795,16 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
     }
     std::string one_liner =
         absl::StrCat("counterexample: ", absl::StrJoin(counterexample, ", "));
-    status = ProofErrorStatus(quickcheck->span(), one_liner, file_table);
+    const absl::Status proof_error_status =
+        ProofErrorStatus(quickcheck->span(), one_liner, file_table);
     counterexamples[quickcheck_name] = std::move(counterexample);
-    absl::Time test_case_end = absl::Now();
-    absl::Duration duration = test_case_end - test_case_start;
-    HandleError(result, status, quickcheck_name, start_pos, test_case_start,
-                duration, /*is_quickcheck=*/true, file_table,
-                import_data.vfs());
+
+    if (handle_if_error(proof_error_status)) {
+      continue;
+    }
   }
 
-  result.Finish(TestResult::kSomeFailed, absl::Now() - start);
+  result.Finish(TestResult::kSomeFailed, absl::Now() - parse_and_prove_start);
   std::cerr
       << absl::StreamFormat(
              "[=======================] %d test(s) ran; %d failed; %d skipped.",
@@ -792,7 +814,7 @@ absl::StatusOr<ParseAndProveResult> ParseAndProve(
 
   result.Finish(
       result.DidAnyFail() ? TestResult::kSomeFailed : TestResult::kAllPassed,
-      absl::Now() - start);
+      absl::Now() - parse_and_prove_start);
   return ParseAndProveResult{.test_result_data = std::move(result),
                              .counterexamples = std::move(counterexamples)};
 }
