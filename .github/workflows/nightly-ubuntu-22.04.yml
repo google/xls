@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0 # so that git-describe can find previous tags
 
       - name: Install dependencies via apt
-        run: sudo apt-get install python3-distutils python3-dev python-is-python3 libtinfo5  build-essential liblapack-dev libblas-dev gfortran
+        run: sudo apt-get install python3-dev python-is-python3 libtinfo6 build-essential liblapack-dev libblas-dev gfortran
 
       - name: Bazel fetch
         # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
