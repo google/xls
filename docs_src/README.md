@@ -339,6 +339,7 @@ discussions](https://github.com/google/xls/discussions)!
 *   [Mark Heffernan](https://github.com/meheff)
 *   [Paul Rigge](https://github.com/grebe)
 *   [Per Grön](https://github.com/per-gron)
+*   [Philipp Schilk](https://github.com/schilkp)
 *   [Ravi Nanavati](https://github.com/nanavati)
 *   [Rebecca Chen (Pytype)](https://github.com/rchen152)
 *   [Remy Goldschmidt](https://github.com/taktoa)
