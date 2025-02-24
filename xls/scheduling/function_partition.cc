@@ -30,7 +30,6 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "ortools/graph/ebert_graph.h"
 #include "ortools/graph/max_flow.h"
 
 namespace xls {
@@ -51,7 +50,7 @@ std::pair<std::vector<Node*>, std::vector<Node*>> MinCostFunctionPartition(
   CHECK_EQ(partitionable_nodes_set.size(), partitionable_nodes.size());
 
   operations_research::SimpleMaxFlow max_flow;
-  using NodeId = operations_research::NodeIndex;
+  using NodeId = operations_research::SimpleMaxFlow::NodeIndex;
 
   const NodeId source = 0;
   const NodeId sink = 1;
