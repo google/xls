@@ -80,18 +80,19 @@ class MaterializeFifosPassTestHelper {
     }
     return bb.Build();
   }
-  absl::StatusOr<Block*> MakeFifoBlock(Package* p, FifoConfig config) {
-    return MakeFifoBlock(p, config, p->GetBitsType(32));
-  }
   absl::StatusOr<Block*> MakeFifoBlock(Package* p, FifoConfig config,
-                                       Type* ty) {
+                                       std::string_view reset_name) {
+    return MakeFifoBlock(p, config, p->GetBitsType(32), reset_name);
+  }
+  absl::StatusOr<Block*> MakeFifoBlock(Package* p, FifoConfig config, Type* ty,
+                                       std::string_view reset_name) {
     XLS_ASSIGN_OR_RETURN(Block * wrapper,
                          MakeOracleBlock(p, config, ty, "test"));
 
     MaterializeFifosPass mfp;
     CodegenPassUnit pu(p, wrapper);
     CodegenPassOptions opt;
-    opt.codegen_options.reset("rst", /*asynchronous=*/false,
+    opt.codegen_options.reset(reset_name, /*asynchronous=*/false,
                               /*active_low=*/false, /*reset_data_path=*/false);
     CodegenPassResults res;
     XLS_ASSIGN_OR_RETURN(auto changed, mfp.Run(&pu, opt, &res));
@@ -116,11 +117,12 @@ class MaterializeFifosPassTestHelper {
   }
 
   // Compare against the interpreter as an oracle.
-  void RunTestVector(FifoConfig config,
-                     absl::Span<Operation const> operations) {
+  void RunTestVector(
+      FifoConfig config, absl::Span<Operation const> operations,
+      std::string_view reset_name = FifoInstantiation::kResetPortName) {
     auto p = CreatePackage();
     XLS_ASSERT_OK_AND_ASSIGN(Block * fifo_block,
-                             MakeFifoBlock(p.get(), config));
+                             MakeFifoBlock(p.get(), config, reset_name));
     testing::Test::RecordProperty("test_block", p->DumpIr());
     XLS_ASSERT_OK_AND_ASSIGN(auto tester, MakeTestEval(fifo_block));
     // NB Oracle is in a different package to make sure nothing runs over it.
@@ -130,21 +132,32 @@ class MaterializeFifosPassTestHelper {
     testing::Test::RecordProperty("oracle", oracle_package->DumpIr());
     int64_t i = 0;
     for (const BaseOperation& op : operations) {
+      auto input_set_inst = op.InputSet();
+
+      // Note that the name of the materialized reset port can differ from
+      // the fifo instantiation reset port name, which is always
+      // FifoInstantiation::kResetPortName.
+      auto input_set_materialized = input_set_inst;
+      auto node =
+          input_set_materialized.extract(FifoInstantiation::kResetPortName);
+      node.key() = std::string(reset_name);
+      input_set_materialized.insert(std::move(node));
+
       ScopedMaybeRecord op_cnt("op_cnt", i);
       ScopedMaybeRecord init_state("initial_state", tester->registers());
-      auto test_res = tester->RunOneCycle(op.InputSet());
-      auto oracle_res = oracle->RunOneCycle(op.InputSet());
+      auto test_res = tester->RunOneCycle(input_set_materialized);
+      auto oracle_res = oracle->RunOneCycle(input_set_inst);
       ASSERT_THAT(std::make_pair(test_res, oracle_res),
                   testing::Pair(absl_testing::IsOk(), absl_testing::IsOk()))
           << "@i=" << i;
       auto tester_outputs = tester->output_ports();
       ScopedMaybeRecord state("out_state", tester->registers());
-      ScopedMaybeRecord input("input", op.InputSet());
+      ScopedMaybeRecord input_inst("input", input_set_inst);
       ScopedMaybeRecord test_out("test_output", tester_outputs);
       ScopedMaybeRecord oracle_out("oracle_output", oracle->output_ports());
       ScopedMaybeRecord trace("trace", tester->events().trace_msgs);
       ASSERT_THAT(tester_outputs,
-                  UsableOutputsMatch(op.InputSet(), oracle->output_ports()))
+                  UsableOutputsMatch(input_set_inst, oracle->output_ports()))
           << "@" << i << ". tester_state: {"
           << absl::StrJoin(tester->registers(), ", ", absl::PairFormatter("="))
           << "}";
@@ -270,6 +283,32 @@ TEST_F(MaterializeFifosPassTest, ResetFullFifo) {
                          NotReady{},
                          NotReady{},
                      });
+}
+
+TEST_F(MaterializeFifosPassTest, ResetFullFifoWithDifferentResetName) {
+  FifoConfig cfg(3, false, false, false);
+  RunTestVector(cfg,
+                {
+                    Push{1},
+                    Push{2},
+                    Push{3},
+                    Push{4},
+                    Push{5},
+                    Push{6},
+                    Push{7},
+                    PushAndPop{8},
+                    PushAndPop{9},
+                    PushAndPop{10},
+                    PushAndPop{11},
+                    ResetOp{},
+                    NotReady{},
+                    NotReady{},
+                    NotReady{},
+                    NotReady{},
+                    NotReady{},
+                    NotReady{},
+                },
+                /*reset_name=*/"foobar");
 }
 
 TEST_P(MaterializeFifosPassTest, BasicFifoBypass) {

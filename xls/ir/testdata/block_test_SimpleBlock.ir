@@ -1,0 +1,6 @@
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=1)
+  b: bits[32] = input_port(name=b, id=2)
+  add.3: bits[32] = add(a, b, id=3)
+  out: () = output_port(add.3, name=out, id=4)
+}

@@ -1,0 +1,5 @@
+block cloned(clk: clock) {
+  reg x(bits[32])
+  register_read_1: bits[32] = register_read(register=x, id=3)
+  register_write_2: () = register_write(register_read_1, register=x, id=4)
+}

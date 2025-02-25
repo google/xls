@@ -1,0 +1,14 @@
+block cloned(clk: clock, x: bits[32], out: bits[32]) {
+  reg not_a_state(bits[32])
+  reg x_d(bits[32])
+  reg not_a_sum_d(bits[32])
+  x: bits[32] = input_port(name=x, id=3)
+  x_d_write: () = register_write(x, register=x_d, id=6)
+  x_d: bits[32] = register_read(register=x_d, id=1)
+  state: bits[32] = register_read(register=not_a_state, id=2)
+  sum: bits[32] = add(x_d, state, id=4)
+  sum_d_write: () = register_write(sum, register=not_a_sum_d, id=7)
+  sum_d: bits[32] = register_read(register=not_a_sum_d, id=5)
+  state_write: () = register_write(sum_d, register=not_a_state, id=9)
+  out: () = output_port(sum_d, name=out, id=8)
+}

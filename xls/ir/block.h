@@ -185,8 +185,11 @@ class Block : public FunctionBase {
 
   // Replaces all uses of old_isnt with new_inst and removes old_inst. Both must
   // be currently owned by this block.
-  absl::Status ReplaceInstantiationWith(Instantiation* old_inst,
-                                        Instantiation* new_inst);
+  // If new_inst has different port names, an optional mapping of old to new
+  // port names can be provided.
+  absl::Status ReplaceInstantiationWith(
+      Instantiation* old_inst, Instantiation* new_inst,
+      absl::flat_hash_map<std::string, std::string> port_renaming = {});
 
   // Returns all instantiations owned by this block.
   absl::Span<Instantiation* const> GetInstantiations() const {

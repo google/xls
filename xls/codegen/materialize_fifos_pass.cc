@@ -45,7 +45,8 @@ namespace xls::verilog {
 namespace {
 absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                                        FifoInstantiation* inst,
-                                       const xls::Reset& reset_behavior) {
+                                       const xls::Reset& reset_behavior,
+                                       const std::string_view& reset_name) {
   const FifoConfig& config = inst->fifo_config();
   const int64_t depth = config.depth();
   const bool bypass = config.bypass();
@@ -66,7 +67,7 @@ absl::StatusOr<Block*> MaterializeFifo(NameUniquer& uniquer, Package* p,
                       register_push ? "_register_push" : "")),
                   p);
   XLS_RETURN_IF_ERROR(bb.AddClockPort("clk"));
-  BValue reset_port = bb.ResetPort(FifoInstantiation::kResetPortName);
+  BValue reset_port = bb.ResetPort(reset_name);
 
   BValue one_lit = bb.Literal(UBits(1, ptr_type->GetFlatBitCount()));
   BValue depth_lit = bb.Literal(UBits(depth, ptr_type->GetFlatBitCount()));
@@ -292,12 +293,32 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
   // Intermediate list new blocks created.
 
   absl::flat_hash_map<xls::Instantiation*, Block*> impls;
+  XLS_RET_CHECK(options.codegen_options.ResetBehavior().has_value())
+      << "Reset behavior must be set to materialize fifos";
+  XLS_RET_CHECK(options.codegen_options.reset().has_value())
+      << "Fifo materialization requires reset";
+  XLS_RET_CHECK(options.codegen_options.reset().value().has_name())
+      << "Fifo materialization requires reset name";
+  std::string_view reset_name = options.codegen_options.reset().value().name();
+
   for (FifoInstantiation* f : insts) {
-    XLS_RET_CHECK(options.codegen_options.ResetBehavior().has_value())
-        << "Reset behavior must be set to materialize fifos";
     XLS_ASSIGN_OR_RETURN(
-        impls[f], MaterializeFifo(uniquer, unit->package, f,
-                                  *options.codegen_options.ResetBehavior()));
+        impls[f],
+        MaterializeFifo(uniquer, unit->package, f,
+                        *options.codegen_options.ResetBehavior(), reset_name));
+  }
+
+  // The name of the reset port of the materialized FIFO is given by the codegen
+  // options and hence migth differ from the name of the reset port of the
+  // original fifo instantiation (which is always
+  // FifoInstantiation::kResetPortName). This ensure the materialized fifo block
+  // behaves like any other require any special handling and acts like any other
+  // and does not require special handling. This needs to be taken into account
+  // when replacing the fifo instantiation with instantiation of the
+  // materialized fifo:
+  absl::flat_hash_map<std::string, std::string> port_renaming_rules = {};
+  if (reset_name != FifoInstantiation::kResetPortName) {
+    port_renaming_rules[FifoInstantiation::kResetPortName] = reset_name;
   }
 
   std::vector<Block*> saved_blocks(elab.blocks().begin(), elab.blocks().end());
@@ -313,7 +334,8 @@ absl::StatusOr<bool> MaterializeFifosPass::RunInternal(
           b->AddBlockInstantiation(
               absl::StrFormat("materialized_fifo_%s_", i->name()),
               impls.at(i)));
-      XLS_RETURN_IF_ERROR(b->ReplaceInstantiationWith(i, new_inst));
+      XLS_RETURN_IF_ERROR(
+          b->ReplaceInstantiationWith(i, new_inst, port_renaming_rules));
     }
   }
 

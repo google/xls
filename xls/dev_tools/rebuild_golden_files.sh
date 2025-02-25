@@ -21,6 +21,7 @@ TARGETS=(
 "//xls/dslx/type_system:type_info_to_proto_test"
 "//xls/fdo:synthesizer_test"
 "//xls/flows:ir_wrapper_test"
+"//xls/ir:block_test"
 "//xls/ir:ir_parser_round_trip_test"
 "//xls/ir:node_util_test"
 "//xls/simulation:module_simulator_test"

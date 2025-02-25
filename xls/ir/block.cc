@@ -696,25 +696,77 @@ absl::StatusOr<Instantiation*> Block::AddInstantiation(
   return instantiation_ptr;
 }
 
-absl::Status Block::ReplaceInstantiationWith(Instantiation* old_inst,
-                                             Instantiation* new_inst) {
+absl::Status Block::ReplaceInstantiationWith(
+    Instantiation* old_inst, Instantiation* new_inst,
+    absl::flat_hash_map<std::string, std::string> port_renaming) {
   XLS_RET_CHECK(IsOwned(old_inst));
   XLS_RET_CHECK(IsOwned(new_inst)) << "must add instantiation to this block "
                                       "before replacing uses of another.";
   std::vector<InstantiationInput*> inps(instantiation_inputs_.at(old_inst));
   std::vector<InstantiationOutput*> outs(instantiation_outputs_.at(old_inst));
-  XLS_ASSIGN_OR_RETURN(InstantiationType old_type, old_inst->type());
+
+  XLS_ASSIGN_OR_RETURN(InstantiationType old_type_orig, old_inst->type());
   XLS_ASSIGN_OR_RETURN(InstantiationType new_type, new_inst->type());
-  XLS_RET_CHECK(old_type == new_type) << "Type mismatch of instantiations";
+
+  // Validate renaming scheme:
+  for (auto& [orig_port_name, new_port_name] : port_renaming) {
+    XLS_RET_CHECK(old_type_orig.input_types().contains(orig_port_name) ||
+                  old_type_orig.output_types().contains(orig_port_name))
+        << "attempting to rename port that does not exists";
+
+    // Note: It would be possible to rename a port to the name of an
+    // already existing port, if that port is also getting renamed. This,
+    // however, makes analysis significantly more complex, particularly
+    // because it would have to deal with "rename loops":
+    //
+    // port_renaming = { {"a", "b"}, {"b", "a"} }; // !!
+    //
+    // For now, we simply don't allow it:
+    XLS_RET_CHECK((!old_type_orig.input_types().contains(new_port_name)) &&
+                  (!old_type_orig.output_types().contains(new_port_name)))
+        << "new port name already exists";
+  }
+
+  // Construct old type with renamed ports:
+  auto input_types = old_type_orig.input_types();
+  auto output_types = old_type_orig.output_types();
+  for (auto& [orig_port_name, new_port_name] : port_renaming) {
+    if (input_types.contains(orig_port_name)) {
+      auto node = input_types.extract(orig_port_name);
+      node.key() = new_port_name;
+      input_types.insert(std::move(node));
+    }
+    if (output_types.contains(orig_port_name)) {
+      auto node = output_types.extract(orig_port_name);
+      node.key() = new_port_name;
+      output_types.insert(std::move(node));
+    }
+  }
+  InstantiationType old_type_renamed =
+      InstantiationType(input_types, output_types);
+
+  // Validate that signature matches after renaming:
+  XLS_RET_CHECK(old_type_renamed == new_type)
+      << "Type mismatch of instantiations";
+
+  // Replace instantiation:
   for (InstantiationInput* inp : inps) {
+    auto renaming_rule = port_renaming.find(inp->port_name());
+    auto new_name = renaming_rule == port_renaming.end()
+                        ? inp->port_name()
+                        : renaming_rule->second;
     XLS_RETURN_IF_ERROR(inp->ReplaceUsesWithNew<InstantiationInput>(
-                               inp->data(), new_inst, inp->port_name())
+                               inp->data(), new_inst, new_name)
                             .status());
     XLS_RETURN_IF_ERROR(RemoveNode(inp));
   }
   for (InstantiationOutput* out : outs) {
+    auto renaming_rule = port_renaming.find(out->port_name());
+    auto new_name = renaming_rule == port_renaming.end()
+                        ? out->port_name()
+                        : renaming_rule->second;
     XLS_RETURN_IF_ERROR(
-        out->ReplaceUsesWithNew<InstantiationOutput>(new_inst, out->port_name())
+        out->ReplaceUsesWithNew<InstantiationOutput>(new_inst, new_name)
             .status());
     XLS_RETURN_IF_ERROR(RemoveNode(out));
   }

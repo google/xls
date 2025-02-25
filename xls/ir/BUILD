@@ -1815,6 +1815,7 @@ cc_test(
 cc_test(
     name = "block_test",
     srcs = ["block_test.cc"],
+    data = glob(["testdata/block_test_*.ir"]),
     deps = [
         ":bits",
         ":channel",
@@ -1826,6 +1827,7 @@ cc_test(
         ":source_location",
         ":type",
         ":value",
+        "//xls/common:golden_files",
         "//xls/common:visitor",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",

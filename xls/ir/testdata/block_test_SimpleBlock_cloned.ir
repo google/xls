@@ -1,0 +1,6 @@
+block cloned(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
