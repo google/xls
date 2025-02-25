@@ -160,10 +160,8 @@ class VariableExpander : public AstNodeVisitorWithDefault {
 // evaluations are done.
 class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
  public:
-  explicit ConversionOrderVisitor(bool handle_parametric_entities,
-                                  const FileTable& file_table)
-      : handle_parametric_entities_(handle_parametric_entities),
-        file_table_(file_table) {}
+  explicit ConversionOrderVisitor(bool handle_parametric_entities)
+      : handle_parametric_entities_(handle_parametric_entities) {}
 
   absl::Status HandleFunction(const Function* node) override {
     if (!handle_parametric_entities_ && node->IsParametric()) {
@@ -173,10 +171,10 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleImpl(const Impl* node) override {
-    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
-                         GetStructOrProcRef(node->struct_ref(), file_table_));
-    CHECK(ref.has_value());
-    if (!handle_parametric_entities_ && ref->def->IsParametric()) {
+    std::optional<const StructDefBase*> def =
+        GetStructOrProcDef(node->struct_ref());
+    CHECK(def.has_value());
+    if (!handle_parametric_entities_ && (*def)->IsParametric()) {
       return absl::OkStatus();
     }
     return DefaultHandler(node);
@@ -281,7 +279,6 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
 
  private:
   const bool handle_parametric_entities_;
-  const FileTable& file_table_;
   std::vector<const AstNode*> nodes_;
 };
 
@@ -354,10 +351,8 @@ class InferenceTableConverter {
     }
     ConversionOrderVisitor visitor(
         parametric_context.has_value() &&
-            (node == function ||
-             (node->parent() != nullptr &&
-              node->parent()->kind() == AstNodeKind::kImpl)),
-        file_table_);
+        (node == function || (node->parent() != nullptr &&
+                              node->parent()->kind() == AstNodeKind::kImpl)));
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     for (const AstNode* node : visitor.nodes()) {
       VLOG(5) << "Next node: " << node->ToString();
