@@ -135,7 +135,7 @@ piggy-backing on the Rust major mode.
 ```
 
 Additional details on Emacs enablement may be available in the
-[Verible editor hook-up documentation](https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#hooking-up-to-editor).
+[Verible editor hook-up documentation](https://github.com/chipsalliance/verible/blob/master/verible/verilog/tools/ls/README.md#hooking-up-to-editor).
 
 ## Sublime Text
 
@@ -153,7 +153,7 @@ corner as `dslx`.
 ### Install LSP package
 
 Instructions for installing the LSP package are given in the
-[Verible documentation](https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#sublime).
+[Verible documentation](https://github.com/chipsalliance/verible/blob/master/verible/verilog/tools/ls/README.md#sublime).
 
 ### Add DSLX to LSP settings
 
@@ -181,5 +181,5 @@ is out of range for a `u8`.
 
 ## Other Editors
 
-For non-Vim editors, see the instructions provided by
-[our sister project, Verible](https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#hooking-up-to-editor).
+For other editors, see the instructions provided by
+[our sister project, Verible](https://github.com/chipsalliance/verible/blob/master/verible/verilog/tools/ls/README.md#hooking-up-to-editor).
