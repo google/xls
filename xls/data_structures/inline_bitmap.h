@@ -168,6 +168,9 @@ class InlineBitmap {
   bool operator!=(const InlineBitmap& other) const { return !(*this == other); }
 
   int64_t bit_count() const { return bit_count_; }
+
+  bool empty() const { return bit_count_ == 0; }
+
   bool IsAllOnes() const {
     for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
       if (data_[wordno] != MaskForWord(wordno)) {

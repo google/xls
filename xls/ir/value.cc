@@ -247,6 +247,8 @@ void Value::FlattenTo(BitPushBuffer* buffer) const {
       }
       return;
     case ValueKind::kToken:
+      // Zero-bit encoding.
+      return;
     case ValueKind::kInvalid:
       break;
   }
@@ -279,6 +281,8 @@ absl::Status Value::PopulateFrom(BitmapView bitmap) {
       return absl::OkStatus();
     }
     case ValueKind::kToken:
+      // No information encoded in the bitmap for a token.
+      return absl::OkStatus();
     case ValueKind::kInvalid:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Cannot populate value of kind: %s", ValueKindToString(kind_)));
