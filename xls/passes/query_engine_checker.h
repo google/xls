@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2025 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_VERIFIER_CHECKER_H_
-#define XLS_PASSES_VERIFIER_CHECKER_H_
+#ifndef XLS_PASSES_QUERY_ENGINE_CHECKER_H_
+#define XLS_PASSES_QUERY_ENGINE_CHECKER_H_
 
 #include "absl/status/status.h"
 #include "xls/ir/package.h"
@@ -23,7 +23,7 @@
 namespace xls {
 
 // Invariant checker which just runs xls::Verifier.
-class VerifierChecker : public OptimizationInvariantChecker {
+class QueryEngineChecker : public OptimizationInvariantChecker {
  public:
   absl::Status Run(Package* p, const OptimizationPassOptions& options,
                    PassResults* results,
@@ -32,4 +32,4 @@ class VerifierChecker : public OptimizationInvariantChecker {
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_VERIFIER_CHECKER_H_
+#endif  // XLS_PASSES_QUERY_ENGINE_CHECKER_H_

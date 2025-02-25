@@ -139,7 +139,8 @@ class PackageNameChecker : public OptimizationInvariantChecker {
   explicit PackageNameChecker(std::string_view str) : str_(str) {}
 
   absl::Status Run(Package* package, const OptimizationPassOptions& options,
-                   PassResults* results) const override {
+                   PassResults* results,
+                   OptimizationContext* context) const override {
     for (auto& function : package->functions()) {
       if (function->name() == str_) {
         return absl::InternalError(
@@ -179,12 +180,13 @@ TEST(PassesTest, InvariantChecker) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
                            Parser::ParsePackage(kInvariantTesterPackage));
   PassResults results;
+  OptimizationContext context;
   EXPECT_THAT(PackageNameChecker("foo")
-                  .Run(p.get(), OptimizationPassOptions(), &results)
+                  .Run(p.get(), OptimizationPassOptions(), &results, &context)
                   .message(),
               HasSubstr("Function has name 'foo'"));
   XLS_EXPECT_OK(PackageNameChecker("bar").Run(
-      p.get(), OptimizationPassOptions(), &results));
+      p.get(), OptimizationPassOptions(), &results, &context));
 }
 
 TEST(PassesTest, RunWithNoInvariantChecker) {
@@ -297,7 +299,8 @@ class CounterChecker : public OptimizationInvariantChecker {
   explicit CounterChecker() = default;
 
   absl::Status Run(Package* package, const OptimizationPassOptions& options,
-                   PassResults* results) const override {
+                   PassResults* results,
+                   OptimizationContext* context) const override {
     counter_++;
     return absl::OkStatus();
   }

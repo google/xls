@@ -66,6 +66,7 @@
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/proc_state_provenance_narrowing_pass.h"
 #include "xls/passes/proc_state_tuple_flattening_pass.h"
+#include "xls/passes/query_engine_checker.h"
 #include "xls/passes/ram_rewrite_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/receive_default_value_simplification_pass.h"
@@ -287,10 +288,14 @@ PostInliningPassGroup::PostInliningPassGroup()
   Add<DeadCodeEliminationPass>();
   Add<LabelRecoveryPass>();
 }
-std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline() {
+std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
+    bool debug_optimizations) {
   auto top = std::make_unique<OptimizationCompoundPass>(
       "ir", "Top level pass pipeline");
   top->AddInvariantChecker<VerifierChecker>();
+  if (debug_optimizations) {
+    top->AddInvariantChecker<QueryEngineChecker>();
+  }
 
   top->Add<PreInliningPassGroup>();
   top->Add<UnrollingAndInliningPassGroup>();
@@ -300,9 +305,10 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline() {
 }
 
 absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
-                                                 int64_t opt_level) {
+                                                 int64_t opt_level,
+                                                 bool debug_optimizations) {
   std::unique_ptr<OptimizationCompoundPass> pipeline =
-      CreateOptimizationPassPipeline();
+      CreateOptimizationPassPipeline(debug_optimizations);
   PassResults results;
   OptimizationContext context;
   return pipeline->Run(package,

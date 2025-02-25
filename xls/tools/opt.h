@@ -50,6 +50,7 @@ struct OptOptions {
       pass_pipeline = std::nullopt;
   std::optional<int64_t> bisect_limit;
   PipelineMetricsProto* metrics = nullptr;
+  bool debug_optimizations = false;
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular

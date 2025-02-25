@@ -373,6 +373,7 @@ cc_library(
         "//xls/passes:pass_base",
         "//xls/passes:pass_metrics_cc_proto",
         "//xls/passes:pass_pipeline_cc_proto",
+        "//xls/passes:query_engine_checker",
         "//xls/passes:verifier_checker",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",

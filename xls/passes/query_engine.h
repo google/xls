@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -257,6 +258,8 @@ class QueryEngine {
   // Returns the known bits information of the given node as a string of ternary
   // symbols (0, 1, or X) with a '0b' prefix. For example: 0b1XX0.
   std::string ToString(Node* node) const;
+
+  virtual absl::Status CheckConsistency() const { return absl::OkStatus(); }
 };
 
 }  // namespace xls

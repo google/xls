@@ -39,6 +39,7 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
+#include "xls/passes/query_engine_checker.h"
 #include "xls/passes/verifier_checker.h"
 
 namespace xls::tools {
@@ -66,8 +67,9 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
       std::unique_ptr<OptimizationPass> pipeline,
       std::visit(
           Visitor{
-              [](std::nullopt_t) -> PipelineResult {
-                return CreateOptimizationPassPipeline();
+              [&](std::nullopt_t) -> PipelineResult {
+                return CreateOptimizationPassPipeline(
+                    options.debug_optimizations);
               },
               [&](std::string_view list) -> PipelineResult {
                 XLS_RET_CHECK(options.skip_passes.empty())
@@ -77,6 +79,9 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
                     std::unique_ptr<OptimizationCompoundPass> res,
                     GetOptimizationPipelineGenerator().GeneratePipeline(list));
                 res->AddInvariantChecker<VerifierChecker>();
+                if (options.debug_optimizations) {
+                  res->AddInvariantChecker<QueryEngineChecker>();
+                }
                 return res;
               },
               [&](const PassPipelineProto& list) -> PipelineResult {
@@ -87,6 +92,9 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
                     std::unique_ptr<OptimizationCompoundPass> res,
                     GetOptimizationPipelineGenerator().GeneratePipeline(list));
                 res->AddInvariantChecker<VerifierChecker>();
+                if (options.debug_optimizations) {
+                  res->AddInvariantChecker<QueryEngineChecker>();
+                }
                 return res;
               },
           },

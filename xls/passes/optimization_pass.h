@@ -198,6 +198,17 @@ class OptimizationContext {
     return dynamic_cast<QueryEngineT*>(it->second.get());
   }
 
+  std::vector<QueryEngine*> ListQueryEngines() {
+    std::vector<QueryEngine*> query_engines;
+    for (auto& [f, f_query_engines] : shared_query_engines_) {
+      query_engines.reserve(query_engines.size() + f_query_engines.size());
+      for (auto& [type_index, query_engine] : f_query_engines) {
+        query_engines.push_back(query_engine.get());
+      }
+    }
+    return query_engines;
+  }
+
   void Abandon(FunctionBase* f) { shared_query_engines_.erase(f); }
 
  private:

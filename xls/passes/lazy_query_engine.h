@@ -18,20 +18,25 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/passes/query_engine.h"
 
@@ -271,6 +276,12 @@ class LazyQueryEngine : public QueryEngine, public ChangeListener {
 
   void ForceRecompute(Node* node) { MarkUnverified(node); }
 
+  // Verifies that the query engine's current state is consistent; e.g., for
+  // lazy query engines, checks that the current state of the cache is correct
+  // where expected & consistent regardless. This is an expensive operation,
+  // intended for use in tests.
+  absl::Status CheckConsistency() const override;
+
  protected:
   virtual LeafTypeTree<Info> ComputeInfo(
       Node* node,
@@ -307,6 +318,9 @@ class LazyQueryEngine : public QueryEngine, public ChangeListener {
         return;
     }
     LOG(FATAL) << "Unknown CacheState: " << static_cast<int>(state);
+  }
+  friend std::ostream& operator<<(std::ostream& os, const CacheState& state) {
+    return os << absl::StrCat(state);
   }
 
   struct CacheEntry {
@@ -376,6 +390,34 @@ class LazyQueryEngine : public QueryEngine, public ChangeListener {
     return it->second.info.get();
   }
 
+  struct CacheEntryView {
+    CacheState state = CacheState::kUnknown;
+    const LeafTypeTree<Info>* info = nullptr;
+  };
+  CacheEntryView GetCacheEntry(Node* node) const {
+    auto it = cache_.find(node);
+    if (it == cache_.end()) {
+      return {.state = CacheState::kUnknown, .info = nullptr};
+    }
+    return {.state = it->second.state, .info = it->second.info.get()};
+  }
+
+  LeafTypeTree<Info> ComputeInfoWithGivens(
+      Node* node,
+      absl::Span<const LeafTypeTree<Info>* const> operand_infos) const {
+    LeafTypeTree<Info> new_info = ComputeInfo(node, operand_infos);
+    if (auto it = givens_.find(node); it != givens_.end()) {
+      const LeafTypeTree<Info>& given_ltt = it->second;
+      CHECK_OK((leaf_type_tree::UpdateFrom<Info, Info>(
+          new_info.AsMutableView(), given_ltt.AsView(),
+          [this](Type*, Info& info, const Info& given,
+                 absl::Span<const int64_t>) {
+            return MergeWithGiven(info, given);
+          })));
+    }
+    return new_info;
+  }
+
   LeafTypeTree<Info>* QueryInfo(Node* node) const {
     CHECK_EQ(node->function_base(), f_);
     // If `node` is already known, return a pointer to the cached information.
@@ -405,16 +447,7 @@ class LazyQueryEngine : public QueryEngine, public ChangeListener {
       return cached_info.get();
     }
 
-    LeafTypeTree<Info> new_info = ComputeInfo(node, operand_infos);
-    if (auto it = givens_.find(node); it != givens_.end()) {
-      const LeafTypeTree<Info>& given_ltt = it->second;
-      CHECK_OK((leaf_type_tree::UpdateFrom<Info, Info>(
-          new_info.AsMutableView(), given_ltt.AsView(),
-          [this](Type*, Info& info, const Info& given,
-                 absl::Span<const int64_t>) {
-            return MergeWithGiven(info, given);
-          })));
-    }
+    LeafTypeTree<Info> new_info = ComputeInfoWithGivens(node, operand_infos);
     if (state == CacheState::kUnverified && new_info == *cached_info) {
       // The information didn't change; the stored information is still valid.
       state = CacheState::kKnown;
@@ -434,6 +467,69 @@ class LazyQueryEngine : public QueryEngine, public ChangeListener {
     return cached_info.get();
   }
 };
+
+template <typename Info>
+absl::Status LazyQueryEngine<Info>::CheckConsistency() const {
+  absl::flat_hash_set<Node*> correct_values;
+  for (Node* node : TopoSort(f_)) {
+    const auto& [state, info] = GetCacheEntry(node);
+
+    if (state == CacheState::kUnknown) {
+      XLS_RET_CHECK_EQ(info, nullptr)
+          << "Node " << node->GetName() << " is UNKNOWN but has stored info.";
+      continue;
+    }
+    XLS_RET_CHECK_NE(info, nullptr)
+        << "Node " << node->GetName()
+        << " is not UNKNOWN but has no stored info.";
+
+    if (state == CacheState::kKnown) {
+      for (Node* operand : node->operands()) {
+        XLS_RET_CHECK_EQ(GetCacheState(operand), CacheState::kKnown)
+            << "Non-KNOWN operand for KNOWN node " << node->GetName() << ": "
+            << operand->GetName();
+      }
+    }
+    if (state == CacheState::kInputsUnverified) {
+      for (Node* operand : node->operands()) {
+        XLS_RET_CHECK_NE(GetCacheState(operand), CacheState::kUnknown)
+            << "UNKNOWN operand for INPUTS_UNVERIFIED node " << node->GetName()
+            << ": " << operand->GetName();
+      }
+    }
+
+    if (absl::c_any_of(node->operands(), [&](Node* operand) {
+          return !correct_values.contains(operand);
+        })) {
+      // We can only check the consistency/correctness of `node`'s stored value
+      // if all of its operands have correct stored values.
+      continue;
+    }
+
+    std::vector<const LeafTypeTree<Info>*> operand_infos;
+    operand_infos.reserve(node->operand_count());
+    for (Node* operand : node->operands()) {
+      operand_infos.push_back(GetCachedInfo(operand));
+    }
+
+    LeafTypeTree<Info> recomputed_info =
+        ComputeInfoWithGivens(node, operand_infos);
+    if (*info == recomputed_info) {
+      correct_values.insert(node);
+    }
+
+    // If the node is KNOWN or INPUTS_UNVERIFIED (with all operands' stored
+    // information verified correct), we can check that the stored information
+    // is consistent with the information we would compute from its operands.
+    if (state == CacheState::kKnown || state == CacheState::kInputsUnverified) {
+      XLS_RET_CHECK(*info == recomputed_info)
+          << state << " node " << node->GetName()
+          << " has a stored value that is not consistent with its operands' "
+             "stored values";
+    }
+  }
+  return absl::OkStatus();
+}
 
 }  // namespace xls
 

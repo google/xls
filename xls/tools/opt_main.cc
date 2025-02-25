@@ -137,6 +137,10 @@ ABSL_FLAG(std::optional<std::string>, pipeline_metrics_proto, std::nullopt,
 ABSL_FLAG(std::optional<std::string>, pipeline_metrics_textproto, std::nullopt,
           "Output path for the pipeline metrics text proto recording what "
           "this opt performed.");
+ABSL_FLAG(bool, debug_optimizations, false,
+          "If passed, run additional strict correctness-checking passes; this "
+          "slows down the optimization significantly, and is mostly intended "
+          "for internal XLS debugging.");
 
 namespace xls::tools {
 namespace {
@@ -256,6 +260,8 @@ absl::Status RealMain(std::string_view input_path) {
   bool wants_metrics = absl::GetFlag(FLAGS_pipeline_metrics_proto) ||
                        absl::GetFlag(FLAGS_pipeline_metrics_textproto);
 
+  bool debug_optimizations = absl::GetFlag(FLAGS_debug_optimizations);
+
   XLS_ASSIGN_OR_RETURN(
       std::string opt_ir,
       tools::OptimizeIrForTop(
@@ -274,6 +280,7 @@ absl::Status RealMain(std::string_view input_path) {
               .pass_pipeline = pass_pipeline,
               .bisect_limit = bisect_limit,
               .metrics = wants_metrics ? &metrics : nullptr,
+              .debug_optimizations = debug_optimizations,
           }));
   if (absl::GetFlag(FLAGS_pipeline_metrics_proto)) {
     XLS_RETURN_IF_ERROR(

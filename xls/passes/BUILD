@@ -138,6 +138,7 @@ cc_library(
         ":proc_state_optimization_pass",
         ":proc_state_provenance_narrowing_pass",
         ":proc_state_tuple_flattening_pass",
+        ":query_engine_checker",
         ":ram_rewrite_pass",
         ":reassociation_pass",
         ":receive_default_value_simplification_pass",
@@ -171,6 +172,20 @@ cc_library(
         ":pass_base",
         "//xls/ir",
         "//xls/ir:verifier",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
+    name = "query_engine_checker",
+    srcs = ["query_engine_checker.cc"],
+    hdrs = ["query_engine_checker.h"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        ":query_engine",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
         "@com_google_absl//absl/status",
     ],
 )
@@ -1273,16 +1288,19 @@ cc_library(
     ],
     deps = [
         ":query_engine",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:change_listener",
         "//xls/ir:type",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -1432,6 +1450,7 @@ cc_library(
         ":pass_metrics_cc_proto",
         ":pass_pipeline_cc_proto",
         "//xls/common:casts",
+        "//xls/common:stopwatch",
         "//xls/common/file:filesystem",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",

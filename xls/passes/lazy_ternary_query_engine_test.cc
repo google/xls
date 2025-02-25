@@ -1785,6 +1785,33 @@ TEST_F(LazyTernaryQueryEngineTest, Givens) {
   EXPECT_THAT(query_engine.ToString(v.node()), "0bXXXX_XXXX");
 }
 
+TEST_F(LazyTernaryQueryEngineTest, ArrayIndexingConsistencyCheck) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue idx = fb.Param("idx", p->GetBitsType(1));
+  BValue new_idx = fb.Literal(UBits(1, 1));
+  BValue array = fb.Literal(*Value::UBitsArray({0, 1}, 1));
+  BValue array_index = fb.ArrayIndex(array, {idx});
+  BValue array_slice = fb.ArraySlice(array, idx, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  LazyTernaryQueryEngine query_engine;
+  XLS_ASSERT_OK(query_engine.Populate(f).status());
+
+  EXPECT_EQ(query_engine.GetTernary(array_index.node())->Get({}),
+            *StringToTernaryVector("0bX"));
+  EXPECT_EQ(query_engine.GetTernary(array_slice.node())->Get({0}),
+            *StringToTernaryVector("0bX"));
+
+  XLS_ASSERT_OK(idx.node()->ReplaceUsesWith(new_idx.node()));
+  XLS_EXPECT_OK(query_engine.CheckConsistency());
+
+  EXPECT_EQ(query_engine.GetTernary(array_index.node())->Get({}),
+            *StringToTernaryVector("0b1"));
+  EXPECT_EQ(query_engine.GetTernary(array_slice.node())->Get({0}),
+            *StringToTernaryVector("0b1"));
+}
+
 namespace {
 
 class ArrayCreation : public benchmark_support::strategy::NaryNode {

@@ -76,12 +76,14 @@ class PostInliningPassGroup : public OptimizationCompoundPass {
 
 // CreateOptimizationPassPipeline connects together the various optimization
 // and analysis passes in the order of execution.
-std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline();
+std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
+    bool debug_optimizations = false);
 
 // Creates and runs the standard pipeline on the given package with default
 // options.
 absl::StatusOr<bool> RunOptimizationPassPipeline(
-    Package* package, int64_t opt_level = kMaxOptLevel);
+    Package* package, int64_t opt_level = kMaxOptLevel,
+    bool debug_optimizations = false);
 
 class OptimizationPassPipelineGenerator final
     : public OptimizationPipelineGenerator {

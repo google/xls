@@ -40,6 +40,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/stopwatch.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_metrics.pb.h"
 #include "xls/passes/pass_pipeline.pb.h"
@@ -266,12 +267,13 @@ class WrapperPassBase final
 // A base class for abstractions which check invariants of the IR. These
 // checkers are added to compound passes (pass pipelines) and run before and
 // after each pass in the pipeline.
-template <typename IrT, typename OptionsT, typename ResultsT = PassResults>
+template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
+          typename... ContextT>
 class InvariantCheckerBase {
  public:
   virtual ~InvariantCheckerBase() = default;
-  virtual absl::Status Run(IrT* ir, const OptionsT& options,
-                           ResultsT* results) const = 0;
+  virtual absl::Status Run(IrT* ir, const OptionsT& options, ResultsT* results,
+                           ContextT*... context) const = 0;
 };
 
 // CompoundPass is a container for other passes. For example, the scalar
@@ -282,7 +284,8 @@ template <typename IrT, typename OptionsT, typename ResultsT = PassResults,
 class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
  public:
   using Pass = PassBase<IrT, OptionsT, ResultsT, ContextT...>;
-  using InvariantChecker = InvariantCheckerBase<IrT, OptionsT, ResultsT>;
+  using InvariantChecker =
+      InvariantCheckerBase<IrT, OptionsT, ResultsT, ContextT...>;
 
   CompoundPassBase(std::string_view short_name, std::string_view long_name)
       : Pass(short_name, long_name) {}
@@ -326,7 +329,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   // are also run for nested compound passes. Arguments to method are the
   // arguments to the invariant checker constructor. Example usage:
   //
-  //  pass->Add<CheckStuff>(foo);
+  //  pass->AddInvariantChecker<CheckStuff>(foo);
   //
   // Returns a pointer to the newly constructed pass.
   template <typename T, typename... Args>
@@ -411,7 +414,7 @@ class FixedPointCompoundPassBase
       IrT* ir, const OptionsT& options, ResultsT* results, ContextT*... context,
       std::string_view top_level_name,
       absl::Span<const typename CompoundPassBase<
-          IrT, OptionsT, ResultsT>::InvariantChecker* const>
+          IrT, OptionsT, ResultsT, ContextT...>::InvariantChecker* const>
           invariant_checkers) const override {
     bool local_changed = true;
     int64_t iteration_count = 0;
@@ -457,7 +460,7 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
   auto run_invariant_checkers =
       [&](std::string_view str_context) -> absl::Status {
     for (const auto& checker : checkers) {
-      absl::Status status = checker->Run(ir, options, results);
+      absl::Status status = checker->Run(ir, options, results, context...);
       if (!status.ok()) {
         return absl::Status(status.code(), absl::StrCat(status.message(), "; [",
                                                         str_context, "]"));
@@ -465,6 +468,8 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
     }
     return absl::OkStatus();
   };
+
+  Stopwatch invariant_checker_stopwatch;
   XLS_RETURN_IF_ERROR(run_invariant_checkers(
       absl::StrCat("start of compound pass '", this->long_name(), "'")));
 
@@ -557,15 +562,15 @@ CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
     aggregate_result.AddSinglePassResult(pass->short_name(), pass_changed,
                                          duration, pass_metrics);
 
-    // Only run the verifiers if the pass changed.
+    // Only run the verifiers if the pass changed anything.
     if (pass_changed) {
-      absl::Time checker_start = absl::Now();
+      invariant_checker_stopwatch.Reset();
       XLS_RETURN_IF_ERROR(run_invariant_checkers(
           absl::StrFormat("after '%s' pass, dynamic pass #%d",
                           pass->long_name(), results->invocations.size() - 1)));
       VLOG(1) << absl::StreamFormat(
           "Ran invariant checkers [elapsed %s]",
-          FormatDuration(absl::Now() - checker_start));
+          FormatDuration(invariant_checker_stopwatch.GetElapsedTime()));
     }
     VLOG(5) << "After " << pass->long_name() << ":";
     XLS_VLOG_LINES(5, ir->DumpIr());
