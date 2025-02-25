@@ -1347,9 +1347,11 @@ class InferenceTableConverter {
       }
       return FunctionAndTargetObject{fn, target_object, target_struct_context};
     }
-    return absl::UnimplementedError(
-        "Type inference version 2 is a work in progress and only supports "
-        "invoking functions in the same module so far.");
+    return TypeInferenceErrorStatus(
+        callee->span(), nullptr,
+        "An invocation callee must be a function, with a possible scope "
+        "indicated using `::` or `.`",
+        file_table_);
   }
 
   // Determines any implicit parametric values in the given `invocation`, and

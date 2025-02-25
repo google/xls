@@ -18,9 +18,12 @@
 #include <memory>
 #include <string_view>
 
+#include "gmock/gmock.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/substitute.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 
@@ -36,6 +39,59 @@ struct TypecheckResult {
 //
 // If `import_data` is not provided one is created for internal use.
 absl::StatusOr<TypecheckResult> Typecheck(std::string_view text);
+
+// Variant that prepends the `type_inference_v2` DSLX module attribute to
+// `program` to force the use of type_system_v2.
+absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program);
+
+// Verifies that a failed typecheck status message indicates a type mismatch
+// between the given two types in string format.
+MATCHER_P2(HasTypeMismatch, type1, type2, "") {
+  return ExplainMatchResult(
+      AnyOf(::testing::ContainsRegex(absl::Substitute(R"($0.*\n?vs\.? $1)",
+                                                      RE2::QuoteMeta(type1),
+                                                      RE2::QuoteMeta(type2))),
+            ::testing::ContainsRegex(absl::Substitute(R"($1.*\n?vs\.? $0)",
+                                                      RE2::QuoteMeta(type1),
+                                                      RE2::QuoteMeta(type2)))),
+      arg, result_listener);
+}
+
+// Verifies that a failed typecheck status message indicates a size mismatch
+// between the given two types in string format.
+MATCHER_P2(HasSizeMismatch, type1, type2, "") {
+  return ExplainMatchResult(
+      AnyOf(::testing::ContainsRegex(absl::Substitute(R"($0.*\n?vs\.? $1)",
+                                                      RE2::QuoteMeta(type1),
+                                                      RE2::QuoteMeta(type2))),
+            ::testing::ContainsRegex(absl::Substitute(R"($1.*\n?vs\.? $0)",
+                                                      RE2::QuoteMeta(type1),
+                                                      RE2::QuoteMeta(type2)))),
+      arg, result_listener);
+}
+
+// Verifies that a failed typecheck status message indicates a cast error
+// between the given two types in string format.
+MATCHER_P2(HasCastError, from_type, to_type, "") {
+  return ExplainMatchResult(
+      ::testing::ContainsRegex(
+          absl::Substitute("Cannot cast from type `$0` to type `$1`",
+                           RE2::QuoteMeta(from_type), RE2::QuoteMeta(to_type))),
+      arg, result_listener);
+}
+
+// Verifies that a failed typecheck status message indicates a signedness
+// mismatch between the given two types in string format.
+MATCHER_P2(HasSignednessMismatch, type1, type2, "") {
+  return ExplainMatchResult(
+      AnyOf(::testing::ContainsRegex(absl::Substitute(
+                R"(signed vs\.? unsigned mismatch.*$0.* vs. $1)",
+                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
+            ::testing::ContainsRegex(absl::Substitute(
+                R"(signed vs\.? unsigned mismatch.*$1.* vs. $0)",
+                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2)))),
+      arg, result_listener);
+}
 
 }  // namespace xls::dslx
 

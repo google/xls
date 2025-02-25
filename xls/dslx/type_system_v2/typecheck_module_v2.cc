@@ -828,8 +828,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // statement block's type variable to `statementN`, if it is an `Expr`, in
     // order for unification to ensure that it's producing the expected type.
     std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
-    if (!node->trailing_semi() && !node->statements().empty() &&
-        variable.has_value()) {
+    if (node->trailing_semi()) {
+      // A statement block implicitly produces a unit tuple if the last
+      // statement ends with a semicolon.
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          node, CreateUnitTupleAnnotation(module_, node->span())));
+    } else if (!node->statements().empty() && variable.has_value()) {
       const Statement* last_statement =
           node->statements()[node->statements().size() - 1];
       if (std::holds_alternative<Expr*>(last_statement->wrapped())) {

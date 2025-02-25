@@ -20,24 +20,17 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/type_system/typecheck_test_utils.h"
 #include "xls/dslx/type_system_v2/type_system_test_utils.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
 
 using ::absl_testing::StatusIs;
 using ::testing::AllOf;
-using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
-
-absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program) {
-  return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program));
-}
 
 // Verifies that a type info string contains the given node string and type
 // string combo.
@@ -69,55 +62,6 @@ MATCHER_P(TopNodeHasType, expected, "") {
     *result_listener << "Type info: " << *type_info_string;
   }
   return matched;
-}
-
-// Verifies that a failed `TypecheckV2` status message indicates a type mismatch
-// between the given two types in string format.
-MATCHER_P2(HasTypeMismatch, type1, type2, "") {
-  return ExplainMatchResult(
-      AnyOf(ContainsRegex(absl::Substitute("type mismatch.*$0.* vs. $1",
-                                           RE2::QuoteMeta(type1),
-                                           RE2::QuoteMeta(type2))),
-            ContainsRegex(absl::Substitute("type mismatch.*$1.* vs. $0",
-                                           RE2::QuoteMeta(type1),
-                                           RE2::QuoteMeta(type2)))),
-      arg, result_listener);
-}
-
-// Verifies that a failed `TypecheckV2` status message indicates a size mismatch
-// between the given two types in string format.
-MATCHER_P2(HasSizeMismatch, type1, type2, "") {
-  return ExplainMatchResult(
-      AnyOf(ContainsRegex(absl::Substitute("size mismatch.*$0.* vs. $1",
-                                           RE2::QuoteMeta(type1),
-                                           RE2::QuoteMeta(type2))),
-            ContainsRegex(absl::Substitute("size mismatch.*$1.* vs. $0",
-                                           RE2::QuoteMeta(type1),
-                                           RE2::QuoteMeta(type2)))),
-      arg, result_listener);
-}
-
-// Verifies that a failed `TypecheckV2` status message indicates a cast error
-// between the given two types in string format.
-MATCHER_P2(HasCastError, from_type, to_type, "") {
-  return ExplainMatchResult(
-      ContainsRegex(absl::Substitute("Cannot cast from type `$0` to type `$1`",
-                                     RE2::QuoteMeta(from_type),
-                                     RE2::QuoteMeta(to_type))),
-      arg, result_listener);
-}
-
-// Verifies that a failed `TypecheckV2` status message indicates a signedness
-// mismatch between the given two types in string format.
-MATCHER_P2(HasSignednessMismatch, type1, type2, "") {
-  return ExplainMatchResult(
-      AnyOf(ContainsRegex(
-                absl::Substitute("signed vs. unsigned mismatch.*$0.* vs. $1",
-                                 RE2::QuoteMeta(type1), RE2::QuoteMeta(type2))),
-            ContainsRegex(absl::Substitute(
-                "signed vs. unsigned mismatch.*$1.* vs. $0",
-                RE2::QuoteMeta(type1), RE2::QuoteMeta(type2)))),
-      arg, result_listener);
 }
 
 // Verifies that the `TypecheckV2` output contains a one-line statement block

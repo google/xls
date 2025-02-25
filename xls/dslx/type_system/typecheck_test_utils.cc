@@ -18,6 +18,7 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
@@ -41,6 +42,10 @@ absl::StatusOr<TypecheckResult> Typecheck(std::string_view text) {
   XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm->type_info).status());
 
   return TypecheckResult{std::move(import_data), std::move(*tm)};
+}
+
+absl::StatusOr<TypecheckResult> TypecheckV2(std::string_view program) {
+  return Typecheck(absl::StrCat("#![feature(type_inference_v2)]\n\n", program));
 }
 
 }  // namespace xls::dslx
