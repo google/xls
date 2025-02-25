@@ -4881,9 +4881,31 @@ fn f<T: u32>() -> uN[T] {
 
 fn main() {
   let x = f<8>();
+  let y = f<15>();
 }
 )",
-              TypecheckSucceeds(HasNodeWithType("x", "uN[8]")));
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[8]"),
+                                      HasNodeWithType("y", "uN[15]"))));
+}
+
+TEST(TypecheckV2Test, TypeAliasOnStructInParametricFn) {
+  EXPECT_THAT(R"(
+struct S<X: u32> {
+  x: bits[X],
+}
+
+fn f<T: u32>() -> uN[T] {
+  type MyS = S<T>;
+  MyS { x: 1 }.x
+}
+
+fn main() {
+  let x = f<8>();
+  let y = f<15>();
+}
+)",
+              TypecheckSucceeds(AllOf(HasNodeWithType("x", "uN[8]"),
+                                      HasNodeWithType("y", "uN[15]"))));
 }
 
 TEST(TypecheckV2Test, TypeAliasInGlobalConstant) {
@@ -4961,8 +4983,24 @@ fn f() -> MyS { MyS {x: 3, y: 4 } }
                         HasNodeWithType("MyS", "S { x: uN[3], y: uN[4] }"))));
 }
 
-// TODO(erinzmoore): Fix propagation of type parametrics through type aliases.
-TEST(TypecheckV2Test, DISABLED_ElementInTypeAliasOfStructWithBoundParametrics) {
+TEST(TypecheckV2Test, ParametricValuesDefinedMultipleTimesInTypeAlias) {
+  EXPECT_THAT(R"(
+struct S<X: u32, Y: u32 = {X * 2}> {
+  x: bits[X],
+  y: bits[Y],
+}
+type MyS = S<3>;
+type MySDouble = MyS<4>;
+fn f() -> uN[4] {
+  let x = MySDouble { x: 3, y: 4 };
+  x.y
+}
+)",
+              TypecheckFails(HasSubstr("Parametric values defined multiple "
+                                       "times for annotation: `MyS<4>`")));
+}
+
+TEST(TypecheckV2Test, ElementInTypeAliasOfStructWithBoundParametrics) {
   EXPECT_THAT(R"(
 struct S<X: u32, Y: u32> {
   x: bits[X],
@@ -4970,7 +5008,7 @@ struct S<X: u32, Y: u32> {
 }
 type MyS = S<3, 4>;
 fn f() -> uN[3] {
-  let x = MyS {x: 3, y: 4 };
+  let x = MyS { x: 1, y: 1 };
   x.x
 }
 )",

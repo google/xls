@@ -160,8 +160,10 @@ class VariableExpander : public AstNodeVisitorWithDefault {
 // evaluations are done.
 class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
  public:
-  explicit ConversionOrderVisitor(bool handle_parametric_entities)
-      : handle_parametric_entities_(handle_parametric_entities) {}
+  explicit ConversionOrderVisitor(bool handle_parametric_entities,
+                                  const FileTable& file_table)
+      : handle_parametric_entities_(handle_parametric_entities),
+        file_table_(file_table) {}
 
   absl::Status HandleFunction(const Function* node) override {
     if (!handle_parametric_entities_ && node->IsParametric()) {
@@ -171,7 +173,8 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleImpl(const Impl* node) override {
-    std::optional<StructOrProcRef> ref = GetStructOrProcRef(node->struct_ref());
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> ref,
+                         GetStructOrProcRef(node->struct_ref(), file_table_));
     CHECK(ref.has_value());
     if (!handle_parametric_entities_ && ref->def->IsParametric()) {
       return absl::OkStatus();
@@ -278,6 +281,7 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
 
  private:
   const bool handle_parametric_entities_;
+  const FileTable& file_table_;
   std::vector<const AstNode*> nodes_;
 };
 
@@ -350,8 +354,10 @@ class InferenceTableConverter {
     }
     ConversionOrderVisitor visitor(
         parametric_context.has_value() &&
-        (node == function || (node->parent() != nullptr &&
-                              node->parent()->kind() == AstNodeKind::kImpl)));
+            (node == function ||
+             (node->parent() != nullptr &&
+              node->parent()->kind() == AstNodeKind::kImpl)),
+        file_table_);
     XLS_RETURN_IF_ERROR(node->Accept(&visitor));
     for (const AstNode* node : visitor.nodes()) {
       VLOG(5) << "Next node: " << node->ToString();
@@ -943,9 +949,9 @@ class InferenceTableConverter {
       return std::make_unique<FunctionType>(std::move(param_types),
                                             std::move(return_type));
     }
-    if (std::optional<StructOrProcRef> struct_or_proc =
-            GetStructOrProcRef(annotation);
-        struct_or_proc.has_value()) {
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc,
+                         GetStructOrProcRef(annotation, file_table_));
+    if (struct_or_proc.has_value()) {
       const StructDefBase* struct_def_base = struct_or_proc->def;
       CHECK(struct_def_base != nullptr);
       std::vector<std::unique_ptr<Type>> member_types;
@@ -1129,8 +1135,11 @@ class InferenceTableConverter {
     if (target.has_value() && (*target)->kind() == AstNodeKind::kConstantDef) {
       if (std::holds_alternative<TypeRefTypeAnnotation*>(
               colon_ref->subject())) {
-        std::optional<StructOrProcRef> struct_or_proc = GetStructOrProcRef(
-            std::get<TypeRefTypeAnnotation*>(colon_ref->subject()));
+        XLS_ASSIGN_OR_RETURN(
+            std::optional<StructOrProcRef> struct_or_proc,
+            GetStructOrProcRef(
+                std::get<TypeRefTypeAnnotation*>(colon_ref->subject()),
+                file_table_));
         if (struct_or_proc.has_value() && struct_or_proc->def->IsParametric()) {
           XLS_ASSIGN_OR_RETURN(
               const ParametricContext* struct_context,
@@ -1305,8 +1314,9 @@ class InferenceTableConverter {
       XLS_ASSIGN_OR_RETURN(
           std::optional<const TypeAnnotation*> target_object_type,
           UnifyTypeAnnotationsForNode(caller_context, *target_object));
-      std::optional<StructOrProcRef> struct_or_proc_ref =
-          GetStructOrProcRef(*target_object_type);
+      XLS_ASSIGN_OR_RETURN(
+          std::optional<StructOrProcRef> struct_or_proc_ref,
+          GetStructOrProcRef(*target_object_type, file_table_));
       if (!struct_or_proc_ref.has_value()) {
         return TypeInferenceErrorStatus(
             attr->span(), nullptr,
@@ -1665,12 +1675,15 @@ class InferenceTableConverter {
     if (annotations.empty()) {
       return module_.Make<AnyTypeAnnotation>(/*multiple=*/true);
     }
-    if (annotations.size() == 1 &&
-        !GetStructOrProcRef(annotations[0]).has_value()) {
-      // This is here mainly for preservation of shorthand annotations appearing
-      // in the source code, in case they get put in subsequent error messages.
-      // General unification would normalize the format.
-      return annotations[0];
+    if (annotations.size() == 1) {
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                           GetStructOrProcRef(annotations[0], file_table_));
+      if (!struct_or_proc_ref.has_value()) {
+        // This is here mainly for preservation of shorthand annotations
+        // appearing in the source code, in case they get put in subsequent
+        // error messages. General unification would normalize the format.
+        return annotations[0];
+      }
     }
     if (const auto* first_tuple_annotation =
             dynamic_cast<const TupleTypeAnnotation*>(annotations[0])) {
@@ -1721,16 +1734,16 @@ class InferenceTableConverter {
       return UnifyFunctionTypeAnnotations(
           parametric_context, function_annotations, span, accept_predicate);
     }
-    if (std::optional<StructOrProcRef> first_struct_or_proc =
-            GetStructOrProcRef(annotations[0]);
-        first_struct_or_proc.has_value()) {
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
+                         GetStructOrProcRef(annotations[0], file_table_));
+    if (first_struct_or_proc.has_value()) {
       const auto* struct_def =
           dynamic_cast<const StructDef*>(first_struct_or_proc->def);
       CHECK(struct_def != nullptr);
       std::vector<const TypeAnnotation*> annotations_to_unify;
       for (const TypeAnnotation* annotation : annotations) {
-        std::optional<StructOrProcRef> next_struct_or_proc =
-            GetStructOrProcRef(annotation);
+        XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> next_struct_or_proc,
+                             GetStructOrProcRef(annotation, file_table_));
         if (!next_struct_or_proc.has_value() ||
             next_struct_or_proc->def != struct_def) {
           return TypeMismatchErrorWithParametricResolution(
@@ -1990,8 +2003,8 @@ class InferenceTableConverter {
     // 32 or not.
     for (const TypeAnnotation* annotation : annotations) {
       VLOG(6) << "Annotation: " << annotation->ToString();
-      std::optional<StructOrProcRef> struct_or_proc_ref =
-          GetStructOrProcRef(annotation);
+      XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                           GetStructOrProcRef(annotation, file_table_));
       CHECK(struct_or_proc_ref.has_value());
       if (struct_or_proc_ref->instantiator.has_value()) {
         instantiator = struct_or_proc_ref->instantiator;
@@ -2130,15 +2143,16 @@ class InferenceTableConverter {
       VariableExpander expander(table_, parametric_context);
       CHECK_OK(member_annotation->Accept(&expander));
       for (const TypeAnnotation* annotation : expander.annotations()) {
-        std::optional<StructOrProcRef> ref = GetStructOrProcRef(annotation);
-        if (ref.has_value() && ref->def == &struct_def) {
+        std::optional<const StructDefBase*> def =
+            GetStructOrProcDef(annotation);
+        if (def.has_value() && *def == &struct_def) {
           return true;
         }
       }
       return false;
     }
-    std::optional<StructOrProcRef> ref = GetStructOrProcRef(annotation);
-    return ref.has_value() && ref->def == &struct_def;
+    std::optional<const StructDefBase*> def = GetStructOrProcDef(annotation);
+    return def.has_value() && *def == &struct_def;
   }
 
   // Converts the type of the given struct `member` into one that has any
@@ -2364,8 +2378,8 @@ class InferenceTableConverter {
         const TypeAnnotation* struct_type,
         ResolveVariableTypeAnnotations(
             parametric_context, member_type->struct_type(), accept_predicate));
-    std::optional<StructOrProcRef> struct_or_proc_ref =
-        GetStructOrProcRef(struct_type);
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                         GetStructOrProcRef(struct_type, file_table_));
     if (!struct_or_proc_ref.has_value()) {
       return absl::InvalidArgumentError(absl::Substitute(
           "Invalid access of member `$0` of non-struct type: `$1`",

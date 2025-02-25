@@ -118,7 +118,12 @@ const ArrayTypeAnnotation* CastToNonBitsArrayTypeAnnotation(
 
 // Resolves the definition and parametrics for the struct or proc type referred
 // to by `annotation`.
-std::optional<StructOrProcRef> GetStructOrProcRef(
+absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
+    const TypeAnnotation* annotation, const FileTable& file_table);
+
+// Resolves the struct base definition for the struct or proc type referred to
+// by `annotation`.
+std::optional<const StructDefBase*> GetStructOrProcDef(
     const TypeAnnotation* annotation);
 
 // Verifies that all `bindings` either have a value in `actual_parametrics` or
