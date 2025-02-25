@@ -80,6 +80,10 @@ IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
   if (ternary_ops::IsFullyKnown(tern)) {
     return IntervalSet::Precise(ternary_ops::ToKnownBitsValues(tern));
   }
+
+  Bits lb = ternary_ops::ToKnownBitsValues(tern, /*default_set=*/false);
+  Bits ub = ternary_ops::ToKnownBitsValues(tern, /*default_set=*/true);
+
   // How many trailing bits are unknown. This defines the size of each group.
   int64_t lsb_xs = absl::c_find_if(tern, ternary_ops::IsKnown) - tern.cbegin();
   // Find where we need to extend the unknown region to.
@@ -102,9 +106,10 @@ IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
   if (x_locations.empty()) {
     // All bits from 0 -> lsb_xs are unknown.
     Bits high_bits = ternary_ops::ToKnownBitsValues(tern.subspan(lsb_xs));
-    is.AddInterval(
-        Interval::Closed(bits_ops::Concat({high_bits, Bits(lsb_xs)}),
-                         bits_ops::Concat({high_bits, Bits::AllOnes(lsb_xs)})));
+    is.AddInterval(Interval::Closed(
+        bits_ops::UMax(lb, bits_ops::Concat({high_bits, Bits(lsb_xs)})),
+        bits_ops::UMin(ub,
+                       bits_ops::Concat({high_bits, Bits::AllOnes(lsb_xs)}))));
     is.Normalize();
     return is;
   }
@@ -116,8 +121,9 @@ IntervalSet FromTernary(TernarySpan tern, int64_t max_interval_bits) {
   Bits high_lsb = Bits::AllOnes(lsb_xs);
   Bits low_lsb(lsb_xs);
   for (const Bits& v : ternary_ops::AllBitsValues(vec)) {
-    is.AddInterval(Interval::Closed(bits_ops::Concat({v, low_lsb}),
-                                    bits_ops::Concat({v, high_lsb})));
+    is.AddInterval(
+        Interval::Closed(bits_ops::UMax(lb, bits_ops::Concat({v, low_lsb})),
+                         bits_ops::UMin(ub, bits_ops::Concat({v, high_lsb}))));
   }
   is.Normalize();
   return is;

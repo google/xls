@@ -163,10 +163,11 @@ Bits ToKnownBits(TernarySpan ternary_vector) {
   return Bits::FromBitmap(std::move(bitmap));
 }
 
-Bits ToKnownBitsValues(TernarySpan ternary_vector) {
+Bits ToKnownBitsValues(TernarySpan ternary_vector, bool default_set) {
   InlineBitmap bitmap(ternary_vector.size());
   for (int64_t i = 0; i < ternary_vector.size(); ++i) {
-    if (ternary_vector[i] == TernaryValue::kKnownOne) {
+    if (ternary_vector[i] == TernaryValue::kKnownOne ||
+        (default_set && ternary_vector[i] == TernaryValue::kUnknown)) {
       bitmap.Set(i, true);
     }
   }

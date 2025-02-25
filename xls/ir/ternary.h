@@ -83,8 +83,9 @@ TernaryVector FromKnownBits(const Bits& known_bits,
 Bits ToKnownBits(TernarySpan ternary_vector);
 
 // Returns a `Bits` that contains a 1 for each element of the given ternary
-// vector that is `kKnownOne`, and a 0 otherwise.
-Bits ToKnownBitsValues(TernarySpan ternary_vector);
+// vector that is `kKnownOne`, a 0 for each element that is `kKnownZero`, and
+// `default_set` otherwise.
+Bits ToKnownBitsValues(TernarySpan ternary_vector, bool default_set = false);
 
 // Returns a vector with known positions for each bit known in `lhs` that isn't
 // known in `rhs`. If `lhs` and `rhs` conflict, returns `std::nullopt`.

@@ -203,15 +203,15 @@ TEST(IntervalOpsTest, FromTernarySegmentsExtended) {
             FromRanges({{0b00100000, 0b00111111},
                         {0b01100000, 0b01111111},
                         {0b10100000, 0b10111111},
-                        {0b11100000, 0b11111111}},
+                        {0b11100000, 0b11110101}},
                        8));
   // Only allow 2 segments
   EXPECT_EQ(
       FromTernaryString("0b1X1_X1X0X", /*max_unknown_bits=*/1),
-      FromRanges({{0b10100000, 0b10111111}, {0b11100000, 0b11111111}}, 8));
+      FromRanges({{0b10101000, 0b10111111}, {0b11100000, 0b11111101}}, 8));
   // Only allow 1 segment
   EXPECT_EQ(FromTernaryString("0b1X1_X1X0X", /*max_unknown_bits=*/0),
-            FromRanges({{0b10000000, 0b11111111}}, 8));
+            FromRanges({{0b10101000, 0b11111101}}, 8));
 }
 
 TEST(IntervalOpsTest, ExactResultsForSmallRanges) {

@@ -14,6 +14,8 @@
 
 #include "xls/ir/partial_ops.h"
 
+#include <optional>
+
 #include "gtest/gtest.h"
 #include "xls/ir/interval_set_test_utils.h"
 #include "xls/ir/partial_information.h"
@@ -81,7 +83,8 @@ TEST(PartialOpsTest, Meet) {
                 *StringToTernaryVector("0b00_000X_X0XX"),
                 FromRanges({{2, 3}, {8, 11}, {18, 18}, {26, 27}}, 10)));
 
-  EXPECT_EQ(partial_ops::Meet(a, d), PartialInformation::Unconstrained(10));
+  EXPECT_EQ(partial_ops::Meet(a, d),
+            PartialInformation(10, std::nullopt, FromRanges({{8, 1023}}, 10)));
 }
 
 }  // namespace
