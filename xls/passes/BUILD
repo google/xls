@@ -1081,8 +1081,8 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_ortools//ortools/graph:ebert_graph",
-        "@com_google_ortools//ortools/graph:max_flow",
+        "@com_google_ortools//ortools/graph",
+        "@com_google_ortools//ortools/graph:generic_max_flow",
     ],
 )
 

@@ -26,8 +26,8 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/node.h"
 #include "xls/passes/query_engine.h"
-#include "ortools/graph/ebert_graph.h"
-#include "ortools/graph/max_flow.h"
+#include "ortools/graph/graph.h"
+#include "ortools/graph/generic_max_flow.h"
 
 namespace xls {
 
@@ -49,46 +49,40 @@ class DataflowGraphAnalysis {
   absl::StatusOr<int64_t> GetUnknownBitsFor(Node* node);
 
  private:
+  using ArcIndex = int32_t;
+  using NodeIndex = int32_t;
+
   Node* current_sink_ = nullptr;
   absl::Status SolveFor(Node* node);
 
-  static constexpr operations_research::NodeIndex kSourceIndex = 0;
-  static constexpr operations_research::NodeIndex kSinkIndex = 1;
+  static constexpr NodeIndex kSourceIndex = 0;
+  static constexpr NodeIndex kSinkIndex = 1;
 
-  static operations_research::NodeIndex InIndex(size_t topo_index) {
-    return static_cast<operations_research::NodeIndex>(2 * topo_index + 2);
+  static NodeIndex InIndex(size_t topo_index) {
+    return static_cast<NodeIndex>(2 * topo_index + 2);
   }
-  operations_research::NodeIndex InIndex(Node* node) {
-    return InIndex(node_to_index_[node]);
-  }
+  NodeIndex InIndex(Node* node) { return InIndex(node_to_index_[node]); }
 
-  bool IsOutIndex(operations_research::NodeIndex index) {
-    return index > 1 && (index % 2) == 1;
+  bool IsOutIndex(NodeIndex index) { return index > 1 && (index % 2) == 1; }
+  static NodeIndex OutIndex(size_t topo_index) {
+    return static_cast<NodeIndex>(2 * topo_index + 3);
   }
-  static operations_research::NodeIndex OutIndex(size_t topo_index) {
-    return static_cast<operations_research::NodeIndex>(2 * topo_index + 3);
-  }
-  operations_research::NodeIndex OutIndex(Node* node) {
-    return OutIndex(node_to_index_[node]);
-  }
+  NodeIndex OutIndex(Node* node) { return OutIndex(node_to_index_[node]); }
 
-  static size_t TopoIndex(operations_research::NodeIndex index) {
-    return (index - 2) >> 1;
-  }
+  static size_t TopoIndex(NodeIndex index) { return (index - 2) >> 1; }
   size_t TopoIndex(Node* node) { return node_to_index_[node]; }
 
-  using Graph = ::util::ReverseArcStaticGraph<operations_research::NodeIndex,
-                                              operations_research::ArcIndex>;
+  using Graph = ::util::ReverseArcStaticGraph<NodeIndex, ArcIndex>;
 
   const std::vector<Node*> nodes_;
   absl::flat_hash_map<Node*, size_t> node_to_index_;
 
   std::unique_ptr<Graph> graph_;
-  absl::flat_hash_map<operations_research::ArcIndex, int64_t> arc_capacities_;
+  absl::flat_hash_map<ArcIndex, int64_t> arc_capacities_;
 
-  absl::flat_hash_map<Node*, operations_research::ArcIndex> internal_arcs_;
-  absl::flat_hash_map<Node*, operations_research::ArcIndex> source_arcs_;
-  absl::flat_hash_map<Node*, operations_research::ArcIndex> sink_arcs_;
+  absl::flat_hash_map<Node*, ArcIndex> internal_arcs_;
+  absl::flat_hash_map<Node*, ArcIndex> source_arcs_;
+  absl::flat_hash_map<Node*, ArcIndex> sink_arcs_;
 
   std::unique_ptr<operations_research::GenericMaxFlow<Graph>> max_flow_;
 
