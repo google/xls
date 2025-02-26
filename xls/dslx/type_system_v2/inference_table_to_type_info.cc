@@ -1796,6 +1796,72 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     return result;
   }
 
+  // The "replace" function for an AstCloner that replaces indirect annotations
+  // with their resolved & unified versions.
+  absl::StatusOr<std::optional<AstNode*>> ReplaceIndirectTypeAnnotations(
+      const AstNode* node,
+      std::optional<const ParametricContext*> parametric_context,
+      const TypeAnnotation* annotation,
+      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
+          accept_predicate,
+      bool& replaced_anything) {
+    if (const auto* variable_type_annotation =
+            dynamic_cast<const TypeVariableTypeAnnotation*>(node)) {
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* unified,
+          ResolveAndUnifyTypeAnnotations(
+              parametric_context, variable_type_annotation->type_variable(),
+              annotation->span(), accept_predicate));
+      replaced_anything = true;
+      return const_cast<TypeAnnotation*>(unified);
+    }
+    if (const auto* member_type =
+            dynamic_cast<const MemberTypeAnnotation*>(node)) {
+      replaced_anything = true;
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* result,
+          ExpandMemberType(parametric_context, member_type, accept_predicate));
+      VLOG(5) << "Member type expansion for: " << member_type->member_name()
+              << " yielded: " << result->ToString();
+      return const_cast<TypeAnnotation*>(result);
+    }
+    if (const auto* element_type =
+            dynamic_cast<const ElementTypeAnnotation*>(node)) {
+      replaced_anything = true;
+      XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
+                           ExpandElementType(parametric_context, element_type,
+                                             accept_predicate));
+      return const_cast<TypeAnnotation*>(result);
+    }
+    if (const auto* return_type =
+            dynamic_cast<const ReturnTypeAnnotation*>(node)) {
+      replaced_anything = true;
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* result,
+          ExpandReturnType(parametric_context, return_type, accept_predicate));
+      return const_cast<TypeAnnotation*>(result);
+    }
+    if (const auto* param_type =
+            dynamic_cast<const ParamTypeAnnotation*>(node)) {
+      replaced_anything = true;
+      if (accept_predicate.has_value() && !(*accept_predicate)(param_type)) {
+        return module_.Make<AnyTypeAnnotation>();
+      }
+      XLS_ASSIGN_OR_RETURN(
+          const TypeAnnotation* result,
+          ExpandParamType(parametric_context, param_type, accept_predicate));
+      return const_cast<TypeAnnotation*>(result);
+    }
+    if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(node)) {
+      std::optional<const TypeAnnotation*> expanded =
+          ExpandSelfType(parametric_context, self_type);
+      replaced_anything = true;
+      CHECK(expanded.has_value());
+      return const_cast<TypeAnnotation*>(*expanded);
+    }
+    return std::nullopt;
+  }
+
   // Returns `annotation` with any indirect annotations resolved into direct
   // annotations. An indirect annotation is an internally-generated one that
   // depends on the resolved type of another entity. This may be a
@@ -1820,75 +1886,11 @@ class InferenceTableConverter : public UnificationErrorGenerator,
             << " in context: " << ToString(parametric_context);
     bool replaced_anything = false;
     XLS_ASSIGN_OR_RETURN(
-        AstNode * clone,
-        table_.Clone(
-            annotation,
-            [&](const AstNode* node)
-                -> absl::StatusOr<std::optional<AstNode*>> {
-              if (const auto* variable_type_annotation =
-                      dynamic_cast<const TypeVariableTypeAnnotation*>(node)) {
-                XLS_ASSIGN_OR_RETURN(
-                    const TypeAnnotation* unified,
-                    ResolveAndUnifyTypeAnnotations(
-                        parametric_context,
-                        variable_type_annotation->type_variable(),
-                        annotation->span(), accept_predicate));
-                replaced_anything = true;
-                return const_cast<TypeAnnotation*>(unified);
-              }
-              if (const auto* member_type =
-                      dynamic_cast<const MemberTypeAnnotation*>(node)) {
-                replaced_anything = true;
-                XLS_ASSIGN_OR_RETURN(
-                    const TypeAnnotation* result,
-                    ExpandMemberType(parametric_context, member_type,
-                                     accept_predicate));
-                VLOG(5) << "Member type expansion for: "
-                        << member_type->member_name()
-                        << " yielded: " << result->ToString();
-                return const_cast<TypeAnnotation*>(result);
-              }
-              if (const auto* element_type =
-                      dynamic_cast<const ElementTypeAnnotation*>(node)) {
-                replaced_anything = true;
-                XLS_ASSIGN_OR_RETURN(
-                    const TypeAnnotation* result,
-                    ExpandElementType(parametric_context, element_type,
-                                      accept_predicate));
-                return const_cast<TypeAnnotation*>(result);
-              }
-              if (const auto* return_type =
-                      dynamic_cast<const ReturnTypeAnnotation*>(node)) {
-                replaced_anything = true;
-                XLS_ASSIGN_OR_RETURN(
-                    const TypeAnnotation* result,
-                    ExpandReturnType(parametric_context, return_type,
-                                     accept_predicate));
-                return const_cast<TypeAnnotation*>(result);
-              }
-              if (const auto* param_type =
-                      dynamic_cast<const ParamTypeAnnotation*>(node)) {
-                replaced_anything = true;
-                if (accept_predicate.has_value() &&
-                    !(*accept_predicate)(param_type)) {
-                  return module_.Make<AnyTypeAnnotation>();
-                }
-                XLS_ASSIGN_OR_RETURN(
-                    const TypeAnnotation* result,
-                    ExpandParamType(parametric_context, param_type,
-                                    accept_predicate));
-                return const_cast<TypeAnnotation*>(result);
-              }
-              if (const auto* self_type =
-                      dynamic_cast<const SelfTypeAnnotation*>(node)) {
-                std::optional<const TypeAnnotation*> expanded =
-                    ExpandSelfType(parametric_context, self_type);
-                replaced_anything = true;
-                CHECK(expanded.has_value());
-                return const_cast<TypeAnnotation*>(*expanded);
-              }
-              return std::nullopt;
-            }));
+        AstNode * clone, table_.Clone(annotation, [&](const AstNode* node) {
+          return ReplaceIndirectTypeAnnotations(node, parametric_context,
+                                                annotation, accept_predicate,
+                                                replaced_anything);
+        }));
 
     // If the result is a `TypeRefTypeAnnotation`, check if it resolves to a
     // different type in the inference table.
