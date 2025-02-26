@@ -331,6 +331,25 @@ TEST(XlsCApiTest, FlattenTupleValueToBits) {
   xls_value* tuple = xls_value_make_tuple(/*element_count=*/2, elements);
   absl::Cleanup free_tuple([tuple] { xls_value_free(tuple); });
 
+  // Get the elements and check they are equal to the originals.
+  xls_value* u3_7_extracted = nullptr;
+  ASSERT_TRUE(xls_value_get_element(tuple, 0, &error_out, &u3_7_extracted));
+  absl::Cleanup free_u3_7_extracted(
+      [u3_7_extracted] { xls_value_free(u3_7_extracted); });
+  EXPECT_TRUE(xls_value_eq(u3_7, u3_7_extracted));
+  // White-box check that the pointers are not the same as the extracted value
+  // is an independent value owned by the caller.
+  EXPECT_NE(u3_7, u3_7_extracted);
+
+  xls_value* u2_0_extracted = nullptr;
+  ASSERT_TRUE(xls_value_get_element(tuple, 1, &error_out, &u2_0_extracted));
+  absl::Cleanup free_u2_0_extracted(
+      [u2_0_extracted] { xls_value_free(u2_0_extracted); });
+  EXPECT_TRUE(xls_value_eq(u2_0, u2_0_extracted));
+  // White-box check that the pointers are not the same as the extracted value
+  // is an independent value owned by the caller.
+  EXPECT_NE(u2_0, u2_0_extracted);
+
   // Flatten the tuple to a bits value.
   xls_bits* flattened = xls_value_flatten_to_bits(tuple);
   absl::Cleanup free_flattened([flattened] { xls_bits_free(flattened); });
@@ -404,6 +423,43 @@ TEST(XlsCApiTest, MakeSignedBits) {
 
   EXPECT_EQ(xls_bits_get_bit_count(bits), 5);
   EXPECT_EQ(xls_bits_get_bit(bits, 0), 1);
+
+  xls_value* value = nullptr;
+  ASSERT_TRUE(xls_value_make_sbits(5, -1, &error_out, &value));
+  absl::Cleanup free_value([value] { xls_value_free(value); });
+
+  xls_bits* value_bits = nullptr;
+  ASSERT_TRUE(xls_value_get_bits(value, &error_out, &value_bits));
+  absl::Cleanup free_value_bits([value_bits] { xls_bits_free(value_bits); });
+
+  EXPECT_EQ(xls_bits_get_bit_count(value_bits), 5);
+  EXPECT_EQ(xls_bits_get_bit(value_bits, 0), 1);
+  // Check that they are equal even though they were created different ways, and
+  // that their pointer are different because one is held inside a value (white
+  // box knowledge but just a gut check).
+  EXPECT_TRUE(xls_bits_eq(bits, value_bits));
+  EXPECT_NE(bits, value_bits);
+}
+
+TEST(XlsCApiTest, MakeUnsignedBits) {
+  // First create via the xls_bits_make_ubits API.
+  char* error_out = nullptr;
+  xls_bits* bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(5, 0b10101, &error_out, &bits));
+  absl::Cleanup free_bits([bits] { xls_bits_free(bits); });
+
+  // Now create via the xls_value_make_ubits API.
+  xls_value* value = nullptr;
+  ASSERT_TRUE(xls_value_make_ubits(5, 0b10101, &error_out, &value));
+  absl::Cleanup free_value([value] { xls_value_free(value); });
+
+  // Check that the bits are the same.
+  xls_bits* value_bits = nullptr;
+  ASSERT_TRUE(xls_value_get_bits(value, &error_out, &value_bits));
+  absl::Cleanup free_value_bits([value_bits] { xls_bits_free(value_bits); });
+
+  EXPECT_TRUE(xls_bits_eq(bits, value_bits));
+  EXPECT_NE(bits, value_bits);
 }
 
 TEST(XlsCApiTest, ParsePackageAndInterpretFunctionInIt) {
@@ -1284,6 +1340,37 @@ TEST(XlsCApiTest, DslxModuleMembers) {
     absl::Cleanup free_interp_value_str(
         [&] { xls_c_str_free(interp_value_str); });
     EXPECT_EQ(std::string_view{interp_value_str}, "u32:42");
+  }
+}
+
+TEST(XlsCApiTest, ValueGetElementCount) {
+  const std::initializer_list<
+      std::pair<const char*, std::variant<int64_t, std::string_view>>>
+      kTestCases = {
+          {"())", 0},
+          {"(bits[32]:42)", 1},
+          {"(bits[32]:42, bits[32]:43)", 2},
+          // Arrays
+          {"[bits[32]:42]", 1},
+          {"[bits[32]:42, bits[32]:43]", 2},
+          // Errors
+          {"bits[32]:42", "no element count"},
+      };
+  for (const auto& [input, expected] : kTestCases) {
+    xls_value* value = nullptr;
+    char* error = nullptr;
+    absl::Cleanup free_error([&] { xls_c_str_free(error); });
+    ASSERT_TRUE(xls_parse_typed_value(input, &error, &value));
+    absl::Cleanup free_value([&] { xls_value_free(value); });
+
+    int64_t element_count = 0;
+    bool success = xls_value_get_element_count(value, &error, &element_count);
+    ASSERT_EQ(success, std::holds_alternative<int64_t>(expected));
+    if (std::holds_alternative<int64_t>(expected)) {
+      EXPECT_EQ(element_count, std::get<int64_t>(expected));
+    } else {
+      EXPECT_THAT(error, HasSubstr(std::get<std::string_view>(expected)));
+    }
   }
 }
 
