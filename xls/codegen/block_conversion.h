@@ -40,12 +40,6 @@
 
 namespace xls::verilog {
 
-// If specified by user, returns the PackageInterFaceProto::Function for the
-// function with the given name.
-std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
-    const std::optional<PackageInterfaceProto>& src,
-    std::string_view func_name);
-
 // Converts a function or proc to a pipelined block. The pipeline is constructed
 // using the given schedule. Registers are inserted between each stage.
 // If `f` is already a Block, an error is returned.

@@ -470,22 +470,6 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
 }
 
 
-std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
-    const std::optional<PackageInterfaceProto>& src,
-    std::string_view func_name) {
-  if (!src) {
-    return std::nullopt;
-  }
-  auto it = absl::c_find_if(src->functions(),
-                            [&](const PackageInterfaceProto::Function& f) {
-                              return f.base().name() == func_name;
-                            });
-  if (it != src->functions().end()) {
-    return *it;
-  }
-  return std::nullopt;
-}
-
 // Adds a register between the node and all its downstream users.
 // Returns the new register added.
 absl::StatusOr<RegisterRead*> AddRegisterAfterNode(

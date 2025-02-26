@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -48,6 +49,23 @@
 #include "xls/passes/optimization_pass.h"
 
 namespace xls::verilog {
+
+std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
+    const std::optional<PackageInterfaceProto>& src,
+    std::string_view func_name) {
+  if (!src) {
+    return std::nullopt;
+  }
+  auto it = absl::c_find_if(src->functions(),
+                            [&](const PackageInterfaceProto::Function& f) {
+                              return f.base().name() == func_name;
+                            });
+  if (it != src->functions().end()) {
+    return *it;
+  }
+  return std::nullopt;
+}
+
 // For each output streaming channel add a corresponding ready port (input
 // port). Combinationally combine those ready signals with their predicates to
 // generate an  all_active_outputs_ready signal.
