@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -23,6 +24,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -442,6 +444,16 @@ absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
       .start = start,
       .width = module.Make<Binop>(*slice->GetSpan(), BinopKind::kSub, limit,
                                   start, Span::None())};
+}
+
+void FilterAnnotations(
+    std::vector<const TypeAnnotation*>& annotations,
+    absl::FunctionRef<bool(const TypeAnnotation*)> accept_predicate) {
+  annotations.erase(std::remove_if(annotations.begin(), annotations.end(),
+                                   [&](const TypeAnnotation* annotation) {
+                                     return !accept_predicate(annotation);
+                                   }),
+                    annotations.end());
 }
 
 }  // namespace xls::dslx

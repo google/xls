@@ -44,6 +44,7 @@
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
@@ -335,7 +336,7 @@ class InferenceTableImpl : public InferenceTable {
     auto_literal_annotations_.insert(annotation);
   }
 
-  bool IsAutoLiteral(const TypeAnnotation* annotation) override {
+  bool IsAutoLiteral(const TypeAnnotation* annotation) const override {
     return auto_literal_annotations_.contains(annotation);
   }
 
@@ -625,6 +626,25 @@ InferenceTable::~InferenceTable() = default;
 
 std::unique_ptr<InferenceTable> InferenceTable::Create(Module& module) {
   return std::make_unique<InferenceTableImpl>(module);
+}
+
+absl::StatusOr<Number*> MakeTypeCheckedNumber(
+    Module& module, InferenceTable& table, const Span& span,
+    const InterpValue& value, const TypeAnnotation* type_annotation) {
+  VLOG(5) << "Creating type-checked number: " << value.ToString()
+          << " of type: " << type_annotation->ToString();
+  Number* number = module.Make<Number>(span, value.ToString(/*humanize=*/true),
+                                       NumberKind::kOther, nullptr);
+  XLS_RETURN_IF_ERROR(table.SetTypeAnnotation(number, type_annotation));
+  return number;
+}
+
+// Variant that takes a raw `int64_t` value for the number.
+absl::StatusOr<Number*> MakeTypeCheckedNumber(
+    Module& module, InferenceTable& table, const Span& span, int64_t value,
+    const TypeAnnotation* type_annotation) {
+  return MakeTypeCheckedNumber(module, table, span, InterpValue::MakeS64(value),
+                               type_annotation);
 }
 
 }  // namespace xls::dslx

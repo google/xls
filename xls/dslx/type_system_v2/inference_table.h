@@ -36,6 +36,8 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
@@ -324,7 +326,7 @@ class InferenceTable {
 
   // Returns whether the given `annotation` has been marked as an auto literal
   // annotation.
-  virtual bool IsAutoLiteral(const TypeAnnotation* annotation) = 0;
+  virtual bool IsAutoLiteral(const TypeAnnotation* annotation) const = 0;
 
   // Sets the target of a `ColonRef`.
   virtual void SetColonRefTarget(const ColonRef* colon_ref,
@@ -366,6 +368,17 @@ class InferenceTable {
   // Converts the table to string for debugging purposes.
   virtual std::string ToString() const = 0;
 };
+
+// Fabricates a `Number` node and sets the given type annotation for it in the
+// inference table.
+absl::StatusOr<Number*> MakeTypeCheckedNumber(
+    Module& module, InferenceTable& table, const Span& span,
+    const InterpValue& value, const TypeAnnotation* type_annotation);
+
+// Variant that takes a raw `int64_t` value for the number.
+absl::StatusOr<Number*> MakeTypeCheckedNumber(
+    Module& module, InferenceTable& table, const Span& span, int64_t value,
+    const TypeAnnotation* type_annotation);
 
 }  // namespace xls::dslx
 
