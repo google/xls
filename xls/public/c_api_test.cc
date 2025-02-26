@@ -21,11 +21,11 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/base/macros.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/log_lines.h"
@@ -1340,6 +1340,37 @@ TEST(XlsCApiTest, DslxModuleMembers) {
     absl::Cleanup free_interp_value_str(
         [&] { xls_c_str_free(interp_value_str); });
     EXPECT_EQ(std::string_view{interp_value_str}, "u32:42");
+  }
+}
+
+TEST(XlsCApiTest, ValueGetElementCount) {
+  const std::initializer_list<
+      std::pair<const char*, std::variant<int64_t, std::string_view>>>
+      kTestCases = {
+          {"())", 0},
+          {"(bits[32]:42)", 1},
+          {"(bits[32]:42, bits[32]:43)", 2},
+          // Arrays
+          {"[bits[32]:42]", 1},
+          {"[bits[32]:42, bits[32]:43]", 2},
+          // Errors
+          {"bits[32]:42", "no element count"},
+      };
+  for (const auto& [input, expected] : kTestCases) {
+    xls_value* value = nullptr;
+    char* error = nullptr;
+    absl::Cleanup free_error([&] { xls_c_str_free(error); });
+    ASSERT_TRUE(xls_parse_typed_value(input, &error, &value));
+    absl::Cleanup free_value([&] { xls_value_free(value); });
+
+    int64_t element_count = 0;
+    bool success = xls_value_get_element_count(value, &error, &element_count);
+    ASSERT_EQ(success, std::holds_alternative<int64_t>(expected));
+    if (std::holds_alternative<int64_t>(expected)) {
+      EXPECT_EQ(element_count, std::get<int64_t>(expected));
+    } else {
+      EXPECT_THAT(error, HasSubstr(std::get<std::string_view>(expected)));
+    }
   }
 }
 
