@@ -154,6 +154,9 @@ Expr* CreateElementCountSum(Module& module, TypeAnnotation* lhs,
 absl::StatusOr<StartAndWidthExprs> CreateSliceStartAndWidthExprs(
     Module& module, TypeAnnotation* source_array_type, const AstNode* slice);
 
+// Creates a literal representing 0 without a type annotation.
+Number* CreateUntypedZero(Module& module, const Span& span);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

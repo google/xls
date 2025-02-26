@@ -107,6 +107,11 @@ absl::StatusOr<Expr*> ExpandSliceBoundExpr(Module& module,
 
 }  // namespace
 
+Number* CreateUntypedZero(Module& module, const Span& span) {
+  return module.Make<Number>(span, "0", NumberKind::kOther,
+                             /*type_annotation=*/nullptr);
+}
+
 TypeAnnotation* CreateUnOrSnAnnotation(Module& module, const Span& span,
                                        bool is_signed, int64_t bit_count) {
   return CreateUnOrSnAnnotation(

@@ -330,7 +330,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     member_types.reserve(node->members().size());
     for (int i = 0; i < node->members().size(); ++i) {
       Expr* member = node->members()[i];
-      TypeAnnotation* element_annotation = nullptr;
+      std::optional<TypeAnnotation*> element_annotation;
       if (tuple_annotation.has_value()) {
         element_annotation = module_.Make<ElementTypeAnnotation>(
             *tuple_annotation,
@@ -338,7 +338,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
                                  NumberKind::kOther,
                                  /*type_annotation=*/nullptr));
         XLS_RETURN_IF_ERROR(
-            table_.SetTypeAnnotation(member, element_annotation));
+            table_.SetTypeAnnotation(member, *element_annotation));
       }
       XLS_ASSIGN_OR_RETURN(
           const NameRef* member_variable,
@@ -607,16 +607,32 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
           file_table_);
     }
 
-    // If the array has no members, we can't infer an RHS element type and
-    // therefore can't annotate the RHS. The success of the later unification
-    // will depend on whether the LHS is annotated.
+    if (node->type_annotation() != nullptr) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node, node->type_annotation()));
+
+      // If it's a zero-length array literal with a type annotation directly
+      // attached, we can at least presume it's meant to be a zero-length array
+      // of the element type in the annotation. Otherwise, we know nothing about
+      // it, and the early return below will just let it be unified with any LHS
+      // annotation later.
+      if (node->members().empty()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            node,
+            module_.Make<ArrayTypeAnnotation>(
+                node->span(),
+                module_.Make<ElementTypeAnnotation>(node->type_annotation()),
+                CreateUntypedZero(module_, node->span()))));
+      }
+    }
+
     if (node->members().empty()) {
       return absl::OkStatus();
     }
 
     // Create a variable for the element type, and assign it to all the
     // elements.
-    TypeAnnotation* element_annotation = nullptr;
+    std::optional<TypeAnnotation*> element_annotation;
     if (array_annotation.has_value()) {
       element_annotation =
           module_.Make<ElementTypeAnnotation>(*array_annotation);
@@ -629,9 +645,9 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     for (Expr* member : node->members()) {
       XLS_RETURN_IF_ERROR(
           table_.SetTypeVariable(member, element_type_variable));
-      if (element_annotation != nullptr) {
+      if (element_annotation.has_value()) {
         XLS_RETURN_IF_ERROR(
-            table_.SetTypeAnnotation(member, element_annotation));
+            table_.SetTypeAnnotation(member, *element_annotation));
       }
     }
     Expr* element_count = module_.Make<Number>(
@@ -971,9 +987,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     // If it's an "expr", that's an error (just like in V1)
     return TypeInferenceErrorStatus(
         *node->GetSpan(), nullptr,
-        absl::Substitute("Expected a type in $0 type; saw `$1`.",
-                         node->GetNodeTypeName(),
-                         std::get<Expr*>(type)->ToString()),
+        absl::Substitute("Expected a type argument in `$0`; saw `$1`.",
+                         node->ToString(), std::get<Expr*>(type)->ToString()),
         file_table_);
   }
 
@@ -1006,7 +1021,10 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         const NameRef* variable,
         table_.DefineInternalVariable(
             InferenceVariableKind::kType, const_cast<Let*>(node),
-            GenerateInternalTypeVariableName(node), node->type_annotation()));
+            GenerateInternalTypeVariableName(node),
+            node->type_annotation() == nullptr
+                ? std::nullopt
+                : std::make_optional(node->type_annotation())));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->rhs(), variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
     if (node->type_annotation() != nullptr) {
@@ -1091,7 +1109,10 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
         const NameRef* variable,
         table_.DefineInternalVariable(
             InferenceVariableKind::kType, const_cast<T*>(node),
-            GenerateInternalTypeVariableName(node), node->type_annotation()));
+            GenerateInternalTypeVariableName(node),
+            node->type_annotation() == nullptr
+                ? std::nullopt
+                : std::make_optional(node->type_annotation())));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node, variable));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->name_def(), variable));
     if (node->type_annotation() != nullptr) {

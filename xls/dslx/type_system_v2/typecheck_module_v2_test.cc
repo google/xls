@@ -706,6 +706,36 @@ TEST(TypecheckV2Test, GlobalArrayConstantWithAnnotatedIntegerLiterals) {
                                       HasNodeWithType("u32:2", "uN[32]"))));
 }
 
+TEST(TypecheckV2Test, ArrayWithArrayAnnotation) {
+  EXPECT_THAT("const X = u32[2]:[1, 2];",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[32][2]")));
+}
+
+TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithSignednessMismatchFails) {
+  EXPECT_THAT("const X = u32[2]:[-1, 2];",
+              TypecheckFails(HasSignednessMismatch("u32", "sN[3]")));
+}
+
+TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithSizeMismatchFails) {
+  EXPECT_THAT("const X = u8[2]:[1, 65536];",
+              TypecheckFails(HasSizeMismatch("u8", "uN[17]")));
+}
+
+TEST(TypecheckV2Test, ArrayWithArrayAnnotationWithCountMismatchFails) {
+  EXPECT_THAT("const X = u8[2]:[u8:1, 2, 3];",
+              TypecheckFails(HasTypeMismatch("u8[2]", "uN[8][3]")));
+}
+
+TEST(TypecheckV2Test, AnnotatedEmptyArray) {
+  EXPECT_THAT("const X = u8[0]:[];",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[8][0]")));
+}
+
+TEST(TypecheckV2Test, AnnotatedEmptyArrayMismatchFails) {
+  EXPECT_THAT("const X = u8[1]:[];",
+              TypecheckFails(HasTypeMismatch("u8[0]", "u8[1]")));
+}
+
 TEST(TypecheckV2Test, GlobalConstantEqualsIndexOfTemporaryArray) {
   EXPECT_THAT("const X = [u32:1, u32:2][0];",
               TypecheckSucceeds(HasNodeWithType("X", "uN[32]")));
@@ -3212,7 +3242,7 @@ TEST(TypecheckV2Test, ZeroMacroExprError) {
 const X = u32:10;
 const Y = zero!<X>();
 )",
-              TypecheckFails(HasSubstr("in ZeroMacro type")));
+              TypecheckFails(HasSubstr("in `zero!<X>()`")));
 }
 
 TEST(TypecheckV2Test, ZeroMacroImplConstError) {
@@ -3221,7 +3251,7 @@ struct S{}
 impl S { const X = u32:10; }
 const Y = zero!<S::X>();
 )",
-              TypecheckFails(HasSubstr("in ZeroMacro type")));
+              TypecheckFails(HasSubstr("in `zero!<S::X>()`")));
 }
 
 // We don't support imports in the type system yet.
@@ -3376,7 +3406,7 @@ TEST(TypecheckV2Test, AllOnesMacroExprError) {
 const X = u32:10;
 const Y = all_ones!<X>();
 )",
-              TypecheckFails(HasSubstr("in AllOnesMacro type")));
+              TypecheckFails(HasSubstr("in `all_ones!<X>()`")));
 }
 
 TEST(TypecheckV2Test, AllOnesMacroImplConstError) {
@@ -3385,7 +3415,7 @@ struct S{}
 impl S { const X = u32:10; }
 const Y = all_ones!<S::X>();
 )",
-              TypecheckFails(HasSubstr("in AllOnesMacro type")));
+              TypecheckFails(HasSubstr("in `all_ones!<S::X>()`")));
 }
 
 // We don't support imports in the type system yet.
