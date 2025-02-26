@@ -433,7 +433,11 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
 
   // We can't blindly resolve the function or else we might fail due to look up
   // a parametric builtin.
-  if (!IsBuiltinFn(node->callee())) {
+  bool callee_needs_implicit_token = false;
+  if (IsBuiltinFn(node->callee())) {
+    callee_needs_implicit_token =
+        GetBuiltinFnRequiresImplicitToken(node->callee());
+  } else {
     XLS_ASSIGN_OR_RETURN(Function * fn, resolve_fn(node, ctx));
     XLS_RET_CHECK(fn != nullptr);
 
@@ -445,13 +449,13 @@ absl::StatusOr<std::unique_ptr<Type>> DeduceInvocation(const Invocation* node,
         << "user-defined function should have an annotation for whether it "
            "requires an implicit token: "
         << fn->identifier();
-    bool callee_needs_implicit_token = callee_opt.value();
+    callee_needs_implicit_token = callee_opt.value();
+  }
 
-    // If the callee function needs an implicit token type (e.g. because it has
-    // a fail!() or cover!() operation transitively) then so do we.
-    if (callee_needs_implicit_token) {
-      UseImplicitToken(ctx);
-    }
+  // If the callee function needs an implicit token type (e.g. because it has
+  // a fail!() or cover!() operation transitively) then so do we.
+  if (callee_needs_implicit_token) {
+    UseImplicitToken(ctx);
   }
 
   return std::move(tab.type);

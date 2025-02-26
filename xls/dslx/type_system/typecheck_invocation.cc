@@ -216,12 +216,6 @@ TypecheckParametricBuiltinInvocation(DeduceCtx* ctx,
     arg_spans.push_back(arg->span());
   }
 
-  if ((callee_name == "fail!" || callee_name == "assert!" ||
-       callee_name == "cover!") &&
-      caller != nullptr) {
-    ctx->type_info()->NoteRequiresImplicitToken(*caller, true);
-  }
-
   VLOG(5) << "Instantiating builtin parametric: "
           << callee_nameref->identifier();
   XLS_ASSIGN_OR_RETURN(
