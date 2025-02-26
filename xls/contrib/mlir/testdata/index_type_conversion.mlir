@@ -164,7 +164,7 @@ func.func @forloop(%arg0: i32, %arg1: i8, %arg2: i9) -> i32 attributes {xls = tr
   return %0 : i32
 }
 
-// INDEX32-LABEL:   xls.chan @mychan : i32
-// INDEX64-LABEL:   xls.chan @mychan : i64
-xls.chan @mychan : index
+// INDEX32-LABEL:   xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i32
+// INDEX64-LABEL:   xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i64
+xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : index
 
