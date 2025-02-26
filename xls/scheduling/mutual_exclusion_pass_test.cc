@@ -48,7 +48,6 @@ namespace {
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::HasSubstr;
-using ::testing::Optional;
 
 namespace m = ::xls::op_matchers;
 
