@@ -1412,7 +1412,7 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
   //
   // With reset:
   //
-  //   reg foo(bits[32], reset_value=42, asynchronous=false, active_low=false)
+  //   reg foo(bits[32], reset_value=42)
   XLS_ASSIGN_OR_RETURN(
       Token reg_name,
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "register name"));
@@ -1420,42 +1420,19 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
   XLS_ASSIGN_OR_RETURN(Type * reg_type, ParseType(block->package()));
   // Parse optional reset attributes.
   std::optional<Value> reset_value;
-  std::optional<bool> asynchronous;
-  std::optional<bool> active_low;
   if (scanner_.TryDropToken(LexicalTokenType::kComma)) {
     absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
     handlers["reset_value"] = [&]() -> absl::Status {
       XLS_ASSIGN_OR_RETURN(reset_value, ParseValueInternal(reg_type));
       return absl::OkStatus();
     };
-    handlers["asynchronous"] = [&]() -> absl::Status {
-      XLS_ASSIGN_OR_RETURN(asynchronous, ParseBool());
-      return absl::OkStatus();
-    };
-    handlers["active_low"] = [&]() -> absl::Status {
-      XLS_ASSIGN_OR_RETURN(active_low, ParseBool());
-      return absl::OkStatus();
-    };
     XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers));
   }
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
 
-  // Either all reset attributes must be specified or none must be specified.
-  std::optional<Reset> reset;
-  if (reset_value.has_value() && asynchronous.has_value() &&
-      active_low.has_value()) {
-    reset = Reset{.reset_value = reset_value.value(),
-                  .asynchronous = asynchronous.value(),
-                  .active_low = active_low.value()};
-  } else if (reset_value.has_value() || asynchronous.has_value() ||
-             active_low.has_value()) {
-    return absl::InvalidArgumentError(
-        "Register reset incompletely specified, must include all reset "
-        "attributes (reset_value, asynchronous, active_low)");
-  }
-
-  XLS_ASSIGN_OR_RETURN(Register * reg,
-                       block->AddRegister(reg_name.value(), reg_type, reset));
+  XLS_ASSIGN_OR_RETURN(
+      Register * reg,
+      block->AddRegister(reg_name.value(), reg_type, reset_value));
   if (reg->name() != reg_name.value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Register already exists with name %s", reg_name.value()));
@@ -2368,6 +2345,18 @@ absl::StatusOr<Block*> Parser::ParseBlock(
       XLS_RETURN_IF_ERROR(block->AddChannelPortMetadata(
           std::get<ChannelPortMetadata>(attribute.payload)));
     }
+    if (std::holds_alternative<ResetAttribute>(attribute.payload)) {
+      const ResetAttribute& reset = std::get<ResetAttribute>(attribute.payload);
+      absl::StatusOr<InputPort*> reset_port =
+          block->GetInputPort(reset.port_name);
+      if (!reset_port.ok()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Block `%s` has no input port named `%s` for reset signal",
+            block->name(), reset.port_name));
+      }
+      XLS_RETURN_IF_ERROR(
+          block->SetResetPort(reset_port.value(), reset.behavior));
+    }
   }
 
   return block;
@@ -2717,6 +2706,38 @@ absl::StatusOr<IrAttribute> Parser::ParseAttribute(Package* package) {
                            .data_port = data_port,
                            .valid_port = valid_port,
                            .ready_port = ready_port}};
+  }
+  if (attribute_name.value() == "reset") {
+    std::optional<std::string> port;
+    std::optional<bool> asynchronous;
+    std::optional<bool> active_low;
+
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+    handlers["port"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(port, ParseQuotedString());
+      return absl::OkStatus();
+    };
+    handlers["asynchronous"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(asynchronous, ParseBool());
+      return absl::OkStatus();
+    };
+    handlers["active_low"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(active_low, ParseBool());
+      return absl::OkStatus();
+    };
+    XLS_RETURN_IF_ERROR(ParseKeywordArguments(
+        handlers, {"port", "asynchronous", "active_low"}));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+
+    return IrAttribute{
+        .name = attribute_name.value(),
+        .payload = ResetAttribute{
+            .port_name = port.value(),
+            .behavior = ResetBehavior{.asynchronous = asynchronous.value(),
+                                      .active_low = active_low.value()}}};
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Unknown attribute: ", attribute_name.value()));

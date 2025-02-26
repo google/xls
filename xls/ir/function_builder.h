@@ -1029,7 +1029,8 @@ class BlockBuilder : public BuilderBase {
                const SourceInfo& loc = SourceInfo()) override;
 
   // Add a reset port.
-  BValue ResetPort(std::string_view name);
+  BValue ResetPort(std::string_view name, ResetBehavior reset_behavior,
+                   const SourceInfo& loc = SourceInfo());
   // Add an input/output port.
   BValue InputPort(std::string_view name, Type* type,
                    const SourceInfo& loc = SourceInfo());
@@ -1061,7 +1062,7 @@ class BlockBuilder : public BuilderBase {
 
   // As InsertRegister above but with a reset value.
   BValue InsertRegister(std::string_view name, BValue data, BValue reset_signal,
-                        Reset reset,
+                        Value reset_value,
                         std::optional<BValue> load_enable = std::nullopt,
                         const SourceInfo& loc = SourceInfo());
 

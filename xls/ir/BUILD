@@ -548,6 +548,8 @@ cc_library(
     deps = [
         ":type",
         ":value",
+        ":value_utils",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -621,6 +623,7 @@ cc_library(
         "//xls/common:iterator_range",
         "//xls/common:math_util",
         "//xls/common:visitor",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
@@ -877,6 +880,7 @@ cc_test(
         ":ir",
         ":ir_parser",
         ":op",
+        ":register",
         ":state_element",
         ":type",
         ":value",
@@ -1822,6 +1826,7 @@ cc_test(
         ":foreign_function_data_cc_proto",
         ":function_builder",
         ":ir",
+        ":ir_matcher",
         ":ir_test_base",
         ":register",
         ":source_location",

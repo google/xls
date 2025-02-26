@@ -294,8 +294,7 @@ class CustomScheduleFuzzer
   static std::unique_ptr<BlockContinuation> MakeContinuation(Block* b) {
     absl::flat_hash_map<std::string, Value> resets;
     for (Register* r : b->GetRegisters()) {
-      resets[r->name()] =
-          r->reset() ? r->reset()->reset_value : ZeroOfType(r->type());
+      resets[r->name()] = r->reset_value().value_or(ZeroOfType(r->type()));
     }
     if (kInterpreter) {
       return kInterpreterBlockEvaluator.NewContinuation(b, resets).value();

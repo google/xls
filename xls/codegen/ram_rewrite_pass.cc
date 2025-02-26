@@ -450,14 +450,11 @@ absl::StatusOr<bool> Ram1RWRewrite(
                            /*loc=*/SourceInfo(), req_re_valid, Op::kIdentity,
                            req_re_valid_buf_name));
 
-  std::optional<xls::Reset> reset_behavior =
-      pass_options.codegen_options.ResetBehavior();
-
   XLS_ASSIGN_OR_RETURN(
       Node * ram_resp_valid,
-      AddRegisterAfterNode(absl::StrCat(req_valid->GetName(), "_delay"),
-                           reset_behavior, std::nullopt, req_re_valid_buf,
-                           block));
+      AddRegisterAfterNode(
+          /*name_prefix=*/absl::StrCat(req_valid->GetName(), "_delay"),
+          /*load_enable=*/std::nullopt, req_re_valid_buf));
 
   // Make a new response port with a new name.
   std::string resp_rd_data_name =
@@ -502,8 +499,8 @@ absl::StatusOr<bool> Ram1RWRewrite(
       absl::StrCat(ram_name, "_ram_zero_latency0");
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
                           resp_rd_data_port, ram_resp_valid,
-                          resp_ready_port_buf, zero_latency_buffer_name,
-                          reset_behavior, block, valid_nodes)
+                          resp_ready_port_buf, zero_latency_buffer_name, block,
+                          valid_nodes)
                           .status());
 
   // Add output ports for expanded req.data.
@@ -639,14 +636,11 @@ absl::StatusOr<bool> Ram1R1WRewrite(
       block->MakeNodeWithName<UnOp>(
           /*loc=*/SourceInfo(), rd_en, Op::kIdentity, req_re_valid_buf_name));
 
-  std::optional<xls::Reset> reset_behavior =
-      pass_options.codegen_options.ResetBehavior();
-
   XLS_ASSIGN_OR_RETURN(
       Node * rd_resp_valid,
-      AddRegisterAfterNode(absl::StrCat(rd_en->GetName(), "_delay"),
-                           reset_behavior, std::nullopt, req_re_valid_buf,
-                           block));
+      AddRegisterAfterNode(
+          /*name_prefix=*/absl::StrCat(rd_en->GetName(), "_delay"),
+          /*load_enable=*/std::nullopt, req_re_valid_buf));
 
   // Make a new response port with a new name.
   std::string rd_data_name =
@@ -683,8 +677,7 @@ absl::StatusOr<bool> Ram1R1WRewrite(
       absl::StrCat(ram_name, "_ram_zero_latency0");
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
                           rd_data_port, rd_resp_valid, resp_ready_port_buf,
-                          zero_latency_buffer_name, reset_behavior, block,
-                          valid_nodes)
+                          zero_latency_buffer_name, block, valid_nodes)
                           .status());
   // Replace write ready with literal 1 (RAM is always ready for write).
   // TODO(rigge): should this signal check for hazards?

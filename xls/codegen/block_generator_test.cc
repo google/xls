@@ -359,24 +359,16 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
   BlockBuilder bb(TestBaseName(), &package);
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
-  BValue rst = bb.ResetPort("the_reset");
+  BValue rst = bb.ResetPort(
+      "the_reset", ResetBehavior{.asynchronous = false, .active_low = false});
 
   // Pipeline register 0.
-  BValue p0_a = bb.InsertRegister("p0_a", a, rst,
-                                  xls::Reset{.reset_value = Value(UBits(0, 32)),
-                                             .asynchronous = false,
-                                             .active_low = false});
-  BValue p0_b = bb.InsertRegister("p0_b", b, rst,
-                                  xls::Reset{.reset_value = Value(UBits(0, 32)),
-                                             .asynchronous = false,
-                                             .active_low = false});
+  BValue p0_a = bb.InsertRegister("p0_a", a, rst, Value(UBits(0, 32)));
+  BValue p0_b = bb.InsertRegister("p0_b", b, rst, Value(UBits(0, 32)));
 
   // Pipeline register 1.
   BValue p1_sum =
-      bb.InsertRegister("p1_sum", bb.And(p0_a, p0_b), rst,
-                        xls::Reset{.reset_value = Value(UBits(0, 32)),
-                                   .asynchronous = false,
-                                   .active_low = false});
+      bb.InsertRegister("p1_sum", bb.And(p0_a, p0_b), rst, Value(UBits(0, 32)));
 
   bb.OutputPort("sum", p1_sum);
   XLS_ASSERT_OK(bb.block()->AddClockPort("the_clock"));
@@ -479,14 +471,12 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   Type* u32 = package.GetBitsType(32);
   BlockBuilder bb(TestBaseName(), &package);
   BValue in = bb.InputPort("in", u32);
-  BValue rst_n = bb.ResetPort("rst_n");
+  BValue rst_n = bb.ResetPort(
+      "rst_n", ResetBehavior{.asynchronous = false, .active_low = true});
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Register * accum_reg,
-      bb.block()->AddRegister("accum", u32,
-                              xls::Reset{.reset_value = Value(UBits(10, 32)),
-                                         .asynchronous = false,
-                                         .active_low = true}));
+      bb.block()->AddRegister("accum", u32, Value(UBits(10, 32))));
   BValue accum = bb.RegisterRead(accum_reg);
   bb.RegisterWrite(accum_reg, bb.Add(in, accum), /*load_enable=*/std::nullopt,
                    rst_n);
@@ -559,12 +549,10 @@ TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
 TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
-  BValue rst = b.ResetPort("my_rst");
+  BValue rst = b.ResetPort(
+      "my_rst", ResetBehavior{.asynchronous = false, .active_low = false});
   BValue a = b.InputPort("a", package.GetBitsType(32));
-  BValue a_d = b.InsertRegister("a_d", a, rst,
-                                xls::Reset{.reset_value = Value(UBits(123, 32)),
-                                           .asynchronous = false,
-                                           .active_low = false});
+  BValue a_d = b.InsertRegister("a_d", a, rst, Value(UBits(123, 32)));
   b.Assert(b.AfterAll({}), b.ULt(a_d, b.Literal(UBits(42, 32))),
            "a is not greater than 42");
   XLS_ASSERT_OK(b.block()->AddClockPort("my_clk"));
@@ -769,10 +757,9 @@ TEST_P(BlockGeneratorTest, AssertFmtOnlyConsumerOfReset) {
               std::make_unique<OpOverrideAssertion>(
                   R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))"))));
   if (UseSystemVerilog()) {
-    EXPECT_THAT(
-        verilog,
-        HasSubstr(
-            R"(`MY_ASSERT(ult_10, "x is not greater than 42", clk, rst))"));
+    EXPECT_THAT(verilog,
+                testing::ContainsRegex(
+                    R"(`MY_ASSERT.*, "x is not greater than 42", clk, rst)"));
   } else {
     EXPECT_THAT(verilog, Not(HasSubstr("assert")));
   }
@@ -901,20 +888,11 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
   BValue b = bb.InputPort("b", u32);
   BValue b_le = bb.InputPort("b_le", u1);
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
-  BValue rst = bb.ResetPort("rst");
+  BValue rst = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
 
-  BValue a_reg =
-      bb.InsertRegister("a_reg", a, rst,
-                        xls::Reset{.reset_value = Value(UBits(42, 32)),
-                                   .asynchronous = false,
-                                   .active_low = false},
-                        a_le);
-  BValue b_reg =
-      bb.InsertRegister("b_reg", b, rst,
-                        xls::Reset{.reset_value = Value(UBits(43, 32)),
-                                   .asynchronous = false,
-                                   .active_low = false},
-                        b_le);
+  BValue a_reg = bb.InsertRegister("a_reg", a, rst, Value(UBits(42, 32)), a_le);
+  BValue b_reg = bb.InsertRegister("b_reg", b, rst, Value(UBits(43, 32)), b_le);
 
   bb.OutputPort("a_out", a_reg);
   bb.OutputPort("b_out", b_reg);

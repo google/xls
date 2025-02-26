@@ -84,13 +84,12 @@ absl::StatusOr<int64_t> GetConditionOperandNumber(Node* node) {
   }
 }
 
-absl::StatusOr<Node*> MakeGuardedConditionForOp(
-    Op op, Node* condition, Node* stage_guard, Block* block,
-    std::optional<xls::Reset> reset_behavior) {
+absl::StatusOr<Node*> MakeGuardedConditionForOp(Op op, Node* condition,
+                                                Node* stage_guard,
+                                                Block* block) {
   XLS_RET_CHECK(stage_guard->GetType()->IsBits() &&
                 stage_guard->GetType()->AsBitsOrDie()->bit_count() == 1);
   std::optional<Node*> reset_port = block->GetResetPort();
-  XLS_RET_CHECK_EQ(reset_behavior.has_value(), reset_port.has_value());
   switch (op) {
     case Op::kAssert: {  // Asserts are !stage_guard || condition [||
                          // asserted(reset)]
@@ -99,7 +98,7 @@ absl::StatusOr<Node*> MakeGuardedConditionForOp(
                                                       stage_guard, Op::kNot));
       std::vector<Node*> new_conditions = {not_stage_guard, condition};
       XLS_ASSIGN_OR_RETURN(std::optional<Node*> reset_asserted,
-                           ResetAsserted(reset_behavior, block));
+                           ResetAsserted(block));
       if (reset_asserted.has_value()) {
         new_conditions.push_back(*reset_asserted);
       }
@@ -109,7 +108,7 @@ absl::StatusOr<Node*> MakeGuardedConditionForOp(
     case Op::kTrace: {  // stage_guard && condition [&& !asserted(reset)]
       std::vector<Node*> new_conditions = {stage_guard, condition};
       XLS_ASSIGN_OR_RETURN(std::optional<Node*> reset_not_asserted,
-                           ResetNotAsserted(reset_behavior, block));
+                           ResetNotAsserted(block));
       if (reset_not_asserted.has_value()) {
         new_conditions.push_back(*reset_not_asserted);
       }
@@ -185,11 +184,10 @@ absl::StatusOr<bool> SideEffectConditionPass::RunInternal(
           "Stage guard not found for stage %d.", condition_stage);
       XLS_ASSIGN_OR_RETURN(int64_t condition_operand,
                            GetConditionOperandNumber(node));
-      XLS_ASSIGN_OR_RETURN(
-          Node * guarded_condition,
-          MakeGuardedConditionForOp(
-              node->op(), node->operand(condition_operand), *stage_guard,
-              block.get(), options.codegen_options.ResetBehavior()));
+      XLS_ASSIGN_OR_RETURN(Node * guarded_condition,
+                           MakeGuardedConditionForOp(
+                               node->op(), node->operand(condition_operand),
+                               *stage_guard, block.get()));
       XLS_RETURN_IF_ERROR(
           node->ReplaceOperandNumber(condition_operand, guarded_condition));
       changed = true;

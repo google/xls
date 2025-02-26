@@ -373,8 +373,9 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationNoBypassWorks) {
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
-  // Don't reset.
-  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
+  BValue reset = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.InstantiationInput(fifo_inst, "rst", reset);
 
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
@@ -407,6 +408,12 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationNoBypassWorks) {
       PushAndPopInputs(8),
       PushAndPopInputs(9),
   };
+
+  // Add reset signals to inputs.
+  for (absl::flat_hash_map<std::string, Value>& input_values : inputs) {
+    input_values["rst"] = Value(UBits(0, 1));
+  }
+
   EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
               IsOkAndHolds(ElementsAre(NoTryPopValue(),  //
                                        TryPopValue(0),   //
@@ -449,8 +456,9 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationWithBypassWorks) {
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
-  // Don't reset.
-  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
+  BValue reset = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.InstantiationInput(fifo_inst, "rst", reset);
 
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
@@ -483,6 +491,12 @@ TEST_P(BlockEvaluatorTest, SingleElementFifoInstantiationWithBypassWorks) {
       PushAndPopInputs(8),
       PushAndPopInputs(9),
   };
+
+  // Add reset signals to inputs.
+  for (absl::flat_hash_map<std::string, Value>& input_values : inputs) {
+    input_values["rst"] = Value(UBits(0, 1));
+  }
+
   EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
               IsOkAndHolds(ElementsAre(TryPopValue(0),   //
                                        TryPopValue(0),   //
@@ -525,8 +539,9 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationNoBypassWorks) {
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
-  // Don't reset.
-  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
+  BValue reset = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.InstantiationInput(fifo_inst, "rst", reset);
 
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
@@ -572,6 +587,11 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationNoBypassWorks) {
       PushAndPopInputs(19),
       PushAndPopInputs(20),
   };
+  // Add reset signals to inputs.
+  for (absl::flat_hash_map<std::string, Value>& input_values : inputs) {
+    input_values["rst"] = Value(UBits(0, 1));
+  }
+
   EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
               IsOkAndHolds(ElementsAre(NoTryPopValue(),  //
                                        TryPopValue(0),   //
@@ -623,8 +643,9 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationWithBypassWorks) {
       FifoInstantiation * fifo_inst,
       bb.block()->AddFifoInstantiation("fifo_inst", fifo_config, u32));
 
-  // Don't reset.
-  bb.InstantiationInput(fifo_inst, "rst", bb.Literal(Value(UBits(0, 1))));
+  BValue reset = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.InstantiationInput(fifo_inst, "rst", reset);
 
   bb.OutputPort("pop_data", bb.InstantiationOutput(fifo_inst, "pop_data"));
   bb.OutputPort("pop_valid", bb.InstantiationOutput(fifo_inst, "pop_valid"));
@@ -674,6 +695,11 @@ TEST_P(BlockEvaluatorTest, FifoInstantiationWithBypassWorks) {
       PushAndPopInputs(19),
       PushAndPopInputs(20),
   };
+  // Add reset signals to inputs.
+  for (absl::flat_hash_map<std::string, Value>& input_values : inputs) {
+    input_values["rst"] = Value(UBits(0, 1));
+  }
+
   EXPECT_THAT(evaluator().EvaluateSequentialBlock(block, inputs),
               IsOkAndHolds(ElementsAre(TryPopValue(0),   //
                                        TryPopValue(0),   //
@@ -816,12 +842,10 @@ TEST_P(BlockEvaluatorTest, RegisterWithReset) {
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
 
   BValue x = b.InputPort("x", package->GetBitsType(32));
-  BValue rst = b.InputPort("rst", package->GetBitsType(1));
+  BValue rst = b.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
 
-  BValue x_d =
-      b.InsertRegister("x_d", x, rst,
-                       Reset{Value(UBits(42, 32)), /*asynchronous=*/false,
-                             /*active_low=*/false});
+  BValue x_d = b.InsertRegister("x_d", x, rst, Value(UBits(42, 32)));
 
   b.OutputPort("out", x_d);
 
@@ -883,14 +907,11 @@ TEST_P(BlockEvaluatorTest, RegisterWithResetAndLoadEnable) {
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
 
   BValue x = b.InputPort("x", package->GetBitsType(32));
-  BValue rst_n = b.InputPort("rst_n", package->GetBitsType(1));
+  BValue rst_n = b.ResetPort(
+      "rst_n", ResetBehavior{.asynchronous = false, .active_low = true});
   BValue le = b.InputPort("le", package->GetBitsType(1));
 
-  BValue x_d =
-      b.InsertRegister("x_d", x, rst_n,
-                       Reset{Value(UBits(42, 32)), /*asynchronous=*/false,
-                             /*active_low=*/true},
-                       le);
+  BValue x_d = b.InsertRegister("x_d", x, rst_n, Value(UBits(42, 32)), le);
 
   b.OutputPort("out", x_d);
 
@@ -1022,24 +1043,20 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandling) {
   BlockBuilder b(TestName(), package.get());
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
 
+  BValue rst = b.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
   verilog::ResetProto reset;
   reset.set_name("rst");
   reset.set_asynchronous(false);
   reset.set_active_low(false);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Register * reg,
-      b.block()->AddRegister("accum", package->GetBitsType(32),
-                             Reset{
-                                 .reset_value = Value(UBits(0, 32)),
-                                 .asynchronous = reset.asynchronous(),
-                                 .active_low = reset.active_low(),
-                             }));
+      Register * reg, b.block()->AddRegister("accum", package->GetBitsType(32),
+                                             Value(UBits(0, 32))));
 
   BValue x = b.InputPort("x", package->GetBitsType(32));
   BValue x_vld = b.InputPort("x_vld", package->GetBitsType(1));
   BValue out_rdy = b.InputPort("out_rdy", package->GetBitsType(1));
-  BValue rst = b.InputPort("rst", package->GetBitsType(1));
 
   BValue input_valid_and_output_ready = b.And(x_vld, out_rdy);
   BValue accum = b.RegisterRead(reg);
@@ -1160,24 +1177,20 @@ TEST_P(BlockEvaluatorTest, ChannelizedResetHandlingActiveLow) {
   BlockBuilder b(TestName(), package.get());
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
 
+  BValue rst = b.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = true});
   verilog::ResetProto reset;
   reset.set_name("rst");
   reset.set_asynchronous(false);
   reset.set_active_low(true);
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Register * reg,
-      b.block()->AddRegister("accum", package->GetBitsType(32),
-                             Reset{
-                                 .reset_value = Value(UBits(0, 32)),
-                                 .asynchronous = reset.asynchronous(),
-                                 .active_low = reset.active_low(),
-                             }));
+      Register * reg, b.block()->AddRegister("accum", package->GetBitsType(32),
+                                             Value(UBits(0, 32))));
 
   BValue x = b.InputPort("x", package->GetBitsType(32));
   BValue x_vld = b.InputPort("x_vld", package->GetBitsType(1));
   BValue out_rdy = b.InputPort("out_rdy", package->GetBitsType(1));
-  BValue rst = b.InputPort("rst", package->GetBitsType(1));
 
   BValue input_valid_and_output_ready = b.And(x_vld, out_rdy);
   BValue accum = b.RegisterRead(reg);
@@ -1660,7 +1673,9 @@ TEST_P(FifoTest, FifosReset) {
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
   // Make reset.
-  bb.InstantiationInput(fifo_inst, "rst", bb.InputPort("reset", u1));
+  BValue reset = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.InstantiationInput(fifo_inst, "rst", reset);
 
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
@@ -1725,7 +1740,9 @@ TEST_P(FifoTest, CutThroughLatencyCorrect) {
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
   // Make reset.
-  bb.InstantiationInput(fifo_inst, "rst", bb.InputPort("reset", u1));
+  BValue reset = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.InstantiationInput(fifo_inst, "rst", reset);
 
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));
@@ -1779,7 +1796,9 @@ TEST_P(FifoTest, BackpressureLatencyCorrect) {
   bb.OutputPort("push_ready", bb.InstantiationOutput(fifo_inst, "push_ready"));
 
   // Make reset.
-  bb.InstantiationInput(fifo_inst, "rst", bb.InputPort("reset", u1));
+  BValue reset = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+  bb.InstantiationInput(fifo_inst, "rst", reset);
 
   // Make push side.
   bb.InstantiationInput(fifo_inst, "push_data", bb.InputPort("push_data", u32));

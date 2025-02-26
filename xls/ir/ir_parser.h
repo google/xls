@@ -63,8 +63,13 @@ struct InitiationInterval {
   int64_t value;
 };
 
-using IrAttributePayload =
-    std::variant<InitiationInterval, ChannelPortMetadata, ForeignFunctionData>;
+struct ResetAttribute {
+  std::string port_name;
+  ResetBehavior behavior;
+};
+
+using IrAttributePayload = std::variant<InitiationInterval, ChannelPortMetadata,
+                                        ForeignFunctionData, ResetAttribute>;
 struct IrAttribute {
   std::string name;
   IrAttributePayload payload;

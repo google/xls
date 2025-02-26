@@ -62,6 +62,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/ir/register.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -1409,8 +1410,14 @@ absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
   std::optional<llvm::BasicBlock*> reset_selected;
   std::optional<llvm::BasicBlock*> no_load_enable_selected;
   if (write->reset()) {
-    XLS_RET_CHECK(write->GetRegister()->reset())
-        << "reset argument without reset behavior set";
+    XLS_RET_CHECK(write->GetRegister()->reset_value().has_value())
+        << "reset argument without reset value set";
+    std::optional<ResetBehavior> reset_behavior =
+        write->function_base()->AsBlockOrDie()->GetResetBehavior();
+    XLS_RET_CHECK(reset_behavior.has_value()) << absl::StreamFormat(
+        "reset argument without reset behavior set on block `%s`",
+        write->function_base()->name());
+
     reset_selected =
         llvm::BasicBlock::Create(ctx(), "reset_selected", function);
     llvm::BasicBlock* no_reset_selected =
@@ -1421,22 +1428,18 @@ absl::Status IrBuilderVisitor::HandleRegisterWrite(RegisterWrite* write) {
     auto reset_state =
         Truthiness(node_context.LoadOperand(op_idx, &current_step_builder),
                    current_step_builder);
-    if (write->GetRegister()->reset()->active_low) {
-      // current_step_builder.CreateCondBr(reset_state, *reset_selected,
-      //                                   no_reset_selected);
+    if (reset_behavior->active_low) {
       current_step_builder.CreateCondBr(reset_state, no_reset_selected,
                                         *reset_selected);
     } else {
       current_step_builder.CreateCondBr(reset_state, *reset_selected,
                                         no_reset_selected);
-      // current_step_builder.CreateCondBr(reset_state, no_reset_selected,
-      //                                   *reset_selected);
     }
 
     XLS_ASSIGN_OR_RETURN(
         reset_value,
         type_converter()->ToLlvmConstant(
-            return_type, write->GetRegister()->reset()->reset_value));
+            return_type, write->GetRegister()->reset_value().value()));
     reset_selected_builder.CreateBr(*return_value_block);
 
     current_step = no_reset_selected;

@@ -285,7 +285,35 @@ class BlockGenerator {
       const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types,
       const absl::flat_hash_map<OutputPort*, std::string>&
           output_port_sv_types) {
-    const std::optional<ResetProto>& reset_proto = options.reset();
+    // If reset is specified in the codegen options, it should match the reset
+    // behavior in the block.
+    if (options.reset().has_value()) {
+      if (block->GetResetBehavior() != options.GetResetBehavior()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Reset behavior specified in codegen options (%s) does not match "
+            "reset behavior specified in block `%s` (%s)",
+            options.GetResetBehavior()->ToString(), block->name(),
+            block->GetResetBehavior().has_value()
+                ? block->GetResetBehavior()->ToString()
+                : "<none>"));
+      }
+      if (block->GetResetPort().has_value() &&
+          block->GetResetPort().value()->name() != options.reset()->name()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Reset port specified in codegen options (%s) does not match "
+            "reset port specified in block `%s` (%s)",
+            options.reset()->name(), block->name(),
+            block->GetResetPort().value()->name()));
+      }
+    }
+    std::optional<ResetProto> reset_proto;
+    if (block->GetResetPort().has_value()) {
+      reset_proto = ResetProto();
+      reset_proto->set_name(block->GetResetPort().value()->name());
+      reset_proto->set_asynchronous(block->GetResetBehavior()->asynchronous);
+      reset_proto->set_active_low(block->GetResetBehavior()->active_low);
+    }
+
     if (reset_proto.has_value()) {
       VLOG(5) << absl::StreamFormat("Reset proto for %s: %s", block->name(),
                                     reset_proto->DebugString());
@@ -309,7 +337,7 @@ class BlockGenerator {
   BlockGenerator(
       Block* block, const CodegenOptions& options,
       std::optional<std::string_view> clock_name,
-      const std::optional<ResetProto>& reset_proto,
+      std::optional<ResetProto> reset_proto,
       const absl::flat_hash_map<InputPort*, std::string>& input_port_sv_types,
       const absl::flat_hash_map<OutputPort*, std::string>& output_port_sv_types,
       VerilogFile* file)
@@ -667,9 +695,9 @@ class BlockGenerator {
     for (Register* reg : registers) {
       VLOG(3) << "Declaring register " << reg->name();
       Expression* reset_expr = nullptr;
-      if (reg->reset().has_value()) {
+      if (reg->reset_value().has_value()) {
         XLS_RET_CHECK(reset.has_value());
-        const Value& reset_value = reg->reset()->reset_value;
+        const Value& reset_value = reg->reset_value().value();
 
         // If the value is a bits type it can be emitted inline. Otherwise emit
         // as a module constant.
@@ -701,7 +729,7 @@ class BlockGenerator {
       XLS_RET_CHECK(mb_registers_.contains(reg)) << absl::StreamFormat(
           "Register `%s` was not previously declared", reg->name());
       ModuleBuilder::Register mb_reg = mb_registers_.at(reg);
-      if (reg->reset().has_value()) {
+      if (reg->reset_value().has_value()) {
         registers_with_reset.push_back(mb_reg);
       } else {
         registers_without_reset.push_back(mb_reg);

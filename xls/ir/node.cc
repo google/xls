@@ -878,11 +878,11 @@ absl::Status Node::ReplaceOperandNumber(int64_t operand_no, Node* new_operand,
 }
 
 absl::Status Node::RemoveOptionalOperand(int64_t operand_no) {
-  XLS_RET_CHECK_EQ(operand_no, operands_.size() - 1);
+  XLS_RET_CHECK_LE(operand_no, operands_.size() - 1);
   Node* old_operand = operands_[operand_no];
   ++package()->transform_metrics().operands_removed;
 
-  operands_.pop_back();
+  operands_.erase(operands_.begin() + operand_no);
 
   if (absl::c_none_of(operands(), [old_operand](Node* operand) {
         return operand == old_operand;

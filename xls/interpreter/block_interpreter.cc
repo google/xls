@@ -90,11 +90,14 @@ class BlockInterpreter final : public IrInterpreter {
     auto get_next_reg_state = [&]() -> Value {
       if (reg_write->reset().has_value()) {
         bool reset_signal = ResolveAsBool(reg_write->reset().value());
-        const Reset& reset = reg_write->GetRegister()->reset().value();
-        if ((reset_signal && !reset.active_low) ||
-            (!reset_signal && reset.active_low)) {
+        std::optional<ResetBehavior> reset_behavior =
+            reg_write->function_base()->AsBlockOrDie()->GetResetBehavior();
+        if ((reset_signal && !reset_behavior->active_low) ||
+            (!reset_signal && reset_behavior->active_low)) {
           // Reset is activated. Next register state is the reset value.
-          return reset.reset_value;
+          const std::optional<Value>& reset_value =
+              reg_write->GetRegister()->reset_value();
+          return *reset_value;
         }
       }
       if (reg_write->load_enable().has_value() &&

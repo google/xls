@@ -85,12 +85,11 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
 absl::StatusOr<CodegenPassUnit> FunctionBaseToCombinationalBlock(
     FunctionBase* f, const CodegenOptions& options);
 
-// Adds a register between the node and all its downstream users.
-// Returns the new register added.
+// Adds a register between the node and all its downstream users.  Returns the
+// new register added. If the block has a reset port the register will have a
+// reset value of zero.
 absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
-    std::string_view name_prefix,
-    const std::optional<xls::Reset>& reset_behavior,
-    std::optional<Node*> load_enable, Node* node, Block* block);
+    std::string_view name_prefix, std::optional<Node*> load_enable, Node* node);
 
 // Add a zero-latency buffer after a set of data/valid/ready signal.
 //
@@ -102,8 +101,7 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
 // registers.
 absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
-    std::string_view name_prefix,
-    const std::optional<xls::Reset>& reset_behavior, Block* block,
+    std::string_view name_prefix, Block* block,
     std::vector<std::optional<Node*>>& valid_nodes);
 
 // Clones every node in the given proc into the given block. Some nodes are

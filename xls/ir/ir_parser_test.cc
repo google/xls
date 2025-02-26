@@ -37,6 +37,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/state_element.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -1041,6 +1042,22 @@ block my_block(in: bits[32], in_valid: bits[1], in_ready: bits[1],
   EXPECT_THAT(bar_metadata.data_port, Optional(Eq("out")));
   EXPECT_EQ(bar_metadata.ready_port, std::nullopt);
   EXPECT_EQ(bar_metadata.valid_port, std::nullopt);
+}
+
+TEST(IrParserTest, BlockWithResetPort) {
+  constexpr std::string_view input = R"(package test
+
+block my_block(rst: bits[1]) {
+  #![reset(port="rst", asynchronous=true, active_low=false)]
+  rst: bits[1] = input_port(name=rst)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * b, pkg->GetBlock("my_block"));
+  EXPECT_THAT(
+      b->GetResetBehavior(),
+      Optional(ResetBehavior{.asynchronous = true, .active_low = false}));
 }
 
 }  // namespace xls

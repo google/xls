@@ -86,15 +86,16 @@ top proc ObserverTest(st: bits[32] id=78, init={0}) {
 }
 
 block ObserverTest(clk: clock, in_data: bits[32], in_vld: bits[1], out_data: bits[32], rst: bits[1], out_rdy: bits[1], out_vld: bits[1], in_rdy: bits[1]) {
-  reg __st(bits[32], reset_value=0, asynchronous=false, active_low=false)
+  #![reset(port="rst", asynchronous=false, active_low=false)]
+  reg __st(bits[32], reset_value=0)
 
-  reg __in_data_reg(bits[32], reset_value=0, asynchronous=false, active_low=false)
+  reg __in_data_reg(bits[32], reset_value=0)
 
-  reg __in_data_valid_reg(bits[1], reset_value=0, asynchronous=false, active_low=false)
+  reg __in_data_valid_reg(bits[1], reset_value=0)
 
-  reg __out_data_reg(bits[32], reset_value=0, asynchronous=false, active_low=false)
+  reg __out_data_reg(bits[32], reset_value=0)
 
-  reg __out_data_valid_reg(bits[1], reset_value=0, asynchronous=false, active_low=false)
+  reg __out_data_valid_reg(bits[1], reset_value=0)
 
   in_data: bits[32] = input_port(name=in_data, id=13)
   in_vld: bits[1] = input_port(name=in_vld, id=15)

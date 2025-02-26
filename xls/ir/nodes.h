@@ -1085,14 +1085,18 @@ class RegisterWrite final : public Node {
                      "register does not have an existing load enable operand.");
   }
 
-  absl::Status AddOrReplaceReset(Node* new_reset_node, Reset new_reset_info) {
-    reg_->UpdateReset(new_reset_info);
-    if (!has_reset_) {
-      AddOperand(new_reset_node);
-      has_reset_ = true;
+  absl::Status SetReset(std::optional<Node*> reset) {
+    // Clear existing reset.
+    if (has_reset_) {
+      XLS_RETURN_IF_ERROR(RemoveOptionalOperand(*reset_operand_number()));
+      has_reset_ = false;
+    }
+    if (!reset.has_value()) {
       return absl::OkStatus();
     }
-    return ReplaceOperandNumber(*reset_operand_number(), new_reset_node);
+    has_reset_ = true;
+    AddOperand(reset.value());
+    return absl::OkStatus();
   }
 
   absl::StatusOr<int64_t> load_enable_operand_number() const {

@@ -20,13 +20,22 @@
 
 namespace xls {
 
+namespace {
+
+std::string BoolToString(bool b) { return b ? "true" : "false"; };
+
+}  // namespace
+
+std::string ResetBehavior::ToString() const {
+  return absl::StrFormat("ResetBehavior(asynchronous=%s, active_low=%s)",
+                         BoolToString(asynchronous), BoolToString(active_low));
+}
+
 std::string Register::ToString() const {
-  if (reset().has_value()) {
-    return absl::StrFormat(
-        "reg %s(%s, reset_value=%s, asynchronous=%s, active_low=%s)\n", name(),
-        type()->ToString(), reset().value().reset_value.ToHumanString(),
-        reset().value().asynchronous ? "true" : "false",
-        reset().value().active_low ? "true" : "false");
+  if (reset_value().has_value()) {
+    return absl::StrFormat("reg %s(%s, reset_value=%s)\n", name(),
+                           type()->ToString(),
+                           reset_value().value().ToHumanString());
   }
   return absl::StrFormat("reg %s(%s)", name(), type()->ToString());
 }

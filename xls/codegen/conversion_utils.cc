@@ -215,36 +215,34 @@ absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
 //   - Active low reset signals are inverted.
 //
 // See also MakeOrWithResetNode()
-absl::StatusOr<std::optional<Node*>> ResetAsserted(
-    const std::optional<xls::Reset>& reset_behavior, Block* block) {
-  XLS_RET_CHECK_EQ(block->GetResetPort().has_value(),
-                   reset_behavior.has_value());
-  if (!block->GetResetPort().has_value()) {
+absl::StatusOr<std::optional<Node*>> ResetAsserted(Block* block) {
+  std::optional<Node*> reset_node = block->GetResetPort();
+  std::optional<ResetBehavior> reset_behavior = block->GetResetBehavior();
+  if (!reset_node.has_value()) {
+    XLS_RET_CHECK(!reset_behavior.has_value());
     return std::nullopt;
   }
-
-  Node* reset_node = block->GetResetPort().value();
+  XLS_RET_CHECK(reset_behavior.has_value());
   if (reset_behavior->active_low) {
-    return block->MakeNode<UnOp>(/*loc=*/SourceInfo(), reset_node, Op::kNot);
+    return block->MakeNode<UnOp>(/*loc=*/SourceInfo(), *reset_node, Op::kNot);
   }
 
   return reset_node;
 }
 
-absl::StatusOr<std::optional<Node*>> ResetNotAsserted(
-    const std::optional<xls::Reset>& reset_behavior, Block* block) {
-  XLS_RET_CHECK_EQ(block->GetResetPort().has_value(),
-                   reset_behavior.has_value());
-  if (!block->GetResetPort().has_value()) {
+absl::StatusOr<std::optional<Node*>> ResetNotAsserted(Block* block) {
+  std::optional<Node*> reset_node = block->GetResetPort();
+  std::optional<ResetBehavior> reset_behavior = block->GetResetBehavior();
+  if (!reset_node.has_value()) {
+    XLS_RET_CHECK(!reset_behavior.has_value());
     return std::nullopt;
   }
-
-  Node* reset_node = block->GetResetPort().value();
-  if (!reset_behavior->active_low) {
-    return block->MakeNode<UnOp>(/*loc=*/SourceInfo(), reset_node, Op::kNot);
+  XLS_RET_CHECK(reset_behavior.has_value());
+  if (reset_behavior->active_low) {
+    return reset_node;
   }
 
-  return reset_node;
+  return block->MakeNode<UnOp>(/*loc=*/SourceInfo(), *reset_node, Op::kNot);
 }
 
 // Given a node returns a node that is OR'd with the reset signal.
@@ -257,13 +255,13 @@ absl::StatusOr<std::optional<Node*>> ResetNotAsserted(
 //      OR(src_node, NOT(reset))
 //
 // This is used to drive load_enable signals of pipeline valid registers.
-absl::StatusOr<Node*> MakeOrWithResetNode(
-    Node* src_node, std::string_view result_name,
-    const std::optional<xls::Reset>& reset_behavior, Block* block) {
+absl::StatusOr<Node*> MakeOrWithResetNode(Node* src_node,
+                                          std::string_view result_name,
+                                          Block* block) {
   Node* result = src_node;
 
   XLS_ASSIGN_OR_RETURN(std::optional<Node*> maybe_reset_node,
-                       ResetAsserted(reset_behavior, block));
+                       ResetAsserted(block));
 
   if (maybe_reset_node.has_value()) {
     Node* reset_node = maybe_reset_node.value();
@@ -280,21 +278,9 @@ absl::StatusOr<Node*> MakeOrWithResetNode(
 absl::Status MaybeAddResetPort(Block* block, const CodegenOptions& options) {
   // TODO(tedhong): 2021-09-18 Combine this with AddValidSignal
   if (options.reset().has_value()) {
-    XLS_RET_CHECK_OK(block->AddResetPort(options.reset()->name()));
-  }
-
-  // Connect reset to FIFO instantiations.
-  for (xls::Instantiation* instantiation : block->GetInstantiations()) {
-    if (instantiation->kind() != InstantiationKind::kFifo) {
-      continue;
-    }
-    XLS_RET_CHECK(options.reset().has_value())
-        << "Fifo instantiations require reset.";
     XLS_RETURN_IF_ERROR(block
-                            ->MakeNode<xls::InstantiationInput>(
-                                SourceInfo(), block->GetResetPort().value(),
-                                instantiation,
-                                xls::FifoInstantiation::kResetPortName)
+                            ->AddResetPort(options.reset()->name(),
+                                           options.GetResetBehavior().value())
                             .status());
   }
 

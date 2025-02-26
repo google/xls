@@ -83,8 +83,7 @@ namespace {
 static absl::StatusOr<std::vector<std::optional<Node*>>>
 MakePipelineStagesForValid(
     Node* valid_input_port,
-    absl::Span<const PipelineStageRegisters> pipeline_registers,
-    const std::optional<xls::Reset>& reset_behavior, Block* block) {
+    absl::Span<const PipelineStageRegisters> pipeline_registers, Block* block) {
   Type* u1 = block->package()->GetBitsType(1);
 
   std::vector<std::optional<Node*>> pipelined_valids(pipeline_registers.size() +
@@ -93,9 +92,19 @@ MakePipelineStagesForValid(
 
   for (int64_t stage = 0; stage < pipeline_registers.size(); ++stage) {
     // Add valid register to each pipeline stage.
-    XLS_ASSIGN_OR_RETURN(Register * valid_reg,
-                         block->AddRegister(PipelineSignalName("valid", stage),
-                                            u1, reset_behavior));
+    Register* valid_reg;
+    if (block->GetResetBehavior().has_value()) {
+      XLS_ASSIGN_OR_RETURN(valid_reg,
+                           block->AddRegisterWithZeroResetValue(
+                               PipelineSignalName("valid", stage), u1));
+    } else {
+      // TODO(https://github.com/google/xls/issues/1840): A registered valid
+      // signal must have a reset. This case cannot work in hardware. Remove
+      // this case.
+      XLS_ASSIGN_OR_RETURN(
+          valid_reg,
+          block->AddRegister(PipelineSignalName("valid", stage), u1));
+    }
     XLS_RETURN_IF_ERROR(block
                             ->MakeNode<RegisterWrite>(
                                 /*loc=*/SourceInfo(), *pipelined_valids[stage],
@@ -109,11 +118,6 @@ MakePipelineStagesForValid(
 
   return pipelined_valids;
 }
-
-
-
-
-
 
 static absl::StatusOr<ValidPorts> AddValidSignal(
     absl::Span<PipelineStageRegisters> pipeline_registers,
@@ -131,15 +135,12 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
       InputPort * valid_input_port,
       block->AddInputPort(options.valid_control()->input_name(), u1));
 
-  std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
-
   // Plumb valid signal through the pipeline stages. Gather the pipelined valid
   // signal in a vector where the zero-th element is the input port and
   // subsequent elements are the pipelined valid signal from each stage.
   XLS_ASSIGN_OR_RETURN(
       pipelined_valids,
-      MakePipelineStagesForValid(valid_input_port, pipeline_registers,
-                                 reset_behavior, block));
+      MakePipelineStagesForValid(valid_input_port, pipeline_registers, block));
 
   // Use the pipelined valid signal as load enable for each datapath pipeline
   // register in each stage as a power optimization.
@@ -151,16 +152,20 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
       XLS_ASSIGN_OR_RETURN(
           Node * load_enable,
           MakeOrWithResetNode(*pipelined_valids[stage],
-                              PipelineSignalName("load_en", stage),
-                              reset_behavior, block));
+                              PipelineSignalName("load_en", stage), block));
 
       for (PipelineRegister& pipeline_reg : pipeline_registers.at(stage)) {
+        std::optional<Node*> reset_signal;
+        if (block->GetResetPort().has_value() &&
+            options.reset()->reset_data_path()) {
+          reset_signal = block->GetResetPort();
+        }
         XLS_ASSIGN_OR_RETURN(
             auto* new_write,
             block->MakeNode<RegisterWrite>(
                 /*loc=*/SourceInfo(), pipeline_reg.reg_write->data(),
                 /*load_enable=*/load_enable,
-                /*reset=*/std::nullopt, pipeline_reg.reg));
+                /*reset=*/reset_signal, pipeline_reg.reg));
         if (node_to_stage_map.contains(pipeline_reg.reg_write)) {
           Stage s = node_to_stage_map[pipeline_reg.reg_write];
           node_to_stage_map.erase(pipeline_reg.reg_write);
@@ -405,6 +410,8 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
     block->SetInitiationInterval(*ii);
   }
 
+  XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
+
   if (!options.clock_name().has_value()) {
     return absl::InvalidArgumentError(
         "Clock name must be specified when generating a pipelined block");
@@ -421,8 +428,6 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_ASSIGN_OR_RETURN(
       (auto [streaming_io_and_pipeline, concurrent_stages]),
       CloneNodesIntoPipelinedBlock(transformed_schedule, options, block));
-
-  XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
 
   FunctionConversionMetadata function_metadata;
   if (options.valid_control().has_value()) {
@@ -473,28 +478,15 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
 // Adds a register between the node and all its downstream users.
 // Returns the new register added.
 absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
-    std::string_view name_prefix,
-    const std::optional<xls::Reset>& reset_behavior,
-    std::optional<Node*> load_enable, Node* node, Block* block) {
-  XLS_RET_CHECK(reset_behavior.has_value());
+    std::string_view name_prefix, std::optional<Node*> load_enable,
+    Node* node) {
+  Block* block = node->function_base()->AsBlockOrDie();
   XLS_RET_CHECK(block->GetResetPort().has_value());
-
   Type* node_type = node->GetType();
-
-  if (!reset_behavior.has_value()) {
-    return absl::InvalidArgumentError(
-        "Reset signal required but not specified.");
-  }
-
-  // Update reset_behavior to have a reset value of the right type.
-  xls::Reset reset_behavior_for_type = *reset_behavior;
-  reset_behavior_for_type.reset_value = ZeroOfType(node_type);
-
   std::string name = absl::StrFormat("__%s_reg", name_prefix);
 
-  XLS_ASSIGN_OR_RETURN(
-      Register * reg,
-      block->AddRegister(name, node_type, reset_behavior_for_type));
+  XLS_ASSIGN_OR_RETURN(Register * reg,
+                       block->AddRegisterWithZeroResetValue(name, node_type));
 
   XLS_ASSIGN_OR_RETURN(RegisterRead * reg_read,
                        block->MakeNodeWithName<RegisterRead>(
@@ -526,8 +518,7 @@ absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
 // registers.
 absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
-    std::string_view name_prefix,
-    const std::optional<xls::Reset>& reset_behavior, Block* block,
+    std::string_view name_prefix, Block* block,
     std::vector<std::optional<Node*>>& valid_nodes) {
   CHECK_EQ(from_rdy->operand_count(), 1);
 
@@ -538,13 +529,14 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
   // Create data/valid and their skid counterparts.
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_skid_reg_read,
-      AddRegisterAfterNode(absl::StrCat(name_prefix, "_skid"), reset_behavior,
-                           literal_1, from_data, block));
+      AddRegisterAfterNode(/*name_prefix=*/absl::StrCat(name_prefix, "_skid"),
+                           /*load_enable=*/literal_1, from_data));
 
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * data_valid_skid_reg_read,
-      AddRegisterAfterNode(absl::StrCat(name_prefix, "_valid_skid"),
-                           reset_behavior, literal_1, from_valid, block));
+      AddRegisterAfterNode(
+          /*name_prefix=*/absl::StrCat(name_prefix, "_valid_skid"),
+          /*load_enable=*/literal_1, from_valid));
 
   // If data_valid_skid_reg_read is 1, then data/valid outputs should
   // be selected from the skid set.

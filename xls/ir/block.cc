@@ -52,8 +52,16 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
+
+namespace {
+
+std::string BoolToString(bool b) { return b ? "true" : "false"; };
+
+}  // namespace
 
 std::string ChannelPortMetadata::ToString() const {
   std::string result =
@@ -260,6 +268,13 @@ std::string Block::DumpIr() const {
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
                                     absl::StrJoin(port_strings, ", "));
 
+  if (reset_behavior_.has_value()) {
+    absl::StrAppendFormat(
+        &res, "  #![reset(port=\"%s\", asynchronous=%s, active_low=%s)]\n",
+        reset_port_.value()->name(),
+        BoolToString(reset_behavior_->asynchronous),
+        BoolToString(reset_behavior_->active_low));
+  }
   for (const std::pair<std::string, ChannelDirection>& channel_direction :
        GetChannelsWithMappedPorts()) {
     absl::StrAppendFormat(
@@ -400,27 +415,33 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(std::string_view name,
 
 absl::StatusOr<Register*> Block::AddRegister(std::string_view requested_name,
                                              Type* type,
-                                             std::optional<Reset> reset) {
+                                             std::optional<Value> reset_value) {
   std::string name =
       register_name_uniquer_.GetSanitizedUniqueName(requested_name);
   if (name != requested_name) {
     VLOG(2) << "Multiple registers with name `" << requested_name
             << "` requested. Using name `" << name << "`.";
   }
-  if (reset.has_value()) {
-    if (type != package()->GetTypeForValue(reset.value().reset_value)) {
+  if (reset_value.has_value()) {
+    if (type != package()->GetTypeForValue(*reset_value)) {
       return absl::InvalidArgumentError(absl::StrFormat(
-          "Reset value %s for register %s is not of type %s",
-          reset.value().reset_value.ToString(), name, type->ToString()));
+          "Reset value `%s` for register `%s` is not of type `%s`",
+          reset_value->ToString(), name, type->ToString()));
     }
   }
-  registers_[name] = std::make_unique<Register>(std::string(name), type, reset);
+  registers_[name] =
+      std::make_unique<Register>(std::string(name), type, reset_value);
   register_vec_.push_back(registers_[name].get());
   Register* reg = register_vec_.back();
   register_reads_[reg] = {};
   register_writes_[reg] = {};
 
   return register_vec_.back();
+}
+
+absl::StatusOr<Register*> Block::AddRegisterWithZeroResetValue(
+    std::string_view requested_name, Type* type) {
+  return AddRegister(requested_name, type, ZeroOfType(type));
 }
 
 absl::Status Block::RemoveRegister(Register* reg) {
@@ -465,13 +486,44 @@ absl::Status Block::AddClockPort(std::string_view name) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<InputPort*> Block::AddResetPort(std::string_view name) {
+absl::StatusOr<InputPort*> Block::AddResetPort(std::string_view port_name,
+                                               ResetBehavior behavior) {
   if (reset_port_.has_value()) {
-    return absl::InternalError("Block already has reset.");
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Block `%s` already has a reset port", name()));
   }
-  XLS_ASSIGN_OR_RETURN(reset_port_,
-                       AddInputPort(name, package()->GetBitsType(1)));
-  return *reset_port_;
+  XLS_ASSIGN_OR_RETURN(InputPort * port,
+                       AddInputPort(port_name, package()->GetBitsType(1)));
+  XLS_RETURN_IF_ERROR(SetResetPort(port, behavior));
+  return port;
+}
+
+absl::Status Block::SetResetPort(InputPort* input_port,
+                                 ResetBehavior behavior) {
+  XLS_RET_CHECK(input_port->function_base() == this);
+  if (reset_port_.has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Block `%s` already has a reset port", name()));
+  }
+  if (input_port->GetType() != package()->GetBitsType(1)) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Reset port must be single bit type, port `%s` type is %s",
+        input_port->name(), input_port->port_type()->ToString()));
+  }
+  reset_port_ = input_port;
+  reset_behavior_ = behavior;
+  return absl::OkStatus();
+}
+
+absl::Status Block::OverrideResetBehavior(ResetBehavior behavior) {
+  if (!reset_port_.has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot override reset behavior of block `%s`. Block "
+                        "does not have a reset port set",
+                        name()));
+  }
+  reset_behavior_ = behavior;
+  return absl::OkStatus();
 }
 
 // Removes the element `node` from the vector element in the given map at the
@@ -551,6 +603,11 @@ absl::Status Block::RemoveNode(Node* n) {
     XLS_RET_CHECK(port_it != ports_.end()) << absl::StrFormat(
         "port node %s is not in the vector of ports", port_name);
     ports_.erase(port_it);
+
+    if (GetResetPort().has_value() && n == GetResetPort().value()) {
+      reset_port_ = std::nullopt;
+      reset_behavior_ = std::nullopt;
+    }
 
     // If the port appears in the channel metadata mapping, remove it. This can
     // occur, for example, when removing zero-width ports (e.g., from empty
@@ -846,7 +903,6 @@ absl::StatusOr<Block*> Block::Clone(
       XLS_RETURN_IF_ERROR(cloned_block->AddClockPort(*clk_port_name));
     }
   }
-
   auto to_new_name = [&](Register* r) {
     auto it = reg_name_map.find(r->name());
     if (it == reg_name_map.end()) {
@@ -857,9 +913,9 @@ absl::StatusOr<Block*> Block::Clone(
   for (Register* reg : GetRegisters()) {
     XLS_ASSIGN_OR_RETURN(Type * mapped_type,
                          target_package->MapTypeFromOtherPackage(reg->type()));
-    XLS_ASSIGN_OR_RETURN(
-        register_map[reg],
-        cloned_block->AddRegister(to_new_name(reg), mapped_type, reg->reset()));
+    XLS_ASSIGN_OR_RETURN(register_map[reg], cloned_block->AddRegister(
+                                                to_new_name(reg), mapped_type,
+                                                reg->reset_value()));
   }
 
   for (Instantiation* inst : GetInstantiations()) {
@@ -960,6 +1016,14 @@ absl::StatusOr<Block*> Block::Clone(
           node->CloneInNewFunction(cloned_operands, cloned_block));
     }
   }
+
+  // Copy over reset and channel port metadata.
+  if (GetResetPort().has_value()) {
+    XLS_RETURN_IF_ERROR(cloned_block->SetResetPort(
+        original_to_clone[*GetResetPort()]->As<InputPort>(),
+        *GetResetBehavior()));
+  }
+  cloned_block->channel_port_metadata_ = channel_port_metadata_;
 
   {
     std::vector<std::string> correct_ordering;

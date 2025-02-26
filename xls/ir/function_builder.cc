@@ -37,6 +37,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/foreign_function_data.pb.h"
@@ -1767,11 +1768,14 @@ BValue BlockBuilder::Param(std::string_view name, Type* type,
   return SetError("Cannot add parameters to blocks", loc);
 }
 
-BValue BlockBuilder::ResetPort(std::string_view name) {
+BValue BlockBuilder::ResetPort(std::string_view name,
+                               ResetBehavior reset_behavior,
+                               const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
-  absl::StatusOr<xls::InputPort*> port_status = block()->AddResetPort(name);
+  absl::StatusOr<xls::InputPort*> port_status =
+      block()->AddResetPort(name, reset_behavior);
   if (!port_status.ok()) {
     return SetError(absl::StrFormat("Unable to add reset port to block: %s",
                                     port_status.status().message()),
@@ -1860,14 +1864,14 @@ BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
 }
 
 BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
-                                    BValue reset_signal, Reset reset,
+                                    BValue reset_signal, Value reset_value,
                                     std::optional<BValue> load_enable,
                                     const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
   absl::StatusOr<Register*> reg_status =
-      block()->AddRegister(name, data.GetType(), reset);
+      block()->AddRegister(name, data.GetType(), std::move(reset_value));
   if (!reg_status.ok()) {
     return SetError(absl::StrFormat("Cannot add register: %s",
                                     reg_status.status().message()),

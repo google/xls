@@ -118,8 +118,8 @@ class CodegenOptions {
                         bool active_low, bool reset_data_path);
   const std::optional<ResetProto>& reset() const { return reset_proto_; }
 
-  // Returns an xls::Reset constructed from the reset() proto.
-  std::optional<xls::Reset> ResetBehavior() const;
+  // Returns an ResetBehavior constructed from the reset() proto.
+  std::optional<ResetBehavior> GetResetBehavior() const;
 
   // Specifies manual pipeline register load-enable control.
   CodegenOptions& manual_control(std::string_view input_name);

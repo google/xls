@@ -1739,6 +1739,7 @@ cc_library(
     deps = [
         ":codegen_options",
         ":codegen_pass",
+        ":conversion_utils",
         "//xls/codegen/vast",
         "//xls/common:casts",
         "//xls/common/status:ret_check",

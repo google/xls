@@ -30,6 +30,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/conversion_utils.h"
 #include "xls/codegen/vast/vast.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
@@ -497,10 +498,8 @@ absl::StatusOr<bool> BlockStitchingPass::RunInternal(
   unit->metadata.insert({unit->top_block, CodegenMetadata{}});
 
   XLS_RETURN_IF_ERROR(unit->top_block->AddClockPort("clk"));
-  if (options.codegen_options.reset().has_value()) {
-    XLS_RET_CHECK_OK(
-        unit->top_block->AddResetPort(options.codegen_options.reset()->name()));
-  }
+  XLS_RETURN_IF_ERROR(
+      MaybeAddResetPort(unit->top_block, options.codegen_options));
 
   XLS_RETURN_IF_ERROR(StitchBlocks(*unit, options.codegen_options));
   return true;

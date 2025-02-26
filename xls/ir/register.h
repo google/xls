@@ -16,21 +16,33 @@
 #define XLS_IR_REGISTER_H_
 
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_utils.h"
 
 namespace xls {
 
-// Data structure describing the reset behavior of a register.
-struct Reset {
-  Value reset_value;
+struct ResetBehavior {
   bool asynchronous;
   bool active_low;
+
+  bool operator==(const ResetBehavior& other) const {
+    return asynchronous == other.asynchronous && active_low == other.active_low;
+  }
+  std::string ToString() const;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const ResetBehavior& rb) {
+  os << rb.ToString();
+  return os;
+}
 
 class RegisterWrite;
 
@@ -38,24 +50,30 @@ class RegisterWrite;
 // contained in and owned by Blocks and lower to registers in Verilog.
 class Register {
  public:
-  Register(std::string_view name, Type* type, std::optional<Reset> reset)
-      : name_(name), type_(type), reset_(std::move(reset)) {}
+  Register(std::string_view name, Type* type,
+           std::optional<Value> reset_value = std::nullopt)
+      : name_(name), type_(type), reset_value_(std::move(reset_value)) {}
 
   const std::string& name() const { return name_; }
   Type* type() const { return type_; }
-  const std::optional<Reset>& reset() const { return reset_; }
+  const std::optional<Value>& reset_value() const { return reset_value_; }
 
   std::string ToString() const;
+  absl::Status SetResetValue(std::optional<Value> reset_value) {
+    if (reset_value.has_value() &&
+        !ValueConformsToType(reset_value.value(), type())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid reset value `%s` is not the same type as the register: %s",
+          reset_value->ToString(), type()->ToString()));
+    }
+    reset_value = reset_value_;
+    return absl::OkStatus();
+  }
 
  private:
-  // RegisterWrite can access Register so that it can update
-  // reset information.
-  friend RegisterWrite;
-  void UpdateReset(Reset reset_info) { reset_ = reset_info; }
-
   std::string name_;
   Type* type_;
-  std::optional<Reset> reset_;
+  std::optional<Value> reset_value_;
 };
 
 }  // namespace xls

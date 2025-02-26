@@ -1962,22 +1962,6 @@ block my_block(clk: clock, in: bits[32], out: bits[32]) {
                        HasSubstr("Register already exists with name foo")));
 }
 
-TEST(IrParserErrorTest, ParseBlockWithIncompleteResetDefinition) {
-  const std::string input = R"(
-block my_block(clk: clock, in: bits[32], out: bits[32]) {
-  reg foo(bits[32], reset_value=42)
-  in: bits[32] = input_port(name=in, id=1)
-  foo_q: bits[32] = register_read(register=foo, id=3)
-  foo_d: () = register_write(in, register=foo, id=2)
-  out: () = output_port(foo_q, name=out, id=4)
-}
-)";
-  Package p("my_package");
-  EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Register reset incompletely specified")));
-}
-
 TEST(IrParserErrorTest, BlockWithRegistersButNoClock) {
   const std::string input = R"(
 block my_block(in: bits[32], out: bits[32]) {
@@ -2062,7 +2046,7 @@ block my_block(clk: clock, in: bits[32], out: bits[32], out: bits[32]) {
 TEST(IrParserErrorTest, BlockWithInvalidRegisterField) {
   const std::string input = R"(
 block my_block(clk: clock, in: bits[32], out: bits[32]) {
-  reg foo(bits[32], bogus_field=1, reset_value=42, asynchronous=true, active_low=false)
+  reg foo(bits[32], bogus_field=1, reset_value=42)
   in: bits[32] = input_port(name=in, id=1)
   foo_q: bits[32] = register_read(register=foo, id=3)
   foo_d: () = register_write(in, register=foo, id=2)
@@ -2469,6 +2453,20 @@ TEST(IrParserErrorTest, InvalidNodeId) {
       Parser::ParseFunction(input, &p).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Invalid node id -1, must be greater than zero")));
+}
+
+TEST(IrParserTest, BlockWithInvalidResetPort) {
+  constexpr std::string_view input = R"(package test
+
+block my_block(rst: bits[1]) {
+  #![reset(port="not_really_a_port", asynchronous=true, active_low=false)]
+  rst: bits[1] = input_port(name=rst)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Block `my_block` has no input port named "
+                                 "`not_really_a_port`")));
 }
 
 }  // namespace xls

@@ -307,9 +307,8 @@ class Node {
   // links as with AddOperand.
   void AddOptionalOperand(std::optional<Node*> operand);
 
-  // Removes the optional operand at position 'operand_no'. Returns an error if
-  // this is not the last operand of the node; notes that this node is no longer
-  // a user of the operand if this is its last use.
+  // Removes the optional operand at position 'operand_no'. Notes that this node
+  // is no longer a user of the operand if this is its last use.
   absl::Status RemoveOptionalOperand(int64_t operand_no);
 
   // Adds the given node to this node's function and replaces this node's uses

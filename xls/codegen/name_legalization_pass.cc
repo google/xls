@@ -311,9 +311,9 @@ const absl::flat_hash_set<std::string>& SystemVerilogKeywords() {
 // This effectively renames the `old_reg`.
 absl::Status RenameRegister(Block* block, Register* old_reg) {
   std::string_view old_name = old_reg->name();
-  XLS_ASSIGN_OR_RETURN(
-      Register * new_reg,
-      block->AddRegister(old_reg->name(), old_reg->type(), old_reg->reset()));
+  XLS_ASSIGN_OR_RETURN(Register * new_reg,
+                       block->AddRegister(old_reg->name(), old_reg->type(),
+                                          old_reg->reset_value()));
   XLS_RET_CHECK_NE(old_name, new_reg->name());
 
   XLS_ASSIGN_OR_RETURN(RegisterRead * old_read,

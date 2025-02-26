@@ -10,7 +10,7 @@ module pipelined_proc__1(
   output wire internal_vld,
   output wire in_rdy
 );
-  reg [31:0] p0_tuple_index_17;
+  reg [31:0] p0_tuple_index_18;
   reg p0_valid;
   reg [31:0] __in_reg;
   reg __in_valid_reg;
@@ -38,18 +38,18 @@ module pipelined_proc__1(
   assign in_load_en = in_vld & in_valid_load_en;
   always @ (posedge clk) begin
     if (rst) begin
-      p0_tuple_index_17 <= 32'h0000_0000;
+      p0_tuple_index_18 <= 32'h0000_0000;
       p0_valid <= 1'h0;
       __in_reg <= 32'h0000_0000;
       __in_valid_reg <= 1'h0;
       __internal_reg <= 32'h0000_0000;
       __internal_valid_reg <= 1'h0;
     end else begin
-      p0_tuple_index_17 <= p0_data_enable ? __in_reg : p0_tuple_index_17;
+      p0_tuple_index_18 <= p0_data_enable ? __in_reg : p0_tuple_index_18;
       p0_valid <= p0_enable ? __in_valid_reg : p0_valid;
       __in_reg <= in_load_en ? in : __in_reg;
       __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
-      __internal_reg <= internal_load_en ? p0_tuple_index_17 : __internal_reg;
+      __internal_reg <= internal_load_en ? p0_tuple_index_18 : __internal_reg;
       __internal_valid_reg <= internal_valid_load_en ? p0_valid : __internal_valid_reg;
     end
   end
@@ -69,7 +69,7 @@ module proc_out(
   output wire out_vld,
   output wire internal_rdy
 );
-  reg [31:0] p0_tuple_index_74;
+  reg [31:0] p0_tuple_index_75;
   reg p0_valid;
   reg [31:0] __internal_reg;
   reg __internal_valid_reg;
@@ -97,18 +97,18 @@ module proc_out(
   assign internal_load_en = internal_vld & internal_valid_load_en;
   always @ (posedge clk) begin
     if (rst) begin
-      p0_tuple_index_74 <= 32'h0000_0000;
+      p0_tuple_index_75 <= 32'h0000_0000;
       p0_valid <= 1'h0;
       __internal_reg <= 32'h0000_0000;
       __internal_valid_reg <= 1'h0;
       __out_reg <= 32'h0000_0000;
       __out_valid_reg <= 1'h0;
     end else begin
-      p0_tuple_index_74 <= p0_data_enable ? __internal_reg : p0_tuple_index_74;
+      p0_tuple_index_75 <= p0_data_enable ? __internal_reg : p0_tuple_index_75;
       p0_valid <= p0_enable ? __internal_valid_reg : p0_valid;
       __internal_reg <= internal_load_en ? internal : __internal_reg;
       __internal_valid_reg <= internal_valid_load_en ? internal_vld : __internal_valid_reg;
-      __out_reg <= out_load_en ? p0_tuple_index_74 : __out_reg;
+      __out_reg <= out_load_en ? p0_tuple_index_75 : __out_reg;
       __out_valid_reg <= out_valid_load_en ? p0_valid : __out_valid_reg;
     end
   end

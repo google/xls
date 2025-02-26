@@ -15,6 +15,7 @@
 #include "xls/ir/verify_node.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "absl/algorithm/container.h"
@@ -35,6 +36,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/register.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -1081,17 +1083,17 @@ class NodeChecker : public DfsVisitor {
   absl::Status HandleRegisterWrite(RegisterWrite* reg_write) override {
     XLS_RETURN_IF_ERROR(
         ExpectOperandHasType(reg_write, 0, reg_write->GetRegister()->type()));
-    if (reg_write->GetRegister()->reset().has_value() &&
+    if (reg_write->GetRegister()->reset_value().has_value() &&
         !reg_write->reset().has_value()) {
       return absl::InternalError(absl::StrFormat(
           "Register %s has a reset value but corresponding register write "
           "operation %s has no reset operand",
           reg_write->GetRegister()->name(), reg_write->GetName()));
     }
-    if (!reg_write->GetRegister()->reset().has_value() &&
+    if (!reg_write->GetRegister()->reset_value().has_value() &&
         reg_write->reset().has_value()) {
       return absl::InternalError(absl::StrFormat(
-          "Register %s has a no reset value but corresponding register write "
+          "Register %s has no reset value but corresponding register write "
           "operation %s has a reset operand",
           reg_write->GetRegister()->name(), reg_write->GetName()));
     }

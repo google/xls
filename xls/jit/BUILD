@@ -198,6 +198,7 @@ cc_library(
         "//xls/ir:format_preference",
         "//xls/ir:format_strings",
         "//xls/ir:op",
+        "//xls/ir:register",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_utils",
@@ -1287,7 +1288,7 @@ aot_protobuf(
 # need to do this since the generated wrappers handle all of this for you.
 genrule(
     name = "some_caps_no_idents",
-    srcs = ["//xls/examples/dslx_module:manaul_chan_caps_streaming_configured_opt_ir.opt.ir"],
+    srcs = ["//xls/examples/dslx_module:manual_chan_caps_streaming_configured_opt_ir.opt.ir"],
     outs = ["some_caps_no_idents.ir"],
     cmd = """
         $(location //xls/dev_tools:remove_identifiers_main) $< > $@

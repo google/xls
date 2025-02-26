@@ -64,21 +64,16 @@ TEST(BlockMetricsGeneratorTest, PipelineRegisters) {
   BlockBuilder bb("test_block", &package);
 
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
-  BValue rst = bb.InputPort("rst", package.GetBitsType(1));
+  BValue rst = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
 
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
   BValue c = bb.Subtract(a, b);
 
-  BValue p0_c = bb.InsertRegister("p0_c", c, rst,
-                                  xls::Reset{.reset_value = Value(UBits(0, 32)),
-                                             .asynchronous = false,
-                                             .active_low = false});
+  BValue p0_c = bb.InsertRegister("p0_c", c, rst, Value(UBits(0, 32)));
 
-  BValue p1_c = bb.InsertRegister("p1_c", p0_c, rst,
-                                  xls::Reset{.reset_value = Value(UBits(0, 32)),
-                                             .asynchronous = false,
-                                             .active_low = false});
+  BValue p1_c = bb.InsertRegister("p1_c", p0_c, rst, Value(UBits(0, 32)));
 
   bb.OutputPort("z", p1_c);
 

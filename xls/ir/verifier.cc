@@ -1015,6 +1015,34 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(block));
 
+  // The block should have both reset port and reset behavior defined, or
+  // neither.
+  if (block->GetResetPort().has_value() &&
+      !block->GetResetBehavior().has_value()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Block `%s` has a reset port but no defined reset behavior",
+        block->name()));
+  }
+  if (!block->GetResetPort().has_value() &&
+      block->GetResetBehavior().has_value()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Block `%s` has a defined reset behavior but no reset port",
+        block->name()));
+  }
+
+  // If the block does not have a reset port, then none of the registers should
+  // have reset values.
+  if (!block->GetResetPort().has_value()) {
+    for (Register* reg : block->GetRegisters()) {
+      if (reg->reset_value().has_value()) {
+        return absl::InternalError(
+            absl::StrFormat("Register `%s` of block `%s` has a reset value but "
+                            "the  block has no reset port",
+                            reg->name(), block->name()));
+      }
+    }
+  }
+
   // Verify that there are no cycles in the node graph.
   // The previous check in VerifyFunctionBase looks locally, but does not look
   // for cycles through instantiations. We elaborate and use a visitor on the

@@ -104,9 +104,16 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
     if (!instance->parent_instance()) {
       // Top block, no linking of ports required.
       XLS_ASSIGN_OR_RETURN(
-          Node * new_input,
+          InputPort * new_input,
           new_block_->AddInputPort(port->name(), port->GetType(), port->loc()));
       old_to_new_[{.node = port, .instance = instance}] = new_input;
+      std::optional<InputPort*> old_reset_port =
+          port->function_base()->AsBlockOrDie()->GetResetPort();
+      if (old_reset_port.has_value() && old_reset_port.value() == port) {
+        XLS_RETURN_IF_ERROR(new_block_->SetResetPort(
+            new_input,
+            *port->function_base()->AsBlockOrDie()->GetResetBehavior()));
+      }
       return absl::OkStatus();
     }
     // The InstantiationInput node has already filled in the ops map so no need
@@ -243,7 +250,7 @@ class InlineVisitor : public ElaboratedBlockDfsVisitorWithDefault {
     XLS_ASSIGN_OR_RETURN(
         Register * new_reg,
         new_block_->AddRegister(InstanceRegisterName(old_reg, instance),
-                                old_reg->type(), old_reg->reset()));
+                                old_reg->type(), old_reg->reset_value()));
     reg_map_[{old_reg, instance}] = new_reg;
     return new_reg;
   }
@@ -271,6 +278,7 @@ absl::StatusOr<Block*> InlineElaboration(
   Block* stitched = elab.package()->AddBlock(
       std::make_unique<Block>(top_name, elab.package()));
   absl::Span<Block* const> all_blocks = elab.blocks();
+
   auto clk_it = absl::c_find_if(
       all_blocks, [](Block* b) { return b->GetClockPort().has_value(); });
   if (clk_it != all_blocks.cend()) {

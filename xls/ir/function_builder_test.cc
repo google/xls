@@ -25,6 +25,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/format_preference.h"
@@ -1137,19 +1138,13 @@ TEST(FunctionBuilderTest, Registers) {
   XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
 
   BValue x = b.InputPort("x", p.GetBitsType(32));
-  BValue rst = b.ResetPort("rst");
+  BValue rst = b.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
   BValue le = b.InputPort("le", p.GetBitsType(1));
 
   BValue x_1 = b.InsertRegister("x_1", x);
-  BValue x_2 =
-      b.InsertRegister("x_2", x, rst,
-                       Reset{Value(UBits(42, 32)), /*asynchronous=*/false,
-                             /*active_low=*/false});
-  BValue x_3 =
-      b.InsertRegister("x_3", x, rst,
-                       Reset{Value(UBits(123, 32)), /*asynchronous=*/false,
-                             /*active_low=*/true},
-                       le);
+  BValue x_2 = b.InsertRegister("x_2", x, rst, Value(UBits(42, 32)));
+  BValue x_3 = b.InsertRegister("x_3", x, rst, Value(UBits(123, 32)), le);
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 

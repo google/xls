@@ -292,17 +292,13 @@ void RegisterResetBehavior(absl::Span<RegInput const> inputs) {
   VerifiedPackage p("fuzz_test");
   BlockBuilder bb("fuzz_test", &p);
   XLS_ASSERT_OK(bb.AddClockPort("clk"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto reg,
-      bb.block()->AddRegister("foo", p.GetBitsType(32),
-                              Reset{
-                                  .reset_value = Value(UBits(1234, 32)),
-                                  .asynchronous = false,
-                                  .active_low = false,
-                              }));
+  BValue reset_port = bb.ResetPort(
+      "reset", ResetBehavior{.asynchronous = false, .active_low = false});
+  XLS_ASSERT_OK_AND_ASSIGN(auto reg,
+                           bb.block()->AddRegister("foo", p.GetBitsType(32),
+                                                   Value(UBits(1234, 32))));
   bb.RegisterWrite(reg, bb.InputPort("reg_data", p.GetBitsType(32)),
-                   bb.InputPort("le", p.GetBitsType(1)),
-                   bb.InputPort("reset", p.GetBitsType(1)));
+                   bb.InputPort("le", p.GetBitsType(1)), reset_port);
   bb.OutputPort("reg_out", bb.RegisterRead(reg));
   XLS_ASSERT_OK_AND_ASSIGN(Block * blk, bb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto oracle,

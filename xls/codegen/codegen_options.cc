@@ -150,12 +150,11 @@ CodegenOptions& CodegenOptions::reset(std::string_view name, bool asynchronous,
   return *this;
 }
 
-std::optional<xls::Reset> CodegenOptions::ResetBehavior() const {
+std::optional<ResetBehavior> CodegenOptions::GetResetBehavior() const {
   if (!reset_proto_.has_value()) {
     return std::nullopt;
   }
-  return xls::Reset{
-      .reset_value = Value(UBits(0, 1)),
+  return ResetBehavior{
       .asynchronous = reset_proto_->asynchronous(),
       .active_low = reset_proto_->active_low(),
   };

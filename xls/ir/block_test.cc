@@ -37,6 +37,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -46,13 +47,17 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
+namespace m = ::xls::op_matchers;
+
 namespace xls {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
+using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::Optional;
 using ::testing::UnorderedElementsAre;
 
 class BlockTest : public IrTestBase {
@@ -467,14 +472,11 @@ TEST_F(BlockTest, RegisterWithInvalidResetValue) {
   auto p = CreatePackage();
   Block* blk = p->AddBlock(std::make_unique<Block>("block1", p.get()));
   EXPECT_THAT(
-      blk->AddRegister("my_reg", p->GetBitsType(32),
-                       Reset{.reset_value = Value(UBits(0, 8)),
-                             .asynchronous = false,
-                             .active_low = false})
-          .status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Reset value bits[8]:0 for register my_reg is not of "
-                         "type bits[32]")));
+      blk->AddRegister("my_reg", p->GetBitsType(32), Value(UBits(0, 8))),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Reset value `bits[8]:0` for register `my_reg` is not of "
+                    "type `bits[32]`")));
 }
 
 TEST_F(BlockTest, AddDuplicateRegisters) {
@@ -818,6 +820,49 @@ TEST_F(BlockTest, ReplaceInstantiationWithRename) {
 
       absl_testing::IsOk());
   ExpectIr(p->DumpIr(), TestName());
+}
+
+TEST_F(BlockTest, ManipulateResetPort) {
+  auto p = CreatePackage();
+  BlockBuilder bb("my_block", p.get());
+  BValue not_the_reset_port =
+      bb.InputPort("not_the_reset_port", p->GetBitsType(1));
+  BValue reset = bb.ResetPort(
+      "rst", ResetBehavior{.asynchronous = false, .active_low = false});
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(block->GetResetPort(), Optional(m::InputPort("rst")));
+  EXPECT_THAT(
+      block->GetResetBehavior(),
+      Optional(Eq(ResetBehavior{.asynchronous = false, .active_low = false})));
+
+  XLS_ASSERT_OK(block->OverrideResetBehavior(
+      ResetBehavior{.asynchronous = true, .active_low = false}));
+
+  EXPECT_THAT(
+      block->GetResetBehavior(),
+      Optional(Eq(ResetBehavior{.asynchronous = true, .active_low = false})));
+
+  XLS_ASSERT_OK(block->RemoveNode(reset.node()));
+
+  EXPECT_EQ(block->GetResetPort(), std::nullopt);
+  EXPECT_EQ(block->GetResetBehavior(), std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InputPort * new_reset_port,
+      block->AddResetPort(
+          "new_rst", ResetBehavior{.asynchronous = false, .active_low = true}));
+
+  EXPECT_THAT(new_reset_port, m::InputPort("new_rst"));
+  EXPECT_THAT(block->GetResetPort(), Optional(Eq(new_reset_port)));
+  EXPECT_THAT(
+      block->GetResetBehavior(),
+      Optional(Eq(ResetBehavior{.asynchronous = false, .active_low = true})));
+
+  EXPECT_THAT(block->SetResetPort(not_the_reset_port.node()->As<InputPort>(),
+                                  *block->GetResetBehavior()),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("already has a reset port")));
 }
 
 }  // namespace

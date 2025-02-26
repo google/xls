@@ -210,6 +210,12 @@ class CloneNodesIntoBlockHandler {
                         *streaming_channel->channel_config().fifo_config(),
                         streaming_channel->type(), streaming_channel->name(),
                         block()->package())));
+            XLS_RETURN_IF_ERROR(
+                block()
+                    ->MakeNode<xls::InstantiationInput>(
+                        SourceInfo(), block()->GetResetPort().value(),
+                        instantiation, xls::FifoInstantiation::kResetPortName)
+                    .status());
             itr->second = instantiation;
           } else {
             instantiation = itr->second;
@@ -330,7 +336,9 @@ class CloneNodesIntoBlockHandler {
       std::string name =
           block()->UniquifyNodeName(absl::StrCat("__", state_element->name()));
 
-      XLS_ASSIGN_OR_RETURN(reg, block()->AddRegister(name, node->GetType()));
+      XLS_ASSIGN_OR_RETURN(
+          reg, block()->AddRegister(name, node->GetType(),
+                                    state_element->initial_value()));
 
       XLS_ASSIGN_OR_RETURN(reg_read, block()->MakeNodeWithName<RegisterRead>(
                                          node->loc(), reg,
@@ -423,11 +431,12 @@ class CloneNodesIntoBlockHandler {
 
       // Make a placeholder RegisterWrite; the real one requires access to all
       // the `next_value` nodes and the control flow logic.
-      XLS_ASSIGN_OR_RETURN(state_register.reg_write,
-                           block()->MakeNode<RegisterWrite>(
-                               next->loc(), node_map_.at(next->value()),
-                               /*load_enable=*/std::nullopt,
-                               /*reset=*/std::nullopt, state_register.reg));
+      XLS_ASSIGN_OR_RETURN(
+          state_register.reg_write,
+          block()->MakeNode<RegisterWrite>(
+              next->loc(), node_map_.at(next->value()),
+              /*load_enable=*/std::nullopt,
+              /*reset=*/block()->GetResetPort(), state_register.reg));
       result_.output_states[stage].push_back(index);
       result_.node_to_stage_map[state_register.reg_write] = stage;
     } else if (!state_element->type()->IsToken() &&
@@ -450,7 +459,8 @@ class CloneNodesIntoBlockHandler {
       XLS_ASSIGN_OR_RETURN(
           state_register.reg_full,
           block()->AddRegister(absl::StrCat("__", state_register.name, "_full"),
-                               block()->package()->GetBitsType(1)));
+                               block()->package()->GetBitsType(1),
+                               Value(UBits(1, 1))));
       XLS_ASSIGN_OR_RETURN(state_register.reg_full_read,
                            block()->MakeNodeWithName<RegisterRead>(
                                next->loc(), state_register.reg_full,
@@ -462,7 +472,7 @@ class CloneNodesIntoBlockHandler {
           state_register.reg_full_write,
           block()->MakeNode<RegisterWrite>(next->loc(), literal_1,
                                            /*load_enable=*/std::nullopt,
-                                           /*reset=*/std::nullopt,
+                                           /*reset=*/block()->GetResetPort(),
                                            state_register.reg_full));
     }
 
@@ -806,13 +816,22 @@ class CloneNodesIntoBlockHandler {
   absl::StatusOr<PipelineRegister> CreatePipelineRegister(std::string_view name,
                                                           Node* node,
                                                           Stage stage_write) {
-    XLS_ASSIGN_OR_RETURN(Register * reg,
-                         block()->AddRegister(name, node->GetType()));
+    std::optional<Value> reset_value;
+    std::optional<Node*> reset_signal;
+    if (block()->GetResetPort().has_value() &&
+        options_.reset()->reset_data_path()) {
+      reset_value = ZeroOfType(node->GetType());
+      reset_signal = block()->GetResetPort();
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        Register * reg,
+        block()->AddRegister(name, node->GetType(), reset_value));
     XLS_ASSIGN_OR_RETURN(
         RegisterWrite * reg_write,
         block()->MakeNode<RegisterWrite>(node->loc(), node,
                                          /*load_enable=*/std::nullopt,
-                                         /*reset=*/std::nullopt, reg));
+                                         /*reset=*/reset_signal, reg));
     XLS_ASSIGN_OR_RETURN(
         RegisterRead * reg_read,
         block()->MakeNodeWithName<RegisterRead>(node->loc(), reg,

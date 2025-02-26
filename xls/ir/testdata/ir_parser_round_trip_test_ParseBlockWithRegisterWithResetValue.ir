@@ -1,7 +1,8 @@
 package test
 
 block my_block(clk: clock, rst: bits[1], in: bits[32], out: bits[32]) {
-  reg foo(bits[32], reset_value=42, asynchronous=true, active_low=false)
+  #![reset(port="rst", asynchronous=true, active_low=false)]
+  reg foo(bits[32], reset_value=42)
 
   rst: bits[1] = input_port(name=rst, id=1)
   in: bits[32] = input_port(name=in, id=2)
