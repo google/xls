@@ -83,11 +83,12 @@ class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
   absl::Status HandleInvocation(const dslx::Invocation* n) override {
-    absl::StatusOr<std::string> builtin_name =
-        dslx::GetBuiltinName(n->callee());
-    if (builtin_name.ok()) {
-      has_nb_recv_ = (*builtin_name == "recv_non_blocking") ||
-                     (*builtin_name == "recv_if_non_blocking");
+    std::optional<std::string_view> builtin_name =
+        dslx::GetBuiltinFnName(n->callee());
+    if (builtin_name.has_value()) {
+      has_nb_recv_ = has_nb_recv_ ||
+                     builtin_name.value() == "recv_non_blocking" ||
+                     builtin_name.value() == "recv_if_non_blocking";
     }
     return absl::OkStatus();
   }
@@ -103,14 +104,11 @@ class IsPotentiallyDelayingNodeVisitor : public AstNodeVisitorWithDefault {
   bool IsDelaying() const { return is_send_ || is_recv_; }
 
   absl::Status HandleInvocation(const dslx::Invocation* n) override {
-    absl::StatusOr<std::string> builtin_name =
-        dslx::GetBuiltinName(n->callee());
-    if (builtin_name.ok()) {
+    std::optional<std::string_view> builtin_name =
+        dslx::GetBuiltinFnName(n->callee());
+    if (builtin_name.has_value()) {
       is_send_ = absl::StartsWith(*builtin_name, "send");
       is_recv_ = absl::StartsWith(*builtin_name, "recv");
-    } else {
-      is_send_ = false;
-      is_recv_ = false;
     }
     return absl::OkStatus();
   }

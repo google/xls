@@ -54,6 +54,17 @@ void FlattenToSetInternal(const AstNode* node,
   }
 }
 
+BuiltinNameDef* GetBuiltinNameDef(Expr* callee) {
+  NameRef* name_ref = dynamic_cast<NameRef*>(callee);
+  if (name_ref == nullptr) {
+    return nullptr;
+  }
+  if (!std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+    return nullptr;
+  }
+  return std::get<BuiltinNameDef*>(name_ref->name_def());
+}
+
 }  // namespace
 
 bool IsParametricFunction(const AstNode* n) {
@@ -77,30 +88,36 @@ bool ParentIsInvocationWithCallee(const NameRef* n) {
 }
 
 bool IsBuiltinFn(Expr* callee, std::optional<std::string_view> target) {
-  NameRef* name_ref = dynamic_cast<NameRef*>(callee);
-  if (name_ref == nullptr) {
-    return false;
-  }
-
-  if (!std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+  BuiltinNameDef* bnd = GetBuiltinNameDef(callee);
+  if (bnd == nullptr) {
     return false;
   }
 
   if (target.has_value()) {
-    auto* bnd = std::get<BuiltinNameDef*>(name_ref->name_def());
     return bnd->identifier() == target.value();
   }
 
   return true;
 }
 
-absl::StatusOr<std::string> GetBuiltinName(Expr* callee) {
-  if (!IsBuiltinFn(callee)) {
-    return absl::InvalidArgumentError("Callee is not a builtin function.");
+std::optional<std::string_view> GetBuiltinFnName(Expr* callee) {
+  BuiltinNameDef* bnd = GetBuiltinNameDef(callee);
+  if (bnd == nullptr) {
+    return std::nullopt;
   }
+  return bnd->identifier();
+}
 
-  NameRef* name_ref = dynamic_cast<NameRef*>(callee);
-  return name_ref->identifier();
+bool GetBuiltinFnRequiresImplicitToken(Expr* callee) {
+  BuiltinNameDef* bnd = GetBuiltinNameDef(callee);
+  CHECK(bnd != nullptr) << "Callee is not a builtin function reference: "
+                        << callee->ToString();
+  const absl::flat_hash_map<std::string, BuiltinsData>& builtins =
+      GetParametricBuiltins();
+  auto it = builtins.find(bnd->identifier());
+  CHECK(it != builtins.end())
+      << "Builtin function " << bnd->identifier() << " not found";
+  return it->second.requires_implicit_token;
 }
 
 static absl::StatusOr<StructDef*> ResolveLocalStructDef(
