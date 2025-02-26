@@ -1,0 +1,230 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# See also: https://github.com/marketplace/actions/bazel-action
+
+name: XLS Modules DMA
+on:
+  # Avoid triggering on pushes to /all/ open PR branches.
+  push:
+    branches:
+      - main
+    paths-ignore:
+      # Do not trigger action when docs are updated.
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  XLS_MODULE: //xls/modules/dma
+  XLS_MODULE_NAME: dma
+  # Intensive runs can cause the runner to starve and crash
+  BAZEL_RESOURCES_OPT: "--local_cpu_resources=HOST_CPUS-1 --local_ram_resources=HOST_RAM*.9"
+  CACHE_KEY: bazel-cache-dma-${{ github.sha }}
+  CACHE_RESTORE_KEY: bazel-cache-dma
+  # OpenROAD cache is large, so let's split usage
+  CACHE_KEY_IMPL: bazel-cache-dma-impl-${{ github.sha }}
+  CACHE_RESTORE_KEY_IMPL: bazel-cache-dma-impl
+
+jobs:
+  build:
+    name: BUILD
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bazel Cache
+        uses: actions/cache@v4
+        with:
+          path: "~/.cache/bazel"
+          key: ${{ env.CACHE_KEY }}
+          restore-keys: ${{ env.CACHE_RESTORE_KEY }}
+
+      - name: Increase build space
+        run: |
+          echo "Before cleanup"
+          df -H
+          sudo rm -rf /usr/share/dotnet/*
+          sudo rm -rf /usr/local/lib/android/*
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          echo "After cleanup"
+          df -H
+
+      - name: Install dependencies via apt
+        run: |
+          sudo apt-get update
+          sudo apt-get -qy --no-install-recommends install \
+          build-essential \
+          gfortran \
+          libblas-dev \
+          liblapack-dev \
+          libtinfo5 \
+          python-is-python3 \
+          python3-dev \
+          python3-distutils
+
+      - name: Bazel Build Tools (opt)
+        run: |
+          bazel build -c opt --test_output=errors -- \
+          //xls/dslx:interpreter_main \
+          //xls/dslx/ir_convert:ir_converter_main \
+          //xls/tools:opt_main \
+          //xls/tools:codegen_main \
+          //xls/dslx:dslx_fmt
+
+  test:
+    needs: build
+    name: Test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    strategy:
+      fail-fast: false
+      matrix:
+        dslx_test: ["test_common",
+                    "test_csr",
+                    "test_axi_csr",
+                    "test_address_generator",
+                    "test_frontend_writer",
+                    "test_frontend_reader",
+                    "test_main_controller"
+                    ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bazel Cache
+        uses: actions/cache@v4
+        with:
+          path: "~/.cache/bazel"
+          key: ${{env.CACHE_KEY}}
+          restore-keys: ${{env.CACHE_RESTORE_KEY}}
+
+      - name: Test
+        run: |
+          bazel run -c opt --test_output=errors -- ${{env.XLS_MODULE}}:${{ matrix.dslx_test }}
+
+  format:
+    name: Format
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bazel Cache
+        uses: actions/cache@v4
+        with:
+          path: "~/.cache/bazel"
+          key: ${{env.CACHE_KEY}}
+          restore-keys: ${{env.CACHE_RESTORE_KEY}}
+
+      # Once https://github.com/google/xls/issues/1285 is implemented,
+      # we could replace these with a single rule
+      - name: Test formatting
+        run: |
+          bazel run -c opt --test_output=errors -- \
+          //xls/modules/dma:fmt_address_generator \
+          //xls/modules/dma:fmt_axi_csr \
+          //xls/modules/dma:fmt_common \
+          //xls/modules/dma:fmt_config \
+          //xls/modules/dma:fmt_csr \
+          //xls/modules/dma:fmt_fifo \
+          //xls/modules/dma:fmt_frontend_reader \
+          //xls/modules/dma:fmt_frontend_writer \
+          //xls/modules/dma:fmt_gpf \
+          //xls/modules/dma:fmt_main_controller \
+          //xls/modules/dma:fmt_bus_axi_pkg \
+          //xls/modules/dma:fmt_bus_axi_st_pkg
+
+
+  config-matrix:
+    name: Matrix configuration
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    outputs:
+      json_rules: ${{ env.json_rules }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read json file
+        id: read-json
+        run: |
+          sudo apt-get update
+          sudo apt-get -qqy --no-install-recommends install jq
+          echo "json_rules=$(jq -rc 'del(.dma.name)|.dma' .github/workflows/xls-modules-${{ env.XLS_MODULE_NAME }}.json)" | tee -a "$GITHUB_ENV"
+
+  implement:
+    needs: config-matrix
+    name: Implementation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 600
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson( needs.config-matrix.outputs.json_rules ) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Increase build space
+        run: |
+          echo "Before cleanup"
+          df -H
+          sudo rm -rf /usr/share/dotnet/*
+          sudo rm -rf /usr/local/lib/android/*
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          echo "After cleanup"
+          df -H
+
+      - name: Bazel Cache
+        uses: actions/cache@v4
+        with:
+          path: "~/.cache/bazel"
+          key: ${{env.CACHE_KEY_IMPL}}
+          restore-keys: ${{env.CACHE_RESTORE_KEY_IMPL}}
+
+      - name: IR
+        run: |
+          bazel run -c opt ${{ env.BAZEL_RESOURCES_OPT }} -- ${{ env.XLS_MODULE }}:${{ matrix.rules.ir }}
+
+      - name: Verilog
+        run: |
+          bazel build -c opt ${{ env.BAZEL_RESOURCES_OPT }} -- ${{ env.XLS_MODULE }}:${{ matrix.rules.verilog }}
+
+      - name: Synthesis
+        run: |
+          bazel run -c opt ${{ env.BAZEL_RESOURCES_OPT }} -- ${{ env.XLS_MODULE }}:${{ matrix.rules.synthesis }}
+
+      - name: P&R
+        run: |
+          bazel build -c opt ${{ env.BAZEL_RESOURCES_OPT }} -- ${{ env.XLS_MODULE }}:${{ matrix.rules.pnr }}
+
+        # ${variable/character_to_replace/new_character}
+        # ${variable/ slash / underscore }
+      - name: Prepare artifact name
+        if: always()
+        shell: bash
+        run: |
+          name_input=${{env.XLS_MODULE}}/${{ matrix.rules.ir }}
+          name_output="${name_input//\//_}"
+          echo "artifact_name=${name_output}" >> "$GITHUB_ENV"
+
+      - name: Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-impl-${{ env.artifact_name }}
+          path: |
+            ./bazel-bin/${{env.XLS_MODULE}}/*.log
+            ./bazel-bin/${{env.XLS_MODULE}}/*.textproto
+            ./bazel-bin/${{env.XLS_MODULE}}/*.ir
+            ./bazel-bin/${{env.XLS_MODULE}}/*.v
+            ./bazel-bin/${{env.XLS_MODULE}}/*.sv
