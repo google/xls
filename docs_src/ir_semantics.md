@@ -124,12 +124,10 @@ arbitrarily-typed. Each register must have a single `register_write` and a
 single `register_read` operation for writing and reading the register
 respectively.
 
-Each register may optionally specify its reset behavior. The reset can be
-specified to occur either synchronously or asynchronously and either on the
-`reset` signal of the associated `register_write` being active-high or
-active-low. If specified the reset value must match the type of the register. If
-no reset behavior is specified then the `reset` argument of `register_write`
-must be unset.
+Each register may optionally specify a reset value. The reset signal and reset
+behavior (e.g., active low) is set as a block attribute. If specified the reset
+value must match the type of the register. If no reset behavior is specified
+then the `reset` argument of `register_write` must be unset.
 
 #### Instantiation
 
@@ -140,6 +138,28 @@ yet supported). The instantiation is integrated into the instantiating block
 with `instantiation_input` and `instantiation_output` operations. There is a
 one-to-one mapping between the instantiation input/output and the ports of the
 instantiated objects.
+
+#### Inner Attributes
+
+##### **`reset`**
+
+Defines the reset port and reset behavior of the block.
+
+**Syntax**
+
+```
+#![reset(port="<port>", asynchronous=<asynchronous>, active_low=<active_low>)]`
+```
+
+**Keyword arguments**
+
+| Keyword        | Description                                              |
+| -------------- | -------------------------------------------------------- |
+| `port`         | Name of the reset input port.                            |
+| `asynchronous` | Boolean value (`true` or `false`) indicating whether the |
+:                : reset is asynchronous.                                   :
+| `active_low`   | Boolean value (`true` or `false`) indicating whether the |
+:                : reset signal is active-low.                              :
 
 ## Operations
 
