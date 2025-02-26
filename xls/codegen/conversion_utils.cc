@@ -66,6 +66,22 @@ std::optional<PackageInterfaceProto::Function> FindFunctionInterface(
   return std::nullopt;
 }
 
+std::optional<PackageInterfaceProto::Channel> FindChannelInterface(
+    const std::optional<PackageInterfaceProto>& src,
+    std::string_view chan_name) {
+  if (!src) {
+    return std::nullopt;
+  }
+  auto it = absl::c_find_if(src->channels(),
+                            [&](const PackageInterfaceProto::Channel& f) {
+                              return f.name() == chan_name;
+                            });
+  if (it != src->channels().end()) {
+    return *it;
+  }
+  return std::nullopt;
+}
+
 // For each output streaming channel add a corresponding ready port (input
 // port). Combinationally combine those ready signals with their predicates to
 // generate an  all_active_outputs_ready signal.

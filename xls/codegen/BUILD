@@ -457,6 +457,7 @@ cc_library(
 
 cc_library(
     name = "clone_nodes_into_block_handler",
+    srcs = ["clone_nodes_into_block_handler.cc"],
     hdrs = ["clone_nodes_into_block_handler.h"],
     deps = [
         ":codegen_options",
