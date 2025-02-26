@@ -2428,5 +2428,22 @@ TEST_F(Z3IrTranslatorTest, HandlesGate) {
   EXPECT_THAT(proven, IsProvenTrue());
 }
 
+TEST_F(Z3IrTranslatorTest, TupleWithZeroLenBits) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue foo = fb.Param("foo", p->GetBitsType(32));
+  fb.Eq(fb.Tuple({foo, fb.Literal(UBits(0, 0))}),
+        fb.Tuple({fb.Subtract(fb.Add(foo, fb.Literal(UBits(1, 32))),
+                              fb.Literal(UBits(1, 32))),
+                  fb.Literal(UBits(0, 0))}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(proven_nez, IsProvenTrue());
+}
+
 }  // namespace
 }  // namespace xls

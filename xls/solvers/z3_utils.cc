@@ -298,8 +298,14 @@ std::string BitVectorToString(Z3_context ctx,
 
 Z3_sort TypeToSort(Z3_context ctx, const Type& type) {
   switch (type.kind()) {
-    case TypeKind::kBits:
+    case TypeKind::kBits: {
+      if (type.AsBitsOrDie()->bit_count() == 0) {
+        // Represent bits[0] as an empty tuple. We don't allow math in the z3
+        // (right now) on these so this is good enough.
+        return CreateTupleSort(ctx, TupleType(/*members=*/{}));
+      }
       return Z3_mk_bv_sort(ctx, type.GetFlatBitCount());
+    }
     case TypeKind::kTuple:
       return CreateTupleSort(ctx, type);
     case TypeKind::kArray: {

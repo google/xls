@@ -35,6 +35,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
@@ -512,6 +513,11 @@ absl::StatusOr<Z3_ast> ComputeNe(Z3_context ctx, Z3_ast lhs, Z3_ast rhs,
           operand_type,
           [&](Type* leaf_type,
               absl::Span<int64_t const> indices) -> absl::StatusOr<Z3_ast> {
+            if (leaf_type->IsBits() &&
+                leaf_type->AsBitsOrDie()->bit_count() == 0) {
+              // All 0-bit values are equal to one another.
+              return Z3_mk_int(ctx, 0, Z3_mk_bv_sort(ctx, 1));
+            }
             XLS_ASSIGN_OR_RETURN(
                 Z3_ast lhs_at_indices,
                 GetValueAtIndices(operand_type, ctx, lhs, indices));
@@ -558,7 +564,7 @@ absl::Status IrTranslator::HandleGate(Gate* gate) {
   ScopedErrorHandler seh(ctx_);
   XLS_ASSIGN_OR_RETURN(
       Z3_ast zero,
-      TranslateLiteralValue(/*has_nonconcat_uses=*/true, gate->GetType(),
+      TranslateLiteralValue(/*has_nontrivial_uses=*/true, gate->GetType(),
                             ZeroOfType(gate->GetType())));
   NoteTranslation(gate,
                   Z3_mk_ite(ctx_, t.NeZeroBool(GetValue(gate->condition())),
@@ -1046,7 +1052,7 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
   XLS_ASSIGN_OR_RETURN(
       Z3_ast mask,
       TranslateLiteralValue(
-          /*has_nonconcat_uses=*/true, update->GetType(),
+          /*has_nontrivial_uses=*/true, update->GetType(),
           Value(bits_ops::ZeroExtend(
               Bits::AllOnes(std::min(update->BitCountOrDie(),
                                      update->update_value()->BitCountOrDie())),
@@ -1120,7 +1126,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralBits(const Bits& bits) {
 }
 
 absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
-    bool has_nonconcat_uses, Type* value_type, const Value& value) {
+    bool has_nontrivial_uses, Type* value_type, const Value& value) {
   bool is_zero_bit_vector = value.IsBits() && value.GetFlatBitCount() == 0;
 
   if (value.IsBits() && !is_zero_bit_vector) {
@@ -1131,7 +1137,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
   // This will cause errors if the bitvectors are used in any nontrivial way,
   // but fixes fuzzer errors in the mutual_exclusion_pass.
   if (is_zero_bit_vector) {
-    if (has_nonconcat_uses) {
+    if (has_nontrivial_uses) {
       return absl::UnimplementedError(
           "Zero length bitvectors must not have nontrivial uses in the IR "
           "graph when translating to Z3");
@@ -1155,7 +1161,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
     for (int i = 0; i < value.elements().size(); i++) {
       XLS_ASSIGN_OR_RETURN(
           Z3_ast translated,
-          TranslateLiteralValue(has_nonconcat_uses, array_type->element_type(),
+          TranslateLiteralValue(has_nontrivial_uses, array_type->element_type(),
                                 value.elements()[i]));
       elements.push_back(translated);
     }
@@ -1171,7 +1177,7 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
   for (int i = 0; i < num_elements; i++) {
     XLS_ASSIGN_OR_RETURN(
         Z3_ast translated,
-        TranslateLiteralValue(has_nonconcat_uses, tuple_type->element_type(i),
+        TranslateLiteralValue(has_nontrivial_uses, tuple_type->element_type(i),
                               value.elements()[i]));
     elements.push_back(translated);
   }
@@ -1184,9 +1190,27 @@ absl::Status IrTranslator::HandleLiteral(Literal* literal) {
   XLS_ASSIGN_OR_RETURN(
       Z3_ast result,
       TranslateLiteralValue(
-          /*has_nonconcat_uses=*/absl::c_any_of(
-              literal->users(), [](Node* user) { return !user->Is<Concat>(); }),
-          literal->GetType(), literal->value()));
+          /*has_nontrivial_uses=*/absl::c_any_of(
+              literal->users(),
+              [](Node* user) {
+                if (user->Is<Concat>() || user->Is<Tuple>() ||
+                    // Send is unsupported anyway so it taking a zero-len
+                    // value is fine.
+                    user->Is<Send>()) {
+                  return false;
+                }
+                // TODO(allight): We ideally should look at any users of
+                // TupleIndex to see if they don't look at the zero-bit value.
+                // In practice though since this is a literal the only place its
+                // likely to be used after opt is to directly send it so this
+                // should be fine.
+                return true;
+              }),
+          literal->GetType(), literal->value()),
+      _ << "Value " << literal << " uses: "
+        << absl::StrJoin(literal->users(), ", ", [](std::string* s, Node* n) {
+             absl::StrAppend(s, n->ToString());
+           }));
   NoteTranslation(literal, result);
   return seh.status();
 }

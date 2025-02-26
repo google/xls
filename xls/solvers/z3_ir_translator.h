@@ -242,10 +242,11 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleUnary(Node* op, FnT f);
 
   // Recursive call to translate XLS literals into Z3 form.
-  // The `has_nonconcat_uses` parameter is used for checking whether the literal
-  // we're trying to translate contains a zero-width bitvector that has
-  // nontrivial uses in the IR graph.
-  absl::StatusOr<Z3_ast> TranslateLiteralValue(bool has_nonconcat_uses,
+  // The `has_nontrivial_uses` parameter is used for checking whether the
+  // literal we're trying to translate contains a zero-width bitvector that has
+  // nontrivial uses in the IR graph. A non-trivial use is any use outside of
+  // concat, token operations, or tuple element.
+  absl::StatusOr<Z3_ast> TranslateLiteralValue(bool has_nontrivial_uses,
                                                Type* type, const Value& value);
 
   // Common multiply handling.
