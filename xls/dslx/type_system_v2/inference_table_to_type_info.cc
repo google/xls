@@ -53,6 +53,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_zero_value.h"
+#include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/expand_variables.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
