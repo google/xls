@@ -27,7 +27,9 @@ absl::StatusOr<int64_t> FfiDelayEstimator::GetOperationDelayInPs(
     Node* node) const {
   if (node->op() != Op::kInvoke) {
     return absl::UnimplementedError(
-        absl::StrFormat("FFI delay estimate only for kInvoke, found %s",
+        absl::StrFormat("No known delay model estimate for op '%s'. "
+                        "(this fell all the way through to the FFI delay "
+                        "estimation that can only deal with kInvoke ops)",
                         OpToString(node->op())));
   }
   // If the user does not want to provide one, they can use the value from
