@@ -19,8 +19,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
@@ -61,9 +63,19 @@ class CsePassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
     OptimizationContext context;
+    std::string ir_before = f->DumpIr();
     XLS_ASSIGN_OR_RETURN(
         bool changed, CsePass().RunOnFunctionBase(f, OptimizationPassOptions(),
                                                   &results, &context));
+    if (changed && ir_before == f->DumpIr()) {
+      return absl::InternalError(absl::StrCat(
+          "CSE reported changing IR, but IR was unchanged:\n\n", ir_before));
+    }
+    if (!changed && ir_before != f->DumpIr()) {
+      return absl::InternalError(absl::StrCat(
+          "CSE reported not changing IR, but IR was changed; IR before:\n\n",
+          ir_before, "\n\nIR after:\n\n", f->DumpIr()));
+    }
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
@@ -254,6 +266,32 @@ TEST_F(CsePassTest, NonCommutativeOperands) {
   EXPECT_NE(f->return_value()->operand(0), f->return_value()->operand(1));
   EXPECT_THAT(Run(f), IsOkAndHolds(false));
   EXPECT_NE(f->return_value()->operand(0), f->return_value()->operand(1));
+}
+
+TEST_F(CsePassTest, AvoidsReplacingDeadNodes) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Type* u96 = p->GetBitsType(96);
+
+  FunctionBuilder fb_inner(absl::StrCat(TestName(), "_inner"), p.get());
+  BValue a = fb_inner.Param("a", u96);
+  BValue b = fb_inner.Param("b", u96);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * inner,
+                           fb_inner.BuildWithReturnValue(fb_inner.Add(a, b)));
+
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", u32);
+  BValue y = fb.Param("y", u32);
+  BValue z = fb.Param("z", u32);
+  BValue concat_xyz = fb.Concat({x, y, z});
+  BValue concat_xzy = fb.Concat({x, z, y});
+  // Create two (deliberately dead) equivalent invokes.
+  fb.Invoke({concat_xyz, concat_xyz}, inner);
+  fb.Invoke({concat_xyz, concat_xyz}, inner);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Add(concat_xyz, concat_xzy)));
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(false));
 }
 
 }  // namespace

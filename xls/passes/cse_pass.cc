@@ -93,6 +93,14 @@ absl::StatusOr<bool> RunCse(FunctionBase* f,
       continue;
     }
 
+    // Normally, dead nodes are removed by the DCE pass. However, if the node is
+    // (e.g.) an invoke, DCE won't touch it, waiting for inlining to remove
+    // it... and if we try to replace it, we'll think we changed the IR when we
+    // actually didn't.
+    if (node->IsDead()) {
+      continue;
+    }
+
     int64_t hash = node_hash(node);
     if (!node_buckets.contains(hash)) {
       node_buckets[hash].push_back(node);

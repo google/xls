@@ -2283,8 +2283,10 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:status_matchers",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )
