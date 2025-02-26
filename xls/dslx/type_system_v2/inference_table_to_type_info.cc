@@ -36,7 +36,6 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -55,6 +54,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/type_zero_value.h"
+#include "xls/dslx/type_system_v2/expand_variables.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
@@ -90,69 +90,6 @@ struct FunctionAndTargetObject {
   // builtins. Built-ins in the builtin_stubs.x file will NOT have this
   // value set to true.
   bool is_special_builtin = false;
-};
-
-// A utility that flattens type annotation trees, with expansion of encountered
-// type variables, instead of unification of those variables. This is in
-// contrast to `ResolveVariableTypeAnnotations`, which converts encountered
-// variables to their unifications. The flattening + expansion behavior of this
-// visitor is useful for dependency analysis before we are ready to perform
-// unification.
-class VariableExpander : public AstNodeVisitorWithDefault {
- public:
-  VariableExpander(const InferenceTable& table,
-                   std::optional<const ParametricContext*> parametric_context)
-      : table_(table), parametric_context_(parametric_context) {}
-
-  absl::Status HandleTypeVariableTypeAnnotation(
-      const TypeVariableTypeAnnotation* node) override {
-    if (!visited_.insert(node).second) {
-      return absl::OkStatus();
-    }
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<const TypeAnnotation*> annotations_for_variable,
-        table_.GetTypeAnnotationsForTypeVariable(parametric_context_,
-                                                 node->type_variable()));
-    for (const TypeAnnotation* annotation : annotations_for_variable) {
-      XLS_RETURN_IF_ERROR(annotation->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status DefaultHandler(const AstNode* node) override {
-    if (!visited_.insert(node).second) {
-      return absl::OkStatus();
-    }
-    if (std::optional<const NameRef*> variable = table_.GetTypeVariable(node);
-        variable.has_value()) {
-      XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
-                           table_.GetTypeAnnotationsForTypeVariable(
-                               parametric_context_, *variable));
-      for (const TypeAnnotation* annotation : annotations) {
-        XLS_RETURN_IF_ERROR(annotation->Accept(this));
-      }
-    }
-    if (const auto* annotation = dynamic_cast<const TypeAnnotation*>(node)) {
-      annotations_.push_back(annotation);
-    }
-    for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
-      XLS_RETURN_IF_ERROR(child->Accept(this));
-    }
-    return absl::OkStatus();
-  }
-
-  const std::vector<const TypeAnnotation*>& annotations() const {
-    return annotations_;
-  }
-
- private:
-  const InferenceTable& table_;
-  const std::optional<const ParametricContext*> parametric_context_;
-  std::vector<const TypeAnnotation*> annotations_;
-  // Prevent multiple traversal in case of cycles. Cycles can be valid in
-  // internally-generated `FunctionTypeAnnotation` data structures that contain
-  // `ParamTypeAnnotation` or `ReturnTypeAnnotation` objects in their graph.
-  absl::flat_hash_set<const AstNode*> visited_;
 };
 
 // Traverses an AST and flattens it into a `vector` in the order the `TypeInfo`
@@ -2135,9 +2072,9 @@ class InferenceTableConverter {
     }
     if (auto* member_annotation =
             dynamic_cast<const MemberTypeAnnotation*>(annotation)) {
-      VariableExpander expander(table_, parametric_context);
-      CHECK_OK(member_annotation->Accept(&expander));
-      for (const TypeAnnotation* annotation : expander.annotations()) {
+      const std::vector<const TypeAnnotation*> annotations =
+          ExpandVariables(member_annotation, table_, parametric_context);
+      for (const TypeAnnotation* annotation : annotations) {
         std::optional<const StructDefBase*> def =
             GetStructOrProcDef(annotation);
         if (def.has_value() && *def == &struct_def) {

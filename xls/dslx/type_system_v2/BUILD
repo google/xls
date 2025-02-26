@@ -53,6 +53,7 @@ cc_library(
     srcs = ["inference_table_to_type_info.cc"],
     hdrs = ["inference_table_to_type_info.h"],
     deps = [
+        ":expand_variables",
         ":inference_table",
         ":solve_for_parametrics",
         ":type_annotation_utils",
@@ -281,5 +282,20 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
+    ],
+)
+
+cc_library(
+    name = "expand_variables",
+    srcs = ["expand_variables.cc"],
+    hdrs = ["expand_variables.h"],
+    deps = [
+        ":inference_table",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node_visitor_with_default",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
     ],
 )
