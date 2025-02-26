@@ -108,49 +108,24 @@ class Unifier {
     }
     if (const auto* first_tuple_annotation =
             dynamic_cast<const TupleTypeAnnotation*>(annotations[0])) {
-      std::vector<const TupleTypeAnnotation*> tuple_annotations;
-      tuple_annotations.reserve(annotations.size());
-      for (const TypeAnnotation* annotation : annotations) {
-        const auto* tuple_annotation =
-            dynamic_cast<const TupleTypeAnnotation*>(annotation);
-        if (tuple_annotation == nullptr) {
-          return error_generator_.TypeMismatchError(parametric_context_,
-                                                    annotations[0], annotation);
-        }
-        tuple_annotations.push_back(tuple_annotation);
-      }
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const TupleTypeAnnotation*> tuple_annotations,
+          CastAllOrError<TupleTypeAnnotation>(annotations));
       return UnifyTupleTypeAnnotations(tuple_annotations, span);
     }
     if (const auto* first_array_annotation =
             CastToNonBitsArrayTypeAnnotation(annotations[0])) {
-      std::vector<const ArrayTypeAnnotation*> array_annotations;
-      for (int i = 0; i < annotations.size(); i++) {
-        const auto* array_annotation =
-            CastToNonBitsArrayTypeAnnotation(annotations[i]);
-        if (array_annotation == nullptr) {
-          return error_generator_.TypeMismatchError(
-              parametric_context_, annotations[0], annotations[i]);
-        }
-        array_annotations.push_back(array_annotation);
-      }
-      return UnifyArrayTypeAnnotations(parametric_context_, array_annotations,
-                                       span, accept_predicate_);
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const ArrayTypeAnnotation*> array_annotations,
+          CastAllOrError<ArrayTypeAnnotation>(
+              annotations, &CastToNonBitsArrayTypeAnnotation));
+      return UnifyArrayTypeAnnotations(array_annotations, span);
     }
     if (const auto* first_function_annotation =
             dynamic_cast<const FunctionTypeAnnotation*>(annotations[0])) {
-      std::vector<const FunctionTypeAnnotation*> function_annotations;
-      function_annotations.reserve(annotations.size());
-      for (int i = 0; i < annotations.size(); i++) {
-        const auto* function_annotation =
-            dynamic_cast<const FunctionTypeAnnotation*>(annotations[i]);
-        if (function_annotation == nullptr) {
-          return error_generator_.TypeMismatchError(
-              parametric_context_, annotations[0], annotations[i]);
-        }
-        VLOG(5) << "Annotation " << i << ": "
-                << function_annotation->ToString();
-        function_annotations.push_back(function_annotation);
-      }
+      XLS_ASSIGN_OR_RETURN(
+          std::vector<const FunctionTypeAnnotation*> function_annotations,
+          CastAllOrError<FunctionTypeAnnotation>(annotations));
       return UnifyFunctionTypeAnnotations(function_annotations, span);
     }
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> first_struct_or_proc,
@@ -237,10 +212,7 @@ class Unifier {
   // passed-in array is nonempty. Unifying an array type amounts to unifying the
   // element types and dims.
   absl::StatusOr<const ArrayTypeAnnotation*> UnifyArrayTypeAnnotations(
-      std::optional<const ParametricContext*> parametric_context_,
-      std::vector<const ArrayTypeAnnotation*> annotations, const Span& span,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) {
+      std::vector<const ArrayTypeAnnotation*> annotations, const Span& span) {
     std::vector<const TypeAnnotation*> element_type_annotations;
     std::optional<SignednessAndSize> unified_dim;
     for (int i = 0; i < annotations.size(); i++) {
@@ -512,6 +484,30 @@ class Unifier {
       return signedness_mismatch_error();
     }
     return *x;
+  }
+
+  // Casts all of `annotations` to type `T`, or returns a type mismatch error,
+  // if any cannot be cast to T.
+  template <typename T>
+  absl::StatusOr<std::vector<const T*>> CastAllOrError(
+      const std::vector<const TypeAnnotation*>& annotations,
+      absl::FunctionRef<const T*(const TypeAnnotation*)> cast_fn =
+          [](const TypeAnnotation* annotation) {
+            return dynamic_cast<const T*>(annotation);
+          }) {
+    std::vector<const T*> result;
+    result.reserve(annotations.size());
+    for (int i = 0; i < annotations.size(); i++) {
+      const TypeAnnotation* annotation = annotations[i];
+      VLOG(6) << "Annotation " << i << ": " << annotation->ToString();
+      const T* casted = cast_fn(annotation);
+      if (casted == nullptr) {
+        return error_generator_.TypeMismatchError(parametric_context_,
+                                                  annotations[0], annotation);
+      }
+      result.push_back(casted);
+    }
+    return result;
   }
 
   Module& module_;
