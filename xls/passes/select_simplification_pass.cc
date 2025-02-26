@@ -59,7 +59,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -2228,7 +2227,7 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
                        BitProvenanceAnalysis::Create(func));
 
   bool changed = false;
-  for (Node* node : TopoSort(func)) {
+  for (Node* node : context->TopoSort(func)) {
     XLS_ASSIGN_OR_RETURN(bool node_changed,
                          SimplifyNode(node, query_engine, provenance,
                                       options.opt_level, range_analysis_));

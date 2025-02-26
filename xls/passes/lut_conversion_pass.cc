@@ -18,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -47,7 +46,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dataflow_graph_analysis.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
@@ -373,7 +371,7 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
   bool changed = false;
   // By running in reverse topological order, the analyses will stay valid for
   // all nodes we're considering through the full pass.
-  for (Node* node : ReverseTopoSort(func)) {
+  for (Node* node : context->ReverseTopoSort(func)) {
     if (node->IsDead()) {
       continue;
     }

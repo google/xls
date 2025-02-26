@@ -40,7 +40,6 @@
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
@@ -90,6 +89,7 @@ std::string SelectorToString(Node* node) {
 // Collapse chain of selects with disjoint (one-hot or zero) selectors into a
 // single one-hot-select.
 absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
+                                          OptimizationContext* context,
                                           const QueryEngine& query_engine) {
   auto is_binary_select = [](Node* node) {
     if (!node->Is<Select>()) {
@@ -129,7 +129,7 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
   //                         |
   //                         V
   // TODO(meheff): Also merge OneHotSelects.
-  for (Node* node : ReverseTopoSort(f)) {
+  for (Node* node : context->ReverseTopoSort(f)) {
     if (!is_binary_select(node) ||
         collapsed_selects.contains(node->As<Select>()) ||
         !node->GetType()->IsBits()) {
@@ -447,14 +447,14 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
                          SimplifyNode(node, query_engine, options.opt_level));
     modified |= node_modified;
   }
 
   XLS_ASSIGN_OR_RETURN(bool selects_collapsed,
-                       CollapseSelectChains(f, query_engine));
+                       CollapseSelectChains(f, context, query_engine));
 
   return modified || selects_collapsed;
 }

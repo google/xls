@@ -66,6 +66,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
@@ -2370,7 +2371,8 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
 
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
+  OptimizationContext context;
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(&context);
   CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,
@@ -2413,7 +2415,8 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));
 
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline();
+  OptimizationContext context;
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(&context);
   CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,

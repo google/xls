@@ -53,6 +53,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -70,23 +71,27 @@ using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAre;
 
-CodegenPass* DefaultCodegenPassPipeline() {
-  static absl::NoDestructor<std::unique_ptr<CodegenCompoundPass>> singleton(
-      CreateCodegenPassPipeline());
-  return singleton->get();
-}
+enum class CodegenPassType {
+  kDefault,
+  kSideEffectConditionPassOnly,
+};
 
-CodegenPass* SideEffectConditionPassOnly() {
-  static absl::NoDestructor<SideEffectConditionPass> singleton;
-  return singleton.get();
-}
-
-std::string_view CodegenPassName(CodegenPass const* pass) {
-  if (pass == DefaultCodegenPassPipeline()) {
-    return "DefaultCodegenPassPipeline";
+std::unique_ptr<CodegenPass> GetCodegenPass(CodegenPassType type,
+                                            OptimizationContext* context) {
+  switch (type) {
+    case CodegenPassType::kDefault:
+      return CreateCodegenPassPipeline(context);
+    case CodegenPassType::kSideEffectConditionPassOnly:
+      return std::make_unique<SideEffectConditionPass>();
   }
-  if (pass == SideEffectConditionPassOnly()) {
-    return "SideEffectConditionPassOnly";
+}
+
+std::string_view CodegenPassName(CodegenPassType type) {
+  switch (type) {
+    case CodegenPassType::kDefault:
+      return "DefaultCodegenPassPipeline";
+    case CodegenPassType::kSideEffectConditionPassOnly:
+      return "SideEffectConditionPassOnly";
   }
   // We're seeing an unknown codegen pass, so error
   LOG(FATAL) << "Unknown codegen pass!";
@@ -101,7 +106,7 @@ static SchedulingOptions kDefaultSchedulingOptions =
     SchedulingOptions().clock_period_ps(2);
 
 class SideEffectConditionPassTest
-    : public testing::TestWithParam<CodegenPass*> {
+    : public testing::TestWithParam<CodegenPassType> {
  protected:
   static std::string_view PackageName() {
     return std::vector<std::string_view>(
@@ -115,8 +120,9 @@ class SideEffectConditionPassTest
       Package* p, CodegenOptions codegen_options = kDefaultCodegenOptions,
       SchedulingOptions scheduling_options = kDefaultSchedulingOptions) {
     // First, schedule.
+    OptimizationContext optimization_context;
     std::unique_ptr<SchedulingPass> scheduling_pipeline =
-        CreateSchedulingPassPipeline();
+        CreateSchedulingPassPipeline(&optimization_context);
     XLS_RET_CHECK(p->GetTop().has_value());
     FunctionBase* top = p->GetTop().value();
     auto scheduling_unit =
@@ -136,7 +142,8 @@ class SideEffectConditionPassTest
     CodegenPassResults results;
     CodegenPassOptions codegen_pass_option{.codegen_options = codegen_options,
                                            .schedule = schedule};
-    return GetParam()->Run(&unit, codegen_pass_option, &results);
+    return GetCodegenPass(GetParam(), &optimization_context)
+        ->Run(&unit, codegen_pass_option, &results);
   }
   static absl::StatusOr<std::vector<std::string>> RunInterpreterWithEvents(
       Block* block,
@@ -170,7 +177,8 @@ TEST_P(SideEffectConditionPassTest, UnchangedWithNoSideEffects) {
 
   // Side-effect condition pass should leave unchanged, but other passes will
   // change.
-  bool should_change = GetParam() != SideEffectConditionPassOnly();
+  bool should_change =
+      GetParam() != CodegenPassType::kSideEffectConditionPassOnly;
   EXPECT_THAT(Run(&package, CodegenOptions()
                                 .valid_control("in_vld", "out_vld")
                                 .clock_name("clk")),
@@ -197,8 +205,10 @@ TEST_F(SideEffectConditionPassTest, UnchangedIfCombinationalFunction) {
       FunctionBaseToCombinationalBlock(top, codegen_options));
   CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
+  OptimizationContext context;
   EXPECT_THAT(
-      SideEffectConditionPassOnly()->Run(&unit, codegen_pass_options, &results),
+      GetCodegenPass(CodegenPassType::kSideEffectConditionPassOnly, &context)
+          ->Run(&unit, codegen_pass_options, &results),
       IsOkAndHolds(false));
 }
 
@@ -233,7 +243,9 @@ TEST_P(SideEffectConditionPassTest, CombinationalProc) {
       FunctionBaseToCombinationalBlock(top, codegen_options));
   CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
-  EXPECT_THAT(GetParam()->Run(&unit, codegen_pass_options, &results),
+  OptimizationContext context;
+  EXPECT_THAT(GetCodegenPass(GetParam(), &context)
+                  ->Run(&unit, codegen_pass_options, &results),
               IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, package.GetBlock("g"));
@@ -288,7 +300,8 @@ TEST_P(SideEffectConditionPassTest, FunctionAssertionWorks) {
   // won't be updated.
   // Side-effect condition pass should leave unchanged, but other passes will
   // change.
-  bool should_change = GetParam() != SideEffectConditionPassOnly();
+  bool should_change =
+      GetParam() != CodegenPassType::kSideEffectConditionPassOnly;
   EXPECT_THAT(Run(&package), IsOkAndHolds(should_change));
 
   // Re-run with valid_control set so the assertions can be rewritten.
@@ -367,7 +380,8 @@ TEST_P(SideEffectConditionPassTest, FunctionTraceWorks) {
   // Without setting valid_control, there are no valid signals and traces won't
   // be updated. Side-effect condition pass should leave unchanged, but other
   // passes will change.
-  bool should_change = GetParam() != SideEffectConditionPassOnly();
+  bool should_change =
+      GetParam() != CodegenPassType::kSideEffectConditionPassOnly;
   EXPECT_THAT(Run(&package), IsOkAndHolds(should_change));
 
   // Re-run with valid_control set so the assertions can be rewritten.
@@ -447,7 +461,8 @@ TEST_P(SideEffectConditionPassTest, FunctionCoverWorks) {
   // Without setting valid_control, there are no valid signals and traces won't
   // be updated. Side-effect condition pass should leave unchanged, but other
   // passes will change.
-  bool should_change = GetParam() != SideEffectConditionPassOnly();
+  bool should_change =
+      GetParam() != CodegenPassType::kSideEffectConditionPassOnly;
   EXPECT_THAT(Run(&package), IsOkAndHolds(should_change));
 
   // Re-run with valid_control set so the assertions can be rewritten.
@@ -559,7 +574,8 @@ TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfFunction) {
   // won't be updated.
   // Side-effect condition pass should leave unchanged, but other passes will
   // change.
-  bool should_change = GetParam() != SideEffectConditionPassOnly();
+  bool should_change =
+      GetParam() != CodegenPassType::kSideEffectConditionPassOnly;
   EXPECT_THAT(Run(&package), IsOkAndHolds(should_change));
 
   // Re-run with valid_control set so the assertions can be rewritten.
@@ -844,14 +860,14 @@ TEST_P(SideEffectConditionPassTest, FunctionWithActiveLowReset) {
               StatusIs(absl::StatusCode::kAborted, HasSubstr("x > y")));
 }
 
-INSTANTIATE_TEST_SUITE_P(SideEffectConditionPassTestInstantiation,
-                         SideEffectConditionPassTest,
+INSTANTIATE_TEST_SUITE_P(
+    SideEffectConditionPassTestInstantiation, SideEffectConditionPassTest,
 
-                         testing::Values(DefaultCodegenPassPipeline(),
-                                         SideEffectConditionPassOnly()),
-                         [](const testing::TestParamInfo<CodegenPass*>& info) {
-                           return std::string(CodegenPassName(info.param));
-                         });
+    testing::Values(CodegenPassType::kDefault,
+                    CodegenPassType::kSideEffectConditionPassOnly),
+    [](const testing::TestParamInfo<CodegenPassType>& info) {
+      return std::string(CodegenPassName(info.param));
+    });
 
 }  // namespace
 }  // namespace xls::verilog

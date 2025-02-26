@@ -29,7 +29,6 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
@@ -158,7 +157,7 @@ absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(engine.Populate(f).status());
 
   bool changed = false;
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     if (node->Is<Select>()) {
       Select* select = node->As<Select>();
       Node* selector = select->selector();

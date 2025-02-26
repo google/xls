@@ -22,7 +22,6 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -122,7 +121,7 @@ absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
   StatelessQueryEngine query_engine;
 
   bool changed = false;
-  for (Node* node : TopoSort(proc)) {
+  for (Node* node : context->TopoSort(proc)) {
     if (!node->Is<Select>()) {
       continue;
     }

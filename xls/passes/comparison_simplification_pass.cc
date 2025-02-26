@@ -35,7 +35,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -254,10 +253,11 @@ struct Comparison {
 // operations.
 //
 // Returns true if any transformations were performed.
-absl::StatusOr<bool> TransformDerivedComparisons(FunctionBase* f) {
+absl::StatusOr<bool> TransformDerivedComparisons(FunctionBase* f,
+                                                 OptimizationContext* context) {
   bool changed = false;
   absl::flat_hash_map<Comparison, Node*> comparisons;
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     if (!node->Is<CompareOp>()) {
       continue;
     }
@@ -339,7 +339,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
   absl::flat_hash_map<Node*, RangeEquivalence> equivalences;
   VLOG(3) << absl::StreamFormat("Range equivalences for function `%s`:",
                                 f->name());
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     std::optional<RangeEquivalence> equivalence =
         ComputeRangeEquivalence(node, equivalences, query_engine);
     if (!equivalence.has_value()) {
@@ -352,7 +352,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     equivalences[node] = equivalence.value();
   }
 
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     if (!equivalences.contains(node)) {
       continue;
     }
@@ -465,7 +465,8 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(bool common_changed, TransformDerivedComparisons(f));
+  XLS_ASSIGN_OR_RETURN(bool common_changed,
+                       TransformDerivedComparisons(f, context));
   changed = changed || common_changed;
 
   return changed;

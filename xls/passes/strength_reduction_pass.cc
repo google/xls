@@ -17,7 +17,6 @@
 #include <array>
 #include <cstdint>
 #include <iterator>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -39,7 +38,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
 #include "xls/passes/optimization_pass.h"
@@ -582,7 +580,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,
                        FindReducibleAdds(f, query_engine));
   bool modified = false;
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
                          StrengthReduceNode(node, reducible_adds, query_engine,
                                             options.opt_level));

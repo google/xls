@@ -38,6 +38,8 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/ir/change_listener.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
@@ -209,9 +211,68 @@ class OptimizationContext {
     return query_engines;
   }
 
-  void Abandon(FunctionBase* f) { shared_query_engines_.erase(f); }
+  void Abandon(FunctionBase* f) {
+    shared_query_engines_.erase(f);
+    reverse_topo_sort_.erase(f);
+  }
+
+  std::vector<Node*> ReverseTopoSort(FunctionBase* f);
+  std::vector<Node*> TopoSort(FunctionBase* f);
 
  private:
+  const std::vector<Node*>& ReverseTopoSortReference(FunctionBase* f);
+
+  class InvalidatingVector : public ChangeListener {
+   public:
+    InvalidatingVector(FunctionBase* f, std::vector<Node*> value = {})
+        : f_(f), storage_(std::move(value)) {
+      f_->RegisterChangeListener(this);
+    }
+    ~InvalidatingVector() override { f_->UnregisterChangeListener(this); }
+
+    InvalidatingVector(const InvalidatingVector&) = delete;
+    InvalidatingVector& operator=(const InvalidatingVector&) = delete;
+
+    InvalidatingVector(InvalidatingVector&& other)
+        : f_(other.f_), storage_(std::move(other.storage_)) {
+      f_->RegisterChangeListener(this);
+    }
+    InvalidatingVector& operator=(InvalidatingVector&& other) {
+      if (f_ != nullptr) {
+        f_->UnregisterChangeListener(this);
+      }
+      f_ = other.f_;
+      storage_ = std::move(other.storage_);
+      if (f_ != nullptr) {
+        f_->RegisterChangeListener(this);
+      }
+      return *this;
+    }
+
+    std::vector<Node*>& operator*() { return storage_; }
+    const std::vector<Node*>& operator*() const { return storage_; }
+
+    std::vector<Node*>* operator->() { return &storage_; }
+    const std::vector<Node*>* operator->() const { return &storage_; }
+
+    void NodeAdded(Node*) override { storage_.clear(); }
+    void NodeDeleted(Node*) override { storage_.clear(); }
+    void OperandChanged(Node*, Node*, absl::Span<const int64_t>) override {
+      storage_.clear();
+    }
+    void OperandRemoved(Node*, Node*) override { storage_.clear(); }
+    void OperandAdded(Node*) override { storage_.clear(); }
+    void ReturnValueChanged(Function*, Node*) override { storage_.clear(); }
+    void NextStateElementChanged(Proc*, int64_t, Node*) override {
+      storage_.clear();
+    }
+
+   private:
+    FunctionBase* f_;
+    std::vector<Node*> storage_;
+  };
+  absl::flat_hash_map<FunctionBase*, InvalidatingVector> reverse_topo_sort_;
+
   absl::flat_hash_map<
       FunctionBase*,
       absl::flat_hash_map<std::type_index, std::shared_ptr<QueryEngine>>>

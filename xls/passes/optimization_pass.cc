@@ -20,8 +20,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
@@ -32,10 +34,12 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/change_listener.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
+#include "xls/ir/topo_sort.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -125,6 +129,31 @@ absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
     rewrites.push_back(rewrite);
   }
   return rewrites;
+}
+
+const std::vector<Node*>& OptimizationContext::ReverseTopoSortReference(
+    FunctionBase* f) {
+  auto it = reverse_topo_sort_.find(f);
+  if (it == reverse_topo_sort_.end()) {
+    bool inserted = false;
+    std::tie(it, inserted) = reverse_topo_sort_.emplace(
+        f, InvalidatingVector(f, xls::ReverseTopoSort(f)));
+    CHECK(inserted);
+  }
+  if (it->second->empty() && f->node_count() > 0) {
+    *it->second = xls::ReverseTopoSort(f);
+  }
+  return *it->second;
+}
+
+std::vector<Node*> OptimizationContext::ReverseTopoSort(FunctionBase* f) {
+  return ReverseTopoSortReference(f);
+}
+std::vector<Node*> OptimizationContext::TopoSort(FunctionBase* f) {
+  std::vector<Node*> result;
+  result.reserve(f->node_count());
+  absl::c_reverse_copy(ReverseTopoSortReference(f), std::back_inserter(result));
+  return result;
 }
 
 absl::StatusOr<bool> OptimizationFunctionBasePass::RunOnFunctionBase(

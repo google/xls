@@ -28,6 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/estimators/delay_model/delay_estimator.h"
 #include "xls/ir/node.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -44,7 +45,8 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   codegen_pass_options.delay_estimator = delay_estimator;
 
   CodegenPassResults results;
-  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline()
+  OptimizationContext context;
+  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(&context)
                           ->Run(&unit, codegen_pass_options, &results)
                           .status());
   XLS_RET_CHECK_NE(unit.top_block, nullptr);

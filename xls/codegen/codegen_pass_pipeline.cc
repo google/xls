@@ -131,7 +131,8 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
 absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
                                             Block* block,
                                             OptimizationContext* context) {
-  std::unique_ptr<CodegenCompoundPass> pipeline = CreateCodegenPassPipeline();
+  std::unique_ptr<CodegenCompoundPass> pipeline =
+      CreateCodegenPassPipeline(context);
   CodegenPassUnit unit(block->package(), block);
   CodegenPassResults results;
   return pipeline->Run(&unit, options, &results);

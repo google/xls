@@ -36,6 +36,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -72,8 +73,10 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   }
 
   CodegenPassResults results;
-  XLS_RETURN_IF_ERROR(
-      CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
+  OptimizationContext context;
+  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(&context)
+                          ->Run(&unit, pass_options, &results)
+                          .status());
   XLS_RET_CHECK(unit.top_block != nullptr &&
                 unit.metadata.contains(unit.top_block) &&
                 unit.metadata.at(unit.top_block).signature.has_value());
@@ -124,8 +127,10 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   }
 
   CodegenPassResults results;
-  XLS_RETURN_IF_ERROR(
-      CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
+  OptimizationContext context;
+  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(&context)
+                          ->Run(&unit, pass_options, &results)
+                          .status());
   XLS_RET_CHECK(unit.top_block != nullptr &&
                 unit.metadata.contains(unit.top_block) &&
                 unit.metadata.at(unit.top_block).signature.has_value());

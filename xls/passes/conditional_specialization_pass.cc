@@ -56,7 +56,6 @@
 #include "xls/ir/partial_information.h"
 #include "xls/ir/partial_ops.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -331,8 +330,8 @@ class ConditionSet {
 // used outside the case arm expression.
 class ConditionMap {
  public:
-  explicit ConditionMap(FunctionBase* f) {
-    std::vector<Node*> topo_sort = TopoSort(f);
+  explicit ConditionMap(FunctionBase* f, OptimizationContext* context) {
+    std::vector<Node*> topo_sort = context->TopoSort(f);
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index_[topo_sort[i]] = i;
       // Initially all node conditions are empty.
@@ -582,9 +581,9 @@ std::optional<std::variant<Node*, ZeroValue>> GetSelectedCase(
 }
 
 absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> AffectedBy(
-    FunctionBase* f) {
+    FunctionBase* f, OptimizationContext* context) {
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> affected_by;
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     for (Node* operand : node->operands()) {
       affected_by[operand].insert(node);
     }
@@ -731,9 +730,10 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(
 
 class ImpliedConditionCache {
  public:
-  ImpliedConditionCache(FunctionBase* f, QueryEngine* query_engine)
+  ImpliedConditionCache(FunctionBase* f, OptimizationContext* context,
+                        QueryEngine* query_engine)
       : query_engine_(query_engine) {
-    std::vector<Node*> topo_sort = TopoSort(f);
+    std::vector<Node*> topo_sort = context->TopoSort(f);
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index_[topo_sort[i]] = i;
     }
@@ -924,8 +924,8 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   UnionQueryEngine query_engine(std::move(query_engines));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
-  ConditionMap condition_map(f);
-  ImpliedConditionCache condition_cache(f, &query_engine);
+  ConditionMap condition_map(f, context);
+  ImpliedConditionCache condition_cache(f, context, &query_engine);
 
   std::optional<absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>>
       affected_by;
@@ -933,7 +933,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   // Iterate backwards through the graph because we add conditions at the case
   // arm operands of selects and propagate them upwards through the expressions
   // which compute the case arm.
-  for (Node* node : ReverseTopoSort(f)) {
+  for (Node* node : context->ReverseTopoSort(f)) {
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
     VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
                                   set.ToString());
@@ -1158,7 +1158,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
       std::vector<Node*> access_conditions;
       if (!affected_by.has_value()) {
-        affected_by = AffectedBy(f);
+        affected_by = AffectedBy(f, context);
       }
       for (auto& [src, given] : accessed_when) {
         if ((*affected_by)[node].contains(src)) {

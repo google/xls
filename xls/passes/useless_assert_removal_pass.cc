@@ -22,7 +22,6 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -37,7 +36,7 @@ absl::StatusOr<bool> UselessAssertRemovalPass::RunOnFunctionBaseInternal(
 
   bool changed = false;
   // Remove asserts with literal true conditions.
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     if (node->op() == Op::kAssert) {
       Assert* current_assert = node->As<Assert>();
       Node* condition = current_assert->condition();

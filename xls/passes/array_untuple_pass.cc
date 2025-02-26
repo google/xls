@@ -50,7 +50,6 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
@@ -61,10 +60,11 @@ namespace xls {
 
 namespace {
 // Group all nodes together based on whether they need to be updated together.
-UnionFind<Node*> FindUntupleGroups(FunctionBase* f) {
+UnionFind<Node*> FindUntupleGroups(FunctionBase* f,
+                                   OptimizationContext* context) {
   UnionFind<Node*> array_groups;
   // To make things simpler every node is put in the union-find.
-  for (Node* n : TopoSort(f)) {
+  for (Node* n : context->TopoSort(f)) {
     array_groups.Insert(n);
     if (n->Is<ArrayUpdate>()) {  // Array modification
       array_groups.Union(n->As<ArrayUpdate>()->array_to_update(), n);
@@ -608,13 +608,13 @@ absl::StatusOr<bool> ArrayUntuplePass::RunOnFunctionBaseInternal(
     // Don't mess with blocks.
     return false;
   }
-  UnionFind<Node*> groups = FindUntupleGroups(f);
+  UnionFind<Node*> groups = FindUntupleGroups(f, context);
   // Get the set of representative elements which are in groups with external
   // uses and so cannot be (profitably) array-of-structs-ified
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> excluded,
                        FindExternalGroups(f, groups));
   UntupleVisitor vis(groups, excluded);
-  for (Node* n : TopoSort(f)) {
+  for (Node* n : context->TopoSort(f)) {
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&vis)) << n;
   }
   // XLS_RETURN_IF_ERROR(f->Accept(&vis));

@@ -30,7 +30,6 @@
 #include "xls/estimators/delay_model/delay_estimators.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -52,7 +51,8 @@ namespace {
 //     in the list. This ensures that the CSE replacement does not increase
 //     critical-path
 //
-absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
+absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
+                                                OptimizationContext* context) {
   // Index of each node in the topological sort.
   absl::flat_hash_map<Node*, int64_t> topo_index;
   // Critical-path distance from root in the graph to each node.
@@ -70,7 +70,7 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
         GetStandardDelayEstimator().GetOperationDelayInPs(n);
     return delay_status.ok() ? delay_status.value() : 0;
   };
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     topo_index[node] = i;
     int64_t node_start = 0;
     for (Node* operand : node->operands()) {
@@ -134,7 +134,7 @@ absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
   bool changed = false;
   absl::flat_hash_map<int64_t, std::vector<Node*>> node_buckets;
   node_buckets.reserve(f->node_count());
-  XLS_ASSIGN_OR_RETURN(std::vector<Node*> node_order, GetNodeOrder(f));
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> node_order, GetNodeOrder(f, context));
   for (Node* node : node_order) {
     if (!node->GetType()->IsBits() || node->Is<Literal>()) {
       continue;

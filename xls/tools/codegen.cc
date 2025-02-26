@@ -254,7 +254,7 @@ absl::StatusOr<PipelineScheduleOrGroup> RunSchedulingPipeline(
   sched_options.synthesizer = synthesizer;
   OptimizationContext context;
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
-      CreateSchedulingPassPipeline(scheduling_options.opt_level(), &context);
+      CreateSchedulingPassPipeline(&context, scheduling_options.opt_level());
   SchedulingPassResults results;
   XLS_RETURN_IF_ERROR(main->package()->SetTop(main));
   auto scheduling_unit =

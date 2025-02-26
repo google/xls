@@ -794,10 +794,11 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
 
   int64_t pass_no = absl::Uniform<int64_t>(rng, 0, passes.size());
   PassResults results;
+  OptimizationContext context;
   XLS_ASSIGN_OR_RETURN(
       bool changed,
       passes.at(pass_no)->Run(f->package(), OptimizationPassOptions(), &results,
-                              /*context=*/nullptr));
+                              &context));
   if (changed) {
     *which_transform = passes.at(pass_no)->short_name();
     return SimplificationResult::kDidChange;

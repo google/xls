@@ -25,7 +25,6 @@
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -37,7 +36,7 @@ namespace {
 // Finds an "effectively used" (has users or is return value) counted for in the
 // function f, or returns nullptr if none is found.
 CountedFor* FindCountedFor(FunctionBase* f) {
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : f->nodes()) {
     if (node->Is<CountedFor>() &&
         (f->HasImplicitUse(node) || !node->users().empty())) {
       return node->As<CountedFor>();

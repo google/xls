@@ -44,7 +44,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/lazy_ternary_query_engine.h"
@@ -65,12 +64,8 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
   std::vector<std::unique_ptr<QueryEngine>> owned_engines;
   std::vector<QueryEngine*> unowned_engines;
   owned_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  if (context == nullptr) {
-    owned_engines.push_back(std::make_unique<TernaryQueryEngine>());
-  } else {
-    unowned_engines.push_back(
-        context->SharedQueryEngine<LazyTernaryQueryEngine>(f));
-  }
+  unowned_engines.push_back(
+      context->SharedQueryEngine<LazyTernaryQueryEngine>(f));
   if (opt_level >= 3) {
     owned_engines.push_back(std::make_unique<RangeQueryEngine>());
   }
@@ -1080,7 +1075,7 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   //
   // Also, since these simplifications never generate more nodes of the same
   // type, we don't need to worry about running them to fixed-point.
-  for (Node* node : ReverseTopoSort(f)) {
+  for (Node* node : context->ReverseTopoSort(f)) {
     bool node_changed = false;
     if (node->Is<DynamicBitSlice>()) {
       XLS_ASSIGN_OR_RETURN(node_changed,

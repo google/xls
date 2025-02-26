@@ -41,7 +41,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
 #include "xls/passes/optimization_pass.h"
@@ -1534,7 +1533,7 @@ absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
   StatelessQueryEngine query_engine;
   do {
     pass_changed = false;
-    for (Node* n : ReverseTopoSort(f)) {
+    for (Node* n : context->ReverseTopoSort(f)) {
       if (n->IsDead()) {
         continue;
       }

@@ -29,7 +29,7 @@ namespace xls::verilog {
 // generated and the Block may be passed to block_generator for generating
 // Verilog.
 std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
-    OptimizationContext* context = nullptr);
+    OptimizationContext* context);
 
 // Runs the codegen pass pipeline on the given block with the given options.
 // Returns true if a change has been made by anything in the pipeline.
@@ -38,9 +38,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
 // operates on a CodegenPassUnit which includes a large amount of ancillary
 // information in addition to the block graph. Without this information some
 // codegen passes might be unable to inspect or modify the code in any deep way.
-absl::StatusOr<bool> RunCodegenPassPipeline(
-    const CodegenPassOptions& options, Block* block,
-    OptimizationContext* context = nullptr);
+absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
+                                            Block* block,
+                                            OptimizationContext* context);
 
 }  // namespace xls::verilog
 

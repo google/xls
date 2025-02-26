@@ -101,7 +101,8 @@ static bool IsInlineable(const Invoke* invoke) {
 // Inlines the node "invoke" by replacing it with the contents of the called
 // function.
 template <bool kCheckNoSubInvokes = true>
-absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
+absl::Status InlineInvoke(Invoke* invoke, OptimizationContext* context,
+                          int inline_count) {
   Function* invoked = invoke->to_apply();
   absl::flat_hash_map<Node*, Node*> invoked_node_to_replacement;
   for (int64_t i = 0; i < invoked->params().size(); ++i) {
@@ -109,7 +110,8 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
     invoked_node_to_replacement[param] = invoke->operand(i);
   }
 
-  for (Node* node : TopoSort(invoked)) {
+  for (Node* node :
+       (context != nullptr ? context->TopoSort(invoked) : TopoSort(invoked))) {
     if (invoked_node_to_replacement.contains(node)) {
       // Already taken care of (e.g. parameters above).
       continue;
@@ -212,7 +214,8 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
 }  // namespace
 
 absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
-  return InlineInvoke</*kCheckNoSubInvokes=*/false>(invoke, /*inline_count=*/0);
+  return InlineInvoke</*kCheckNoSubInvokes=*/false>(invoke, /*context=*/nullptr,
+                                                    /*inline_count=*/0);
 }
 
 absl::StatusOr<bool> InliningPass::RunInternal(
@@ -230,7 +233,8 @@ absl::StatusOr<bool> InliningPass::RunInternal(
     std::vector<Node*> nodes(f->nodes().begin(), f->nodes().end());
     for (Node* node : nodes) {
       if (node->Is<Invoke>() && IsInlineable(node->As<Invoke>())) {
-        XLS_RETURN_IF_ERROR(InlineInvoke(node->As<Invoke>(), inline_count++));
+        XLS_RETURN_IF_ERROR(
+            InlineInvoke(node->As<Invoke>(), context, inline_count++));
         changed = true;
       }
     }

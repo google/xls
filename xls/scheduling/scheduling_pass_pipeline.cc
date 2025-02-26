@@ -34,7 +34,7 @@
 namespace xls {
 
 std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline(
-    int64_t opt_level, OptimizationContext* context) {
+    OptimizationContext* context, int64_t opt_level) {
   auto top = std::make_unique<SchedulingCompoundPass>(
       "scheduling", "Top level scheduling pass pipeline");
   top->AddInvariantChecker<SchedulingChecker>();

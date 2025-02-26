@@ -34,7 +34,6 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
@@ -577,7 +576,7 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
   // For optimizations which optimize around concats, just iterate through once
   // and find all opportunities.
   if (options.narrowing_enabled()) {
-    for (Node* node : TopoSort(f)) {
+    for (Node* node : context->TopoSort(f)) {
       if (OpIsBitWise(node->op())) {
         XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
                              TryHoistBitWiseOperation(node, query_engine));

@@ -56,7 +56,6 @@
 #include "xls/ir/op.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/ternary.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -1862,7 +1861,7 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   NarrowVisitor narrower(sqe, RealAnalysis(options), options,
                          options.splits_enabled());
 
-  for (Node* node : TopoSort(f)) {
+  for (Node* node : context->TopoSort(f)) {
     // We specifically want gate ops to be eligible for being reduced to a
     // constant since there entire purpose is for preventing power consumption
     // and literals are basically free.

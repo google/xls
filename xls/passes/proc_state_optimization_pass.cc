@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -48,7 +47,6 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/state_element.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -217,7 +215,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
 // Dependencies are only computed in a single forward pass so dependencies
 // through the proc back edge are not considered.
 absl::StatusOr<absl::flat_hash_map<Node*, InlineBitmap>>
-ComputeStateDependencies(Proc* proc) {
+ComputeStateDependencies(Proc* proc, OptimizationContext* context) {
   StateDependencyVisitor visitor(proc);
   XLS_RETURN_IF_ERROR(proc->Accept(&visitor));
   absl::flat_hash_map<Node*, InlineBitmap> state_dependencies;
@@ -226,7 +224,7 @@ ComputeStateDependencies(Proc* proc) {
   }
   if (VLOG_IS_ON(5)) {
     VLOG(5) << "State dependencies (** side-effecting operation):";
-    for (Node* node : TopoSort(proc)) {
+    for (Node* node : context->TopoSort(proc)) {
       std::vector<std::string> dependent_elements;
       for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
         if (state_dependencies.at(node).Get(i)) {
@@ -244,12 +242,14 @@ ComputeStateDependencies(Proc* proc) {
 // Removes unobservable state elements. A state element X is observable if:
 //   (1) a side-effecting operation depends on X, OR
 //   (2) the next-state value of an observable state element depends on X.
-absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
+absl::StatusOr<bool> RemoveUnobservableStateElements(
+    Proc* proc, OptimizationContext* context) {
   if (proc->GetStateElementCount() == 0) {
     return false;
   }
   absl::flat_hash_map<Node*, InlineBitmap> state_dependencies;
-  XLS_ASSIGN_OR_RETURN(state_dependencies, ComputeStateDependencies(proc));
+  XLS_ASSIGN_OR_RETURN(state_dependencies,
+                       ComputeStateDependencies(proc, context));
 
   // Compute an adjacency matrix for which state elements affect each other.
   //
@@ -504,7 +504,7 @@ absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
   changed = changed || constant_chains_changed;
 
   XLS_ASSIGN_OR_RETURN(bool unobservable_changed,
-                       RemoveUnobservableStateElements(proc));
+                       RemoveUnobservableStateElements(proc, context));
   changed = changed || unobservable_changed;
 
   return changed;

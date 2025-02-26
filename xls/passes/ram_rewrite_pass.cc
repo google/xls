@@ -40,7 +40,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/proc_instantiation.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
@@ -772,7 +771,8 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
 // 6. Replacing usages of the old receive with the new repacking.
 // 7. For both sends and receives, remove the old send/receive when their usages
 // have been replaced.
-absl::Status ReplaceChannelReferences(Package* p, const RamMetadata& metadata,
+absl::Status ReplaceChannelReferences(Package* p, OptimizationContext* context,
+                                      const RamMetadata& metadata,
                                       const RamChannelMap& to_mapping) {
   // Make a reverse mapping from channel -> logical name.
   // Used for figuring out what kind of channel each send/recv is operating on.
@@ -840,7 +840,7 @@ absl::Status ReplaceChannelReferences(Package* p, const RamMetadata& metadata,
 
   if (metadata.proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
-    for (Node* node : TopoSort(metadata.proc_scope.value())) {
+    for (Node* node : context->TopoSort(metadata.proc_scope.value())) {
       if (node->Is<Send>()) {
         XLS_RETURN_IF_ERROR(
             handle_send(node->As<Send>(), metadata.proc_scope.value()));
@@ -852,7 +852,7 @@ absl::Status ReplaceChannelReferences(Package* p, const RamMetadata& metadata,
   } else {
     XLS_RET_CHECK(!p->ChannelsAreProcScoped());
     for (auto& proc : p->procs()) {
-      for (Node* node : TopoSort(proc.get())) {
+      for (Node* node : context->TopoSort(proc.get())) {
         if (node->Is<Send>()) {
           XLS_RETURN_IF_ERROR(
               handle_send(node->As<Send>(), /*proc_scope=*/std::nullopt));
@@ -982,8 +982,8 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
     RamChannelMap new_logical_to_channels;
     XLS_ASSIGN_OR_RETURN(new_logical_to_channels,
                          CreateChannelsForNewRam(p, metadata));
-    XLS_RETURN_IF_ERROR(
-        ReplaceChannelReferences(p, metadata, new_logical_to_channels));
+    XLS_RETURN_IF_ERROR(ReplaceChannelReferences(p, context, metadata,
+                                                 new_logical_to_channels));
 
     // ReplaceChannelReferences() removes old sends and receives, but the old
     // channels are still there.
