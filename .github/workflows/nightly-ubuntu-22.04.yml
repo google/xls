@@ -91,7 +91,7 @@ jobs:
           # delete jdk from bazel cache.
           rm -r ~/.cache/bazel/_bazel*/*/external/remotejdk*/
           # delete release artifacts from cache.
-          rm -r ~/.cache/bazel/_bazel*/*/execroot/com_google_xls/bazel-out/*/bin/dist/
+          rm -r ~/.cache/bazel/_bazel*/*/execroot/*/bazel-out/*/bin/dist/
           # breakdown remaining bazel cache size.
           du -h -t 200M ~/.cache/bazel/*/ | sort -hr
 
