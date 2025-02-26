@@ -985,16 +985,10 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
         tok->span(), "Wildcard pattern `_` cannot be used as a reference");
   }
 
-  // If we failed to parse this ref, then put it back on the queue, in case
-  // we try another production.
   XLS_ASSIGN_OR_RETURN(
       BoundNode bn,
       bindings.ResolveNodeOrError(*tok->GetValue(), tok->span(), file_table()));
   AnyNameDef name_def = BoundNodeToAnyNameDef(bn);
-  if (std::holds_alternative<ConstantDef*>(bn)) {
-    return module_->Make<NameRef>(tok->span(), *tok->GetValue(), name_def);
-  }
-
   return module_->Make<NameRef>(tok->span(), *tok->GetValue(), name_def);
 }
 
