@@ -233,7 +233,7 @@ def xls_ir_verilog_fdo_impl(ctx, src, original_input_files):
         "delay_model",
         "clock_margin_percent",
         "period_relaxation_percent",
-        "minimize_clock_on_error",
+        "minimize_clock_on_failure",
         "worst_case_throughput",
         "additional_input_delay_ps",
         "ffi_fallback_delay_ps",

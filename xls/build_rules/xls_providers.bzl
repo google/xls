@@ -141,10 +141,10 @@ SCHEDULING_FIELDS = {
     "period_relaxation_percent": "The percentage of clock period that will " +
                                  "be relaxed when scheduling without an " +
                                  "explicit --clock_period_ps.",
-    "minimize_clock_on_error": "If true, when `--clock_period_ps` is given " +
-                               "but is infeasible for scheduling, search for " +
-                               "& report the shortest feasible clock period.",
-    "recover_after_minimizing_clock": "If this and `--minimize_clock_on_error` are both given, " +
+    "minimize_clock_on_failure": "If true, when `--clock_period_ps` is given " +
+                                 "but is infeasible for scheduling, search for " +
+                                 "& report the shortest feasible clock period.",
+    "recover_after_minimizing_clock": "If this and `--minimize_clock_on_failure` are both given, " +
                                       "when `--clock_period_ps` is given but is infeasible for " +
                                       "scheduling, will print a warning and continue scheduling " +
                                       "as if the shortest feasible clock period had been given.",

@@ -68,6 +68,25 @@ xls_ir_verilog(
     verilog_file = "f_proc_as_comb.sv",
 )
 
+xls_ir_verilog(
+    name = "f_proc_minimize_clock_sv",
+    src = ":f_proc.opt.ir",
+    codegen_args = {
+        "generator": "pipeline",
+        "pipeline_stages": "1",
+        "clock_period_ps": "1",
+        # Without next two options, the clock period in 1 pipeline stage is infeasible.
+        "minimize_clock_on_failure": "true",
+        "recover_after_minimizing_clock": "true",
+        "flop_inputs": "false",
+        "flop_outputs": "false",
+        "use_system_verilog": "true",
+        "module_name": "f_proc_minimize_clock",
+    },
+    enable_presubmit_generated_file = True,
+    verilog_file = "f_proc_minimize_clock.sv",
+)
+
 xls_dslx_opt_ir(
     name = "f_func",
     srcs = ["f_func.x"],

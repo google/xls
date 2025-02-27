@@ -64,14 +64,14 @@ control the scheduler.
 -   `--period_relaxation_percent=...` sets the percentage that the computed
     minimum clock period is increased. May not be specified with
     `--clock_period_ps`.
--   `--minimize_clock_on_error` is enabled by default. If enabled, when
+-   `--minimize_clock_on_failure` is enabled by default. If enabled, when
     `--clock_period_ps` is given with an infeasible clock (in the sense that XLS
     cannot pipeline this input for this clock, even with other constraints
     relaxed), XLS will find and report the minimum feasible clock period if one
     exists. If disabled, XLS will report only that the clock period was
     infeasible, potentially saving time.
 -   `--recover_after_minimizing_clock` is disabled by default. If both this and
-    `--minimize_clock_on_error` are enabled, when `--clock_period_ps` is given
+    `--minimize_clock_on_failure` are enabled, when `--clock_period_ps` is given
     with an infeasible clock, XLS will print a warning, find and report the
     minimum feasible clock period (if one exists), and then continue generating
     Verilog as if this had been the specified clock period.
