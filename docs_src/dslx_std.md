@@ -255,8 +255,8 @@ fn test_clz_ctz() {
 
 ### `decode`
 
-Converts a binary-encoded value into a one-hot value. For an operand value of
-`n``interpreted as an unsigned number, the`n`-th result bit and only the`n`-th
+Converts a binary-encoded value into a one-hot value. Given
+`n`, interpreted as an unsigned number, the`n`-th result bit and only the`n`-th
 result bit is set. Has the following signature:
 
 ```
