@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
-#include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -47,7 +46,6 @@
 #include "xls/data_structures/graph_coloring.h"
 #include "xls/data_structures/transitive_closure.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -58,7 +56,6 @@
 #include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_utils.h"
-#include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
