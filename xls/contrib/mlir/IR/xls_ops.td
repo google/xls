@@ -135,6 +135,36 @@ def Xls_TranslationLinkage : Xls_Attr<"TranslationLinkage"> {
   let attrName = "xls.translation_linkage";
 }
 
+def Xls_FlopKindNone        : I32EnumAttrCase<"kNone", 0, "none">;
+def Xls_FlopKindFlop        : I32EnumAttrCase<"kFlop", 1, "flop">;
+def Xls_FlopKindSkid        : I32EnumAttrCase<"kSkid", 2, "skid">;
+def Xls_FlopKindZeroLatency : I32EnumAttrCase<"kZeroLatency", 3, "zero-latency">;
+def Xls_FlopKind : I32EnumAttr<"FlopKind", "XLS flop kind",
+  [Xls_FlopKindNone, Xls_FlopKindFlop, Xls_FlopKindSkid, Xls_FlopKindZeroLatency]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::mlir::xls";
+}
+def Xls_FlopKindAttr : EnumAttr<Xls_Dialect, Xls_FlopKind, "flop_kind">;
+
+def Xls_FifoConfig : Xls_Attr<"FifoConfig"> {
+  let summary = "Fifo Configuration Attribute";
+  let description = [{
+    Definies the properties of the physical fifo to be instantiated from
+    an (internal) channel.
+  }];
+
+  let parameters = (ins
+    "int64_t":$fifo_depth,
+    "bool":$bypass,
+    "bool":$register_push_outputs,
+    "bool":$register_pop_outputs
+  );
+
+  let mnemonic = "fifo_config";
+
+  let assemblyFormat = "`<` struct(params) `>`";
+}
+
 class GetShapeSplat<string name> :
     StrFunc<"getShapeSplat($" # name # ".getType())">;
 
@@ -1626,6 +1656,9 @@ def Xls_ChanOp : Xls_Op<"chan", [
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     TypeAttr:$type,
+    OptionalAttr<Xls_FifoConfig>: $fifo_config,
+    OptionalAttr<Xls_FlopKindAttr>: $input_flop_kind,
+    OptionalAttr<Xls_FlopKindAttr>: $output_flop_kind,
     DefaultValuedAttr<BoolAttr, "true">:$send_supported,
     DefaultValuedAttr<BoolAttr, "true">:$recv_supported
   );
@@ -1653,7 +1686,6 @@ def Xls_ChanOp : Xls_Op<"chan", [
     void setArgAttrsAttr(ArrayAttr) { return; }
     void setResAttrsAttr(ArrayAttr) { return; }
   }];
-
 }
 
 def Xls_InstantiateEprocOp : Xls_Op<"instantiate_eproc", [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
@@ -1763,7 +1795,10 @@ def Xls_SchanOp : Xls_Op<"schan", [Pure, HasParent<"SprocOp">]> {
   }];
   let arguments = (ins
     StrAttr:$name,
-    TypeAttr:$type
+    TypeAttr:$type,
+    OptionalAttr<Xls_FifoConfig>: $fifo_config,
+    OptionalAttr<Xls_FlopKindAttr>: $input_flop_kind,
+    OptionalAttr<Xls_FlopKindAttr>: $output_flop_kind
   );
   let results = (outs
     Xls_SchanType:$out,
@@ -1774,7 +1809,7 @@ def Xls_SchanOp : Xls_Op<"schan", [Pure, HasParent<"SprocOp">]> {
     OpBuilder<(ins "::mlir::StringRef":$name, "::mlir::Type":$element_type), [{
       auto inChanTy = SchanType::get($_builder.getContext(), element_type, /*isInput=*/true);
       auto outChanTy = SchanType::get($_builder.getContext(), element_type, /*isInput=*/false);
-      build($_builder, $_state, ::mlir::TypeRange{outChanTy, inChanTy}, name, element_type);
+      build($_builder, $_state, ::mlir::TypeRange{outChanTy, inChanTy}, name, element_type, /*fifo_config=*/nullptr, /*input_flop_kind=*/nullptr, /*output_flop_kind=*/nullptr);
     }]>
   ];
 }

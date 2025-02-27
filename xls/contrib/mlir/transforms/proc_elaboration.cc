@@ -141,7 +141,10 @@ class ElaborationContext
     for (auto [i, arg] : llvm::enumerate(sproc.getNextChannels())) {
       auto chan = builder.create<ChanOp>(
           sproc.getLoc(), absl::StrFormat("%s_arg%d", originalName.str(), i),
-          cast<SchanType>(arg.getType()).getElementType());
+          cast<SchanType>(arg.getType()).getElementType(),
+          /*fifo_config=*/nullptr,
+          /*input_flop_kind=*/nullptr,
+          /*output_flop_kind=*/nullptr);
       eprocChannels.push_back(chan);
       chanMap[mapping.lookup(arg)] = SymbolRefAttr::get(chan.getSymNameAttr());
     }
@@ -224,8 +227,10 @@ class ElaborationInterpreter
   absl::Status Interpret(SchanOp op, ElaborationContext& ctx) {
     std::string name = op.getName().str();
     auto uniqueName = ctx.Uniquify(op.getNameAttr());
-    ChanOp chan =
-        ctx.getBuilder().create<ChanOp>(op.getLoc(), uniqueName, op.getType());
+    ChanOp chan = ctx.getBuilder().create<ChanOp>(
+        op.getLoc(), uniqueName, op.getType(), op.getFifoConfigAttr(),
+        op.getInputFlopKindAttr(), op.getOutputFlopKindAttr());
+
     ctx.getSymbolTable().insert(chan);
     ctx.Set(op.getResult(0), chan);
     ctx.Set(op.getResult(1), chan);
@@ -318,7 +323,11 @@ void ProcElaborationPass::runOnOperation() {
         SchanType schan = cast<SchanType>(arg.getType());
         auto nameAttr = cast<StringAttr>(name);
         auto echan = builder.create<ChanOp>(sproc.getLoc(), nameAttr.str(),
-                                            schan.getElementType());
+                                            schan.getElementType(),
+                                            /*fifo_config=*/nullptr,
+                                            /*input_flop_kind=*/nullptr,
+                                            /*output_flop_kind=*/nullptr);
+
         if (schan.getIsInput()) {
           echan.setSendSupported(false);
         } else {
