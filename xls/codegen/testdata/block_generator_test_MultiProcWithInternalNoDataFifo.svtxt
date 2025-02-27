@@ -1,0 +1,144 @@
+`include "fifo.v"
+
+module pipelined_proc__1(
+  input wire clk,
+  input wire rst,
+  input wire in_vld,
+  input wire internal_rdy,
+  output wire internal_vld,
+  output wire in_rdy
+);
+  reg p0_valid;
+  reg __in_valid_reg;
+  reg __internal_valid_reg;
+  wire internal_valid_inv;
+  wire internal_valid_load_en;
+  wire internal_load_en;
+  wire p1_stage_done;
+  wire p1_not_valid;
+  wire p0_enable;
+  wire p0_data_enable;
+  wire in_valid_inv;
+  wire in_valid_load_en;
+  wire in_load_en;
+  assign internal_valid_inv = ~__internal_valid_reg;
+  assign internal_valid_load_en = internal_rdy | internal_valid_inv;
+  assign internal_load_en = p0_valid & internal_valid_load_en;
+  assign p1_stage_done = p0_valid & internal_load_en;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_enable = p1_stage_done | p1_not_valid;
+  assign p0_data_enable = p0_enable & __in_valid_reg;
+  assign in_valid_inv = ~__in_valid_reg;
+  assign in_valid_load_en = p0_data_enable | in_valid_inv;
+  assign in_load_en = in_vld & in_valid_load_en;
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      p0_valid <= 1'h0;
+      __in_valid_reg <= 1'h0;
+      __internal_valid_reg <= 1'h0;
+    end else begin
+      p0_valid <= p0_enable ? __in_valid_reg : p0_valid;
+      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
+      __internal_valid_reg <= internal_valid_load_en ? p0_valid : __internal_valid_reg;
+    end
+  end
+  assign internal_vld = __internal_valid_reg;
+  assign in_rdy = in_load_en;
+endmodule
+
+
+module proc_out(
+  input wire clk,
+  input wire rst,
+  input wire internal_vld,
+  input wire out_rdy,
+  output wire out_vld,
+  output wire internal_rdy
+);
+  reg p0_valid;
+  reg __internal_valid_reg;
+  reg __out_valid_reg;
+  wire out_valid_inv;
+  wire out_valid_load_en;
+  wire out_load_en;
+  wire p1_stage_done;
+  wire p1_not_valid;
+  wire p0_enable;
+  wire p0_data_enable;
+  wire internal_valid_inv;
+  wire internal_valid_load_en;
+  wire internal_load_en;
+  assign out_valid_inv = ~__out_valid_reg;
+  assign out_valid_load_en = out_rdy | out_valid_inv;
+  assign out_load_en = p0_valid & out_valid_load_en;
+  assign p1_stage_done = p0_valid & out_load_en;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_enable = p1_stage_done | p1_not_valid;
+  assign p0_data_enable = p0_enable & __internal_valid_reg;
+  assign internal_valid_inv = ~__internal_valid_reg;
+  assign internal_valid_load_en = p0_data_enable | internal_valid_inv;
+  assign internal_load_en = internal_vld & internal_valid_load_en;
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      p0_valid <= 1'h0;
+      __internal_valid_reg <= 1'h0;
+      __out_valid_reg <= 1'h0;
+    end else begin
+      p0_valid <= p0_enable ? __internal_valid_reg : p0_valid;
+      __internal_valid_reg <= internal_valid_load_en ? internal_vld : __internal_valid_reg;
+      __out_valid_reg <= out_valid_load_en ? p0_valid : __out_valid_reg;
+    end
+  end
+  assign out_vld = __out_valid_reg;
+  assign internal_rdy = internal_load_en;
+endmodule
+
+
+module pipelined_proc(
+  input wire clk,
+  input wire rst,
+  input wire in_vld,
+  input wire out_rdy,
+  output wire in_rdy,
+  output wire out_vld
+);
+  wire instantiation_output_138;
+  wire instantiation_output_144;
+  wire instantiation_output_151;
+  wire instantiation_output_156;
+  wire instantiation_output_145;
+  wire instantiation_output_150;
+
+  // ===== Instantiations
+  pipelined_proc__1 pipelined_proc__1_inst0 (
+    .rst(rst),
+    .in_vld(in_vld),
+    .internal_rdy(instantiation_output_145),
+    .in_rdy(instantiation_output_138),
+    .internal_vld(instantiation_output_144),
+    .clk(clk)
+  );
+  proc_out proc_out_inst1 (
+    .rst(rst),
+    .internal_vld(instantiation_output_150),
+    .out_rdy(out_rdy),
+    .internal_rdy(instantiation_output_151),
+    .out_vld(instantiation_output_156),
+    .clk(clk)
+  );
+  xls_nodata_fifo_wrapper #(
+    .Depth(32'd1),
+    .EnableBypass(1'd0),
+    .RegisterPushOutputs(1'd1),
+    .RegisterPopOutputs(1'd0)
+  ) fifo_internal (
+    .clk(clk),
+    .rst(rst),
+    .push_valid(instantiation_output_144),
+    .pop_ready(instantiation_output_151),
+    .push_ready(instantiation_output_145),
+    .pop_valid(instantiation_output_150)
+  );
+  assign in_rdy = instantiation_output_138;
+  assign out_vld = instantiation_output_156;
+endmodule

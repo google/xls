@@ -865,46 +865,56 @@ class BlockGenerator {
             connections);
       } else if (xls::FifoInstantiation* fifo_instantiation =
                      dynamic_cast<FifoInstantiation*>(instantiation)) {
-        std::initializer_list<Connection> parameters{
-            Connection{
-                .port_name = "Width",
-                .expression = mb_.file()->Literal(
-                    UBits(fifo_instantiation->data_type()->GetFlatBitCount(),
-                          32),
-                    SourceInfo(),
-                    /*format=*/FormatPreference::kUnsignedDecimal)},
-            Connection{.port_name = "Depth",
-                       .expression = mb_.file()->Literal(
-                           UBits(fifo_instantiation->fifo_config().depth(), 32),
-                           SourceInfo(),
-                           /*format=*/FormatPreference::kUnsignedDecimal)},
-            Connection{
-                .port_name = "EnableBypass",
-                .expression = mb_.file()->Literal(
-                    UBits(fifo_instantiation->fifo_config().bypass() ? 1 : 0,
-                          1),
-                    SourceInfo(),
-                    /*format=*/FormatPreference::kUnsignedDecimal)},
-            Connection{.port_name = "RegisterPushOutputs",
-                       .expression = mb_.file()->Literal(
-                           UBits(fifo_instantiation->fifo_config()
-                                         .register_push_outputs()
-                                     ? 1
-                                     : 0,
-                                 1),
-                           SourceInfo(),
-                           /*format=*/FormatPreference::kUnsignedDecimal)},
-            Connection{
-                .port_name = "RegisterPopOutputs",
-                .expression = mb_.file()->Literal(
-                    UBits(
-                        fifo_instantiation->fifo_config().register_pop_outputs()
-                            ? 1
-                            : 0,
-                        1),
-                    SourceInfo(),
-                    /*format=*/FormatPreference::kUnsignedDecimal)},
-        };
+        std::vector<Connection> parameters;
+        parameters.reserve(6);
+
+        bool have_data = fifo_instantiation->data_type()->GetFlatBitCount() > 0;
+
+        if (have_data) {
+          parameters.push_back(Connection{
+              .port_name = "Width",
+              .expression = mb_.file()->Literal(
+                  UBits(fifo_instantiation->data_type()->GetFlatBitCount(), 32),
+                  SourceInfo(),
+                  /*format=*/FormatPreference::kUnsignedDecimal)});
+        }
+
+        parameters.insert(
+            parameters.end(),
+            {
+                Connection{
+                    .port_name = "Depth",
+                    .expression = mb_.file()->Literal(
+                        UBits(fifo_instantiation->fifo_config().depth(), 32),
+                        SourceInfo(),
+                        /*format=*/FormatPreference::kUnsignedDecimal)},
+                Connection{
+                    .port_name = "EnableBypass",
+                    .expression = mb_.file()->Literal(
+                        UBits(
+                            fifo_instantiation->fifo_config().bypass() ? 1 : 0,
+                            1),
+                        SourceInfo(),
+                        /*format=*/FormatPreference::kUnsignedDecimal)},
+                Connection{.port_name = "RegisterPushOutputs",
+                           .expression = mb_.file()->Literal(
+                               UBits(fifo_instantiation->fifo_config()
+                                             .register_push_outputs()
+                                         ? 1
+                                         : 0,
+                                     1),
+                               SourceInfo(),
+                               /*format=*/FormatPreference::kUnsignedDecimal)},
+                Connection{.port_name = "RegisterPopOutputs",
+                           .expression = mb_.file()->Literal(
+                               UBits(fifo_instantiation->fifo_config()
+                                             .register_pop_outputs()
+                                         ? 1
+                                         : 0,
+                                     1),
+                               SourceInfo(),
+                               /*format=*/FormatPreference::kUnsignedDecimal)},
+            });
 
         // Append clock to connections.
         connections.push_back(
@@ -936,8 +946,11 @@ class BlockGenerator {
           return a.port_name < b.port_name;
         });
 
+        std::string_view wrapper_name =
+            have_data ? "xls_fifo_wrapper" : "xls_nodata_fifo_wrapper";
+
         mb_.instantiation_section()->Add<Instantiation>(
-            SourceInfo(), "xls_fifo_wrapper", fifo_instantiation->name(),
+            SourceInfo(), wrapper_name, fifo_instantiation->name(),
             /*parameters=*/parameters, connections);
       } else {
         return absl::UnimplementedError(absl::StrFormat(

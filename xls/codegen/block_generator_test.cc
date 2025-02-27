@@ -147,6 +147,53 @@ pop_ready,  pop_data,  pop_valid);
 endmodule
 )";
 
+inline constexpr std::string_view kDepth1NoDataFifoRTLText =
+    R"(// simple nodata fifo depth-1 implementation
+module xls_nodata_fifo_wrapper (
+clk, rst,
+push_ready, push_valid,
+pop_ready,  pop_valid);
+  parameter Depth = 32,
+            EnableBypass = 0,
+            RegisterPushOutputs = 1,
+            RegisterPopOutputs = 1;
+  localparam AddrWidth = $clog2(Depth) + 1;
+  input  wire             clk;
+  input  wire             rst;
+  output wire             push_ready;
+  input  wire             push_valid;
+  input  wire             pop_ready;
+  output wire             pop_valid;
+
+  // Require depth be 1 and bypass disabled.
+  initial begin
+    if (EnableBypass || Depth != 1 || !RegisterPushOutputs || RegisterPopOutputs) begin
+      // FIFO configuration not supported.
+      $fatal(1);
+    end
+  end
+
+  reg full;
+
+  assign push_ready = !full;
+  assign pop_valid = full;
+
+  always @(posedge clk) begin
+    if (rst == 1'b1) begin
+      full <= 1'b0;
+    end else begin
+      if (push_valid && push_ready) begin
+        full <= 1'b1;
+      end else if (pop_valid && pop_ready) begin
+        full <= 1'b0;
+      end else begin
+        full <= full;
+      end
+    end
+  end
+endmodule
+)";
+
 inline constexpr std::string_view kDepth0FifoRTLText =
     R"(// simple fifo depth-1 implementation
 module xls_fifo_wrapper (
@@ -180,6 +227,38 @@ pop_ready,  pop_data,  pop_valid);
   assign push_ready = pop_ready;
   assign pop_valid = push_valid;
   assign pop_data = push_data;
+
+endmodule
+)";
+
+inline constexpr std::string_view kDepth0NoDataFifoRTLText =
+    R"(// simple nodata fifo depth-1 implementation
+module xls_nodata_fifo_wrapper (
+clk, rst,
+push_ready, push_valid,
+pop_ready,  pop_valid);
+  parameter Depth = 32,
+            EnableBypass = 0,
+            RegisterPushOutputs = 1,
+            RegisterPopOutputs = 1;
+  localparam AddrWidth = $clog2(Depth) + 1;
+  input  wire             clk;
+  input  wire             rst;
+  output wire             push_ready;
+  input  wire             push_valid;
+  input  wire             pop_ready;
+  output wire             pop_valid;
+
+  // Require depth be 1 and bypass disabled.
+  initial begin
+    if (EnableBypass != 1 || Depth != 0 || RegisterPushOutputs || RegisterPopOutputs) begin
+      // FIFO configuration not supported.
+      $fatal(1);
+    end
+  end
+
+  assign push_ready = pop_ready;
+  assign pop_valid = push_valid;
 
 endmodule
 )";
@@ -260,21 +339,22 @@ class BlockGeneratorTest : public VerilogTestBase {
     return bb.Build();
   }
 
-  absl::StatusOr<CodegenResult> MakeMultiProc(FifoConfig fifo_config) {
+  absl::StatusOr<CodegenResult> MakeMultiProc(FifoConfig fifo_config,
+                                              uint64_t data_width) {
     Package package(TestName());
-    Type* u32 = package.GetBitsType(32);
+    Type* uN = package.GetBitsType(data_width);
     XLS_ASSIGN_OR_RETURN(
         Channel * in,
-        package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32, {},
+        package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, uN, {},
                                        std::nullopt, FlowControl::kReadyValid));
     XLS_ASSIGN_OR_RETURN(
         Channel * internal,
         package.CreateStreamingChannel(
-            "internal", ChannelOps::kSendReceive, u32, {},
+            "internal", ChannelOps::kSendReceive, uN, {},
             /*fifo_config=*/fifo_config, FlowControl::kReadyValid));
     XLS_ASSIGN_OR_RETURN(
         Channel * out,
-        package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32, {},
+        package.CreateStreamingChannel("out", ChannelOps::kSendOnly, uN, {},
                                        std::nullopt, FlowControl::kReadyValid));
     TokenlessProcBuilder in_pb("proc_in", "tkn", &package);
     {
@@ -1929,7 +2009,8 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
       CodegenResult result,
       MakeMultiProc(FifoConfig(/*depth=*/1, /*bypass=*/false,
                                /*register_push_outputs=*/true,
-                               /*register_pop_outputs=*/false)));
+                               /*register_pop_outputs=*/false),
+                    /*data_width=*/32));
   VerilogInclude fifo_definition{
       .relative_path = "fifo.v",
       .verilog_text = std::string{kDepth1FifoRTLText}};
@@ -1962,12 +2043,53 @@ TEST_P(BlockGeneratorTest, MultiProcWithInternalFifo) {
               absl_testing::IsOkAndHolds(output_values));
 }
 
+TEST_P(BlockGeneratorTest, MultiProcWithInternalNoDataFifo) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenResult result,
+      MakeMultiProc(FifoConfig(/*depth=*/1, /*bypass=*/false,
+                               /*register_push_outputs=*/true,
+                               /*register_pop_outputs=*/false),
+                    /*data_width=*/0));
+
+  VerilogInclude fifo_definition{
+      .relative_path = "fifo.v",
+      .verilog_text = std::string{kDepth1NoDataFifoRTLText}};
+  std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
+
+  result.module_generator_result.verilog_text = absl::StrCat(
+      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.module_generator_result.verilog_text,
+                                 /*macro_definitions=*/{}, include_definitions);
+
+  ModuleSimulator simulator = NewModuleSimulator(
+      result.module_generator_result.verilog_text,
+      result.module_generator_result.signature, include_definitions);
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["in"] = {UBits(0, 0), UBits(0, 0), UBits(0, 0)};
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+  };
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"in", valid_holdoffs}}};
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> output_values{
+      {"out", {UBits(0, 0), UBits(0, 0), UBits(0, 0)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, {{"out", 3}},
+                                           ready_valid_holdoffs),
+              absl_testing::IsOkAndHolds(output_values));
+}
+
 TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
   XLS_ASSERT_OK_AND_ASSIGN(
       CodegenResult result,
       MakeMultiProc(FifoConfig(/*depth=*/0, /*bypass=*/true,
                                /*register_push_outputs=*/false,
-                               /*register_pop_outputs=*/false)));
+                               /*register_pop_outputs=*/false),
+                    /*data_width=*/32));
   VerilogInclude fifo_definition{
       .relative_path = "fifo.v",
       .verilog_text = std::string{kDepth0FifoRTLText}};
@@ -1996,6 +2118,46 @@ TEST_P(BlockGeneratorTest, MultiProcDirectConnect) {
 
   absl::flat_hash_map<std::string, std::vector<Bits>> output_values{
       {"out", {UBits(0, 32), UBits(20, 32), UBits(30, 32)}}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, {{"out", 3}},
+                                           ready_valid_holdoffs),
+              absl_testing::IsOkAndHolds(output_values));
+}
+
+TEST_P(BlockGeneratorTest, MultiProcNoDataDirectConnect) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodegenResult result,
+      MakeMultiProc(FifoConfig(/*depth=*/0, /*bypass=*/true,
+                               /*register_push_outputs=*/false,
+                               /*register_pop_outputs=*/false),
+                    /*data_width=*/0));
+  VerilogInclude fifo_definition{
+      .relative_path = "fifo.v",
+      .verilog_text = std::string{kDepth0NoDataFifoRTLText}};
+  std::initializer_list<VerilogInclude> include_definitions = {fifo_definition};
+
+  result.module_generator_result.verilog_text = absl::StrCat(
+      "`include \"fifo.v\"\n\n", result.module_generator_result.verilog_text);
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.module_generator_result.verilog_text,
+                                 /*macro_definitions=*/{}, include_definitions);
+
+  ModuleSimulator simulator = NewModuleSimulator(
+      result.module_generator_result.verilog_text,
+      result.module_generator_result.signature, include_definitions);
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["in"] = {UBits(0, 0), UBits(0, 0), UBits(0, 0)};
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+  };
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"in", valid_holdoffs}}};
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> output_values{
+      {"out", {UBits(0, 0), UBits(0, 0), UBits(0, 0)}}};
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, {{"out", 3}},
                                            ready_valid_holdoffs),
               absl_testing::IsOkAndHolds(output_values));
