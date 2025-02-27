@@ -255,8 +255,8 @@ fn test_clz_ctz() {
 
 ### `decode`
 
-Converts a binary-encoded value into a one-hot value. For an operand value of
-`n``interpreted as an unsigned number, the`n`-th result bit and only the`n`-th
+Converts a binary-encoded value into a one-hot value. Given
+`n`, interpreted as an unsigned number, the`n`-th result bit and only the`n`-th
 result bit is set. Has the following signature:
 
 ```
@@ -331,15 +331,18 @@ of the selector is enabled. In cases where the selector has exactly one bit set
 signature:
 
 ```
-fn one_hot_sel<N: u32, M: u32>(selector: uN[N], cases: xN[N][M]) -> uN[N]
+fn one_hot_sel<N: u32, M: u32>(selector: uN[M], cases: xN[N][M]) -> uN[N]
 ```
 
 Evaluates each case value and `or`s each case together if the corresponding bit
 in the selector is set. The first element of `cases` is included if the LSB is
 set, the second if the next least significant bit and so on. If no selector bits
-are set this evaluates to zero. This function is not generally used directly
-though the compiler will when possible synthesize the equivalent code from a
+are set this evaluates to zero. This function is not generally used directly,
+though the compiler will, when possible, synthesize the equivalent code from a
 `match` expression.
+
+Example usage:
+[`dslx/tests/one_hot_sel.x`](https://github.com/google/xls/blob/main/xls/dslx/tests/one_hot_sel.x).
 
 !!! NOTE
     This is included largely for testing purposes and for bespoke
