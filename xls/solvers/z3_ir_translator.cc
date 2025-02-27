@@ -22,6 +22,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -334,9 +335,37 @@ absl::StatusOr<Z3_ast> IrTranslator::ToFloat32(Z3_ast tuple) {
   return ToFloat32(components);
 }
 
+Z3_ast IrTranslator::CreateZeroBitsValue() {
+  TupleType tuple_type({});
+  return CreateTuple(&tuple_type, {});
+}
+namespace {
+bool IsZeroLen(Node* n) {
+  return n->GetType()->IsBits() && n->GetType()->GetFlatBitCount() == 0;
+}
+}  // namespace
+
+template <typename FnT>
+absl::Status IrTranslator::HandleBinaryCompare(CompareOp* op, FnT f,
+                                               bool zero_len_result) {
+  if (IsZeroLen(op->operand(0))) {
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast res,
+        TranslateLiteralBits(zero_len_result ? UBits(1, 1) : UBits(0, 1)));
+    NoteTranslation(op, res);
+    return absl::OkStatus();
+  }
+  return HandleBinary(op, f);
+}
 template <typename OpT, typename FnT>
+  requires(std::is_base_of_v<Node, OpT>)
 absl::Status IrTranslator::HandleBinary(OpT* op, FnT f) {
   ScopedErrorHandler seh(ctx_);
+  // Every binary operation with a zero-bits result is the same value.
+  if (IsZeroLen(op)) {
+    NoteTranslation(op, CreateZeroBitsValue());
+    return seh.status();
+  }
   Z3_ast result = f(ctx_, GetBitVec(op->operand(0)), GetBitVec(op->operand(1)));
   NoteTranslation(op, result);
   return seh.status();
@@ -358,14 +387,14 @@ absl::Status IrTranslator::HandleULe(CompareOp* ule) {
     Z3_ast result = Z3_mk_bvor(ctx, ult, eq);
     return Z3_mk_bvredor(ctx, result);
   };
-  return HandleBinary(ule, f);
+  return HandleBinaryCompare(ule, f, true);
 }
 
 absl::Status IrTranslator::HandleULt(CompareOp* lt) {
   auto f = [this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     return Z3OpTranslator(ctx_).ULt(lhs, rhs);
   };
-  return HandleBinary(lt, f);
+  return HandleBinaryCompare(lt, f, false);
 }
 
 absl::Status IrTranslator::HandleUDiv(BinOp* div) {
@@ -387,7 +416,7 @@ absl::Status IrTranslator::HandleUGe(CompareOp* uge) {
     Z3OpTranslator t(ctx);
     return t.Not(t.ULt(lhs, rhs));
   };
-  return HandleBinary(uge, f);
+  return HandleBinaryCompare(uge, f, true);
 }
 
 absl::Status IrTranslator::HandleUGt(CompareOp* gt) {
@@ -402,7 +431,7 @@ absl::Status IrTranslator::HandleUGt(CompareOp* gt) {
     Z3OpTranslator t(ctx_);
     return t.Not(t.Or(t.Eq(lhs, rhs), t.ULt(lhs, rhs)));
   };
-  return HandleBinary(gt, f);
+  return HandleBinaryCompare(gt, f, false);
 }
 
 absl::Status IrTranslator::HandleSGt(CompareOp* sgt) {
@@ -415,7 +444,7 @@ absl::Status IrTranslator::HandleSGt(CompareOp* sgt) {
     result = Z3_mk_bvredor(ctx, result);
     return Z3_mk_bvnot(ctx, result);
   };
-  return HandleBinary(sgt, f);
+  return HandleBinaryCompare(sgt, f, false);
 }
 
 absl::Status IrTranslator::HandleSLe(CompareOp* sle) {
@@ -427,14 +456,14 @@ absl::Status IrTranslator::HandleSLe(CompareOp* sle) {
     Z3_ast result = Z3_mk_bvor(ctx, slt, eq);
     return Z3_mk_bvredor(ctx, result);
   };
-  return HandleBinary(sle, f);
+  return HandleBinaryCompare(sle, f, true);
 }
 
 absl::Status IrTranslator::HandleSLt(CompareOp* slt) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     return Z3OpTranslator(ctx).SLt(lhs, rhs);
   };
-  return HandleBinary(slt, f);
+  return HandleBinaryCompare(slt, f, false);
 }
 
 absl::Status IrTranslator::HandleSDiv(BinOp* div) {
@@ -456,7 +485,7 @@ absl::Status IrTranslator::HandleSGe(CompareOp* sge) {
     Z3OpTranslator t(ctx);
     return t.Not(t.SLt(lhs, rhs));
   };
-  return HandleBinary(sge, f);
+  return HandleBinaryCompare(sge, f, true);
 }
 
 namespace {
@@ -564,8 +593,7 @@ absl::Status IrTranslator::HandleGate(Gate* gate) {
   ScopedErrorHandler seh(ctx_);
   XLS_ASSIGN_OR_RETURN(
       Z3_ast zero,
-      TranslateLiteralValue(/*has_nontrivial_uses=*/true, gate->GetType(),
-                            ZeroOfType(gate->GetType())));
+      TranslateLiteralValue(gate->GetType(), ZeroOfType(gate->GetType())));
   NoteTranslation(gate,
                   Z3_mk_ite(ctx_, t.NeZeroBool(GetValue(gate->condition())),
                             GetValue(gate->data()), zero));
@@ -602,19 +630,23 @@ absl::Status IrTranslator::HandleShll(BinOp* shll) {
 }
 
 template <typename OpT, typename FnT>
+  requires(std::is_base_of_v<Node, OpT>)
 absl::Status IrTranslator::HandleNary(OpT* op, FnT f, bool invert_result,
                                       bool skip_empty_operands) {
   ScopedErrorHandler seh(ctx_);
+  if (IsZeroLen(op)) {
+    NoteTranslation(op, CreateZeroBitsValue());
+    return seh.status();
+  }
   absl::Span<Node* const> operands = op->operands();
   XLS_RET_CHECK(!operands.empty()) << op->ToString();
   std::optional<Z3_ast> accum = std::nullopt;
-  Type* empty_bits_type = op->package()->GetBitsType(0);
   for (Node* operand : operands) {
-    if (skip_empty_operands && operand->GetType() == empty_bits_type) {
+    if (skip_empty_operands && IsZeroLen(operand)) {
       continue;
     }
-    XLS_RET_CHECK_NE(operand->GetType(), empty_bits_type)
-        << "empty operand to: " << op->ToString();
+    XLS_RET_CHECK(!IsZeroLen(operand))
+        << operand << " is empty operand to: " << op->ToString();
     if (accum.has_value()) {
       accum = f(ctx_, *accum, GetBitVec(operand));
     } else {
@@ -935,6 +967,10 @@ absl::Status IrTranslator::HandleUnaryViaAbstractEval(Node* op) {
   // The "output_bits" we are given have LSb in index 0, but ConcatN puts
   // argument 0 in the MSb position, so we must reverse.
   std::reverse(output_bits.begin(), output_bits.end());
+  if (output_bits.empty()) {
+    NoteTranslation(op, CreateZeroBitsValue());
+    return seh.status();
+  }
   Z3_ast result = t.ConcatN(output_bits);
   CHECK_EQ(op->BitCountOrDie(), t.GetBvBitCount(result));
   NoteTranslation(op, result);
@@ -947,6 +983,10 @@ template <typename FnT>
 absl::Status IrTranslator::HandleUnary(Node* op, FnT f) {
   CHECK_EQ(op->operand_count(), 1);
   ScopedErrorHandler seh(ctx_);
+  if (IsZeroLen(op)) {
+    NoteTranslation(op, CreateZeroBitsValue());
+    return seh.status();
+  }
   Z3_ast result = f(ctx_, GetBitVec(op->operand(0)));
   NoteTranslation(op, result);
   return seh.status();
@@ -990,6 +1030,12 @@ absl::Status IrTranslator::HandleIdentity(UnOp* identity) {
 
 absl::Status IrTranslator::HandleSignExtend(ExtendOp* sign_ext) {
   ScopedErrorHandler seh(ctx_);
+  if (IsZeroLen(sign_ext->operand(0))) {
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast res, TranslateLiteralBits(UBits(0, sign_ext->new_bit_count())));
+    NoteTranslation(sign_ext, res);
+    return seh.status();
+  }
   int64_t input_bit_count = sign_ext->operand(0)->BitCountOrDie();
   Z3_ast result =
       Z3_mk_sign_ext(ctx_, sign_ext->new_bit_count() - input_bit_count,
@@ -1000,6 +1046,12 @@ absl::Status IrTranslator::HandleSignExtend(ExtendOp* sign_ext) {
 
 absl::Status IrTranslator::HandleZeroExtend(ExtendOp* zero_ext) {
   ScopedErrorHandler seh(ctx_);
+  if (IsZeroLen(zero_ext->operand(0))) {
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast res, TranslateLiteralBits(UBits(0, zero_ext->new_bit_count())));
+    NoteTranslation(zero_ext, res);
+    return seh.status();
+  }
   int64_t input_bit_count = zero_ext->operand(0)->BitCountOrDie();
   Z3_ast result =
       Z3_mk_zero_ext(ctx_, zero_ext->new_bit_count() - input_bit_count,
@@ -1009,14 +1061,6 @@ absl::Status IrTranslator::HandleZeroExtend(ExtendOp* zero_ext) {
 }
 
 absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
-  if (bit_slice->width() == 0 &&
-      absl::c_any_of(bit_slice->users(),
-                     [](Node* user) { return !user->Is<Concat>(); })) {
-    return absl::UnimplementedError(
-        "Zero length bitvectors must not have nontrivial uses in the IR "
-        "graph when translating to Z3");
-  }
-
   ScopedErrorHandler seh(ctx_);
   XLS_ASSIGN_OR_RETURN(Z3_ast res,
                        HandleBitSlice(GetBitVec(bit_slice->operand(0)),
@@ -1052,7 +1096,7 @@ absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
   XLS_ASSIGN_OR_RETURN(
       Z3_ast mask,
       TranslateLiteralValue(
-          /*has_nontrivial_uses=*/true, update->GetType(),
+          update->GetType(),
           Value(bits_ops::ZeroExtend(
               Bits::AllOnes(std::min(update->BitCountOrDie(),
                                      update->update_value()->BitCountOrDie())),
@@ -1097,17 +1141,15 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
 
   Value operand_width(UBits(value_width, max_width));
   BitsType max_width_type(max_width);
-  XLS_ASSIGN_OR_RETURN(
-      Z3_ast bit_width,
-      TranslateLiteralValue(false, &max_width_type, operand_width));
+  XLS_ASSIGN_OR_RETURN(Z3_ast bit_width,
+                       TranslateLiteralValue(&max_width_type, operand_width));
 
   // Indicates whether slice is completely out of bounds.
   Z3_ast out_of_bounds = Z3_mk_bvuge(ctx_, start_ext, bit_width);
   BitsType return_type(dynamic_bit_slice->width());
   XLS_ASSIGN_OR_RETURN(
-      Z3_ast zeros,
-      TranslateLiteralValue(false, &return_type,
-                            Value(Bits(dynamic_bit_slice->width()))));
+      Z3_ast zeros, TranslateLiteralValue(
+                        &return_type, Value(Bits(dynamic_bit_slice->width()))));
   Z3_ast shifted_value = Z3_mk_bvlshr(ctx_, value_ext, start_ext);
   Z3_ast truncated_value =
       Z3_mk_extract(ctx_, dynamic_bit_slice->width() - 1, 0, shifted_value);
@@ -1117,39 +1159,30 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
 }
 
 absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralBits(const Bits& bits) {
+  ScopedErrorHandler seh(ctx_);
+  if (bits.bit_count() == 0) {
+    return CreateZeroBitsValue();
+  }
   std::unique_ptr<bool[]> booleans(new bool[bits.bit_count()]);
   for (int64_t i = 0; i < bits.bit_count(); ++i) {
     booleans[i] = bits.Get(i);
   }
-  return Z3_mk_bv_numeral(ctx_, static_cast<unsigned int>(bits.bit_count()),
-                          &booleans[0]);
+  return seh.StatusOr(Z3_mk_bv_numeral(
+      ctx_, static_cast<unsigned int>(bits.bit_count()), &booleans[0]));
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
-    bool has_nontrivial_uses, Type* value_type, const Value& value) {
-  bool is_zero_bit_vector = value.IsBits() && value.GetFlatBitCount() == 0;
+absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
+                                                           const Value& value) {
+  ScopedErrorHandler seh(ctx_);
 
-  if (value.IsBits() && !is_zero_bit_vector) {
+  if (value.IsBits()) {
     return TranslateLiteralBits(value.bits());
-  }
-
-  // We translate zero length bitvectors to empty tuples.
-  // This will cause errors if the bitvectors are used in any nontrivial way,
-  // but fixes fuzzer errors in the mutual_exclusion_pass.
-  if (is_zero_bit_vector) {
-    if (has_nontrivial_uses) {
-      return absl::UnimplementedError(
-          "Zero length bitvectors must not have nontrivial uses in the IR "
-          "graph when translating to Z3");
-    }
-    TupleType tuple_type({});
-    return CreateTuple(&tuple_type, {});
   }
 
   // Tokens are essentially opaque empty tuples.
   if (value.IsToken()) {
     TupleType tuple_type({});
-    return CreateTuple(&tuple_type, {});
+    return seh.StatusOr(CreateTuple(&tuple_type, {}));
   }
 
   if (value.IsArray()) {
@@ -1159,14 +1192,13 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
     elements.reserve(num_elements);
 
     for (int i = 0; i < value.elements().size(); i++) {
-      XLS_ASSIGN_OR_RETURN(
-          Z3_ast translated,
-          TranslateLiteralValue(has_nontrivial_uses, array_type->element_type(),
-                                value.elements()[i]));
+      XLS_ASSIGN_OR_RETURN(Z3_ast translated,
+                           TranslateLiteralValue(array_type->element_type(),
+                                                 value.elements()[i]));
       elements.push_back(translated);
     }
 
-    return CreateArray(array_type, elements);
+    return seh.StatusOr(CreateArray(array_type, elements));
   }
 
   // Tuples!
@@ -1175,10 +1207,9 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(
   std::vector<Z3_ast> elements;
   elements.reserve(num_elements);
   for (int i = 0; i < num_elements; i++) {
-    XLS_ASSIGN_OR_RETURN(
-        Z3_ast translated,
-        TranslateLiteralValue(has_nontrivial_uses, tuple_type->element_type(i),
-                              value.elements()[i]));
+    XLS_ASSIGN_OR_RETURN(Z3_ast translated,
+                         TranslateLiteralValue(tuple_type->element_type(i),
+                                               value.elements()[i]));
     elements.push_back(translated);
   }
 
@@ -1189,24 +1220,7 @@ absl::Status IrTranslator::HandleLiteral(Literal* literal) {
   ScopedErrorHandler seh(ctx_);
   XLS_ASSIGN_OR_RETURN(
       Z3_ast result,
-      TranslateLiteralValue(
-          /*has_nontrivial_uses=*/absl::c_any_of(
-              literal->users(),
-              [](Node* user) {
-                if (user->Is<Concat>() || user->Is<Tuple>() ||
-                    // Send is unsupported anyway so it taking a zero-len
-                    // value is fine.
-                    user->Is<Send>()) {
-                  return false;
-                }
-                // TODO(allight): We ideally should look at any users of
-                // TupleIndex to see if they don't look at the zero-bit value.
-                // In practice though since this is a literal the only place its
-                // likely to be used after opt is to directly send it so this
-                // should be fine.
-                return true;
-              }),
-          literal->GetType(), literal->value()),
+      TranslateLiteralValue(literal->GetType(), literal->value()),
       _ << "Value " << literal << " uses: "
         << absl::StrJoin(literal->users(), ", ", [](std::string* s, Node* n) {
              absl::StrAppend(s, n->ToString());
@@ -1317,8 +1331,7 @@ absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
           absl::Span<int64_t const> idx) -> absl::StatusOr<Z3_ast> {
         XLS_ASSIGN_OR_RETURN(
             Z3_ast base,
-            TranslateLiteralValue(/*has_nonconcat_uses=*/true,
-                                  one_hot->GetType(), ltt_base_val.Get(idx)));
+            TranslateLiteralValue(one_hot->GetType(), ltt_base_val.Get(idx)));
         Z3_ast res = base;
         std::vector<Z3_ast> sel_bits =
             FlattenValue(one_hot->selector()->GetType(), selector);
@@ -1384,8 +1397,7 @@ absl::StatusOr<Z3_ast> IrTranslator::GetLttElement(
     XLS_RET_CHECK_LT(index.front(), arr_type->size());
     XLS_ASSIGN_OR_RETURN(
         Z3_ast lit_index,
-        TranslateLiteralValue(/*has_nonconcat_uses=*/true,
-                              arr_type->element_type(),
+        TranslateLiteralValue(arr_type->element_type(),
                               Value(UBits(index.front(), 64))));
     return GetLttElement(arr_type->element_type(),
                          GetArrayElement(arr_type, value, lit_index),
@@ -1473,27 +1485,34 @@ static Z3_ast DoMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, bool is_signed,
   return result;
 }
 
-void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
+absl::Status IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
   // they can't, so we need to zext (for a umul) the operands to the size of the
   // result.
+  if (IsZeroLen(mul->operand(0)) || IsZeroLen(mul->operand(1))) {
+    XLS_ASSIGN_OR_RETURN(Z3_ast res,
+                         TranslateLiteralBits(UBits(0, mul->BitCountOrDie())));
+    NoteTranslation(mul, res);
+    return absl::OkStatus();
+  }
   Z3_ast lhs = GetValue(mul->operand(0));
   Z3_ast rhs = GetValue(mul->operand(1));
   int result_size = mul->BitCountOrDie();
 
   Z3_ast result = DoMul(ctx_, lhs, rhs, is_signed, result_size);
   NoteTranslation(mul, result);
+  return absl::OkStatus();
 }
 
 absl::Status IrTranslator::HandleSMul(ArithOp* mul) {
   ScopedErrorHandler seh(ctx_);
-  HandleMul(mul, /*is_signed=*/true);
+  XLS_RETURN_IF_ERROR(HandleMul(mul, /*is_signed=*/true));
   return seh.status();
 }
 
 absl::Status IrTranslator::HandleUMul(ArithOp* mul) {
   ScopedErrorHandler seh(ctx_);
-  HandleMul(mul, /*is_signed=*/false);
+  XLS_RETURN_IF_ERROR(HandleMul(mul, /*is_signed=*/false));
   return seh.status();
 }
 
@@ -1502,10 +1521,28 @@ absl::Status IrTranslator::HandleUMul(ArithOp* mul) {
 // of the tuple sum to the product of the inputs. The outputs can take any
 // values that satisfy this property. We model this in Z3 by creating a variable
 // `offset` and returning `(prod - offset, offset)`.
-void IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
+absl::Status IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
+  // Only a single value for 0-len result is possible.
+  if (mul->width() == 0) {
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast res,
+        TranslateLiteralValue(
+            mul->GetType(),
+            Value::TupleOwned({Value(UBits(0, 0)), Value(UBits(0, 0))})));
+    NoteTranslation(mul, res);
+    return absl::OkStatus();
+  }
+  Z3_symbol offset_symbol = GetNewSymbol();
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
   // they can't, so we need to zext (for a umul) the operands to the size of the
   // result.
+  if (IsZeroLen(mul->operand(0)) || IsZeroLen(mul->operand(1))) {
+    Z3_sort op_sort = Z3_mk_bv_sort(ctx_, mul->width());
+    Z3_ast offset = Z3_mk_const(ctx_, offset_symbol, op_sort);
+    Z3_ast neg_offset = Z3_mk_bvneg(ctx_, offset);
+    NoteTranslation(mul, CreateTuple(mul->GetType(), {neg_offset, offset}));
+    return absl::OkStatus();
+  }
   Z3_ast lhs = GetValue(mul->operand(0));
   Z3_ast rhs = GetValue(mul->operand(1));
   int lhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, lhs));
@@ -1516,22 +1553,22 @@ void IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
 
   Z3_ast result = DoMul(ctx_, lhs, rhs, /*is_signed=*/is_signed, result_size);
 
-  Z3_symbol offset_symbol = GetNewSymbol();
   Z3_ast offset = Z3_mk_const(ctx_, offset_symbol, op_sort);
 
   Z3_ast diff = Z3_mk_bvsub(ctx_, result, offset);
   NoteTranslation(mul, CreateTuple(mul->GetType(), {diff, offset}));
+  return absl::OkStatus();
 }
 
 absl::Status IrTranslator::HandleSMulp(PartialProductOp* mul) {
   ScopedErrorHandler seh(ctx_);
-  HandleMulp(mul, /*is_signed=*/true);
+  XLS_RETURN_IF_ERROR(HandleMulp(mul, /*is_signed=*/true));
   return seh.status();
 }
 
 absl::Status IrTranslator::HandleUMulp(PartialProductOp* mul) {
   ScopedErrorHandler seh(ctx_);
-  HandleMulp(mul, /*is_signed=*/false);
+  XLS_RETURN_IF_ERROR(HandleMulp(mul, /*is_signed=*/false));
   return seh.status();
 }
 

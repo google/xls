@@ -31,13 +31,19 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value_builder.h"
 #include "xls/solvers/z3_ir_translator_matchers.h"
 #include "xls/solvers/z3_utils.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
@@ -2444,6 +2450,218 @@ TEST_F(Z3IrTranslatorTest, TupleWithZeroLenBits) {
                absl::InfiniteDuration()));
   EXPECT_THAT(proven_nez, IsProvenTrue());
 }
+
+class Z3ZeroBitsIrTranslatorTest : public Z3IrTranslatorTest,
+                                   public testing::WithParamInterface<Op> {};
+class Z3ZeroBitsCompareTest : public Z3ZeroBitsIrTranslatorTest {};
+class Z3ZeroBitsNaryTest : public Z3ZeroBitsIrTranslatorTest {};
+class Z3ZeroBitsBinOpTest : public Z3ZeroBitsIrTranslatorTest {};
+class Z3ZeroBitsArithOpTest : public Z3ZeroBitsIrTranslatorTest {};
+class Z3ZeroBitsPartialProductOpTest : public Z3ZeroBitsIrTranslatorTest {};
+
+TEST_P(Z3ZeroBitsCompareTest, CompareOpMatchesInterpreter) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Node * ret_node,
+                           fb.function()->MakeNode<CompareOp>(
+                               SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+                               fb.Literal(UBits(0, 0)).node(), GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(BValue(ret_node, &fb)));
+  IrInterpreter interpreter;
+  XLS_ASSERT_OK(f->Accept(&interpreter));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult res,
+      TryProve(f, f->return_value(),
+               interpreter.ResolveAsValue(f->return_value()).bits().IsZero()
+                   ? Predicate::EqualToZero()
+                   : Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(res, IsProvenTrue());
+}
+
+TEST_P(Z3ZeroBitsNaryTest, NaryOp) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * ret_node, fb.function()->MakeNode<NaryOp>(
+                           SourceInfo(),
+                           std::vector<Node*>{fb.Literal(UBits(0, 0)).node(),
+                                              fb.Literal(UBits(0, 0)).node(),
+                                              fb.Literal(UBits(0, 0)).node()},
+                           GetParam()));
+  BValue nary_op = BValue(ret_node, &fb);
+  fb.Eq(nary_op, fb.Literal(UBits(0, 0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult res,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(res, IsProvenTrue());
+}
+
+TEST_P(Z3ZeroBitsBinOpTest, BinOp) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Node * ret_node,
+                           fb.function()->MakeNode<BinOp>(
+                               SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+                               fb.Literal(UBits(0, 0)).node(), GetParam()));
+  BValue nary_op = BValue(ret_node, &fb);
+  fb.Eq(nary_op, fb.Literal(UBits(0, 0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult res,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(res, IsProvenTrue());
+}
+TEST_P(Z3ZeroBitsArithOpTest, ArithOpZeroBitResult) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Node * op1,
+                           fb.function()->MakeNode<ArithOp>(
+                               SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+                               fb.Literal(UBits(0, 0)).node(), 0, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op2, fb.function()->MakeNode<ArithOp>(
+                      SourceInfo(), fb.Param("foo", p->GetBitsType(8)).node(),
+                      fb.Literal(UBits(0, 0)).node(), 0, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op3,
+      fb.function()->MakeNode<ArithOp>(
+          SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+          fb.Param("bar", p->GetBitsType(8)).node(), 0, GetParam()));
+  BValue nary_op_1 = BValue(op1, &fb);
+  BValue nary_op_2 = BValue(op2, &fb);
+  BValue nary_op_3 = BValue(op3, &fb);
+  fb.Eq(fb.Tuple({nary_op_1, nary_op_2, nary_op_3}),
+        fb.Literal(ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 0)),
+                                        ValueBuilder::Bits(UBits(0, 0)),
+                                        ValueBuilder::Bits(UBits(0, 0))})));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult res,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(res, IsProvenTrue());
+}
+
+TEST_P(Z3ZeroBitsArithOpTest, ArithOpExt) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Node * op1,
+                           fb.function()->MakeNode<ArithOp>(
+                               SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+                               fb.Literal(UBits(0, 0)).node(), 8, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op2, fb.function()->MakeNode<ArithOp>(
+                      SourceInfo(), fb.Param("foo", p->GetBitsType(8)).node(),
+                      fb.Literal(UBits(0, 0)).node(), 8, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op3,
+      fb.function()->MakeNode<ArithOp>(
+          SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+          fb.Param("bar", p->GetBitsType(8)).node(), 8, GetParam()));
+  BValue nary_op_1 = BValue(op1, &fb);
+  BValue nary_op_2 = BValue(op2, &fb);
+  BValue nary_op_3 = BValue(op3, &fb);
+  fb.Eq(fb.Tuple({nary_op_1, nary_op_2, nary_op_3}),
+        fb.Literal(ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 8)),
+                                        ValueBuilder::Bits(UBits(0, 8)),
+                                        ValueBuilder::Bits(UBits(0, 8))})));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult res,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(res, IsProvenTrue());
+}
+
+TEST_P(Z3ZeroBitsPartialProductOpTest, PartialProductOpZeroBitResult) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Node * op1,
+                           fb.function()->MakeNode<PartialProductOp>(
+                               SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+                               fb.Literal(UBits(0, 0)).node(), 0, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op2, fb.function()->MakeNode<PartialProductOp>(
+                      SourceInfo(), fb.Param("foo", p->GetBitsType(8)).node(),
+                      fb.Literal(UBits(0, 0)).node(), 0, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op3,
+      fb.function()->MakeNode<PartialProductOp>(
+          SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+          fb.Param("bar", p->GetBitsType(8)).node(), 0, GetParam()));
+  BValue nary_op_1 = BValue(op1, &fb);
+  BValue nary_op_2 = BValue(op2, &fb);
+  BValue nary_op_3 = BValue(op3, &fb);
+  auto sum = [&](BValue v) -> BValue {
+    return fb.Add(fb.TupleIndex(v, 0), fb.TupleIndex(v, 1));
+  };
+  fb.Eq(fb.Tuple({sum(nary_op_1), sum(nary_op_2), sum(nary_op_3)}),
+        fb.Literal(ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 0)),
+                                        ValueBuilder::Bits(UBits(0, 0)),
+                                        ValueBuilder::Bits(UBits(0, 0))})));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult res,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(res, IsProvenTrue());
+}
+
+TEST_P(Z3ZeroBitsPartialProductOpTest, PartialProductOpExtend) {
+  std::unique_ptr<Package> p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Node * op1,
+                           fb.function()->MakeNode<PartialProductOp>(
+                               SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+                               fb.Literal(UBits(0, 0)).node(), 8, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op2, fb.function()->MakeNode<PartialProductOp>(
+                      SourceInfo(), fb.Param("foo", p->GetBitsType(8)).node(),
+                      fb.Literal(UBits(0, 0)).node(), 8, GetParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * op3,
+      fb.function()->MakeNode<PartialProductOp>(
+          SourceInfo(), fb.Literal(UBits(0, 0)).node(),
+          fb.Param("bar", p->GetBitsType(8)).node(), 8, GetParam()));
+  BValue nary_op_1 = BValue(op1, &fb);
+  BValue nary_op_2 = BValue(op2, &fb);
+  BValue nary_op_3 = BValue(op3, &fb);
+  auto sum = [&](BValue v) -> BValue {
+    return fb.Add(fb.TupleIndex(v, 0), fb.TupleIndex(v, 1));
+  };
+  fb.Eq(fb.Tuple({sum(nary_op_1), sum(nary_op_2), sum(nary_op_3)}),
+        fb.Literal(ValueBuilder::Tuple({ValueBuilder::Bits(UBits(0, 8)),
+                                        ValueBuilder::Bits(UBits(0, 8)),
+                                        ValueBuilder::Bits(UBits(0, 8))})));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ProverResult res,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_THAT(res, IsProvenTrue());
+}
+
+INSTANTIATE_TEST_SUITE_P(Z3ZeroBitsCompareTest, Z3ZeroBitsCompareTest,
+                         testing::ValuesIn(CompareOp::kOps),
+                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(Z3ZeroBitsNaryTest, Z3ZeroBitsNaryTest,
+                         testing::ValuesIn(NaryOp::kOps),
+                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(Z3ZeroBitsBinOpTest, Z3ZeroBitsBinOpTest,
+                         testing::ValuesIn(BinOp::kOps),
+                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(Z3ZeroBitsArithOpTest, Z3ZeroBitsArithOpTest,
+                         testing::ValuesIn(ArithOp::kOps),
+                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(Z3ZeroBitsPartialProductOpTest,
+                         Z3ZeroBitsPartialProductOpTest,
+                         testing::ValuesIn(PartialProductOp::kOps),
+                         testing::PrintToStringParamName());
 
 }  // namespace
 }  // namespace xls

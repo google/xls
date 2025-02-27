@@ -232,8 +232,12 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Does the _actual_ work of processing binary, nary, etc. operations.
   template <typename OpT, typename FnT>
+    requires(std::is_base_of_v<Node, OpT>)
   absl::Status HandleBinary(OpT* op, FnT f);
+  template <typename FnT>
+  absl::Status HandleBinaryCompare(CompareOp* op, FnT f, bool zero_len_result);
   template <typename OpT, typename FnT>
+    requires(std::is_base_of_v<Node, OpT>)
   absl::Status HandleNary(OpT* op, FnT f, bool invert_result,
                           bool skip_empty_operands = false);
   template <typename FnT>
@@ -242,16 +246,11 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleUnary(Node* op, FnT f);
 
   // Recursive call to translate XLS literals into Z3 form.
-  // The `has_nontrivial_uses` parameter is used for checking whether the
-  // literal we're trying to translate contains a zero-width bitvector that has
-  // nontrivial uses in the IR graph. A non-trivial use is any use outside of
-  // concat, token operations, or tuple element.
-  absl::StatusOr<Z3_ast> TranslateLiteralValue(bool has_nontrivial_uses,
-                                               Type* type, const Value& value);
+  absl::StatusOr<Z3_ast> TranslateLiteralValue(Type* type, const Value& value);
 
   // Common multiply handling.
-  void HandleMul(ArithOp* mul, bool is_signed);
-  void HandleMulp(PartialProductOp* mul, bool is_signed);
+  absl::Status HandleMul(ArithOp* mul, bool is_signed);
+  absl::Status HandleMulp(PartialProductOp* mul, bool is_signed);
 
   // Translates a OneHotSelect or Sel node whose (non-selector) operands are
   // Tuple typed. Accepts a function to actually call into the AbstractEvaluator
@@ -293,6 +292,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Creates a Z3 tuple from the given XLS type or Z3 sort and Z3 elements.
   Z3_ast CreateTuple(Type* tuple_type, absl::Span<const Z3_ast> elements);
   Z3_ast CreateTuple(Z3_sort tuple_sort, absl::Span<const Z3_ast> elements);
+  Z3_ast CreateZeroBitsValue();
 
   // Creates a Z3 array from the given XLS type and Z3 elements.
   Z3_ast CreateArray(ArrayType* type, absl::Span<const Z3_ast> elements);

@@ -43,6 +43,14 @@ class ScopedErrorHandler {
 
   absl::Status status() const { return status_; }
 
+  template <typename Res>
+  absl::StatusOr<Res> StatusOr(Res res) const {
+    if (status_.ok()) {
+      return res;
+    }
+    return status_;
+  }
+
  private:
   static void Handler(Z3_context c, Z3_error_code e);
 

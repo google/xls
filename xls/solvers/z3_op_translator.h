@@ -20,6 +20,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "z3/src/api/z3.h"  // IWYU pragma: keep
 #include "z3/src/api/z3_api.h"
@@ -150,6 +151,7 @@ class Z3OpTranslator {
   // significant bit of the result, and arg[args.size()-1]'s least significant
   // bit is the least significant bit of the result.
   Z3_ast ConcatN(absl::Span<const Z3_ast> args) {
+    CHECK(!args.empty());
     Z3_ast accum = args[0];
     for (int64_t i = 1; i < args.size(); ++i) {
       accum = Z3_mk_concat(z3_ctx_, accum, args[i]);
