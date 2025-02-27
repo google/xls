@@ -465,6 +465,25 @@ struct xls_bits* xls_bits_negate(const struct xls_bits* bits) {
   return reinterpret_cast<xls_bits*>(new xls::Bits(std::move(result)));
 }
 
+bool xls_value_make_array(size_t element_count, struct xls_value** elements,
+                          char** error_out, struct xls_value** result_out) {
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+  std::vector<xls::Value> cpp_elements;
+  cpp_elements.reserve(element_count);
+  for (size_t i = 0; i < element_count; ++i) {
+    cpp_elements.push_back(*reinterpret_cast<xls::Value*>(elements[i]));
+  }
+  absl::StatusOr<xls::Value> value = xls::Value::Array(std::move(cpp_elements));
+  if (!value.ok()) {
+    *error_out = xls::ToOwnedCString(value.status().ToString());
+    return false;
+  }
+  *error_out = nullptr;
+  *result_out = reinterpret_cast<xls_value*>(new xls::Value(std::move(*value)));
+  return true;
+}
+
 struct xls_bits* xls_bits_abs(const struct xls_bits* bits) {
   CHECK(bits != nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
