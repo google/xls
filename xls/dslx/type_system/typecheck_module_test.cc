@@ -2558,46 +2558,65 @@ enum MyEnum : u2 {
                                  "match the enum's underlying type")));
 }
 
-TEST(TypecheckTest, ArrayEllipsis) {
+TEST_P(TypecheckBothVersionsTest, ArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck("fn main() -> u8[2] { u8[2]:[0, ...] }"));
 }
 
 // See https://github.com/google/xls/issues/1587 #1
-TEST(TypecheckErrorTest, ArrayEllipsisTypeSmallerThanElements) {
+TEST_P(TypecheckBothVersionsTest, ArrayEllipsisTypeSmallerThanElements) {
   auto result =
       Typecheck("fn main() -> u32[2] { u32[2]:[u32:0, u32:1, u32:0, ...] }");
-  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
-                               HasSubstr("Annotated array size 2 is too small "
-                                         "for observed array member count 3")));
+  EXPECT_THAT(
+      result,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Annotated array size 2 is too small "
+                                   "for observed array member count 3"),
+                     HasSubstrInV2(GetParam(),
+                                   "Annotated array size is too small for "
+                                   "explicit element count"))));
 }
 
 // See https://github.com/google/xls/issues/1587 #2
-TEST(TypecheckErrorTest, ArrayEllipsisTypeEqElementCount) {
+TEST_P(TypecheckBothVersionsTest, ArrayEllipsisTypeEqElementCount) {
   XLS_EXPECT_OK(
       Typecheck("fn main() -> u32[2] { u32[2]:[u32:0, u32:1, ...] }"));
 }
 
-TEST(TypecheckErrorTest, ArrayEllipsisNoTrailingElement) {
+TEST_P(TypecheckBothVersionsTest, ArrayEllipsisNoTrailingElement) {
   EXPECT_THAT(
       Typecheck("fn main() -> u8[2] { u8[2]:[...] }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Array cannot have an ellipsis without an element to "
-                         "repeat; please add at least one element")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Array cannot have an ellipsis without an element to "
+                         "repeat; please add at least one element"),
+                     HasSubstrInV2(GetParam(),
+                                   "Array cannot have an ellipsis (`...`) "
+                                   "without an element to repeat."))));
 }
 
-TEST(TypecheckErrorTest, ArrayEllipsisNoLeadingTypeAnnotation) {
-  EXPECT_THAT(
-      Typecheck(R"(fn main() -> u8[2] {
+TEST_P(TypecheckBothVersionsTest, ArrayEllipsisNoLeadingTypeAnnotation) {
+  constexpr std::string_view kProgram = R"(fn main() -> u8[2] {
     let x: u8[2] = [u8:0, ...];
     x
-})"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("does not have a type annotation; please add a type "
-                         "annotation to indicate how many elements to expand "
-                         "to; for example: `uN[8][N]:[u8:0, ...]`")));
+})";
+
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    EXPECT_THAT(
+        Typecheck(kProgram),
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr("does not have a type annotation; please add a type "
+                           "annotation to indicate how many elements to expand "
+                           "to; for example: `uN[8][N]:[u8:0, ...]`")));
+  } else {
+    // Unification in v2 will let the type annotation on the LHS govern the size
+    // of the RHS in the absence of an RHS annotation.
+    XLS_EXPECT_OK(Typecheck(kProgram));
+  }
 }
 
-TEST(TypecheckTest, BadArrayAddition) {
+TEST_P(TypecheckBothVersionsTest, BadArrayAddition) {
   EXPECT_THAT(Typecheck(R"(
 fn f(a: bits[32][4], b: bits[32][4]) -> bits[32][4] {
   a + b
@@ -2658,7 +2677,7 @@ fn f() -> Foo {
                HasSubstr("Cannot use '+' on values with enum type Foo")));
 }
 
-TEST(TypecheckTest, SlicesWithMismatchedTypes) {
+TEST(TypecheckBothVersionsTest, SlicesWithMismatchedTypes) {
   EXPECT_THAT(Typecheck("fn f(x: u8) -> u8 { x[s4:0 : s5:1] }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Slice limit type (sN[5]) did not match")));
@@ -2673,47 +2692,81 @@ TEST(TypecheckTest, SliceWithOutOfRangeLimit) {
                        HasSubstr("Slice limit does not fit in index type")));
 }
 
-TEST(TypecheckTest, SliceWithNonS32LiteralBounds) {
+TEST_P(TypecheckBothVersionsTest, SliceWithNonS32LiteralBounds) {
   // overlarge value in start
   EXPECT_THAT(
       Typecheck("fn f(x: uN[128]) -> uN[128] { x[40000000000000000000:] }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Value '40000000000000000000' does not fit in the "
-                         "bitwidth of a sN[32]")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Value '40000000000000000000' does not fit in the "
+                         "bitwidth of a sN[32]"),
+                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
   // overlarge value in limit
   EXPECT_THAT(
       Typecheck("fn f(x: uN[128]) -> uN[128] { x[:40000000000000000000] }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Value '40000000000000000000' does not fit in the "
-                         "bitwidth of a sN[32]")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Value '40000000000000000000' does not fit in the "
+                         "bitwidth of a sN[32]"),
+                     HasSizeMismatchInV2(GetParam(), "s32", "sN[67]"))));
 }
 
-TEST(TypecheckTest, WidthSlices) {
+TEST_P(TypecheckBothVersionsTest, WidthSlices) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> bits[0] { x[0+:bits[0]] }"));
-  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));
+
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));
+  } else {
+    // V2 does not permit slicing past the end.
+    EXPECT_THAT(
+        Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"),
+        StatusIs(absl::StatusCode::kInvalidArgument,
+                 HasSubstr("Slice range out of bounds for array of size 32")));
+  }
+
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u1 { x[31+:u1] }"));
 }
 
-TEST(TypecheckErrorTest, WidthSliceNegativeStartNumberLiteral) {
-  // Start literal cannot be negative.
-  EXPECT_THAT(
-      Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(
-                   "only unsigned values are permitted; got start value: -1")));
+TEST_P(TypecheckBothVersionsTest, WidthSliceNegativeStartNumberLiteral) {
+  if (GetParam() == TypeInferenceVersion::kVersion1) {
+    // Start literal cannot be negative in v1.
+    EXPECT_THAT(
+        Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"),
+        StatusIs(
+            absl::StatusCode::kInvalidArgument,
+            HasSubstr(
+                "only unsigned values are permitted; got start value: -1")));
+  } else {
+    // In v2, width slicing accepts any start value that regular slicing
+    // accepts.
+    XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u1 { x[-1+:u1] }"));
+  }
+
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u2 { x[-1+:u2] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(
-                   "only unsigned values are permitted; got start value: -1")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "only unsigned values are permitted; got start value: -1"),
+                HasSubstrInV2(
+                    GetParam(),
+                    "Slice range out of bounds for array of size 32"))));
   EXPECT_THAT(
       Typecheck("fn f(x: u32) -> u3 { x[-2+:u3] }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr(
-                   "only unsigned values are permitted; got start value: -2")));
+      AllOf(StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "only unsigned values are permitted; got start value: -2"),
+                HasSubstrInV2(
+                    GetParam(),
+                    "Slice range out of bounds for array of size 32")))));
 }
 
-TEST(TypecheckTest, WidthSliceEmptyStartNumber) {
+TEST_P(TypecheckBothVersionsTest, WidthSliceEmptyStartNumber) {
   // Start literal is treated as unsigned.
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u31 { x[:-1] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u30 { x[:-2] }"));
@@ -2734,61 +2787,85 @@ TEST(TypecheckTest, WidthSliceSignedStart) {
           HasSubstr("Start index for width-based slice must be unsigned")));
 }
 
-TEST(TypecheckTest, WidthSliceTupleStart) {
+TEST_P(TypecheckBothVersionsTest, WidthSliceTupleStart) {
   EXPECT_THAT(
       Typecheck("fn f(start: (s32), x: u32) -> u3 { x[start+:u3] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Start expression for width slice must be bits typed"),
+                     HasTypeMismatchInV2(GetParam(), "(s32,)", "s32"))));
+}
+
+TEST_P(TypecheckBothVersionsTest, WidthSliceTupleSubject) {
+  EXPECT_THAT(
+      Typecheck("fn f(start: s32, x: (u32)) -> u3 { x[start+:u3] }"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Start expression for width slice must be bits typed")));
+          AllOf(
+              HasSubstrInV1(GetParam(), "Value to slice is not of 'bits' type"),
+              HasSubstrInV2(GetParam(),
+                            "Tuples should not be indexed with array-style "
+                            "syntax. Use `tuple.<number>` syntax instead."))));
 }
 
-TEST(TypecheckTest, WidthSliceTupleSubject) {
-  EXPECT_THAT(Typecheck("fn f(start: s32, x: (u32)) -> u3 { x[start+:u3] }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Value to slice is not of 'bits' type")));
+TEST_P(TypecheckBothVersionsTest, OverlargeWidthSlice) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u32) -> u33 { x[0+:u33] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Slice type must have <= original number of "
+                                   "bits; attempted slice from 32 to 33 bits."),
+                     HasSubstrInV2(
+                         GetParam(),
+                         "Slice range out of bounds for array of size 32"))));
 }
 
-TEST(TypecheckTest, OverlargeWidthSlice) {
-  EXPECT_THAT(Typecheck("fn f(x: u32) -> u33 { x[0+:u33] }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Slice type must have <= original number of "
-                                 "bits; attempted slice from 32 to 33 bits.")));
-}
-
-TEST(TypecheckTest, BadAttributeAccessOnTuple) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, BadAttributeAccessOnTuple) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn main() -> () {
   let x: (u32,) = (u32:42,);
   x.a
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected a struct for attribute access")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Expected a struct for attribute access"),
+                     HasSubstrInV2(GetParam(),
+                                   "Invalid access of member `a` of non-struct "
+                                   "type: `(uN[32],)`"))));
 }
 
-TEST(TypecheckTest, BadAttributeAccessOnBits) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, BadAttributeAccessOnBits) {
+  EXPECT_THAT(
+      Typecheck(R"(
 fn main() -> () {
   let x = u32:42;
   x.a
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected a struct for attribute access")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(
+              HasSubstrInV1(GetParam(),
+                            "Expected a struct for attribute access"),
+              HasSubstrInV2(
+                  GetParam(),
+                  "Invalid access of member `a` of non-struct type: `u32`"))));
 }
 
-TEST(TypecheckTest, BadArrayLiteralType) {
+TEST_P(TypecheckBothVersionsTest, BadArrayLiteralType) {
   EXPECT_THAT(
-      Typecheck(R"(
-fn main() -> s32[2] {
-  s32:[1, 2]
-}
-)"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Array was not annotated with an array type")));
+      Typecheck("const X = s32:[1, 2];"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Array was not annotated with an array type"),
+                HasTypeMismatchInV2(GetParam(), "s32", "uN[2][2]"))));
 }
 
-TEST(TypecheckTest, CharLiteralArray) {
+TEST_P(TypecheckBothVersionsTest, CharLiteralArray) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn main() -> u8[3] {
   u8[3]:['X', 'L', 'S']
@@ -2808,8 +2885,9 @@ fn f() -> MyEnum { MyEnum::C }
 
 // Nominal typing not structural, e.g. OtherPoint cannot be passed where we want
 // a Point, even though their members are the same.
-TEST(TypecheckTest, NominalTyping) {
-  EXPECT_THAT(Typecheck(R"(
+TEST_P(TypecheckBothVersionsTest, NominalTyping) {
+  EXPECT_THAT(
+      Typecheck(R"(
 struct Point { x: s8, y: u32 }
 struct OtherPoint { x: s8, y: u32 }
 fn f(x: Point) -> Point { x }
@@ -2818,12 +2896,15 @@ fn g() -> Point {
   f(shp)
 }
 )"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Point { x: sN[8], y: uN[32] }\nvs OtherPoint "
-                                 "{ x: sN[8], y: uN[32] }")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Point { x: sN[8], y: uN[32] }\nvs OtherPoint "
+                              "{ x: sN[8], y: uN[32] }"),
+                HasTypeMismatchInV2(GetParam(), "OtherPoint", "Point"))));
 }
 
-TEST(TypecheckTest, ParametricWithConstantArrayEllipsis) {
+TEST_P(TypecheckBothVersionsTest, ParametricWithConstantArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>(_: bits[N]) -> u8[2] { u8[2]:[0, ...] }
 fn main() -> u8[2] { p(false) }
@@ -2834,7 +2915,7 @@ fn main() -> u8[2] { p(false) }
 // * make a call to `q`, where we give it an explicit parametric value,
 // * by invoking `r` (which is also parametric),
 // * doing that from within a parametric function `p`.
-TEST(TypecheckTest, ExplicitParametricCallInParametricFn) {
+TEST(TypecheckBothVersionsTest, ExplicitParametricCallInParametricFn) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn r<R: u32>(x: bits[R]) -> bits[R] { x }
 fn q<Q: u32>(x: bits[Q]) -> bits[Q] { x }
@@ -2862,7 +2943,7 @@ fn f<N: u32>() -> bool { true }
                HasSubstr("Quickchecking parametric functions is unsupported")));
 }
 
-TEST(TypecheckTest, NumbersAreConstexpr) {
+TEST_P(TypecheckBothVersionsTest, NumbersAreConstexpr) {
   // Visitor to check all nodes in the below program to determine if all numbers
   // are indeed constexpr.
   class IsConstVisitor : public AstNodeVisitorWithDefault {
@@ -2931,7 +3012,7 @@ fn main() {
   EXPECT_EQ(visitor.nonconstexpr_numbers_seen(), 0);
 }
 
-TEST(TypecheckTest, BasicTupleIndex) {
+TEST_P(TypecheckBothVersionsTest, BasicTupleIndex) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn main() -> u18 {
   (u32:7, u24:6, u18:5, u12:4, u8:3).2
@@ -2939,7 +3020,7 @@ fn main() -> u18 {
 )"));
 }
 
-TEST(TypecheckTest, DuplicateRestOfTupleError) {
+TEST_P(TypecheckBothVersionsTest, DuplicateRestOfTupleError) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, .., ..) = (u32:7, u24:6, u18:5, u12:4, u8:3);
@@ -2949,7 +3030,7 @@ fn main() {
                        HasSubstr("can only be used once")));
 }
 
-TEST(TypecheckTest, TupleCountMismatch) {
+TEST_P(TypecheckBothVersionsTest, TupleCountMismatch) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, y) = (u32:7, u24:6, u18:5, u12:4, u8:3);
@@ -2959,7 +3040,7 @@ fn main() {
                        HasSubstr("a 5-element tuple to 2 values")));
 }
 
-TEST(TypecheckTest, RestOfTupleCountMismatch) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleCountMismatch) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, .., y, z) = (u32:7, u8:3);
@@ -2969,7 +3050,7 @@ fn main() {
                        HasSubstr("a 2-element tuple to 3 values")));
 }
 
-TEST(TypecheckTest, RestOfTupleCountMismatchNested) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleCountMismatchNested) {
   EXPECT_THAT(Typecheck(R"(
 fn main() {
   let (x, .., (y, .., z)) = (u32:7, u8:3, (u12:4,));
@@ -2979,7 +3060,7 @@ fn main() {
                        HasSubstr("a 1-element tuple to 2 values")));
 }
 
-TEST(TypecheckTest, TupleAssignsTypes) {
+TEST_P(TypecheckBothVersionsTest, TupleAssignsTypes) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y): (u32, s8) = (u32:7, s8:3);
@@ -2988,7 +3069,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleSkipsMiddle) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsMiddle) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., y) = (u32:7, u12:4, s8:3);
@@ -2998,7 +3079,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleSkipsNone) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsNone) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., y) = (u32:7, s8:3);
@@ -3008,7 +3089,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTuplekSkipsNoneWithThree) {
+TEST_P(TypecheckBothVersionsTest, RestOfTuplekSkipsNoneWithThree) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, .., z) = (u32:7, u12:4, s8:3);
@@ -3018,7 +3099,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleSkipsEnd) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsEnd) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, ..) = (u32:7, s8:3, u12:4);
@@ -3028,7 +3109,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleSkipsManyAtEnd) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsManyAtEnd) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, ..) = (u32:7, s8:3, u12:4, u32:0);
@@ -3038,7 +3119,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleSkipsManyInMiddle) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsManyInMiddle) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., y) = (u32:7, u8:3, u12:4, s8:3);
@@ -3048,7 +3129,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleSkipsBeginning) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsBeginning) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (.., x, y) = (u12:7, u8:3, u32:4, s8:3);
@@ -3058,7 +3139,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleSkipsManyAtBeginning) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleSkipsManyAtBeginning) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (.., x) = (u8:3, u12:4, u32:7);
@@ -3068,7 +3149,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleNested) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleNested) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., (.., y)) = (u32:7, u8:3, u18:5, (u12:4, u11:5, s8:3));
@@ -3078,7 +3159,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleNestedSingleton) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleNestedSingleton) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., (y,)) = (u32:7, u8:3, (s8:3,));
@@ -3088,7 +3169,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleIsLikeWildcard) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleIsLikeWildcard) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, .., (.., y)) = (u32:7, u18:5, (u12:4, s8:3));
@@ -3098,7 +3179,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleDeeplyNested) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleDeeplyNested) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   let (x, y, .., ((.., z), .., d)) = (u32:7, u8:1,
@@ -3109,7 +3190,7 @@ fn main() {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckTest, RestOfTupleDeeplyNestedNonConstants) {
+TEST_P(TypecheckBothVersionsTest, RestOfTupleDeeplyNestedNonConstants) {
   constexpr std::string_view kProgram = R"(
 fn main() {
   // Initial values
