@@ -164,6 +164,9 @@ void FilterAnnotations(
     std::vector<const TypeAnnotation*>& annotations,
     absl::FunctionRef<bool(const TypeAnnotation*)> accept_predicate);
 
+// Creates an Expr calculating the number of elements in a Range. If the number
+// is negative (i.e. `range->end() < range.start()`) the result is clamped to 0.
+Expr* CreateRangeElementCount(Module& module, const Range* range);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

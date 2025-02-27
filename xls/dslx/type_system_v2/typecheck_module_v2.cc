@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system_v2/typecheck_module_v2.h"
 
+#include <algorithm>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -663,6 +664,87 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleRange(const Range* node) override {
+    VLOG(5) << "HandleRange: " << node->ToString();
+
+    // Match expression uses a syntax sugar for matching any values in a range
+    // like this,
+    // match x {
+    //    1..3 => u32:1,
+    // }
+    // and this construct should not be treated as an iterable range.
+    if (const NameDefTree* namedef =
+            dynamic_cast<const NameDefTree*>(node->parent())) {
+      if (const MatchArm* matcharm =
+              dynamic_cast<const MatchArm*>(namedef->parent())) {
+        auto& patterns = matcharm->patterns();
+        if (std::find(patterns.begin(), patterns.end(), namedef) !=
+            patterns.end()) {
+          return DefaultHandler(node);
+        }
+      }
+    }
+
+    // The type of a range expression is inferenced as if it is an array of
+    // enumerated values. For example
+    //   const FOO = s32:1..s32:3;
+    //
+    // the table will look like this before descent into this function:
+    //   Node               Annotation          Variable
+    //   -----------------------------------------------
+    //   FOO                                    T0
+    //   s32:1..s32:3                           T0
+    //
+    // and this function will make it look like this:
+    //   Node              Annotation                           Variable
+    //   ---------------------------------------------------------------
+    //   FOO                                                    T0
+    //   s32:1..s32:3      var:T1[s32:3 as s32 - s32:1 as s32]  T0
+    //   s32:1                                                  T1
+    //   s32:3                                                  T1
+    //   s32:1 as s32      s32                                  T2
+    //   s32:3 as s32      s32                                  T2
+    //   subtract expr                                          T2
+    // Array size is determined by concretization as it can be a constexpr.
+
+    Expr* element_count = CreateRangeElementCount(module_, node);
+
+    // Create and assign a type variable for generated element count expr and
+    // its sub expressions.
+    XLS_ASSIGN_OR_RETURN(const NameRef* element_count_type_variable,
+                         table_.DefineInternalVariable(
+                             InferenceVariableKind::kType, element_count,
+                             GenerateInternalTypeVariableName(element_count)));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(element_count, element_count_type_variable));
+    XLS_RETURN_IF_ERROR(element_count->Accept(this));
+
+    // Create a variable for the element type, and assign it to start and end.
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* endpoint_type_variable,
+        table_.DefineInternalVariable(InferenceVariableKind::kType,
+                                      const_cast<Range*>(node),
+                                      GenerateInternalTypeVariableName(node)));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<const TypeAnnotation*> range_annotation,
+        GetDeclarationTypeAnnotation<ArrayTypeAnnotation>(node));
+    for (Expr* endpoint : {node->start(), node->end()}) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(endpoint, endpoint_type_variable));
+      if (range_annotation.has_value()) {
+        XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+            endpoint, module_.Make<ElementTypeAnnotation>(*range_annotation)));
+      }
+    }
+
+    ArrayTypeAnnotation* type_annotation = module_.Make<ArrayTypeAnnotation>(
+        node->span(),
+        module_.Make<TypeVariableTypeAnnotation>(endpoint_type_variable),
+        element_count, false);
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(node, type_annotation));
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleIndex(const Index* node) override {
     // Whether it's a normal index op or a slice, the LHS, which is the original
     // array, always has its own unification context.
@@ -1178,6 +1260,12 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   std::string GenerateInternalTypeVariableName(const Array* node) {
     return absl::Substitute("internal_type_array_element_at_$0_in_$1",
                             node->span().ToString(file_table_), module_.name());
+  }
+  // Specialization for `Range` nodes.
+  template <>
+  std::string GenerateInternalTypeVariableName(const Range* node) {
+    return absl::StrCat("internal_type_range_element_at_",
+                        node->span().ToString(file_table_));
   }
   // Variant for an actual struct member expr.
   std::string GenerateInternalTypeVariableName(

@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_CONCRETE_TYPE_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_CONCRETE_TYPE_H_
 
+#include <optional>
+
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
@@ -28,6 +30,7 @@ namespace xls::dslx {
 // containing an embedded literal.
 absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
+                                  const TypeAnnotation* annotation,
                                   const FileTable& file_table);
 
 }  // namespace xls::dslx

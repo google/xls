@@ -619,7 +619,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     }
 
     XLS_RETURN_IF_ERROR(
-        ValidateConcreteType(node, type->get(), *ti, file_table_));
+        ValidateConcreteType(node, type->get(), *ti, *annotation, file_table_));
     if (const auto* literal = dynamic_cast<const Number*>(node);
         literal != nullptr && literal->type_annotation() != nullptr) {
       ti->SetItem(literal->type_annotation(),

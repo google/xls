@@ -5197,5 +5197,120 @@ const Y = f<1, 4>(0b100111);
                                       HasNodeWithType("Y", "uN[4]"))));
 }
 
+TEST(TypecheckV2Test, RangeExpr) {
+  EXPECT_THAT(
+      R"(
+const X = u32:1..u32:4;
+const X1 = 1..u32:4;
+const X2 = u32:1..4;
+const Y:s32[5] = s32:0..s32:5;
+const Z:s17[1] = -1..0;
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("X", "uN[32][3]"), HasNodeWithType("X1", "uN[32][3]"),
+          HasNodeWithType("X2", "uN[32][3]"), HasNodeWithType("Y", "sN[32][5]"),
+          HasNodeWithType("Z", "sN[17][1]"))));
+}
+
+TEST(TypecheckV2Test, RangeExprConstExpr) {
+  EXPECT_THAT(R"(
+fn foo() -> s16 {
+  s16:4
+}
+const A = s16:6;
+const X = foo()..(A * 2);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[16][8]")));
+}
+
+TEST(TypecheckV2Test, RangeExprTypeAnnotationConstExpr) {
+  EXPECT_THAT(R"(
+fn foo() -> s16 {
+  s16:4
+}
+const A = s16:6;
+const X : s16[foo() as u32 + 4] = foo()..(A * 2);
+)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[16][8]")));
+}
+
+TEST(TypecheckV2Test, RangeExprNonConstExpr) {
+  EXPECT_THAT(R"(
+fn foo(a : u32) {
+  let A = u32:1..a;
+}
+)",
+              TypecheckFails(HasSubstr("was not constexpr")));
+}
+
+TEST(TypecheckV2Test, RangeExprSignednessMismatch) {
+  EXPECT_THAT(R"(const X = u32:1..s32:2;)",
+              TypecheckFails(HasSignednessMismatch("s32", "u32")));
+}
+
+TEST(TypecheckV2Test, RangeExprSizeMismatch) {
+  EXPECT_THAT(
+      R"(const X:u32[4] = u32:1..u32:3;)",
+      TypecheckFails(HasTypeMismatch("u32:3 as s32 - u32:1 as s32", "u32[4]")));
+}
+
+TEST(TypecheckV2Test, RangeExprTypeAnnotationMismatch) {
+  EXPECT_THAT(R"(const X:u32[4] = 0..u16:4;)",
+              TypecheckFails(HasSizeMismatch("u16", "uN[0]")));
+}
+
+TEST(TypecheckV2Test, RangeExprCheckInvalidTypePair) {
+  EXPECT_THAT(R"(
+type Pair = (u32, u32);
+const A : Pair = (1, 2);
+const B : Pair = (3, 4);
+const X = A..B;
+)",
+              TypecheckFails(HasSubstr("Cannot cast from type")));
+}
+
+TEST(TypecheckV2Test, RangeExprInvalidTypeFunc) {
+  EXPECT_THAT(R"(
+fn foo() {}
+fn bar() {}
+const X = foo..bar;
+)",
+              TypecheckFails(HasSubstr("Cannot cast from type")));
+}
+
+TEST(TypecheckV2Test, RangeExprArraySizeType) {
+  // Range expr is valid as long as the size can fit u32.
+  EXPECT_THAT(R"(const X = u64:0x100000000..u64:0x100000005;)",
+              TypecheckSucceeds(HasNodeWithType("X", "uN[64][5]")));
+}
+
+TEST(TypecheckV2Test, RangeExprArraySizeTypeSigned) {
+  EXPECT_THAT(R"(const X = s8:-128..s8:127;)",
+              TypecheckSucceeds(HasNodeWithType("X", "sN[8][255]")));
+}
+
+TEST(TypecheckV2Test, RangeExprArraySizeTypeTooLarge) {
+  EXPECT_THAT(
+      R"(const X = u64:0..u64:0x100000000;)",
+      TypecheckFails(HasSubstr("has size `4294967296` larger than u32")));
+}
+
+TEST(TypecheckV2Test, RangeExprArraySizeTypeTooLargeSigned) {
+  EXPECT_THAT(R"(const X = s64:0x8000000000000000..s64:0xFFFFFFFFFFFFFFFF;)",
+              TypecheckFails(
+                  HasSubstr("has size `9223372036854775807` larger than u32")));
+}
+
+TEST(TypecheckV2Test, RangeExprNegativeRange) {
+  // Currently if end is less than start, the range expr results in a zero-sized
+  // array. This case may be regarded as a compile error in the future.
+  EXPECT_THAT(R"(
+const A = s8:4;
+const X = A..s8:3;
+)",
+              TypecheckFails(HasSubstr("Range expr `A..s8:3` start value `4` "
+                                       "is larger than end value `3`")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

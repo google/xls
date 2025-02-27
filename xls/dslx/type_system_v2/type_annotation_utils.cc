@@ -456,4 +456,19 @@ void FilterAnnotations(
                     annotations.end());
 }
 
+Expr* CreateRangeElementCount(Module& module, const Range* range) {
+  const Span& span = range->span();
+  // Cast start and end to s32 since array size type is assumed to be U32, this
+  // ensures arithmetic correctness for types smaller than 32 bit, or types
+  // greater than 32 bits as long as the difference fits in a U32.
+  // If the difference does not fit in a U32, for example,
+  // 0xFFFF,FFFF,FFFF,FFFF..0x0000111100001111, it is silently truncated to U32,
+  // and this needed to be checked at validate_concrete_type.
+  Expr* start = module.Make<Cast>(span, range->start(),
+                                  CreateS32Annotation(module, span));
+  Expr* end =
+      module.Make<Cast>(span, range->end(), CreateS32Annotation(module, span));
+  return module.Make<Binop>(span, BinopKind::kSub, end, start, span);
+}
+
 }  // namespace xls::dslx

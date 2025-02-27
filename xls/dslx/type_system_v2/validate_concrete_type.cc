@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <variant>
@@ -55,8 +56,12 @@ absl::StatusOr<BitsLikeProperties> GetBitsLikeOrError(
 class TypeValidator : public AstNodeVisitorWithDefault {
  public:
   explicit TypeValidator(const Type* type, const TypeInfo& ti,
+                         const TypeAnnotation* annotation,
                          const FileTable& file_table)
-      : type_(type), ti_(ti), file_table_(file_table) {}
+      : type_(type),
+        ti_(ti),
+        annotation_(annotation),
+        file_table_(file_table) {}
 
   absl::Status HandleNumber(const Number* literal) override {
     // A literal can have its own explicit type annotation that ultimately
@@ -144,6 +149,60 @@ class TypeValidator : public AstNodeVisitorWithDefault {
           cast->span(), type_,
           absl::Substitute("Cannot cast from type `$0` to type `$1`",
                            from_type.value()->ToString(), to_type.ToString()),
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
+  // Check if the size of the range is a non-negative number that fits a u32.
+  absl::Status HandleRange(const Range* range) override {
+    // If range's type annotation is inferenced, its dimension is a subtract
+    // expr of S32 operands and we only need to validate for this case.
+    const ArrayTypeAnnotation* array_type =
+        dynamic_cast<const ArrayTypeAnnotation*>(annotation_);
+    if (!array_type) {
+      return absl::OkStatus();
+    }
+    const Binop* binop = dynamic_cast<const Binop*>(array_type->dim());
+    if (!binop || binop->binop_kind() != BinopKind::kSub) {
+      return absl::OkStatus();
+    }
+    for (const Expr* operand : {binop->lhs(), binop->rhs()}) {
+      const Cast* cast = dynamic_cast<const Cast*>(operand);
+      if (!cast) {
+        return absl::OkStatus();
+      }
+      const BuiltinTypeAnnotation* s32_type =
+          dynamic_cast<const BuiltinTypeAnnotation*>(cast->type_annotation());
+      if (!s32_type || s32_type->builtin_type() != BuiltinType::kS32) {
+        return absl::OkStatus();
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(InterpValue start,
+                         ti_.GetConstExpr(binop->rhs()->GetChildren(false)[0]));
+    XLS_ASSIGN_OR_RETURN(InterpValue end,
+                         ti_.GetConstExpr(binop->lhs()->GetChildren(false)[0]));
+    if (start.Gt(end)->IsTrue()) {
+      return TypeInferenceErrorStatus(
+          range->span(), type_,
+          absl::Substitute(
+              "Range expr `$0` start value `$1` is larger than end value `$2`",
+              range->ToString(), start.ToString(true), end.ToString(true)),
+          file_table_);
+    }
+    XLS_ASSIGN_OR_RETURN(int64_t start_bits, start.GetBitCount());
+    XLS_ASSIGN_OR_RETURN(int64_t end_bits, end.GetBitCount());
+    int64_t bits = std::max(start_bits, end_bits);
+    XLS_ASSIGN_OR_RETURN(
+        start, start.IsSigned() ? start.SignExt(bits) : start.ZeroExt(bits));
+    XLS_ASSIGN_OR_RETURN(
+        end, end.IsSigned() ? end.SignExt(bits) : end.ZeroExt(bits));
+    if (!end.Sub(start)->FitsInNBitsUnsigned(32)) {
+      return TypeInferenceErrorStatus(
+          range->span(), type_,
+          absl::Substitute("Range expr `$0` has size `$1` larger than u32",
+                           range->ToString(), end.Sub(start)->ToString(true)),
           file_table_);
     }
     return absl::OkStatus();
@@ -292,6 +351,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
   const Type* type_;
   const TypeInfo& ti_;
+  const TypeAnnotation* annotation_;
   const FileTable& file_table_;
 };
 
@@ -299,11 +359,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 
 absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
+                                  const TypeAnnotation* annotation,
                                   const FileTable& file_table) {
   if (type->IsMeta()) {
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
-  TypeValidator validator(type, ti, file_table);
+  TypeValidator validator(type, ti, annotation, file_table);
   return node->Accept(&validator);
 }
 
