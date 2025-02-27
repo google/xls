@@ -1820,7 +1820,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       replaced_anything = true;
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
-          ExpandMemberType(parametric_context, member_type, accept_predicate));
+          ResolveMemberType(parametric_context, member_type, accept_predicate));
       VLOG(5) << "Member type expansion for: " << member_type->member_name()
               << " yielded: " << result->ToString();
       return const_cast<TypeAnnotation*>(result);
@@ -1829,8 +1829,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
             dynamic_cast<const ElementTypeAnnotation*>(node)) {
       replaced_anything = true;
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
-                           ExpandElementType(parametric_context, element_type,
-                                             accept_predicate));
+                           ResolveElementType(parametric_context, element_type,
+                                              accept_predicate));
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* return_type =
@@ -1838,7 +1838,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       replaced_anything = true;
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
-          ExpandReturnType(parametric_context, return_type, accept_predicate));
+          ResolveReturnType(parametric_context, return_type, accept_predicate));
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* param_type =
@@ -1849,12 +1849,12 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       }
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
-          ExpandParamType(parametric_context, param_type, accept_predicate));
+          ResolveParamType(parametric_context, param_type, accept_predicate));
       return const_cast<TypeAnnotation*>(result);
     }
     if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(node)) {
       std::optional<const TypeAnnotation*> expanded =
-          ExpandSelfType(parametric_context, self_type);
+          ResolveSelfType(parametric_context, self_type);
       replaced_anything = true;
       CHECK(expanded.has_value());
       return const_cast<TypeAnnotation*>(*expanded);
@@ -1933,7 +1933,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
   // be the `u32[5]` annotation. The `accept_predicate` may be used to exclude
   // type annotations dependent on an implicit parametric that this utility is
   // being used to help infer.
-  absl::StatusOr<const TypeAnnotation*> ExpandMemberType(
+  absl::StatusOr<const TypeAnnotation*> ResolveMemberType(
       std::optional<const ParametricContext*> parametric_context,
       const MemberTypeAnnotation* member_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
@@ -1998,7 +1998,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
   // actually `u32[5]`, then the result will be a `u32` annotation. The
   // `accept_predicate` may be used to exclude type annotations dependent on an
   // implicit parametric that this utility is being used to help infer.
-  absl::StatusOr<const TypeAnnotation*> ExpandElementType(
+  absl::StatusOr<const TypeAnnotation*> ResolveElementType(
       std::optional<const ParametricContext*> parametric_context,
       const ElementTypeAnnotation* element_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
@@ -2048,7 +2048,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     return container_type;
   }
 
-  absl::StatusOr<const TypeAnnotation*> ExpandReturnType(
+  absl::StatusOr<const TypeAnnotation*> ResolveReturnType(
       std::optional<const ParametricContext*> parametric_context,
       const ReturnTypeAnnotation* return_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
@@ -2069,7 +2069,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     return result_type;
   }
 
-  absl::StatusOr<const TypeAnnotation*> ExpandParamType(
+  absl::StatusOr<const TypeAnnotation*> ResolveParamType(
       std::optional<const ParametricContext*> parametric_context,
       const ParamTypeAnnotation* param_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
@@ -2092,7 +2092,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     return resolved_types[param_type->param_index()];
   }
 
-  std::optional<const TypeAnnotation*> ExpandSelfType(
+  std::optional<const TypeAnnotation*> ResolveSelfType(
       std::optional<const ParametricContext*> parametric_context,
       const SelfTypeAnnotation* self_type) {
     std::optional<const TypeAnnotation*> expanded =
