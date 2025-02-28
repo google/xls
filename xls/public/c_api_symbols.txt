@@ -122,6 +122,7 @@ xls_value_from_bits
 xls_value_get_bits
 xls_value_get_element
 xls_value_get_element_count
+xls_value_make_array
 xls_value_make_false
 xls_value_make_sbits
 xls_value_make_token
