@@ -523,6 +523,7 @@ cc_library(
         ":scheduling_options",
         ":scheduling_pass",
         "//xls/common:casts",
+        "//xls/common:stopwatch",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/data_structures:graph_coloring",
@@ -580,6 +581,7 @@ cc_test(
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@googletest//:gtest",
     ],
 )

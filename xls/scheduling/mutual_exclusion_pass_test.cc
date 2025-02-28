@@ -23,6 +23,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
@@ -548,6 +549,65 @@ TEST_F(MutualExclusionPassTest, AvoidsCycles) {
   EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 3);
+}
+
+// Make sure that we finish in a reasonable amount of time even if we have an
+// inordinate number of channels assuming few conflict.
+TEST_F(MutualExclusionPassTest, MassiveNumberOfChannels) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement("val", UBits(0, 1));
+  pb.Next(state, pb.Not(state));
+  static constexpr int64_t kNumChannels = 128;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* in_channel,
+      p->CreateStreamingChannel("input", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(kNumChannels)));
+  BValue tok_tup = pb.Receive(in_channel, pb.Literal(Value::Token()));
+  BValue tok = pb.TupleIndex(tok_tup, 0);
+  BValue sel = pb.TupleIndex(tok_tup, 1);
+  for (int64_t i = 0; i < kNumChannels; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto* chan,
+        p->CreateStreamingChannel(absl::StrCat("out_", i),
+                                  ChannelOps::kSendOnly, p->GetBitsType(1)));
+    BValue thiz_sel = pb.BitSlice(sel, i, 1);
+    pb.SendIf(chan, tok, thiz_sel, state);
+    pb.SendIf(chan, tok, pb.Not(thiz_sel), pb.Literal(UBits(0, 1)));
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfOp(proc, Op::kSend), kNumChannels);
+}
+
+TEST_F(MutualExclusionPassTest, MassiveNumberOfChannelsNoChange) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), p.get());
+  BValue state = pb.StateElement("val", UBits(0, 1));
+  pb.Next(state, pb.Not(state));
+  static constexpr int64_t kNumChannels = 2048;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto* in_channel,
+      p->CreateStreamingChannel("input", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(kNumChannels)));
+  BValue tok_tup = pb.Receive(in_channel, pb.Literal(Value::Token()));
+  BValue tok = pb.TupleIndex(tok_tup, 0);
+  BValue sel = pb.TupleIndex(tok_tup, 1);
+  for (int64_t i = 0; i < kNumChannels; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        auto* chan,
+        p->CreateStreamingChannel(absl::StrCat("out_", i),
+                                  ChannelOps::kSendOnly, p->GetBitsType(1)));
+    BValue thiz_sel = pb.BitSlice(sel, i, 1);
+    pb.SendIf(chan, tok, thiz_sel, state);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build());
+
+  EXPECT_THAT(RunMutualExclusionPass(p.get()), IsOkAndHolds(false));
+  EXPECT_EQ(NumberOfOp(proc, Op::kSend), kNumChannels);
 }
 
 }  // namespace
