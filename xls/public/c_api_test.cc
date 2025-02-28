@@ -366,6 +366,42 @@ TEST(XlsCApiTest, FlattenTupleValueToBits) {
       << ToOwnedCppString(xls_bits_to_debug_string(want_bits));
 }
 
+TEST(XlsCApiTest, MakeArrayValue) {
+  char* error_out = nullptr;
+
+  xls_value* u3_7 = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[3]:0x7", &error_out, &u3_7));
+  absl::Cleanup free_u3_7([u3_7] { xls_value_free(u3_7); });
+
+  xls_value* u2_0 = nullptr;
+  ASSERT_TRUE(xls_parse_typed_value("bits[2]:0x0", &error_out, &u2_0));
+  absl::Cleanup free_u2_0([u2_0] { xls_value_free(u2_0); });
+
+  // Make a valid array of two elements.
+  {
+    xls_value* elements[] = {u3_7, u3_7};
+    xls_value* array = nullptr;
+    ASSERT_TRUE(xls_value_make_array(
+        /*element_count=*/2, elements, &error_out, &array));
+    absl::Cleanup free_array([array] { xls_value_free(array); });
+
+    char* value_str = nullptr;
+    ASSERT_TRUE(xls_value_to_string(array, &value_str));
+    absl::Cleanup free_value_str([value_str] { xls_c_str_free(value_str); });
+    EXPECT_EQ(std::string_view{value_str}, "[bits[3]:7, bits[3]:7]");
+  }
+
+  // Make an invalid array of two elements.
+  {
+    xls_value* elements[] = {u3_7, u2_0};
+    xls_value* array = nullptr;
+    ASSERT_FALSE(xls_value_make_array(
+        /*element_count=*/2, elements, &error_out, &array));
+    absl::Cleanup free_error([error_out] { xls_c_str_free(error_out); });
+    EXPECT_THAT(std::string_view{error_out}, HasSubstr("SameTypeAs"));
+  }
+}
+
 TEST(XlsCApiTest, MakeBitsFromUint8DataWithMsbPadding) {
   char* error_out = nullptr;
   xls_bits* bits = nullptr;
