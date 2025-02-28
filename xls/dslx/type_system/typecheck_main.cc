@@ -35,6 +35,7 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -55,6 +56,17 @@ ABSL_FLAG(bool, fatal_on_internal_error, false,
           "If true, internal errors will be fatal; this is useful for fuzzing "
           "without using a wrapper to check reported error invariants.");
 
+// Warnings-oriented flags.
+ABSL_FLAG(std::string, disable_warnings, "",
+          "Comma-delimited list of warnings to disable from the default set of "
+          "warnings used -- not generally "
+          "recommended, but can be used in exceptional circumstances");
+ABSL_FLAG(std::string, enable_warnings, "",
+          "Comma-delimited list of warnings to enable that are disabled in the "
+          "default set");
+ABSL_FLAG(bool, warnings_as_errors, true,
+          "Whether to fail early, as an error, if warnings are detected");
+
 namespace xls::dslx {
 namespace {
 
@@ -67,10 +79,15 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
                       const std::filesystem::path& dslx_stdlib_path,
                       const std::filesystem::path& input_path,
                       std::optional<std::filesystem::path> output_path) {
-  ImportData import_data(CreateImportData(
-      dslx_stdlib_path,
-      /*additional_search_paths=*/dslx_paths, kDefaultWarningsSet,
-      std::make_unique<RealFilesystem>()));
+  XLS_ASSIGN_OR_RETURN(
+      WarningKindSet warnings,
+      GetWarningsSetFromFlags(absl::GetFlag(FLAGS_enable_warnings),
+                              absl::GetFlag(FLAGS_disable_warnings)));
+
+  ImportData import_data(
+      CreateImportData(dslx_stdlib_path,
+                       /*additional_search_paths=*/dslx_paths, warnings,
+                       std::make_unique<RealFilesystem>()));
   XLS_ASSIGN_OR_RETURN(std::string input_contents,
                        import_data.vfs().GetFileContents(input_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(input_path.c_str()));
@@ -90,6 +107,17 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
     }
     return tm.status();
   }
+
+  if (!tm->warnings.empty()) {
+    PrintWarnings(tm->warnings, import_data.file_table(), import_data.vfs());
+
+    if (absl::GetFlag(FLAGS_warnings_as_errors)) {
+      return absl::InvalidArgumentError(
+          "Warnings were detected; use --warnings_as_errors=false to allow "
+          "them or --disable_warnings to disable them selectively.");
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm->type_info));
   if (output_path.has_value()) {
     std::string output;

@@ -724,6 +724,7 @@ cc_binary(
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/dslx:error_printer",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:virtualizable_file_system",

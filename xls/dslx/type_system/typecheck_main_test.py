@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# pylint: disable=missing-function-docstring
+
 """Tests for typecheck_main."""
 
 import os
@@ -34,6 +37,57 @@ class TypecheckMainTest(absltest.TestCase):
         encoding='utf-8',
     )
     self.assertIn('TYPE_REF :: `mod_simple_const_enum::MyEnum`', output)
+
+  def test_disable_warnings_as_errors(self):
+    content = 'fn f() { let x = u32:42; }'
+    f = self.create_tempfile(content=content)
+    p = subp.run(
+        [_TYPECHECK_MAIN_PATH, f.full_path, '--warnings_as_errors=false'],
+        encoding='utf-8',
+        check=True,
+        stderr=subp.PIPE,
+    )
+    self.assertEqual(p.returncode, 0)
+    self.assertIn('not used', p.stderr)
+
+  def test_disable_warning(self):
+    content = 'fn f() { let x = u32:42; }'
+    f = self.create_tempfile(content=content)
+    p = subp.run(
+        [
+            _TYPECHECK_MAIN_PATH,
+            f.full_path,
+            '--disable_warnings=unused_definition',
+        ],
+        encoding='utf-8',
+        check=True,
+        stderr=subp.PIPE,
+    )
+    self.assertEqual(p.returncode, 0)
+    self.assertNotIn('not used', p.stderr)
+
+  def test_enable_warning(self):
+    content = """fn already_exhaustive_match(x: u1) -> u32 {
+      match x {
+        false => u32:0,
+        true => u32:1,
+        _ => u32:2,
+      }
+    }"""
+    f = self.create_tempfile(content=content)
+    p = subp.run(
+        [
+            _TYPECHECK_MAIN_PATH,
+            f.full_path,
+            '--enable_warnings=already_exhaustive_match',
+        ],
+        encoding='utf-8',
+        check=False,
+        stderr=subp.PIPE,
+    )
+    self.assertIsNotNone(p.returncode)
+    self.assertNotEqual(p.returncode, 0)
+    self.assertIn('Match is already exhaustive', p.stderr)
 
 
 if __name__ == '__main__':
