@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <deque>
 #include <optional>
 #include <vector>
 
@@ -27,6 +26,7 @@
 #include "absl/log/log.h"
 #include "absl/random/bit_gen_ref.h"
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
@@ -36,6 +36,19 @@ namespace xls {
 
 std::vector<Node*> ReverseTopoSort(FunctionBase* f,
                                    std::optional<absl::BitGenRef> randomizer) {
+  // We store both the resulting order & the nodes that are ready to be added to
+  // the order in the same vector; the initial segment is the
+  // finished order (in reverse topo-sort order), and `[num_ordered, end)` is
+  // the worklist of nodes that are ready to be added to the order. The ready
+  // nodes are in the order in which we found they were ready; any of them can
+  // be added to the order without violating the reverse topo-sort constraint.
+  int64_t num_ordered = 0;
+  std::vector<Node*> result;
+  result.reserve(f->node_count());
+  auto ready_view = [&]() {
+    return absl::MakeSpan(result).subspan(num_ordered);
+  };
+
   // For topological traversal we only add nodes to the order when all of its
   // users have been scheduled.
   //
@@ -44,59 +57,37 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f,
   //     v v v
   //     o o o  (users, all present in order)
   //
-  // When a node is placed into the ordering, we place all of its operands into
-  // the "pending_to_remaining_users" mapping if it is not yet present -- this
-  // keeps track of how many more users must be seen (before that node is ready
-  // to place into the ordering).
+  // We start by adding all nodes to the `remaining_users` mapping, and those
+  // with no users to the `ready` stack (always putting the return value at the
+  // end of the stack). The `remaining_users` mapping is used to track how many
+  // users must be seen before a node is ready to be added to the order.
   //
   // NOTE: sorts reverse-topologically.  To sort topologically, reverse the
   // result.
-  absl::flat_hash_map<Node*, int64_t> pending_to_remaining_users;
-  pending_to_remaining_users.reserve(f->node_count());
-  std::deque<Node*> ready;
+  absl::flat_hash_map<Node*, int64_t> remaining_users;
+  remaining_users.reserve(f->node_count());
 
-  std::vector<Node*> ordered;
-  ordered.reserve(f->node_count());
-
-  auto is_scheduled = [&](Node* n) {
-    auto it = pending_to_remaining_users.find(n);
-    if (it == pending_to_remaining_users.end()) {
-      return false;
-    }
-    return it->second < 0;
-  };
-  auto all_users_scheduled = [&](Node* n) {
-    return absl::c_all_of(n->users(), is_scheduled);
-  };
-
-  auto seed_ready = [&](Node* n) {
-    ready.push_front(n);
-    CHECK(pending_to_remaining_users.insert({n, -1}).second);
-  };
-
-  auto is_return_value = [&](Node* n) {
-    return n->function_base()->IsFunction() &&
-           (n == n->function_base()->AsFunctionOrDie()->return_value());
-  };
-
-  Node* return_value = nullptr;
-  for (Node* node : f->nodes()) {
-    if (node->users().empty()) {
-      if (is_return_value(node)) {
-        // Note: we special case the return value so it always comes at the
-        // front.
-        return_value = node;
-      } else {
-        DCHECK(all_users_scheduled(node));
-        VLOG(5) << "At start node was ready: " << node;
-        seed_ready(node);
-      }
-    }
+  // Note: we special case the return value if it has no users, always putting
+  // it on the `ready` queue first so it comes at the start of the order.
+  Node* return_value =
+      f->IsFunction() ? f->AsFunctionOrDie()->return_value() : nullptr;
+  if (return_value != nullptr && return_value->users().empty()) {
+    VLOG(5) << "Marking return value as ready: " << return_value;
+    CHECK(remaining_users.emplace(return_value, 0).second);
+    result.push_back(return_value);
   }
+  for (Node* node : f->nodes_reversed()) {
+    auto [it, inserted] = remaining_users.emplace(node, node->users().size());
+    CHECK(inserted || (node == return_value && return_value->users().empty()));
+    if (node == return_value) {
+      continue;
+    }
+    const int64_t& node_remaining_users = it->second;
 
-  if (return_value != nullptr) {
-    VLOG(5) << "Maybe marking return value as ready: " << return_value;
-    seed_ready(return_value);
+    if (node_remaining_users == 0) {
+      VLOG(5) << "At start node was ready: " << node;
+      result.push_back(node);
+    }
   }
 
   std::optional<absl::flat_hash_map<Node*, int64_t>> random_priority;
@@ -121,63 +112,67 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f,
       CHECK(random_priority->emplace(random_order[i], i).second);
     }
 
+    absl::Span<Node*> ready = ready_view();
     absl::c_make_heap(ready, random_comparator);
   }
 
-  auto bump_down_remaining_users = [&](Node* n) {
-    CHECK(!n->users().empty());
-    auto result = pending_to_remaining_users.insert({n, n->users().size()});
-    auto it = result.first;
-    int64_t& remaining_users = it->second;
-    CHECK_GT(remaining_users, 0);
-    remaining_users -= 1;
-    VLOG(5) << "Bumped down remaining users for: " << n
-            << "; now: " << remaining_users;
-    if (remaining_users == 0) {
-      ready.push_back(result.first->first);
-      if (random_priority.has_value()) {
-        absl::c_push_heap(ready, random_comparator);
-      }
-      remaining_users -= 1;
-    }
-  };
-
+  // For nodes with many operands, we de-duplicate operands using a hash set;
+  // otherwise, we use a linear search over the operands we've already
+  // processed. We share a single hash set to avoid re-allocating it for each
+  // node.
+  constexpr int64_t kMinOperandsForHashSetDeduplication = 16;
   absl::flat_hash_set<Node*> seen_operands;
-  auto add_to_order = [&](Node* r) {
+
+  while (!ready_view().empty()) {
+    if (random_priority.has_value()) {
+      absl::Span<Node*> ready = ready_view();
+      absl::c_pop_heap(ready, random_comparator);
+
+      Node* removed = result.back();
+      result.pop_back();
+      result.insert(result.begin() + num_ordered, removed);
+    }
+    Node* r = result[num_ordered];
+
     VLOG(5) << "Adding node to order: " << r;
-    DCHECK(all_users_scheduled(r)) << r << " users size: " << r->users().size();
-    ordered.push_back(r);
+    ++num_ordered;
 
-    // We share seen_operands across invocations of add_to_order to reduce
-    // overhead of constructing/allocating a set each time. Clear it before
-    // using it.
-    seen_operands.clear();
+    const bool use_hash_set_deduplication =
+        r->operand_count() >= kMinOperandsForHashSetDeduplication;
+    if (use_hash_set_deduplication) {
+      // Reset the hash set's contents *without* reducing its capacity, so we
+      // can avoid unnecessary re-allocation.
+      seen_operands.erase(seen_operands.begin(), seen_operands.end());
 
-    // We want to be careful to only bump down our operands once, since we're a
-    // single user, even though we may refer to them multiple times in our
-    // operands sequence.
-    for (auto it = r->operands().rbegin(); it != r->operands().rend(); ++it) {
-      Node* operand = *it;
-      if (auto [_, inserted] = seen_operands.insert(operand); inserted) {
-        bump_down_remaining_users(operand);
+      seen_operands.reserve(r->operand_count());
+    }
+    for (int64_t operand_no = r->operand_count() - 1; operand_no >= 0;
+         --operand_no) {
+      Node* operand = r->operand(operand_no);
+      if (use_hash_set_deduplication) {
+        if (auto [_, inserted] = seen_operands.insert(operand); !inserted) {
+          // We've already seen this operand.
+          continue;
+        }
+
+      } else if (absl::c_linear_search(r->operands().subspan(operand_no + 1),
+                                       operand)) {
+        // We've already seen this operand.
+        continue;
+      }
+      int64_t& operand_remaining_users = remaining_users.at(operand);
+      DCHECK_GT(operand_remaining_users, 0);
+      if (--operand_remaining_users == 0) {
+        result.push_back(operand);
+        if (random_priority.has_value()) {
+          absl::Span<Node*> ready = ready_view();
+          absl::c_push_heap(ready, random_comparator);
+        }
       }
     }
-  };
-
-  while (!ready.empty()) {
-    Node* r;
-    if (random_priority.has_value()) {
-      absl::c_pop_heap(ready, random_comparator);
-      r = ready.back();
-      ready.pop_back();
-    } else {
-      r = ready.front();
-      ready.pop_front();
-    }
-    add_to_order(r);
   }
 
-  if (ordered.size() < f->node_count()) {
+  if (num_ordered < f->node_count()) {
     // Not all nodes have been placed indicating a cycle in the graph. Run a
     // trivial DFS visitor which will emit an error message displaying the
     // cycle.
@@ -191,7 +186,7 @@ std::vector<Node*> ReverseTopoSort(FunctionBase* f,
     LOG(FATAL) << "Expected to find cycle in function base.";
   }
 
-  return ordered;
+  return result;
 }
 
 std::vector<Node*> TopoSort(FunctionBase* f,

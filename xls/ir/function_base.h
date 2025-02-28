@@ -115,6 +115,16 @@ class FunctionBase {
     return xabsl::make_range(MakeUnwrappingIterator(nodes_.begin()),
                              MakeUnwrappingIterator(nodes_.end()));
   }
+  xabsl::iterator_range<UnwrappingIterator<NodeList::reverse_iterator>>
+  nodes_reversed() {
+    return xabsl::make_range(MakeUnwrappingIterator(nodes_.rbegin()),
+                             MakeUnwrappingIterator(nodes_.rend()));
+  }
+  xabsl::iterator_range<UnwrappingIterator<NodeList::const_reverse_iterator>>
+  nodes_reversed() const {
+    return xabsl::make_range(MakeUnwrappingIterator(nodes_.rbegin()),
+                             MakeUnwrappingIterator(nodes_.rend()));
+  }
 
   // Adds a node to the set owned by this function.
   template <typename T>
