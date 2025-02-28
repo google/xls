@@ -50,6 +50,7 @@ struct xls_function_base;
 struct xls_type;
 struct xls_function_type;
 struct xls_schedule_and_codegen_result;
+struct xls_function_jit;
 
 void xls_init_xls(const char* usage, int argc, char* argv[]);
 
@@ -265,7 +266,15 @@ bool xls_bits_to_string(const struct xls_bits* bits,
 // Deallocates a value, e.g. one as created by `xls_parse_typed_value`.
 void xls_value_free(struct xls_value* v);
 
+// Returns a value (box) that wraps the given bits value.
+//
+// No ownership is taken over the given bits value. See
+// `xls_value_from_bits_owned` if you want to "gift" the value to the API.
 struct xls_value* xls_value_from_bits(const struct xls_bits* bits);
+
+// As above but takes ownership of the bits value (so it should no longer be
+// freed by the caller).
+struct xls_value* xls_value_from_bits_owned(struct xls_bits* bits);
 
 // Flattens the given value to a sequence of bits in a bits "buffer" value.
 //
@@ -353,8 +362,34 @@ bool xls_function_type_to_string(struct xls_function_type* xls_function_type,
 // `argc`) -- interpretation runs to a function result placed in `result_out`,
 // or `error_out` is populated and false is returned in the event of an error.
 bool xls_interpret_function(struct xls_function* function, size_t argc,
-                            const struct xls_value** args, char** error_out,
-                            struct xls_value** result_out);
+                            const struct xls_value* const* args,
+                            char** error_out, struct xls_value** result_out);
+
+bool xls_make_function_jit(struct xls_function* function, char** error_out,
+                           struct xls_function_jit** result_out);
+
+void xls_function_jit_free(struct xls_function_jit* jit);
+
+struct xls_trace_message {
+  char* message;
+  int64_t verbosity;
+};
+
+// Runs the given `jit` function with the given `args` (an array of size `argc`)
+// and returns the result in `result_out`.
+//
+// `trace_messages_out` should be freed by the caller via ...
+// `assert_messages_out` should be freed by the caller via ...
+bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
+                          const struct xls_value* const* args, char** error_out,
+                          struct xls_trace_message** trace_messages_out,
+                          size_t* trace_messages_count_out,
+                          char*** assert_messages_out,
+                          size_t* assert_messages_count_out,
+                          struct xls_value** result_out);
+
+void xls_trace_messages_free(struct xls_trace_message* trace_messages,
+                             size_t count);
 
 }  // extern "C"
 

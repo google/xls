@@ -45,6 +45,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/function_jit.h"
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
 #include "xls/public/c_api_vast.h"
@@ -619,7 +620,16 @@ void xls_value_free(xls_value* v) { delete reinterpret_cast<xls::Value*>(v); }
 struct xls_value* xls_value_from_bits(const struct xls_bits* bits) {
   CHECK(bits != nullptr);
   const auto* cpp_bits = reinterpret_cast<const xls::Bits*>(bits);
-  return reinterpret_cast<xls_value*>(new xls::Value(std::move(*cpp_bits)));
+  return reinterpret_cast<xls_value*>(new xls::Value(*cpp_bits));
+}
+
+struct xls_value* xls_value_from_bits_owned(struct xls_bits* bits) {
+  CHECK(bits != nullptr);
+  auto* cpp_bits = reinterpret_cast<xls::Bits*>(bits);
+  auto* result =
+      reinterpret_cast<xls_value*>(new xls::Value(std::move(*cpp_bits)));
+  delete cpp_bits;
+  return result;
 }
 
 struct xls_function_base* xls_package_get_top(struct xls_package* p) {
@@ -867,9 +877,87 @@ bool xls_function_type_to_string(struct xls_function_type* type,
   return true;
 }
 
+bool xls_make_function_jit(struct xls_function* function, char** error_out,
+                           struct xls_function_jit** result_out) {
+  CHECK(function != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+
+  xls::Function* xls_function = reinterpret_cast<xls::Function*>(function);
+  absl::StatusOr<std::unique_ptr<xls::FunctionJit>> jit =
+      xls::FunctionJit::Create(xls_function);
+  if (!jit.ok()) {
+    *error_out = xls::ToOwnedCString(jit.status().ToString());
+    return false;
+  }
+  *result_out = reinterpret_cast<struct xls_function_jit*>(jit->release());
+  *error_out = nullptr;
+  return true;
+}
+
+void xls_function_jit_free(struct xls_function_jit* jit) {
+  delete reinterpret_cast<xls::FunctionJit*>(jit);
+}
+
+bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
+                          const struct xls_value* const* args, char** error_out,
+                          struct xls_trace_message** trace_messages_out,
+                          size_t* trace_messages_count_out,
+                          char*** assert_messages_out,
+                          size_t* assert_messages_count_out,
+                          struct xls_value** result_out) {
+  CHECK(jit != nullptr);
+  CHECK(error_out != nullptr);
+  CHECK(result_out != nullptr);
+
+  std::vector<xls::Value> cpp_args;
+  cpp_args.reserve(argc);
+  for (size_t i = 0; i < argc; ++i) {
+    CHECK(args[i] != nullptr);
+    cpp_args.push_back(*reinterpret_cast<const xls::Value*>(args[i]));
+  }
+
+  xls::FunctionJit* xls_jit = reinterpret_cast<xls::FunctionJit*>(jit);
+  absl::StatusOr<xls::InterpreterResult<xls::Value>> result =
+      xls_jit->Run(absl::MakeConstSpan(cpp_args));
+  if (!result.ok()) {
+    *error_out = xls::ToOwnedCString(result.status().ToString());
+    return false;
+  }
+
+  std::unique_ptr<xls_trace_message[]> trace_messages =
+      std::make_unique<xls_trace_message[]>(result->events.trace_msgs.size());
+  for (size_t i = 0; i < result->events.trace_msgs.size(); ++i) {
+    trace_messages[i].message =
+        xls::ToOwnedCString(result->events.trace_msgs[i].message);
+    trace_messages[i].verbosity = result->events.trace_msgs[i].verbosity;
+  }
+  *trace_messages_out = trace_messages.release();
+  *trace_messages_count_out = result->events.trace_msgs.size();
+
+  xls::ToOwnedCStrings(result->events.assert_msgs, assert_messages_out,
+                       assert_messages_count_out);
+
+  *result_out = reinterpret_cast<struct xls_value*>(
+      new xls::Value(std::move(result->value)));
+  *error_out = nullptr;
+  return true;
+}
+
+void xls_trace_messages_free(struct xls_trace_message* trace_messages,
+                             size_t count) {
+  if (trace_messages == nullptr) {
+    return;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    xls_c_str_free(trace_messages[i].message);
+  }
+  delete[] trace_messages;
+}
+
 bool xls_interpret_function(struct xls_function* function, size_t argc,
-                            const struct xls_value** args, char** error_out,
-                            struct xls_value** result_out) {
+                            const struct xls_value* const* args,
+                            char** error_out, struct xls_value** result_out) {
   CHECK(function != nullptr);
   CHECK(args != nullptr);
 

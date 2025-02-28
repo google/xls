@@ -1410,4 +1410,111 @@ TEST(XlsCApiTest, ValueGetElementCount) {
   }
 }
 
+// In the `_owned` variation of the API we don't need to free the bits value.
+TEST(XlsCApiTest, ValueFromBitsOwned) {
+  xls_bits* bits = nullptr;
+  char* error = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(32, 42, &error, &bits));
+
+  {
+    char* bits_str = xls_bits_to_debug_string(bits);
+    absl::Cleanup free_bits_str([=] { xls_c_str_free(bits_str); });
+    EXPECT_EQ(std::string_view{bits_str}, "0b00000000000000000000000000101010");
+  }
+
+  xls_value* value = xls_value_from_bits_owned(bits);
+  absl::Cleanup free_value([=] { xls_value_free(value); });
+
+  {
+    char* value_str = nullptr;
+    ASSERT_TRUE(xls_value_to_string(value, &value_str));
+    absl::Cleanup free_value_str([=] { xls_c_str_free(value_str); });
+    EXPECT_EQ(std::string_view{value_str}, "bits[32]:42");
+  }
+}
+
+TEST(XlsCApiTest, ValueFromBitsUnowned) {
+  xls_bits* bits = nullptr;
+  char* error = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(32, 42, &error, &bits));
+  absl::Cleanup free_bits([=] { xls_bits_free(bits); });
+
+  // We'll create two values from this one bits object to try to show its guts
+  // are not moved or corrupted in some way.
+  xls_value* value1 = xls_value_from_bits(bits);
+  absl::Cleanup free_value1([=] { xls_value_free(value1); });
+  xls_value* value2 = xls_value_from_bits(bits);
+  absl::Cleanup free_value2([=] { xls_value_free(value2); });
+
+  EXPECT_TRUE(xls_value_eq(value1, value2));
+  EXPECT_TRUE(xls_value_eq(value2, value1));
+
+  // Check that the bits object can be turned to string still.
+  char* bits_str = xls_bits_to_debug_string(bits);
+  absl::Cleanup free_bits_str([=] { xls_c_str_free(bits_str); });
+  EXPECT_EQ(std::string_view{bits_str}, "0b00000000000000000000000000101010");
+}
+
+TEST(XlsCApiTest, FunctionJit) {
+  const std::string_view kIr = R"(package my_package
+
+top fn add_one(tok: token, x: bits[32]) -> bits[32] {
+  one: bits[32] = literal(value=1)
+  add: bits[32] = add(x, one)
+  always_on: bits[1] = literal(value=1)
+  trace: token = trace(tok, always_on, format="result: {}", data_operands=[add])
+  ret result: bits[32] =identity(add)
+}
+)";
+  char* error = nullptr;
+  xls_package* package = nullptr;
+  ASSERT_TRUE(xls_parse_ir_package(kIr.data(), "test.ir", &error, &package))
+      << "error: " << error;
+  ASSERT_NE(package, nullptr);
+  absl::Cleanup free_package([=] { xls_package_free(package); });
+
+  xls_function* function = nullptr;
+  ASSERT_TRUE(xls_package_get_function(package, "add_one", &error, &function));
+  ASSERT_NE(function, nullptr);
+
+  xls_function_jit* fn_jit = nullptr;
+  ASSERT_TRUE(xls_make_function_jit(function, &error, &fn_jit));
+  ASSERT_NE(fn_jit, nullptr);
+  absl::Cleanup free_fn_jit([=] { xls_function_jit_free(fn_jit); });
+
+  xls_bits* mol_bits = nullptr;
+  ASSERT_TRUE(xls_bits_make_ubits(32, 42, &error, &mol_bits));
+  xls_value* mol = xls_value_from_bits_owned(mol_bits);
+  absl::Cleanup free_mol([=] { xls_value_free(mol); });
+
+  xls_value* tok = xls_value_make_token();
+  absl::Cleanup free_tok([=] { xls_value_free(tok); });
+
+  std::vector<xls_value*> args = {tok, mol};
+  xls_value* result = nullptr;
+  xls_trace_message* trace_messages = nullptr;
+  size_t trace_messages_count = 0;
+  char** assert_messages = nullptr;
+  size_t assert_messages_count = 0;
+  ASSERT_TRUE(xls_function_jit_run(fn_jit, args.size(), args.data(), &error,
+                                   &trace_messages, &trace_messages_count,
+                                   &assert_messages, &assert_messages_count,
+                                   &result));
+  absl::Cleanup free_result([=] { xls_value_free(result); });
+  absl::Cleanup free_trace_messages(
+      [=] { xls_trace_messages_free(trace_messages, trace_messages_count); });
+  absl::Cleanup free_assert_messages(
+      [=] { xls_c_strs_free(assert_messages, assert_messages_count); });
+
+  ASSERT_EQ(trace_messages_count, 1);
+  ASSERT_EQ(assert_messages_count, 0);
+  EXPECT_EQ(std::string_view{trace_messages[0].message}, "result: 43");
+  EXPECT_EQ(trace_messages[0].verbosity, 0);
+
+  char* result_str = nullptr;
+  ASSERT_TRUE(xls_value_to_string(result, &result_str));
+  absl::Cleanup free_result_str([=] { xls_c_str_free(result_str); });
+  EXPECT_EQ(std::string_view{result_str}, "bits[32]:43");
+}
+
 }  // namespace

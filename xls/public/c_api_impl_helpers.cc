@@ -130,4 +130,19 @@ bool FormatPreferenceFromC(xls_format_preference c_pref,
   return true;
 }
 
+void ToOwnedCStrings(absl::Span<const std::string_view> cpp,
+                     char*** c_string_array_out, size_t* count_out) {
+  CHECK(count_out != nullptr);
+  CHECK(c_string_array_out != nullptr);
+  *count_out = cpp.size();
+  if (cpp.empty()) {
+    *c_string_array_out = nullptr;
+    return;
+  }
+  *c_string_array_out = new char*[cpp.size()];
+  for (size_t i = 0; i < cpp.size(); ++i) {
+    (*c_string_array_out)[i] = ToOwnedCString(cpp[i]);
+  }
+}
+
 }  // namespace xls
