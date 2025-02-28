@@ -131,7 +131,8 @@ bool xls_value_make_sbits(int64_t bit_count, int64_t value, char** error_out,
                           struct xls_value** xls_value_out);
 
 // Returns a new array-kind XLS value which the caller must free. There must be
-// at least one element and all provided elements must be of the same type.
+// at least one element and all provided elements must be of the same type
+// otherwise an error result is returned.
 bool xls_value_make_array(size_t element_count, struct xls_value** elements,
                           char** error_out, struct xls_value** result_out);
 
