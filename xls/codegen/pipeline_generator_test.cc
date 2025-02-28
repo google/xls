@@ -22,6 +22,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -49,6 +50,7 @@ namespace verilog {
 namespace {
 
 using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 using ::testing::Not;
@@ -637,7 +639,7 @@ TEST_P(PipelineGeneratorTest, TwoBitSelectorAllCasesPopulated) {
                                  result.verilog_text);
 }
 
-TEST_P(PipelineGeneratorTest, ValidSignal) {
+TEST_P(PipelineGeneratorTest, ValidSignalWithoutReset) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   auto s = fb.Param("s", package.GetBitsType(2));
@@ -656,11 +658,39 @@ TEST_P(PipelineGeneratorTest, ValidSignal) {
       RunPipelineSchedule(func, TestDelayEstimator(),
                           SchedulingOptions().clock_period_ps(400)));
 
+  EXPECT_THAT(
+      ToPipelineModuleText(schedule, func,
+                           BuildPipelineOptions()
+                               .valid_control("in_valid", "out_valid")
+                               .use_system_verilog(UseSystemVerilog())),
+      StatusIs(absl::StatusCode::kInternal,
+               testing::HasSubstr("has valid signal output but no reset")));
+}
+
+TEST_P(PipelineGeneratorTest, ValidSignalWithoutResetAndWithoutOutputValid) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  auto s = fb.Param("s", package.GetBitsType(2));
+  auto x = fb.Param("x", package.GetBitsType(8));
+  auto y = fb.Param("y", package.GetBitsType(8));
+  auto z = fb.Param("z", package.GetBitsType(8));
+  auto a = fb.Param("a", package.GetBitsType(8));
+  fb.Select(s, {x, y, z, a}, /*default_value=*/std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  // Choose a large clock period such that all nodes are scheduled in the same
+  // stage.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(schedule, func,
                            BuildPipelineOptions()
-                               .valid_control("in_valid", "out_valid")
+                               .valid_control("in_valid", std::nullopt)
                                .use_system_verilog(UseSystemVerilog())));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
@@ -685,12 +715,20 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
       RunPipelineSchedule(func, TestDelayEstimator(),
                           SchedulingOptions().pipeline_stages(5)));
 
+  ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  reset.set_reset_data_path(false);
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .valid_control("in_valid", "out_valid")
-                               .use_system_verilog(UseSystemVerilog())));
+      ToPipelineModuleText(
+          schedule, func,
+          BuildPipelineOptions()
+              .valid_control("in_valid", "out_valid")
+              .use_system_verilog(UseSystemVerilog())
+              .reset(reset.name(), reset.asynchronous(), reset.active_low(),
+                     reset.reset_data_path())));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ModuleTestbench> tb,

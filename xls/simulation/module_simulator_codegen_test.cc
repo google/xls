@@ -290,12 +290,20 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
       RunPipelineSchedule(func, *delay_estimator_,
                           SchedulingOptions().pipeline_stages(5)));
 
+  ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  reset.set_reset_data_path(false);
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      ToPipelineModuleText(schedule, func,
-                           BuildPipelineOptions()
-                               .valid_control("valid_in", "valid_out")
-                               .use_system_verilog(UseSystemVerilog())));
+      ToPipelineModuleText(
+          schedule, func,
+          BuildPipelineOptions()
+              .valid_control("valid_in", "valid_out")
+              .use_system_verilog(UseSystemVerilog())
+              .reset(reset.name(), reset.asynchronous(), reset.active_low(),
+                     reset.reset_data_path())));
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);

@@ -180,7 +180,10 @@ Some names can be set at codegen via the following flags:
 -   `--output_port_name=....` sets the name of the output port for functions.
 -   For functions, `--input_valid_signal=...` and `--output_valid_signal=...`
     adds and sets the name of valid signals when `--generator` is set to
-    `pipeline`.
+    `pipeline`. The flag `--output_valid_signal` requires that
+    `--input_valid_signal` is set. For pipelined blocks, `--output_valid_signal`
+    also requires that the block has a reset signal to avoid garbage from being
+    driving on the output valid port.
 -   `--manual_load_enable_signal=...` adds and sets the name of an input that
     sets the load-enable signals of each pipeline stage.
 -   For procs, `--streaming_channel_data_suffix=...`,

@@ -89,7 +89,6 @@ absl::StatusOr<Node*> MakeGuardedConditionForOp(Op op, Node* condition,
                                                 Block* block) {
   XLS_RET_CHECK(stage_guard->GetType()->IsBits() &&
                 stage_guard->GetType()->AsBitsOrDie()->bit_count() == 1);
-  std::optional<Node*> reset_port = block->GetResetPort();
   switch (op) {
     case Op::kAssert: {  // Asserts are !stage_guard || condition [||
                          // asserted(reset)]

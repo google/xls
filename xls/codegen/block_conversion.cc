@@ -83,7 +83,8 @@ namespace {
 static absl::StatusOr<std::vector<std::optional<Node*>>>
 MakePipelineStagesForValid(
     Node* valid_input_port,
-    absl::Span<const PipelineStageRegisters> pipeline_registers, Block* block) {
+    absl::Span<const PipelineStageRegisters> pipeline_registers, Block* block,
+    const CodegenOptions& options) {
   Type* u1 = block->package()->GetBitsType(1);
 
   std::vector<std::optional<Node*>> pipelined_valids(pipeline_registers.size() +
@@ -91,6 +92,17 @@ MakePipelineStagesForValid(
   pipelined_valids[0] = valid_input_port;
 
   for (int64_t stage = 0; stage < pipeline_registers.size(); ++stage) {
+    // If the valid signal is passed all the way through to an output port, then
+    // the block must have a reset port. Otherwise, garbage will be passed out
+    // of the valid out port until the pipeline flushes. If there is not a valid
+    // output port, it's ok for the flopped valid to have garbage values because
+    // it is only used as a term in load enables for power savings.
+    if (!block->GetResetBehavior().has_value() &&
+        options.valid_control().value().has_output_name()) {
+      return absl::InternalError(absl::StrFormat(
+          "Block `%s` has valid signal output but no reset", block->name()));
+    }
+
     // Add valid register to each pipeline stage.
     Register* valid_reg;
     if (block->GetResetBehavior().has_value()) {
@@ -98,9 +110,6 @@ MakePipelineStagesForValid(
                            block->AddRegisterWithZeroResetValue(
                                PipelineSignalName("valid", stage), u1));
     } else {
-      // TODO(https://github.com/google/xls/issues/1840): A registered valid
-      // signal must have a reset. This case cannot work in hardware. Remove
-      // this case.
       XLS_ASSIGN_OR_RETURN(
           valid_reg,
           block->AddRegister(PipelineSignalName("valid", stage), u1));
@@ -140,7 +149,8 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
   // subsequent elements are the pipelined valid signal from each stage.
   XLS_ASSIGN_OR_RETURN(
       pipelined_valids,
-      MakePipelineStagesForValid(valid_input_port, pipeline_registers, block));
+      MakePipelineStagesForValid(valid_input_port, pipeline_registers, block,
+                                 options));
 
   // Use the pipelined valid signal as load enable for each datapath pipeline
   // register in each stage as a power optimization.

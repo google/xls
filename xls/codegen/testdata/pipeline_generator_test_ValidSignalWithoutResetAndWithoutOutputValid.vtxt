@@ -1,0 +1,77 @@
+module ValidSignalWithoutResetAndWithoutOutputValid(
+  input wire clk,
+  input wire in_valid,
+  input wire [1:0] s,
+  input wire [7:0] x,
+  input wire [7:0] y,
+  input wire [7:0] z,
+  input wire [7:0] a,
+  output wire [7:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg p0_valid;
+  reg [1:0] p0_s;
+  reg [7:0] p0_x;
+  reg [7:0] p0_y;
+  reg [7:0] p0_z;
+  reg [7:0] p0_a;
+  always @ (posedge clk) begin
+    p0_valid <= in_valid;
+    p0_s <= in_valid ? s : p0_s;
+    p0_x <= in_valid ? x : p0_x;
+    p0_y <= in_valid ? y : p0_y;
+    p0_z <= in_valid ? z : p0_z;
+    p0_a <= in_valid ? a : p0_a;
+  end
+
+  // ===== Pipe stage 1:
+
+  // Registers for pipe stage 1:
+  reg p1_valid;
+  reg [1:0] p1_s;
+  reg [7:0] p1_x;
+  reg [7:0] p1_y;
+  reg [7:0] p1_z;
+  reg [7:0] p1_a;
+  always @ (posedge clk) begin
+    p1_valid <= p0_valid;
+    p1_s <= p0_valid ? p0_s : p1_s;
+    p1_x <= p0_valid ? p0_x : p1_x;
+    p1_y <= p0_valid ? p0_y : p1_y;
+    p1_z <= p0_valid ? p0_z : p1_z;
+    p1_a <= p0_valid ? p0_a : p1_a;
+  end
+
+  // ===== Pipe stage 2:
+
+  // Registers for pipe stage 2:
+  reg p2_valid;
+  reg [1:0] p2_s;
+  reg [7:0] p2_x;
+  reg [7:0] p2_y;
+  reg [7:0] p2_z;
+  reg [7:0] p2_a;
+  always @ (posedge clk) begin
+    p2_valid <= p1_valid;
+    p2_s <= p1_valid ? p1_s : p2_s;
+    p2_x <= p1_valid ? p1_x : p2_x;
+    p2_y <= p1_valid ? p1_y : p2_y;
+    p2_z <= p1_valid ? p1_z : p2_z;
+    p2_a <= p1_valid ? p1_a : p2_a;
+  end
+
+  // ===== Pipe stage 3:
+  wire [7:0] p3_sel_42_comb;
+  assign p3_sel_42_comb = p2_s == 2'h0 ? p2_x : (p2_s == 2'h1 ? p2_y : (p2_s == 2'h2 ? p2_z : p2_a));
+
+  // Registers for pipe stage 3:
+  reg p3_valid;
+  reg [7:0] p3_sel_42;
+  always @ (posedge clk) begin
+    p3_valid <= p2_valid;
+    p3_sel_42 <= p2_valid ? p3_sel_42_comb : p3_sel_42;
+  end
+  assign out = p3_sel_42;
+endmodule

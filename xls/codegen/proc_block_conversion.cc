@@ -510,7 +510,7 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
 static absl::Status MakePipelineStagesForValidIO(
     StreamingIOPipeline& streaming_io, absl::Span<Node* const> recvs_valid,
     absl::Span<Node* const> states_valid, absl::Span<Node* const> sends_ready,
-    Block* block) {
+    Block* block, const CodegenOptions& options) {
   std::vector<PipelineStageRegisters>& pipeline_registers =
       streaming_io.pipeline_registers;
   std::vector<std::optional<Node*>>& pipeline_valid =
@@ -557,19 +557,20 @@ static absl::Status MakePipelineStagesForValidIO(
 
     if (stage < stage_count - 1) {
       // Only add a valid register if it will be read from and written to.
-      Register* valid_reg;
-      if (block->GetResetBehavior().has_value()) {
-        XLS_ASSIGN_OR_RETURN(valid_reg,
-                             block->AddRegisterWithZeroResetValue(
-                                 PipelineSignalName("valid", stage), u1));
-      } else {
-        // TODO(https://github.com/google/xls/issues/1840): A registered valid
-        // signal must have a reset. This case cannot work in hardware. Remove
-        // this case.
-        XLS_ASSIGN_OR_RETURN(
-            valid_reg,
-            block->AddRegister(PipelineSignalName("valid", stage), u1));
+      if (!block->GetResetBehavior().has_value()) {
+        return absl::InternalError(absl::StrFormat(
+            "Block `%s` must have a reset for valid signal to be registered",
+            block->name()));
       }
+      if (!block->GetResetBehavior().has_value() &&
+          options.valid_control().value().has_output_name()) {
+        return absl::InternalError(absl::StrFormat(
+            "Block `%s` must have a reset for valid signal to be registered",
+            block->name()));
+      }
+      XLS_ASSIGN_OR_RETURN(Register * valid_reg,
+                           block->AddRegisterWithZeroResetValue(
+                               PipelineSignalName("valid", stage), u1));
       XLS_RETURN_IF_ERROR(block
                               ->MakeNode<RegisterWrite>(
                                   /*loc=*/SourceInfo(), *stage_done[stage],
@@ -650,16 +651,13 @@ static absl::Status AddOneShotLogicToRVNodes(Node* from_valid, Node* from_rdy,
   // Create a register to store whether or not channel has been sent.
   Type* u1 = block->package()->GetBitsType(1);
   std::string name = absl::StrFormat("__%s_has_been_sent_reg", name_prefix);
-  Register* has_been_sent_reg;
-  if (block->GetResetBehavior().has_value()) {
-    XLS_ASSIGN_OR_RETURN(has_been_sent_reg,
-                         block->AddRegisterWithZeroResetValue(name, u1));
-  } else {
-    // TODO(https://github.com/google/xls/issues/1840): A registered valid
-    // signal must have a reset. This case cannot work in hardware. Remove this
-    // case.
-    XLS_ASSIGN_OR_RETURN(has_been_sent_reg, block->AddRegister(name, u1));
+  if (!block->GetResetBehavior().has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Block `%s` must have a reset signal for send one-shot logic",
+        block->name()));
   }
+  XLS_ASSIGN_OR_RETURN(Register * has_been_sent_reg,
+                       block->AddRegisterWithZeroResetValue(name, u1));
   XLS_ASSIGN_OR_RETURN(RegisterWrite * has_been_sent_reg_write,
                        block->MakeNode<RegisterWrite>(
                            /*loc=*/loc, literal_1,
@@ -847,7 +845,7 @@ static absl::Status AddBubbleFlowControl(
   XLS_RETURN_IF_ERROR(MakePipelineStagesForValidIO(
       streaming_io, /*recvs_valid=*/all_active_inputs_valid,
       /*states_valid=*/all_active_states_valid,
-      /*sends_ready=*/all_active_outputs_ready, block));
+      /*sends_ready=*/all_active_outputs_ready, block, options));
 
   VLOG(3) << "After Valids";
   XLS_VLOG_LINES(3, block->DumpIr());
