@@ -1982,10 +1982,30 @@ DocRef Formatter::Format(const ConstantDef& n) {
 }
 
 DocRef Formatter::Format(const ConstAssert& n) {
+  DocRef arg_doc = Fmt(*n.arg(), comments_, arena_);
+
+  // Helper lambda for the case where we have a blocked expression with a
+  // "leader" doc.
+  auto make_blocked = [&]() {
+    DocRef leader = FmtBlockedExprLeader(*n.arg(), comments_, arena_);
+    DocRef nested =
+        arena_.MakeNest(arena_.MakeConcat(arena_.hard_line(), arg_doc));
+    // If the leader doc fits, we emit the arg doc directly with the leader
+    // starting emission in flat mode; otherwise we emit the nested version and
+    // we start in break mode.
+    return arena_.MakeModeSelect(leader, /*on_flat=*/arg_doc,
+                                 /*on_break=*/nested);
+  };
+
+  DocRef arg_with_nest = arena_.MakeNestIfFlatFits(
+      /*on_nested_flat_ref=*/arg_doc,
+      /*on_other_ref=*/n.arg()->IsBlockedExprWithLeader()
+          ? make_blocked()
+          : arena_.MakeAlign(arg_doc));
   return ConcatNGroup(arena_, {
                                   arena_.MakeText("const_assert!"),
                                   arena_.oparen(),
-                                  Fmt(*n.arg(), comments_, arena_),
+                                  arg_with_nest,
                                   arena_.cparen(),
                               });
 }
