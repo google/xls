@@ -300,7 +300,7 @@ int64_t NumberOfTokensInType(Type* type) {
 
 absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   for (Node* node : f->nodes()) {
     if (NumberOfTokensInType(node->GetType()) > 1) {
       return false;
@@ -309,7 +309,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
 
   bool changed = false;
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!node->Is<MinDelay>()) {
       continue;
     }
@@ -318,7 +318,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     changed = changed || subpass_changed;
   }
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!node->Is<MinDelay>()) {
       continue;
     }
@@ -327,7 +327,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     changed = changed || subpass_changed;
   }
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!node->Is<AfterAll>()) {
       continue;
     }
@@ -336,7 +336,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     changed = changed || subpass_changed;
   }
 
-  for (Node* node : context->ReverseTopoSort(f)) {
+  for (Node* node : context.ReverseTopoSort(f)) {
     if (!node->Is<AfterAll>()) {
       continue;
     }
@@ -345,7 +345,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     changed = changed || subpass_changed;
   }
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!node->Is<AfterAll>()) {
       continue;
     }
@@ -354,7 +354,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     changed = changed || subpass_changed;
   }
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!node->Is<AfterAll>()) {
       continue;
     }
@@ -363,7 +363,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     changed = changed || subpass_changed;
   }
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!node->Is<AfterAll>()) {
       continue;
     }
@@ -373,7 +373,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
   }
 
   if (changed) {
-    for (Node* node : context->TopoSort(f)) {
+    for (Node* node : context.TopoSort(f)) {
       if (!node->Is<MinDelay>()) {
         continue;
       }

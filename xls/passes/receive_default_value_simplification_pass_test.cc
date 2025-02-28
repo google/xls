@@ -47,7 +47,7 @@ class ReceiveDefaultValueSimplificationPassTest : public IrTestBase {
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(
         bool changed, ReceiveDefaultValueSimplificationPass().RunOnProc(
-                          proc, OptimizationPassOptions(), &results, &context));
+                          proc, OptimizationPassOptions(), &results, context));
     return changed;
   }
 };

@@ -71,13 +71,13 @@ class SelectSimplificationPassTest
       SelectSimplificationPass tern_pass;
       XLS_ASSIGN_OR_RETURN(
           bool changed, tern_pass.RunOnFunctionBase(
-                            f, OptimizationPassOptions(), &results, &context));
+                            f, OptimizationPassOptions(), &results, context));
       return changed;
     }
     SelectRangeSimplificationPass range_pass;
     XLS_ASSIGN_OR_RETURN(
         bool changed, range_pass.RunOnFunctionBase(f, OptimizationPassOptions(),
-                                                   &results, &context));
+                                                   &results, context));
     return changed;
   }
 };

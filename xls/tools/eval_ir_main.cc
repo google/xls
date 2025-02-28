@@ -447,7 +447,7 @@ class EvalInvariantChecker : public OptimizationInvariantChecker {
       : arg_sets_(arg_sets.begin(), arg_sets.end()), use_jit_(use_jit) {}
   absl::Status Run(Package* package, const OptimizationPassOptions& options,
                    PassResults* results,
-                   OptimizationContext* context) const override {
+                   OptimizationContext& context) const override {
     if (results->invocations.empty()) {
       std::cerr << "// Evaluating entry function at start of pipeline.\n";
     } else {
@@ -529,7 +529,7 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
     PassResults results;
     OptimizationContext context;
     XLS_RETURN_IF_ERROR(
-        pipeline->Run(package, OptimizationPassOptions(), &results, &context)
+        pipeline->Run(package, OptimizationPassOptions(), &results, context)
             .status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),

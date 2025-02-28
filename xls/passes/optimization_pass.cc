@@ -158,7 +158,7 @@ std::vector<Node*> OptimizationContext::TopoSort(FunctionBase* f) {
 
 absl::StatusOr<bool> OptimizationFunctionBasePass::RunOnFunctionBase(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
                                 long_name(), f->name(),
                                 results->invocations.size());
@@ -175,7 +175,7 @@ absl::StatusOr<bool> OptimizationFunctionBasePass::RunOnFunctionBase(
 
 absl::StatusOr<bool> OptimizationFunctionBasePass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   bool changed = false;
   for (FunctionBase* f : p->GetFunctionBases()) {
     XLS_ASSIGN_OR_RETURN(
@@ -225,7 +225,7 @@ absl::StatusOr<bool> OptimizationFunctionBasePass::TransformNodesToFixedPoint(
 
 absl::StatusOr<bool> OptimizationProcPass::RunOnProc(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]", long_name(),
                                 proc->name(), results->invocations.size());
   VLOG(3) << "Before:";
@@ -241,7 +241,7 @@ absl::StatusOr<bool> OptimizationProcPass::RunOnProc(
 
 absl::StatusOr<bool> OptimizationProcPass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   bool changed = false;
   for (const auto& proc : p->procs()) {
     XLS_ASSIGN_OR_RETURN(

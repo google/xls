@@ -141,9 +141,10 @@ absl::StatusOr<std::pair<bool, CodegenPassUnit>> RunBlockStitchingPass(
   // Run channel legalization pass to test that multiple send/recv on the same
   // channel works.
   PassResults opt_results;
-  XLS_ASSIGN_OR_RETURN(bool changed, ChannelLegalizationPass().Run(
-                                         p, OptimizationPassOptions(),
-                                         &opt_results, /*context=*/nullptr));
+  OptimizationContext context;
+  XLS_ASSIGN_OR_RETURN(
+      bool changed, ChannelLegalizationPass().Run(p, OptimizationPassOptions(),
+                                                  &opt_results, context));
   TestDelayEstimator delay_estimator;
   XLS_ASSIGN_OR_RETURN(PipelineScheduleOrGroup schedule,
                        Schedule(p,

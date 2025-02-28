@@ -31,12 +31,12 @@ namespace xls {
 
 absl::StatusOr<bool> UselessAssertRemovalPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;
   // Remove asserts with literal true conditions.
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (node->op() == Op::kAssert) {
       Assert* current_assert = node->As<Assert>();
       Node* condition = current_assert->condition();

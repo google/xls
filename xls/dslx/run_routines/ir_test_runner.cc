@@ -63,6 +63,7 @@
 #include "xls/jit/function_jit.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/passes/dfe_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::dslx {
@@ -147,8 +148,8 @@ class IrRunner : public AbstractParsedTestRunner {
     // entering livelock we run DFE on the package.
     DeadFunctionEliminationPass dfe;
     PassResults pr;
-    XLS_RETURN_IF_ERROR(
-        dfe.Run(package, {}, &pr, /*context=*/nullptr).status());
+    OptimizationContext context;
+    XLS_RETURN_IF_ERROR(dfe.Run(package, {}, &pr, context).status());
     // Get the corresponding entries.
     XLS_ASSIGN_OR_RETURN(auto* top, package->GetTopAsProc());
     XLS_ASSIGN_OR_RETURN(

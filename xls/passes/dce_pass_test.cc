@@ -49,7 +49,7 @@ class DeadCodeEliminationPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return DeadCodeEliminationPass().RunOnFunctionBase(
-        f, OptimizationPassOptions(), &results, &context);
+        f, OptimizationPassOptions(), &results, context);
   }
 };
 

@@ -152,12 +152,12 @@ static absl::Status SparsifySelect(FunctionBase* f, Select* select,
 
 absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   RangeQueryEngine engine;
   XLS_RETURN_IF_ERROR(engine.Populate(f).status());
 
   bool changed = false;
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (node->Is<Select>()) {
       Select* select = node->As<Select>();
       Node* selector = select->selector();

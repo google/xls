@@ -771,7 +771,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
 // 6. Replacing usages of the old receive with the new repacking.
 // 7. For both sends and receives, remove the old send/receive when their usages
 // have been replaced.
-absl::Status ReplaceChannelReferences(Package* p, OptimizationContext* context,
+absl::Status ReplaceChannelReferences(Package* p, OptimizationContext& context,
                                       const RamMetadata& metadata,
                                       const RamChannelMap& to_mapping) {
   // Make a reverse mapping from channel -> logical name.
@@ -840,7 +840,7 @@ absl::Status ReplaceChannelReferences(Package* p, OptimizationContext* context,
 
   if (metadata.proc_scope.has_value()) {
     XLS_RET_CHECK(p->ChannelsAreProcScoped());
-    for (Node* node : context->TopoSort(metadata.proc_scope.value())) {
+    for (Node* node : context.TopoSort(metadata.proc_scope.value())) {
       if (node->Is<Send>()) {
         XLS_RETURN_IF_ERROR(
             handle_send(node->As<Send>(), metadata.proc_scope.value()));
@@ -852,7 +852,7 @@ absl::Status ReplaceChannelReferences(Package* p, OptimizationContext* context,
   } else {
     XLS_RET_CHECK(!p->ChannelsAreProcScoped());
     for (auto& proc : p->procs()) {
-      for (Node* node : context->TopoSort(proc.get())) {
+      for (Node* node : context.TopoSort(proc.get())) {
         if (node->Is<Send>()) {
           XLS_RETURN_IF_ERROR(
               handle_send(node->As<Send>(), /*proc_scope=*/std::nullopt));
@@ -961,7 +961,7 @@ Type* GetMaskType(Package* package, std::optional<int64_t> mask_width) {
 
 absl::StatusOr<bool> RamRewritePass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   // Given the mapping from logical names (e.g. read_req) to physical names
   // (e.g. channel_for_read_req_0), build a new mapping from logical names ->
   // Channel objects.

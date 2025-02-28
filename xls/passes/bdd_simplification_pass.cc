@@ -89,7 +89,7 @@ std::string SelectorToString(Node* node) {
 // Collapse chain of selects with disjoint (one-hot or zero) selectors into a
 // single one-hot-select.
 absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
-                                          OptimizationContext* context,
+                                          OptimizationContext& context,
                                           const QueryEngine& query_engine) {
   auto is_binary_select = [](Node* node) {
     if (!node->Is<Select>()) {
@@ -129,7 +129,7 @@ absl::StatusOr<bool> CollapseSelectChains(FunctionBase* f,
   //                         |
   //                         V
   // TODO(meheff): Also merge OneHotSelects.
-  for (Node* node : context->ReverseTopoSort(f)) {
+  for (Node* node : context.ReverseTopoSort(f)) {
     if (!is_binary_select(node) ||
         collapsed_selects.contains(node->As<Select>()) ||
         !node->GetType()->IsBits()) {
@@ -440,14 +440,14 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
       BddQueryEngine(BddFunction::kDefaultPathLimit, IsCheapForBdds));
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
 
   bool modified = false;
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
                          SimplifyNode(node, query_engine, options.opt_level));
     modified |= node_modified;

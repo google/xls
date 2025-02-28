@@ -48,7 +48,7 @@ class BddSimplificationPassTest : public IrTestBase {
     XLS_ASSIGN_OR_RETURN(
         bool changed, BddSimplificationPass().RunOnFunctionBase(
                           f, OptimizationPassOptions().WithOptLevel(opt_level),
-                          &results, &context));
+                          &results, context));
     return changed;
   }
 };

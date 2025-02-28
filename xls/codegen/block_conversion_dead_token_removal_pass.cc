@@ -27,18 +27,16 @@
 namespace xls::verilog {
 
 BlockConversionDeadTokenRemovalPass::BlockConversionDeadTokenRemovalPass(
-    OptimizationContext* context)
-    : CodegenCompoundPass(BlockConversionDeadTokenRemovalPass::kName,
-                          "Dead token removal during block-conversion process"),
-      context_(context) {
+    OptimizationContext& context)
+    : CodegenCompoundPass(
+          BlockConversionDeadTokenRemovalPass::kName,
+          "Dead token removal during block-conversion process") {
   AddInvariantChecker<CodegenChecker>();
   Add<CodegenWrapperPass>(std::make_unique<DataflowSimplificationPass>(),
-                          context_);
-  Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                          context_);
+                          context);
+  Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(), context);
   Add<RegisterLegalizationPass>();
-  Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                          context_);
+  Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(), context);
 }
 
 }  // namespace xls::verilog

@@ -41,7 +41,7 @@ class LutConversionPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return LutConversionPass().Run(p, OptimizationPassOptions(), &results,
-                                   &context);
+                                   context);
   }
 };
 

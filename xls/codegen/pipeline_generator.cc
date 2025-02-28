@@ -74,7 +74,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 
   CodegenPassResults results;
   OptimizationContext context;
-  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(&context)
+  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
                           ->Run(&unit, pass_options, &results)
                           .status());
   XLS_RET_CHECK(unit.top_block != nullptr &&
@@ -128,7 +128,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
 
   CodegenPassResults results;
   OptimizationContext context;
-  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(&context)
+  XLS_RETURN_IF_ERROR(CreateCodegenPassPipeline(context)
                           ->Run(&unit, pass_options, &results)
                           .status());
   XLS_RET_CHECK(unit.top_block != nullptr &&

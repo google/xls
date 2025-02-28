@@ -52,7 +52,7 @@ class ReassociationPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return ReassociationPass().Run(p, OptimizationPassOptions(), &results,
-                                   &context);
+                                   context);
   }
 };
 

@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -158,10 +157,10 @@ bool IndicesAreDefinitelyPrefixOf(absl::Span<Node* const> prefix,
 // (size of array minus one). Only known-OOB are clamped. Maybe OOB indices
 // cannot be replaced because the index might be a different in-bounds value.
 absl::StatusOr<bool> ClampArrayIndexIndices(FunctionBase* func,
-                                            OptimizationContext* context,
+                                            OptimizationContext& context,
                                             const QueryEngine& query_engine) {
   bool changed = false;
-  for (Node* node : context->TopoSort(func)) {
+  for (Node* node : context.TopoSort(func)) {
     if (node->Is<ArrayIndex>()) {
       ArrayIndex* array_index = node->As<ArrayIndex>();
       Type* subtype = array_index->array()->GetType();
@@ -1261,7 +1260,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
 // Walk the function and replace chains of sequential array updates with kArray
 // operations with gather the update values.
 absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
-                                              OptimizationContext* context,
+                                              OptimizationContext& context,
                                               const QueryEngine& query_engine,
                                               int64_t opt_level) {
   absl::flat_hash_set<ArrayUpdate*> flattened_updates;
@@ -1269,7 +1268,7 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func,
   // Perform this optimization in reverse topo sort order because we are looking
   // for a sequence of array update operations and the search progress upwards
   // (toward parameters).
-  for (Node* node : context->ReverseTopoSort(func)) {
+  for (Node* node : context.ReverseTopoSort(func)) {
     if (!node->Is<ArrayUpdate>()) {
       continue;
     }
@@ -1646,7 +1645,7 @@ absl::StatusOr<SimplifyResult> SimplifySelect(Node* select,
 
 absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   bool changed = false;
 
   auto query_engine = UnionQueryEngine::Of(
@@ -1699,7 +1698,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   // PrioritySelect operations. By favoring reverse-topo-sort order, we give
   // ourselves the best chance of collapsing (e.g.) array updates written as
   // separate updates for each dimension.
-  for (Node* node : context->ReverseTopoSort(func)) {
+  for (Node* node : context.ReverseTopoSort(func)) {
     if (!node->IsDead() &&
         node->OpIn({Op::kArray, Op::kArrayIndex, Op::kArrayUpdate, Op::kSel,
                     Op::kPrioritySel})) {

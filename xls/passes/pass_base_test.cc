@@ -35,7 +35,6 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/optimization_pass.h"
@@ -63,7 +62,7 @@ class ArchitectNumber : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override {
+      PassResults* results, OptimizationContext& context) const override {
     Node* original = f->AsFunctionOrDie()->return_value();
     if (!original->GetType()->IsBits()) {
       return false;
@@ -104,9 +103,9 @@ class LevelUpPass : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override {
+      PassResults* results, OptimizationContext& context) const override {
     bool changed = false;
-    for (Node* n : TopoSort(f)) {
+    for (Node* n : context.TopoSort(f)) {
       if (n->Is<Literal>() && n->GetType()->IsBits() &&
           !n->As<Literal>()->value().bits().IsAllOnes()) {
         changed = true;
@@ -133,7 +132,7 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturn) {
   ArchitectNumber pass;
   PassResults results;
   OptimizationContext context;
-  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results, &context),
+  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results, context),
               absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
@@ -149,7 +148,7 @@ TEST_F(PassBaseTest, DetectEasyIncorrectReturnInCompound) {
   ArchitectNumber pass;
   PassResults results;
   OptimizationContext context;
-  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results, &context),
+  EXPECT_THAT(pass.Run(p.get(), OptimizationPassOptions(), &results, context),
               absl_testing::StatusIs(
                   absl::StatusCode::kInternal,
                   testing::ContainsRegex(
@@ -173,7 +172,7 @@ TEST_F(PassBaseTest, BisectLimitMid) {
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 4}),
-              &results, &context),
+              &results, context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(2, 64)));
   EXPECT_EQ(f->node_count(), 1);
@@ -195,7 +194,7 @@ TEST_F(PassBaseTest, BisectLimitAfterEnd) {
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 8}),
-              &results, &context),
+              &results, context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 64)));
   EXPECT_EQ(f->node_count(), 1);
@@ -226,7 +225,7 @@ TEST_F(PassBaseTest, BisectLimitInFixedPoint) {
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 16}),
-              &results, &context),
+              &results, context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(8, 16)));
   EXPECT_EQ(f->node_count(), 1);
@@ -260,7 +259,7 @@ TEST_F(PassBaseTest, BisectLimitInMiddleOfFixedPoint) {
   EXPECT_THAT(opt.Run(p.get(),
                       OptimizationPassOptions(
                           PassOptionsBase{.bisect_limit = (3 * 4 + 3)}),
-                      &results, &context),
+                      &results, context),
               IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(4, 16)));
   EXPECT_EQ(f->node_count(), 1);
@@ -289,7 +288,7 @@ TEST_F(PassBaseTest, BisectLimitZero) {
   EXPECT_THAT(
       opt.Run(p.get(),
               OptimizationPassOptions(PassOptionsBase{.bisect_limit = 0}),
-              &results, &context),
+              &results, context),
       IsOk());
   EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 64)));
   EXPECT_EQ(f->node_count(), 1);

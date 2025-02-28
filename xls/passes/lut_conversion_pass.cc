@@ -54,7 +54,6 @@
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
 namespace xls {
@@ -356,7 +355,7 @@ absl::StatusOr<bool> SimplifyNode(
 
 absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   if (!options.narrowing_enabled()) {
     return false;
   }
@@ -371,7 +370,7 @@ absl::StatusOr<bool> LutConversionPass::RunOnFunctionBaseInternal(
   bool changed = false;
   // By running in reverse topological order, the analyses will stay valid for
   // all nodes we're considering through the full pass.
-  for (Node* node : context->ReverseTopoSort(func)) {
+  for (Node* node : context.ReverseTopoSort(func)) {
     if (node->IsDead()) {
       continue;
     }

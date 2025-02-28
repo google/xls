@@ -36,7 +36,6 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
-#include "xls/ir/topo_sort.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/optimization_pass_registry.h"
 #include "xls/passes/pass_base.h"
@@ -101,7 +100,7 @@ static bool IsInlineable(const Invoke* invoke) {
 // Inlines the node "invoke" by replacing it with the contents of the called
 // function.
 template <bool kCheckNoSubInvokes = true>
-absl::Status InlineInvoke(Invoke* invoke, OptimizationContext* context,
+absl::Status InlineInvoke(Invoke* invoke, OptimizationContext& context,
                           int inline_count) {
   Function* invoked = invoke->to_apply();
   absl::flat_hash_map<Node*, Node*> invoked_node_to_replacement;
@@ -110,8 +109,7 @@ absl::Status InlineInvoke(Invoke* invoke, OptimizationContext* context,
     invoked_node_to_replacement[param] = invoke->operand(i);
   }
 
-  for (Node* node :
-       (context != nullptr ? context->TopoSort(invoked) : TopoSort(invoked))) {
+  for (Node* node : context.TopoSort(invoked)) {
     if (invoked_node_to_replacement.contains(node)) {
       // Already taken care of (e.g. parameters above).
       continue;
@@ -214,13 +212,14 @@ absl::Status InlineInvoke(Invoke* invoke, OptimizationContext* context,
 }  // namespace
 
 absl::Status InliningPass::InlineOneInvoke(Invoke* invoke) {
-  return InlineInvoke</*kCheckNoSubInvokes=*/false>(invoke, /*context=*/nullptr,
+  OptimizationContext context;
+  return InlineInvoke</*kCheckNoSubInvokes=*/false>(invoke, context,
                                                     /*inline_count=*/0);
 }
 
 absl::StatusOr<bool> InliningPass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   bool changed = false;
   // Inline all the invokes of each function where functions are processed in a
   // post order of the call graph (leaves first). This ensures that when a

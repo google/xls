@@ -92,7 +92,7 @@ absl::StatusOr<bool> RecoverLabels(FunctionBase* f) {
 
 absl::StatusOr<bool> LabelRecoveryPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   return RecoverLabels(f);
 }
 

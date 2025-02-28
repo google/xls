@@ -27,7 +27,7 @@ class VerifierChecker : public OptimizationInvariantChecker {
  public:
   absl::Status Run(Package* p, const OptimizationPassOptions& options,
                    PassResults* results,
-                   OptimizationContext* context) const override;
+                   OptimizationContext& context) const override;
 };
 
 }  // namespace xls

@@ -40,7 +40,7 @@ class MapInliningPass : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* function, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override;
+      PassResults* results, OptimizationContext& context) const override;
 
   // Replaces a single Map node with a CountedFor operation.
   absl::Status ReplaceMap(Map* map) const;

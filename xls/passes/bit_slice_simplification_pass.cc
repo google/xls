@@ -60,12 +60,12 @@ namespace xls {
 namespace {
 
 static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
-    FunctionBase* f, int64_t opt_level, OptimizationContext* context) {
+    FunctionBase* f, int64_t opt_level, OptimizationContext& context) {
   std::vector<std::unique_ptr<QueryEngine>> owned_engines;
   std::vector<QueryEngine*> unowned_engines;
   owned_engines.push_back(std::make_unique<StatelessQueryEngine>());
   unowned_engines.push_back(
-      context->SharedQueryEngine<LazyTernaryQueryEngine>(f));
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
   if (opt_level >= 3) {
     owned_engines.push_back(std::make_unique<RangeQueryEngine>());
   }
@@ -1064,7 +1064,7 @@ absl::StatusOr<bool> SimplifyBitSliceUpdate(BitSliceUpdate* update,
 
 absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
@@ -1075,7 +1075,7 @@ absl::StatusOr<bool> BitSliceSimplificationPass::RunOnFunctionBaseInternal(
   //
   // Also, since these simplifications never generate more nodes of the same
   // type, we don't need to worry about running them to fixed-point.
-  for (Node* node : context->ReverseTopoSort(f)) {
+  for (Node* node : context.ReverseTopoSort(f)) {
     bool node_changed = false;
     if (node->Is<DynamicBitSlice>()) {
       XLS_ASSIGN_OR_RETURN(node_changed,

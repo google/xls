@@ -55,7 +55,7 @@ class TableSwitchPassTest : public IrTestBase {
     OptimizationContext context;
     TableSwitchPass pass;
     return pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results,
-                                  &context);
+                                  context);
   }
 
   // Returns a vector holding the results of the given function when run with
@@ -348,7 +348,7 @@ fn main(index: bits[32]) -> bits[32] {
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(
-      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array,
@@ -396,7 +396,7 @@ fn main(index: bits[32]) -> bits[32] {
 
   solvers::z3::ScopedVerifyEquivalence stays_equivalent(f);
   ASSERT_THAT(
-      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(true));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value array,
@@ -423,7 +423,7 @@ fn main(index: bits[32]) -> bits[32] {
   OptimizationContext context;
   TableSwitchPass pass;
   EXPECT_THAT(
-      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
 }
 
@@ -445,7 +445,7 @@ fn main(index: bits[32]) -> bits[32] {
   OptimizationContext context;
   TableSwitchPass pass;
   EXPECT_THAT(
-      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
 }
 
@@ -481,7 +481,7 @@ fn main(index: bits[32], bad_selector: bits[3]) -> bits[32] {
   OptimizationContext context;
   TableSwitchPass pass;
   EXPECT_THAT(
-      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
 }
 
@@ -765,7 +765,7 @@ fn main(x4: bits[62], x1: bits[25], x2: bits[24]) -> bits[62] {
   OptimizationContext context;
   TableSwitchPass pass;
   ASSERT_THAT(
-      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
 }
 

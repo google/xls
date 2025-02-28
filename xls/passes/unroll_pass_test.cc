@@ -57,7 +57,7 @@ fn unrollable() -> bits[32] {
   OptimizationContext context;
   UnrollPass pass;
   EXPECT_THAT(
-      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+      pass.RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::Invoke(m::Literal(2),

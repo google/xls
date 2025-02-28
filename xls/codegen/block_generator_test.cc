@@ -2534,7 +2534,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthRecvChannel) {
   XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit, FunctionBaseToPipelinedBlock(
                                                      schedule, options, proc));
   OptimizationContext context;
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(&context);
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(context);
   CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,
@@ -2578,7 +2578,7 @@ TEST_P(ZeroWidthBlockGeneratorTest, ZeroWidthSendChannel) {
                                                      schedule, options, proc));
 
   OptimizationContext context;
-  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(&context);
+  std::unique_ptr<CodegenPass> passes = CreateCodegenPassPipeline(context);
   CodegenPassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = options,
                                           .schedule = schedule,

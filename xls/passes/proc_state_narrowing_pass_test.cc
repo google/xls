@@ -48,7 +48,7 @@ class ProcStateNarrowingPassTest : public IrTestBase {
     ProcStateNarrowingPass pass;
     PassResults r;
     OptimizationContext ctx;
-    return pass.Run(p->package(), {}, &r, &ctx);
+    return pass.Run(p->package(), {}, &r, ctx);
   }
 
   absl::StatusOr<bool> RunProcStateCleanup(Proc* p) {
@@ -56,7 +56,7 @@ class ProcStateNarrowingPassTest : public IrTestBase {
     ProcStateOptimizationPass psop;
     PassResults r;
     OptimizationContext ctx;
-    return psop.Run(p->package(), {}, &r, &ctx);
+    return psop.Run(p->package(), {}, &r, ctx);
   }
 };
 

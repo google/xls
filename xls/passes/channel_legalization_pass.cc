@@ -1298,7 +1298,7 @@ absl::Status AddAdapterForMultipleSends(absl::Span<Send* const> ops,
 
 absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
     Package* p, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   VLOG(3) << "Running channel legalization pass.";
   bool changed = false;
   XLS_ASSIGN_OR_RETURN(ProcElaboration elab, ElaboratePackage(p));

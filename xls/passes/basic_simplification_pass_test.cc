@@ -49,7 +49,7 @@ class BasicSimplificationPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return BasicSimplificationPass().Run(p, OptimizationPassOptions(), &results,
-                                         &context);
+                                         context);
   }
 };
 

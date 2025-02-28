@@ -39,7 +39,7 @@ class BddSimplificationPass : public OptimizationFunctionBasePass {
   // Run all registered passes in order of registration.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override;
+      PassResults* results, OptimizationContext& context) const override;
 };
 
 }  // namespace xls

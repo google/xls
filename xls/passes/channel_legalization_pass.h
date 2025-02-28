@@ -88,7 +88,7 @@ class ChannelLegalizationPass : public OptimizationPass {
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
                                    PassResults* results,
-                                   OptimizationContext* context) const override;
+                                   OptimizationContext& context) const override;
 };
 
 }  // namespace xls

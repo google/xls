@@ -289,7 +289,7 @@ absl::Status FlattenState(Proc* proc) {
 
 absl::StatusOr<bool> ProcStateTupleFlatteningPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   if (!HasTupleStateElement(proc)) {
     return false;
   }

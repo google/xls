@@ -321,7 +321,7 @@ absl::StatusOr<std::optional<std::vector<Next*>>> SplitSafeOneHotSelect(
 
 absl::StatusOr<bool> NextValueOptimizationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   bool changed = false;
 
   StatelessQueryEngine query_engine;

@@ -58,7 +58,7 @@ class ArrayUntuplePassTest : public IrTestBase {
     pass.Add<DeadCodeEliminationPass>();
     PassResults res;
     OptimizationContext context;
-    return pass.Run(p, {}, &res, &context);
+    return pass.Run(p, {}, &res, context);
   }
 };
 
@@ -130,7 +130,7 @@ TEST_F(ArrayUntuplePassTest, EmptyTupleArray) {
   ArrayUntuplePass pass;
   PassResults res;
   OptimizationContext ctx;
-  ASSERT_THAT(pass.Run(p.get(), {}, &res, &ctx), IsOkAndHolds(false));
+  ASSERT_THAT(pass.Run(p.get(), {}, &res, ctx), IsOkAndHolds(false));
 }
 
 TEST_F(ArrayUntuplePassTest, MaybeUpdate) {

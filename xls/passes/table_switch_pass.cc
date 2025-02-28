@@ -416,12 +416,12 @@ absl::StatusOr<std::optional<Value>> LinksToTable(
 
 absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;
   absl::flat_hash_set<Node*> transformed;
-  for (Node* node : context->ReverseTopoSort(f)) {
+  for (Node* node : context.ReverseTopoSort(f)) {
     VLOG(3) << "Considering node: " << node->ToString();
     if (transformed.contains(node)) {
       VLOG(3) << absl::StreamFormat("Already transformed %s", node->GetName());

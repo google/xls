@@ -26,8 +26,8 @@ namespace xls {
 absl::Status QueryEngineChecker::Run(Package* p,
                                      const OptimizationPassOptions& options,
                                      PassResults* results,
-                                     OptimizationContext* context) const {
-  for (QueryEngine* query_engine : context->ListQueryEngines()) {
+                                     OptimizationContext& context) const {
+  for (QueryEngine* query_engine : context.ListQueryEngines()) {
     XLS_RETURN_IF_ERROR(query_engine->CheckConsistency());
   }
   return absl::OkStatus();

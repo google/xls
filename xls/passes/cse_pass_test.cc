@@ -66,7 +66,7 @@ class CsePassTest : public IrTestBase {
     std::string ir_before = f->DumpIr();
     XLS_ASSIGN_OR_RETURN(
         bool changed, CsePass().RunOnFunctionBase(f, OptimizationPassOptions(),
-                                                  &results, &context));
+                                                  &results, context));
     if (changed && ir_before == f->DumpIr()) {
       return absl::InternalError(absl::StrCat(
           "CSE reported changing IR, but IR was unchanged:\n\n", ir_before));
@@ -79,7 +79,7 @@ class CsePassTest : public IrTestBase {
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context)
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, context)
             .status());
     // Return whether cse changed anything.
     return changed;
@@ -130,7 +130,7 @@ TEST_F(CsePassTest, TwoIdenticalLiteralsNoLiteralCommoning) {
   OptimizationContext context;
   EXPECT_THAT(
       CsePass(/*common_literals=*/false)
-          .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context),
+          .RunOnFunctionBase(f, OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
   EXPECT_EQ(f->node_count(), 3);
 }

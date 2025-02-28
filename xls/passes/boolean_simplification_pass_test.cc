@@ -49,11 +49,11 @@ class BooleanSimplificationPassTest : public IrTestBase {
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BooleanSimplificationPass().RunOnFunctionBase(
-                             f, OptimizationPassOptions(), &results, &context));
+                             f, OptimizationPassOptions(), &results, context));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context)
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, context)
             .status());
     // Return whether boolean simplification changed anything.
     return changed;

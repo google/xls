@@ -70,7 +70,6 @@
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
 namespace xls {
@@ -2204,16 +2203,12 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 
 absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   std::vector<std::unique_ptr<QueryEngine>> owned_query_engines;
   std::vector<QueryEngine*> unowned_query_engines;
   owned_query_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  if (context == nullptr) {
-    owned_query_engines.push_back(std::make_unique<TernaryQueryEngine>());
-  } else {
-    unowned_query_engines.push_back(
-        context->SharedQueryEngine<LazyTernaryQueryEngine>(func));
-  }
+  unowned_query_engines.push_back(
+      context.SharedQueryEngine<LazyTernaryQueryEngine>(func));
   if (range_analysis_) {
     owned_query_engines.push_back(std::make_unique<RangeQueryEngine>());
   }
@@ -2227,7 +2222,7 @@ absl::StatusOr<bool> SelectSimplificationPassBase::RunOnFunctionBaseInternal(
                        BitProvenanceAnalysis::Create(func));
 
   bool changed = false;
-  for (Node* node : context->TopoSort(func)) {
+  for (Node* node : context.TopoSort(func)) {
     XLS_ASSIGN_OR_RETURN(bool node_changed,
                          SimplifyNode(node, query_engine, provenance,
                                       options.opt_level, range_analysis_));

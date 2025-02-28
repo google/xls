@@ -52,7 +52,7 @@ namespace {
 //     critical-path
 //
 absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
-                                                OptimizationContext* context) {
+                                                OptimizationContext& context) {
   // Index of each node in the topological sort.
   absl::flat_hash_map<Node*, int64_t> topo_index;
   // Critical-path distance from root in the graph to each node.
@@ -70,7 +70,7 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
         GetStandardDelayEstimator().GetOperationDelayInPs(n);
     return delay_status.ok() ? delay_status.value() : 0;
   };
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     topo_index[node] = i;
     int64_t node_start = 0;
     for (Node* operand : node->operands()) {
@@ -100,7 +100,7 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f,
 
 absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BddFunction> bdd_function,
       BddFunction::Run(f, BddFunction::kDefaultPathLimit, IsCheapForBdds));

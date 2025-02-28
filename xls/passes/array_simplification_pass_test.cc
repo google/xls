@@ -57,15 +57,15 @@ class ArraySimplificationPassTest : public IrTestBase {
       XLS_ASSIGN_OR_RETURN(
           changed_this_iteration,
           ArraySimplificationPass().RunOnFunctionBase(
-              f, OptimizationPassOptions(), &results, &context_));
+              f, OptimizationPassOptions(), &results, context_));
       // Run dce and constant folding to clean things up.
       XLS_RETURN_IF_ERROR(ConstantFoldingPass()
                               .RunOnFunctionBase(f, OptimizationPassOptions(),
-                                                 &results, &context_)
+                                                 &results, context_)
                               .status());
       XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
                               .RunOnFunctionBase(f, OptimizationPassOptions(),
-                                                 &results, &context_)
+                                                 &results, context_)
                               .status());
       changed = changed || changed_this_iteration;
     }

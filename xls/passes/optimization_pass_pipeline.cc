@@ -313,7 +313,7 @@ absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
   OptimizationContext context;
   return pipeline->Run(package,
                        OptimizationPassOptions().WithOptLevel(opt_level),
-                       &results, &context);
+                       &results, context);
 }
 
 absl::Status OptimizationPassPipelineGenerator::AddPassToPipeline(

@@ -57,7 +57,7 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return DeadFunctionEliminationPass().Run(p, OptimizationPassOptions(),
-                                             &results, &context);
+                                             &results, context);
   }
 
   absl::StatusOr<Function*> MakeFunction(std::string_view name, Package* p) {

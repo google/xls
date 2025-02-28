@@ -149,7 +149,7 @@ class LiteralizeZeroBits final : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override {
+      PassResults* results, OptimizationContext& context) const override {
     bool changes = false;
     std::vector<Node*> orig_nodes(f->nodes().begin(), f->nodes().end());
     for (Node* n : orig_nodes) {
@@ -175,7 +175,7 @@ class ProcStateLegalizationPassShim : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* fb, const OptimizationPassOptions& options,
-      PassResults* pass_results, OptimizationContext* context) const override {
+      PassResults* pass_results, OptimizationContext& context) const override {
     SchedulingUnit sched = SchedulingUnit::CreateForSingleFunction(fb);
     SchedulingPassResults results;
     if (pass_results) {
@@ -203,7 +203,7 @@ class AssertAndCoverRemovalPass : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override {
+      PassResults* results, OptimizationContext& context) const override {
     bool changes = false;
     std::vector<Node*> orig_nodes(f->nodes().begin(), f->nodes().end());
     for (Node* n : orig_nodes) {
@@ -261,7 +261,7 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   OptimizationContext context;
   for (const auto& package : packages) {
     XLS_RETURN_IF_ERROR(
-        inlining_passes.Run(package.get(), options, &results, &context)
+        inlining_passes.Run(package.get(), options, &results, context)
             .status());
   }
 

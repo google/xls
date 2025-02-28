@@ -56,7 +56,7 @@ class ConditionalSpecializationPassTest : public IrTestBase {
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(
         bool changed, ConditionalSpecializationPass(use_bdd).RunOnFunctionBase(
-                          f, options, &results, &context));
+                          f, options, &results, context));
     return changed;
   }
   absl::StatusOr<bool> Run(Package* p, bool use_bdd = true,
@@ -67,7 +67,7 @@ class ConditionalSpecializationPassTest : public IrTestBase {
         optimize_for_best_case_throughput;
     OptimizationContext context;
     return ConditionalSpecializationPass(use_bdd).Run(p, options, &results,
-                                                      &context);
+                                                      context);
   }
 };
 

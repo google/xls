@@ -42,7 +42,7 @@ class ComparisonSimplificationPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return ComparisonSimplificationPass().Run(p, OptimizationPassOptions(),
-                                              &results, &context);
+                                              &results, context);
   }
 };
 

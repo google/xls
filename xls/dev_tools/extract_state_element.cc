@@ -55,9 +55,9 @@ class RemoveUnusedReceivesPass : public OptimizationProcPass {
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& opts, PassResults* results,
-      OptimizationContext* context) const override {
+      OptimizationContext& context) const override {
     bool changed = false;
-    for (Node* n : TopoSort(proc)) {
+    for (Node* n : context.TopoSort(proc)) {
       if (n->Is<Receive>()) {
         if (n->users().empty()) {
           XLS_RETURN_IF_ERROR(proc->RemoveNode(n));
@@ -93,11 +93,12 @@ class RemoveUnusedReceivesPass : public OptimizationProcPass {
 
 absl::Status ExtractSegmentInto(ProcBuilder& pb, Proc* original,
                                 absl::Span<StateElement* const> state_elements,
-                                bool send_state_values) {
+                                bool send_state_values,
+                                OptimizationContext& context) {
   Package* new_pkg = pb.package();
   absl::flat_hash_map<Node*, Node*> old_to_new;
   old_to_new.reserve(original->node_count());
-  for (Node* n : TopoSort(original)) {
+  for (Node* n : context.TopoSort(original)) {
     // Specific node types to handle specially.
     if (n->Is<Invoke>() || n->Is<Map>() || n->Is<CountedFor>() ||
         n->Is<DynamicCountedFor>()) {
@@ -224,8 +225,9 @@ absl::StatusOr<std::unique_ptr<Package>> ExtractStateElementsInNewPackage(
   std::unique_ptr<Package> pkg =
       std::make_unique<Package>(proc->package()->name());
   ProcBuilder pb(proc->name(), pkg.get());
+  OptimizationContext context;
   XLS_RETURN_IF_ERROR(
-      ExtractSegmentInto(pb, proc, state_elements, send_state_values));
+      ExtractSegmentInto(pb, proc, state_elements, send_state_values, context));
   XLS_RETURN_IF_ERROR(pb.SetAsTop());
   XLS_RETURN_IF_ERROR(pb.Build().status());
   // Use DCE to remove nodes which are not fed into the state elements we
@@ -237,8 +239,7 @@ absl::StatusOr<std::unique_ptr<Package>> ExtractStateElementsInNewPackage(
   cleanup.Add<DeadCodeEliminationPass>();
   cleanup.Add<RemoveUnusedReceivesPass>();
   PassResults results;
-  OptimizationContext context;
-  XLS_RETURN_IF_ERROR(cleanup.Run(pkg.get(), {}, &results, &context).status());
+  XLS_RETURN_IF_ERROR(cleanup.Run(pkg.get(), {}, &results, context).status());
   return pkg;
 }
 

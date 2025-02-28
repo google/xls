@@ -36,7 +36,7 @@ class CodegenWrapperPass : public CodegenPass {
  public:
   explicit CodegenWrapperPass(
       std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass,
-      OptimizationContext* context)
+      OptimizationContext& context)
       : CodegenPass(absl::StrFormat("codegen_%s", wrapped_pass->short_name()),
                     absl::StrFormat("%s (codegen)", wrapped_pass->long_name())),
         wrapped_pass_(std::move(wrapped_pass)),
@@ -49,7 +49,7 @@ class CodegenWrapperPass : public CodegenPass {
 
  private:
   std::unique_ptr<OptimizationFunctionBasePass> wrapped_pass_;
-  OptimizationContext* context_;
+  OptimizationContext& context_;
 };
 
 }  // namespace xls::verilog

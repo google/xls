@@ -60,7 +60,7 @@ class DummyPass : public OptimizationPass {
 
   absl::StatusOr<bool> RunInternal(
       Package* p, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext* context) const override {
+      OptimizationContext& context) const override {
     return change_;
   }
 
@@ -121,7 +121,7 @@ TEST(PassesTest, AddPasses) {
   PassResults results;
   OptimizationContext context;
   EXPECT_THAT(
-      pass_mgr.Run(p.get(), OptimizationPassOptions(), &results, &context),
+      pass_mgr.Run(p.get(), OptimizationPassOptions(), &results, context),
       IsOkAndHolds(false));
   std::vector<std::string> invocation_names;
   invocation_names.reserve(results.invocations.size());
@@ -140,7 +140,7 @@ class PackageNameChecker : public OptimizationInvariantChecker {
 
   absl::Status Run(Package* package, const OptimizationPassOptions& options,
                    PassResults* results,
-                   OptimizationContext* context) const override {
+                   OptimizationContext& context) const override {
     for (auto& function : package->functions()) {
       if (function->name() == str_) {
         return absl::InternalError(
@@ -182,11 +182,11 @@ TEST(PassesTest, InvariantChecker) {
   PassResults results;
   OptimizationContext context;
   EXPECT_THAT(PackageNameChecker("foo")
-                  .Run(p.get(), OptimizationPassOptions(), &results, &context)
+                  .Run(p.get(), OptimizationPassOptions(), &results, context)
                   .message(),
               HasSubstr("Function has name 'foo'"));
   XLS_EXPECT_OK(PackageNameChecker("bar").Run(
-      p.get(), OptimizationPassOptions(), &results, &context));
+      p.get(), OptimizationPassOptions(), &results, context));
 }
 
 TEST(PassesTest, RunWithNoInvariantChecker) {
@@ -196,8 +196,8 @@ TEST(PassesTest, RunWithNoInvariantChecker) {
   std::unique_ptr<OptimizationCompoundPass> top = MakeNestedPasses();
   PassResults results;
   OptimizationContext context;
-  XLS_EXPECT_OK(top->Run(p.get(), OptimizationPassOptions(), &results, &context)
-                    .status());
+  XLS_EXPECT_OK(
+      top->Run(p.get(), OptimizationPassOptions(), &results, context).status());
 }
 
 TEST(PassesTest, RunWithPassingInvariantChecker) {
@@ -208,8 +208,8 @@ TEST(PassesTest, RunWithPassingInvariantChecker) {
   top->AddInvariantChecker<PackageNameChecker>("bar");
   PassResults results;
   OptimizationContext context;
-  XLS_EXPECT_OK(top->Run(p.get(), OptimizationPassOptions(), &results, &context)
-                    .status());
+  XLS_EXPECT_OK(
+      top->Run(p.get(), OptimizationPassOptions(), &results, context).status());
 }
 
 TEST(PassesTest, RunWithFailingInvariantChecker) {
@@ -220,7 +220,7 @@ TEST(PassesTest, RunWithFailingInvariantChecker) {
   top->AddInvariantChecker<PackageNameChecker>("foo");
   PassResults results;
   OptimizationContext context;
-  EXPECT_THAT(top->Run(p.get(), OptimizationPassOptions(), &results, &context),
+  EXPECT_THAT(top->Run(p.get(), OptimizationPassOptions(), &results, context),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Function has name 'foo'; [start of compound "
                                  "pass 'Top level pass manager']")));
@@ -237,7 +237,7 @@ TEST(PassesTest, RunWithFailingNestedInvariantChecker) {
   nested_pass->AddInvariantChecker<PackageNameChecker>("foo");
   PassResults results;
   OptimizationContext context;
-  EXPECT_THAT(top->Run(p.get(), OptimizationPassOptions(), &results, &context),
+  EXPECT_THAT(top->Run(p.get(), OptimizationPassOptions(), &results, context),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Function has name 'foo'; [start of compound "
                                  "pass 'nested pass']")));
@@ -254,7 +254,7 @@ class FunctionAdderPass : public OptimizationPass {
   // Adds a function named 'str_' to the package.
   absl::StatusOr<bool> RunInternal(
       Package* package, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override {
+      PassResults* results, OptimizationContext& context) const override {
     const char format_string[] =
         R"(
 fn %s() -> bits[32] {
@@ -280,12 +280,11 @@ TEST(PassesTest, InvariantCheckerFailsAfterPass) {
   top->AddInvariantChecker<PackageNameChecker>("bar");
   PassResults results;
   OptimizationContext context;
-  XLS_EXPECT_OK(top->Run(p.get(), OptimizationPassOptions(), &results, &context)
-                    .status());
+  XLS_EXPECT_OK(
+      top->Run(p.get(), OptimizationPassOptions(), &results, context).status());
   down_cast<OptimizationCompoundPass*>(top->passes()[0])
       ->Add<FunctionAdderPass>("bar");
-  auto result =
-      top->Run(p.get(), OptimizationPassOptions(), &results, &context);
+  auto result = top->Run(p.get(), OptimizationPassOptions(), &results, context);
   EXPECT_THAT(result,
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Function has name 'bar'; [after 'Adds "
@@ -300,7 +299,7 @@ class CounterChecker : public OptimizationInvariantChecker {
 
   absl::Status Run(Package* package, const OptimizationPassOptions& options,
                    PassResults* results,
-                   OptimizationContext* context) const override {
+                   OptimizationContext& context) const override {
     counter_++;
     return absl::OkStatus();
   }
@@ -330,7 +329,7 @@ TEST(PassesTest, InvariantCheckerOnlyRunsAfterChangedPasses) {
   PassResults results;
   OptimizationContext context;
   XLS_EXPECT_OK(
-      pass_mgr.Run(p.get(), OptimizationPassOptions(), &results, &context)
+      pass_mgr.Run(p.get(), OptimizationPassOptions(), &results, context)
           .status());
 
   // Checkers should run once at the beginning then only after a passes that
@@ -346,7 +345,7 @@ class RecordingPass : public OptimizationPass {
 
   absl::StatusOr<bool> RunInternal(
       Package* p, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext* context) const override {
+      OptimizationContext& context) const override {
     record_->push_back(short_name());
     return false;
   }
@@ -373,7 +372,7 @@ TEST(PassesTest, SkipPassesOption) {
     PassResults results;
     OptimizationContext context;
     record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results, &context),
+    EXPECT_THAT(compound_0.Run(p.get(), options, &results, context),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre("foo", "bar", "qux", "foo"));
   }
@@ -384,7 +383,7 @@ TEST(PassesTest, SkipPassesOption) {
     PassResults results;
     OptimizationContext context;
     record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results, &context),
+    EXPECT_THAT(compound_0.Run(p.get(), options, &results, context),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre("bar", "qux"));
   }
@@ -395,7 +394,7 @@ TEST(PassesTest, SkipPassesOption) {
     PassResults results;
     OptimizationContext context;
     record.clear();
-    EXPECT_THAT(compound_0.Run(p.get(), options, &results, &context),
+    EXPECT_THAT(compound_0.Run(p.get(), options, &results, context),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre("bar"));
   }
@@ -408,7 +407,7 @@ class RecordPass : public OptimizationFunctionBasePass {
         record_(record) {}
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override {
+      PassResults* results, OptimizationContext& context) const override {
     record_->push_back(options.opt_level);
     return false;
   }
@@ -427,21 +426,21 @@ TEST(PassesTest, CapOptLevel) {
   PassResults res;
   OptimizationContext ctx;
   {
-    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, &ctx),
+    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, ctx),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre(kMaxOptLevel, kMaxOptLevel));
   }
   record.clear();
   {
     ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(2),
-                           &res, &ctx),
+                           &res, ctx),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre(2, 2));
   }
   record.clear();
   {
     ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(12),
-                           &res, &ctx),
+                           &res, ctx),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre(12, kMaxOptLevel + 1));
   }
@@ -458,14 +457,14 @@ TEST(PassesTest, OptLevelIsAtLeast) {
   PassResults res;
   OptimizationContext ctx;
   {
-    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, &ctx),
+    ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, ctx),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre(kMaxOptLevel, kMaxOptLevel));
   }
   record.clear();
   {
     ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions().WithOptLevel(0),
-                           &res, &ctx),
+                           &res, ctx),
                 IsOkAndHolds(false));
     EXPECT_THAT(record, ElementsAre(0));
   }
@@ -481,7 +480,7 @@ TEST(PassesTest, WithOptLevel) {
   passes.Add<WithOptLevel<1, RecordPass>>(&record);
   PassResults res;
   OptimizationContext ctx;
-  ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, &ctx),
+  ASSERT_THAT(passes.Run(p.get(), OptimizationPassOptions(), &res, ctx),
               IsOkAndHolds(false));
   EXPECT_THAT(record, ElementsAre(kMaxOptLevel, 1));
 }
@@ -493,7 +492,7 @@ class NaiveDcePass : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override {
+      PassResults* results, OptimizationContext& context) const override {
     return TransformNodesToFixedPoint(f, [](Node* n) -> absl::StatusOr<bool> {
       if (!n->Is<Param>() && n->IsDead()) {
         XLS_RETURN_IF_ERROR(n->function_base()->RemoveNode(n));
@@ -517,11 +516,11 @@ TEST(PassesTest, TestTransformNodesToFixedPointWhileRemovingNodes) {
   OptimizationContext context;
   EXPECT_EQ(f->node_count(), 6);
   ASSERT_THAT(NaiveDcePass().RunOnFunctionBase(f, OptimizationPassOptions(),
-                                               &results, &context),
+                                               &results, context),
               IsOkAndHolds(true));
   EXPECT_EQ(f->node_count(), 1);
   ASSERT_THAT(NaiveDcePass().RunOnFunctionBase(f, OptimizationPassOptions(),
-                                               &results, &context),
+                                               &results, context),
               IsOkAndHolds(false));
 }
 

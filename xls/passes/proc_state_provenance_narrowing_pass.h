@@ -41,7 +41,7 @@ class ProcStateProvenanceNarrowingPass : public OptimizationProcPass {
  protected:
   absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext* context) const override;
+      OptimizationContext& context) const override;
 };
 
 }  // namespace xls

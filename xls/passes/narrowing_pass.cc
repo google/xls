@@ -72,7 +72,6 @@
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/stateless_query_engine.h"
-#include "xls/passes/ternary_query_engine.h"
 #include "xls/passes/union_query_engine.h"
 
 namespace xls {
@@ -1806,24 +1805,17 @@ void AnalysisLog(FunctionBase* f, const QueryEngine& query_engine) {
 }
 
 absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
-    FunctionBase* f, AnalysisType analysis, OptimizationContext* context) {
+    FunctionBase* f, AnalysisType analysis, OptimizationContext& context) {
   std::vector<std::unique_ptr<QueryEngine>> owned_engines;
   std::vector<QueryEngine*> unowned_engines;
   owned_engines.push_back(std::make_unique<StatelessQueryEngine>());
-  auto add_ternary_engine = [&]() {
-    if (context == nullptr) {
-      owned_engines.push_back(std::make_unique<TernaryQueryEngine>());
-    } else {
-      unowned_engines.push_back(
-          context->SharedQueryEngine<LazyTernaryQueryEngine>(f));
-    }
-  };
   if (analysis == AnalysisType::kRangeWithContext) {
     if (ProcStateRangeQueryEngine::CanAnalyzeProcStateEvolution(f)) {
       // NB ProcStateRange already includes a ternary qe
       owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
     } else {
-      add_ternary_engine();
+      unowned_engines.push_back(
+          context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
     }
     owned_engines.push_back(
         std::make_unique<ContextSensitiveRangeQueryEngine>());
@@ -1832,11 +1824,13 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
       // NB ProcStateRange already includes a ternary qe
       owned_engines.push_back(std::make_unique<ProcStateRangeQueryEngine>());
     } else {
-      add_ternary_engine();
+      unowned_engines.push_back(
+          context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
       owned_engines.push_back(std::make_unique<RangeQueryEngine>());
     }
   } else {
-    add_ternary_engine();
+    unowned_engines.push_back(
+        context.SharedQueryEngine<LazyTernaryQueryEngine>(f));
   }
   auto query_engine = std::make_unique<UnionQueryEngine>(
       std::move(owned_engines), std::move(unowned_engines));
@@ -1851,7 +1845,7 @@ absl::StatusOr<AliasingQueryEngine> GetQueryEngine(
 
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   XLS_ASSIGN_OR_RETURN(AliasingQueryEngine query_engine,
                        GetQueryEngine(f, RealAnalysis(options), context));
 
@@ -1861,7 +1855,7 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   NarrowVisitor narrower(sqe, RealAnalysis(options), options,
                          options.splits_enabled());
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     // We specifically want gate ops to be eligible for being reduced to a
     // constant since there entire purpose is for preventing power consumption
     // and literals are basically free.

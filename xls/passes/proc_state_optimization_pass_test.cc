@@ -62,7 +62,7 @@ class BaseProcStateOptimizationPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return ProcStateOptimizationPass().Run(p, OptimizationPassOptions(),
-                                           &results, &context);
+                                           &results, context);
   }
 };
 class ProcStateOptimizationPassTest

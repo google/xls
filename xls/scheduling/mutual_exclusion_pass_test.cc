@@ -80,7 +80,7 @@ absl::StatusOr<bool> RunMutualExclusionPass(
   XLS_ASSIGN_OR_RETURN(
       subpass_changed,
       SimplificationPass().Run(unit.GetPackage(), OptimizationPassOptions(),
-                               &results, &context));
+                               &results, context));
   changed = changed || subpass_changed;
   return changed;
 }

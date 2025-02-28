@@ -49,10 +49,10 @@ class InliningPassTest : public IrTestBase {
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          InliningPass().Run(package, OptimizationPassOptions(),
-                                            &results, &context));
+                                            &results, context));
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .Run(package, OptimizationPassOptions(), &results, &context)
+            .Run(package, OptimizationPassOptions(), &results, context)
             .status());
     return changed;
   }

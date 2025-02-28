@@ -322,12 +322,12 @@ absl::Status RemoveDeadTokenNodes(CodegenPassUnit* unit) {
   OptimizationContext context;
   ccp.AddInvariantChecker<CodegenChecker>();
   ccp.Add<CodegenWrapperPass>(std::make_unique<DataflowSimplificationPass>(),
-                              &context);
+                              context);
   ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                              &context);
+                              context);
   ccp.Add<RegisterLegalizationPass>();
   ccp.Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>(),
-                              &context);
+                              context);
 
   XLS_RETURN_IF_ERROR(ccp.Run(unit, pass_options, &pass_results).status());
   // Nodes like cover and assert have token types and will cause

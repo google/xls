@@ -40,7 +40,7 @@ class DeadCodeEliminationPass : public OptimizationFunctionBasePass {
   // Iterate all nodes, mark and eliminate the unvisited nodes.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override;
+      PassResults* results, OptimizationContext& context) const override;
 };
 
 }  // namespace xls

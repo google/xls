@@ -251,17 +251,9 @@ absl::StatusOr<Bits> UnchangedBits(Proc* proc, StateElement* state_element,
 
 absl::StatusOr<bool> ProcStateProvenanceNarrowingPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   // Query engine to identify writes of (parts of) the initial value.
-  QueryEngine* qe;
-  std::optional<TernaryQueryEngine> tqe;
-  if (context == nullptr) {
-    tqe.emplace();
-    XLS_RETURN_IF_ERROR(tqe->Populate(proc).status());
-    qe = &*tqe;
-  } else {
-    qe = context->SharedQueryEngine<LazyTernaryQueryEngine>(proc);
-  }
+  QueryEngine* qe = context.SharedQueryEngine<LazyTernaryQueryEngine>(proc);
   XLS_ASSIGN_OR_RETURN(BitProvenanceAnalysis provenance,
                        BitProvenanceAnalysis::Create(proc));
   bool made_changes = false;

@@ -288,15 +288,9 @@ class OptimizationContext {
 template <typename QueryEngineT, typename... Args>
   requires(std::is_base_of_v<QueryEngine, QueryEngineT>)
 MaybeOwnedForwardingQueryEngine<QueryEngineT> GetSharedQueryEngine(
-    absl::Nullable<OptimizationContext*> ctx, absl::Nonnull<FunctionBase*> f,
-    Args... args) {
-  if (ctx == nullptr) {
-    // No context so construct a new engine.
-    return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
-        QueryEngineT(std::forward<Args>(args)...));
-  }
+    OptimizationContext& ctx, absl::Nonnull<FunctionBase*> f, Args... args) {
   return MaybeOwnedForwardingQueryEngine<QueryEngineT>(
-      ctx->SharedQueryEngine<QueryEngineT>(f));
+      ctx.SharedQueryEngine<QueryEngineT>(f));
 }
 
 // An object containing information about the invocation of a pass (single call
@@ -352,7 +346,7 @@ class DynamicCapOptLevel : public OptimizationPass {
  protected:
   absl::StatusOr<bool> RunInternal(
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext* context) const override {
+      OptimizationContext& context) const override {
     if (VLOG_IS_ON(4) && level_ < options.opt_level) {
       VLOG(4) << "Lowering opt-level of pass '" << inner_.long_name() << "' ("
               << inner_.short_name() << ") to " << level_;
@@ -392,7 +386,7 @@ class DynamicIfOptLevelAtLeast : public OptimizationPass {
  protected:
   absl::StatusOr<bool> RunInternal(
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext* context) const override {
+      OptimizationContext& context) const override {
     if (options.opt_level < level_) {
       VLOG(4) << "Skipping pass '" << inner_.long_name() << "' ("
               << inner_.short_name()
@@ -447,7 +441,7 @@ class WithOptLevel : public InnerPass {
  protected:
   absl::StatusOr<bool> RunInternal(
       Package* ir, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext* context) const override {
+      OptimizationContext& context) const override {
     return InnerPass::RunInternal(ir, options.WithOptLevel(kLevel), results,
                                   context);
   }
@@ -478,7 +472,7 @@ class OptimizationFunctionBasePass : public OptimizationPass {
   absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
                                          const OptimizationPassOptions& options,
                                          PassResults* results,
-                                         OptimizationContext* context) const;
+                                         OptimizationContext& context) const;
 
  protected:
   // Iterates over each function and proc in the package calling
@@ -486,11 +480,11 @@ class OptimizationFunctionBasePass : public OptimizationPass {
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
                                    PassResults* results,
-                                   OptimizationContext* context) const override;
+                                   OptimizationContext& context) const override;
 
   virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const = 0;
+      PassResults* results, OptimizationContext& context) const = 0;
 
   // Calls the given function for every node in the graph in a loop until no
   // further simplifications are possible.  simplify_f should return true if the
@@ -515,18 +509,18 @@ class OptimizationProcPass : public OptimizationPass {
   absl::StatusOr<bool> RunOnProc(Proc* proc,
                                  const OptimizationPassOptions& options,
                                  PassResults* results,
-                                 OptimizationContext* context) const;
+                                 OptimizationContext& context) const;
 
  protected:
   // Iterates over each proc in the package calling RunOnProc.
   absl::StatusOr<bool> RunInternal(Package* p,
                                    const OptimizationPassOptions& options,
                                    PassResults* results,
-                                   OptimizationContext* context) const override;
+                                   OptimizationContext& context) const override;
 
   virtual absl::StatusOr<bool> RunOnProcInternal(
       Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-      OptimizationContext* context) const = 0;
+      OptimizationContext& context) const = 0;
 };
 
 }  // namespace xls

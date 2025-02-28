@@ -570,7 +570,7 @@ absl::StatusOr<bool> StrengthReduceNode(
 
 absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   auto query_engine = UnionQueryEngine::Of(
       StatelessQueryEngine(),
       GetSharedQueryEngine<LazyTernaryQueryEngine>(context, f));
@@ -580,7 +580,7 @@ absl::StatusOr<bool> StrengthReductionPass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> reducible_adds,
                        FindReducibleAdds(f, query_engine));
   bool modified = false;
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     XLS_ASSIGN_OR_RETURN(bool node_modified,
                          StrengthReduceNode(node, reducible_adds, query_engine,
                                             options.opt_level));

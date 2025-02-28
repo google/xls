@@ -52,7 +52,7 @@ class NarrowingPass : public OptimizationFunctionBasePass {
   AnalysisType RealAnalysis(const OptimizationPassOptions& options) const;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override;
+      PassResults* results, OptimizationContext& context) const override;
 };
 
 std::ostream& operator<<(std::ostream& os, NarrowingPass::AnalysisType a);

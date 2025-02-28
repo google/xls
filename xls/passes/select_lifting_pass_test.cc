@@ -48,12 +48,12 @@ class SelectLiftingPassTest : public IrTestBase {
     // Run the select lifting pass.
     XLS_ASSIGN_OR_RETURN(bool changed,
                          SelectLiftingPass().RunOnFunctionBase(
-                             f, OptimizationPassOptions(), &results, &context));
+                             f, OptimizationPassOptions(), &results, context));
 
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context)
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, context)
             .status());
 
     // Return whether select lifting changed anything.

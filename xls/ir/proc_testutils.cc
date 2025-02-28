@@ -325,7 +325,7 @@ absl::StatusOr<Function*> UnrollProcToFunction(Proc* p,
   PassResults pass_results;
   OptimizationContext context;
   XLS_RETURN_IF_ERROR(
-      dce.RunOnFunctionBase(result, {}, &pass_results, &context).status());
+      dce.RunOnFunctionBase(result, {}, &pass_results, context).status());
 
   VLOG(2) << "Proc: \n" << p->DumpIr() << "To Func: \n" << result->DumpIr();
 

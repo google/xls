@@ -56,8 +56,9 @@ fn main() -> bits[16][4] {
   XLS_ASSERT_OK_AND_ASSIGN(auto func, package->GetFunction("main"));
   MapInliningPass pass;
   OptimizationPassOptions options;
+  OptimizationContext context;
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, pass.RunOnFunctionBase(func, options, nullptr, nullptr));
+      bool changed, pass.RunOnFunctionBase(func, options, nullptr, context));
   ASSERT_TRUE(changed);
   EXPECT_THAT(
       func->return_value(),
@@ -87,8 +88,9 @@ fn main(a: bits[32][4]) -> bits[16][4] {
   XLS_ASSERT_OK_AND_ASSIGN(auto func, package->GetFunction("main"));
   MapInliningPass pass;
   OptimizationPassOptions options;
+  OptimizationContext context;
   XLS_ASSERT_OK_AND_ASSIGN(
-      bool changed, pass.RunOnFunctionBase(func, options, nullptr, nullptr));
+      bool changed, pass.RunOnFunctionBase(func, options, nullptr, context));
   ASSERT_TRUE(changed);
 
   EXPECT_THAT(

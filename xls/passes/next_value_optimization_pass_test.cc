@@ -58,7 +58,7 @@ class NextValueOptimizationPassTest : public IrTestBase {
     return NextValueOptimizationPass(
                split_depth_limit.value_or(
                    NextValueOptimizationPass::kDefaultMaxSplitDepth))
-        .Run(p, options, &results, &context);
+        .Run(p, options, &results, context);
   }
 };
 

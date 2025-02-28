@@ -330,8 +330,8 @@ class ConditionSet {
 // used outside the case arm expression.
 class ConditionMap {
  public:
-  explicit ConditionMap(FunctionBase* f, OptimizationContext* context) {
-    std::vector<Node*> topo_sort = context->TopoSort(f);
+  explicit ConditionMap(FunctionBase* f, OptimizationContext& context) {
+    std::vector<Node*> topo_sort = context.TopoSort(f);
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index_[topo_sort[i]] = i;
       // Initially all node conditions are empty.
@@ -581,9 +581,9 @@ std::optional<std::variant<Node*, ZeroValue>> GetSelectedCase(
 }
 
 absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> AffectedBy(
-    FunctionBase* f, OptimizationContext* context) {
+    FunctionBase* f, OptimizationContext& context) {
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> affected_by;
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     for (Node* operand : node->operands()) {
       affected_by[operand].insert(node);
     }
@@ -730,10 +730,10 @@ absl::StatusOr<std::optional<Node*>> CheckMatch(
 
 class ImpliedConditionCache {
  public:
-  ImpliedConditionCache(FunctionBase* f, OptimizationContext* context,
+  ImpliedConditionCache(FunctionBase* f, OptimizationContext& context,
                         QueryEngine* query_engine)
       : query_engine_(query_engine) {
-    std::vector<Node*> topo_sort = context->TopoSort(f);
+    std::vector<Node*> topo_sort = context.TopoSort(f);
     for (int64_t i = 0; i < topo_sort.size(); ++i) {
       topo_index_[topo_sort[i]] = i;
     }
@@ -908,7 +908,7 @@ absl::StatusOr<bool> EliminateNoopNext(FunctionBase* f) {
 
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   bool changed = false;
   if (options.eliminate_noop_next) {
     XLS_ASSIGN_OR_RETURN(changed, EliminateNoopNext(f));
@@ -933,7 +933,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   // Iterate backwards through the graph because we add conditions at the case
   // arm operands of selects and propagate them upwards through the expressions
   // which compute the case arm.
-  for (Node* node : context->ReverseTopoSort(f)) {
+  for (Node* node : context.ReverseTopoSort(f)) {
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
     VLOG(4) << absl::StreamFormat("Considering node %s: %s", node->GetName(),
                                   set.ToString());

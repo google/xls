@@ -55,7 +55,7 @@ class CanonicalizePassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return CanonicalizationPass().Run(p, OptimizationPassOptions(), &results,
-                                      &context);
+                                      context);
   }
 };
 

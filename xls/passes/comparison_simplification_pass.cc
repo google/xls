@@ -254,10 +254,10 @@ struct Comparison {
 //
 // Returns true if any transformations were performed.
 absl::StatusOr<bool> TransformDerivedComparisons(FunctionBase* f,
-                                                 OptimizationContext* context) {
+                                                 OptimizationContext& context) {
   bool changed = false;
   absl::flat_hash_map<Comparison, Node*> comparisons;
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!node->Is<CompareOp>()) {
       continue;
     }
@@ -323,7 +323,7 @@ absl::StatusOr<bool> TransformDerivedComparisons(FunctionBase* f,
 
 absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;
@@ -339,7 +339,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
   absl::flat_hash_map<Node*, RangeEquivalence> equivalences;
   VLOG(3) << absl::StreamFormat("Range equivalences for function `%s`:",
                                 f->name());
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     std::optional<RangeEquivalence> equivalence =
         ComputeRangeEquivalence(node, equivalences, query_engine);
     if (!equivalence.has_value()) {
@@ -352,7 +352,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
     equivalences[node] = equivalence.value();
   }
 
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (!equivalences.contains(node)) {
       continue;
     }

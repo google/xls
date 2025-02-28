@@ -353,7 +353,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
 
 absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   return TransformNodesToFixedPoint(func, CanonicalizeNode);
 }
 

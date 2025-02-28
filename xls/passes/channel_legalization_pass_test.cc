@@ -107,7 +107,7 @@ class ChannelLegalizationPassTest
     PassResults results;
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(bool changed, ChannelLegalizationPass().Run(
-                                           package, {}, &results, &context));
+                                           package, {}, &results, context));
     XLS_RETURN_IF_ERROR(VerifyPackage(package));
     return changed;
   }
@@ -1120,7 +1120,7 @@ class MutuallyExclusiveChannelLegalizationPassTest
                 ChannelStrictness::kProvenMutuallyExclusive))));
     PassResults results;
     OptimizationContext context;
-    return ChannelLegalizationPass().Run(p.get(), {}, &results, &context);
+    return ChannelLegalizationPass().Run(p.get(), {}, &results, context);
   }
 };
 
@@ -1161,7 +1161,7 @@ class SingleValueChannelLegalizationPassTest : public TestWithParam<TestParam> {
                          Parser::ParsePackage(substituted_ir_text));
     PassResults results;
     OptimizationContext context;
-    return ChannelLegalizationPass().Run(p.get(), {}, &results, &context);
+    return ChannelLegalizationPass().Run(p.get(), {}, &results, context);
   }
 };
 

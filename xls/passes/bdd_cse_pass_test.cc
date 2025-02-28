@@ -41,7 +41,7 @@ class BddCsePassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return BddCsePass().RunOnFunctionBase(f, OptimizationPassOptions(),
-                                          &results, &context);
+                                          &results, context);
   }
 };
 

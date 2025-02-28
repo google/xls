@@ -215,7 +215,7 @@ class StateDependencyVisitor : public DataflowVisitor<InlineBitmap> {
 // Dependencies are only computed in a single forward pass so dependencies
 // through the proc back edge are not considered.
 absl::StatusOr<absl::flat_hash_map<Node*, InlineBitmap>>
-ComputeStateDependencies(Proc* proc, OptimizationContext* context) {
+ComputeStateDependencies(Proc* proc, OptimizationContext& context) {
   StateDependencyVisitor visitor(proc);
   XLS_RETURN_IF_ERROR(proc->Accept(&visitor));
   absl::flat_hash_map<Node*, InlineBitmap> state_dependencies;
@@ -224,7 +224,7 @@ ComputeStateDependencies(Proc* proc, OptimizationContext* context) {
   }
   if (VLOG_IS_ON(5)) {
     VLOG(5) << "State dependencies (** side-effecting operation):";
-    for (Node* node : context->TopoSort(proc)) {
+    for (Node* node : context.TopoSort(proc)) {
       std::vector<std::string> dependent_elements;
       for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
         if (state_dependencies.at(node).Get(i)) {
@@ -243,7 +243,7 @@ ComputeStateDependencies(Proc* proc, OptimizationContext* context) {
 //   (1) a side-effecting operation depends on X, OR
 //   (2) the next-state value of an observable state element depends on X.
 absl::StatusOr<bool> RemoveUnobservableStateElements(
-    Proc* proc, OptimizationContext* context) {
+    Proc* proc, OptimizationContext& context) {
   if (proc->GetStateElementCount() == 0) {
     return false;
   }
@@ -476,7 +476,7 @@ absl::StatusOr<bool> ConvertConstantChainsToStateMachines(
 
 absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(bool zero_width_changed,

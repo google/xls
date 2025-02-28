@@ -49,10 +49,10 @@ class SparsifySelectPassTest : public IrTestBase {
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          SparsifySelectPass().RunOnFunctionBase(
-                             f, OptimizationPassOptions(), &results, &context));
+                             f, OptimizationPassOptions(), &results, context));
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass()
-            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, &context)
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results, context)
             .status());
     return changed;
   }

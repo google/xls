@@ -39,16 +39,16 @@ absl::StatusOr<bool> InlineAndRecover(Package* package) {
   OptimizationContext context;
   XLS_RETURN_IF_ERROR(
       InliningPass()
-          .Run(package, OptimizationPassOptions(), &results, &context)
+          .Run(package, OptimizationPassOptions(), &results, context)
           .status());
   XLS_RETURN_IF_ERROR(
       DeadFunctionEliminationPass()
-          .Run(package, OptimizationPassOptions(), &results, &context)
+          .Run(package, OptimizationPassOptions(), &results, context)
           .status());
   XLS_ASSIGN_OR_RETURN(
       bool recovery_changed,
       LabelRecoveryPass().Run(package, OptimizationPassOptions(), &results,
-                              &context));
+                              context));
   return recovery_changed;
 }
 

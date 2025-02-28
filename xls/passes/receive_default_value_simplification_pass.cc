@@ -117,11 +117,11 @@ std::optional<ReceiveData> MatchUselessSelectAfterReceive(
 
 absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
     Proc* proc, const OptimizationPassOptions& options, PassResults* results,
-    OptimizationContext* context) const {
+    OptimizationContext& context) const {
   StatelessQueryEngine query_engine;
 
   bool changed = false;
-  for (Node* node : context->TopoSort(proc)) {
+  for (Node* node : context.TopoSort(proc)) {
     if (!node->Is<Select>()) {
       continue;
     }

@@ -38,7 +38,7 @@ class TokenSimplificationPass : public OptimizationFunctionBasePass {
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const OptimizationPassOptions& options,
-      PassResults* results, OptimizationContext* context) const override;
+      PassResults* results, OptimizationContext& context) const override;
 };
 
 }  // namespace xls

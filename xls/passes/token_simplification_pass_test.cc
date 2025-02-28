@@ -46,7 +46,7 @@ class TokenSimplificationPassTest : public IrTestBase {
     OptimizationContext context;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          TokenSimplificationPass().RunOnFunctionBase(
-                             f, OptimizationPassOptions(), &results, &context));
+                             f, OptimizationPassOptions(), &results, context));
     return changed;
   }
 };

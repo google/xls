@@ -552,7 +552,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 
 absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   StatelessQueryEngine query_engine;
 
   // For optimizations which replace concats with other concats use a worklist
@@ -576,7 +576,7 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
   // For optimizations which optimize around concats, just iterate through once
   // and find all opportunities.
   if (options.narrowing_enabled()) {
-    for (Node* node : context->TopoSort(f)) {
+    for (Node* node : context.TopoSort(f)) {
       if (OpIsBitWise(node->op())) {
         XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
                              TryHoistBitWiseOperation(node, query_engine));

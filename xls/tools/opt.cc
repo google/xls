@@ -116,7 +116,7 @@ absl::Status OptimizeIrForTop(Package* package, const OptOptions& options) {
   PassResults results;
   OptimizationContext context;
   XLS_RETURN_IF_ERROR(
-      pipeline->Run(package, pass_options, &results, &context).status());
+      pipeline->Run(package, pass_options, &results, context).status());
   if (options.metrics) {
     *options.metrics = results.aggregate_results.ToProto();
   }

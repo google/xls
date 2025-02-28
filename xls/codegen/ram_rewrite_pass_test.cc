@@ -169,7 +169,7 @@ enum class CodegenPassType {
 };
 
 std::unique_ptr<CodegenPass> GetCodegenPass(CodegenPassType type,
-                                            OptimizationContext* context) {
+                                            OptimizationContext& context) {
   switch (type) {
     case CodegenPassType::kDefault:
       return CreateCodegenPassPipeline(context);
@@ -346,7 +346,7 @@ TEST_P(RamRewritePassTest, PortsUpdated) {
       ScheduleAndBlockConvert(package.get(), codegen_options));
   CodegenPassResults results;
   OptimizationContext context;
-  auto pipeline = GetCodegenPass(std::get<1>(GetParam()), &context);
+  auto pipeline = GetCodegenPass(std::get<1>(GetParam()), context);
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pipeline->Run(&unit, pass_options, &results));
 
@@ -479,7 +479,7 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
       ScheduleAndBlockConvert(package.get(), codegen_options));
   CodegenPassResults results;
   OptimizationContext context;
-  auto pipeline = GetCodegenPass(std::get<1>(GetParam()), &context);
+  auto pipeline = GetCodegenPass(std::get<1>(GetParam()), context);
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pipeline->Run(&unit, pass_options, &results));
 
@@ -671,7 +671,7 @@ TEST_P(RamRewritePassTest, WriteCompletionRemoved) {
       ScheduleAndBlockConvert(package.get(), codegen_options));
   CodegenPassResults results;
   OptimizationContext context;
-  auto pipeline = GetCodegenPass(std::get<1>(GetParam()), &context);
+  auto pipeline = GetCodegenPass(std::get<1>(GetParam()), context);
   XLS_ASSERT_OK_AND_ASSIGN(bool changed,
                            pipeline->Run(&unit, pass_options, &results));
 
@@ -1109,7 +1109,7 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
       FunctionBaseToPipelinedBlock(schedule, codegen_options, proc));
   OptimizationContext context;
   XLS_RET_CHECK_OK(
-      RunCodegenPassPipeline(pass_options, unit.top_block, &context));
+      RunCodegenPassPipeline(pass_options, unit.top_block, context));
   return unit.top_block;
 }
 

@@ -24,7 +24,7 @@ namespace xls {
 absl::Status VerifierChecker::Run(Package* p,
                                   const OptimizationPassOptions& options,
                                   PassResults* results,
-                                  OptimizationContext* context) const {
+                                  OptimizationContext& context) const {
   return VerifyPackage(p);
 }
 

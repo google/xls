@@ -336,7 +336,7 @@ absl::StatusOr<bool> StillFailsHelper(
     OptimizationContext context;
     XLS_RETURN_IF_ERROR(
         pipeline
-            ->Run(package.get(), OptimizationPassOptions(), &results, &context)
+            ->Run(package.get(), OptimizationPassOptions(), &results, context)
             .status());
 
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> opt_jit,
@@ -798,7 +798,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   XLS_ASSIGN_OR_RETURN(
       bool changed,
       passes.at(pass_no)->Run(f->package(), OptimizationPassOptions(), &results,
-                              &context));
+                              context));
   if (changed) {
     *which_transform = passes.at(pass_no)->short_name();
     return SimplificationResult::kDidChange;
@@ -1259,15 +1259,16 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   DeadCodeEliminationPass dce;
   DeadFunctionEliminationPass dfe;
   PassResults results;
-  XLS_RETURN_IF_ERROR(dce.Run(f->package(), OptimizationPassOptions(), &results,
-                              /*context=*/nullptr)
-                          .status());
+  OptimizationContext context;
+  XLS_RETURN_IF_ERROR(
+      dce.Run(f->package(), OptimizationPassOptions(), &results, context)
+          .status());
   if (can_remove_params) {
     XLS_RETURN_IF_ERROR(RemoveDeadParameters(f).status());
   }
-  XLS_RETURN_IF_ERROR(dfe.Run(f->package(), OptimizationPassOptions(), &results,
-                              /*context=*/nullptr)
-                          .status());
+  XLS_RETURN_IF_ERROR(
+      dfe.Run(f->package(), OptimizationPassOptions(), &results, context)
+          .status());
   return absl::OkStatus();
 }
 

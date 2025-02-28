@@ -39,7 +39,7 @@ class LiteralUncommoningPassTest : public IrTestBase {
     PassResults results;
     OptimizationContext context;
     return LiteralUncommoningPass().Run(p, OptimizationPassOptions(), &results,
-                                        &context);
+                                        context);
   }
 };
 

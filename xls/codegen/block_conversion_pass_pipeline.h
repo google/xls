@@ -41,7 +41,7 @@ absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
 // After BlockConversion further Block passes in Codegen Pass are needed
 // before BlockGeneration can lower the Block IR to Verilog.
 std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(
-    const CodegenOptions& options, OptimizationContext* context = nullptr);
+    const CodegenOptions& options, OptimizationContext& context);
 
 }  // namespace xls::verilog
 

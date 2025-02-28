@@ -48,7 +48,7 @@
 namespace xls::verilog {
 
 std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
-    OptimizationContext* context) {
+    OptimizationContext& context) {
   auto top = std::make_unique<CodegenCompoundPass>(
       "codegen", "Top level codegen pass pipeline");
   top->AddInvariantChecker<CodegenChecker>();
@@ -130,7 +130,7 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline(
 
 absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
                                             Block* block,
-                                            OptimizationContext* context) {
+                                            OptimizationContext& context) {
   std::unique_ptr<CodegenCompoundPass> pipeline =
       CreateCodegenPassPipeline(context);
   CodegenPassUnit unit(block->package(), block);

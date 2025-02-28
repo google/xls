@@ -72,7 +72,7 @@ class ArithSimplificationPassTest : public IrTestBase {
     OptimizationContext context;
     return ArithSimplificationPass().Run(
         p, OptimizationPassOptions().WithOptLevel(kMaxOptLevel), &results,
-        &context);
+        context);
   }
 
   void CheckUnsignedDivide(int n, int divisor);
@@ -940,7 +940,7 @@ void ArithSimplificationPassTest::CheckUnsignedDivide(int n, int divisor) {
   PassResults results;
   OptimizationContext context;
   ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
-                                            &results, &context),
+                                            &results, context),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -998,7 +998,7 @@ TEST_F(ArithSimplificationPassTest, UDivWrongIssue736) {
   PassResults results;
   OptimizationContext context;
   ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
-                                            &results, &context),
+                                            &results, context),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -1044,7 +1044,7 @@ TEST_F(ArithSimplificationPassTest, SDivWrongIssue736) {
   PassResults results;
   OptimizationContext context;
   ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
-                                            &results, &context),
+                                            &results, context),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -1090,7 +1090,7 @@ void ArithSimplificationPassTest::CheckSignedDividePowerOfTwo(int n,
   PassResults results;
   OptimizationContext context;
   ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
-                                            &results, &context),
+                                            &results, context),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -1171,7 +1171,7 @@ void ArithSimplificationPassTest::CheckSignedDivideNotPowerOfTwo(int n,
   PassResults results;
   OptimizationContext context;
   ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), OptimizationPassOptions(),
-                                            &results, &context),
+                                            &results, context),
               IsOkAndHolds(true));
 
   std::string optimized_ir = f->DumpIr();
@@ -1915,7 +1915,7 @@ void UmulFuzz(const Bits& multiplicand, const Bits& result, int64_t var_width,
   OptimizationContext context;
   ASSERT_THAT(ArithSimplificationPass().Run(
                   &p, OptimizationPassOptions().WithOptLevel(kMaxOptLevel),
-                  &results, &context),
+                  &results, context),
               absl_testing::IsOk());
 }
 

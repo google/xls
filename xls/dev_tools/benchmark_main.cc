@@ -197,7 +197,7 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
   PassResults pass_results;
   OptimizationContext context;
   XLS_RETURN_IF_ERROR(
-      pipeline->Run(package, pass_options, &pass_results, &context).status());
+      pipeline->Run(package, pass_options, &pass_results, context).status());
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Optimization time: %dms\n",
                                   DurationToMs(total_time));

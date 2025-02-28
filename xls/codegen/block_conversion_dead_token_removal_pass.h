@@ -29,10 +29,7 @@ class BlockConversionDeadTokenRemovalPass : public CodegenCompoundPass {
  public:
   static constexpr std::string_view kName =
       "block_conversion_dead_token_removal";
-  explicit BlockConversionDeadTokenRemovalPass(OptimizationContext* context);
-
- private:
-  OptimizationContext* context_;
+  explicit BlockConversionDeadTokenRemovalPass(OptimizationContext& context);
 };
 
 }  // namespace xls::verilog

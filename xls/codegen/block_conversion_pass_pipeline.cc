@@ -94,7 +94,7 @@ absl::StatusOr<CodegenPassUnit> CreateBlocksFor(
 }
 
 std::unique_ptr<CodegenCompoundPass> CreateBlockConversionPassPipeline(
-    const CodegenOptions& options, OptimizationContext* context) {
+    const CodegenOptions& options, OptimizationContext& context) {
   auto top = std::make_unique<CodegenCompoundPass>(
       "codegen", "Top level codegen IR to Block pass pipeline");
 

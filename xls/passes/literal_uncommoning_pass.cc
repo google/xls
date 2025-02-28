@@ -30,7 +30,7 @@ namespace xls {
 
 absl::StatusOr<bool> LiteralUncommoningPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   // Construct separate list of the initial literals to avoid iterator
   // invalidation problems because we will be adding additional nodes during
   // the transformation.

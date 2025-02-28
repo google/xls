@@ -157,7 +157,7 @@ absl::StatusOr<Node*> CreateSum(absl::Span<Node* const> nodes) {
 // Reassociate() is run. Also, literals are grouped together across add and
 // subtract expressions.
 absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f,
-                                          OptimizationContext* context,
+                                          OptimizationContext& context,
                                           const QueryEngine& query_engine) {
   VLOG(4) << "Reassociating subtracts";
   bool changed = false;
@@ -167,7 +167,7 @@ absl::StatusOr<bool> ReassociateSubtracts(FunctionBase* f,
 
   // Traverse the nodes in reverse order because we construct expressions for
   // reassociation starting from the roots.
-  for (Node* node : context->ReverseTopoSort(f)) {
+  for (Node* node : context.ReverseTopoSort(f)) {
     VLOG(4) << "Considering node: " << node->GetName();
 
     if (visited_nodes.contains(node)) {
@@ -382,7 +382,7 @@ int64_t GatherExpressionLeaves(Op op, Node* node, std::vector<Node*>* leaves,
 
 // Reassociate associative and commutative operations to minimize delay and
 // maximize opportunity for constant folding.
-absl::StatusOr<bool> Reassociate(FunctionBase* f, OptimizationContext* context,
+absl::StatusOr<bool> Reassociate(FunctionBase* f, OptimizationContext& context,
                                  const QueryEngine& query_engine) {
   bool changed = false;
   // Keep track of which nodes we've already considered for reassociation so we
@@ -391,7 +391,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f, OptimizationContext* context,
 
   // Traverse the nodes in reverse order because we construct expressions for
   // reassociation starting from the roots.
-  for (Node* node : context->ReverseTopoSort(f)) {
+  for (Node* node : context.ReverseTopoSort(f)) {
     auto [it, inserted] = visited_nodes.insert(node);
     if (!inserted) {
       // Already visited; skip this node.
@@ -609,7 +609,7 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f, OptimizationContext* context,
 
 absl::StatusOr<bool> ReassociationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   StatelessQueryEngine query_engine;
   XLS_ASSIGN_OR_RETURN(bool reassoc_subtracts_changed,
                        ReassociateSubtracts(f, context, query_engine));

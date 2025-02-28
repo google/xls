@@ -198,6 +198,7 @@ cc_library(
         "//xls/jit:function_jit",
         "//xls/jit:jit_proc_runtime",
         "//xls/passes:dfe_pass",
+        "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",

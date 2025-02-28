@@ -161,14 +161,14 @@ absl::StatusOr<bool> MaybeReplaceWithArrayOfExistingNodes(
 
 absl::StatusOr<bool> DataflowSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* func, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   NodeSourceDataflowVisitor visitor;
   XLS_RETURN_IF_ERROR(func->Accept(&visitor));
   bool changed = false;
   // Hashmap from the LTT<NodeSource> of a node to the Node*. If two nodes have
   // the same LTT<NodeSource> they are necessarily equivalent.
   absl::flat_hash_map<LeafTypeTreeView<NodeSource>, Node*> source_map;
-  for (Node* node : context->TopoSort(func)) {
+  for (Node* node : context.TopoSort(func)) {
     LeafTypeTreeView<NodeSource> source = visitor.GetValue(node);
     VLOG(3) << absl::StrFormat("Considering `%s`: %s", node->GetName(),
                                source.ToString());

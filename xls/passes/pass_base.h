@@ -201,7 +201,7 @@ class PassBase {
   // fixed point computation.
   virtual absl::StatusOr<bool> Run(IrT* ir, const OptionsT& options,
                                    ResultsT* results,
-                                   ContextT*... context) const {
+                                   ContextT&... context) const {
     VLOG(2) << absl::StreamFormat("Running %s [pass #%d]", long_name(),
                                   results->invocations.size());
     VLOG(3) << "Before:";
@@ -232,7 +232,7 @@ class PassBase {
   // Derived classes should override this function which is invoked from Run.
   virtual absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
                                            ResultsT* results,
-                                           ContextT*... context) const = 0;
+                                           ContextT&... context) const = 0;
 
   std::string short_name_;
   std::string long_name_;
@@ -256,7 +256,7 @@ class WrapperPassBase final
  protected:
   absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
                                    ResultsT* results,
-                                   ContextT*... context) const final {
+                                   ContextT&... context) const final {
     return base_->Run(ir, options, results, context...);
   }
 
@@ -273,7 +273,7 @@ class InvariantCheckerBase {
  public:
   virtual ~InvariantCheckerBase() = default;
   virtual absl::Status Run(IrT* ir, const OptionsT& options, ResultsT* results,
-                           ContextT*... context) const = 0;
+                           ContextT&... context) const = 0;
 };
 
 // CompoundPass is a container for other passes. For example, the scalar
@@ -342,7 +342,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
 
   absl::StatusOr<bool> RunInternal(IrT* ir, const OptionsT& options,
                                    ResultsT* results,
-                                   ContextT*... context) const override {
+                                   ContextT&... context) const override {
     if (!options.ir_dump_path.empty()) {
       // Start of the top-level pass. Dump IR.
       XLS_RETURN_IF_ERROR(DumpIr(options.ir_dump_path, ir, this->short_name(),
@@ -363,7 +363,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT, ContextT...> {
   // pass is nested within another compound pass. Enables passing of invariant
   // checkers and name of the top-level pass to nested compound passes.
   virtual absl::StatusOr<CompoundPassResult> RunNested(
-      IrT* ir, const OptionsT& options, ResultsT* results, ContextT*... context,
+      IrT* ir, const OptionsT& options, ResultsT* results, ContextT&... context,
       std::string_view top_level_name,
       absl::Span<const InvariantChecker* const> invariant_checkers) const;
 
@@ -411,7 +411,7 @@ class FixedPointCompoundPassBase
 
  protected:
   absl::StatusOr<CompoundPassResult> RunNested(
-      IrT* ir, const OptionsT& options, ResultsT* results, ContextT*... context,
+      IrT* ir, const OptionsT& options, ResultsT* results, ContextT&... context,
       std::string_view top_level_name,
       absl::Span<const typename CompoundPassBase<
           IrT, OptionsT, ResultsT, ContextT...>::InvariantChecker* const>
@@ -443,7 +443,7 @@ template <typename IrT, typename OptionsT, typename ResultsT,
           typename... ContextT>
 absl::StatusOr<CompoundPassResult>
 CompoundPassBase<IrT, OptionsT, ResultsT, ContextT...>::RunNested(
-    IrT* ir, const OptionsT& options, ResultsT* results, ContextT*... context,
+    IrT* ir, const OptionsT& options, ResultsT* results, ContextT&... context,
     std::string_view top_level_name,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
   VLOG(1) << "Running " << this->short_name() << " compound pass on package "

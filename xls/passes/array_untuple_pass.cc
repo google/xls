@@ -61,10 +61,10 @@ namespace xls {
 namespace {
 // Group all nodes together based on whether they need to be updated together.
 UnionFind<Node*> FindUntupleGroups(FunctionBase* f,
-                                   OptimizationContext* context) {
+                                   OptimizationContext& context) {
   UnionFind<Node*> array_groups;
   // To make things simpler every node is put in the union-find.
-  for (Node* n : context->TopoSort(f)) {
+  for (Node* n : context.TopoSort(f)) {
     array_groups.Insert(n);
     if (n->Is<ArrayUpdate>()) {  // Array modification
       array_groups.Union(n->As<ArrayUpdate>()->array_to_update(), n);
@@ -603,7 +603,7 @@ class UntupleVisitor : public DfsVisitorWithDefault {
 
 absl::StatusOr<bool> ArrayUntuplePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   if (!f->IsFunction() && !f->IsProc()) {
     // Don't mess with blocks.
     return false;
@@ -614,7 +614,7 @@ absl::StatusOr<bool> ArrayUntuplePass::RunOnFunctionBaseInternal(
   XLS_ASSIGN_OR_RETURN(absl::flat_hash_set<Node*> excluded,
                        FindExternalGroups(f, groups));
   UntupleVisitor vis(groups, excluded);
-  for (Node* n : context->TopoSort(f)) {
+  for (Node* n : context.TopoSort(f)) {
     XLS_RETURN_IF_ERROR(n->VisitSingleNode(&vis)) << n;
   }
   // XLS_RETURN_IF_ERROR(f->Accept(&vis));

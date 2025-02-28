@@ -576,7 +576,7 @@ absl::StatusOr<TransformationResult> LiftSelects(
 
 absl::StatusOr<bool> SelectLiftingPass::RunOnFunctionBaseInternal(
     FunctionBase *func, const OptimizationPassOptions &options,
-    PassResults *results, OptimizationContext *context) const {
+    PassResults *results, OptimizationContext &context) const {
   absl::btree_set<Node *, Node::NodeIdLessThan> selects_to_consider;
   bool was_code_modified = false;
 

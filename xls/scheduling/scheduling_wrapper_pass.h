@@ -40,7 +40,7 @@ namespace xls {
 class SchedulingWrapperPass : public SchedulingPass {
  public:
   explicit SchedulingWrapperPass(std::unique_ptr<OptimizationPass> wrapped_pass,
-                                 OptimizationContext* context,
+                                 OptimizationContext& context,
                                  int64_t opt_level, bool eliminate_noop_next,
                                  bool reschedule_new_nodes = false)
       : SchedulingPass(
@@ -60,7 +60,7 @@ class SchedulingWrapperPass : public SchedulingPass {
 
  private:
   std::unique_ptr<OptimizationPass> wrapped_pass_;
-  OptimizationContext* context_;
+  OptimizationContext& context_;
   int64_t opt_level_;
   bool eliminate_noop_next_;
   bool reschedule_new_nodes_;

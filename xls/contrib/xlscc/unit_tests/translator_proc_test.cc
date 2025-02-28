@@ -7988,7 +7988,7 @@ TEST_F(TranslatorProcTestWithoutFSMParam, OpDuplicationAcrossIO) {
     xls::OptimizationContext context;
 
     XLS_ASSERT_OK(
-        pipeline->Run(package_.get(), options, &results, &context).status());
+        pipeline->Run(package_.get(), options, &results, context).status());
   }
 
   int64_t multiply_op_count = 0;

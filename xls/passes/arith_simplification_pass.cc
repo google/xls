@@ -1527,13 +1527,13 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
 
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   bool changed = false;
   bool pass_changed = false;
   StatelessQueryEngine query_engine;
   do {
     pass_changed = false;
-    for (Node* n : context->ReverseTopoSort(f)) {
+    for (Node* n : context.ReverseTopoSort(f)) {
       if (n->IsDead()) {
         continue;
       }

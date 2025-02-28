@@ -62,7 +62,7 @@ absl::Span<Node* const> GetOperandsForCse(
 
 }  // namespace
 
-absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext* context,
+absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext& context,
                             absl::flat_hash_map<Node*, Node*>* replacements,
                             bool common_literals) {
   // To improve efficiency, bucket potentially common nodes together. The
@@ -83,7 +83,7 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext* context,
   bool changed = false;
   absl::flat_hash_map<int64_t, std::vector<Node*>> node_buckets;
   node_buckets.reserve(f->node_count());
-  for (Node* node : context->TopoSort(f)) {
+  for (Node* node : context.TopoSort(f)) {
     if (OpIsSideEffecting(node->op())) {
       continue;
     }
@@ -135,7 +135,7 @@ absl::StatusOr<bool> RunCse(FunctionBase* f, OptimizationContext* context,
 
 absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
-    PassResults* results, OptimizationContext* context) const {
+    PassResults* results, OptimizationContext& context) const {
   return RunCse(f, context, nullptr, common_literals_);
 }
 
