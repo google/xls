@@ -378,8 +378,11 @@ struct xls_trace_message {
 // Runs the given `jit` function with the given `args` (an array of size `argc`)
 // and returns the result in `result_out`.
 //
-// `trace_messages_out` should be freed by the caller via ...
-// `assert_messages_out` should be freed by the caller via ...
+// Note:
+// * `trace_messages_out` should be freed by the caller via
+//   `xls_trace_messages_free`.
+// * `assert_messages_out` should be freed by the caller via
+//   `xls_c_strs_free`.
 bool xls_function_jit_run(struct xls_function_jit* jit, size_t argc,
                           const struct xls_value* const* args, char** error_out,
                           struct xls_trace_message** trace_messages_out,
