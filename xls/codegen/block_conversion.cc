@@ -409,9 +409,6 @@ absl::Status SingleFunctionToPipelinedBlock(const PipelineSchedule& schedule,
   if (options.split_outputs()) {
     return absl::UnimplementedError("Splitting outputs not supported.");
   }
-  if (options.reset().has_value() && options.reset()->reset_data_path()) {
-    return absl::UnimplementedError("Data path reset not supported");
-  }
   if (options.manual_control().has_value()) {
     return absl::UnimplementedError("Manual pipeline control not implemented");
   }

@@ -225,10 +225,6 @@ absl::StatusOr<bool> ConvertFuncsToPipelinedBlocksPass::RunInternal(
     if (options.codegen_options.split_outputs()) {
       return absl::UnimplementedError("Splitting outputs not supported.");
     }
-    if (options.codegen_options.reset().has_value() &&
-        options.codegen_options.reset()->reset_data_path()) {
-      return absl::UnimplementedError("Data path reset not supported");
-    }
 
     Function* const f = fb->AsFunctionOrDie();
 

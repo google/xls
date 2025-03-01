@@ -1198,6 +1198,94 @@ proc ii_greater_than_one(st: bits[32], init={0}) {
                                  result.verilog_text);
 }
 
+TEST_P(PipelineGeneratorTest, FunctionWithDataPathReset) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  fb.Param("x", package.GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  reset.set_reset_data_path(true);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(
+          schedule, func,
+          BuildPipelineOptions()
+              .use_system_verilog(UseSystemVerilog())
+              .reset(reset.name(), reset.asynchronous(), reset.active_low(),
+                     reset.reset_data_path())));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVerilogText(result.verilog_text, GetFileType(),
+                                             result.signature, GetSimulator()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", /*default_value=*/ZeroOrX::kX));
+
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("x", 42);
+  seq.AtEndOfCycle().ExpectEq("out", 0);
+  seq.AtEndOfCycle().ExpectEq("out", 0);
+  seq.AtEndOfCycle().ExpectEq("out", 0);
+  seq.AtEndOfCycle().ExpectEq("out", 0);
+  seq.AtEndOfCycle().ExpectEq("out", 42);
+
+  XLS_ASSERT_OK(tb->Run());
+}
+
+TEST_P(PipelineGeneratorTest, FunctionWithoutDataPathReset) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  fb.Param("x", package.GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+  reset.set_reset_data_path(false);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(
+          schedule, func,
+          BuildPipelineOptions()
+              .use_system_verilog(UseSystemVerilog())
+              .reset(reset.name(), reset.asynchronous(), reset.active_low(),
+                     reset.reset_data_path())));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ModuleTestbench> tb,
+      ModuleTestbench::CreateFromVerilogText(result.verilog_text, GetFileType(),
+                                             result.signature, GetSimulator()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleTestbenchThread * tbt,
+      tb->CreateThreadDrivingAllInputs("main", /*default_value=*/ZeroOrX::kX));
+
+  SequentialBlock& seq = tbt->MainBlock();
+  seq.Set("x", 42);
+  seq.AtEndOfCycle().ExpectX("out");
+  seq.AtEndOfCycle().ExpectX("out");
+  seq.AtEndOfCycle().ExpectX("out");
+  seq.AtEndOfCycle().ExpectX("out");
+  seq.AtEndOfCycle().ExpectEq("out", 42);
+
+  XLS_ASSERT_OK(tb->Run());
+}
+
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,
                          PipelineGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

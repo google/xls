@@ -220,9 +220,9 @@ static std::vector<std::string> GenerateCodegenArgs(
 
   // TODO(https://github.com/google/xls/issues/795) Test the
   // 'reset_asynchronous' flag in codegen in the fuzzer.
+  bool async_reset = absl::Bernoulli(bit_gen, 0.5);
   args.push_back(
-      absl::StrCat("--reset_asynchronous=",
-                   absl::Bernoulli(bit_gen, 0.5) ? "true" : "false"));
+      absl::StrCat("--reset_asynchronous=", async_reset ? "true" : "false"));
 
   if (has_proc) {
     // For a pipelined proc, the data path may contain register driving control
@@ -230,10 +230,12 @@ static std::vector<std::string> GenerateCodegenArgs(
     // reset. As a result, the data path must be reset.
     args.push_back("--reset_data_path=true");
   } else {
-    // A pipelined function does not support resetting the data path.
-    args.push_back("--reset_data_path=false");
+    // Async reset without resetting the data-path tickles some bad behavior in
+    // simulation causing spurious assert failures.
+    bool reset_data_path = async_reset ? true : absl::Bernoulli(bit_gen, 0.5);
+    args.push_back(
+        absl::StrCat("--reset_data_path=", reset_data_path ? "true" : "false"));
   }
-
   return args;
 }
 
