@@ -271,6 +271,19 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "c_api_vast_test",
+    srcs = ["c_api_vast_test.cc"],
+    deps = [
+        ":c_api",
+        ":c_api_vast",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/log",
+        "@googletest//:gtest",
+    ],
+)
+
 # This allows export of all symbols that start with `xls_`
 filegroup(
     name = "exported_symbols_map",

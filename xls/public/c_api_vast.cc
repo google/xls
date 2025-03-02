@@ -27,6 +27,83 @@
 #include "xls/public/c_api_format_preference.h"
 #include "xls/public/c_api_impl_helpers.h"
 
+namespace {
+xls::verilog::OperatorKind ToCppOperatorKindUnary(xls_vast_operator_kind op) {
+  switch (op) {
+    case xls_vast_operator_kind_negate:
+      return xls::verilog::OperatorKind::kNegate;
+    case xls_vast_operator_kind_bitwise_not:
+      return xls::verilog::OperatorKind::kBitwiseNot;
+    case xls_vast_operator_kind_logical_not:
+      return xls::verilog::OperatorKind::kLogicalNot;
+    case xls_vast_operator_kind_and_reduce:
+      return xls::verilog::OperatorKind::kAndReduce;
+    case xls_vast_operator_kind_or_reduce:
+      return xls::verilog::OperatorKind::kOrReduce;
+    case xls_vast_operator_kind_xor_reduce:
+      return xls::verilog::OperatorKind::kXorReduce;
+    default:
+      LOG(FATAL) << "C VAST API got invalid unary operator kind: " << op;
+  }
+}
+
+xls::verilog::OperatorKind ToCppOperatorKindBinary(xls_vast_operator_kind op) {
+  switch (op) {
+    case xls_vast_operator_kind_add:
+      return xls::verilog::OperatorKind::kAdd;
+    case xls_vast_operator_kind_logical_and:
+      return xls::verilog::OperatorKind::kLogicalAnd;
+    case xls_vast_operator_kind_bitwise_and:
+      return xls::verilog::OperatorKind::kBitwiseAnd;
+    case xls_vast_operator_kind_ne:
+      return xls::verilog::OperatorKind::kNe;
+    case xls_vast_operator_kind_case_ne:
+      return xls::verilog::OperatorKind::kCaseNe;
+    case xls_vast_operator_kind_eq:
+      return xls::verilog::OperatorKind::kEq;
+    case xls_vast_operator_kind_case_eq:
+      return xls::verilog::OperatorKind::kCaseEq;
+    case xls_vast_operator_kind_ge:
+      return xls::verilog::OperatorKind::kGe;
+    case xls_vast_operator_kind_gt:
+      return xls::verilog::OperatorKind::kGt;
+    case xls_vast_operator_kind_le:
+      return xls::verilog::OperatorKind::kLe;
+    case xls_vast_operator_kind_lt:
+      return xls::verilog::OperatorKind::kLt;
+    case xls_vast_operator_kind_div:
+      return xls::verilog::OperatorKind::kDiv;
+    case xls_vast_operator_kind_mod:
+      return xls::verilog::OperatorKind::kMod;
+    case xls_vast_operator_kind_mul:
+      return xls::verilog::OperatorKind::kMul;
+    case xls_vast_operator_kind_power:
+      return xls::verilog::OperatorKind::kPower;
+    case xls_vast_operator_kind_bitwise_or:
+      return xls::verilog::OperatorKind::kBitwiseOr;
+    case xls_vast_operator_kind_logical_or:
+      return xls::verilog::OperatorKind::kLogicalOr;
+    case xls_vast_operator_kind_bitwise_xor:
+      return xls::verilog::OperatorKind::kBitwiseXor;
+    case xls_vast_operator_kind_shll:
+      return xls::verilog::OperatorKind::kShll;
+    case xls_vast_operator_kind_shra:
+      return xls::verilog::OperatorKind::kShra;
+    case xls_vast_operator_kind_shrl:
+      return xls::verilog::OperatorKind::kShrl;
+    case xls_vast_operator_kind_sub:
+      return xls::verilog::OperatorKind::kSub;
+    case xls_vast_operator_kind_ne_x:
+      return xls::verilog::OperatorKind::kNeX;
+    case xls_vast_operator_kind_eq_x:
+      return xls::verilog::OperatorKind::kEqX;
+    default:
+      LOG(FATAL) << "C VAST API got invalid binary operator kind: " << op;
+  }
+}
+
+}  // namespace
+
 extern "C" {
 
 struct xls_vast_verilog_file* xls_vast_make_verilog_file(
@@ -285,6 +362,41 @@ struct xls_vast_slice* xls_vast_verilog_file_make_slice(
   xls::verilog::Slice* cpp_slice =
       cpp_file->Slice(cpp_subject, cpp_hi, cpp_lo, xls::SourceInfo());
   return reinterpret_cast<xls_vast_slice*>(cpp_slice);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_unary(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* arg,
+    xls_vast_operator_kind op) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_arg = reinterpret_cast<xls::verilog::Expression*>(arg);
+  xls::verilog::Expression* result = cpp_file->Make<xls::verilog::Unary>(
+      xls::SourceInfo(), cpp_arg, ToCppOperatorKindUnary(op));
+  return reinterpret_cast<xls_vast_expression*>(result);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_binary(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs, xls_vast_operator_kind op) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_lhs = reinterpret_cast<xls::verilog::Expression*>(lhs);
+  auto* cpp_rhs = reinterpret_cast<xls::verilog::Expression*>(rhs);
+  xls::verilog::Expression* result = cpp_file->Make<xls::verilog::BinaryInfix>(
+      xls::SourceInfo(), cpp_lhs, cpp_rhs, ToCppOperatorKindBinary(op));
+  return reinterpret_cast<xls_vast_expression*>(result);
+}
+
+struct xls_vast_expression* xls_vast_verilog_file_make_ternary(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* cond,
+    struct xls_vast_expression* consequent,
+    struct xls_vast_expression* alternate) {
+  auto* cpp_file = reinterpret_cast<xls::verilog::VerilogFile*>(f);
+  auto* cpp_cond = reinterpret_cast<xls::verilog::Expression*>(cond);
+  auto* cpp_consequent =
+      reinterpret_cast<xls::verilog::Expression*>(consequent);
+  auto* cpp_alternate = reinterpret_cast<xls::verilog::Expression*>(alternate);
+  xls::verilog::Expression* result = cpp_file->Make<xls::verilog::Ternary>(
+      xls::SourceInfo(), cpp_cond, cpp_consequent, cpp_alternate);
+  return reinterpret_cast<xls_vast_expression*>(result);
 }
 
 struct xls_vast_concat* xls_vast_verilog_file_make_concat(
