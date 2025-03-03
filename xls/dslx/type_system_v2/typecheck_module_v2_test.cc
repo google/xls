@@ -5312,5 +5312,94 @@ const X = A..s8:3;
                                        "is larger than end value `3`")));
 }
 
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricType) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u32) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeConstants) {
+  EXPECT_THAT(R"(
+fn f() {
+  assert_eq<u32>(u32:1, u32:2);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("u32:1", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeSecondMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u31) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeFirstMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u31, y: u32) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeBothMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u31, y: u31) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeNotAtype) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u32) {
+  assert_eq<u32:33>(x, y);
+}
+)",
+              TypecheckFails(HasTypeMismatch("type", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricType) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u32) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeTuple) {
+  EXPECT_THAT(R"(
+fn f(x: (u32), y: (u32)) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "(uN[32])")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u31) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeMismatchTuple) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: (u31)) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckFails(HasTypeMismatch("(u31,)", "uN[32]")));
+}
 }  // namespace
 }  // namespace xls::dslx

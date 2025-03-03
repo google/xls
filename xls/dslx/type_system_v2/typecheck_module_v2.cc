@@ -988,7 +988,6 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       }
     }
 
-    const NameRef* return_type_variable = *table_.GetTypeVariable(node);
     XLS_ASSIGN_OR_RETURN(
         const NameRef* function_type_variable,
         table_.DefineInternalVariable(
@@ -1043,6 +1042,7 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
       XLS_RETURN_IF_ERROR(arg->Accept(this));
     }
 
+    const NameRef* return_type_variable = *table_.GetTypeVariable(node);
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         node->callee(), module_.Make<FunctionTypeAnnotation>(
                             arg_types, module_.Make<TypeVariableTypeAnnotation>(
@@ -1414,6 +1414,46 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
+TypeAnnotation* CreateGenericTypeAnnotation(Module& module, const Span& span) {
+  return module.Make<GenericTypeAnnotation>(span);
+}
+
+absl::StatusOr<const Function*> CreateAssertEqFunctionStub(Module& module) {
+  // Creates:
+  // assert_eq<T: type>(x: T, y: T) -> ()
+  Span span = module.span();
+  NameDef* type_name_def = module.Make<NameDef>(span, "T", /*definer=*/nullptr);
+  TypeVariableTypeAnnotation* tvta = module.Make<TypeVariableTypeAnnotation>(
+      module.Make<NameRef>(span, "T", type_name_def));
+  ParametricBinding* binding = module.Make<ParametricBinding>(
+      type_name_def, CreateGenericTypeAnnotation(module, span),
+      /*expr=*/nullptr);
+
+  Function* fn = module.Make<Function>(
+      span,
+      /*name_def= */
+      module.Make<NameDef>(span, "assert_eq", /*definer=*/nullptr),
+      /*parametric_bindings=*/std::vector<ParametricBinding*>{binding},
+      /*params=*/
+      std::vector<Param*>{
+          module.Make<Param>(
+              module.Make<NameDef>(span, "assert_x", /*definer=*/nullptr),
+              tvta),
+          module.Make<Param>(
+              module.Make<NameDef>(span, "assert_y", /*definer=*/nullptr),
+              tvta)},
+      /*return_type=*/nullptr,
+      /*(empty) body=*/
+      module.Make<StatementBlock>(span, std::vector<Statement*>{},
+                                  /*last_expr_had_trailing_semi=*/true),
+      FunctionTag::kNormal,
+      /*is_public=*/true);
+
+  // Tell the module about it
+  XLS_RETURN_IF_ERROR(module.AddTop(fn, /*make_collision_error=*/nullptr));
+  return fn;
+}
+
 absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
                                             ImportData* import_data,
                                             WarningCollector* warnings) {
@@ -1424,6 +1464,9 @@ absl::StatusOr<TypeInfo*> TypecheckModuleV2(Module* module,
   PopulateInferenceTableVisitor builtins_visitor(*builtins_module, *table,
                                                  import_data->file_table());
   XLS_RETURN_IF_ERROR((*builtins_module).Accept(&builtins_visitor));
+  XLS_ASSIGN_OR_RETURN(const Function* assert_eq,
+                       CreateAssertEqFunctionStub(*builtins_module));
+  XLS_RETURN_IF_ERROR(assert_eq->Accept(&builtins_visitor));
 
   PopulateInferenceTableVisitor visitor(*module, *table,
                                         import_data->file_table());

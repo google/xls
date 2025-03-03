@@ -88,6 +88,9 @@ absl::StatusOr<InferenceVariableKind> TypeAnnotationToInferenceVariableKind(
       return InferenceVariableKind::kInteger;
     }
   }
+  if (dynamic_cast<const GenericTypeAnnotation*>(annotation)) {
+    return InferenceVariableKind::kType;
+  }
   return absl::InvalidArgumentError(
       absl::Substitute("Inference variables of type $0 are not supported.",
                        annotation->ToString()));
@@ -229,16 +232,12 @@ class InferenceTableImpl : public InferenceTable {
           variables_.at(binding->name_def()).get();
       if (i < explicit_parametrics.size()) {
         const ExprOrType value = explicit_parametrics[i];
-        if (!std::holds_alternative<Expr*>(value)) {
-          return absl::InvalidArgumentError(absl::Substitute(
-              "Type inference version 2 is a work in progress and doesn't yet "
-              "support types as parametric values: $0",
-              node.ToString()));
+        if (std::holds_alternative<Expr*>(value)) {
+          mutable_data.parametric_values.emplace(
+              variable, ParametricContextScopedExpr(parent_context,
+                                                    binding->type_annotation(),
+                                                    std::get<Expr*>(value)));
         }
-        mutable_data.parametric_values.emplace(
-            variable, ParametricContextScopedExpr(parent_context,
-                                                  binding->type_annotation(),
-                                                  std::get<Expr*>(value)));
       } else if (binding->expr() != nullptr) {
         mutable_data.parametric_values.emplace(
             variable,
