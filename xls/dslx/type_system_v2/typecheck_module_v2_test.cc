@@ -5390,7 +5390,7 @@ fn f(x: u32, y: u31) {
   assert_eq(x, y);
 }
 )",
-              TypecheckFails(HasSizeMismatch("u31", "uN[32]")));
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
 }
 
 TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeMismatchTuple) {
@@ -5399,7 +5399,7 @@ fn f(x: u32, y: (u31)) {
   assert_eq(x, y);
 }
 )",
-              TypecheckFails(HasTypeMismatch("(u31,)", "uN[32]")));
+              TypecheckFails(HasTypeMismatch("(u31,)", "u32")));
 }
 }  // namespace
 }  // namespace xls::dslx

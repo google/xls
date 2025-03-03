@@ -946,7 +946,7 @@ fn f() -> u32 { id((u8:3,)) }
       Typecheck(kProgram),
       StatusIs(absl::StatusCode::kInvalidArgument,
                AllOf(HasSubstrInV1(GetParam(), "different kinds"),
-                     HasTypeMismatchInV2(GetParam(), "(uN[8],)", "bits[N]"))));
+                     HasTypeMismatchInV2(GetParam(), "(u8,)", "bits[N]"))));
 }
 
 TEST(TypecheckErrorTest, ParametricWrongNumberOfDims) {

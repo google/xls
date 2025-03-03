@@ -210,8 +210,7 @@ class ConversionOrderVisitor : public AstNodeVisitorWithDefault {
 // `TypeInfo`.
 class InferenceTableConverter : public UnificationErrorGenerator,
                                 public Evaluator,
-                                public ParametricStructInstantiator,
-                                public IndirectAnnotationResolver {
+                                public ParametricStructInstantiator {
  public:
   InferenceTableConverter(
       InferenceTable& table, Module& module, ImportData& import_data,
@@ -1488,6 +1487,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       // variable.
       auto accept_predicate = [&](const TypeAnnotation* annotation) {
         return caller_accept_predicate(annotation) &&
+               dynamic_cast<const ParamTypeAnnotation*>(annotation) ==
+                   nullptr &&
                !HasAnyReferencesWithMissingTypeInfo(actual_arg_ti, annotation);
       };
       XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(
@@ -1503,10 +1504,11 @@ class InferenceTableConverter : public UnificationErrorGenerator,
           ResolveAndUnifyTypeAnnotations(
               actual_arg_context, actual_arg_annotations,
               actual_args[i]->span(), caller_accept_predicate));
+      XLS_RETURN_IF_ERROR(
+          ConvertSubtree(actual_arg_type, std::nullopt, actual_arg_context));
       VLOG(5) << "Infer using actual type: " << actual_arg_type->ToString()
-              << " with maybe actual arg context: "
-              << ToString(actual_arg_context);
-
+              << " and formal type: " << formal_types[i]->ToString()
+              << " with effective context: " << ToString(actual_arg_context);
       if (auto tvta = dynamic_cast<const TypeVariableTypeAnnotation*>(
               formal_types[i])) {
         // Do not call "SolveForParametrics" if the implicit parametric is
@@ -1634,8 +1636,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
         module_, table_, file_table_,
         /*error_generator=*/*this,
         /*evaluator=*/*this, /*parametric_struct_instantiator=*/*this,
-        /*indirect_annotation_resolver=*/*this, parametric_context, annotations,
-        span, accept_predicate);
+        parametric_context, annotations, span, accept_predicate);
   }
 
   absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
@@ -1859,8 +1860,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* annotation,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate,
-      bool& replaced_anything) {
+          accept_predicate) {
     if (const auto* variable_type_annotation =
             dynamic_cast<const TypeVariableTypeAnnotation*>(node)) {
       XLS_ASSIGN_OR_RETURN(
@@ -1868,12 +1868,10 @@ class InferenceTableConverter : public UnificationErrorGenerator,
           ResolveAndUnifyTypeAnnotations(
               parametric_context, variable_type_annotation->type_variable(),
               annotation->span(), accept_predicate));
-      replaced_anything = true;
       return const_cast<TypeAnnotation*>(unified);
     }
     if (const auto* member_type =
             dynamic_cast<const MemberTypeAnnotation*>(node)) {
-      replaced_anything = true;
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
           ResolveMemberType(parametric_context, member_type, accept_predicate));
@@ -1883,7 +1881,6 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     }
     if (const auto* element_type =
             dynamic_cast<const ElementTypeAnnotation*>(node)) {
-      replaced_anything = true;
       XLS_ASSIGN_OR_RETURN(const TypeAnnotation* result,
                            ResolveElementType(parametric_context, element_type,
                                               accept_predicate));
@@ -1891,7 +1888,6 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     }
     if (const auto* return_type =
             dynamic_cast<const ReturnTypeAnnotation*>(node)) {
-      replaced_anything = true;
       XLS_ASSIGN_OR_RETURN(
           const TypeAnnotation* result,
           ResolveReturnType(parametric_context, return_type, accept_predicate));
@@ -1899,7 +1895,6 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     }
     if (const auto* param_type =
             dynamic_cast<const ParamTypeAnnotation*>(node)) {
-      replaced_anything = true;
       if (accept_predicate.has_value() && !(*accept_predicate)(param_type)) {
         return module_.Make<AnyTypeAnnotation>();
       }
@@ -1911,11 +1906,36 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     if (const auto* self_type = dynamic_cast<const SelfTypeAnnotation*>(node)) {
       std::optional<const TypeAnnotation*> expanded =
           ResolveSelfType(parametric_context, self_type);
-      replaced_anything = true;
       CHECK(expanded.has_value());
       return const_cast<TypeAnnotation*>(*expanded);
     }
     return std::nullopt;
+  }
+
+  // The "replace" function for an AstCloner that replaces type aliases with the
+  // type they equate to. There are two axes of descent here: this function
+  // itself iteratively unwraps chains of type aliases that equate to other type
+  // aliases, while the AstCloner recursively applies this function so that if
+  // the type alias usage is in a descendant of the annotation being cloned,
+  // that will be discovered and handled.
+  absl::StatusOr<std::optional<AstNode*>> ReplaceTypeAliasWithTarget(
+      const AstNode* node) {
+    bool replaced_anything = false;
+    std::optional<const TypeAnnotation*> latest =
+        dynamic_cast<const TypeAnnotation*>(node);
+    while (latest.has_value() &&
+           dynamic_cast<const TypeRefTypeAnnotation*>(*latest)) {
+      const auto* type_ref =
+          dynamic_cast<const TypeRefTypeAnnotation*>(*latest);
+      latest = table_.GetTypeAnnotation(ToAstNode(
+          TypeDefinitionGetNameDef(type_ref->type_ref()->type_definition())));
+      if (latest.has_value()) {
+        node = const_cast<TypeAnnotation*>(*latest);
+        replaced_anything = true;
+      }
+    }
+    return replaced_anything ? std::make_optional(const_cast<AstNode*>(node))
+                             : std::nullopt;
   }
 
   // Returns `annotation` with any indirect annotations resolved into direct
@@ -1938,48 +1958,40 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const TypeAnnotation* annotation,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
-    VLOG(6) << "Resolving variables in: " << annotation->ToString()
-            << " in context: " << ToString(parametric_context);
-    bool replaced_anything = false;
-    XLS_ASSIGN_OR_RETURN(
-        AstNode * clone, table_.Clone(annotation, [&](const AstNode* node) {
-          return ReplaceIndirectTypeAnnotations(node, parametric_context,
-                                                annotation, accept_predicate,
-                                                replaced_anything);
-        }));
-
-    // If the result is a `TypeRefTypeAnnotation`, check if it resolves to a
-    // different type in the inference table.
-    XLS_ASSIGN_OR_RETURN(
-        clone,
-        table_.Clone(
-            clone,
-            [&](const AstNode* node)
-                -> absl::StatusOr<std::optional<AstNode*>> {
-              std::optional<const TypeAnnotation*> latest =
-                  dynamic_cast<const TypeAnnotation*>(node);
-              while (latest.has_value() &&
-                     dynamic_cast<const TypeRefTypeAnnotation*>(*latest)) {
-                const auto* type_ref =
-                    dynamic_cast<const TypeRefTypeAnnotation*>(*latest);
-                latest =
-                    table_.GetTypeAnnotation(ToAstNode(TypeDefinitionGetNameDef(
-                        type_ref->type_ref()->type_definition())));
-                if (latest.has_value()) {
-                  node = const_cast<TypeAnnotation*>(*latest);
-                  replaced_anything = true;
-                }
-              }
-              return const_cast<AstNode*>(node);
-            }));
-    if (!replaced_anything) {
-      VLOG(6) << "No variables needed resolution in: "
-              << annotation->ToString();
+    // This is purely to avoid wasting time on annotations that clearly need no
+    // resolution.
+    if (GetSignednessAndBitCount(annotation).ok()) {
       return annotation;
     }
-    const auto* result = dynamic_cast<const TypeAnnotation*>(clone);
-    CHECK(result != nullptr);
-    return result;
+    VLOG(4) << "Resolving variables in: " << annotation->ToString()
+            << " in context: " << ToString(parametric_context);
+    constexpr int kMaxIterations = 100;
+    // This loop makes it so that we don't need resolution functions to
+    // recursively resolve what they come up with.
+    for (int i = 0;; i++) {
+      CHECK_LE(i, kMaxIterations);
+      bool replaced_anything = false;
+      ObservableCloneReplacer replace_indirect(
+          &replaced_anything, [&](const AstNode* node) {
+            return ReplaceIndirectTypeAnnotations(node, parametric_context,
+                                                  annotation, accept_predicate);
+          });
+      ObservableCloneReplacer replace_type_aliases(
+          &replaced_anything, [&](const AstNode* node) {
+            return ReplaceTypeAliasWithTarget(node);
+          });
+      XLS_ASSIGN_OR_RETURN(
+          AstNode * clone,
+          table_.Clone(annotation,
+                       ChainCloneReplacers(std::move(replace_indirect),
+                                           std::move(replace_type_aliases))));
+      if (replaced_anything) {
+        annotation = down_cast<const TypeAnnotation*>(clone);
+      } else {
+        break;
+      }
+    }
+    return annotation;
   }
 
   // Converts `member_type` into a regular `TypeAnnotation` that expresses the
@@ -1994,6 +2006,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const MemberTypeAnnotation* member_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
+    VLOG(6) << "Resolve member type: " << member_type->ToString();
     XLS_ASSIGN_OR_RETURN(
         const TypeAnnotation* struct_type,
         ResolveIndirectTypeAnnotations(
@@ -2109,7 +2122,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const ReturnTypeAnnotation* return_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
-    VLOG(6) << "Expand return type: " << return_type->ToString();
+    VLOG(6) << "Resolve return type: " << return_type->ToString()
+            << " in context: " << ToString(parametric_context);
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* function_type,
                          ResolveIndirectTypeAnnotations(
                              parametric_context, return_type->function_type(),
@@ -2130,7 +2144,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const ParamTypeAnnotation* param_type,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
-    VLOG(6) << "Expand param type: " << param_type->ToString();
+    VLOG(6) << "Resolve param type: " << param_type->ToString();
     XLS_ASSIGN_OR_RETURN(const TypeAnnotation* function_type,
                          ResolveIndirectTypeAnnotations(
                              parametric_context, param_type->function_type(),
@@ -2170,7 +2184,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       std::optional<const ParametricContext*> parametric_context,
       std::vector<const TypeAnnotation*>& annotations,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) override {
+          accept_predicate) {
     std::vector<const TypeAnnotation*> result;
     for (const TypeAnnotation* annotation : annotations) {
       if (!accept_predicate.has_value() || (*accept_predicate)(annotation)) {

@@ -172,8 +172,7 @@ class Resolver {
   absl::Status ResolveVariable(int64_t value, const NameDef* variable) {
     const auto it = bindings_to_resolve_.find(variable);
     if (it == bindings_to_resolve_.end()) {
-      return absl::InvalidArgumentError(
-          absl::Substitute("Unexpected variable: $0", variable->ToString()));
+      return absl::OkStatus();
     }
     XLS_ASSIGN_OR_RETURN(
         SignednessAndBitCountResult signedness_and_bit_count,

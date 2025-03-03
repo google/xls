@@ -1085,6 +1085,58 @@ fn foo(a: u32) -> u32 {
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
+TEST(AstClonerTest, ObservableCloneReplacerWithNoReplacement) {
+  constexpr std::string_view kProgram =
+      R"(
+fn foo(a: u32, b: u32, c: u32, d: u32) -> u32 {
+  a + b + c + d
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  bool flag = false;
+  XLS_ASSERT_OK(
+      CloneAst(foo,
+               ObservableCloneReplacer(
+                   &flag, [&](const AstNode* source) { return std::nullopt; }))
+          .status());
+  EXPECT_FALSE(flag);
+}
+
+TEST(AstClonerTest, ObservableCloneReplacerWithReplacement) {
+  constexpr std::string_view kProgram =
+      R"(
+fn foo(a: u32, b: u32, c: u32) -> u32 {
+  a + b + 5 + c
+}
+)";
+
+  FileTable file_table;
+  XLS_ASSERT_OK_AND_ASSIGN(auto module, ParseModule(kProgram, "fake_path.x",
+                                                    "the_module", file_table));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * foo,
+                           module->GetMemberOrError<Function>("foo"));
+  bool flag = false;
+  XLS_ASSERT_OK(
+      CloneAst(foo, ObservableCloneReplacer(
+                        &flag,
+                        [&](const AstNode* source)
+                            -> absl::StatusOr<std::optional<AstNode*>> {
+                          if (source->ToString() == "5") {
+                            return module->Make<Number>(
+                                Span::Fake(), "4", NumberKind::kOther,
+                                /*type_annotation=*/nullptr);
+                          }
+                          return std::nullopt;
+                        }))
+          .status());
+  EXPECT_TRUE(flag);
+}
+
 TEST(AstClonerTest, ReplaceRoot) {
   FileTable file_table;
   XLS_ASSERT_OK_AND_ASSIGN(

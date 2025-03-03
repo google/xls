@@ -435,6 +435,13 @@ class InferenceTableImpl : public InferenceTable {
           NodeData copy = it->second;
           node_data_.emplace(new_node, std::move(copy));
         }
+        if (const auto* new_node_as_annotation =
+                dynamic_cast<const TypeAnnotation*>(new_node);
+            new_node_as_annotation != nullptr &&
+            auto_literal_annotations_.contains(
+                dynamic_cast<const TypeAnnotation*>(old_node))) {
+          auto_literal_annotations_.insert(new_node_as_annotation);
+        }
       }
     }
     return all_pairs.at(input);

@@ -60,19 +60,6 @@ class ParametricStructInstantiator {
       std::optional<const StructInstance*> instantiator_node) = 0;
 };
 
-// An interface used to inject indirect type annotation resolution logic into
-// unification.
-class IndirectAnnotationResolver {
- public:
-  virtual ~IndirectAnnotationResolver() = default;
-
-  virtual absl::Status ResolveIndirectTypeAnnotations(
-      std::optional<const ParametricContext*> parametric_context,
-      std::vector<const TypeAnnotation*>& annotations,
-      std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
-          accept_predicate) = 0;
-};
-
 // Comes up with one type annotation reconciling the information in any type
 // annotations that have been associated with the given type variable. If the
 // information has unreconcilable conflicts, returns an error. The given
@@ -84,7 +71,6 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     const FileTable& file_table, UnificationErrorGenerator& error_generator,
     Evaluator& evaluator,
     ParametricStructInstantiator& parametric_struct_instantiator,
-    IndirectAnnotationResolver& indirect_annotation_resolver,
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
     std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>

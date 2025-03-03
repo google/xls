@@ -43,6 +43,24 @@ inline std::optional<AstNode*> NoopCloneReplacer(const AstNode* original_node) {
   return std::nullopt;
 }
 
+// A wrapper for a `CloneReplacer` that sets a flag to true when it replaces
+// something.
+class ObservableCloneReplacer {
+ public:
+  explicit ObservableCloneReplacer(bool* flag, CloneReplacer replacer)
+      : flag_(flag), replacer_(std::move(replacer)) {}
+
+  absl::StatusOr<std::optional<AstNode*>> operator()(const AstNode* node) {
+    XLS_ASSIGN_OR_RETURN(std::optional<AstNode*> result, replacer_(node));
+    *flag_ |= result.has_value();
+    return result;
+  }
+
+ private:
+  bool* const flag_;
+  CloneReplacer replacer_;
+};
+
 // A replacer function that performs shallow clones of `TypeRef` nodes, pointing
 // the clone to the original `TypeDefinition` object. This is useful for e.g.
 // cloning return types without recursing into cloned definitions which would

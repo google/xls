@@ -58,7 +58,6 @@ class Unifier {
   Unifier(Module& module, InferenceTable& table, const FileTable& file_table,
           UnificationErrorGenerator& error_generator, Evaluator& evaluator,
           ParametricStructInstantiator& parametric_struct_instantiator,
-          IndirectAnnotationResolver& indirect_annotation_resolver,
           std::optional<const ParametricContext*> parametric_context,
           std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
               accept_predicate)
@@ -68,16 +67,12 @@ class Unifier {
         error_generator_(error_generator),
         evaluator_(evaluator),
         parametric_struct_instantiator_(parametric_struct_instantiator),
-        indirect_annotation_resolver_(indirect_annotation_resolver),
         parametric_context_(parametric_context),
         accept_predicate_(accept_predicate) {}
 
   // Overload that unifies specific type annotations.
   absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
       std::vector<const TypeAnnotation*> annotations, const Span& span) {
-    XLS_RETURN_IF_ERROR(
-        indirect_annotation_resolver_.ResolveIndirectTypeAnnotations(
-            parametric_context_, annotations, accept_predicate_));
     // Remove all singular `Any` annotations, and if that's all we had, the
     // result is one singular `Any`.
     FilterAnnotations(annotations, [&](const TypeAnnotation* annotation) {
@@ -516,7 +511,6 @@ class Unifier {
   UnificationErrorGenerator& error_generator_;
   Evaluator& evaluator_;
   ParametricStructInstantiator& parametric_struct_instantiator_;
-  IndirectAnnotationResolver& indirect_annotation_resolver_;
   std::optional<const ParametricContext*> parametric_context_;
   std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
       accept_predicate_;
@@ -528,14 +522,13 @@ absl::StatusOr<const TypeAnnotation*> UnifyTypeAnnotations(
     Module& module, InferenceTable& table, const FileTable& file_table,
     UnificationErrorGenerator& error_generator, Evaluator& evaluator,
     ParametricStructInstantiator& parametric_struct_instantiator,
-    IndirectAnnotationResolver& indirect_annotation_resolver,
     std::optional<const ParametricContext*> parametric_context,
     std::vector<const TypeAnnotation*> annotations, const Span& span,
     std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
         accept_predicate) {
   Unifier unifier(module, table, file_table, error_generator, evaluator,
-                  parametric_struct_instantiator, indirect_annotation_resolver,
-                  parametric_context, accept_predicate);
+                  parametric_struct_instantiator, parametric_context,
+                  accept_predicate);
   return unifier.UnifyTypeAnnotations(annotations, span);
 }
 
