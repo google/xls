@@ -3216,71 +3216,103 @@ fn main() {
 }
 
 // Helper for struct instance based tests.
-static absl::Status TypecheckStructInstance(std::string program) {
+static absl::Status TypecheckStructInstance(TypeInferenceVersion version,
+                                            std::string program) {
   program = R"(
 struct Point {
   x: s8,
   y: u32,
 }
 )" + program;
-  return Typecheck(program).status();
+  return version == TypeInferenceVersion::kVersion1
+             ? Typecheck(program).status()
+             : TypecheckV2(program).status();
 }
 
-TEST(TypecheckStructInstanceTest, AccessMissingMember) {
+TEST_P(TypecheckBothVersionsTest, AccessMissingStructMember) {
   EXPECT_THAT(
-      TypecheckStructInstance("fn f(p: Point) -> () { p.z }"),
+      TypecheckStructInstance(GetParam(), "fn f(p: Point) -> () { p.z }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Struct 'Point' does not have a member with name 'z'"),
+                     HasSubstrInV2(GetParam(),
+                                   "No member `z` in struct `Point`."))));
+}
+
+TEST_P(TypecheckBothVersionsTest, WrongTypeInStructInstanceMember) {
+  EXPECT_THAT(
+      TypecheckStructInstance(
+          GetParam(), "fn f() -> Point { Point { y: u8:42, x: s8:-1 } }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSizeMismatchInV1(GetParam(), "uN[32]", "uN[8]"),
+                     HasSizeMismatchInV2(GetParam(), "u32", "u8"))));
+}
+
+TEST_P(TypecheckBothVersionsTest, MissingFieldXInStructInstance) {
+  EXPECT_THAT(
+      TypecheckStructInstance(GetParam(),
+                              "fn f() -> Point { Point { y: u32:42 } }"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Struct 'Point' does not have a member with name 'z'")));
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Struct instance is missing member(s): 'x'"),
+                HasSubstrInV2(
+                    GetParam(),
+                    "Instance of struct `Point` is missing member(s): `x`"))));
 }
 
-TEST(TypecheckStructInstanceTest, WrongType) {
-  EXPECT_THAT(TypecheckStructInstance(
-                  "fn f() -> Point { Point { y: u8:42, x: s8:-1 } }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("uN[32] vs uN[8]")));
-}
-
-TEST(TypecheckStructInstanceTest, MissingFieldX) {
+TEST_P(TypecheckBothVersionsTest, MissingFieldYInStructInstance) {
   EXPECT_THAT(
-      TypecheckStructInstance("fn f() -> Point { Point { y: u32:42 } }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Struct instance is missing member(s): 'x'")));
+      TypecheckStructInstance(GetParam(),
+                              "fn f() -> Point { Point { x: s8: -1 } }"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Struct instance is missing member(s): 'y'"),
+                HasSubstrInV2(
+                    GetParam(),
+                    "Instance of struct `Point` is missing member(s): `y`"))));
 }
 
-TEST(TypecheckStructInstanceTest, MissingFieldY) {
-  EXPECT_THAT(
-      TypecheckStructInstance("fn f() -> Point { Point { x: s8: -1 } }"),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Struct instance is missing member(s): 'y'")));
-}
-
-TEST(TypecheckStructInstanceTest, OutOfOrderOk) {
+TEST_P(TypecheckBothVersionsTest, OutOfOrderStructInstanceOk) {
   XLS_EXPECT_OK(TypecheckStructInstance(
-      "fn f() -> Point { Point { y: u32:42, x: s8:-1 } }"));
+      GetParam(), "fn f() -> Point { Point { y: u32:42, x: s8:-1 } }"));
 }
 
-TEST(TypecheckStructInstanceTest, ProvideExtraFieldZ) {
+TEST_P(TypecheckBothVersionsTest, ProvideExtraFieldZInStructInstance) {
   EXPECT_THAT(
       TypecheckStructInstance(
+          GetParam(),
           "fn f() -> Point { Point { x: s8:-1, y: u32:42, z: u32:1024 } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Struct \'Point\' has no member \'z\', but it was "
-                         "provided by this instance.")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Struct \'Point\' has no member \'z\', but it was "
+                         "provided by this instance."),
+                     HasSubstrInV2(GetParam(),
+                                   "Struct `Point` has no member `z`, but it "
+                                   "was provided by this instance."))));
 }
 
-TEST(TypecheckStructInstanceTest, DuplicateFieldY) {
+TEST_P(TypecheckBothVersionsTest, DuplicateFieldYInStructInstance) {
   EXPECT_THAT(
       TypecheckStructInstance(
+          GetParam(),
           "fn f() -> Point { Point { x: s8:-1, y: u32:42, y: u32:1024 } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Duplicate value seen for \'y\' in this \'Point\' "
-                         "struct instance.")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Duplicate value seen for \'y\' in this \'Point\' "
+                         "struct instance."),
+                     HasSubstrInV2(GetParam(),
+                                   "Duplicate value seen for `y` in this "
+                                   "`Point` struct instance."))));
 }
 
-TEST(TypecheckStructInstanceTest, StructIncompatibleWithTupleEquivalent) {
+TEST_P(TypecheckBothVersionsTest, StructIncompatibleWithTupleEquivalent) {
   EXPECT_THAT(
-      TypecheckStructInstance(R"(
+      TypecheckStructInstance(GetParam(), R"(
 fn f(x: (s8, u32)) -> (s8, u32) { x }
 fn g() -> (s8, u32) {
   let p = Point { x: s8:-1, y: u32:1024 };
@@ -3288,12 +3320,15 @@ fn g() -> (s8, u32) {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("(sN[8], uN[32])\nvs Point { x: sN[8], y: uN[32] }")));
+               AllOf(HasTypeMismatchInV1(GetParam(), "(sN[8], uN[32])",
+                                         "Point { x: sN[8], y: uN[32] }"),
+                     HasTypeMismatchInV2(GetParam(), "(s8, u32)", "Point"))));
 }
 
 TEST(TypecheckStructInstanceTest, SplatWithDuplicate) {
   EXPECT_THAT(
       TypecheckStructInstance(
+          TypeInferenceVersion::kVersion1,
           "fn f(p: Point) -> Point { Point { x: s8:42, x: s8:64, ..p } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Duplicate value seen for \'x\' in this \'Point\' "
@@ -3302,12 +3337,13 @@ TEST(TypecheckStructInstanceTest, SplatWithDuplicate) {
 
 TEST(TypecheckStructInstanceTest, SplatWithExtraFieldQ) {
   EXPECT_THAT(TypecheckStructInstance(
+                  TypeInferenceVersion::kVersion1,
                   "fn f(p: Point) -> Point { Point { q: u32:42, ..p } }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Struct 'Point' has no member 'q'")));
 }
 
-TEST(TypecheckParametricStructInstanceTest, MulExprInMember) {
+TEST_P(TypecheckBothVersionsTest, MulExprInStructMember) {
   const std::string_view kProgram = R"(
 struct Point<N: u32> {
   x: uN[N],
@@ -3321,52 +3357,62 @@ fn f(p: Point<3>) -> uN[6] {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
-// TODO(https://github.com/google/xls/issues/978) Enable types other than u32 to
-// be used in struct parametric instantiation.
-TEST(TypecheckParametricStructInstanceTest, DISABLED_NonU32Parametric) {
+TEST_P(TypecheckBothVersionsTest, NonU32Parametric) {
   const std::string_view kProgram = R"(
 struct Point<N: u5, N_U32: u32 = {N as u32}> {
   x: uN[N_U32],
 }
 
 fn f(p: Point<u5:3>) -> uN[3] {
-  p.y
+  p.x
 }
 )";
-  XLS_EXPECT_OK(Typecheck(kProgram));
+  if (GetParam() != TypeInferenceVersion::kVersion1) {
+    XLS_EXPECT_OK(Typecheck(kProgram));
+  }
 }
 
 // Helper for parametric struct instance based tests.
-static absl::Status TypecheckParametricStructInstance(std::string program) {
+static absl::Status TypecheckParametricStructInstance(
+    TypeInferenceVersion version, std::string program) {
   program = R"(
 struct Point<N: u32, M: u32 = {N + N}> {
   x: bits[N],
   y: bits[M],
 }
 )" + program;
-  return Typecheck(program).status();
+  return version == TypeInferenceVersion::kVersion1
+             ? Typecheck(program).status()
+             : TypecheckV2(program).status();
 }
 
 TEST(TypecheckParametricStructInstanceTest, WrongDerivedType) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(
+          TypeInferenceVersion::kVersion1,
           "fn f() -> Point<32, 63> { Point { x: u32:5, y: u63:255 } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("first saw M = u32:63; then saw M = N + N = u32:64")));
 }
 
-TEST(TypecheckParametricStructInstanceTest, TooManyParametricArgs) {
+TEST_P(TypecheckBothVersionsTest, TooManyParametricStructArgs) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(
+          GetParam(),
           "fn f() -> Point<u32:5, u32:10, u32:15> { Point { x: u5:5, y: "
           "u10:255 } }"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Expected 2 parametric arguments for 'Point'; got 3")));
+          AllOf(
+              HasSubstrInV1(
+                  GetParam(),
+                  "Expected 2 parametric arguments for 'Point'; got 3"),
+              HasSubstrInV2(
+                  GetParam(),
+                  "Too many parametric values supplied; limit: 2 given: 3"))));
 }
 
-TEST(TypecheckParametricStructInstanceTest,
-     PhantomParametricStructReturnTypeMismatch) {
+TEST_P(TypecheckBothVersionsTest, PhantomParametricStructReturnTypeMismatch) {
   // Erroneous code.
   EXPECT_THAT(
       Typecheck(
@@ -3375,8 +3421,13 @@ TEST(TypecheckParametricStructInstanceTest,
       )"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Parametric argument of the returned value does not match "
-                    "the function return type. Expected 42; got 8.")));
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "Parametric argument of the returned value does not match "
+                    "the function return type. Expected 42; got 8."),
+                HasSubstrInV2(GetParam(),
+                              "Value mismatch for parametric `N` of struct "
+                              "`MyStruct`: u32:8 vs. u32:42"))));
 
   // Fixed version.
   XLS_EXPECT_OK(Typecheck(
@@ -3385,8 +3436,8 @@ TEST(TypecheckParametricStructInstanceTest,
       )"));
 }
 
-TEST(TypecheckParametricStructInstanceTest,
-     PhantomParametricParameterizedStructReturnType) {
+TEST_P(TypecheckBothVersionsTest,
+       PhantomParametricParameterizedStructReturnType) {
   // Erroneous code.
   EXPECT_THAT(
       Typecheck(
@@ -3396,8 +3447,13 @@ TEST(TypecheckParametricStructInstanceTest,
       )"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Parametric argument of the returned value does not match "
-                    "the function return type. Expected 8; got 42.")));
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "Parametric argument of the returned value does not match "
+                    "the function return type. Expected 8; got 42."),
+                HasSubstrInV2(GetParam(),
+                              "Value mismatch for parametric `N` of struct "
+                              "`MyStruct`: u32:42 vs. u32:8"))));
 
   // Fixed version.
   XLS_EXPECT_OK(Typecheck(
@@ -3407,7 +3463,7 @@ TEST(TypecheckParametricStructInstanceTest,
       )"));
 }
 
-TEST(TypecheckParametricStructInstanceTest, PhantomParametricWithExpr) {
+TEST_P(TypecheckBothVersionsTest, PhantomParametricWithExpr) {
   // Erroneous code.
   EXPECT_THAT(
       Typecheck(
@@ -3416,8 +3472,13 @@ TEST(TypecheckParametricStructInstanceTest, PhantomParametricWithExpr) {
       )"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("Parametric argument of the returned value does not match "
-                    "the function return type. Expected 42; got 8.")));
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "Parametric argument of the returned value does not match "
+                    "the function return type. Expected 42; got 8."),
+                HasSubstrInV2(GetParam(),
+                              "Value mismatch for parametric `M` of struct "
+                              "`MyStruct`: u32:8 vs. u32:42"))));
 
   // Fixed version.
   XLS_EXPECT_OK(Typecheck(
@@ -3426,14 +3487,14 @@ TEST(TypecheckParametricStructInstanceTest, PhantomParametricWithExpr) {
       )"));
 }
 
-TEST(TypecheckParametricStructInstanceTest, OutOfOrderOk) {
+TEST_P(TypecheckBothVersionsTest, OutOfOrderOk) {
   XLS_EXPECT_OK(TypecheckParametricStructInstance(
+      GetParam(),
       "fn f() -> Point<32, 64> { Point { y: u64:42, x: u32:255 } }"));
 }
 
-TEST(TypecheckParametricStructInstanceTest,
-     OkInstantiationInParametricFunction) {
-  XLS_EXPECT_OK(TypecheckParametricStructInstance(R"(
+TEST_P(TypecheckBothVersionsTest, OkInstantiationInParametricFunction) {
+  XLS_EXPECT_OK(TypecheckParametricStructInstance(GetParam(), R"(
 fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> { Point { x, y } }
 fn main() {
   let _ = f(u5:1, u10:2);
@@ -3443,18 +3504,22 @@ fn main() {
 )"));
 }
 
-TEST(TypecheckParametricStructInstanceTest, BadReturnType) {
-  EXPECT_THAT(TypecheckParametricStructInstance(
-                  "fn f() -> Point<5, 10> { Point { x: u32:5, y: u64:255 } }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Point { x: uN[32], y: uN[64] }\nvs Point { "
-                                 "x: uN[5], y: uN[10] }")));
+TEST_P(TypecheckBothVersionsTest, BadParametricStructReturnType) {
+  EXPECT_THAT(
+      TypecheckParametricStructInstance(
+          GetParam(),
+          "fn f() -> Point<5, 10> { Point { x: u32:5, y: u64:255 } }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Point { x: uN[32], y: uN[64] }\nvs Point { "
+                                   "x: uN[5], y: uN[10] }"),
+                     HasSizeMismatchInV2(GetParam(), "u32", "bits[5]"))));
 }
 
 // Bad struct type-parametric instantiation in parametric function.
 TEST(TypecheckParametricStructInstanceTest, BadParametricInstantiation) {
   EXPECT_THAT(
-      TypecheckParametricStructInstance(R"(
+      TypecheckParametricStructInstance(TypeInferenceVersion::kVersion1, R"(
 fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
   Point { x, y }
 }
@@ -3473,7 +3538,7 @@ fn main() {
 
 TEST(TypecheckParametricStructInstanceTest, BadParametricSplatInstantiation) {
   EXPECT_THAT(
-      TypecheckParametricStructInstance(R"(
+      TypecheckParametricStructInstance(TypeInferenceVersion::kVersion1, R"(
 fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
   let p = Point { x, y };
   Point { x: (x++x), ..p }
@@ -3494,7 +3559,7 @@ TEST(TypecheckTest, AttrViaColonRef) {
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MIN }"));
 }
 
-TEST(TypecheckTest, ColonRefTypeAlias) {
+TEST(TypecheckBothVersionsTest, ColonRefTypeAlias) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU8 = u8;
 fn f() -> u8 { MyU8::MAX }
@@ -3524,7 +3589,7 @@ fn f() -> MyU0 { bits[0]:0 }
 )"));
 }
 
-TEST(TypecheckTest, TypeAliasOfStructWithBoundParametrics) {
+TEST_P(TypecheckBothVersionsTest, TypeAliasOfStructWithBoundParametrics) {
   XLS_EXPECT_OK(Typecheck(R"(
 struct S<X: u32, Y: u32> {
   x: bits[X],
@@ -3608,7 +3673,7 @@ fn f() -> () {
       std::cerr, PositionalErrorColor::kWarningColor, file_table, vfs));
 }
 
-TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {
+TEST_P(TypecheckBothVersionsTest, NonstandardConstantNamingGivesWarning) {
   const constexpr std::string_view kProgram = R"(const mol = u32:42;)";
   XLS_ASSERT_OK_AND_ASSIGN(TypecheckResult tr, Typecheck(kProgram));
   TypecheckedModule& tm = tr.tm;
@@ -3618,7 +3683,7 @@ TEST(TypecheckTest, NonstandardConstantNamingGivesWarning) {
             "got: `mol`");
 }
 
-TEST(TypecheckTest, NonstandardConstantNamingOkViaAllow) {
+TEST_P(TypecheckBothVersionsTest, NonstandardConstantNamingOkViaAllow) {
   const constexpr std::string_view kProgram =
       R"(#![allow(nonstandard_constant_naming)]
 const mol = u32:42;)";
@@ -3940,7 +4005,7 @@ fn f() -> (u32, u32) {
                                  "bits-typed operands")));
 }
 
-TEST(TypecheckErrorTest, MatchOnBitsWithEmptyTuplePattern) {
+TEST_P(TypecheckBothVersionsTest, MatchOnBitsWithEmptyTuplePattern) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: u32) -> u32 {
@@ -3953,10 +4018,13 @@ fn f(x: u32) -> u32 {
       Typecheck(kProgram),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("uN[32] Pattern expected matched-on type to be a tuple")));
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "uN[32] Pattern expected matched-on type to be a tuple"),
+                HasTypeMismatchInV2(GetParam(), "()", "u32"))));
 }
 
-TEST(TypecheckErrorTest, MatchOnBitsWithIrrefutableTuplePattern) {
+TEST_P(TypecheckBothVersionsTest, MatchOnBitsWithIrrefutableTuplePattern) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: u32) -> u32 {
@@ -3969,10 +4037,13 @@ fn f(x: u32) -> u32 {
       Typecheck(kProgram),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
-          HasSubstr("uN[32] Pattern expected matched-on type to be a tuple.")));
+          AllOf(HasSubstrInV1(
+                    GetParam(),
+                    "uN[32] Pattern expected matched-on type to be a tuple."),
+                HasTypeMismatchInV2(GetParam(), "(Any,)", "u32"))));
 }
 
-TEST(TypecheckErrorTest, MatchOnTupleWithWrongSizedTuplePattern) {
+TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithWrongSizedTuplePattern) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u32)) -> u32 {
@@ -3983,11 +4054,14 @@ fn f(x: (u32)) -> u32 {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Cannot match a 1-element tuple to 2 values.")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(),
+                              "Cannot match a 1-element tuple to 2 values."),
+                HasTypeMismatchInV2(GetParam(), "(Any, Any)", "(u32,)"))));
 }
 
-TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsEnd) {
+TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsEnd) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u32, u33, u34)) -> u32 {
@@ -3999,7 +4073,7 @@ fn f(x: (u32, u33, u34)) -> u32 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsBeginning) {
+TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsBeginning) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u30, u31, u32)) -> u32 {
@@ -4011,7 +4085,8 @@ fn f(x: (u30, u31, u32)) -> u32 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsBeginningThenMatches) {
+TEST_P(TypecheckBothVersionsTest,
+       MatchOnTupleWithRestOfTupleSkipsBeginningThenMatches) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u29, u30, u31, u32)) -> u31 {
@@ -4023,7 +4098,7 @@ fn f(x: (u29, u30, u31, u32)) -> u31 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsMiddle) {
+TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsMiddle) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u30, u31, u32, u33)) -> u30 {
@@ -4035,7 +4110,7 @@ fn f(x: (u30, u31, u32, u33)) -> u30 {
   XLS_ASSERT_OK(Typecheck(kProgram));
 }
 
-TEST(TypecheckErrorTest, MatchOnTupleWithRestOfTupleSkipsNone) {
+TEST_P(TypecheckBothVersionsTest, MatchOnTupleWithRestOfTupleSkipsNone) {
   constexpr std::string_view kProgram =
       R"(
 fn f(x: (u32, u33)) -> u32 {
@@ -4098,46 +4173,51 @@ fn f(x: u32) -> u32 {
             "Definition of `y` (type `uN[32]`) is not used in function `f`");
 }
 
-TEST(TypecheckTest, ConcatU1U1) {
+TEST_P(TypecheckBothVersionsTest, ConcatU1U1) {
   XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: u1) -> u2 { x ++ y }"));
 }
 
-TEST(TypecheckErrorTest, ConcatU1S1) {
+TEST_P(TypecheckBothVersionsTest, ConcatU1S1) {
   EXPECT_THAT(Typecheck("fn f(x: u1, y: s1) -> u2 { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand "
                                    "types to both be unsigned bits")));
 }
 
-TEST(TypecheckErrorTest, ConcatS1S1) {
+TEST_P(TypecheckBothVersionsTest, ConcatS1S1) {
   EXPECT_THAT(Typecheck("fn f(x: s1, y: s1) -> u2 { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand "
                                    "types to both be unsigned bits")));
 }
 
-TEST(TypecheckTest, ConcatU2S1) {
+TEST_P(TypecheckBothVersionsTest, ConcatU2S1) {
   EXPECT_THAT(Typecheck("fn f(x: u2, y: s1) -> u3 { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand "
                                    "types to both be unsigned bits")));
 }
 
-TEST(TypecheckTest, ConcatU1Nil) {
+TEST_P(TypecheckBothVersionsTest, ConcatU1Nil) {
   EXPECT_THAT(Typecheck("fn f(x: u1, y: ()) -> () { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand types "
                                    "to be either both-arrays or both-bits")));
 }
 
-TEST(TypecheckTest, ConcatS1Nil) {
-  EXPECT_THAT(Typecheck("fn f(x: s1, y: ()) -> () { x ++ y }").status(),
-              IsPosError("TypeInferenceError",
-                         HasSubstr("Concatenation requires operand types "
-                                   "to be either both-arrays or both-bits")));
+TEST_P(TypecheckBothVersionsTest, ConcatS1Nil) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: s1, y: ()) -> () { x ++ y }").status(),
+      IsPosError("TypeInferenceError",
+                 AllOf(HasSubstrInV1(GetParam(),
+                                     "Concatenation requires operand types "
+                                     "to be either both-arrays or both-bits"),
+                       HasSubstrInV2(GetParam(),
+                                     "Concatenation requires operand types to "
+                                     "both be unsigned bits"))));
 }
 
-TEST(TypecheckTest, ConcatNilNil) {
+TEST_P(TypecheckBothVersionsTest, ConcatNilNil) {
   EXPECT_THAT(Typecheck("fn f(x: (), y: ()) -> () { x ++ y }").status(),
               IsPosError("TypeInferenceError",
                          HasSubstr("Concatenation requires operand types to "
@@ -4186,7 +4266,7 @@ fn f(x: MyEnum, y: MyEnum) -> () { x ++ y }
                                    "to unsigned bits before concatenation")));
 }
 
-TEST(TypecheckTest, ConcatStructStruct) {
+TEST_P(TypecheckBothVersionsTest, ConcatStructStruct) {
   EXPECT_THAT(Typecheck(R"(
 struct S {}
 fn f(x: S, y: S) -> () { x ++ y }
@@ -4197,22 +4277,22 @@ fn f(x: S, y: S) -> () { x ++ y }
                                    "either both-arrays or both-bits")));
 }
 
-TEST(TypecheckTest, ConcatUnWithXn) {
+TEST_P(TypecheckBothVersionsTest, ConcatUnWithXn) {
   XLS_ASSERT_OK(Typecheck(R"(
 fn f(x: u32, y: xN[false][32]) -> xN[false][64] { x ++ y }
 )"));
 }
 
-TEST(TypecheckTest, ConcatU1ArrayOfOneU8) {
+TEST_P(TypecheckBothVersionsTest, ConcatU1ArrayOfOneU8) {
   EXPECT_THAT(
-      Typecheck("fn f(x: u1, y: u8[1]) -> () { x ++ y }").status(),
+      Typecheck("fn f(x: u1, y: u8[1]) -> u2 { x ++ y }").status(),
       IsPosError(
           "TypeInferenceError",
           HasSubstr(
               "Attempting to concatenate array/non-array values together")));
 }
 
-TEST(TypecheckTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
+TEST_P(TypecheckBothVersionsTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
   XLS_ASSERT_OK(Typecheck("fn f(x: u8[3], y: u8[1]) -> u8[4] { x ++ y }"));
 }
 

@@ -621,8 +621,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       return node_is_annotation ? absl::OkStatus() : type.status();
     }
 
-    XLS_RETURN_IF_ERROR(
-        ValidateConcreteType(node, type->get(), *ti, *annotation, file_table_));
+    XLS_RETURN_IF_ERROR(ValidateConcreteType(
+        node, type->get(), *ti, *annotation, warning_collector_, file_table_));
     if (const auto* literal = dynamic_cast<const Number*>(node);
         literal != nullptr && literal->type_annotation() != nullptr) {
       ti->SetItem(literal->type_annotation(),

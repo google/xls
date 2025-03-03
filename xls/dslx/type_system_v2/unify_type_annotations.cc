@@ -184,7 +184,10 @@ class Unifier {
         tuple_annotation = module_.Make<TupleTypeAnnotation>(
             tuple_annotation->span(), expanded_members);
       }
-      CHECK_EQ(tuple_annotation->members().size(), member_count);
+      if (tuple_annotation->members().size() != member_count) {
+        return error_generator_.TypeMismatchError(
+            parametric_context_, tuple_annotation, annotations[0]);
+      }
       expanded_annotations.push_back(tuple_annotation);
     }
 

@@ -15,13 +15,12 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_CONCRETE_TYPE_H_
 #define XLS_DSLX_TYPE_SYSTEM_V2_VALIDATE_CONCRETE_TYPE_H_
 
-#include <optional>
-
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -31,6 +30,7 @@ namespace xls::dslx {
 absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
                                   const TypeAnnotation* annotation,
+                                  WarningCollector& warning_collector,
                                   const FileTable& file_table);
 
 }  // namespace xls::dslx

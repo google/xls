@@ -20,6 +20,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
@@ -36,6 +37,7 @@
 #include "xls/dslx/type_system/type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 namespace {
@@ -57,10 +59,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
  public:
   explicit TypeValidator(const Type* type, const TypeInfo& ti,
                          const TypeAnnotation* annotation,
+                         WarningCollector& warning_collector,
                          const FileTable& file_table)
       : type_(type),
         ti_(ti),
         annotation_(annotation),
+        warning_collector_(warning_collector),
         file_table_(file_table) {}
 
   absl::Status HandleNumber(const Number* literal) override {
@@ -70,11 +74,19 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     // too small.
     if (std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type_);
         bits_like.has_value()) {
-      return TryEnsureFitsInType(*literal, bits_like.value(), *type_);
+      XLS_RETURN_IF_ERROR(
+          TryEnsureFitsInType(*literal, bits_like.value(), *type_));
+      return DefaultHandler(literal);
     }
     return TypeInferenceErrorStatus(
         literal->span(), type_,
         "Non-bits type used to define a numeric literal.", file_table_);
+  }
+
+  absl::Status HandleConstantDef(const ConstantDef* def) override {
+    WarnOnInappropriateConstantName(def->name_def()->identifier(), def->span(),
+                                    *def->owner(), &warning_collector_);
+    return DefaultHandler(def);
   }
 
   absl::Status HandleBinop(const Binop* binop) override {
@@ -100,7 +112,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     if (binop->binop_kind() == BinopKind::kConcat) {
       return ValidateConcatOperandTypes(*binop);
     }
-    return absl::OkStatus();
+    return DefaultHandler(binop);
   }
 
   absl::Status HandleUnop(const Unop* unop) override {
@@ -110,18 +122,19 @@ class TypeValidator : public AstNodeVisitorWithDefault {
           "Unary operations can only be applied to bits-typed operands.",
           file_table_);
     }
-    return absl::OkStatus();
+    return DefaultHandler(unop);
   }
 
   absl::Status HandleIndex(const Index* index) override {
-    return absl::visit(
+    XLS_RETURN_IF_ERROR(absl::visit(
         Visitor{[&](Slice* slice) { return ValidateSliceLhs(index); },
                 [&](WidthSlice* width_slice) -> absl::Status {
                   XLS_RETURN_IF_ERROR(ValidateSliceLhs(index));
                   return ValidateWidthSlice(index, width_slice);
                 },
                 [&](Expr* expr) { return ValidateNonSliceIndex(index); }},
-        index->rhs());
+        index->rhs()));
+    return DefaultHandler(index);
   }
 
   absl::Status HandleTupleIndex(const TupleIndex* tuple_index) override {
@@ -129,8 +142,9 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     const Type& rhs_type = **ti_.GetItem(tuple_index->index());
     XLS_RETURN_IF_ERROR(
         ValidateTupleTypeForIndex(*tuple_index, lhs_type, file_table_));
-    return ValidateTupleIndex(*tuple_index, lhs_type, rhs_type, ti_,
-                              file_table_);
+    XLS_RETURN_IF_ERROR(
+        ValidateTupleIndex(*tuple_index, lhs_type, rhs_type, ti_, file_table_));
+    return DefaultHandler(tuple_index);
   }
 
   absl::Status HandleCast(const Cast* cast) override {
@@ -150,6 +164,18 @@ class TypeValidator : public AstNodeVisitorWithDefault {
           absl::Substitute("Cannot cast from type `$0` to type `$1`",
                            from_type.value()->ToString(), to_type.ToString()),
           file_table_);
+    }
+    return DefaultHandler(cast);
+  }
+
+  absl::Status DefaultHandler(const AstNode* node) override {
+    if (node->parent() != nullptr) {
+      if (const auto* binop = dynamic_cast<Binop*>(node->parent());
+          binop != nullptr && binop->binop_kind() == BinopKind::kConcat &&
+          (binop->lhs() == node || binop->rhs() == node)) {
+        XLS_RETURN_IF_ERROR(
+            PreValidateConcatOperand(dynamic_cast<const Expr*>(node)));
+      }
     }
     return absl::OkStatus();
   }
@@ -205,7 +231,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
                            range->ToString(), end.Sub(start)->ToString(true)),
           file_table_);
     }
-    return absl::OkStatus();
+    return DefaultHandler(range);
   }
 
  private:
@@ -245,24 +271,47 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  // Checks for pitfalls with a concat operand. This is meant to be used on the
+  // operands at the time of their own validation, which is before the concat
+  // node itself is concretized. If we were to defer it until the concat node is
+  // concretized and validated itself, then in a case like
+  //   `let x: s2 = s1:0 ++ s1:1`
+  // it would be unification of the s2 and the automatic u2 type of the concat
+  // result that would fail, yielding a more puzzling error.
+  absl::Status PreValidateConcatOperand(const Expr* expr) {
+    std::optional<BitsLikeProperties> bits_like = GetBitsLike(*type_);
+    if (bits_like.has_value()) {
+      XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+      if (is_signed) {
+        return TypeInferenceErrorStatus(
+            expr->span(), nullptr,
+            absl::StrCat("Concatenation requires operand types to both be "
+                         "unsigned bits; got: ",
+                         type_->ToString()),
+            file_table_);
+      }
+      return absl::OkStatus();
+    }
+    if (!type_->IsArray()) {
+      return TypeInferenceErrorStatus(
+          expr->span(), type_,
+          absl::StrCat("Concatenation requires operand types to be either "
+                       "both-arrays or both-bits; got: ",
+                       type_->ToString()),
+          file_table_);
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status ValidateConcatOperandTypes(const Binop& concat) {
     const Type* lhs = *ti_.GetItem(concat.lhs());
     const Type* rhs = *ti_.GetItem(concat.rhs());
     std::optional<BitsLikeProperties> lhs_bits_like = GetBitsLike(*lhs);
     std::optional<BitsLikeProperties> rhs_bits_like = GetBitsLike(*rhs);
     if (lhs_bits_like.has_value() && rhs_bits_like.has_value()) {
-      XLS_ASSIGN_OR_RETURN(bool lhs_is_signed,
-                           lhs_bits_like->is_signed.GetAsBool());
-      XLS_ASSIGN_OR_RETURN(bool rhs_is_signed,
-                           rhs_bits_like->is_signed.GetAsBool());
-      if (lhs_is_signed || rhs_is_signed) {
-        return TypeInferenceErrorStatus(
-            concat.span(), nullptr,
-            absl::StrFormat("Concatenation requires operand types to both be "
-                            "unsigned bits; got lhs: `%s`; rhs: `%s`",
-                            lhs->ToString(), rhs->ToString()),
-            file_table_);
-      }
+      // Bits-like operands would have been validated in detail by
+      // `PreValidateConcatOperand` when those operands are concretized and
+      // validated, which is before the Binop we are currently processing.
       return absl::OkStatus();
     }
 
@@ -352,6 +401,7 @@ class TypeValidator : public AstNodeVisitorWithDefault {
   const Type* type_;
   const TypeInfo& ti_;
   const TypeAnnotation* annotation_;
+  WarningCollector& warning_collector_;
   const FileTable& file_table_;
 };
 
@@ -360,11 +410,12 @@ class TypeValidator : public AstNodeVisitorWithDefault {
 absl::Status ValidateConcreteType(const AstNode* node, const Type* type,
                                   const TypeInfo& ti,
                                   const TypeAnnotation* annotation,
+                                  WarningCollector& warning_collector,
                                   const FileTable& file_table) {
   if (type->IsMeta()) {
     XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(*type));
   }
-  TypeValidator validator(type, ti, annotation, file_table);
+  TypeValidator validator(type, ti, annotation, warning_collector, file_table);
   return node->Accept(&validator);
 }
 

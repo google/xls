@@ -271,6 +271,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
+        "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_node_visitor_with_default",
