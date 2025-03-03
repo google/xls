@@ -59,6 +59,7 @@ cc_library(
         ":inference_table",
         ":solve_for_parametrics",
         ":type_annotation_utils",
+        ":type_system_tracer",
         ":unify_type_annotations",
         ":validate_concrete_type",
         "//xls/common:casts",
@@ -334,5 +335,41 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "type_system_tracer",
+    srcs = ["type_system_tracer.cc"],
+    hdrs = ["type_system_tracer.h"],
+    deps = [
+        ":inference_table",
+        "//xls/common:indent",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "type_system_tracer_test",
+    srcs = ["type_system_tracer_test.cc"],
+    deps = [
+        ":type_annotation_utils",
+        ":type_system_tracer",
+        "//xls/common:xls_gunit_main",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx:warning_kind",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:module",
+        "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/strings",
+        "@googletest//:gtest",
     ],
 )

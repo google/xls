@@ -59,6 +59,7 @@
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/solve_for_parametrics.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
+#include "xls/dslx/type_system_v2/type_system_tracer.h"
 #include "xls/dslx/type_system_v2/unify_type_annotations.h"
 #include "xls/dslx/type_system_v2/validate_concrete_type.h"
 #include "xls/dslx/warning_collector.h"
@@ -215,7 +216,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
   InferenceTableConverter(
       InferenceTable& table, Module& module, ImportData& import_data,
       WarningCollector& warning_collector, TypeInfo* base_type_info,
-      const FileTable& file_table,
+      const FileTable& file_table, TypeSystemTracer& tracer,
       std::optional<std::unique_ptr<InferenceTableConverter>>
           builtins_converter)
       : table_(table),
@@ -224,6 +225,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
         warning_collector_(warning_collector),
         base_type_info_(base_type_info),
         file_table_(file_table),
+        tracer_(tracer),
         builtins_converter_(std::move(builtins_converter)) {}
 
   bool IsBuiltin(const Function* node) {
@@ -336,6 +338,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
   absl::Status ConvertInvocation(
       const Invocation* invocation, std::optional<const Function*> caller,
       std::optional<const ParametricContext*> caller_context) {
+    TypeSystemTrace trace =
+        tracer_.TraceConvertInvocation(invocation, caller_context);
     VLOG(5) << "Converting invocation: " << invocation->callee()->ToString()
             << " with module: " << invocation->owner()->name()
             << " in module: " << module_.name()
@@ -555,6 +559,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     if (node->kind() == AstNodeKind::kRestOfTuple) {
       return absl::OkStatus();
     }
+    TypeSystemTrace trace = tracer_.TraceConvertNode(node);
     VLOG(5) << "GenerateTypeInfo for node: " << node->ToString()
             << " with owner: " << node->owner()->name()
             << " for module: " << module_.name();
@@ -641,6 +646,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const AstNode* node,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate = std::nullopt) {
+    TypeSystemTrace trace = tracer_.TraceUnify(node);
     const std::optional<const NameRef*> type_variable =
         table_.GetTypeVariable(node);
     if (type_variable.has_value()) {
@@ -831,6 +837,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
   absl::StatusOr<std::unique_ptr<Type>> Concretize(
       const TypeAnnotation* annotation,
       std::optional<const ParametricContext*> parametric_context) {
+    TypeSystemTrace trace = tracer_.TraceConcretize(annotation);
     VLOG(5) << "Concretize: " << annotation->ToString()
             << " in context invocation: " << ToString(parametric_context);
     VLOG(5) << "Effective context: " << ToString(parametric_context);
@@ -1158,6 +1165,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       std::optional<const ParametricContext*> parametric_context,
       TypeInfo* type_info, const TypeAnnotation* type_annotation,
       const Expr* expr) {
+    TypeSystemTrace trace = tracer_.TraceEvaluate(parametric_context, expr);
+
     // This is the type of the parametric binding we are talking about, which is
     // typically a built-in type, but the way we are concretizing it here would
     // support it being a complex type that even refers to other parametrics.
@@ -1303,8 +1312,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const Invocation* invocation) {
     absl::flat_hash_map<std::string, InterpValue> values;
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
-    ParametricBindings<std::vector<const ParametricBinding*>> bindings(
-        invocation_context->parametric_bindings());
+    ParametricBindings bindings(invocation_context->parametric_bindings());
     auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
       if (implicit_parametrics.empty()) {
         return absl::OkStatus();
@@ -1461,9 +1469,10 @@ class InferenceTableConverter : public UnificationErrorGenerator,
           [](const TypeAnnotation*) { return true; },
       absl::FunctionRef<absl::Status(const Expr*)> pre_use_actual_arg =
           [](const Expr*) { return absl::OkStatus(); }) {
+    TypeSystemTrace trace =
+        tracer_.TraceInferImplicitParametrics(implicit_parametrics);
     absl::flat_hash_map<std::string, InterpValue> values;
-    ParametricBindings<absl::flat_hash_set<const ParametricBinding*>> bindings(
-        implicit_parametrics);
+    ParametricBindings bindings(implicit_parametrics);
     for (int i = 0; i < formal_types.size() && !implicit_parametrics.empty();
          i++) {
       std::optional<const NameRef*> actual_arg_type_var =
@@ -1607,6 +1616,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const NameRef* type_variable, const Span& span,
       std::optional<absl::FunctionRef<bool(const TypeAnnotation*)>>
           accept_predicate) {
+    TypeSystemTrace trace = tracer_.TraceUnify(type_variable);
     VLOG(6) << "Unifying type annotations for variable "
             << type_variable->ToString();
     XLS_ASSIGN_OR_RETURN(std::vector<const TypeAnnotation*> annotations,
@@ -1632,6 +1642,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
           accept_predicate) {
     XLS_RETURN_IF_ERROR(ResolveIndirectTypeAnnotations(
         parametric_context, annotations, accept_predicate));
+    TypeSystemTrace trace = tracer_.TraceUnify(annotations);
     return UnifyTypeAnnotations(
         module_, table_, file_table_,
         /*error_generator=*/*this,
@@ -1656,8 +1667,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
             &module_, parent_context.has_value()
                           ? parametric_context_type_info_.at(*parent_context)
                           : base_type_info_));
-    ParametricBindings<std::vector<ParametricBinding*>> bindings(
-        struct_def.parametric_bindings());
+    ParametricBindings bindings(struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
                          InterpValue value) -> absl::Status {
@@ -1963,6 +1973,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     if (GetSignednessAndBitCount(annotation).ok()) {
       return annotation;
     }
+    TypeSystemTrace trace = tracer_.TraceResolve(annotation);
     VLOG(4) << "Resolving variables in: " << annotation->ToString()
             << " in context: " << ToString(parametric_context);
     constexpr int kMaxIterations = 100;
@@ -2293,6 +2304,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
   WarningCollector& warning_collector_;
   TypeInfo* const base_type_info_;
   const FileTable& file_table_;
+  TypeSystemTracer& tracer_;
   absl::flat_hash_map<const ParametricContext*, TypeInfo*>
       parametric_context_type_info_;
   absl::flat_hash_map<const ParametricContext*, ParametricEnv>
@@ -2321,21 +2333,34 @@ absl::StatusOr<TypeInfo*> InferenceTableToTypeInfo(
   XLS_ASSIGN_OR_RETURN(
       TypeInfo * builtins_type_info,
       import_data.type_info_owner().New(std::move(builtins_module.get())));
+  std::unique_ptr<TypeSystemTracer> builtins_tracer =
+      TypeSystemTracer::Create();
   std::optional<std::unique_ptr<InferenceTableConverter>> builtins_converter =
       std::make_unique<InferenceTableConverter>(
           table, *builtins_module, import_data, warning_collector,
-          builtins_type_info, file_table,
+          builtins_type_info, file_table, *builtins_tracer,
           /*builtins_converter=*/std::nullopt);
-  InferenceTableConverter converter(table, module, import_data,
-                                    warning_collector, base_type_info,
-                                    file_table, std::move(builtins_converter));
-  XLS_RETURN_IF_ERROR(
+
+  std::unique_ptr<TypeSystemTracer> module_tracer = TypeSystemTracer::Create();
+  InferenceTableConverter converter(
+      table, module, import_data, warning_collector, base_type_info, file_table,
+      *module_tracer, std::move(builtins_converter));
+  absl::Status status =
       converter.ConvertSubtree(&module, /*function=*/std::nullopt,
-                               /*parametric_context=*/std::nullopt));
+                               /*parametric_context=*/std::nullopt);
 
   VLOG(5) << "Inference table after conversion:";
   VLOG(5) << table.ToString();
 
+  VLOG(5) << "Builtins module traces after conversion:";
+  VLOG(5) << builtins_tracer->ConvertTracesToString();
+
+  VLOG(5) << "User module traces after conversion:";
+  VLOG(5) << module_tracer->ConvertTracesToString();
+
+  if (!status.ok()) {
+    return status;
+  }
   return converter.GetBaseTypeInfo();
 }
 

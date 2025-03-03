@@ -215,9 +215,9 @@ bool ContainedWithinFunction(const Invocation& invocation,
                              const Function& caller);
 
 // Organizes a group of ParametricBinding pointers by their identifiers.
-template <typename Container>
 class ParametricBindings {
  public:
+  template <typename Container>
   explicit ParametricBindings(const Container& bindings) {
     for (const ParametricBinding* binding : bindings) {
       bindings_[binding->identifier()] = binding;
