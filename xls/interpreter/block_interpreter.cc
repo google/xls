@@ -188,6 +188,14 @@ class FifoModel {
       return absl::InvalidArgumentError(
           absl::StrFormat("Unexpected port '%s'", input->port_name()));
     }
+
+    // If this fifo does not actually carry any data, we don't require
+    // the `push_data_` input to have been provided. The presence/absence
+    // of `push_valid_` is all that is required.
+    if (type_->GetFlatBitCount() == 0) {
+      push_data_ = ZeroOfType(type_);
+    }
+
     if (!(push_valid_.has_value() && push_data_.has_value() &&
           pop_ready_.has_value() && reset_.has_value())) {
       // Not yet ready to compute next state.
