@@ -44,6 +44,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_node_visitor_with_default.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
@@ -1294,7 +1295,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const ParametricContext* context) {
     absl::flat_hash_map<std::string, InterpValue> values;
     absl::flat_hash_set<const ParametricBinding*> implicit_parametrics;
-    absl::flat_hash_map<std::string, const ParametricBinding*> bindings;
+    ParametricBindings<std::vector<const ParametricBinding*>> bindings(
+        context->parametric_bindings());
     auto infer_pending_implicit_parametrics = [&]() -> absl::Status {
       if (implicit_parametrics.empty()) {
         return absl::OkStatus();
@@ -1307,7 +1309,6 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       return absl::OkStatus();
     };
     for (const ParametricBinding* binding : context->parametric_bindings()) {
-      bindings.emplace(binding->identifier(), binding);
       std::optional<ParametricContextScopedExpr> expr =
           table_.GetParametricValue(*binding->name_def(), *context);
       if (expr.has_value()) {
@@ -1602,7 +1603,8 @@ class InferenceTableConverter : public UnificationErrorGenerator,
             &module_, parent_context.has_value()
                           ? parametric_context_type_info_.at(*parent_context)
                           : base_type_info_));
-    absl::flat_hash_map<std::string, const ParametricBinding*> bindings;
+    ParametricBindings<std::vector<ParametricBinding*>> bindings(
+        struct_def.parametric_bindings());
     absl::flat_hash_map<std::string, ExprOrType> resolved_parametrics;
     auto set_value = [&](const ParametricBinding* binding,
                          InterpValue value) -> absl::Status {
@@ -1663,7 +1665,6 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     };
     for (int i = 0; i < struct_def.parametric_bindings().size(); i++) {
       const ParametricBinding* binding = struct_def.parametric_bindings()[i];
-      bindings.emplace(binding->identifier(), binding);
       if (i < explicit_parametrics.size()) {
         XLS_RETURN_IF_ERROR(set_value(binding, explicit_parametrics[i]));
       } else if (binding->expr() != nullptr) {

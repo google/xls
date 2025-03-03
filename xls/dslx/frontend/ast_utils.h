@@ -17,12 +17,14 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -211,6 +213,24 @@ const Number* IsBareNumber(const AstNode* node, bool* is_boolean = nullptr);
 // see if we arrive at the caller node as the immediately containing function.
 bool ContainedWithinFunction(const Invocation& invocation,
                              const Function& caller);
+
+// Organizes a group of ParametricBinding pointers by their identifiers.
+template <typename Container>
+class ParametricBindings {
+ public:
+  explicit ParametricBindings(const Container& bindings) {
+    for (const ParametricBinding* binding : bindings) {
+      bindings_[binding->identifier()] = binding;
+    }
+  }
+
+  const ParametricBinding* at(std::string identifier) const {
+    return bindings_.at(identifier);
+  }
+
+ private:
+  absl::flat_hash_map<std::string, const ParametricBinding*> bindings_;
+};
 
 }  // namespace xls::dslx
 
