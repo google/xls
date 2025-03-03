@@ -227,18 +227,19 @@ u32 = {
         let (value_to_write, written_mem_initialized) = write_word(
             mem[write_req.addr], mem_initialized[write_req.addr], write_req.data, write_req.mask);
 
-        let unmasked_read_value = if write_req_valid && read_req.addr == write_req.addr {
-            // If we are simultaneously reading and writing the same address, check
-            // SIMULTANEOUS_READ_WRITE_BEHAVIOR for the desired behavior.
-            match SIMULTANEOUS_READ_WRITE_BEHAVIOR {
-                SimultaneousReadWriteBehavior::READ_BEFORE_WRITE => mem[read_req.addr],
-                SimultaneousReadWriteBehavior::WRITE_BEFORE_READ => value_to_write,
-                SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => fail!(
-                    "conflicting_read_and_write", mem[read_req.addr]),
-            }
-        } else {
-            mem[read_req.addr]
-        };
+        let unmasked_read_value =
+            if write_req_valid && read_req_valid && read_req.addr == write_req.addr {
+                // If we are simultaneously reading and writing the same address, check
+                // SIMULTANEOUS_READ_WRITE_BEHAVIOR for the desired behavior.
+                match SIMULTANEOUS_READ_WRITE_BEHAVIOR {
+                    SimultaneousReadWriteBehavior::READ_BEFORE_WRITE => mem[read_req.addr],
+                    SimultaneousReadWriteBehavior::WRITE_BEFORE_READ => value_to_write,
+                    SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => fail!(
+                        "conflicting_read_and_write", mem[read_req.addr]),
+                }
+            } else {
+                mem[read_req.addr]
+            };
         let read_resp_value = ReadResp<DATA_WIDTH> {
             data: unmasked_read_value & expand_mask<DATA_WIDTH>(read_req.mask),
         };
@@ -429,6 +430,37 @@ proc RamModelFourBitMaskReadWriteTest {
         let tok = send(tok, read_req, ReadReq { addr: u8:1, mask: u2:0b10 });
         let (tok, read_data) = recv(tok, read_resp);
         assert_eq(read_data.data, u8:0xB0);
+
+        let tok = send(tok, terminator, true);
+    }
+}
+
+// Tests that RAM doesn't fail on ASSERT_NO_CONFLICT when only writing without a valid read request.
+#[test_proc]
+proc RamModelAssertNoConflictWriteOnlyTest {
+    write_req: chan<WriteReq<8, 8, 1>> out;
+    write_resp: chan<WriteResp> in;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (_, read_req_r) = chan<ReadReq<8, 1>>("read_req");
+        let (read_resp_s, _) = chan<ReadResp<8>>("read_resp");
+        let (write_req_s, write_req_r) = chan<WriteReq<8, 8, 1>>("write_req");
+        let (write_resp_s, write_resp_r) = chan<WriteResp>("write_resp");
+        const DATA_WIDTH = u32:8;
+        const SIZE = u32:256;
+        const WORD_PARTITION_SIZE = u32:8;
+        spawn RamModel<
+            DATA_WIDTH, SIZE, WORD_PARTITION_SIZE, SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT>(
+            read_req_r, read_resp_s, write_req_r, write_resp_s);
+        (write_req_s, write_resp_r, terminator)
+    }
+
+    init { () }
+
+    next(state: ()) {
+        let tok = send(join(), write_req, WriteWordReq<u32:1>(u8:0, u8:0xFF));
+        let (tok, _) = recv(tok, write_resp);
 
         let tok = send(tok, terminator, true);
     }
