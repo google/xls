@@ -57,7 +57,9 @@ cc_library(
         ":evaluator",
         ":expand_variables",
         ":inference_table",
+        ":parametric_struct_instantiator",
         ":solve_for_parametrics",
+        ":type_annotation_resolver",
         ":type_annotation_utils",
         ":type_system_tracer",
         ":unify_type_annotations",
@@ -312,6 +314,7 @@ cc_library(
     deps = [
         ":evaluator",
         ":inference_table",
+        ":parametric_struct_instantiator",
         ":type_annotation_utils",
         "//xls/common/status:status_macros",
         "//xls/dslx:errors",
@@ -371,5 +374,49 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "@com_google_absl//absl/strings",
         "@googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "parametric_struct_instantiator",
+    hdrs = ["parametric_struct_instantiator.h"],
+    deps = [
+        ":evaluator",
+        ":inference_table",
+        ":type_annotation_utils",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "type_annotation_resolver",
+    srcs = ["type_annotation_resolver.cc"],
+    hdrs = ["type_annotation_resolver.h"],
+    deps = [
+        ":evaluator",
+        ":inference_table",
+        ":parametric_struct_instantiator",
+        ":type_annotation_utils",
+        ":type_system_tracer",
+        ":unify_type_annotations",
+        "//xls/common:casts",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
+        "//xls/dslx/frontend:ast_node",
+        "//xls/dslx/frontend:pos",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )

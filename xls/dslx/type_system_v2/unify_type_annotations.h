@@ -23,9 +23,9 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
+#include "xls/dslx/type_system_v2/parametric_struct_instantiator.h"
 
 namespace xls::dslx {
 
@@ -45,19 +45,6 @@ class UnificationErrorGenerator {
   virtual absl::Status SignednessMismatchError(
       std::optional<const ParametricContext*> parametric_context,
       const TypeAnnotation* a, const TypeAnnotation* b) = 0;
-};
-
-// An interface used to inject parametric struct instantiation logic into
-// unification.
-class ParametricStructInstantiator {
- public:
-  virtual ~ParametricStructInstantiator() = default;
-
-  virtual absl::StatusOr<const TypeAnnotation*> InstantiateParametricStruct(
-      std::optional<const ParametricContext*> parent_context,
-      const StructDef& struct_def,
-      const std::vector<InterpValue>& explicit_parametrics,
-      std::optional<const StructInstance*> instantiator_node) = 0;
 };
 
 // Comes up with one type annotation reconciling the information in any type
