@@ -1012,7 +1012,7 @@ TypeAnnotation::~TypeAnnotation() = default;
 TypeRefTypeAnnotation::TypeRefTypeAnnotation(
     Module* owner, Span span, TypeRef* type_ref,
     std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstance*> instantiator)
+    std::optional<const StructInstanceBase*> instantiator)
     : TypeAnnotation(owner, std::move(span)),
       type_ref_(type_ref),
       parametrics_(std::move(parametrics)),
@@ -1745,27 +1745,29 @@ std::optional<Function*> Impl::GetFunction(std::string_view name) const {
   return GetMemberOfType<Function*>(name);
 }
 
-// -- class StructInstance
+// -- class StructInstanceBase
 
-StructInstance::StructInstance(
+StructInstanceBase::StructInstanceBase(
     Module* owner, Span span, TypeAnnotation* struct_ref,
     std::vector<std::pair<std::string, Expr*>> members, bool in_parens)
     : Expr(owner, std::move(span), in_parens),
       struct_ref_(struct_ref),
       members_(std::move(members)) {}
 
-StructInstance::~StructInstance() = default;
-
-std::vector<std::pair<std::string, Expr*>> StructInstance::GetOrderedMembers(
-    const StructDef* struct_def) const {
+std::vector<std::pair<std::string, Expr*>>
+StructInstanceBase::GetOrderedMembers(const StructDef* struct_def) const {
   std::vector<std::pair<std::string, Expr*>> result;
   for (const std::string& name : struct_def->GetMemberNames()) {
-    result.push_back({name, GetExpr(name).value()});
+    absl::StatusOr<Expr*> expr = GetExpr(name);
+    if (absl::IsNotFound(expr.status()) && !requires_all_members()) {
+      continue;
+    }
+    result.push_back({name, *expr});
   }
   return result;
 }
 
-absl::StatusOr<Expr*> StructInstance::GetExpr(std::string_view name) const {
+absl::StatusOr<Expr*> StructInstanceBase::GetExpr(std::string_view name) const {
   for (const auto& item : members_) {
     if (item.first == name) {
       return item.second;
@@ -1775,20 +1777,26 @@ absl::StatusOr<Expr*> StructInstance::GetExpr(std::string_view name) const {
       absl::StrFormat("Name is not present in struct instance: \"%s\"", name));
 }
 
+// -- class StructInstance
+
+StructInstance::~StructInstance() = default;
+
 std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
-  results.reserve(members_.size());
-  for (auto& item : members_) {
-    results.push_back(item.second);
+  absl::Span<const std::pair<std::string, Expr*>> members =
+      GetUnorderedMembers();
+  results.reserve(members.size());
+  for (auto& [_, member] : members) {
+    results.push_back(member);
   }
   return results;
 }
 
 std::string StructInstance::ToStringInternal() const {
-  std::string type_name = ToAstNode(struct_ref_)->ToString();
+  std::string type_name = ToAstNode(struct_ref())->ToString();
 
   std::string members_str = absl::StrJoin(
-      members_, ", ",
+      GetUnorderedMembers(), ", ",
       [](std::string* out, const std::pair<std::string, Expr*>& member) {
         absl::StrAppendFormat(out, "%s: %s", member.first,
                               member.second->ToString());
@@ -1802,17 +1810,18 @@ SplatStructInstance::SplatStructInstance(
     Module* owner, Span span, TypeAnnotation* struct_ref,
     std::vector<std::pair<std::string, Expr*>> members, Expr* splatted,
     bool in_parens)
-    : Expr(owner, std::move(span), in_parens),
-      struct_ref_(struct_ref),
-      members_(std::move(members)),
+    : StructInstanceBase(owner, std::move(span), struct_ref, std::move(members),
+                         in_parens),
       splatted_(splatted) {}
 
 SplatStructInstance::~SplatStructInstance() = default;
 
 std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
-  results.reserve(members_.size() + 1);
-  for (auto& item : members_) {
+  absl::Span<const std::pair<std::string, Expr*>> members =
+      GetUnorderedMembers();
+  results.reserve(members.size() + 1);
+  for (auto& item : members) {
     results.push_back(item.second);
   }
   results.push_back(splatted_);
@@ -1820,10 +1829,10 @@ std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
 }
 
 std::string SplatStructInstance::ToStringInternal() const {
-  std::string type_name = ToAstNode(struct_ref_)->ToString();
+  std::string type_name = ToAstNode(struct_ref())->ToString();
 
   std::string members_str = absl::StrJoin(
-      members_, ", ",
+      GetUnorderedMembers(), ", ",
       [](std::string* out, const std::pair<std::string, Expr*>& member) {
         absl::StrAppendFormat(out, "%s: %s", member.first,
                               member.second->ToString());

@@ -18,13 +18,9 @@
 #include <optional>
 #include <vector>
 
-#include "absl/functional/function_ref.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_system_v2/evaluator.h"
 #include "xls/dslx/type_system_v2/inference_table.h"
 #include "xls/dslx/type_system_v2/type_annotation_utils.h"
 
@@ -40,7 +36,7 @@ class ParametricStructInstantiator {
       std::optional<const ParametricContext*> parent_context,
       const StructDef& struct_def,
       const std::vector<InterpValue>& explicit_parametrics,
-      std::optional<const StructInstance*> instantiator_node) = 0;
+      std::optional<const StructInstanceBase*> instantiator_node) = 0;
 
   virtual absl::StatusOr<const TypeAnnotation*>
   GetParametricFreeStructMemberType(

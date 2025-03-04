@@ -152,7 +152,7 @@ TypeAnnotation* CreateS32Annotation(Module& module, const Span& span) {
 
 TypeAnnotation* CreateStructAnnotation(
     Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstance*> instantiator) {
+    std::optional<const StructInstanceBase*> instantiator) {
   return module.Make<TypeRefTypeAnnotation>(
       def->span(), module.Make<TypeRef>(def->span(), def),
       std::move(parametrics), instantiator);
@@ -295,7 +295,7 @@ absl::StatusOr<std::optional<StructOrProcRef>> GetStructOrProcRef(
   // Collect parametrics and instantiator by walking through any type
   // aliases before getting the struct or proc definition.
   std::vector<ExprOrType> parametrics = type_ref_annotation->parametrics();
-  std::optional<const StructInstance*> instantiator =
+  std::optional<const StructInstanceBase*> instantiator =
       type_ref_annotation->instantiator();
   TypeDefinition maybe_alias =
       type_ref_annotation->type_ref()->type_definition();

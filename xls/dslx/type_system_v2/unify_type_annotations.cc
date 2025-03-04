@@ -324,7 +324,7 @@ class Unifier {
     VLOG(6) << "Unifying parametric struct annotations; struct def: "
             << struct_def.identifier();
     std::vector<InterpValue> explicit_parametrics;
-    std::optional<const StructInstance*> instantiator;
+    std::optional<const StructInstanceBase*> instantiator;
 
     // Go through the annotations, and check that they have no disagreement in
     // their explicit parametric values. For example, one annotation may be

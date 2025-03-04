@@ -196,6 +196,7 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
         "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
@@ -381,14 +382,10 @@ cc_library(
     name = "parametric_struct_instantiator",
     hdrs = ["parametric_struct_instantiator.h"],
     deps = [
-        ":evaluator",
         ":inference_table",
         ":type_annotation_utils",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:pos",
-        "@com_google_absl//absl/functional:function_ref",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
 )

@@ -3325,22 +3325,31 @@ fn g() -> (s8, u32) {
                      HasTypeMismatchInV2(GetParam(), "(s8, u32)", "Point"))));
 }
 
-TEST(TypecheckStructInstanceTest, SplatWithDuplicate) {
+TEST_P(TypecheckBothVersionsTest, SplatWithDuplicate) {
   EXPECT_THAT(
       TypecheckStructInstance(
-          TypeInferenceVersion::kVersion1,
+          GetParam(),
           "fn f(p: Point) -> Point { Point { x: s8:42, x: s8:64, ..p } }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Duplicate value seen for \'x\' in this \'Point\' "
-                         "struct instance.")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "Duplicate value seen for \'x\' in this \'Point\' "
+                         "struct instance."),
+                     HasSubstrInV2(GetParam(),
+                                   "Duplicate value seen for `x` in this "
+                                   "`Point` struct instance."))));
 }
 
-TEST(TypecheckStructInstanceTest, SplatWithExtraFieldQ) {
-  EXPECT_THAT(TypecheckStructInstance(
-                  TypeInferenceVersion::kVersion1,
-                  "fn f(p: Point) -> Point { Point { q: u32:42, ..p } }"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Struct 'Point' has no member 'q'")));
+TEST_P(TypecheckBothVersionsTest, SplatWithExtraFieldQ) {
+  EXPECT_THAT(
+      TypecheckStructInstance(
+          GetParam(), "fn f(p: Point) -> Point { Point { q: u32:42, ..p } }"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          AllOf(HasSubstrInV1(GetParam(), "Struct 'Point' has no member 'q'"),
+                HasSubstrInV2(GetParam(),
+                              "Struct `Point` has no member `q`, but it was "
+                              "provided by this instance."))));
 }
 
 TEST_P(TypecheckBothVersionsTest, MulExprInStructMember) {
@@ -3536,9 +3545,9 @@ fn main() {
                     "saw M = u32:15; then saw M = N + N = u32:28")));
 }
 
-TEST(TypecheckParametricStructInstanceTest, BadParametricSplatInstantiation) {
+TEST_P(TypecheckBothVersionsTest, BadParametricSplatInstantiation) {
   EXPECT_THAT(
-      TypecheckParametricStructInstance(TypeInferenceVersion::kVersion1, R"(
+      TypecheckParametricStructInstance(GetParam(), R"(
 fn f<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
   let p = Point { x, y };
   Point { x: (x++x), ..p }
@@ -3550,7 +3559,10 @@ fn main() {
 }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("first saw M = u32:10; then saw M = N + N = u32:20")));
+               AllOf(HasSubstrInV1(
+                         GetParam(),
+                         "first saw M = u32:10; then saw M = N + N = u32:20"),
+                     HasSizeMismatchInV2(GetParam(), "uN[10]", "uN[5]"))));
 }
 
 TEST(TypecheckTest, AttrViaColonRef) {

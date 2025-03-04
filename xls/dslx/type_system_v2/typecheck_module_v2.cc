@@ -26,6 +26,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
@@ -489,64 +490,15 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleStructInstance(const StructInstance* node) override {
-    // As far as we're concerned here, type-checking a struct instance is like
-    // type-checking a function invocation (see `HandleFreeFunctionInvocation`),
-    // but with named arguments instead of parallel ordering. The naming of
-    // arguments creates additional pitfalls, like erroneously naming two
-    // different arguments the same thing.
     VLOG(5) << "HandleStructInstance: " << node->ToString();
+    return HandleStructInstanceInternal(node, /*source=*/std::nullopt);
+  }
 
-    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
-    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                         GetStructOrProcRef(node->struct_ref(), file_table_));
-    if (!struct_or_proc_ref.has_value()) {
-      return TypeInferenceErrorStatusForAnnotation(
-          node->span(), node->struct_ref(),
-          absl::Substitute(
-              "Attempted to instantiate non-struct type `$0` as a struct.",
-              node->struct_ref()->ToString()),
-          file_table_);
-    }
-    if (struct_or_proc_ref->def->kind() == AstNodeKind::kProcDef) {
-      return TypeInferenceErrorStatusForAnnotation(
-          node->span(), node->struct_ref(),
-          "Impl-style procs are a work in progress and cannot yet be "
-          "instantiated.",
-          file_table_);
-    }
-
-    const StructDef* struct_def =
-        dynamic_cast<const StructDef*>(struct_or_proc_ref->def);
-    const NameRef* type_variable = *table_.GetTypeVariable(node);
-    const TypeAnnotation* struct_variable_type =
-        module_.Make<TypeVariableTypeAnnotation>(type_variable);
-    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-        node,
-        CreateStructAnnotation(module_, const_cast<StructDef*>(struct_def),
-                               struct_or_proc_ref->parametrics, node)));
-    XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(*node, *struct_def));
-
-    std::vector<std::pair<std::string, Expr*>> members =
-        node->GetOrderedMembers(struct_def);
-    for (int i = 0; i < members.size(); i++) {
-      const auto& [name, actual_member] = members[i];
-      const StructMemberNode* formal_member = struct_def->members()[i];
-      TypeAnnotation* member_type = module_.Make<MemberTypeAnnotation>(
-          struct_variable_type, formal_member->name());
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_member, member_type));
-      XLS_ASSIGN_OR_RETURN(
-          const NameRef* member_type_variable,
-          table_.DefineInternalVariable(
-              InferenceVariableKind::kType, const_cast<Expr*>(actual_member),
-              GenerateInternalTypeVariableName(formal_member, actual_member),
-              member_type));
-      XLS_RETURN_IF_ERROR(
-          table_.SetTypeVariable(actual_member, member_type_variable));
-      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
-          actual_member, module_.Make<MemberTypeAnnotation>(
-                             struct_variable_type, formal_member->name())));
-    }
-    return DefaultHandler(node);
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* node) override {
+    VLOG(5) << "HandleSplatStructInstance: " << node->ToString();
+    XLS_RETURN_IF_ERROR(HandleStructInstanceInternal(node, node->splatted()));
+    return node->splatted()->Accept(this);
   }
 
   absl::Status HandleAttr(const Attr* node) override {
@@ -1320,8 +1272,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
 
   // Ensures that a `StructInstance` nodes provides exprs for all the names in a
   // struct definition, with no extraneous or duplicate names.
-  absl::Status ValidateStructInstanceMemberNames(const StructInstance& instance,
-                                                 const StructDefBase& def) {
+  absl::Status ValidateStructInstanceMemberNames(
+      const StructInstanceBase& instance, const StructDefBase& def) {
     std::vector<std::string> formal_name_vector = def.GetMemberNames();
     absl::btree_set<std::string> formal_names(formal_name_vector.begin(),
                                               formal_name_vector.end());
@@ -1344,7 +1296,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             file_table_);
       }
     }
-    if (actual_names.size() != formal_names.size()) {
+    if (instance.requires_all_members() &&
+        actual_names.size() != formal_names.size()) {
       absl::btree_set<std::string> missing_set;
       absl::c_set_difference(formal_names, actual_names,
                              std::inserter(missing_set, missing_set.begin()));
@@ -1405,6 +1358,73 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
         bound, CreateS32Annotation(module_, bound->span())));
     return bound->Accept(this);
+  }
+
+  // Helper function that does all common logic for either a `StructInstance` or
+  // `SplatStructInstance` node.
+  absl::Status HandleStructInstanceInternal(const StructInstanceBase* node,
+                                            std::optional<Expr*> source) {
+    // As far as we're concerned here, type-checking a struct instance is like
+    // type-checking a function invocation (see `HandleInvocation`), but with
+    // named arguments instead of parallel ordering. The naming of arguments
+    // creates additional pitfalls, like erroneously naming two different
+    // arguments the same thing.
+    XLS_RETURN_IF_ERROR(node->struct_ref()->Accept(this));
+    XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
+                         GetStructOrProcRef(node->struct_ref(), file_table_));
+    if (!struct_or_proc_ref.has_value()) {
+      return TypeInferenceErrorStatusForAnnotation(
+          node->span(), node->struct_ref(),
+          absl::Substitute(
+              "Attempted to instantiate non-struct type `$0` as a struct.",
+              node->struct_ref()->ToString()),
+          file_table_);
+    }
+    if (struct_or_proc_ref->def->kind() == AstNodeKind::kProcDef) {
+      return TypeInferenceErrorStatusForAnnotation(
+          node->span(), node->struct_ref(),
+          "Impl-style procs are a work in progress and cannot yet be "
+          "instantiated.",
+          file_table_);
+    }
+
+    const StructDef* struct_def =
+        dynamic_cast<const StructDef*>(struct_or_proc_ref->def);
+    const NameRef* type_variable = *table_.GetTypeVariable(node);
+    if (source.has_value()) {
+      XLS_RETURN_IF_ERROR(table_.SetTypeVariable(*source, type_variable));
+    }
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node,
+        CreateStructAnnotation(module_, const_cast<StructDef*>(struct_def),
+                               struct_or_proc_ref->parametrics, node)));
+    XLS_RETURN_IF_ERROR(ValidateStructInstanceMemberNames(*node, *struct_def));
+
+    absl::flat_hash_map<std::string, const StructMemberNode*> formal_member_map;
+    for (const StructMemberNode* formal_member : struct_def->members()) {
+      formal_member_map.emplace(formal_member->name(), formal_member);
+    }
+    const TypeAnnotation* struct_variable_type =
+        module_.Make<TypeVariableTypeAnnotation>(type_variable);
+    for (const auto& [name, actual_member] : node->members()) {
+      const StructMemberNode* formal_member = formal_member_map.at(name);
+      TypeAnnotation* member_type = module_.Make<MemberTypeAnnotation>(
+          struct_variable_type, formal_member->name());
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(actual_member, member_type));
+      XLS_ASSIGN_OR_RETURN(
+          const NameRef* member_type_variable,
+          table_.DefineInternalVariable(
+              InferenceVariableKind::kType, const_cast<Expr*>(actual_member),
+              GenerateInternalTypeVariableName(formal_member, actual_member),
+              member_type));
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeVariable(actual_member, member_type_variable));
+      XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+          actual_member, module_.Make<MemberTypeAnnotation>(
+                             struct_variable_type, formal_member->name())));
+      XLS_RETURN_IF_ERROR(actual_member->Accept(this));
+    }
+    return absl::OkStatus();
   }
 
   Module& module_;

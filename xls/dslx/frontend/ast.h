@@ -145,6 +145,7 @@ XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
 #undef FORWARD_DECL
 
 class StructDefBase;
+class StructInstanceBase;
 
 // Helper type (abstract base) for double dispatch on AST nodes.
 class AstNodeVisitor {
@@ -405,7 +406,7 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   TypeRefTypeAnnotation(
       Module* owner, Span span, TypeRef* type_ref,
       std::vector<ExprOrType> parametrics,
-      std::optional<const StructInstance*> instantiator = std::nullopt);
+      std::optional<const StructInstanceBase*> instantiator = std::nullopt);
 
   ~TypeRefTypeAnnotation() override;
 
@@ -424,14 +425,14 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 
   const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
 
-  std::optional<const StructInstance*> instantiator() const {
+  std::optional<const StructInstanceBase*> instantiator() const {
     return instantiator_;
   }
 
  private:
   TypeRef* type_ref_;
   std::vector<ExprOrType> parametrics_;
-  std::optional<const StructInstance*> instantiator_;
+  std::optional<const StructInstanceBase*> instantiator_;
 };
 
 // A type annotation that is a reference to a type variable created either by
@@ -3132,32 +3133,15 @@ class Impl : public AstNode {
   std::optional<T> GetMemberOfType(std::string_view name) const;
 };
 
-// Represents instantiation of a struct via member expressions.
-//
-// TODO(leary): 2020-09-08 Break out a StructInstanceMember type in lieu of the
-// pair.
-class StructInstance : public Expr {
+// A virtual base class for nodes that directly instantiate a struct.
+class StructInstanceBase : public Expr {
  public:
-  StructInstance(Module* owner, Span span, TypeAnnotation* struct_ref,
-                 std::vector<std::pair<std::string, Expr*>> members,
-                 bool in_parens = false);
-
-  ~StructInstance() override;
+  StructInstanceBase(Module* owner, Span span, TypeAnnotation* struct_ref,
+                     std::vector<std::pair<std::string, Expr*>> members,
+                     bool in_parens = false);
 
   // The leading chars are the struct reference.
   bool IsBlockedExprWithLeader() const override { return true; }
-
-  AstNodeKind kind() const override { return AstNodeKind::kStructInstance; }
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleStructInstance(this);
-  }
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleStructInstance(this);
-  }
-
-  std::string_view GetNodeTypeName() const override { return "StructInstance"; }
-  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   // These are the members in the order given in the instantiation, note that
   // this can be different from the order in the struct definition.
@@ -3170,28 +3154,66 @@ class StructInstance : public Expr {
   std::vector<std::pair<std::string, Expr*>> GetOrderedMembers(
       const StructDef* struct_def) const;
 
-  // Returns the expression associated with the member named "name", or a
-  // NotFound error status if none exists.
-  absl::StatusOr<Expr*> GetExpr(std::string_view name) const;
+  const std::vector<std::pair<std::string, Expr*>>& members() const {
+    return members_;
+  }
 
   // An AST node that refers to the struct being instantiated.
   TypeAnnotation* struct_ref() const { return struct_ref_; }
+
+  // Returns the expression associated with the member named "name", or a
+  // NotFound error status if none exists.
+  absl::StatusOr<Expr*> GetExpr(std::string_view name) const;
 
   Precedence GetPrecedenceWithoutParens() const final {
     return Precedence::kStrongest;
   }
 
+  // Returns whether this node type is expected to have a member for every
+  // single member of the corresponding struct definition.
+  virtual bool requires_all_members() const = 0;
+
+ private:
+  // The struct being instantiated.
+  TypeAnnotation* struct_ref_;
+
+  // Sequence of members being explicitly specified for this instance.
+  std::vector<std::pair<std::string, Expr*>> members_;
+};
+
+// Represents instantiation of a struct via member expressions.
+//
+// TODO(leary): 2020-09-08 Break out a StructInstanceMember type in lieu of the
+// pair.
+class StructInstance : public StructInstanceBase {
+ public:
+  using StructInstanceBase::StructInstanceBase;
+
+  ~StructInstance() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kStructInstance; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleStructInstance(this);
+  }
+
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleStructInstance(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "StructInstance"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  bool requires_all_members() const override { return true; }
+
  private:
   std::string ToStringInternal() const final;
-
-  TypeAnnotation* struct_ref_;
-  std::vector<std::pair<std::string, Expr*>> members_;
 };
 
 // Represents a struct instantiation as a "delta" from a 'splatted' original;
 // e.g.
 //    Point { y: new_y, ..orig_p }
-class SplatStructInstance : public Expr {
+class SplatStructInstance : public StructInstanceBase {
  public:
   SplatStructInstance(Module* owner, Span span, TypeAnnotation* struct_ref,
                       std::vector<std::pair<std::string, Expr*>> members,
@@ -3209,6 +3231,7 @@ class SplatStructInstance : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleSplatStructInstance(this);
   }
+
   absl::Status AcceptExpr(ExprVisitor* v) const override {
     return v->HandleSplatStructInstance(this);
   }
@@ -3216,27 +3239,15 @@ class SplatStructInstance : public Expr {
   std::string_view GetNodeTypeName() const override {
     return "SplatStructInstance";
   }
+
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   Expr* splatted() const { return splatted_; }
-  TypeAnnotation* struct_ref() const { return struct_ref_; }
-  const std::vector<std::pair<std::string, Expr*>>& members() const {
-    return members_;
-  }
 
-  Precedence GetPrecedenceWithoutParens() const final {
-    return Precedence::kStrongest;
-  }
+  bool requires_all_members() const override { return false; }
 
  private:
   std::string ToStringInternal() const final;
-
-  // The struct being instantiated.
-  TypeAnnotation* struct_ref_;
-
-  // Sequence of members being changed from the splatted original; e.g. in the
-  // above example this is [('y', new_y)].
-  std::vector<std::pair<std::string, Expr*>> members_;
 
   // Expression that's used as the original struct instance (that we're
   // instantiating a delta from); e.g. orig_p in the example above.

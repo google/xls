@@ -1253,6 +1253,92 @@ const X: S = u32:1;
       TypecheckFails(HasTypeMismatch("S", "u32")));
 }
 
+TEST(TypecheckV2Test, GlobalStructConstantEntirelySplatted) {
+  EXPECT_THAT(
+      R"(
+struct S { field: u32, field2: u16[2] }
+const X = S { field: 5, field2: [1, 2] };
+const Y = S { ..X };
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("Y", "S { field: uN[32], field2: uN[16][2] }"))));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithFirstMemberSplatted) {
+  EXPECT_THAT(
+      R"(
+struct S { field: u32, field2: u16[2] }
+const X = S { field: 5, field2: [1, 2] };
+const Y = S { field2: [2, 3], ..X };
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("Y", "S { field: uN[32], field2: uN[16][2] }"))));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithSecondMemberSplatted) {
+  EXPECT_THAT(
+      R"(
+struct S { field: u32, field2: u16[2] }
+const X = S { field: 5, field2: [1, 2] };
+const Y = S { field: 1, ..X };
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("Y", "S { field: uN[32], field2: uN[16][2] }"))));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithNothingSplatted) {
+  EXPECT_THAT(
+      R"(
+struct S { field: u32, field2: u16[2] }
+const X = S { field: 5, field2: [1, 2] };
+const Y = S { field2: [2, 3], field: 1, ..X };
+)",
+      TypecheckSucceeds(AllOf(
+          HasNodeWithType("Y", "S { field: uN[32], field2: uN[16][2] }"))));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithWrongStructSplattedFails) {
+  EXPECT_THAT(
+      R"(
+struct S { field: u32, field2: u16[2] }
+struct T { field: u32, field2: u16[2] }
+const X = S { field: 5, field2: [1, 2] };
+const Y = T { field: 1, ..X };
+)",
+      TypecheckFails(HasTypeMismatch("S", "T")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithImplicitParametricsSplatted) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> { field: uN[N] }
+const X = S { field: u5: 6 };
+const Y = S { ..X };
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "S { field: uN[5] }")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithExplicitParametricsSplatted) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> { field: uN[N] }
+const X = S { field: u5: 6 };
+const Y = S<5> { ..X };
+)",
+      TypecheckSucceeds(HasNodeWithType("Y", "S { field: uN[5] }")));
+}
+
+TEST(TypecheckV2Test, GlobalStructConstantWithWrongParametricsSplattedFails) {
+  EXPECT_THAT(
+      R"(
+struct S<N: u32> { field: uN[N] }
+const X = S { field: u5: 6 };
+const Y = S<10> { ..X };
+)",
+      TypecheckFails(HasSubstr("Value mismatch for parametric `N` of struct "
+                               "`S`: u32:5 vs. u32:10")));
+}
+
 TEST(TypecheckV2Test, AccessOfStructMember) {
   EXPECT_THAT(
       R"(

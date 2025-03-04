@@ -35,7 +35,7 @@ namespace xls::dslx {
 struct StructOrProcRef {
   const StructDefBase* def;
   std::vector<ExprOrType> parametrics;
-  std::optional<const StructInstance*> instantiator;
+  std::optional<const StructInstanceBase*> instantiator;
 };
 
 // The signedness and bit count extracted from a `TypeAnnotation`. The
@@ -84,7 +84,7 @@ TypeAnnotation* CreateS32Annotation(Module& module, const Span& span);
 // parametric arguments.
 TypeAnnotation* CreateStructAnnotation(
     Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
-    std::optional<const StructInstance*> instantiator);
+    std::optional<const StructInstanceBase*> instantiator);
 
 // Variant that converts a `StructOrProcRef` into an annotation.
 TypeAnnotation* CreateStructAnnotation(Module& module,

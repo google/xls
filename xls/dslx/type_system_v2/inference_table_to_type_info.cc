@@ -1576,7 +1576,7 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       std::optional<const ParametricContext*> parent_context,
       const StructDef& struct_def,
       const std::vector<InterpValue>& explicit_parametrics,
-      std::optional<const StructInstance*> instantiator_node) override {
+      std::optional<const StructInstanceBase*> instantiator_node) override {
     // The goal here is to come up with a complete parametric value `Expr`
     // vector, which has a value for every formal binding, by inferring or
     // defaulting whichever ones are not explicit. The algorithm is the same as
