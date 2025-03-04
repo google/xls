@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <limits>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -28,6 +30,8 @@
 #include "absl/log/log.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
@@ -51,6 +55,10 @@
 
 namespace xls {
 namespace {
+
+// The largest constant dividend K for which we will transform a division K/x
+// into a lookup table.
+constexpr int64_t kMaxDividendForLookupTable = 16;
 
 // For the given comparison Op, returns the op op_inverse for which the
 // following identity holds:
@@ -409,8 +417,12 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
   return true;
 }
 
-// Matches unsigned integer division by a constant; replaces with a multiply and
-// shift(s).
+// Matches unsigned integer division with one operand constant.
+//
+// If the divisor is constant, replaces with a multiply and shift(s).
+//
+// If the dividend is constant and reasonably small, replaces with a lookup
+// table.
 //
 // Returns 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
@@ -423,16 +435,20 @@ absl::StatusOr<bool> MatchComparisonOfInjectiveOp(
 // https://gmplib.org/~tege/divcnst-pldi94.pdf
 absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op,
                                          const QueryEngine& query_engine) {
-  if (original_div_op->op() == Op::kUDiv &&
-      query_engine.IsFullyKnown(original_div_op->operand(1))) {
-    Bits rhs = *query_engine.KnownValueAsBits(original_div_op->operand(1));
+  if (original_div_op->op() != Op::kUDiv) {
+    return false;
+  }
+  FunctionBase* fb = original_div_op->function_base();
+  Node* dividend = original_div_op->operand(0);
+  Node* divisor = original_div_op->operand(1);
+  int64_t bit_count = original_div_op->BitCountOrDie();
+
+  if (query_engine.IsFullyKnown(divisor)) {
+    Bits rhs = *query_engine.KnownValueAsBits(divisor);
     if (!rhs.IsPowerOfTwo()  // power of two is handled elsewhere.
         && !rhs.IsZero()     // div by 0 is handled elsewhere
     ) {
-      FunctionBase* fb = original_div_op->function_base();
       const SourceInfo loc = original_div_op->loc();
-
-      Node* dividend = original_div_op->operand(0);
 
       UnsignedDivisionConstants division_constants =
           ComputeUnsignedDivisionConstants(dividend->BitCountOrDie(),
@@ -526,20 +542,88 @@ absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op,
           fb->MakeNode<BinOp>(loc, integer_part_of_product,
                               shift_amount_literal, Op::kShrl));
 
-      XLS_ASSIGN_OR_RETURN(
-          Node * resize_post_shift,
-          NarrowOrExtend(post_shift, false, original_div_op->BitCountOrDie()));
+      XLS_ASSIGN_OR_RETURN(Node * resize_post_shift,
+                           NarrowOrExtend(post_shift, false, bit_count));
 
       XLS_RETURN_IF_ERROR(original_div_op->ReplaceUsesWith(resize_post_shift));
       return true;
     }
   }
 
-  return false;
+  if (!query_engine.IsFullyKnown(dividend)) {
+    return false;
+  }
+  Bits dividend_bits = *query_engine.KnownValueAsBits(dividend);
+  int64_t constant_dividend =
+      bits_ops::UnsignedBitsToSaturatedInt64(dividend_bits);
+  if (constant_dividend > kMaxDividendForLookupTable) {
+    return false;
+  }
+
+  VLOG(2) << absl::StreamFormat(
+      "FOUND: UDiv of small constant dividend u%d:%d; replacing with lookup "
+      "table",
+      dividend_bits.bit_count(), constant_dividend);
+
+  // Implement the division with a simple lookup table, rounding quotient
+  // towards 0.
+  std::vector<int64_t> cutoffs;
+  std::vector<Bits> values;
+  cutoffs.reserve(constant_dividend + 1);
+  values.reserve(constant_dividend + 1);
+  cutoffs.push_back(0);
+  values.push_back(Bits::AllOnes(bit_count));
+  for (int64_t i = 1; i <= constant_dividend; ++i) {
+    Bits value = UBits(constant_dividend / i, bit_count);
+    if (value == values.back()) {
+      cutoffs.back()++;
+      continue;
+    }
+    cutoffs.push_back(i);
+    values.push_back(value);
+  }
+
+  std::vector<Node*> predicates;
+  std::vector<Node*> cases;
+  predicates.reserve(cutoffs.size());
+  cases.reserve(values.size());
+  int64_t last_cutoff = -1;
+  for (auto [cutoff, value] : iter::zip(cutoffs, values)) {
+    const Op compare_op = (cutoff == last_cutoff + 1) ? Op::kEq : Op::kULe;
+    XLS_ASSIGN_OR_RETURN(Node * predicate,
+                         CompareLiteral(divisor, cutoff, compare_op));
+    XLS_ASSIGN_OR_RETURN(
+        Node * literal,
+        fb->MakeNode<Literal>(original_div_op->loc(), Value(value)));
+    predicates.push_back(predicate);
+    cases.push_back(literal);
+
+    last_cutoff = cutoff;
+  }
+
+  // Reverse the order of the predicates to match MSB-first concat semantics.
+  std::reverse(predicates.begin(), predicates.end());
+  XLS_ASSIGN_OR_RETURN(
+      Node * selector,
+      fb->MakeNode<Concat>(original_div_op->loc(), predicates));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * zero,
+      fb->MakeNode<Literal>(original_div_op->loc(), Value(Bits(bit_count))));
+  XLS_RETURN_IF_ERROR(
+      original_div_op
+          ->ReplaceUsesWithNew<PrioritySelect>(selector, cases,
+                                               /*default_value=*/zero)
+          .status());
+  return true;
 }
 
-// Matches signed integer division by a constant; replaces with a multiply and
-// shift(s).
+// Matches signed integer division with one operand constant.
+//
+// If the divisor is constant, replaces with a multiply and shift(s).
+//
+// If the dividend is constant and reasonably small, replaces with a lookup
+// table.
 //
 // Returns 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
@@ -552,17 +636,21 @@ absl::StatusOr<bool> MatchUnsignedDivide(Node* original_div_op,
 // https://gmplib.org/~tege/divcnst-pldi94.pdf
 absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
                                        const QueryEngine& query_engine) {
+  if (original_div_op->op() != Op::kSDiv) {
+    return false;
+  }
+  FunctionBase* fb = original_div_op->function_base();
+  Node* dividend = original_div_op->operand(0);
+  Node* divisor = original_div_op->operand(1);
+  int64_t bit_count = original_div_op->BitCountOrDie();
+
   // TODO paper mentions overflow when n=-(2^(N-1)) and d=-1. Make sure I handle
   // that correctly. I'm not sure if Figure 5.2 does.
-  if (original_div_op->op() == Op::kSDiv &&
-      query_engine.IsFullyKnown(original_div_op->operand(1))) {
-    Bits rhs = *query_engine.KnownValueAsBits(original_div_op->operand(1));
+  if (query_engine.IsFullyKnown(divisor)) {
+    Bits rhs = *query_engine.KnownValueAsBits(divisor);
     if (!rhs.IsZero()  // div by 0 is handled elsewhere
     ) {
-      FunctionBase* fb = original_div_op->function_base();
       const SourceInfo loc = original_div_op->loc();
-
-      Node* dividend = original_div_op->operand(0);
 
       const BigInt divisor = BigInt::MakeSigned(rhs);
       const BigInt magnitude_divisor = BigInt::Absolute(divisor);
@@ -697,7 +785,110 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op,
     }
   }
 
-  return false;
+  if (!query_engine.IsFullyKnown(dividend)) {
+    return false;
+  }
+  Bits dividend_bits = *query_engine.KnownValueAsBits(dividend);
+  int64_t constant_dividend = dividend_bits.FitsInInt64()
+                                  ? *dividend_bits.ToInt64()
+                                  : std::numeric_limits<int64_t>::max();
+  if (std::abs(constant_dividend) > kMaxDividendForLookupTable) {
+    return false;
+  }
+
+  VLOG(2) << absl::StreamFormat(
+      "FOUND: SDiv of small constant dividend s%d:%d; replacing with lookup "
+      "table",
+      dividend_bits.bit_count(), constant_dividend);
+
+  XLS_ASSIGN_OR_RETURN(Node * divisor_is_negative,
+                       CompareLiteral(divisor, 0, Op::kSLt));
+  XLS_ASSIGN_OR_RETURN(Node * divisor_is_zero,
+                       CompareLiteral(divisor, 0, Op::kEq));
+  XLS_ASSIGN_OR_RETURN(
+      Node * neg_divisor,
+      fb->MakeNode<UnOp>(original_div_op->loc(), divisor, Op::kNeg));
+  XLS_ASSIGN_OR_RETURN(
+      Node * abs_divisor,
+      fb->MakeNode<PrioritySelect>(original_div_op->loc(), divisor_is_negative,
+                                   /*cases=*/absl::MakeConstSpan({neg_divisor}),
+                                   /*default_value=*/divisor));
+
+  // Implement the division with a simple lookup table, rounding quotient
+  // towards 0.
+  std::vector<int64_t> cutoffs;
+  std::vector<Bits> values;
+  cutoffs.reserve(std::abs(constant_dividend));
+  values.reserve(std::abs(constant_dividend));
+  cutoffs.push_back(1);
+  values.push_back(SBits(constant_dividend, bit_count));
+  for (int64_t i = 2; i <= std::abs(constant_dividend); ++i) {
+    Bits value = SBits(constant_dividend / i, bit_count);
+    if (value == values.back()) {
+      cutoffs.back()++;
+      continue;
+    }
+    cutoffs.push_back(i);
+    values.push_back(value);
+  }
+
+  std::vector<Node*> predicates;
+  std::vector<Node*> cases;
+  predicates.reserve(cutoffs.size());
+  cases.reserve(values.size());
+  int64_t last_cutoff = -1;
+  for (auto [cutoff, value] : iter::zip(cutoffs, values)) {
+    const Op compare_op = (cutoff == last_cutoff + 1) ? Op::kEq : Op::kULe;
+    XLS_ASSIGN_OR_RETURN(Node * predicate,
+                         CompareLiteral(abs_divisor, cutoff, compare_op));
+    XLS_ASSIGN_OR_RETURN(
+        Node * literal,
+        fb->MakeNode<Literal>(original_div_op->loc(), Value(value)));
+    predicates.push_back(predicate);
+    cases.push_back(literal);
+
+    last_cutoff = cutoff;
+  }
+
+  // Reverse the order of the predicates to match MSB-first concat semantics.
+  std::reverse(predicates.begin(), predicates.end());
+  XLS_ASSIGN_OR_RETURN(
+      Node * selector,
+      fb->MakeNode<Concat>(original_div_op->loc(), predicates));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * zero,
+      fb->MakeNode<Literal>(original_div_op->loc(), Value(Bits(bit_count))));
+  XLS_ASSIGN_OR_RETURN(
+      Node * result_with_abs_divisor,
+      fb->MakeNode<PrioritySelect>(original_div_op->loc(), selector, cases,
+                                   /*default_value=*/zero));
+
+  XLS_ASSIGN_OR_RETURN(Node * negated_result,
+                       fb->MakeNode<UnOp>(original_div_op->loc(),
+                                          result_with_abs_divisor, Op::kNeg));
+  XLS_ASSIGN_OR_RETURN(
+      Node * result_if_divide_by_zero,
+      fb->MakeNode<Literal>(
+          original_div_op->loc(),
+          Value(constant_dividend < 0 ? Bits::MinSigned(bit_count)
+                                      : Bits::MaxSigned(bit_count))));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * final_selector,
+      fb->MakeNode<Concat>(
+          original_div_op->loc(),
+          absl::MakeConstSpan({divisor_is_negative, divisor_is_zero})));
+  XLS_RETURN_IF_ERROR(
+      original_div_op
+          ->ReplaceUsesWithNew<PrioritySelect>(
+              final_selector,
+              /*cases=*/
+              absl::MakeConstSpan({result_if_divide_by_zero, negated_result}),
+              /*default_value=*/result_with_abs_divisor)
+          .status());
+
+  return true;
 }
 
 // MatchArithPatterns matches simple tree patterns to find opportunities
@@ -821,6 +1012,49 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
         n->ReplaceUsesWithNew<BinOp>(n->operand(0), approximant, Op::kSub)
             .status());
     return true;
+  }
+
+  // Convert UMod/SMod of a small constant (e.g., 13 % x) into a divide,
+  // multiply, and subtract; we'll later simplify the divide into a lookup
+  // table. (See MatchUnsignedDivide for how.)
+  if (n->OpIn({Op::kUMod, Op::kSMod}) &&
+      query_engine.IsFullyKnown(n->operand(0))) {
+    Bits dividend = *query_engine.KnownValueAsBits(n->operand(0));
+    if (dividend.IsZero()) {
+      // 0 % x == 0, for all x.
+      VLOG(2) << "FOUND: UMod/SMod of zero";
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
+      return true;
+    } else if (bits_ops::ULessThanOrEqual(bits_ops::Abs(dividend),
+                                          kMaxDividendForLookupTable)) {
+      VLOG(2) << "FOUND: UMod/SMod of small constant " << dividend
+              << "; replacing with remainder computation";
+      const bool is_signed = n->op() == Op::kSMod;
+      XLS_ASSIGN_OR_RETURN(Node * quotient,
+                           n->function_base()->MakeNode<BinOp>(
+                               n->loc(), n->operand(0), n->operand(1),
+                               is_signed ? Op::kSDiv : Op::kUDiv));
+      XLS_ASSIGN_OR_RETURN(Node * approximant,
+                           n->function_base()->MakeNode<ArithOp>(
+                               n->loc(), quotient, n->operand(1),
+                               /*width=*/n->operand(0)->BitCountOrDie(),
+                               is_signed ? Op::kSMul : Op::kUMul));
+      XLS_ASSIGN_OR_RETURN(Node * remainder,
+                           n->function_base()->MakeNode<BinOp>(
+                               n->loc(), n->operand(0), approximant, Op::kSub));
+      XLS_ASSIGN_OR_RETURN(Node * divisor_is_zero,
+                           CompareLiteral(n->operand(1), 0, Op::kEq));
+      XLS_ASSIGN_OR_RETURN(Node * zero,
+                           n->function_base()->MakeNode<Literal>(
+                               n->loc(), Value(UBits(0, n->BitCountOrDie()))));
+      XLS_RETURN_IF_ERROR(n->ReplaceUsesWithNew<PrioritySelect>(
+                               divisor_is_zero,
+                               /*cases=*/absl::MakeConstSpan({zero}),
+                               /*default_value=*/remainder)
+                              .status());
+      return true;
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n, query_engine));
