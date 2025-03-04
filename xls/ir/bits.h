@@ -236,6 +236,10 @@ class Bits {
   const InlineBitmap& bitmap() const& { return bitmap_; }
   InlineBitmap&& bitmap() && { return std::move(bitmap_); }
 
+  using Iterator = InlineBitmap::Iterator;
+  Iterator begin() const { return bitmap_.begin(); }
+  Iterator end() const { return bitmap_.end(); }
+
   template <typename H>
   friend H AbslHashValue(H h, const Bits& bits) {
     return H::combine(std::move(h), bits.bitmap_);

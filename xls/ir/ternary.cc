@@ -20,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -30,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "cppitertools/zip.hpp"
 #include "xls/common/iter_util.h"
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/ret_check.h"
@@ -114,39 +116,18 @@ namespace ternary_ops {
 TernaryVector FromKnownBits(const Bits& known_bits,
                             const Bits& known_bits_values) {
   CHECK_EQ(known_bits.bit_count(), known_bits_values.bit_count());
-  TernaryVector result;
 
-  // This function is hyper-optimized because it is incredibly hot and with
-  // large Bits sizes can dominate profiles. It morally just does:
-  //   for (int64_t i = 0; i < known_bits.bit_count(); ++i) {
-  //     if (known_bits.Get(i)) {
-  //       result.push_back(known_bits_values.Get(i) ? TernaryValue::kKnownOne
-  //                                              : TernaryValue::kKnownZero);
-  //     } else {
-  //       result.push_back(TernaryValue::kUnknown);
-  //     }
-  //   }
-  result.resize(known_bits.bit_count(), TernaryValue::kUnknown);
-  TernaryValue* data = result.data();
-  const InlineBitmap& known_bits_bitmap = known_bits.bitmap();
-  const InlineBitmap& known_bits_values_bitmap = known_bits_values.bitmap();
-  auto extract_bit = [](uint64_t word, int64_t bit) -> bool {
-    return (word >> bit) & uint64_t{1};
-  };
-  for (int64_t word = 0; word < known_bits_bitmap.word_count(); ++word) {
-    uint64_t mask_word = known_bits_bitmap.GetWord(word);
-    uint64_t value_word = known_bits_values_bitmap.GetWord(word);
-    if (mask_word == 0) {
-      data += 64;
-      continue;
-    }
-    int64_t limit = std::min<int64_t>(64, known_bits.bit_count() - word * 64);
-    for (int64_t bit = 0; bit < limit; ++bit) {
-      if (extract_bit(mask_word, bit)) {
-        *data = extract_bit(value_word, bit) ? TernaryValue::kKnownOne
-                                             : TernaryValue::kKnownZero;
-      }
-      ++data;
+  TernaryVector result(known_bits.bit_count(), TernaryValue::kUnknown);
+  for (auto [result_bit, is_known, known_value] :
+       iter::zip(result, known_bits, known_bits_values)) {
+    // We take advantage of the cppitertools feature that `zip` iterates over
+    // tuples of references for non-const containers... meaning that we can
+    // modify `result` in place by writing to `result_bit`.
+    static_assert(std::is_same_v<decltype(result_bit), TernaryValue&>);
+
+    if (is_known) {
+      result_bit =
+          known_value ? TernaryValue::kKnownOne : TernaryValue::kKnownZero;
     }
   }
 
@@ -280,11 +261,11 @@ bool IsCompatible(TernarySpan pattern, const Bits& bits) {
     return false;
   }
 
-  for (int64_t i = 0; i < pattern.size(); ++i) {
-    if (pattern[i] == TernaryValue::kUnknown) {
+  for (auto [pattern_bit, bit] : iter::zip(pattern, bits)) {
+    if (pattern_bit == TernaryValue::kUnknown) {
       continue;
     }
-    if (bits.Get(i) != (pattern[i] == TernaryValue::kKnownOne)) {
+    if (bit != (pattern_bit == TernaryValue::kKnownOne)) {
       return false;
     }
   }
@@ -313,14 +294,12 @@ void UpdateWithIntersection(TernaryVector& lhs, TernarySpan rhs) {
 void UpdateWithIntersection(TernaryVector& lhs, const Bits& rhs) {
   CHECK_EQ(lhs.size(), rhs.bit_count());
 
-  for (int64_t i = 0; i < lhs.size(); ++i) {
-    if (lhs[i] == TernaryValue::kUnknown) {
+  for (auto [lhs_bit, rhs_bit] : iter::zip(lhs, rhs)) {
+    if (lhs_bit == TernaryValue::kUnknown) {
       continue;
     }
-    const bool lhs_bit = lhs[i] == TernaryValue::kKnownOne;
-    const bool rhs_bit = rhs.Get(i);
-    if (lhs_bit != rhs_bit) {
-      lhs[i] = TernaryValue::kUnknown;
+    if (rhs_bit != (lhs_bit == TernaryValue::kKnownOne)) {
+      lhs_bit = TernaryValue::kUnknown;
     }
   }
 }
@@ -337,9 +316,9 @@ int64_t NumberOfKnownBits(TernarySpan vec) {
 
 TernaryVector BitsToTernary(const Bits& bits) {
   TernaryVector result;
-  result.resize(bits.bit_count());
-  for (int64_t i = 0; i < bits.bit_count(); ++i) {
-    result[i] = static_cast<TernaryValue>(bits.Get(i));
+  result.reserve(bits.bit_count());
+  for (bool bit : bits) {
+    result.push_back(bit ? TernaryValue::kKnownOne : TernaryValue::kKnownZero);
   }
   return result;
 }

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <utility>
@@ -526,44 +527,56 @@ Bits ShiftRightArith(const Bits& bits, int64_t shift_amount) {
 }
 
 Bits OneHotLsbToMsb(const Bits& bits) {
-  for (int64_t i = 0; i < bits.bit_count(); ++i) {
-    if (bits.Get(i)) {
-      return Bits::PowerOfTwo(i, bits.bit_count() + 1);
+  if (bits.IsZero()) {
+    return Bits::PowerOfTwo(bits.bit_count(), bits.bit_count() + 1);
+  }
+
+  InlineBitmap result(bits.bit_count() + 1);
+  for (auto it = bits.begin(); it != bits.end(); ++it) {
+    if (*it) {
+      result.Set(std::distance(bits.begin(), it));
+      break;
     }
   }
-  return Bits::PowerOfTwo(bits.bit_count(), bits.bit_count() + 1);
+  return Bits::FromBitmap(std::move(result));
 }
 
 Bits OneHotMsbToLsb(const Bits& bits) {
-  for (int64_t i = bits.bit_count() - 1; i >= 0; --i) {
-    if (bits.Get(i)) {
-      return Bits::PowerOfTwo(i, bits.bit_count() + 1);
+  if (bits.IsZero()) {
+    return Bits::PowerOfTwo(bits.bit_count(), bits.bit_count() + 1);
+  }
+
+  InlineBitmap result(bits.bit_count() + 1);
+  for (auto it = bits.end() - 1; it >= bits.begin(); --it) {
+    if (*it) {
+      result.Set(std::distance(bits.begin(), it));
+      break;
     }
   }
-  return Bits::PowerOfTwo(bits.bit_count(), bits.bit_count() + 1);
+  return Bits::FromBitmap(std::move(result));
 }
 
 Bits Reverse(const Bits& bits) {
   InlineBitmap reversed_bitmap(bits.bit_count());
-  for (int64_t i = 0; i < bits.bit_count(); ++i) {
-    reversed_bitmap.Set(bits.bit_count() - i - 1, bits.Get(i));
+  auto last = bits.end() - 1;
+  for (auto it = bits.begin(); it != bits.end(); ++it) {
+    if (*it) {
+      reversed_bitmap.Set(std::distance(it, last));
+    }
   }
   return Bits::FromBitmap(std::move(reversed_bitmap));
 }
 
 Bits DropLeadingZeroes(const Bits& bits) {
-  int64_t first_one;
-  for (first_one = bits.bit_count() - 1; first_one >= 0; first_one--) {
-    if (bits.Get(first_one)) {
-      break;
-    }
-  }
-
-  if (first_one == -1) {
+  if (bits.IsZero()) {
     return Bits();
   }
 
-  return bits.Slice(0, first_one + 1);
+  auto first_one = bits.end() - 1;
+  while (first_one >= bits.begin() && !*first_one) {
+    --first_one;
+  }
+  return bits.Slice(0, std::distance(bits.begin(), first_one) + 1);
 }
 
 Bits Truncate(Bits bits, int64_t size) {
@@ -608,12 +621,20 @@ Bits LongestCommonPrefixLSB(absl::Span<const Bits> bits_span) {
   }
 
   int64_t first_difference = input_size;
-  for (int64_t i = 0; first_difference == input_size && i < input_size; ++i) {
-    for (const Bits& bits : bits_span.subspan(1)) {
-      if (bits_span[0].Get(i) != bits.Get(i)) {
-        first_difference = i;
+  std::vector<Bits::Iterator> iterators;
+  iterators.reserve(bits_span.size());
+  for (const Bits& bits : bits_span) {
+    iterators.push_back(bits.begin());
+  }
+  for (; iterators[0] != bits_span[0].end(); iterators[0]++) {
+    for (auto& it : absl::MakeSpan(iterators).subspan(1)) {
+      if (*it++ != *iterators[0]) {
+        first_difference = std::distance(bits_span[0].begin(), iterators[0]);
         break;
       }
+    }
+    if (first_difference != input_size) {
+      break;
     }
   }
   return bits_span[0].Slice(0, first_difference);
@@ -630,12 +651,20 @@ Bits LongestCommonPrefixMSB(absl::Span<const Bits> bits_span) {
   }
 
   int64_t first_difference = -1;
-  for (int64_t i = input_size - 1; first_difference == -1 && i >= 0; --i) {
-    for (const Bits& bits : bits_span.subspan(1)) {
-      if (bits_span[0].Get(i) != bits.Get(i)) {
-        first_difference = i;
+  std::vector<Bits::Iterator> iterators;
+  iterators.reserve(bits_span.size());
+  for (const Bits& bits : bits_span) {
+    iterators.push_back(bits.end() - 1);
+  }
+  for (; iterators[0] >= bits_span[0].begin(); --iterators[0]) {
+    for (auto& it : absl::MakeSpan(iterators).subspan(1)) {
+      if (*it-- != *iterators[0]) {
+        first_difference = std::distance(bits_span[0].begin(), iterators[0]);
         break;
       }
+    }
+    if (first_difference != -1) {
+      break;
     }
   }
   return bits_span[0].Slice(first_difference + 1,

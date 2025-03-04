@@ -16,8 +16,10 @@
 #define XLS_DATA_STRUCTURES_INLINE_BITMAP_H_
 
 #include <algorithm>
+#include <compare>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <optional>
 #include <utility>
 
@@ -368,6 +370,103 @@ class InlineBitmap {
 
   int64_t bit_count_;
   absl::InlinedVector<uint64_t, 1> data_;
+
+ public:
+  class Iterator {
+   public:
+    using difference_type = int64_t;
+    using value_type = bool;
+    using reference = bool;
+    using iterator_category = std::random_access_iterator_tag;
+
+    bool operator*() const { return ((*word_it_) >> bit_index_) & int64_t{1}; }
+    bool operator[](int64_t index) const { return *(*this + index); }
+
+    Iterator& operator+=(int64_t n) {
+      bit_index_ += n;
+      int64_t word_delta = FloorOfRatio(bit_index_, kWordBits);
+      if (word_delta != 0) {
+        word_it_ += word_delta;
+        bit_index_ -= word_delta * kWordBits;
+        DCHECK_GE(bit_index_, 0);
+        DCHECK_LT(bit_index_, kWordBits);
+      }
+      return *this;
+    }
+    Iterator& operator++() { return *this += 1; }
+    Iterator operator++(int) {
+      Iterator result = *this;
+      ++*this;
+      return result;
+    }
+
+    friend Iterator operator+(Iterator it, int64_t n) {
+      Iterator result = it;
+      result += n;
+      return result;
+    }
+    friend Iterator operator+(int64_t n, Iterator it) { return it + n; }
+
+    Iterator& operator-=(int64_t n) { return *this += -n; }
+    Iterator& operator--() { return *this += -1; }
+    Iterator operator--(int) {
+      Iterator result = *this;
+      --*this;
+      return result;
+    }
+
+    friend Iterator operator-(Iterator it, int64_t n) {
+      Iterator result = it;
+      result -= n;
+      return result;
+    }
+
+    friend int64_t operator-(Iterator b, Iterator a) {
+      return (b.word_it_ - a.word_it_) * kWordBits +
+             (b.bit_index_ - a.bit_index_);
+    }
+
+    friend bool operator==(const Iterator& a, const Iterator& b) {
+      return a.word_it_ == b.word_it_ && a.bit_index_ == b.bit_index_;
+    }
+    friend bool operator!=(const Iterator& a, const Iterator& b) {
+      return !(a == b);
+    }
+
+    friend std::strong_ordering operator<=>(const Iterator& a,
+                                            const Iterator& b) {
+      if (a.word_it_ != b.word_it_) {
+        return a.word_it_ <=> b.word_it_;
+      }
+      return a.bit_index_ <=> b.bit_index_;
+    }
+
+   private:
+    friend class InlineBitmap;
+
+    Iterator(decltype(InlineBitmap::data_)::const_iterator word_it,
+             int64_t bit_index)
+        : word_it_(word_it), bit_index_(bit_index) {}
+
+    decltype(InlineBitmap::data_)::const_iterator word_it_;
+    int64_t bit_index_;
+  };
+
+  Iterator begin() const { return Iterator(data_.begin(), 0); }
+  Iterator end() const {
+    if (bit_count_ % kWordBits == 0) {
+      return Iterator(data_.end(), 0);
+    }
+    return Iterator(data_.end() - 1, bit_count_ % kWordBits);
+  }
+
+  Iterator cbegin() const { return Iterator(data_.cbegin(), 0); }
+  Iterator cend() const {
+    if (bit_count_ % kWordBits == 0) {
+      return Iterator(data_.cend(), 0);
+    }
+    return Iterator(data_.cend() - 1, bit_count_ % kWordBits);
+  }
 };
 
 class BitmapView {
