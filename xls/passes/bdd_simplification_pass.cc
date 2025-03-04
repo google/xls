@@ -453,10 +453,16 @@ absl::StatusOr<bool> BddSimplificationPass::RunOnFunctionBaseInternal(
     modified |= node_modified;
   }
 
-  XLS_ASSIGN_OR_RETURN(bool selects_collapsed,
-                       CollapseSelectChains(f, context, query_engine));
+  if (SplitsEnabled(options.opt_level)) {
+    // Collapsing select chains to one-hot selects can obstruct other
+    // optimizations, so we avoid it until we're working at a higher
+    // optimization level.
+    XLS_ASSIGN_OR_RETURN(bool selects_collapsed,
+                         CollapseSelectChains(f, context, query_engine));
+    modified |= selects_collapsed;
+  }
 
-  return modified || selects_collapsed;
+  return modified;
 }
 
 XLS_REGISTER_MODULE_INITIALIZER(bdd_simp, {
