@@ -217,8 +217,8 @@ class ParametricContextScopedExpr {
 // a defined inference variable.
 //
 // Once the inference system is finished populating the table, there should be
-// enough information in it to concretize the stored type of every node, i.e.
-// turn it into a `Type` object with concrete information. This can be done via
+// enough information in it to concretize the stored type of every node, i.e.,
+// turn it into a `TypeInfo` object with concrete information. This is done via
 // the `InferenceTableToTypeInfo` utility.
 class InferenceTable {
  public:
@@ -249,7 +249,7 @@ class InferenceTable {
   //
   // The table will store different value expressions for `N` per invocation
   // context for `foo`, but it does not need distinct copies of the type
-  // annotation for `a` for example. There is one copy of that in the table,
+  // annotation for `a`, for example. There is one copy of that in the table,
   // which uses a `NameRef` to the variable `N`.
   //
   // At the time of conversion of the table to `TypeInfo`, we distinctly resolve
@@ -302,7 +302,7 @@ class InferenceTable {
   virtual absl::Status SetTypeAnnotation(const AstNode* node,
                                          const TypeAnnotation* type) = 0;
 
-  // Sets the explicit type annotation associated with `node`. If `invocation`
+  // Sets the explicit type annotation associated with `node`. If `context`
   // is specified, then the annotation is only valid within that parametric
   // context.
   virtual absl::Status AddTypeAnnotationToVariableForParametricContext(
