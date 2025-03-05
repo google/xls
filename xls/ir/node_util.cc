@@ -683,6 +683,14 @@ bool IsBinarySelect(Node* node) {
   return sel->cases().size() == 2 && !sel->default_value().has_value();
 }
 
+bool IsBinaryPrioritySelect(Node* node) {
+  if (!node->Is<PrioritySelect>()) {
+    return false;
+  }
+  PrioritySelect* sel = node->As<PrioritySelect>();
+  return sel->cases().size() == 1;
+}
+
 absl::StatusOr<absl::flat_hash_map<Channel*, std::vector<Node*>>> ChannelUsers(
     Package* package) {
   absl::flat_hash_map<Channel*, std::vector<Node*>> channel_users;

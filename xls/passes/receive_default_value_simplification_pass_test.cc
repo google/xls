@@ -53,7 +53,7 @@ class ReceiveDefaultValueSimplificationPassTest : public IrTestBase {
 };
 
 TEST_F(ReceiveDefaultValueSimplificationPassTest,
-       TransformableConditionalReceive) {
+       TransformableConditionalReceiveWithSelect) {
   auto p = CreatePackage();
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -72,6 +72,35 @@ TEST_F(ReceiveDefaultValueSimplificationPassTest,
                   proc->GetStateRead(1),
                   m::Select(m::StateRead("pred"),
                             {m::Literal(0), m::TupleIndex(m::Receive(), 1)}))));
+
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+
+  EXPECT_THAT(proc->next_values(proc->GetStateRead(1)),
+              ElementsAre(m::Next(proc->GetStateRead(1),
+                                  m::TupleIndex(m::Receive(), 1))));
+}
+
+TEST_F(ReceiveDefaultValueSimplificationPassTest,
+       TransformableConditionalReceiveWithPrioritySelect) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+
+  TokenlessProcBuilder pb("p", "tkn", p.get());
+  BValue pred = pb.StateElement("pred", Value(UBits(1, 1)));
+  pb.StateElement("s", Value(UBits(42, 32)));
+  BValue receive = pb.ReceiveIf(out, pred);
+  BValue select = pb.PrioritySelect(pred, {receive}, pb.Literal(UBits(0, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pred, select}));
+
+  EXPECT_THAT(
+      proc->next_values(proc->GetStateRead(1)),
+      ElementsAre(m::Next(
+          proc->GetStateRead(1),
+          m::PrioritySelect(m::StateRead("pred"),
+                            {m::TupleIndex(m::Receive(), 1)}, m::Literal(0)))));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
 

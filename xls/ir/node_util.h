@@ -289,6 +289,10 @@ std::vector<NodePtrT> SetToSortedVector(
 // Returns true if the given node is a binary select (two cases, no default).
 bool IsBinarySelect(Node* node);
 
+// Returns true if the given node is a binary priority select (1 case plus the
+// default value)
+bool IsBinaryPrioritySelect(Node* node);
+
 // Returns the op which is the inverse of the given comparison.
 //
 // That is (not (op L R)) == ((InvertComparisonOp op) L R).

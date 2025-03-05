@@ -38,6 +38,23 @@ struct ReceiveData {
   Node* data;
 };
 
+// Check if the node is a binary select or a binary priority select
+bool IsBinarySelectOrPrioritySelect(Node *node) {
+  // Handle Select
+  if (node->Is<Select>()) {
+    Select *select = node->As<Select>();
+    return IsBinarySelect(select);
+  }
+
+  // Handle PrioritySelect
+  if (node->Is<PrioritySelect>()) {
+    PrioritySelect *select = node->As<PrioritySelect>();
+    return IsBinaryPrioritySelect(select);
+  }
+
+  return false;
+}
+
 // Matches node against the data of a receive node. Returns the receive
 // operation and the data value if the match succeeds.
 std::optional<ReceiveData> MatchReceiveDataValue(Node* node) {
@@ -82,31 +99,28 @@ bool IsValidBitOfNonblockingReceive(Node* node) {
 //
 // In these case, the select is equivalent to the data value of the receive.
 std::optional<ReceiveData> MatchUselessSelectAfterReceive(
-    Select* select, QueryEngine& query_engine) {
-  if (!IsBinarySelect(select)) {
-    return std::nullopt;
-  }
-
+    Node *select, Node *selector, Node *on_true_input, Node *on_false_input,
+    QueryEngine &query_engine) {
   std::optional<ReceiveData> receive_data =
-      MatchReceiveDataValue(select->get_case(1));
+      MatchReceiveDataValue(on_true_input);
   if (!receive_data.has_value()) {
     return std::nullopt;
   }
 
-  std::optional<Value> constant = query_engine.KnownValue(select->get_case(0));
+  std::optional<Value> constant = query_engine.KnownValue(on_false_input);
   if (!constant.has_value() || !constant->IsAllZeros()) {
     return std::nullopt;
   }
 
   // Test for the conditional receive case.
   if (receive_data->receive->predicate().has_value() &&
-      receive_data->receive->predicate().value() == select->selector()) {
+      receive_data->receive->predicate().value() == selector) {
     return receive_data;
   }
 
   // Test for the non-blocking receive case.
   if (!receive_data->receive->is_blocking() &&
-      IsValidBitOfNonblockingReceive(select->selector())) {
+      IsValidBitOfNonblockingReceive(selector)) {
     return receive_data;
   }
 
@@ -122,11 +136,22 @@ absl::StatusOr<bool> ReceiveDefaultValueSimplificationPass::RunOnProcInternal(
 
   bool changed = false;
   for (Node* node : context.TopoSort(proc)) {
-    if (!node->Is<Select>()) {
+    if (!IsBinarySelectOrPrioritySelect(node)) {
       continue;
     }
-    std::optional<ReceiveData> receive_data =
-        MatchUselessSelectAfterReceive(node->As<Select>(), query_engine);
+    std::optional<ReceiveData> receive_data;
+    if (node->Is<Select>()) {
+      Select *select = node->As<Select>();
+      receive_data = MatchUselessSelectAfterReceive(
+          node, select->selector(), select->get_case(1), select->get_case(0),
+          query_engine);
+
+    } else {
+      PrioritySelect *select = node->As<PrioritySelect>();
+      receive_data = MatchUselessSelectAfterReceive(
+          node, select->selector(), select->get_case(0),
+          select->default_value(), query_engine);
+    }
     if (receive_data.has_value()) {
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(receive_data->data));
       changed = true;
