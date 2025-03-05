@@ -187,6 +187,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:format_preference",
         "//xls/ir:source_location",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -267,6 +268,19 @@ cc_test(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/log",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "c_api_vast_test",
+    srcs = ["c_api_vast_test.cc"],
+    deps = [
+        ":c_api",
+        ":c_api_format_preference",
+        ":c_api_vast",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/cleanup",
         "@googletest//:gtest",
     ],
 )

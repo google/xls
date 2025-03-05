@@ -54,6 +54,43 @@ enum {
   xls_vast_file_type_system_verilog,
 };
 
+typedef int32_t xls_vast_operator_kind;
+enum {
+  // unary operators
+  xls_vast_operator_kind_negate,
+  xls_vast_operator_kind_bitwise_not,
+  xls_vast_operator_kind_logical_not,
+  xls_vast_operator_kind_and_reduce,
+  xls_vast_operator_kind_or_reduce,
+  xls_vast_operator_kind_xor_reduce,
+
+  // binary operators
+  xls_vast_operator_kind_add,
+  xls_vast_operator_kind_logical_and,
+  xls_vast_operator_kind_bitwise_and,
+  xls_vast_operator_kind_ne,
+  xls_vast_operator_kind_case_ne,
+  xls_vast_operator_kind_eq,
+  xls_vast_operator_kind_case_eq,
+  xls_vast_operator_kind_ge,
+  xls_vast_operator_kind_gt,
+  xls_vast_operator_kind_le,
+  xls_vast_operator_kind_lt,
+  xls_vast_operator_kind_div,
+  xls_vast_operator_kind_mod,
+  xls_vast_operator_kind_mul,
+  xls_vast_operator_kind_power,
+  xls_vast_operator_kind_bitwise_or,
+  xls_vast_operator_kind_logical_or,
+  xls_vast_operator_kind_bitwise_xor,
+  xls_vast_operator_kind_shll,
+  xls_vast_operator_kind_shra,
+  xls_vast_operator_kind_shrl,
+  xls_vast_operator_kind_sub,
+  xls_vast_operator_kind_ne_x,
+  xls_vast_operator_kind_eq_x,
+};
+
 // Note: caller owns the returned verilog file object, to be freed by
 // `xls_vast_verilog_file_free`.
 struct xls_vast_verilog_file* xls_vast_make_verilog_file(
@@ -127,6 +164,19 @@ struct xls_vast_slice* xls_vast_verilog_file_make_slice(
     struct xls_vast_verilog_file* f,
     struct xls_vast_indexable_expression* subject,
     struct xls_vast_expression* hi, struct xls_vast_expression* lo);
+
+struct xls_vast_expression* xls_vast_verilog_file_make_unary(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* arg,
+    xls_vast_operator_kind op);
+
+struct xls_vast_expression* xls_vast_verilog_file_make_binary(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* lhs,
+    struct xls_vast_expression* rhs, xls_vast_operator_kind op);
+
+struct xls_vast_expression* xls_vast_verilog_file_make_ternary(
+    struct xls_vast_verilog_file* f, struct xls_vast_expression* cond,
+    struct xls_vast_expression* consequent,
+    struct xls_vast_expression* alternate);
 
 struct xls_vast_index* xls_vast_verilog_file_make_index_i64(
     struct xls_vast_verilog_file* f,
