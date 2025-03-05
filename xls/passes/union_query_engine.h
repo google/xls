@@ -26,6 +26,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -102,6 +103,27 @@ class UnownedUnionQueryEngine : public QueryEngine {
   absl::flat_hash_map<Node*, Bits> known_bits_;
   absl::flat_hash_map<Node*, Bits> known_bit_values_;
   std::vector<QueryEngine*> engines_;
+};
+
+class UnownedConstUnionQueryEngine : public UnownedUnionQueryEngine {
+ public:
+  explicit UnownedConstUnionQueryEngine(std::vector<QueryEngine const*> engines)
+      : UnownedUnionQueryEngine(UnsafeConstCast(std::move(engines))) {}
+
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+    return absl::InternalError("Cannot repopulate const engines.");
+  }
+
+ private:
+  static std::vector<QueryEngine*> UnsafeConstCast(
+      std::vector<QueryEngine const*> engines) {
+    std::vector<QueryEngine*> result;
+    result.reserve(engines.size());
+    for (const auto& engine : engines) {
+      result.push_back(const_cast<QueryEngine*>(engine));
+    }
+    return result;
+  }
 };
 
 // A query engine that combines the results of multiple given query engines.

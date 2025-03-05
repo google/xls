@@ -1345,6 +1345,18 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     }
     return true;
   }
+
+  // Gets a query engine which takes into account the node and its user.
+  UnownedConstUnionQueryEngine QueryEngineForNodeAndUser(
+      Node* node, std::optional<Node*> user) const {
+    std::vector<const QueryEngine*> engines{
+        &specialized_query_engine_.ForNode(node)};
+    if (analysis_ == AnalysisType::kRangeWithContext && user.has_value()) {
+      engines.push_back(&specialized_query_engine_.ForNode(*user));
+    }
+    return UnownedConstUnionQueryEngine(std::move(engines));
+  }
+
   // Return the number of trailing known zeros in the given nodes values when
   // used as an argument to 'user'. If user is std::nullopt the context isn't
   // used.
@@ -1352,27 +1364,16 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     CHECK(node->GetType()->IsBits());
     CHECK(user != nullptr);
     int64_t trailing_zeros = 0;
-    const QueryEngine& node_query_engine =
-        specialized_query_engine_.ForNode(node);
-    const std::optional<const QueryEngine*> user_query_engine =
-        analysis_ == AnalysisType::kRangeWithContext && user.has_value()
-            ? std::make_optional(&specialized_query_engine_.ForNode(*user))
-            : std::nullopt;
-    auto is_user_zero = [&](const TreeBitLocation& tbl) {
-      if (user_query_engine) {
-        return (*user_query_engine)->IsZero(tbl);
-      }
-      return false;
-    };
+    auto qe = QueryEngineForNodeAndUser(node, user);
     for (int64_t i = 0; i < node->BitCountOrDie(); ++i) {
-      if (!node_query_engine.IsZero(TreeBitLocation(node, i)) &&
-          !is_user_zero(TreeBitLocation(node, i))) {
+      if (!qe.IsZero(TreeBitLocation(node, i))) {
         break;
       }
       ++trailing_zeros;
     }
     return trailing_zeros;
   }
+
   // Return the number of leading known zeros in the given nodes values when
   // used as an argument to 'user'. If user is std::nullopt the context isn't
   // used.
@@ -1380,33 +1381,14 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     CHECK(node->GetType()->IsBits());
     CHECK(user != nullptr);
     int64_t leading_zeros = 0;
-    const QueryEngine& node_query_engine =
-        specialized_query_engine_.ForNode(node);
-    const std::optional<const QueryEngine*> user_query_engine =
-        analysis_ == AnalysisType::kRangeWithContext && user.has_value()
-            ? std::make_optional(&specialized_query_engine_.ForNode(*user))
-            : std::nullopt;
-    auto is_user_zero = [&](const TreeBitLocation& tbl) {
-      if (user_query_engine) {
-        return (*user_query_engine)->IsZero(tbl);
-      }
-      return false;
-    };
+    auto qe = QueryEngineForNodeAndUser(node, user);
     for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-      if (!node_query_engine.IsZero(TreeBitLocation(node, i)) &&
-          !is_user_zero(TreeBitLocation(node, i))) {
+      if (!qe.IsZero(TreeBitLocation(node, i))) {
         break;
       }
       ++leading_zeros;
     }
     return leading_zeros;
-  }
-
-  absl::StatusOr<IntervalSetTree> GetIntervals(Node* node) const {
-    const QueryEngine& node_query_engine =
-        specialized_query_engine_.ForNode(node);
-    XLS_RET_CHECK(node_query_engine.IsTracked(node));
-    return node_query_engine.GetIntervals(node);
   }
 
   // Return the number of leading known ones in the given nodes values when
@@ -1416,26 +1398,21 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     CHECK(node->GetType()->IsBits());
     CHECK(user != nullptr);
     int64_t leading_ones = 0;
-    const QueryEngine& node_query_engine =
-        specialized_query_engine_.ForNode(node);
-    const std::optional<const QueryEngine*> user_query_engine =
-        analysis_ == AnalysisType::kRangeWithContext && user.has_value()
-            ? std::make_optional(&specialized_query_engine_.ForNode(*user))
-            : std::nullopt;
-    auto is_user_one = [&](const TreeBitLocation& tbl) {
-      if (user_query_engine) {
-        return (*user_query_engine)->IsOne(tbl);
-      }
-      return false;
-    };
+    auto qe = QueryEngineForNodeAndUser(node, user);
     for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-      if (!node_query_engine.IsOne(TreeBitLocation(node, i)) &&
-          !is_user_one(TreeBitLocation(node, i))) {
+      if (!qe.IsOne(TreeBitLocation(node, i))) {
         break;
       }
       ++leading_ones;
     }
     return leading_ones;
+  }
+
+  absl::StatusOr<IntervalSetTree> GetIntervals(Node* node) const {
+    const QueryEngine& node_query_engine =
+        specialized_query_engine_.ForNode(node);
+    XLS_RET_CHECK(node_query_engine.IsTracked(node));
+    return node_query_engine.GetIntervals(node);
   }
 
   int64_t UnsignedNarrowedWidth(Node* operand, Node* user) {
@@ -1516,15 +1493,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     // Populate `dimension` and `index_intervals`.
     auto get_intervals = [&](Node* value) {
-      const QueryEngine& array_engine =
-          specialized_query_engine_.ForNode(array_index);
-      if (analysis_ != AnalysisType::kRangeWithContext) {
-        return array_engine.GetIntervals(value).Get({});
-      }
-      const QueryEngine& value_engine =
-          specialized_query_engine_.ForNode(value);
-      return IntervalSet::Intersect(value_engine.GetIntervals(value).Get({}),
-                                    array_engine.GetIntervals(value).Get({}));
+      return QueryEngineForNodeAndUser(value, array_index)
+          .GetIntervals(value)
+          .Get({});
     };
     {
       ArrayType* array_type = array_index->array()->GetType()->AsArrayOrDie();
