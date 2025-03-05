@@ -1046,6 +1046,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             InferenceVariableKind::kType, const_cast<Expr*>(node->arg()),
             GenerateInternalTypeVariableName(node->arg())));
     XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->arg(), operand_variable));
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node, CreateUnitTupleAnnotation(module_, node->span())));
     return DefaultHandler(node);
   }
 

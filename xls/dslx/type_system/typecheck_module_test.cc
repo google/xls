@@ -1199,7 +1199,7 @@ fn main() -> u5 { p(u32:42) }
 )"));
 }
 
-TEST(TypecheckTest, ConstAssertParametricOk) {
+TEST_P(TypecheckBothVersionsTest, ConstAssertParametricOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>() -> u32 {
   const_assert!(N == u32:42);
@@ -1210,7 +1210,7 @@ fn main() -> u32 {
 })"));
 }
 
-TEST(TypecheckTest, ConstAssertViaConstBindings) {
+TEST_P(TypecheckBothVersionsTest, ConstAssertViaConstBindings) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn main() -> () {
   const M = u32:1;
@@ -1221,7 +1221,7 @@ fn main() -> () {
 })"));
 }
 
-TEST(TypecheckTest, ConstAssertCallFunction) {
+TEST_P(TypecheckBothVersionsTest, ConstAssertCallFunction) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn is_mol(x: u32) -> bool {
   x == u32:42
@@ -1235,7 +1235,7 @@ fn main() -> () {
 })"));
 }
 
-TEST(TypecheckErrorTest, ConstAssertFalse) {
+TEST_P(TypecheckBothVersionsTest, ConstAssertFalse) {
   EXPECT_THAT(Typecheck(R"(
 fn main() -> () {
   const_assert!(false);
@@ -1244,7 +1244,7 @@ fn main() -> () {
                        HasSubstr("const_assert! failure: `false`")));
 }
 
-TEST(TypecheckErrorTest, ConstAssertFalseExpr) {
+TEST_P(TypecheckBothVersionsTest, ConstAssertFalseExpr) {
   EXPECT_THAT(Typecheck(R"(
 fn main() -> () {
   const_assert!(u32:2 + u32:3 != u32:5);
@@ -1253,7 +1253,7 @@ fn main() -> () {
                        HasSubstr("const_assert! failure")));
 }
 
-TEST(TypecheckErrorTest, ConstAssertNonConstexpr) {
+TEST_P(TypecheckBothVersionsTest, ConstAssertNonConstexpr) {
   EXPECT_THAT(Typecheck(R"(
 fn main(p: u32) -> () {
   const_assert!(p == u32:42);
@@ -2452,7 +2452,7 @@ fn f() -> Foo {
                               "type as other members."))));
 }
 
-TEST(TypecheckTest, MatchWithRange) {
+TEST_P(TypecheckBothVersionsTest, MatchWithRange) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32) -> u32 {
   match x {

@@ -4303,12 +4303,12 @@ const_assert!(true);
       TypecheckSucceeds(HasNodeWithType("true", "uN[1]")));
 }
 
-TEST(TypecheckV2Test, ConstAssertFalse) {
+TEST(TypecheckV2Test, ConstAssertFalseFails) {
   EXPECT_THAT(
       R"(
 const_assert!(false);
 )",
-      TypecheckSucceeds(HasNodeWithType("false", "uN[1]")));
+      TypecheckFails(HasSubstr("const_assert! failure: `false`")));
 }
 
 TEST(TypecheckV2Test, ConstAssertConstExpr) {
@@ -4319,7 +4319,15 @@ const_assert!(1 > 0);
       TypecheckSucceeds(HasNodeWithType("1 > 0", "uN[1]")));
 }
 
-TEST(TypecheckV2Test, ConstAssertMismatch) {
+TEST(TypecheckV2Test, ConstAssertFalseConstExprFails) {
+  EXPECT_THAT(
+      R"(
+const_assert!(0 > 1);
+)",
+      TypecheckFails(HasSubstr("const_assert! failure: `0 > 1`")));
+}
+
+TEST(TypecheckV2Test, ConstAssertMismatchFails) {
   EXPECT_THAT(
       R"(
 const_assert!(4);

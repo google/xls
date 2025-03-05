@@ -965,6 +965,9 @@ class InferenceTableConverter : public UnificationErrorGenerator,
         XLS_RETURN_IF_ERROR(ConcretizeSlice(parametric_context, index, ti));
       }
     }
+    if (const auto* const_assert = dynamic_cast<const ConstAssert*>(node)) {
+      return CheckConstAssert(const_assert, type, ti);
+    }
     return absl::OkStatus();
   }
 
@@ -1011,6 +1014,32 @@ class InferenceTableConverter : public UnificationErrorGenerator,
               ? converted_parametric_envs_.at(*parametric_context)
               : ParametricEnv{},
           concrete_start_and_width);
+    }
+    return absl::OkStatus();
+  }
+
+  // Used when a `ConstAssert` is concretized, to actually check if the asserted
+  // expression holds.
+  absl::Status CheckConstAssert(const ConstAssert* node, const Type& type,
+                                TypeInfo* ti) {
+    absl::StatusOr<InterpValue> value = ConstexprEvaluator::EvaluateToValue(
+        &import_data_, ti, &warning_collector_, ParametricEnv(), node->arg(),
+        &type);
+    if (!value.ok()) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::Substitute("const_assert! expression is not constexpr: `$0`",
+                           node->arg()->ToString()),
+          file_table_);
+    }
+    VLOG(6) << "Evaluated const assert: " << node->arg()->ToString()
+            << " to: " << value->ToString();
+    if (value->IsFalse()) {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::Substitute("const_assert! failure: `$0`",
+                           node->arg()->ToString()),
+          file_table_);
     }
     return absl::OkStatus();
   }
