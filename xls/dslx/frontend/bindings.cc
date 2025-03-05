@@ -17,7 +17,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <variant>
 #include <vector>
 
 #include "absl/log/check.h"
@@ -106,17 +105,20 @@ Span BoundNodeGetSpan(BoundNode bn, FileTable& file_table) {
 }
 
 std::string BoundNodeGetTypeString(const BoundNode& bn) {
-  // clang-format off
-  if (std::holds_alternative<EnumDef*>(bn)) { return "EnumDef"; }
-  if (std::holds_alternative<TypeAlias*>(bn)) { return "TypeAlias"; }
-  if (std::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
-  if (std::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
-  if (std::holds_alternative<ProcDef*>(bn)) { return "ProcDef"; }
-  if (std::holds_alternative<NameDef*>(bn)) { return "NameDef"; }
-  if (std::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
-  if (std::holds_alternative<Import*>(bn)) { return "Import"; }
-  // clang-format on
-  LOG(FATAL) << "Unsupported BoundNode variant: " << ToAstNode(bn)->ToString();
+  return absl::visit(Visitor{[](EnumDef*) { return "EnumDef"; },
+                             [](TypeAlias*) { return "TypeAlias"; },
+                             [](ConstantDef*) { return "ConstantDef"; },
+                             [](StructDef*) { return "StructDef"; },
+                             [](ProcDef*) { return "ProcDef"; },
+                             [](NameDef*) { return "NameDef"; },
+                             [](BuiltinNameDef*) { return "BuiltinNameDef"; },
+                             [](Import*) { return "Import"; },
+                             [&](auto*) {
+                               LOG(FATAL) << "Unsupported BoundNode variant: "
+                                          << ToAstNode(bn)->ToString();
+                               return "";
+                             }},
+                     bn);
 }
 
 Bindings::Bindings(Bindings* parent) : parent_(parent) {
