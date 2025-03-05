@@ -1446,7 +1446,8 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
       return WalkResult::advance();
     }
 
-    std::string name = chan_op.getSymName().str();
+    std::string name =
+        ::xls::verilog::SanitizeIdentifier(chan_op.getSymName().str());
     ::xls::ChannelOps kind = ::xls::ChannelOps::kSendReceive;  // NOLINT
     if (!chan_op.getSendSupported()) {
       kind = ::xls::ChannelOps::kReceiveOnly;  // NOLINT
