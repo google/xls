@@ -29,6 +29,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
@@ -50,6 +51,11 @@ struct SignednessAndBitCountResult {
 struct StartAndWidthExprs {
   Expr* start;
   Expr* width;
+};
+
+struct InterpValueWithTypeAnnotation {
+  const TypeAnnotation* type_annotation;
+  InterpValue value;
 };
 
 // Creates an annotation for `uN[bit_count]` or `sN[bit_count]` depending on the
@@ -79,6 +85,12 @@ TypeAnnotation* CreateU32Annotation(Module& module, const Span& span);
 
 // Creates an `s32` type annotation.
 TypeAnnotation* CreateS32Annotation(Module& module, const Span& span);
+
+// Creates a type annotation based on the name def of a built-in type like
+// `u32`.
+TypeAnnotation* CreateBuiltinTypeAnnotation(Module& module,
+                                            BuiltinNameDef* name_def,
+                                            const Span& span);
 
 // Creates an annotation referring to the given struct definition with the given
 // parametric arguments.
@@ -167,6 +179,14 @@ void FilterAnnotations(
 // Creates an Expr calculating the number of elements in a Range. If the number
 // is negative (i.e. `range->end() < range.start()`) the result is clamped to 0.
 Expr* CreateRangeElementCount(Module& module, const Range* range);
+
+// Returns the type annotation and and value of the builtin member named
+// `member_name` of the given `object_type` (e.g. `uN[32]::MAX`).
+absl::StatusOr<InterpValueWithTypeAnnotation> GetBuiltinMember(
+    Module& module, bool is_signed, uint32_t bit_count,
+    std::string_view member_name, const Span& span,
+    std::string_view object_type_for_error, const FileTable& file_table);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_V2_TYPE_ANNOTATION_UTILS_H_

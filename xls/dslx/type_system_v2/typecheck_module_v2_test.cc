@@ -857,7 +857,7 @@ const Y = uN[X]:1;
 
 TEST(TypecheckV2Test, ArrayAnnotationWithSignedLiteralDimFails) {
   EXPECT_THAT("const Y = uN[-1]:1;",
-              TypecheckFails(HasSignednessMismatch("sN[2]", "u32")));
+              TypecheckFails(HasSignednessMismatch("sN[1]", "u32")));
 }
 
 TEST(TypecheckV2Test, ArrayAnnotationWithSignedConstantDimFails) {
@@ -1363,7 +1363,7 @@ TEST(TypecheckV2Test, AccessOfMemberOfNonStructFails) {
 const X = (u32:1).y;
 )",
       TypecheckFails(
-          HasSubstr("Invalid access of member `y` of non-struct type: `u32`")));
+          HasSubstr("Builtin type 'u32' does not have attribute 'y'")));
 }
 
 TEST(TypecheckV2Test, AccessOfStructMemberArray) {
@@ -5079,18 +5079,17 @@ fn f() -> AnotherAlias { id((42, 127)) }
                   HasNodeWithType("f", "() -> (uN[32], uN[8])"))));
 }
 
-// ColonRefs not fully supported yet.
-TEST(TypecheckV2Test, DISABLED_ColonRefTypeAlias) {
-  EXPECT_THAT(
+TEST(TypecheckV2Test, ColonRefTypeAlias) {
+  XLS_EXPECT_OK(TypecheckV2(
       R"(
 type MyU8 = u8;
 fn f() -> u8 { MyU8::MAX }
 fn g() -> u8 { MyU8::ZERO }
 fn h() -> u8 { MyU8::MIN }
-)",
-      TypecheckSucceeds(AllOf(
-          HasNodeWithType("MyU8", "u8"), HasNodeWithType("f", "() -> u8"),
-          HasNodeWithType("g", "() -> u8"), HasNodeWithType("MyU8", "u8"))));
+const_assert!(f() == u8::MAX);
+const_assert!(g() == u8::ZERO);
+const_assert!(h() == u8::MIN);
+)"));
 }
 
 TEST(TypecheckV2Test, TypeAliasOfStructWithBoundParametrics) {
@@ -5404,6 +5403,43 @@ const X = A..s8:3;
 )",
               TypecheckFails(HasSubstr("Range expr `A..s8:3` start value `4` "
                                        "is larger than end value `3`")));
+}
+
+TEST(TypecheckV2Test, MinAttribute) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+const_assert!(u8::MIN == 0);
+const_assert!(u32::MIN == 0);
+const_assert!(s8::MIN == -128);
+const_assert!(s32::MIN == -2147483648);
+)"));
+}
+
+TEST(TypecheckV2Test, MaxAttribute) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+const_assert!(u8::MAX == 255);
+const_assert!(u32::MAX == 4294967295);
+const_assert!(s8::MAX == 127);
+const_assert!(s32::MAX == 2147483647);
+)"));
+}
+
+TEST(TypecheckV2Test, ZeroAttribute) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+const_assert!(u8::ZERO == 0);
+const_assert!(u32::ZERO == 0);
+const_assert!(s8::ZERO == 0);
+const_assert!(s32::ZERO == 0);
+)"));
+}
+
+// These cases should work in theory, but the parser presumes they are attempted
+// casts.
+TEST(TypecheckV2Test, DISABLED_AttributeOfArrayFormatBitsLikeType) {
+  XLS_EXPECT_OK(TypecheckV2(R"(
+const_assert!(uN[8]::MAX == 255);
+const_assert!(sN[8]::MAX = 127);
+const_assert!(xN[true][8]::MAX = 127);
+)"));
 }
 
 TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricType) {

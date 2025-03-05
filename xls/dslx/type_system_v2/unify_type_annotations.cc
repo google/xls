@@ -425,15 +425,16 @@ class Unifier {
       return y;
     }
     if (x->is_auto && y.is_auto) {
-      return SignednessAndSize{
-          .is_auto = true,
-          .is_signed = x->is_signed || y.is_signed,
-          // If we are coercing one of 2 auto annotations to signed, the one
-          // being coerced needs an extra bit to keep fitting the value it was
-          // sized to.
-          .size = x->size == y.size && x->is_signed != y.is_signed
-                      ? x->size + 1
-                      : std::max(x->size, y.size)};
+      SignednessAndSize result{.is_auto = true,
+                               .is_signed = x->is_signed || y.is_signed,
+                               .size = std::max(x->size, y.size)};
+      // If we are coercing one of 2 auto annotations to signed, the one being
+      // coerced needs an extra bit to keep fitting the value it was sized to.
+      if (result.is_signed && ((!x->is_signed && result.size == x->size) ||
+                               (!y.is_signed && result.size == y.size))) {
+        ++result.size;
+      }
+      return result;
     }
     // Converts `annotation` into one that reflects `signedness_and_size`, for
     // error purposes, if it is auto. If it is explicit, then we would not have

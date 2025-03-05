@@ -41,6 +41,8 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/module.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
@@ -150,6 +152,13 @@ TypeAnnotation* CreateS32Annotation(Module& module, const Span& span) {
       span, BuiltinType::kS32, module.GetOrCreateBuiltinNameDef("s32"));
 }
 
+TypeAnnotation* CreateBuiltinTypeAnnotation(Module& module,
+                                            BuiltinNameDef* name_def,
+                                            const Span& span) {
+  BuiltinType builtin_type = *BuiltinTypeFromString(name_def->ToString());
+  return module.Make<BuiltinTypeAnnotation>(span, builtin_type, name_def);
+}
+
 TypeAnnotation* CreateStructAnnotation(
     Module& module, StructDef* def, std::vector<ExprOrType> parametrics,
     std::optional<const StructInstanceBase*> instantiator) {
@@ -240,10 +249,10 @@ absl::StatusOr<TypeAnnotation*> CreateAnnotationSizedToFit(
     case NumberKind::kOther:
       XLS_ASSIGN_OR_RETURN((auto [sign, magnitude]),
                            GetSignAndMagnitude(number.text()));
+      XLS_ASSIGN_OR_RETURN(Bits raw_bits, ParseNumber(number.text()));
       const bool is_negative = sign == Sign::kNegative;
-      return CreateUnOrSnAnnotation(
-          module, number.span(), is_negative,
-          magnitude.bit_count() + (is_negative ? 1 : 0));
+      return CreateUnOrSnAnnotation(module, number.span(), is_negative,
+                                    raw_bits.bit_count());
   }
 }
 
@@ -469,6 +478,34 @@ Expr* CreateRangeElementCount(Module& module, const Range* range) {
   Expr* end =
       module.Make<Cast>(span, range->end(), CreateS32Annotation(module, span));
   return module.Make<Binop>(span, BinopKind::kSub, end, start, span);
+}
+
+absl::StatusOr<InterpValueWithTypeAnnotation> GetBuiltinMember(
+    Module& module, bool is_signed, uint32_t bit_count,
+    std::string_view member_name, const Span& span,
+    std::string_view object_type_for_error, const FileTable& file_table) {
+  const TypeAnnotation* result_annotation =
+      CreateUnOrSnAnnotation(module, span, is_signed, bit_count);
+  if (member_name == "ZERO") {
+    return InterpValueWithTypeAnnotation{
+        .type_annotation = result_annotation,
+        .value = InterpValue::MakeZeroValue(is_signed, bit_count)};
+  }
+  if (member_name == "MAX") {
+    return InterpValueWithTypeAnnotation{
+        .type_annotation = result_annotation,
+        .value = InterpValue::MakeMaxValue(is_signed, bit_count)};
+  }
+  if (member_name == "MIN") {
+    return InterpValueWithTypeAnnotation{
+        .type_annotation = result_annotation,
+        .value = InterpValue::MakeMinValue(is_signed, bit_count)};
+  }
+  return TypeInferenceErrorStatus(
+      span, nullptr,
+      absl::Substitute("Builtin type '$0' does not have attribute '$1'.",
+                       object_type_for_error, member_name),
+      file_table);
 }
 
 }  // namespace xls::dslx

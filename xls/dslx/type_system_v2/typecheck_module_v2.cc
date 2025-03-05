@@ -84,8 +84,8 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     VLOG(5) << "HandleColonRef: " << node->ToString() << " of subject kind: "
             << AstNodeKindToString(ToAstNode(node->subject())->kind());
     if (std::holds_alternative<NameRef*>(node->subject())) {
-      if (const NameDef* name_def = dynamic_cast<const NameDef*>(
-              ToAstNode(std::get<NameRef*>(node->subject())->name_def()))) {
+      AstNode* def = ToAstNode(std::get<NameRef*>(node->subject())->name_def());
+      if (const NameDef* name_def = dynamic_cast<const NameDef*>(def)) {
         if (const auto* struct_def =
                 dynamic_cast<const StructDefBase*>(name_def->definer())) {
           XLS_ASSIGN_OR_RETURN(std::optional<const AstNode*> def,
@@ -95,6 +95,22 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
             return PropagateDefToRef(*def, node);
           }
         }
+      }
+      if (auto* builtin_name_def = dynamic_cast<BuiltinNameDef*>(def)) {
+        // This would be a built-in member of a built-in type, like `u32::ZERO`.
+        return table_.SetTypeAnnotation(
+            node, module_.Make<MemberTypeAnnotation>(
+                      CreateBuiltinTypeAnnotation(module_, builtin_name_def,
+                                                  node->span()),
+                      node->attr()));
+      }
+      const AstNode* definer = dynamic_cast<const NameDef*>(def)->definer();
+      if (const auto* alias = dynamic_cast<const TypeAlias*>(definer)) {
+        // This would be a built-in member of a built-in type being accessed via
+        // a type alias.
+        return table_.SetTypeAnnotation(
+            node, module_.Make<MemberTypeAnnotation>(&alias->type_annotation(),
+                                                     node->attr()));
       }
     }
     if (std::holds_alternative<TypeRefTypeAnnotation*>(node->subject())) {

@@ -1088,9 +1088,26 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       const ColonRef* colon_ref, const Type& type, TypeInfo* ti) {
     const std::optional<const AstNode*> target =
         table_.GetColonRefTarget(colon_ref);
-    VLOG(6) << "Checking ColonRef constexpr value for: "
-            << colon_ref->ToString() << " with target: "
-            << (target.has_value() ? (*target)->ToString() : "none");
+
+    if (!target.has_value()) {
+      std::optional<BitsLikeProperties> bits_like = GetBitsLike(type);
+      if (bits_like.has_value()) {
+        VLOG(6) << "ColonRef is a universal constant referenced with an "
+                   "indirect annotation: "
+                << colon_ref->ToString();
+        XLS_ASSIGN_OR_RETURN(bool is_signed, bits_like->is_signed.GetAsBool());
+        XLS_ASSIGN_OR_RETURN(uint32_t bit_count, bits_like->size.GetAsInt64());
+        XLS_ASSIGN_OR_RETURN(
+            InterpValueWithTypeAnnotation member,
+            GetBuiltinMember(module_, is_signed, bit_count, colon_ref->attr(),
+                             colon_ref->span(), type.ToString(), file_table_));
+        ti->NoteConstExpr(colon_ref, std::move(member.value));
+      } else {
+        VLOG(6) << "ColonRef has no constexpr value: " << colon_ref->ToString();
+      }
+      return absl::OkStatus();
+    }
+
     // In a case like `S<parametrics>::CONSTANT`, what we do here is
     // constexpr-evaluate `CONSTANT` against the parametric context `TypeInfo`
     // for `S<parametrics>`. This will be `evaluation_ti`. Then we map the
@@ -1099,7 +1116,10 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     // `S::CONSTANT`, there is only one `TypeInfo` involved, so this logic
     // that figures out `evaluation_ti` is a no-op.
     TypeInfo* evaluation_ti = ti;
-    if (target.has_value() && (*target)->kind() == AstNodeKind::kConstantDef) {
+    VLOG(6) << "Checking ColonRef constexpr value for: "
+            << colon_ref->ToString()
+            << " with target: " << (*target)->ToString();
+    if ((*target)->kind() == AstNodeKind::kConstantDef) {
       if (std::holds_alternative<TypeRefTypeAnnotation*>(
               colon_ref->subject())) {
         XLS_ASSIGN_OR_RETURN(

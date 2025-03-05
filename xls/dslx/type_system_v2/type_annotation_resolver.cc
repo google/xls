@@ -218,15 +218,39 @@ class TypeAnnotationResolverImpl : public TypeAnnotationResolver {
           accept_predicate) {
     VLOG(6) << "Resolve member type: " << member_type->ToString();
     XLS_ASSIGN_OR_RETURN(
-        const TypeAnnotation* struct_type,
+        const TypeAnnotation* object_type,
         ResolveIndirectTypeAnnotations(
             parametric_context, member_type->struct_type(), accept_predicate));
+    absl::StatusOr<SignednessAndBitCountResult> signedness_and_bit_count =
+        GetSignednessAndBitCount(object_type);
+    if (signedness_and_bit_count.ok()) {
+      // A member of a bits-like type would have to be one of the special
+      // hard-coded members of builtins, like "MIN", "MAX", and "ZERO".
+      XLS_ASSIGN_OR_RETURN(SignednessAndBitCountResult signedness_and_bit_count,
+                           GetSignednessAndBitCount(object_type));
+      XLS_ASSIGN_OR_RETURN(
+          bool is_signed,
+          evaluator_.EvaluateBoolOrExpr(parametric_context,
+                                        signedness_and_bit_count.signedness));
+      XLS_ASSIGN_OR_RETURN(
+          uint32_t bit_count,
+          evaluator_.EvaluateU32OrExpr(parametric_context,
+                                       signedness_and_bit_count.bit_count));
+      XLS_ASSIGN_OR_RETURN(
+          InterpValueWithTypeAnnotation member,
+          GetBuiltinMember(module_, is_signed, bit_count,
+                           member_type->member_name(), member_type->span(),
+                           object_type->ToString(), file_table_));
+      return member.type_annotation;
+    }
+    // It's not a bits-like type, so the only other thing that would have
+    // members is a struct (or impl).
     XLS_ASSIGN_OR_RETURN(std::optional<StructOrProcRef> struct_or_proc_ref,
-                         GetStructOrProcRef(struct_type, file_table_));
+                         GetStructOrProcRef(object_type, file_table_));
     if (!struct_or_proc_ref.has_value()) {
       return absl::InvalidArgumentError(absl::Substitute(
           "Invalid access of member `$0` of non-struct type: `$1`",
-          member_type->member_name(), struct_type->ToString()));
+          member_type->member_name(), object_type->ToString()));
     }
     const StructDefBase* struct_def = struct_or_proc_ref->def;
     if (struct_def->IsParametric()) {

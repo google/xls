@@ -2845,14 +2845,12 @@ fn main() -> () {
   x.a
 }
 )"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          AllOf(
-              HasSubstrInV1(GetParam(),
-                            "Expected a struct for attribute access"),
-              HasSubstrInV2(
-                  GetParam(),
-                  "Invalid access of member `a` of non-struct type: `u32`"))));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstrInV1(GetParam(),
+                                   "Expected a struct for attribute access"),
+                     HasSubstrInV2(
+                         GetParam(),
+                         "Builtin type 'u32' does not have attribute 'a'"))));
 }
 
 TEST_P(TypecheckBothVersionsTest, BadArrayLiteralType) {
@@ -3565,13 +3563,13 @@ fn main() {
                      HasSizeMismatchInV2(GetParam(), "uN[10]", "uN[5]"))));
 }
 
-TEST(TypecheckTest, AttrViaColonRef) {
+TEST_P(TypecheckBothVersionsTest, AttrViaColonRef) {
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::ZERO }"));
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MAX }"));
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MIN }"));
 }
 
-TEST(TypecheckBothVersionsTest, ColonRefTypeAlias) {
+TEST_P(TypecheckBothVersionsTest, ColonRefTypeAlias) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU8 = u8;
 fn f() -> u8 { MyU8::MAX }
@@ -3580,21 +3578,21 @@ fn h() -> u8 { MyU8::MIN }
 )"));
 }
 
-TEST(TypecheckTest, MinAttrUsedInConstAsserts) {
+TEST_P(TypecheckBothVersionsTest, MinAttrUsedInConstAsserts) {
   XLS_EXPECT_OK(Typecheck(R"(
 const_assert!(u8::MIN == u8:0);
 const_assert!(s4::MIN == s4:-8);
 )"));
 }
 
-TEST(TypecheckTest, MaxAttrUsedToDefineAType) {
+TEST_P(TypecheckBothVersionsTest, MaxAttrUsedToDefineAType) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU255 = uN[u8::MAX as u32];
 fn f() -> MyU255 { uN[255]:42 }
 )"));
 }
 
-TEST(TypecheckTest, ZeroAttrUsedToDefineAType) {
+TEST_P(TypecheckBothVersionsTest, ZeroAttrUsedToDefineAType) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU0 = uN[u8::ZERO as u32];
 fn f() -> MyU0 { bits[0]:0 }
@@ -4688,7 +4686,7 @@ fn main(x: u32) -> u32 {
 // Previously this would cause us to RET_CHECK because we were assuming we
 // wanted to grab the root type information instead of the parametric
 // invocation's type information.
-TEST(TypecheckTest, AttrViaParametricBinding) {
+TEST_P(TypecheckBothVersionsTest, AttrViaParametricBinding) {
   constexpr std::string_view kProgram = R"(
 fn f<N: u32>() -> uN[N]{
     type UN = uN[N];
@@ -4696,10 +4694,7 @@ fn f<N: u32>() -> uN[N]{
     max
 }
 
-#[test]
-fn test_f() {
-    assert_eq(f<u32:8>(), u8:255);
-}
+const_assert!(f<u32:8>() == u8:255);
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
