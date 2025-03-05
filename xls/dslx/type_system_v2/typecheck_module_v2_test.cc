@@ -5452,12 +5452,13 @@ fn f(x: u31, y: u31) {
 }
 
 TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeNotAtype) {
-  EXPECT_THAT(R"(
+  EXPECT_THAT(
+      R"(
 fn f(x: u32, y: u32) {
   assert_eq<u32:33>(x, y);
 }
 )",
-              TypecheckFails(HasTypeMismatch("type", "u32")));
+      TypecheckFails(HasSubstr("Expected parametric type, saw `u32:33`")));
 }
 
 TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricType) {
@@ -5495,5 +5496,24 @@ fn f(x: u32, y: (u31)) {
 )",
               TypecheckFails(HasTypeMismatch("(u31,)", "u32")));
 }
+
+TEST(TypecheckV2BuiltinTest, ValueTypeParametricMismatch) {
+  EXPECT_THAT(
+      R"(
+  fn fake_decode<N: u32>(x: uN[N]) -> uN[N] { x }
+
+  const Y = fake_decode<u32>(u32:1);)",
+      TypecheckFails(HasSubstr("Expected parametric value, saw `u32`")));
+}
+
+TEST(TypecheckV2BuiltinTest, TypeValueParametricMismatch) {
+  EXPECT_THAT(
+      R"(
+  fn fake_decode<T: type>(x: u32) -> u32 { x }
+
+  const Y = fake_decode<u32:32>(u32:1);)",
+      TypecheckFails(HasSubstr("Expected parametric type, saw `u32:32`")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

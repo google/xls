@@ -338,6 +338,42 @@ class InferenceTableConverter : public UnificationErrorGenerator,
     return absl::OkStatus();
   }
 
+  // Make sure binding and parametric match - both values or both types
+  absl::Status ValidateParametricsAgainstBindings(
+      const std::vector<ParametricBinding*>& formal_bindings,
+      const std::vector<ExprOrType>& explicit_parametrics) {
+    int i = 0;
+    for (ExprOrType parametric : explicit_parametrics) {
+      if (i < formal_bindings.size()) {
+        const ParametricBinding* binding = formal_bindings.at(i);
+        bool formal_is_type_parametric =
+            dynamic_cast<GenericTypeAnnotation*>(binding->type_annotation());
+        if (std::holds_alternative<Expr*>(parametric) &&
+            formal_is_type_parametric) {
+          const Expr* expr = std::get<Expr*>(parametric);
+          return TypeInferenceErrorStatus(
+              expr->span(), nullptr,
+              absl::Substitute("Expected parametric type, saw `$0`",
+                               expr->ToString()),
+              file_table_);
+        }
+        if (std::holds_alternative<TypeAnnotation*>(parametric) &&
+            !formal_is_type_parametric) {
+          const TypeAnnotation* type = std::get<TypeAnnotation*>(parametric);
+          return TypeInferenceErrorStatus(
+              type->span(), nullptr,
+              absl::Substitute("Expected parametric value, saw `$0`",
+                               type->ToString()),
+              file_table_);
+        }
+      } else {
+        break;
+      }
+      i++;
+    }
+    return absl::OkStatus();
+  }
+
   // Converts the type info for the given invocation node and its argument
   // nodes. This involves resolving the callee function and applying the formal
   // types of the arguments to the actual arguments in the inference table.
@@ -409,6 +445,9 @@ class InferenceTableConverter : public UnificationErrorGenerator,
       return GenerateTypeInfo(caller_context, invocation,
                               function_type->return_type());
     }
+
+    XLS_RETURN_IF_ERROR(ValidateParametricsAgainstBindings(
+        function->parametric_bindings(), invocation->explicit_parametrics()));
 
     // If we get here, we are dealing with a parametric function. First let's
     // make sure a valid number of parametrics are being passed in.
