@@ -515,6 +515,21 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "xls_mlir_lsp_server",
+    srcs = ["tools/xls_mlir_lsp_server/xls_mlir_lsp_server.cc"],
+    deps = [
+        ":xls_dialect_registration",
+        "@llvm-project//mlir:MlirLspServerLib",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:MathDialect",
+        "@llvm-project//mlir:SCFDialect",
+        "@llvm-project//mlir:TensorDialect",
+    ],
+)
+
 filegroup(
     name = "stdlib",
     srcs = glob(["stdlib/*.x"]),
