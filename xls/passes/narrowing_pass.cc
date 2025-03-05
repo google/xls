@@ -134,6 +134,14 @@ absl::StatusOr<Node*> MaybeNarrow(Node* node, int64_t bit_count) {
   if (node->BitCountOrDie() == bit_count) {
     return node;
   }
+  if (node->OpIn({Op::kSignExt, Op::kZeroExt}) &&
+      node->operand(0)->BitCountOrDie() == bit_count) {
+    // Don't bother doing a bitslice of extend just simplify it right here.
+    // Makes testing easier.
+    // TODO(allight): We could also simplify the bitslice-extend in general
+    // here.
+    return node->operand(0);
+  }
   return node->function_base()->MakeNode<BitSlice>(node->loc(), node,
                                                    /*start=*/0,
                                                    /*width=*/bit_count);
@@ -1380,15 +1388,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   int64_t CountLeadingKnownZeros(Node* node, std::optional<Node*> user) const {
     CHECK(node->GetType()->IsBits());
     CHECK(user != nullptr);
-    int64_t leading_zeros = 0;
-    auto qe = QueryEngineForNodeAndUser(node, user);
-    for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-      if (!qe.IsZero(TreeBitLocation(node, i))) {
-        break;
-      }
-      ++leading_zeros;
-    }
-    return leading_zeros;
+    return QueryEngineForNodeAndUser(node, user)
+        .KnownLeadingZeros(node)
+        .value_or(0);
   }
 
   // Return the number of leading known ones in the given nodes values when
@@ -1397,15 +1399,21 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   int64_t CountLeadingKnownOnes(Node* node, std::optional<Node*> user) const {
     CHECK(node->GetType()->IsBits());
     CHECK(user != nullptr);
-    int64_t leading_ones = 0;
-    auto qe = QueryEngineForNodeAndUser(node, user);
-    for (int64_t i = node->BitCountOrDie() - 1; i >= 0; --i) {
-      if (!qe.IsOne(TreeBitLocation(node, i))) {
-        break;
-      }
-      ++leading_ones;
-    }
-    return leading_ones;
+    return QueryEngineForNodeAndUser(node, user)
+        .KnownLeadingOnes(node)
+        .value_or(0);
+  }
+
+  // Return the number of leading known sign-bit equal values in the given nodes
+  // values when used as an argument to 'user'. If user is std::nullopt the
+  // context isn't used.
+  int64_t CountLeadingKnownSignBits(Node* node,
+                                    std::optional<Node*> user) const {
+    CHECK(node->GetType()->IsBits());
+    CHECK(user != nullptr);
+    return QueryEngineForNodeAndUser(node, user)
+        .KnownLeadingSignBits(node)
+        .value_or(1);
   }
 
   absl::StatusOr<IntervalSetTree> GetIntervals(Node* node) const {
@@ -1416,20 +1424,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
 
   int64_t UnsignedNarrowedWidth(Node* operand, Node* user) {
-    if (operand->op() == Op::kZeroExt) {
-      // Operand is a zero-extended value; we can just drop the zero extension.
-      return operand->operand(0)->BitCountOrDie();
-    }
     return operand->BitCountOrDie() - CountLeadingKnownZeros(operand, user);
   }
 
   absl::StatusOr<std::optional<Node*>> MaybeNarrowUnsignedOperand(Node* operand,
                                                                   Node* user) {
-    if (operand->op() == Op::kZeroExt) {
-      // Operand is a zero-extended value. Just use the value before
-      // zero-extension.
-      return operand->operand(0);
-    }
     int64_t narrowed_width = UnsignedNarrowedWidth(operand, user);
     if (narrowed_width == operand->BitCountOrDie()) {
       return std::nullopt;
@@ -1438,13 +1437,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   }
 
   int64_t SignedNarrowedWidth(Node* operand, Node* user) {
-    if (operand->op() == Op::kSignExt) {
-      // Operand is a sign-extended value; we can just drop the sign extension.
-      return operand->operand(0)->BitCountOrDie();
-    }
-
-    int64_t leading_sign_bits = std::max(CountLeadingKnownZeros(operand, user),
-                                         CountLeadingKnownOnes(operand, user));
+    int64_t leading_sign_bits = CountLeadingKnownSignBits(operand, user);
     if (leading_sign_bits > 1) {
       // Operand has more than one leading sign bit, something like:
       //    operand = 0000XXXX
@@ -1462,11 +1455,6 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
   absl::StatusOr<std::optional<Node*>> MaybeNarrowSignedOperand(Node* operand,
                                                                 Node* user) {
-    if (operand->op() == Op::kSignExt) {
-      // Operand is a sign-extended value. Just use the value before
-      // sign-extension.
-      return operand->operand(0);
-    }
     int64_t narrowed_width = SignedNarrowedWidth(operand, user);
     if (narrowed_width == operand->BitCountOrDie()) {
       return std::nullopt;

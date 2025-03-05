@@ -482,6 +482,18 @@ class ProxyContextQueryEngine final : public QueryEngine {
     return MostSpecific(node).MinUnsignedValue(node);
   }
 
+  std::optional<int64_t> KnownLeadingZeros(Node* node) const override {
+    return MostSpecific(node).KnownLeadingZeros(node);
+  }
+
+  std::optional<int64_t> KnownLeadingOnes(Node* node) const override {
+    return MostSpecific(node).KnownLeadingOnes(node);
+  }
+
+  std::optional<int64_t> KnownLeadingSignBits(Node* node) const override {
+    return MostSpecific(node).KnownLeadingSignBits(node);
+  }
+
  private:
   TernaryVector GetTernaryOf(absl::Span<TreeBitLocation const> bits) const {
     // TODO(allight): Very inefficient but the AtMost/AtLeastOne don't seem to

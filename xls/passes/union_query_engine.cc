@@ -295,4 +295,42 @@ Bits UnownedUnionQueryEngine::MinUnsignedValue(Node* node) const {
   return result;
 }
 
+// TODO(allight): This and the other ones should consider also calling the base
+// QueryEngine::KnownLeading... functions to try to take advantage of any cases
+// where different QEs might know things about different bits. OTOH its unlikely
+// to get much more info in most cases.
+std::optional<int64_t> UnownedUnionQueryEngine::KnownLeadingZeros(
+    Node* node) const {
+  std::optional<int64_t> best = std::nullopt;
+  for (const auto& engine : engines_) {
+    std::optional<int64_t> cur = engine->KnownLeadingZeros(node);
+    if (!best || (cur && *cur > *best)) {
+      best = cur;
+    }
+  }
+  return best;
+}
+std::optional<int64_t> UnownedUnionQueryEngine::KnownLeadingOnes(
+    Node* node) const {
+  std::optional<int64_t> best = std::nullopt;
+  for (const auto& engine : engines_) {
+    std::optional<int64_t> cur = engine->KnownLeadingOnes(node);
+    if (!best || (cur && *cur > *best)) {
+      best = cur;
+    }
+  }
+  return best;
+}
+std::optional<int64_t> UnownedUnionQueryEngine::KnownLeadingSignBits(
+    Node* node) const {
+  std::optional<int64_t> best = std::nullopt;
+  for (const auto& engine : engines_) {
+    std::optional<int64_t> cur = engine->KnownLeadingSignBits(node);
+    if (!best || (cur && *cur > *best)) {
+      best = cur;
+    }
+  }
+  return best;
+}
+
 }  // namespace xls

@@ -238,6 +238,10 @@ class RangeQueryEngine : public QueryEngine {
   Bits MaxUnsignedValue(Node* n) const override;
   Bits MinUnsignedValue(Node* n) const override;
 
+  std::optional<int64_t> KnownLeadingOnes(Node* n) const override;
+  std::optional<int64_t> KnownLeadingZeros(Node* n) const override;
+  std::optional<int64_t> KnownLeadingSignBits(Node* n) const override;
+
  private:
   friend class RangeQueryVisitor;
 

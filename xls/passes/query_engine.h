@@ -211,6 +211,19 @@ class QueryEngine {
   // Returns the minimum unsigned value that the node can be.
   virtual Bits MinUnsignedValue(Node* node) const;
 
+  // Returns the number of leading bits which are known to be zero or nullopt if
+  // the node is not bits type or the result is not known.
+  virtual std::optional<int64_t> KnownLeadingZeros(Node* node) const;
+  // Returns the number of leading bits which are known to be one or nullopt if
+  // the node is not bits type or the result is not known.
+  virtual std::optional<int64_t> KnownLeadingOnes(Node* node) const;
+  // Returns the number of leading bits which are known to be the same as the
+  // leading bit or nullopt if the node is not bits type or the result is not
+  // known. NB For any bits type (which the query engine has any data about at
+  // least) will have a value of at least 1 since the sign bit always
+  // definitionally equal to the sign bit.
+  virtual std::optional<int64_t> KnownLeadingSignBits(Node* node) const;
+
   // LINT.ThenChange(//xls/passes/forwarding_query_engine.h)
 
   // Returns the location of the unknown bit within the node if exactly one of

@@ -441,6 +441,99 @@ TEST_P(QueryEngineTest, SignExtend) {
             "0bXXXX_XXXX_XXXX_XXXX_1010_XXXX");
 }
 
+TEST_P(QueryEngineTest, KnownLeadingWithZeroExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("foo", p->GetBitsType(3));
+  BValue zero_extend_main = fb.ZeroExtend(param, 16);
+  BValue zero_extend_concat_0 =
+      fb.ZeroExtend(fb.Concat({fb.Literal(UBits(0, 1)), param}), 16);
+  BValue zero_extend_concat_1 =
+      fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), param}), 16);
+  fb.Tuple({zero_extend_main, zero_extend_concat_0, zero_extend_concat_1});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+  EXPECT_EQ(engine->KnownLeadingSignBits(zero_extend_main.node()), 13);
+  EXPECT_EQ(engine->KnownLeadingOnes(zero_extend_main.node()), 0);
+  EXPECT_EQ(engine->KnownLeadingZeros(zero_extend_main.node()), 13);
+
+  EXPECT_EQ(engine->KnownLeadingSignBits(zero_extend_concat_0.node()), 13);
+  EXPECT_EQ(engine->KnownLeadingOnes(zero_extend_concat_0.node()), 0);
+  EXPECT_EQ(engine->KnownLeadingZeros(zero_extend_concat_0.node()), 13);
+
+  EXPECT_EQ(engine->KnownLeadingSignBits(zero_extend_concat_1.node()), 12);
+  EXPECT_EQ(engine->KnownLeadingOnes(zero_extend_concat_1.node()), 0);
+  EXPECT_EQ(engine->KnownLeadingZeros(zero_extend_concat_1.node()), 12);
+}
+
+TEST_P(QueryEngineTest, KnownLeadingWithSignExtend) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("foo", p->GetBitsType(3));
+  BValue sign_extend_main = fb.SignExtend(param, 16);
+  BValue sign_extend_concat_0 =
+      fb.SignExtend(fb.Concat({fb.Literal(UBits(0, 1)), param}), 16);
+  BValue sign_extend_concat_1 =
+      fb.SignExtend(fb.Concat({fb.Literal(UBits(1, 1)), param}), 16);
+  BValue sign_extend_zero_extend = fb.SignExtend(fb.ZeroExtend(param, 4), 16);
+  BValue sign_bit = fb.BitSlice(param, 2, 1);
+  BValue manual_sign_extend = fb.Concat({
+      sign_bit,
+      sign_bit,
+      sign_bit,
+      sign_bit,
+      sign_bit,  // 5
+      sign_bit,
+      sign_bit,
+      sign_bit,
+      sign_bit,
+      sign_bit,  // 10
+      sign_bit,
+      sign_bit,
+      sign_bit,  // 13
+      param,
+  });
+  fb.Tuple({sign_extend_main, sign_extend_concat_0, sign_extend_concat_1,
+            sign_extend_zero_extend, manual_sign_extend});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
+  if (GetParam() == QueryEngineType::kTernary) {
+    // TODO(allight): Ternary does not track sign bits well enough to see the
+    // sign_extend_main is a sign extend. Normally a stateless is unioned with
+    // it but this is a real restriction that should be improved upon at some
+    // point.
+    EXPECT_EQ(engine->KnownLeadingSignBits(sign_extend_main.node()), 1);
+  } else {
+    EXPECT_EQ(engine->KnownLeadingSignBits(sign_extend_main.node()), 14);
+  }
+  EXPECT_EQ(engine->KnownLeadingOnes(sign_extend_main.node()), 0);
+  EXPECT_EQ(engine->KnownLeadingZeros(sign_extend_main.node()), 0);
+
+  if (GetParam() == QueryEngineType::kTernary) {
+    // TODO(allight): Ternary does not track sign bits well enough to see the
+    // manual_sign_extend is a sign extend. Provenance tracking or BDDs would be
+    // needed to see this. Luckily this doesn't seem likely to be a common
+    // pattern.
+    EXPECT_EQ(engine->KnownLeadingSignBits(manual_sign_extend.node()), 1);
+  } else {
+    EXPECT_EQ(engine->KnownLeadingSignBits(manual_sign_extend.node()), 14);
+  }
+  EXPECT_EQ(engine->KnownLeadingOnes(manual_sign_extend.node()), 0);
+  EXPECT_EQ(engine->KnownLeadingZeros(manual_sign_extend.node()), 0);
+
+  EXPECT_EQ(engine->KnownLeadingSignBits(sign_extend_concat_0.node()), 13);
+  EXPECT_EQ(engine->KnownLeadingOnes(sign_extend_concat_0.node()), 0);
+  EXPECT_EQ(engine->KnownLeadingZeros(sign_extend_concat_0.node()), 13);
+
+  EXPECT_EQ(engine->KnownLeadingSignBits(sign_extend_concat_1.node()), 13);
+  EXPECT_EQ(engine->KnownLeadingOnes(sign_extend_concat_1.node()), 13);
+  EXPECT_EQ(engine->KnownLeadingZeros(sign_extend_concat_1.node()), 0);
+
+  EXPECT_EQ(engine->KnownLeadingSignBits(sign_extend_zero_extend.node()), 13);
+  EXPECT_EQ(engine->KnownLeadingOnes(sign_extend_zero_extend.node()), 0);
+  EXPECT_EQ(engine->KnownLeadingZeros(sign_extend_zero_extend.node()), 13);
+}
+
 TEST_P(QueryEngineTest, BinarySelect) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

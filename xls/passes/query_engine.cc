@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "cppitertools/reversed.hpp"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -291,6 +292,65 @@ Bits QueryEngine::MinUnsignedValue(Node* node) const {
     bits[i] = IsOne(TreeBitLocation(node, i));
   }
   return Bits(bits);
+}
+
+std::optional<int64_t> QueryEngine::KnownLeadingZeros(Node* node) const {
+  if (!node->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+  if (!ternary) {
+    return std::nullopt;
+  }
+  int64_t res = 0;
+  for (TernaryValue v : iter::reversed(ternary->Get({}))) {
+    if (v == TernaryValue::kKnownZero) {
+      res++;
+    } else {
+      break;
+    }
+  }
+  return res;
+}
+
+std::optional<int64_t> QueryEngine::KnownLeadingOnes(Node* node) const {
+  if (!node->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  std::optional<SharedLeafTypeTree<TernaryVector>> ternary = GetTernary(node);
+  if (!ternary) {
+    return std::nullopt;
+  }
+  int64_t res = 0;
+  for (TernaryValue v : iter::reversed(ternary->Get({}))) {
+    if (v == TernaryValue::kKnownOne) {
+      res++;
+    } else {
+      break;
+    }
+  }
+  return res;
+}
+
+std::optional<int64_t> QueryEngine::KnownLeadingSignBits(Node* node) const {
+  if (!node->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  if (node->GetType()->AsBitsOrDie()->bit_count() == 0) {
+    // Zero bit values don't really have a sign bit in any meaningful sense.
+    return std::nullopt;
+  }
+  int64_t res = 1;
+  TreeBitLocation sign_bit_loc(node, node->BitCountOrDie() - 1);
+  // First bit is exactly the sign bit so its always equal to itself.
+  for (int64_t i = node->BitCountOrDie() - 2; i >= 0; --i) {
+    if (KnownEquals(sign_bit_loc, TreeBitLocation(node, i))) {
+      ++res;
+    } else {
+      break;
+    }
+  }
+  return res;
 }
 
 bool QueryEngine::NodesKnownUnsignedNotEquals(Node* a, Node* b) const {

@@ -16,6 +16,7 @@
 #define XLS_PASSES_UNION_QUERY_ENGINE_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -98,6 +99,9 @@ class UnownedUnionQueryEngine : public QueryEngine {
 
   Bits MaxUnsignedValue(Node* node) const override;
   Bits MinUnsignedValue(Node* node) const override;
+  std::optional<int64_t> KnownLeadingZeros(Node* node) const override;
+  std::optional<int64_t> KnownLeadingOnes(Node* node) const override;
+  std::optional<int64_t> KnownLeadingSignBits(Node* node) const override;
 
  private:
   absl::flat_hash_map<Node*, Bits> known_bits_;

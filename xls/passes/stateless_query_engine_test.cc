@@ -124,6 +124,9 @@ TEST_F(StatelessQueryEngineTest, ZeroExtend) {
 
   StatelessQueryEngine query_engine;
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0b000X_XXXX_XXXX_XXXX");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 3);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 3);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 0);
 }
 
 TEST_F(StatelessQueryEngineTest, SignExtendOfConcat) {
@@ -136,6 +139,37 @@ TEST_F(StatelessQueryEngineTest, SignExtendOfConcat) {
 
   StatelessQueryEngine query_engine;
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0b000X_XXXX_XXXX_XXXX");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 3);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 3);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 0);
+}
+
+TEST_F(StatelessQueryEngineTest, SignExtendOfNegativeConcat) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.SignExtend(
+      fb.Concat({fb.Literal(UBits(1, 1)), fb.Param("p", p.GetBitsType(13))}),
+      16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b111X_XXXX_XXXX_XXXX");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 3);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 0);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 3);
+}
+
+TEST_F(StatelessQueryEngineTest, SignExtendOfParam) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.SignExtend(fb.Param("foo", p.GetBitsType(3)), 16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0bXXXX_XXXX_XXXX_XXXX");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 14);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 0);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 0);
 }
 
 TEST_F(StatelessQueryEngineTest, ZeroExtendOfLiteral) {
@@ -146,6 +180,22 @@ TEST_F(StatelessQueryEngineTest, ZeroExtendOfLiteral) {
 
   StatelessQueryEngine query_engine;
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0b0000_0000_0000_0101");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 13);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 13);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 0);
+}
+
+TEST_F(StatelessQueryEngineTest, SignExtendOfNegativeLiteral) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.SignExtend(fb.Literal(UBits(1, 1)), 16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b1111_1111_1111_1111");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 16);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 0);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 16);
 }
 
 TEST_F(StatelessQueryEngineTest, SignExtendOfLiteral) {
@@ -156,6 +206,9 @@ TEST_F(StatelessQueryEngineTest, SignExtendOfLiteral) {
 
   StatelessQueryEngine query_engine;
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0b0000_0000_0000_0000");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 16);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 16);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 0);
 }
 
 TEST_F(StatelessQueryEngineTest, Concat) {
@@ -167,6 +220,9 @@ TEST_F(StatelessQueryEngineTest, Concat) {
 
   StatelessQueryEngine query_engine;
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0b101X_XXXX_XXXX_X010");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 1);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 0);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 1);
 }
 
 TEST_F(StatelessQueryEngineTest, ZeroExtendConcat) {
@@ -177,6 +233,9 @@ TEST_F(StatelessQueryEngineTest, ZeroExtendConcat) {
 
   StatelessQueryEngine query_engine;
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0b000X_XXXX_XXXX_XXXX");
+  EXPECT_EQ(query_engine.KnownLeadingSignBits(f->return_value()), 3);
+  EXPECT_EQ(query_engine.KnownLeadingZeros(f->return_value()), 3);
+  EXPECT_EQ(query_engine.KnownLeadingOnes(f->return_value()), 0);
 }
 
 }  // namespace

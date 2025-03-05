@@ -157,13 +157,15 @@ TEST_P(NarrowingPassTest, NarrowableSubPositive) {
   auto y = fb.Param("y", p->GetBitsType(4));
   auto x_wide = fb.ZeroExtend(x, 32);
   // y_wide is always larger than x
-  auto y_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), 32);
+  auto y_narrow = fb.Concat({fb.Literal(UBits(1, 1)), y});
+  auto y_wide = fb.ZeroExtend(y_narrow, 32);
   fb.Subtract(y_wide, x_wide);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(
       f->return_value(),
-      m::ZeroExt(m::Sub(m::BitSlice(y_wide.node(), /*start=*/0, /*width=*/5),
+      m::ZeroExt(m::Sub(y_narrow.node(),
                         m::BitSlice(x_wide.node(), /*start=*/0, /*width=*/5))));
 }
 

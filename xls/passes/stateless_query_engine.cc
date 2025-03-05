@@ -290,4 +290,19 @@ bool StatelessQueryEngine::IsFullyKnown(Node* n) const {
   return n->Is<Literal>();
 }
 
+std::optional<int64_t> StatelessQueryEngine::KnownLeadingSignBits(
+    Node* node) const {
+  if (!node->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  int64_t lead_zero = KnownLeadingZeros(node).value_or(0);
+  int64_t lead_one = KnownLeadingOnes(node).value_or(0);
+  int64_t lead_sign_ext =
+      // NB The top bit of the operand is also equal to the sign bit.
+      node->op() == Op::kSignExt
+          ? 1 + node->BitCountOrDie() - node->operand(0)->BitCountOrDie()
+          : 0;
+  return std::max({lead_zero, lead_one, lead_sign_ext});
+}
+
 }  // namespace xls

@@ -1697,6 +1697,72 @@ TEST_F(RangeQueryEngineTest, SignExtend) {
   // Sign extension is monotone.
   EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
             BitsLTT(expr.node(), {Interval(SBits(-500, 40), SBits(700, 40))}));
+  EXPECT_EQ(engine.KnownLeadingSignBits(expr.node()), 30);
+  EXPECT_EQ(engine.KnownLeadingZeros(expr.node()), 0);
+  EXPECT_EQ(engine.KnownLeadingOnes(expr.node()), 0);
+}
+
+TEST_F(RangeQueryEngineTest, SignExtendPositive) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue expr = fb.SignExtend(x, 40);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(SBits(0, 20), SBits(700, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Sign extension is monotone.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(expr.node(), {Interval(SBits(0, 40), SBits(700, 40))}));
+  EXPECT_EQ(engine.KnownLeadingSignBits(expr.node()), 30);
+  EXPECT_EQ(engine.KnownLeadingZeros(expr.node()), 30);
+  EXPECT_EQ(engine.KnownLeadingOnes(expr.node()), 0);
+}
+
+TEST_F(RangeQueryEngineTest, SignExtendNegative) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue expr = fb.SignExtend(x, 40);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(SBits(-700, 20), SBits(-1, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Sign extension is monotone.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(expr.node(), {Interval(SBits(-700, 40), SBits(-1, 40))}));
+  EXPECT_EQ(engine.KnownLeadingSignBits(expr.node()), 30);
+  EXPECT_EQ(engine.KnownLeadingZeros(expr.node()), 0);
+  EXPECT_EQ(engine.KnownLeadingOnes(expr.node()), 30);
+}
+
+TEST_F(RangeQueryEngineTest, SignExtendNegativeWithZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(20));
+  BValue expr = fb.SignExtend(x, 40);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(SBits(-700, 20), SBits(0, 20))}));
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Sign extension is monotone.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(expr.node(), {Interval(SBits(-700, 40), SBits(0, 40))}));
+  EXPECT_EQ(engine.KnownLeadingSignBits(expr.node()), 30);
+  EXPECT_EQ(engine.KnownLeadingZeros(expr.node()), 0);
+  EXPECT_EQ(engine.KnownLeadingOnes(expr.node()), 0);
 }
 
 TEST_F(RangeQueryEngineTest, SignExtendFromUnknown) {
@@ -1713,6 +1779,27 @@ TEST_F(RangeQueryEngineTest, SignExtendFromUnknown) {
   // Sign extension is monotone.
   EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
             BitsLTT(expr.node(), {Interval(SBits(-128, 40), SBits(127, 40))}));
+  EXPECT_EQ(engine.KnownLeadingSignBits(expr.node()), 33);
+  EXPECT_EQ(engine.KnownLeadingZeros(expr.node()), 0);
+  EXPECT_EQ(engine.KnownLeadingOnes(expr.node()), 0);
+}
+
+TEST_F(RangeQueryEngineTest, UnknownLeading) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue expr = fb.Param("x", p->GetBitsType(8));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Sign extension is monotone.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(expr.node(), {Interval(SBits(-128, 8), SBits(127, 8))}));
+  EXPECT_EQ(engine.KnownLeadingSignBits(expr.node()), 1);
+  EXPECT_EQ(engine.KnownLeadingZeros(expr.node()), 0);
+  EXPECT_EQ(engine.KnownLeadingOnes(expr.node()), 0);
 }
 
 TEST_F(RangeQueryEngineTest, Sub) {

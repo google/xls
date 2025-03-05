@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_FORWARDING_QUERY_ENGINE_H_
 #define XLS_PASSES_FORWARDING_QUERY_ENGINE_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -124,6 +125,16 @@ class ForwardingQueryEngine : public QueryEngine {
   }
   Bits MinUnsignedValue(Node* node) const override {
     return real().MinUnsignedValue(node);
+  }
+
+  std::optional<int64_t> KnownLeadingZeros(Node* node) const override {
+    return real().KnownLeadingZeros(node);
+  }
+  std::optional<int64_t> KnownLeadingOnes(Node* node) const override {
+    return real().KnownLeadingOnes(node);
+  }
+  std::optional<int64_t> KnownLeadingSignBits(Node* node) const override {
+    return real().KnownLeadingSignBits(node);
   }
 
  protected:

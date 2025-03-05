@@ -1461,6 +1461,61 @@ Bits RangeQueryEngine::MinUnsignedValue(Node* n) const {
   return hull ? hull->LowerBound() : Bits(n->BitCountOrDie());
 }
 
+std::optional<int64_t> RangeQueryEngine::KnownLeadingOnes(Node* n) const {
+  if (!n->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  if (!HasExplicitIntervals(n)) {
+    return 0;
+  }
+  std::optional<Bits> lower_bound =
+      GetIntervalSetTreeView(n)->Get({}).LowerBound();
+  if (!lower_bound) {
+    return 0;
+  }
+  return lower_bound->CountLeadingOnes();
+}
+
+std::optional<int64_t> RangeQueryEngine::KnownLeadingZeros(Node* n) const {
+  if (!n->GetType()->IsBits()) {
+    return std::nullopt;
+  }
+  if (!HasExplicitIntervals(n)) {
+    return 0;
+  }
+  std::optional<Bits> upper_bound =
+      GetIntervalSetTreeView(n)->Get({}).UpperBound();
+  if (!upper_bound) {
+    return 0;
+  }
+  return upper_bound->CountLeadingZeros();
+}
+
+std::optional<int64_t> RangeQueryEngine::KnownLeadingSignBits(Node* n) const {
+  if (!n->GetType()->IsBits() || n->BitCountOrDie() == 0) {
+    return std::nullopt;
+  }
+  if (!HasExplicitIntervals(n)) {
+    // Sign bit is always equal to itself
+    return 1;
+  }
+  std::optional<IntervalSet> interval = GetIntervalSetTreeView(n)->Get({});
+  if (!interval || interval->IsEmpty()) {
+    return 1;
+  }
+  if (!interval->UpperBound()->msb()) {
+    // All values have sign bit of 0
+    return KnownLeadingZeros(n);
+  }
+  if (interval->LowerBound()->msb()) {
+    // All values have sign bit of 1.
+    return KnownLeadingOnes(n);
+  }
+  // Need an extra bit since the sign bit is always equal to itself.
+  return 1 + n->BitCountOrDie() -
+         interval_ops::MinimumSignedBitCount(*interval);
+}
+
 std::string IntervalSetTreeToString(const IntervalSetTree& tree) {
   std::stringstream ss;
   IntervalSetTreeToStream(tree, tree.type(), {}, ss);

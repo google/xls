@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_ALIASING_QUERY_ENGINE_H_
 #define XLS_PASSES_ALIASING_QUERY_ENGINE_H_
 
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -165,6 +166,15 @@ class AliasingQueryEngine final : public QueryEngine {
   }
   Bits MinUnsignedValue(Node* node) const override {
     return base_->MinUnsignedValue(UnaliasNode(node));
+  }
+  std::optional<int64_t> KnownLeadingZeros(Node* node) const override {
+    return base_->KnownLeadingZeros(UnaliasNode(node));
+  }
+  std::optional<int64_t> KnownLeadingOnes(Node* node) const override {
+    return base_->KnownLeadingOnes(UnaliasNode(node));
+  }
+  std::optional<int64_t> KnownLeadingSignBits(Node* node) const override {
+    return base_->KnownLeadingSignBits(UnaliasNode(node));
   }
 
  private:

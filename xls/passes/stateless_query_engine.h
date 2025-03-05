@@ -101,6 +101,8 @@ class StatelessQueryEngine : public QueryEngine {
 
   bool IsFullyKnown(Node* n) const override;
 
+  std::optional<int64_t> KnownLeadingSignBits(Node* node) const override;
+
  private:
   struct BitCounts {
     int64_t known_true = 0;
