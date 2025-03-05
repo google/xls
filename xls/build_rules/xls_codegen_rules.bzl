@@ -409,7 +409,7 @@ def xls_ir_verilog_impl(ctx, src, conv_info):
         outputs = my_generated_files,
         tools = tools,
         inputs = runfiles.files,
-        command = "{} {} {} 2>&1 | tee {}".format(
+        command = "set -o pipefail; {} {} {} 2>&1 | tee {}".format(
             codegen_tool.path,
             src.ir_file.path,
             final_args,
