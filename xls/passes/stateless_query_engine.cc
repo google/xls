@@ -111,11 +111,36 @@ StatelessQueryEngine::GetTernary(Node* node) const {
 
   if (node->op() == Op::kZeroExt) {
     CHECK(node->GetType()->IsBits());
-    TernaryVector ternary(node->BitCountOrDie(), TernaryValue::kUnknown);
-    for (int64_t i = node->operand(ExtendOp::kArgOperand)->BitCountOrDie();
-         i < ternary.size(); ++i) {
-      ternary[i] = TernaryValue::kKnownZero;
+    TernaryVector ternary;
+    if (auto ternary_tree = GetTernary(node->operand(0))) {
+      ternary = ternary_tree->Get({});
+    } else {
+      ternary = TernaryVector(node->operand(0)->BitCountOrDie(),
+                              TernaryValue::kUnknown);
     }
+    ternary.resize(node->BitCountOrDie(), TernaryValue::kKnownZero);
+    return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+               node->GetType(), std::move(ternary))
+        .AsShared();
+  }
+
+  if (node->op() == Op::kSignExt) {
+    if (node->operand(0)->BitCountOrDie() == 0) {
+      // Zero-len value has unset sign bit.
+      return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
+                 node->GetType(),
+                 TernaryVector(node->BitCountOrDie(), TernaryValue::kKnownZero))
+          .AsShared();
+    }
+    TernaryVector ternary;
+    if (auto ternary_tree = GetTernary(node->operand(0))) {
+      ternary = ternary_tree->Get({});
+    } else {
+      ternary = TernaryVector(node->operand(0)->BitCountOrDie(),
+                              TernaryValue::kUnknown);
+    }
+    TernaryValue sign = ternary.back();
+    ternary.resize(node->BitCountOrDie(), sign);
     return LeafTypeTree<TernaryVector>::CreateSingleElementTree(
                node->GetType(), std::move(ternary))
         .AsShared();

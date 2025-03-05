@@ -126,6 +126,38 @@ TEST_F(StatelessQueryEngineTest, ZeroExtend) {
   EXPECT_EQ(query_engine.ToString(f->return_value()), "0b000X_XXXX_XXXX_XXXX");
 }
 
+TEST_F(StatelessQueryEngineTest, SignExtendOfConcat) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.SignExtend(
+      fb.Concat({fb.Literal(UBits(0, 1)), fb.Param("p", p.GetBitsType(13))}),
+      16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b000X_XXXX_XXXX_XXXX");
+}
+
+TEST_F(StatelessQueryEngineTest, ZeroExtendOfLiteral) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.ZeroExtend(fb.Literal(UBits(0b101, 3)), 16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b0000_0000_0000_0101");
+}
+
+TEST_F(StatelessQueryEngineTest, SignExtendOfLiteral) {
+  Package p("test_package");
+  FunctionBuilder fb("f", &p);
+  fb.SignExtend(fb.Literal(UBits(0, 1)), 16);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  StatelessQueryEngine query_engine;
+  EXPECT_EQ(query_engine.ToString(f->return_value()), "0b0000_0000_0000_0000");
+}
+
 TEST_F(StatelessQueryEngineTest, Concat) {
   Package p("test_package");
   FunctionBuilder fb("f", &p);
