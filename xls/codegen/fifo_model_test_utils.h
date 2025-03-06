@@ -19,9 +19,9 @@
 #include <string>
 #include <variant>
 
+#include "absl/container/flat_hash_map.h"
 #include "gmock/gmock.h"
 #include "xls/common/fuzzing/fuzztest.h"
-#include "absl/container/flat_hash_map.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/instantiation.h"
@@ -257,22 +257,7 @@ void AbslStringify(Sink& sink, const FifoTestParam& value) {
 
 inline auto FifoTestParamDomain() {
   return fuzztest::Filter(
-      [](const FifoTestParam& params) {
-        if (params.config.depth() == 0 &&
-            (!params.config.bypass() || params.config.register_push_outputs() ||
-             params.config.register_pop_outputs())) {
-          // Unsupported configurations of depth=0 fifos.
-          return false;
-        }
-        if (params.config.depth() == 1 &&
-            params.config.register_pop_outputs()) {
-          // Unsupported configuration of depth=1 fifo with
-          // register_pop_outputs.
-          return false;
-        }
-
-        return true;
-      },
+      [](const FifoTestParam& params) { return params.config.Validate().ok(); },
       fuzztest::ConstructorOf<FifoTestParam>(
           /*data_bit_count=*/fuzztest::OneOf(fuzztest::Just(0),
                                              fuzztest::Just(32)),

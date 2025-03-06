@@ -19,8 +19,8 @@
 #include <string>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
+#include "gtest/gtest.h"
 #include "xls/interpreter/block_evaluator.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/ir_test_base.h"
@@ -69,20 +69,14 @@ inline std::vector<FifoTestParam> GenerateFifoTestParams(
     for (bool bypass : {true, false}) {
       for (bool register_push_outputs : {true, false}) {
         for (bool register_pop_outputs : {true, false}) {
-          if (depth == 0 &&
-              (!bypass || register_push_outputs || register_pop_outputs)) {
-            // Unsupported configurations of depth=0 fifos.
-            continue;
-          }
-          if (depth == 1 && register_pop_outputs) {
-            // Unsupported configuration of depth=1 fifo with
-            // register_pop_outputs.
+          FifoConfig config = FifoConfig(depth, bypass, register_push_outputs,
+                                         register_pop_outputs);
+          if (!config.Validate().ok()) {
             continue;
           }
           params.push_back(FifoTestParam{
               .block_evaluator_test_param = block_evaluator_test_param,
-              .fifo_config = FifoConfig(depth, bypass, register_push_outputs,
-                                        register_pop_outputs)});
+              .fifo_config = config});
         }
       }
     }

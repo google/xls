@@ -63,6 +63,30 @@ class FifoConfig {
   bool bypass() const { return bypass_; }
   bool register_push_outputs() const { return register_push_outputs_; }
   bool register_pop_outputs() const { return register_pop_outputs_; }
+  absl::Status Validate() const {
+    if (depth_ == 0) {
+      if (!bypass_) {
+        return absl::FailedPreconditionError(
+            "Zero-depth FIFOs are direct connections, and hence cannot be "
+            "bypass-less");
+      }
+      if (register_push_outputs_ || register_pop_outputs_) {
+        return absl::FailedPreconditionError(
+            "Zero-depth FIFOs are memory-less/direct connections, and hence do "
+            "not support registers");
+      }
+    }
+    if (depth_ == 1) {
+      if (register_pop_outputs_) {
+        return absl::FailedPreconditionError(
+            "register_pop_outputs adds an extra FIFO entry for the output and "
+            "still requires a depth>=1 FIFO in front of the output stage, so "
+            "we require depth>=2");
+        // Please file a github issue if you have different FIFO needs :)
+      }
+    }
+    return absl::OkStatus();
+  }
 
   bool operator==(const FifoConfig& other) const = default;
   bool operator<=>(const FifoConfig& other) const = default;
