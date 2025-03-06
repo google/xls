@@ -17,5 +17,5 @@ module main(
       $display("This is a simple trace.");
     end
   end
-  `endif
+  `endif  // SIMULATION
 endmodule

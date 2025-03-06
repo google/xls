@@ -17,7 +17,7 @@ module main(
         2'b00: begin
           `ifdef SIMULATION
             $error("Zero selector not allowed.");
-          `endif
+          `endif  // SIMULATION
           // Never taken, propagate X
           priority_sel_64b_2way_snz_element16 = 16'dx;
         end

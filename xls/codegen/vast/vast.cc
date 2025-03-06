@@ -1699,7 +1699,7 @@ std::string StatementConditionalDirective::Emit(LineInfo* line_info) const {
     }
     LineInfoIncrease(line_info, 2);
   }
-  absl::StrAppend(&result, "`endif");
+  absl::StrAppend(&result, "`endif  // ", identifier_);
   LineInfoIncrease(line_info, 1);
   LineInfoEnd(line_info, this);
 
@@ -1740,7 +1740,7 @@ std::string ModuleConditionalDirective::Emit(LineInfo* line_info) const {
     }
     LineInfoIncrease(line_info, 2);
   }
-  pieces.push_back("`endif");
+  pieces.push_back(absl::StrCat("`endif  // ", identifier_));
   LineInfoIncrease(line_info, 1);
   LineInfoEnd(line_info, this);
 

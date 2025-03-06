@@ -892,12 +892,12 @@ TEST_P(VastTest, StatementIfdefAndIfndefInCase) {
   2'b1?: begin
     `ifdef SYNTHESIS
       thing_next = thing;
-    `endif
+    `endif  // SYNTHESIS
   end
   2'bX0: begin
     `ifndef SYNTHESIS
       thing_next = thing;
-    `endif
+    `endif  // SYNTHESIS
   end
   default: begin
     thing_next = 2'dx;
@@ -928,7 +928,7 @@ TEST_P(VastTest, StatementIfdefWithElsif) {
     thing_next = thing;
   `elsif SYNTHESIS2
     thing_next = 2'dx;
-  `endif
+  `endif  // SYNTHESIS
 end)");
 }
 
@@ -955,7 +955,7 @@ TEST_P(VastTest, StatementIfdefWithElse) {
     thing_next = thing;
   `else
     thing_next = 2'dx;
-  `endif
+  `endif  // SYNTHESIS
 end)");
 }
 
@@ -986,7 +986,7 @@ TEST_P(VastTest, StatementIfdefWithElsifAndElse) {
     thing_next = thing_next;
   `else
     thing_next = 2'dx;
-  `endif
+  `endif  // SYNTHESIS
 end)");
 }
 
@@ -1011,7 +1011,7 @@ TEST_P(VastTest, ModuleIfdefWithElsif) {
   assign thing = 1'h0;
   `elsif SYNTHESIS2
   assign thing = 1'dx;
-  `endif
+  `endif  // SYNTHESIS
 endmodule)");
 }
 
@@ -1036,7 +1036,7 @@ TEST_P(VastTest, ModuleIfdefWithElse) {
   assign thing = 1'h0;
   `else
   assign thing = 1'dx;
-  `endif
+  `endif  // SYNTHESIS
 endmodule)");
 }
 
