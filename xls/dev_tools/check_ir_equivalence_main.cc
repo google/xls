@@ -268,8 +268,14 @@ absl::StatusOr<bool> RealMain(const std::vector<std::string_view>& ir_paths,
   std::vector<FunctionBase*> functions;
   functions.reserve(packages.size());
   for (const auto& package : packages) {
-    functions.push_back(*package->GetTop());
+    std::optional<FunctionBase*> top = package->GetTop();
+    if (!top.has_value()) {
+      return absl::InvalidArgumentError("Package has no top entity: " +
+                                        package->name());
+    }
+    functions.push_back(top.value());
   }
+
   solvers::z3::ProverResult result;
   if (functions[0]->IsFunction()) {
     if (!functions[1]->IsFunction()) {
