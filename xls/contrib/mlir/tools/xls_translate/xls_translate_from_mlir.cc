@@ -68,6 +68,7 @@
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/contrib/mlir/IR/xls_ops.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/nodes.h"
@@ -1409,6 +1410,19 @@ absl::StatusOr<::xls::Function*> wrapDslxFunctionIfNeeded(
   return xlsFunc;
 }
 
+::xls::FlopKind convertFlopKind(FlopKind kind) {
+  switch (kind) {
+    case FlopKind::kNone:
+      return ::xls::FlopKind::kNone;
+    case FlopKind::kFlop:
+      return ::xls::FlopKind::kFlop;
+    case FlopKind::kSkid:
+      return ::xls::FlopKind::kSkid;
+    case FlopKind::kZeroLatency:
+      return ::xls::FlopKind::kZeroLatency;
+  }
+}
+
 FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
     Operation* op, llvm::StringRef dslx_search_path,
     DslxPackageCache& dslx_cache) {
@@ -1454,7 +1468,30 @@ FailureOr<std::unique_ptr<Package>> mlirXlsToXls(
     } else if (!chan_op.getRecvSupported()) {
       kind = ::xls::ChannelOps::kSendOnly;  // NOLINT
     }
-    auto channel = package->CreateStreamingChannel(name, kind, xls_type);
+
+    std::optional<::xls::FifoConfig> fifo_config = std::nullopt;
+    if (auto mlir_fifo_config = chan_op.getFifoConfig()) {
+      fifo_config = ::xls::FifoConfig(
+          mlir_fifo_config->getFifoDepth(), mlir_fifo_config->getBypass(),
+          mlir_fifo_config->getRegisterPushOutputs(),
+          mlir_fifo_config->getRegisterPopOutputs());
+    }
+
+    std::optional<::xls::FlopKind> input_flop = std::nullopt;
+    std::optional<::xls::FlopKind> output_flop = std::nullopt;
+    if (auto attr = chan_op.getInputFlopKind()) {
+      input_flop = convertFlopKind(*attr);
+    }
+    if (auto attr = chan_op.getOutputFlopKind()) {
+      output_flop = convertFlopKind(*attr);
+    }
+
+    auto channel_config =
+        ::xls::ChannelConfig(fifo_config, input_flop, output_flop);
+
+    auto channel = package->CreateStreamingChannel(name, kind, xls_type, {},
+                                                   channel_config);
+
     if (!channel.ok()) {
       chan_op.emitOpError("failed to create streaming channel: ")
           << channel.status().message();

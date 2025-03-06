@@ -223,8 +223,8 @@ func.func @tensor_empty() -> !xls.array<4 x i32> attributes {xls = true} {
   return %0 : !xls.array<4 x i32>
 }
 
-// CHECK-LABEL: xls.chan @mychan : i24
-xls.chan @mychan : !xls.array<3 x i8>
+// CHECK-LABEL: xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i24
+xls.chan @mychan {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : !xls.array<3 x i8>
 
 // CHECK-LABEL:   xls.eproc @eproc(
 // CHECK-SAME:                     %[[VAL_0:.*]]: i32) zeroinitializer {

@@ -1600,14 +1600,49 @@ absl::StatusOr<Operation*> translateProc(::xls::Proc& xls_proc,
 // Channel Translation
 //===----------------------------------------------------------------------===//
 
+FlopKind convertFlopKind(::xls::FlopKind kind) {
+  switch (kind) {
+    case ::xls::FlopKind::kNone:
+      return FlopKind::kNone;
+    case ::xls::FlopKind::kFlop:
+      return FlopKind::kFlop;
+    case ::xls::FlopKind::kSkid:
+      return FlopKind::kSkid;
+    case ::xls::FlopKind::kZeroLatency:
+      return FlopKind::kZeroLatency;
+  }
+}
+
 absl::Status translateChannel(::xls::Channel& xls_chn, OpBuilder& builder,
                               MLIRContext* ctx, TranslationState& state) {
   auto chn = builder.create<xls::ChanOp>(
       builder.getUnknownLoc(),
       /*name=*/builder.getStringAttr(xls_chn.name()),
       /*type=*/TypeAttr::get(translateType(xls_chn.type(), builder, ctx)),
+      /*fifo_config=*/nullptr,
+      /*input_flop_kind=*/nullptr,
+      /*output_flop_kind=*/nullptr,
       /*send_supported=*/builder.getBoolAttr(xls_chn.CanSend()),
       /*recv_supported=*/builder.getBoolAttr(xls_chn.CanReceive()));
+
+  if (auto xls_streaming_chn =
+          dynamic_cast<::xls::StreamingChannel*>(&xls_chn)) {
+    auto xls_ch_config = xls_streaming_chn->channel_config();
+    if (auto xls_fifo_config = xls_ch_config.fifo_config()) {
+      chn.setFifoConfigAttr(FifoConfig::get(
+          ctx, xls_fifo_config->depth(), xls_fifo_config->bypass(),
+          xls_fifo_config->register_push_outputs(),
+          xls_fifo_config->register_pop_outputs()));
+    }
+
+    if (auto xls_input_flop = xls_ch_config.input_flop_kind()) {
+      chn.setInputFlopKind(convertFlopKind(*xls_input_flop));
+    }
+
+    if (auto xls_output_flop = xls_ch_config.output_flop_kind()) {
+      chn.setOutputFlopKind(convertFlopKind(*xls_output_flop));
+    }
+  }
 
   return state.setChannel(std::string(xls_chn.name()),
                           SymbolRefAttr::get(chn.getNameAttr()));

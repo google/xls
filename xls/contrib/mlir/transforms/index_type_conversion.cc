@@ -246,9 +246,10 @@ class LegalizeChanOp : public OpConversionPattern<ChanOp> {
       ChanOp op, OpAdaptor /*adaptor*/,
       ConversionPatternRewriter &rewriter) const override {
     Type resultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<xls::ChanOp>(op, op.getSymName(), resultType,
-                                             op.getSendSupported(),
-                                             op.getRecvSupported());
+    rewriter.replaceOpWithNewOp<xls::ChanOp>(
+        op, op.getSymName(), resultType, op.getFifoConfigAttr(),
+        op.getInputFlopKindAttr(), op.getOutputFlopKindAttr(),
+        op.getSendSupported(), op.getRecvSupported());
     return success();
   }
 };

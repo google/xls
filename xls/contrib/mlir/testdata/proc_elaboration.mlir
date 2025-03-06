@@ -1,6 +1,6 @@
 // RUN: xls_opt -elaborate-procs -split-input-file %s 2>&1 | FileCheck %s
-// CHECK-LABEL:       xls.chan @req : i32
-// CHECK-NEXT:  xls.chan @resp : i32
+// CHECK-LABEL: xls.chan @req : i32
+// CHECK-NEXT:  xls.chan @resp {fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false>} : i32
 // CHECK-NEXT:  xls.chan @rom1_req : i32
 // CHECK-NEXT:  xls.chan @rom1_resp : i32
 // CHECK-NEXT:  xls.eproc @rom(%arg0: i32) zeroinitializer discardable {
@@ -45,7 +45,7 @@
 xls.sproc @fetch() top {
   spawns {
     %req_out, %req_in = xls.schan<i32>("req")
-    %resp_out, %resp_in = xls.schan<i32>("resp")
+    %resp_out, %resp_in = xls.schan<i32>("resp") attributes { fifo_config = #xls.fifo_config<fifo_depth = 1, bypass = true, register_push_outputs = true, register_pop_outputs = false> }
     xls.spawn @proxy(%req_in, %resp_out) : !xls.schan<i32, in>, !xls.schan<i32, out>
     xls.yield %req_out, %resp_in : !xls.schan<i32, out>, !xls.schan<i32, in>
   }

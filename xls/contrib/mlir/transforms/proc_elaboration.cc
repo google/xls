@@ -139,9 +139,14 @@ class ElaborationContext
     llvm::DenseMap<Value, SymbolRefAttr> chanMap;
     std::vector<value_type> eprocChannels;
     for (auto [i, arg] : llvm::enumerate(sproc.getNextChannels())) {
+      // TODO(jpienaar): Remove unnecessary default args once they are generated
+      // automatically.
       auto chan = builder.create<ChanOp>(
           sproc.getLoc(), absl::StrFormat("%s_arg%d", originalName.str(), i),
-          cast<SchanType>(arg.getType()).getElementType());
+          cast<SchanType>(arg.getType()).getElementType(),
+          /*fifo_config=*/nullptr,
+          /*input_flop_kind=*/nullptr,
+          /*output_flop_kind=*/nullptr);
       eprocChannels.push_back(chan);
       chanMap[mapping.lookup(arg)] = SymbolRefAttr::get(chan.getSymNameAttr());
     }
@@ -224,8 +229,10 @@ class ElaborationInterpreter
   absl::Status Interpret(SchanOp op, ElaborationContext& ctx) {
     std::string name = op.getName().str();
     auto uniqueName = ctx.Uniquify(op.getNameAttr());
-    ChanOp chan =
-        ctx.getBuilder().create<ChanOp>(op.getLoc(), uniqueName, op.getType());
+    ChanOp chan = ctx.getBuilder().create<ChanOp>(
+        op.getLoc(), uniqueName, op.getType(), op.getFifoConfigAttr(),
+        op.getInputFlopKindAttr(), op.getOutputFlopKindAttr());
+
     ctx.getSymbolTable().insert(chan);
     ctx.Set(op.getResult(0), chan);
     ctx.Set(op.getResult(1), chan);
@@ -317,8 +324,14 @@ void ProcElaborationPass::runOnOperation() {
                                         *sproc.getBoundaryChannelNames())) {
         SchanType schan = cast<SchanType>(arg.getType());
         auto nameAttr = cast<StringAttr>(name);
+        // TODO(jpienaar): Remove unnecessary default args once they are
+        // generated automatically.
         auto echan = builder.create<ChanOp>(sproc.getLoc(), nameAttr.str(),
-                                            schan.getElementType());
+                                            schan.getElementType(),
+                                            /*fifo_config=*/nullptr,
+                                            /*input_flop_kind=*/nullptr,
+                                            /*output_flop_kind=*/nullptr);
+
         if (schan.getIsInput()) {
           echan.setSendSupported(false);
         } else {
