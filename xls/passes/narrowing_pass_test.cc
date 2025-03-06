@@ -91,6 +91,7 @@ TEST_P(NarrowingPassTest, NarrowSub) {
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(4));
   auto y = fb.Param("y", p->GetBitsType(4));
+  // NB The ternary qe only passes because stateless can see the extends.
   auto x_wide = fb.ZeroExtend(x, 32);
   // y_wide is always larger than x
   auto y_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), y}), 32);
@@ -103,14 +104,78 @@ TEST_P(NarrowingPassTest, NarrowSub) {
               m::ZeroExt(AllOf(m::Sub(_, _), m::Type("bits[5]"))));
 }
 
+// This is just an edge case where the operands to the subtract are exactly '0'
+// or '-1'.
+TEST_P(NarrowingPassTest, NarrowSubAllSignBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(1));
+  auto y = fb.Param("y", p->GetBitsType(1));
+  // NB The ternary qe only passes because stateless can see the extends.
+  auto x_wide = fb.SignExtend(x, 32);
+  auto y_wide = fb.SignExtend(y, 32);
+  fb.Subtract(y_wide, x_wide);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::SignExt(AllOf(m::Sub(_, _), m::Type("bits[2]"))));
+}
+
+// This is just an edge case where the operands to the subtract are exactly '0'
+// or '-1'.
+TEST_P(NarrowingPassTest, NarrowAddAllSignBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(1));
+  auto y = fb.Param("y", p->GetBitsType(1));
+  // NB The ternary qe only passes because stateless can see the extends.
+  auto x_wide = fb.SignExtend(x, 32);
+  auto y_wide = fb.SignExtend(y, 32);
+  fb.Add(y_wide, x_wide);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::SignExt(AllOf(m::Add(_, _), m::Type("bits[2]"))));
+}
+
+TEST_P(NarrowingPassTest, NarrowSubKnownNegativeKeepsSignBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(1));
+  auto x_wide = fb.ZeroExtend(fb.Concat({fb.Literal(UBits(1, 1)), x}), 32);
+  auto y = fb.Literal(UBits(0, 32));
+  fb.Subtract(y, x_wide);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ScopedVerifyEquivalence stays_equivalent{f};
+  ScopedRecordIr sri(p.get());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::SignExt(AllOf(m::Sub(_, _), m::Type("bits[3]"))));
+}
+
+TEST_P(NarrowingPassTest, AddDoNotNarrowToSameBitWidth) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  auto x_wide = fb.SignExtend(x, 33);
+  auto y = fb.Literal(SBits(-1, 33));
+  fb.Add(x_wide, y);
+  XLS_ASSERT_OK(fb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 TEST_P(NarrowingPassTest, NarrowableSubNegative) {
-  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
-    GTEST_SKIP() << "ternary Unable to determine sign of subtraction";
-  }
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(4));
   auto y = fb.Param("y", p->GetBitsType(4));
+  // NB The ternary qe only passes because stateless can see the extends.
   // x_wide is [0, 15]
   auto x_wide = fb.ZeroExtend(x, 32);
   // y_wide is always larger than x (range [16, 31])
@@ -120,17 +185,15 @@ TEST_P(NarrowingPassTest, NarrowableSubNegative) {
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::SignExt(AllOf(m::Sub(_, _), m::Type("bits[7]"))));
+              m::SignExt(AllOf(m::Sub(_, _), m::Type("bits[6]"))));
 }
 
 TEST_P(NarrowingPassTest, NarrowableSubNegativeGeneric) {
-  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
-    GTEST_SKIP() << "ternary Unable to determine sign of subtraction";
-  }
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(4));
   auto y = fb.Param("y", p->GetBitsType(4));
+  // NB The ternary qe only passes because stateless can see the extends.
   auto x_wide = fb.ZeroExtend(x, 32);
   auto y_wide = fb.ZeroExtend(y, 32);
   fb.Subtract(x_wide, y_wide);
@@ -138,7 +201,7 @@ TEST_P(NarrowingPassTest, NarrowableSubNegativeGeneric) {
   ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
-              m::SignExt(AllOf(m::Sub(_, _), m::Type("bits[6]"))));
+              m::SignExt(AllOf(m::Sub(_, _), m::Type("bits[5]"))));
 }
 
 TEST_P(NarrowingPassTest, NarrowableSubPositive) {
@@ -147,6 +210,7 @@ TEST_P(NarrowingPassTest, NarrowableSubPositive) {
   auto x = fb.Param("x", p->GetBitsType(4));
   auto y = fb.Param("y", p->GetBitsType(4));
   auto x_wide = fb.ZeroExtend(x, 32);
+  // NB The range analysis is able to see much better
   // y_wide is always larger than x
   auto y_narrow = fb.Concat({fb.Literal(UBits(1, 1)), y});
   auto y_wide = fb.ZeroExtend(y_narrow, 32);
@@ -168,6 +232,7 @@ TEST_P(NarrowingPassTest, NarrowableNegOneBit) {
   auto ext = fb.ZeroExtend(param, 32);
   fb.Negate(ext);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ScopedVerifyEquivalence sve(f);
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(),
               m::SignExt(m::BitSlice(ext.node(), /*start=*/0, /*width=*/1)));
@@ -969,9 +1034,6 @@ TEST_P(NarrowingPassTest, SignedCompareZeroExtendComparedWithSignExtend) {
 }
 
 TEST_P(NarrowingPassTest, SignExtendAdd) {
-  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
-    GTEST_SKIP() << "ternary Unable to narrow sign-extend addition";
-  }
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   fb.Add(fb.SignExtend(fb.Param("foo", p->GetBitsType(8)), 128),

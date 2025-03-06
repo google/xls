@@ -48,7 +48,6 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
-#include "xls/ir/interval_ops.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_util.h"
@@ -782,9 +781,6 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     return Change(/*original=*/decode, /*replacement=*/replacement);
   }
 
-  // TODO(allight): 2023-11-08: We could simplify this and add by recognizing
-  // when the leading bits match on both sides and just doing a sign extend.
-  // i.e. lhs[MSB] = lhs[MSB-1] = ... and rhs[MSB] = rhs[MSB-1] = ...,
   absl::Status HandleSub(BinOp* sub) override {
     VLOG(3) << "Trying to narrow sub: " << sub->ToString();
     XLS_RET_CHECK_EQ(sub->op(), Op::kSub);
@@ -798,10 +794,10 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
     // Figure out how many known bits we have.
     int64_t leading_zeros = CountLeadingKnownZeros(sub, /*user=*/std::nullopt);
-    // TODO(allight): Even with only ternary there should be some things we can
-    // do for known-negative results.
-    if (leading_zeros != 0) {
-      int64_t known_leading = leading_zeros;
+    int64_t leading_ones = CountLeadingKnownOnes(sub, /*user=*/std::nullopt);
+    auto narrow_known_sign = [&](int64_t known_leading,
+                                 Op extend) -> absl::Status {
+      XLS_RET_CHECK_GT(known_leading, 0);
       int64_t required_bits = bit_count - known_leading;
       XLS_ASSIGN_OR_RETURN(Node * new_lhs, MaybeNarrow(lhs, required_bits));
       XLS_ASSIGN_OR_RETURN(Node * new_rhs, MaybeNarrow(rhs, required_bits));
@@ -810,34 +806,50 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
                                sub->loc(), new_lhs, new_rhs, Op::kSub));
       XLS_ASSIGN_OR_RETURN(
           Node * replacement,
-          sub->ReplaceUsesWithNew<ExtendOp>(new_sub, bit_count, Op::kZeroExt));
+          sub->ReplaceUsesWithNew<ExtendOp>(new_sub, bit_count, extend));
       return Change(/*original=*/sub, /*replacement=*/replacement);
+    };
+    if (leading_zeros != 0) {
+      // Known positive result, just snip off leading bits.
+      return narrow_known_sign(leading_zeros, Op::kZeroExt);
     }
-    if (analysis_ == AnalysisType::kTernary) {
-      // Ternary means we can't get any real information about ranges so we are
-      // limited to only optimizing cases where the values are known to have the
-      // same sign.
-      return NoChange();
+    if (leading_ones > 1) {
+      // known negative result, need to keep the sign bit.
+      return narrow_known_sign(leading_ones - 1, Op::kSignExt);
     }
-
-    XLS_ASSIGN_OR_RETURN(IntervalSetTree lhs_tree, GetIntervals(lhs));
-    XLS_ASSIGN_OR_RETURN(IntervalSetTree rhs_tree, GetIntervals(rhs));
+    // Perform actual sign-bit count analysis
+    int64_t lhs_leading_sign_bits =
+        CountLeadingKnownSignBits(lhs, /*user=*/sub);
+    int64_t rhs_leading_sign_bits =
+        CountLeadingKnownSignBits(rhs, /*user=*/sub);
+    // If the arguments are potentially different signs overflowing into the
+    // sign bit is possible so we need an extra bit of width.
+    // TODO(allight): Other conditions can also stop the overflow related to the
+    // actual ranges.
+    auto lhs_qe = QueryEngineForNodeAndUser(lhs, sub);
+    auto rhs_qe = QueryEngineForNodeAndUser(rhs, sub);
+    int64_t overflow_bit =
+        lhs_qe.IsMsbKnown(lhs) && rhs_qe.IsMsbKnown(rhs) &&
+                lhs_qe.GetKnownMsb(lhs) == rhs_qe.GetKnownMsb(rhs)
+            ? 0
+            : 1;
     int64_t min_signed_size =
-        std::max(interval_ops::MinimumSignedBitCount(lhs_tree.Get({})),
-                 interval_ops::MinimumSignedBitCount(rhs_tree.Get({})));
+        1 + overflow_bit + sub->BitCountOrDie() -
+        std::min(lhs_leading_sign_bits, rhs_leading_sign_bits);
     if (min_signed_size < sub->BitCountOrDie()) {
       if (min_signed_size == 0) {
         // Implies that the sub is actually unused somehow, can't do anything in
         // any case.
         return NoChange();
       }
-      int64_t width = min_signed_size + 1;
-      XLS_ASSIGN_OR_RETURN(Node * narrowed_lhs,
-                           lhs->function_base()->MakeNode<BitSlice>(
-                               lhs->loc(), lhs, /*start=*/0, /*width=*/width));
-      XLS_ASSIGN_OR_RETURN(Node * narrowed_rhs,
-                           rhs->function_base()->MakeNode<BitSlice>(
-                               rhs->loc(), rhs, /*start=*/0, /*width=*/width));
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_lhs,
+          lhs->function_base()->MakeNode<BitSlice>(lhs->loc(), lhs, /*start=*/0,
+                                                   /*width=*/min_signed_size));
+      XLS_ASSIGN_OR_RETURN(
+          Node * narrowed_rhs,
+          rhs->function_base()->MakeNode<BitSlice>(rhs->loc(), rhs, /*start=*/0,
+                                                   /*width=*/min_signed_size));
       XLS_ASSIGN_OR_RETURN(
           Node * narrowed_sub,
           sub->function_base()->MakeNode<BinOp>(sub->loc(), narrowed_lhs,
@@ -864,8 +876,13 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     int64_t rhs_lead_zero = CountLeadingKnownZeros(rhs, /*user=*/add);
     int64_t common_leading_zeros = std::min(lhs_lead_zero, rhs_lead_zero);
 
+    int64_t lhs_lead_sign = CountLeadingKnownSignBits(lhs, /*user=*/add);
+    int64_t rhs_lead_sign = CountLeadingKnownSignBits(rhs, /*user=*/add);
+    int64_t common_leading_sign = std::min(lhs_lead_sign, rhs_lead_sign);
+
     auto make_narrow_add = [&](Node* lhs, Node* rhs, int64_t width,
                                Op extend) -> absl::Status {
+      XLS_RET_CHECK_LT(width, add->BitCountOrDie());
       XLS_ASSIGN_OR_RETURN(Node * narrowed_lhs,
                            lhs->function_base()->MakeNode<BitSlice>(
                                lhs->loc(), lhs, /*start=*/0, /*width=*/width));
@@ -881,7 +898,8 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
           add->ReplaceUsesWithNew<ExtendOp>(narrowed_add, bit_count, extend));
       return Change(/*original=*/add, /*replacement=*/new_add);
     };
-    if (common_leading_zeros > 1) {
+    if (common_leading_zeros > 1 &&
+        common_leading_zeros >= common_leading_sign) {
       // Narrow the add removing all but one of the known-zero leading
       // bits. Example:
       //
@@ -895,45 +913,40 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
       int64_t narrowed_bit_count = bit_count - common_leading_zeros + 1;
       return make_narrow_add(lhs, rhs, narrowed_bit_count, Op::kZeroExt);
     }
-
-    // Possibly this is a subtraction (addition of a signed positive and signed
-    // negative integer).
-    if (common_leading_zeros == 0) {
-      // Addition is commutative. Make sure that 'lhs' is always the one with
-      // the larger number of leading zeros.
-      Node* positive = lhs_lead_zero >= rhs_lead_zero ? lhs : rhs;
-      Node* maybe_negative = lhs_lead_zero >= rhs_lead_zero ? rhs : lhs;
-      int64_t pos_lead_zero = std::max(lhs_lead_zero, rhs_lead_zero);
-      int64_t neg_lead_ones =
-          CountLeadingKnownOnes(maybe_negative, /*user=*/add);
-      if (pos_lead_zero > 1 && neg_lead_ones > 1) {
-        // This is a subtraction. LHS - RHS. We can narrow to the common width
-        // and then sign extend.
-        int64_t common_leading = std::min(pos_lead_zero, neg_lead_ones);
-        return make_narrow_add(positive, maybe_negative,
-                               bit_count - common_leading + 1, Op::kSignExt);
+    if (common_leading_sign > 1) {
+      // Narrow the add removing all but one of the known-sign-bit leading
+      // bits. Example:
+      //
+      //    SSSXXX + SSSSYY => { SS, SXXX + SSYY }
+      //
+      if (common_leading_sign == bit_count) {
+        // Both values are either 0 or -1. Just narrow to 2 bits so all results
+        // (0, -2, -1) can be represented.
+        if (bit_count <= 2) {
+          return NoChange();
+        }
+        return make_narrow_add(lhs, rhs, 2, Op::kSignExt);
       }
-    }
-
-    if (analysis_ == AnalysisType::kTernary) {
-      // Don't bother doing expensive interval checks if the intervals come from
-      // ternary which won't have any useful information.
-      return NoChange();
-    }
-    XLS_ASSIGN_OR_RETURN(IntervalSetTree lhs_tree, GetIntervals(lhs));
-    XLS_ASSIGN_OR_RETURN(IntervalSetTree rhs_tree, GetIntervals(rhs));
-    int64_t min_signed_size =
-        std::max(interval_ops::MinimumSignedBitCount(lhs_tree.Get({})),
-                 interval_ops::MinimumSignedBitCount(rhs_tree.Get({})));
-    if (min_signed_size < add->BitCountOrDie()) {
-      if (min_signed_size == 0) {
-        // Unusual situation where we've proven the inputs have no values.
-        // Implies this add is actually dead.
-        return NoChange();
+      // Need an extra bit to ensure that overflow won't happen in cases where
+      // the sign of the arguments are known to be potentially the same.
+      // If the operands have the same sign then overflow can reach the sign
+      // bit. If they are definitely not the same sign then overflow into the
+      // sign bit is not possible.
+      auto lhs_qe = QueryEngineForNodeAndUser(lhs, add);
+      auto rhs_qe = QueryEngineForNodeAndUser(rhs, add);
+      int64_t overflow_bit =
+          lhs_qe.IsMsbKnown(lhs) && rhs_qe.IsMsbKnown(rhs) &&
+                  lhs_qe.GetKnownMsb(lhs) != rhs_qe.GetKnownMsb(rhs)
+              ? 0
+              : 1;
+      int64_t narrowed_bit_count =
+          bit_count - common_leading_sign + 1 + overflow_bit;
+      XLS_RET_CHECK_LE(narrowed_bit_count, bit_count);
+      // Due to needing an extra overflow bit sometimes we need either 2 or 1
+      // leading bits to do a narrow.
+      if (narrowed_bit_count != bit_count) {
+        return make_narrow_add(lhs, rhs, narrowed_bit_count, Op::kSignExt);
       }
-      // We can do a smaller add and sign-extend. Need to leave an extra bit to
-      // ensure we don't overflow.
-      return make_narrow_add(lhs, rhs, min_signed_size + 1, Op::kSignExt);
     }
 
     return NoChange();
@@ -1690,6 +1703,14 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
     XLS_RETURN_IF_ERROR(
         specialized_query_engine_.AddAlias(replacement, original));
     changed_ = true;
+    if (replacement->Is<ExtendOp>()) {
+      VLOG(3) << "  Performed narrowing of " << original << " to "
+              << replacement << " (unextended: " << replacement->operand(0)
+              << ")";
+    } else {
+      VLOG(3) << "  Performed narrowing of " << original << " to "
+              << replacement;
+    }
     return absl::OkStatus();
   }
   absl::Status Change() {
