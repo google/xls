@@ -218,7 +218,7 @@ class LegalizeArrayUpdatePattern : public OpConversionPattern<ArrayUpdateOp> {
       ConversionPatternRewriter& rewriter) const override {
     (void)adaptor;
     Value value = CoerceFloats({adaptor.getValue()}, rewriter, op)[0];
-    auto type = cast<ArrayType>(op.getArray().getType());
+    auto type = cast<ArrayType>(op.getType());
     Value start = MultiplyByBitwidth(adaptor.getIndex(), type, rewriter);
     rewriter.replaceOpWithNewOp<BitSliceUpdateOp>(
         op, adaptor.getArray().getType(), /*operand=*/adaptor.getArray(),
