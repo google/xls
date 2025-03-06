@@ -4779,6 +4779,178 @@ TEST(TypecheckV2BuiltinTest, AndReduce) {
               TypecheckSucceeds(HasNodeWithType("Y", "uN[1]")));
 }
 
+TEST(TypecheckV2BuiltinTest, ArrayRevExplicit) {
+  EXPECT_THAT("const Y = array_rev<u6, 4>([1, 2, 3, 4]);",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[6][4]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ArrayRevSizeMismatch) {
+  EXPECT_THAT("const Y = array_rev<u6, 3>([u6:1, u6:2, u6:3, u6:4]);",
+              TypecheckFails(HasSizeMismatch("u6[3]", "uN[6][4]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ArrayRevElementMismatch) {
+  EXPECT_THAT("const Y = array_rev<u6, 3>([1, 2, 3, 4]);",
+              TypecheckFails(HasSizeMismatch("u6[3]", "uN[3][4]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_ArrayRevImplicitElementType) {
+  // Fails with:
+  // Mismatch: uN[3] vs. TypeVariableTypeAnnotation: ELEMENT_TYPE
+  EXPECT_THAT("const Y = array_rev([1, 2, 3, 4]);",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32][4]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_ArrayRevImplicit) {
+  // Fails with:
+  // Mismatch: uN[32] vs. TypeVariableTypeAnnotation: ELEMENT_TYPE
+  EXPECT_THAT("const Y = array_rev([u32:1, u32:2, u32:3, u32:4]);",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32][4]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ArraySizeExplicit) {
+  EXPECT_THAT("const Y = array_size<u32, 4>([u32:1, u32:2, u32:3, u32:4]);",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ArraySizeArraySizeMismatch) {
+  EXPECT_THAT("const Y = array_size<u32, 3>([u32:1, u32:2, u32:3, u32:4]);",
+              TypecheckFails(HasSizeMismatch("u32[3]", "uN[32][4]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ArraySizeElementBitsMismatch) {
+  EXPECT_THAT("const Y = array_size<u31, 4>([u32:1, u32:2, u32:3, u32:4]);",
+              TypecheckFails(HasSizeMismatch("u31", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_ArraySizeImplicit) {
+  // Fails with:
+  // Mismatch: uN[3] vs. TypeVariableTypeAnnotation: ELEMENT_TYPE
+  EXPECT_THAT("const Y = array_size([1, 2, 3, 4]);",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_ArraySliceAllImplicitSizes) {
+  // Fails with:
+  // Mismatch: uN[16] vs. TypeVariableTypeAnnotation: T
+  EXPECT_THAT(R"(
+  const TM = [u16:1, u16:2, u16:3, u16:4];
+  const TP = [u16:0, u16:0, u16:0];
+  const Y = array_slice(TM, u32:10, TP);
+  )",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16][3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_ArraySliceSomeImplicitSizes) {
+  // Fails with:
+  // Mismatch: uN[16] vs. TypeVariableTypeAnnotation: T
+  EXPECT_THAT(R"(
+  const TM = [u16:1, u16:2, u16:3, u16:4];
+  const TP = [u16:0, u16:0, u16:0];
+  const Y = array_slice<u16>(TM, u32:10, TP);
+  )",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16][3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, ArraySliceExplicitSizes) {
+  EXPECT_THAT(R"(
+  const TM = [u16:1, u16:2, u16:3, u16:4];
+  const TP = [u16:0, u16:0, u16:0];
+  const Y = array_slice<u16, 4, 32, 3>(TM, u32:10, TP);
+  )",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[16][3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricType) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u32) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeConstants) {
+  EXPECT_THAT(R"(
+fn f() {
+  assert_eq<u32>(u32:1, u32:2);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("u32:1", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeSecondMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u31) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeFirstMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u31, y: u32) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeBothMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u31, y: u31) {
+  assert_eq<u32>(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeNotAtype) {
+  EXPECT_THAT(
+      R"(
+fn f(x: u32, y: u32) {
+  assert_eq<u32:33>(x, y);
+}
+)",
+      TypecheckFails(HasSubstr("Expected parametric type, saw `u32:33`")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricType) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u32) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeTuple) {
+  EXPECT_THAT(R"(
+fn f(x: (u32), y: (u32)) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckSucceeds(HasNodeWithType("x", "(uN[32])")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeMismatch) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: u31) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeMismatchTuple) {
+  EXPECT_THAT(R"(
+fn f(x: u32, y: (u31)) {
+  assert_eq(x, y);
+}
+)",
+              TypecheckFails(HasTypeMismatch("(u31,)", "u32")));
+}
 TEST(TypecheckV2BuiltinTest, AssertLt) {
   EXPECT_THAT(
       R"(
@@ -4829,6 +5001,27 @@ TEST(TypecheckV2BuiltinTest, BitSliceUpdateError) {
               TypecheckFails(HasSizeMismatch("uN[32]", "u64")));
 }
 
+TEST(TypecheckV2BuiltinTest, CheckedCast) {
+  EXPECT_THAT(R"(const Y = checked_cast<u32>(u31:3);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, CheckedCastExplicit) {
+  EXPECT_THAT(R"(const Y = checked_cast<u32, u31>(u31:3);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, CheckedCastMismatch) {
+  EXPECT_THAT(R"(const Y = checked_cast<u32, u31>(u32:3);)",
+              TypecheckFails(HasSizeMismatch("u32", "u31")));
+}
+
+TEST(TypecheckV2BuiltinTest, CheckedCastImplicitDestinationFails) {
+  // This (intentionally) fails the same way as v1.
+  EXPECT_THAT(R"(const Y: u32 = checked_cast(u31:3);)",
+              TypecheckFails(HasSubstr("Could not infer parametric(s): DEST")));
+}
+
 TEST(TypecheckV2BuiltinTest, Clz) {
   EXPECT_THAT(R"(const Y = clz(u8:3);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
@@ -4837,6 +5030,36 @@ TEST(TypecheckV2BuiltinTest, Clz) {
 TEST(TypecheckV2BuiltinTest, Ctz) {
   EXPECT_THAT(R"(const Y = ctz(u8:3);)",
               TypecheckSucceeds(HasNodeWithType("Y", "uN[8]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Enumerate) {
+  EXPECT_THAT(R"(const Y = enumerate<u16, u32:3>([u16:1, u16:2, u16:3]);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_EnumerateImplicitSize) {
+  EXPECT_THAT(R"(const Y = enumerate<u16>([u16:1, u16:2, u16:3]);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_EnumerateImplicitType) {
+  EXPECT_THAT(R"(const Y = enumerate([u16:1, u16:2, u16:3]);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "(uN[32], uN[16])[3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, Gate) {
+  EXPECT_THAT(R"(const Y = gate!(true, u32:123);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, GateMismatch) {
+  EXPECT_THAT(R"(const Y = gate!<u31>(true, u32:123);)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, GateReturnTypeMismatch) {
+  EXPECT_THAT(R"(const Y:u31 = gate!(true, u32:123);)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
 }
 
 TEST(TypecheckV2BuiltinTest, DISABLED_OneHot) {
@@ -4954,9 +5177,58 @@ TEST(TypecheckV2BuiltinTest, Smulp) {
               TypecheckSucceeds(HasNodeWithType("Y", "(sN[16], sN[16])")));
 }
 
+TEST(TypecheckV2BuiltinTest, Trace) {
+  EXPECT_THAT(R"(const Y = trace!(u32:123);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[32]")));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceMismatchedParamType) {
+  EXPECT_THAT(R"(const Y = trace!<u31>(u32:123);)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
+TEST(TypecheckV2BuiltinTest, TraceMismatchedReturnType) {
+  EXPECT_THAT(R"(const Y: u31 = trace!(u32:123);)",
+              TypecheckFails(HasSizeMismatch("u31", "u32")));
+}
+
 TEST(TypecheckV2BuiltinTest, Umulp) {
   EXPECT_THAT(R"(const Y = umulp(u16:10, u16:20);)",
               TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[16])")));
+}
+
+TEST(TypecheckV2BuiltinTest, WideningCast) {
+  EXPECT_THAT(R"(const Y = widening_cast<u31>(u32:3);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[31]")));
+}
+
+TEST(TypecheckV2BuiltinTest, WideningCastExplicit) {
+  EXPECT_THAT(R"(const Y = widening_cast<u31, u32>(u32:3);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "uN[31]")));
+}
+
+TEST(TypecheckV2BuiltinTest, WideningCastMismatch) {
+  EXPECT_THAT(R"(const Y = widening_cast<u31, u32>(u31:3);)",
+              TypecheckFails(HasSizeMismatch("u32", "u31")));
+}
+
+TEST(TypecheckV2BuiltinTest, WideningCastImplicitDestinationFails) {
+  // This (intentionally) fails the same way as v1.
+  EXPECT_THAT(R"(const Y: u32 = widening_cast(u31:3);)",
+              TypecheckFails(HasSubstr("Could not infer parametric(s): DEST")));
+}
+
+TEST(TypecheckV2BuiltinTest, ZipExplicitSizes) {
+  EXPECT_THAT(
+      R"(const Y = zip<u16, 3, u32>([u16:1, u16:2, u16:3], [u32:1, u32:2, u32:3]);)",
+      TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[32])[3]")));
+}
+
+TEST(TypecheckV2BuiltinTest, DISABLED_ZipImplicitSizes) {
+  // Fails with:
+  // Mismatch: uN[16] vs. TypeVariableTypeAnnotation: T
+  EXPECT_THAT(R"(const Y = zip([u16:1, u16:2, u16:3], [u32:1, u32:2, u32:3]);)",
+              TypecheckSucceeds(HasNodeWithType("Y", "(uN[16], uN[32])[3]")));
 }
 
 TEST(TypecheckV2Test, TypeAliasSelfReference) {
@@ -5440,97 +5712,6 @@ const_assert!(uN[8]::MAX == 255);
 const_assert!(sN[8]::MAX = 127);
 const_assert!(xN[true][8]::MAX = 127);
 )"));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricType) {
-  EXPECT_THAT(R"(
-fn f(x: u32, y: u32) {
-  assert_eq<u32>(x, y);
-}
-)",
-              TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeConstants) {
-  EXPECT_THAT(R"(
-fn f() {
-  assert_eq<u32>(u32:1, u32:2);
-}
-)",
-              TypecheckSucceeds(HasNodeWithType("u32:1", "uN[32]")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeSecondMismatch) {
-  EXPECT_THAT(R"(
-fn f(x: u32, y: u31) {
-  assert_eq<u32>(x, y);
-}
-)",
-              TypecheckFails(HasSizeMismatch("u31", "u32")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeFirstMismatch) {
-  EXPECT_THAT(R"(
-fn f(x: u31, y: u32) {
-  assert_eq<u32>(x, y);
-}
-)",
-              TypecheckFails(HasSizeMismatch("u31", "u32")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeBothMismatch) {
-  EXPECT_THAT(R"(
-fn f(x: u31, y: u31) {
-  assert_eq<u32>(x, y);
-}
-)",
-              TypecheckFails(HasSizeMismatch("u31", "u32")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqExplicitParametricTypeNotAtype) {
-  EXPECT_THAT(
-      R"(
-fn f(x: u32, y: u32) {
-  assert_eq<u32:33>(x, y);
-}
-)",
-      TypecheckFails(HasSubstr("Expected parametric type, saw `u32:33`")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricType) {
-  EXPECT_THAT(R"(
-fn f(x: u32, y: u32) {
-  assert_eq(x, y);
-}
-)",
-              TypecheckSucceeds(HasNodeWithType("x", "uN[32]")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeTuple) {
-  EXPECT_THAT(R"(
-fn f(x: (u32), y: (u32)) {
-  assert_eq(x, y);
-}
-)",
-              TypecheckSucceeds(HasNodeWithType("x", "(uN[32])")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeMismatch) {
-  EXPECT_THAT(R"(
-fn f(x: u32, y: u31) {
-  assert_eq(x, y);
-}
-)",
-              TypecheckFails(HasSizeMismatch("u31", "u32")));
-}
-
-TEST(TypecheckV2BuiltinTest, AssertEqImplicitParametricTypeMismatchTuple) {
-  EXPECT_THAT(R"(
-fn f(x: u32, y: (u31)) {
-  assert_eq(x, y);
-}
-)",
-              TypecheckFails(HasTypeMismatch("(u31,)", "u32")));
 }
 
 TEST(TypecheckV2BuiltinTest, ValueTypeParametricMismatch) {

@@ -14,17 +14,34 @@
 
 fn and_reduce<N: u32>(x: uN[N]) -> u1;
 
+fn array_rev<T: type, N: u32>(x: T[N]) -> T[N];
+
+fn array_size<T: type, N: u32>(x: T[N]) -> u32;
+
+fn array_slice<T: type, M: u32, N: u32, P: u32>(xs: T[M], start: uN[N], want: T[P]) -> T[P];
+
+fn assert_eq<T: type>(x: T, y: T) -> ();
+
 fn assert_lt<S: bool, N: u32>(x: xN[S][N], y: xN[S][N]) -> ();
 
 fn assert!<N: u32>(x: bool, msg: u8[N]) -> ();
 
 fn bit_slice_update<N: u32, U: u32, V: u32>(x: uN[N], y: uN[U], z: uN[V]) -> uN[N];
 
+fn checked_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
+
 fn clz<N: u32>(x: uN[N]) -> uN[N];
 
 fn cover!<N: u32>(msg: u8[N], y: u1) -> ();
 
 fn ctz<N: u32>(x: uN[N]) -> uN[N];
+
+fn enumerate<T: type, N: u32>(x: T[N]) -> (u32, T)[N];
+
+// Blocked on tiv2 supporting strings as u8[N]:
+// fn fail!<N: u32, T: type> (x: u8[N], y: T) -> T;
+
+fn gate!<T: type>(x: u1, y: T) -> T;
 
 fn one_hot<N: u32, M: u32={N + 1}>(x: uN[N], y: u1) -> uN[M];
 
@@ -34,10 +51,35 @@ fn or_reduce<N: u32>(x: uN[N]) -> u1;
 
 fn priority_sel<N: u32, M: u32, S: bool>(x: uN[N], y: xN[S][M][N], z: xN[S][M]) -> xN[S][M];
 
+// Blocked on tiv2 supporting procs:
+// fn recv_if_non_blocking<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T, bool);
+
+// Blocked on tiv2 supporting procs:
+// fn recv_if<T: type>(tok: token, channel: chan<T> in, predicate: bool, value: T) -> (token, T);
+
+// Blocked on tiv2 supporting procs:
+// fn recv_non_blocking<T: type>(tok: token, channel: chan<T> in, value: T) -> (token, T, bool);
+
+// Blocked on tiv2 supporting procs:
+// fn recv<T: type>(tok: token, channel: chan<T> in) -> (token, T);
+
 fn rev<N: u32>(x: uN[N]) -> uN[N];
+
+// Blocked on tiv2 supporting procs:
+// fn send_if<T: type>(tok: token, channel: chan<T> out, predicate: bool, value: T) -> token;
+
+// Blocked on tiv2 supporting procs:
+// fn send<T: type>(tok: token, channel: chan<T> out, value: T) -> token;
 
 fn signex<NS: bool, N: u32, MS: bool, M: u32>(x: xN[MS][M], y: xN[NS][N]) -> xN[NS][N];
 
 fn smulp<N: u32>(x: sN[N], y: sN[N]) -> (sN[N], sN[N]);
 
+fn trace!<T: type>(value: T) -> T;
+
 fn umulp<N: u32>(x: uN[N], y: uN[N]) -> (uN[N], uN[N]);
+
+fn widening_cast<DEST: type, SRC: type>(x: SRC) -> DEST;
+
+fn zip<LHS_TYPE: type, N: u32, RHS_TYPE: type>(lhs: LHS_TYPE[N], rhs: RHS_TYPE[N]) ->
+    (LHS_TYPE, RHS_TYPE)[N];
