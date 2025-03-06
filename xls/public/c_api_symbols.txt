@@ -21,6 +21,9 @@ xls_bits_umul
 xls_bits_width_slice
 xls_bits_xor
 xls_builder_base_add_and
+xls_builder_base_add_bit_slice
+xls_builder_base_add_concat
+xls_builder_base_add_dynamic_bit_slice
 xls_builder_base_add_literal
 xls_builder_base_add_not
 xls_builder_base_add_or
