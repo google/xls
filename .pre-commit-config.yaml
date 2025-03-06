@@ -4,3 +4,12 @@ repos:
     hooks:
       - id: end-of-file-fixer
         exclude: '^(xls/contrib/.*|docs_src/bazel_rules_macros.md|.*\.(sh|ir|txt|patch|csv))$'
+  - repo: local
+    hooks:
+      - id: check-cpp-absolute-includes
+        name: Check C++ absolute includes
+        entry: xls/dev_tools/check_cpp_includes.py
+        language: python
+        files: ^xls/.*\.(h|cc)$
+        exclude: ^xls/contrib/
+        types: [text]

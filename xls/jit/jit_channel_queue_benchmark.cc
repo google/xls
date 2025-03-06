@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
-#include "include/benchmark/benchmark.h"
+#include "benchmark/benchmark.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
