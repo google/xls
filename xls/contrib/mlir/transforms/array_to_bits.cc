@@ -196,6 +196,20 @@ class LegalizeArrayPattern : public OpConversionPattern<ArrayOp> {
   }
 };
 
+Value MultiplyByBitwidth(Value value, int64_t bitwidth,
+                         ConversionPatternRewriter& rewriter) {
+  return rewriter.create<UmulOp>(
+      value.getLoc(), value.getType(), value,
+      rewriter.create<ConstantScalarOp>(value.getLoc(), value.getType(),
+                                        rewriter.getI32IntegerAttr(bitwidth)));
+}
+
+Value MultiplyByBitwidth(Value value, ArrayType array_type,
+                         ConversionPatternRewriter& rewriter) {
+  int64_t bitwidth = array_type.getElementTypeBitWidth();
+  return MultiplyByBitwidth(value, bitwidth, rewriter);
+}
+
 class LegalizeArrayUpdatePattern : public OpConversionPattern<ArrayUpdateOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -204,9 +218,11 @@ class LegalizeArrayUpdatePattern : public OpConversionPattern<ArrayUpdateOp> {
       ConversionPatternRewriter& rewriter) const override {
     (void)adaptor;
     Value value = CoerceFloats({adaptor.getValue()}, rewriter, op)[0];
+    auto type = cast<ArrayType>(op.getArray().getType());
+    Value start = MultiplyByBitwidth(adaptor.getIndex(), type, rewriter);
     rewriter.replaceOpWithNewOp<BitSliceUpdateOp>(
         op, adaptor.getArray().getType(), /*operand=*/adaptor.getArray(),
-        /*start=*/adaptor.getIndex(), /*update_value=*/value);
+        /*start=*/start, /*update_value=*/value);
     return success();
   }
 };
@@ -227,9 +243,12 @@ class LegalizeArraySlicePattern : public OpConversionPattern<ArraySliceOp> {
     (void)adaptor;
     int64_t elementWidth =
         cast<ArrayType>(op.getType()).getElementTypeBitWidth();
+    Value start = MultiplyByBitwidth(adaptor.getStart(),
+                                     cast<ArrayType>(op.getType()), rewriter);
+
     Operation* bitslice = rewriter.create<DynamicBitSliceOp>(
-        op->getLoc(), BitcastTypeToInt(op.getType()), adaptor.getArray(),
-        adaptor.getStart(), adaptor.getWidth() * elementWidth);
+        op->getLoc(), BitcastTypeToInt(op.getType()), adaptor.getArray(), start,
+        adaptor.getWidth() * elementWidth);
     if (bitslice->getResult(0).getType() != op.getType()) {
       bitslice = rewriter.create<arith::BitcastOp>(op->getLoc(), op.getType(),
                                                    bitslice->getResult(0));
@@ -247,9 +266,12 @@ class LegalizeArrayUpdateSlicePattern
       ConversionPatternRewriter& rewriter) const override {
     (void)adaptor;
     Value slice = CoerceFloats({adaptor.getSlice()}, rewriter, op)[0];
+    Value start = MultiplyByBitwidth(adaptor.getStart(),
+                                     cast<ArrayType>(op.getType()), rewriter);
+
     rewriter.replaceOpWithNewOp<BitSliceUpdateOp>(
         op, adaptor.getArray().getType(), /*operand=*/adaptor.getArray(),
-        /*start=*/adaptor.getStart(), /*update_value=*/slice);
+        /*start=*/start, /*update_value=*/slice);
     return success();
   }
 };
@@ -262,9 +284,10 @@ class LegalizeArrayIndexPattern : public OpConversionPattern<ArrayIndexOp> {
       ConversionPatternRewriter& rewriter) const override {
     (void)adaptor;
     Type type = BitcastTypeToInt(typeConverter->convertType(op.getType()));
+    int64_t bitwidth = type.getIntOrFloatBitWidth();
+    Value index = MultiplyByBitwidth(adaptor.getIndex(), bitwidth, rewriter);
     Operation* bitslice = rewriter.create<DynamicBitSliceOp>(
-        op->getLoc(), type, adaptor.getArray(), adaptor.getIndex(),
-        type.getIntOrFloatBitWidth());
+        op->getLoc(), type, adaptor.getArray(), index, bitwidth);
     if (bitslice->getResult(0).getType() != op.getType()) {
       bitslice = rewriter.create<arith::BitcastOp>(op->getLoc(), op.getType(),
                                                    bitslice->getResult(0));
@@ -283,9 +306,10 @@ class LegalizeArrayIndexStaticPattern
       ConversionPatternRewriter& rewriter) const override {
     (void)adaptor;
     Type type = BitcastTypeToInt(typeConverter->convertType(op.getType()));
-    Operation* bitslice = rewriter.create<BitSliceOp>(
-        op->getLoc(), type, adaptor.getArray(), adaptor.getIndex(),
-        type.getIntOrFloatBitWidth());
+    int64_t bitwidth = type.getIntOrFloatBitWidth();
+    Operation* bitslice =
+        rewriter.create<BitSliceOp>(op->getLoc(), type, adaptor.getArray(),
+                                    adaptor.getIndex() * bitwidth, bitwidth);
     if (bitslice->getResult(0).getType() != op.getType()) {
       bitslice = rewriter.create<arith::BitcastOp>(op->getLoc(), op.getType(),
                                                    bitslice->getResult(0));
