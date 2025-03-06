@@ -403,6 +403,46 @@ class PopulateInferenceTableVisitor : public AstNodeVisitorWithDefault {
     return DefaultHandler(node);
   }
 
+  absl::Status HandleFor(const For* node) override {
+    VLOG(5) << "HandleFor: " << node->ToString();
+
+    // Both init expr and body statement block have the same type as For itself.
+    const NameRef* node_type = *table_.GetTypeVariable(node);
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->init(), node_type));
+    XLS_RETURN_IF_ERROR(table_.SetTypeVariable(node->body(), node_type));
+
+    XLS_ASSIGN_OR_RETURN(
+        const NameRef* iterable_type,
+        table_.DefineInternalVariable(
+            InferenceVariableKind::kType, node->iterable(),
+            GenerateInternalTypeVariableName(node->iterable())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->iterable(), iterable_type));
+
+    XLS_ASSIGN_OR_RETURN(const NameRef* iterable_accumulator_type,
+                         table_.DefineInternalVariable(
+                             InferenceVariableKind::kType, node->names(),
+                             GenerateInternalTypeVariableName(node->names())));
+    XLS_RETURN_IF_ERROR(
+        table_.SetTypeVariable(node->names(), iterable_accumulator_type));
+
+    // Annotate the iterable accumulator tuple using the types variables of
+    // iterable and init.
+    std::vector<TypeAnnotation*> iterable_accumulator_types = {
+        module_.Make<ElementTypeAnnotation>(
+            module_.Make<TypeVariableTypeAnnotation>(iterable_type)),
+        module_.Make<TypeVariableTypeAnnotation>(node_type)};
+    XLS_RETURN_IF_ERROR(table_.SetTypeAnnotation(
+        node->names(), module_.Make<TupleTypeAnnotation>(
+                           node->names()->span(), iterable_accumulator_types)));
+    if (TypeAnnotation* type_annotation = node->type_annotation()) {
+      XLS_RETURN_IF_ERROR(
+          table_.SetTypeAnnotation(node->names(), type_annotation));
+    }
+
+    return DefaultHandler(node);
+  }
+
   absl::Status HandleArrayTypeAnnotation(
       const ArrayTypeAnnotation* node) override {
     VLOG(5) << "HandleArrayTypeAnnotation: " << node->ToString();

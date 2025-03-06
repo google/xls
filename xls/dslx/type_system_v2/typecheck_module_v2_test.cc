@@ -5551,5 +5551,169 @@ TEST(TypecheckV2BuiltinTest, TypeValueParametricMismatch) {
       TypecheckFails(HasSubstr("Expected parametric type, saw `u32:32`")));
 }
 
+TEST(TypecheckV2Test, ForArray) {
+  EXPECT_THAT(
+      R"(
+fn foo(A : uN[32][5]) {
+  let X = for (i, a) : (u32, s32) in A {
+    a + (i as s32)
+  } (0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("A", "uN[32][5]"),
+                              HasNodeWithType("i", "uN[32]"),
+                              HasNodeWithType("a", "sN[32]"),
+                              HasNodeWithType("(i, a)", "(uN[32], sN[32])"),
+                              HasNodeWithType("X", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, ForRange) {
+  EXPECT_THAT(
+      R"(
+const A = u32:0..u32:5;
+
+fn foo() {
+  let X = for (i, a) : (u32, s32) in A {
+    a + (i as s32)
+  } (0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("A", "uN[32][5]"),
+                              HasNodeWithType("i", "uN[32]"),
+                              HasNodeWithType("a", "sN[32]"),
+                              HasNodeWithType("(i, a)", "(uN[32], sN[32])"),
+                              HasNodeWithType("X", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, ForCompositeType) {
+  EXPECT_THAT(
+      R"(
+fn foo(A : (s32, s16)[10]) {
+  let a1 = u32:0;
+  let b1 = s16:0;
+  let c1 = u8:0;
+  let X = for (i, (a, (b, c))) in A {
+    (a1 + (i.0 as u32), (b1 + i.1, c1 + 1))
+  } ((a1, (b1, c1)));
+}
+)",
+      TypecheckSucceeds(
+          AllOf(HasNodeWithType("A", "(sN[32], sN[16])[10]"),
+                HasNodeWithType("i", "(sN[32], sN[16])"),
+                HasNodeWithType("a", "uN[32]"), HasNodeWithType("b", "sN[16]"),
+                HasNodeWithType("c", "uN[8]"),
+                HasNodeWithType("X", "(uN[32], (sN[16], uN[8]))"))));
+}
+
+TEST(TypecheckV2Test, ForInvalidType) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let A = u32:10;
+  let X = for (i, a) : (u32, s32) in A {
+    a + (i as s32)
+  } (0);
+}
+)",
+      TypecheckFails(
+          HasSubstr("Expect array type annotation on a for loop's iterable")));
+}
+
+TEST(TypecheckV2Test, ForInferenceFromBodyType) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let X = for (i, a) in u32:0..5 {
+    a + (i as s32)
+  } (0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("u32:0..5", "uN[32][5]"),
+                              HasNodeWithType("i", "uN[32]"),
+                              HasNodeWithType("a", "sN[32]"),
+                              HasNodeWithType("(i, a)", "(uN[32], sN[32])"),
+                              HasNodeWithType("X", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, ForInferenceFromInitType) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let X = for (i, a) in 0..5 {
+    a + i
+  } (s32:0);
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("0..5", "uN[3][5]"),
+                              HasNodeWithType("i", "uN[3]"),
+                              HasNodeWithType("a", "sN[32]"),
+                              HasNodeWithType("(i, a)", "(uN[3], sN[32])"),
+                              HasNodeWithType("X", "sN[32]"))));
+}
+
+TEST(TypecheckV2Test, ForInferenceFromResult) {
+  EXPECT_THAT(
+      R"(
+fn foo() -> s32 {
+  for (i, a) in u32:0..5 {
+    a + (i as s32)
+  } (0)
+}
+)",
+      TypecheckSucceeds(AllOf(HasNodeWithType("u32:0..5", "uN[32][5]"),
+                              HasNodeWithType("i", "uN[32]"),
+                              HasNodeWithType("a", "sN[32]"),
+                              HasNodeWithType("(i, a)", "(uN[32], sN[32])"))));
+}
+
+TEST(TypecheckV2Test, ForTypeAnnotationMismatch) {
+  EXPECT_THAT(
+      R"(
+fn foo(A : s32[5]) {
+  let X = for (i, a) : (u32, s32) in A {
+    a + i
+  } (0);
+}
+)",
+      TypecheckFails(HasSignednessMismatch("u32", "s32")));
+}
+
+TEST(TypecheckV2Test, ForInitIterableTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let X = for (i, a) in u32:0..u32:5 {
+    a + i
+  } (u16:0);
+}
+)",
+      TypecheckFails(HasTypeMismatch("uN[32]", "u16")));
+}
+
+TEST(TypecheckV2Test, ForTupleTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let X = for (i, a, _) in u32:0..u32:5 {
+    a + i
+  } (0);
+}
+)",
+      TypecheckFails(HasTypeMismatch("(uN[32], uN[0])", "(Any, Any, Any)")));
+}
+
+TEST(TypecheckV2Test, ForBodyTypeMismatch) {
+  EXPECT_THAT(
+      R"(
+fn foo() {
+  let X = for (i, a) in 0..5 {
+    let b : u64 = 0;
+    b + i
+  } (u32:0);
+}
+)",
+      TypecheckFails(HasSizeMismatch("u32", "uN[64]")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

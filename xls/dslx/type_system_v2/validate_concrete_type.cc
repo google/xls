@@ -168,6 +168,23 @@ class TypeValidator : public AstNodeVisitorWithDefault {
     return DefaultHandler(cast);
   }
 
+  // TODO: In type_annotation_resolver.cc ResolveElementType, if the container
+  // type of ElementTypeNotation is not a subscriptable type, it just returns
+  // the container type without reporting an error, so it must be checked here.
+  // This check can be removed after figuring out the reasoning behind that.
+  absl::Status HandleFor(const For* forexpr) override {
+    const Type* type = *ti_.GetItem(forexpr->iterable());
+    if (!dynamic_cast<const ArrayType*>(type)) {
+      return TypeInferenceErrorStatus(
+          forexpr->iterable()->span(), type,
+          absl::Substitute("Expect array type annotation on a for loop's "
+                           "iterable, got `$0`.",
+                           type->ToString()),
+          file_table_);
+    }
+    return DefaultHandler(forexpr);
+  }
+
   absl::Status DefaultHandler(const AstNode* node) override {
     if (node->parent() != nullptr) {
       if (const auto* binop = dynamic_cast<Binop*>(node->parent());
