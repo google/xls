@@ -236,7 +236,11 @@ class ModuleBuilder {
   ModuleSection* instantiation_section() const {
     return instantiation_section_;
   }
-  ModuleSection* assert_section() const { return assert_section_; }
+
+  // Assert section accessor is complex (and assert_section_ is mutable) because
+  // it lazily constructs `ifdef guards (if needed).
+  ModuleSection* assert_section() const;
+
   ModuleSection* cover_section() const { return cover_section_; }
   ModuleSection* output_section() const { return output_section_; }
   ModuleSection* trace_section() const { return trace_section_; }
@@ -360,7 +364,10 @@ class ModuleBuilder {
   std::vector<ModuleSection*> declaration_subsections_;
   std::vector<ModuleSection*> assignment_subsections_;
   ModuleSection* instantiation_section_;
-  ModuleSection* assert_section_;
+  // Mutable because we lazily construct the assert section.
+  // We don't want to make all the ifdef guards if the section ends up being
+  // empty.
+  mutable std::optional<ModuleSection*> assert_section_;
   ModuleSection* cover_section_;
   ModuleSection* trace_section_;
   ModuleSection* output_section_;

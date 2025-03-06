@@ -1,0 +1,9 @@
+module not_add(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  wire [31:0] add_9;
+  assign add_9 = x + y;
+  assign out = ~add_9;
+endmodule

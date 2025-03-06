@@ -201,6 +201,8 @@ SCHEDULING_FIELDS = {
     "simulation_macro_name": "Name of the Verilog macro used to guard simulation-only " +
                              "constructs. If prefixed with `!` the polarity of the guard " +
                              "is inverted.",
+    "assertion_macro_names": "Names of the Verilog macros used to guard assertions. If prefixed " +
+                             "with `!` the polarity of the guard is inverted.",
 }
 
 _VERILOG_FIELDS = {

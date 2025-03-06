@@ -83,6 +83,7 @@ void AppendMacroDefinitionsToArgs(
     std::vector<std::string>& args) {
   args.push_back(
       absl::StrFormat("-D%s", VerilogSimulator::kSimulationMacroName));
+  args.push_back(absl::StrFormat("-D%s", VerilogSimulator::kAssertOnMacroName));
   for (const VerilogSimulator::MacroDefinition& macro : macro_definitions) {
     if (macro.value.has_value()) {
       args.push_back(absl::StrFormat("-D%s=%s", macro.name, *macro.value));

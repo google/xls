@@ -66,14 +66,13 @@ namespace {
 
 // Returns the name and polarity (ifdef/ifndef) of the macro used to guard
 // simulation-only constructs.
-std::pair<std::string, ConditionalDirectiveKind> SimulationMacroNameAndPolarity(
-    const CodegenOptions& options) {
-  if (absl::StartsWith(options.simulation_macro_name(), "!")) {
-    return {
-        std::string{absl::StripPrefix(options.simulation_macro_name(), "!")},
-        ConditionalDirectiveKind::kIfndef};
+std::pair<std::string, ConditionalDirectiveKind> MacroNameAndPolarity(
+    std::string_view macro_name) {
+  if (absl::StartsWith(macro_name, "!")) {
+    return {std::string{absl::StripPrefix(macro_name, "!")},
+            ConditionalDirectiveKind::kIfndef};
   }
-  return {options.simulation_macro_name(), ConditionalDirectiveKind::kIfdef};
+  return {std::string{macro_name}, ConditionalDirectiveKind::kIfdef};
 }
 
 // Returns the bounds of the potentially-nested array type as a vector of
@@ -241,7 +240,8 @@ absl::StatusOr<VerilogFunction*> DefinePrioritySelectFunction(
     Expression* error_message =
         file->Make<QuotedString>(loc, "Zero selector not allowed.");
     StatementBlock* case_block = case_statement->AddCaseArm(zero_label);
-    auto [macro_name, polarity] = SimulationMacroNameAndPolarity(options);
+    auto [macro_name, polarity] =
+        MacroNameAndPolarity(options.simulation_macro_name());
     MacroStatementBlock* ifdef_block =
         case_block
             ->Add<StatementConditionalDirective>(loc, polarity, macro_name)
@@ -343,7 +343,8 @@ ModuleBuilder::ModuleBuilder(std::string_view name, VerilogFile* file,
   declaration_and_assignment_section_ =
       module_->Add<ModuleSection>(SourceInfo());
   instantiation_section_ = module_->Add<ModuleSection>(SourceInfo());
-  assert_section_ = module_->Add<ModuleSection>(SourceInfo());
+  assert_section_ = std::nullopt;
+
   cover_section_ = module_->Add<ModuleSection>(SourceInfo());
   output_section_ = module_->Add<ModuleSection>(SourceInfo());
   trace_section_ = module_->Add<ModuleSection>(SourceInfo());
@@ -367,6 +368,24 @@ void ModuleBuilder::NewDeclarationAndAssignmentSections() {
       declaration_and_assignment_section_->Add<ModuleSection>(SourceInfo()));
   assignment_subsections_.push_back(
       declaration_and_assignment_section_->Add<ModuleSection>(SourceInfo()));
+}
+
+ModuleSection* ModuleBuilder::assert_section() const {
+  if (!assert_section_.has_value()) {
+    assert_section_ = module_->Add<ModuleSection>(SourceInfo());
+    for (std::string_view macro_name_and_polarity :
+         options_.assertion_macro_names()) {
+      auto [macro_name, polarity] =
+          MacroNameAndPolarity(macro_name_and_polarity);
+      std::cerr << "Adding assert section with macro name: " << macro_name
+                << " and polarity: " << polarity << "\n";
+      assert_section_ = (*assert_section_)
+                            ->Add<ModuleConditionalDirective>(
+                                SourceInfo(), polarity, macro_name)
+                            ->consequent();
+    }
+  }
+  return *assert_section_;
 }
 
 absl::Status ModuleBuilder::AssignFromSlice(
@@ -1227,7 +1246,8 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
 absl::StatusOr<Display*> ModuleBuilder::EmitTrace(
     xls::Trace* trace, Expression* condition,
     absl::Span<Expression* const> trace_args) {
-  auto [macro_name, polarity] = SimulationMacroNameAndPolarity(options_);
+  auto [macro_name, polarity] =
+      MacroNameAndPolarity(options_.simulation_macro_name());
   ModuleConditionalDirective* directive =
       trace_section_->Add<ModuleConditionalDirective>(SourceInfo(), polarity,
                                                       macro_name);

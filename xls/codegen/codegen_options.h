@@ -298,9 +298,20 @@ class CodegenOptions {
   }
   bool emit_sv_types() const { return emit_sv_types_; }
 
-  std::string simulation_macro_name() const { return simulation_macro_name_; }
+  std::string_view simulation_macro_name() const {
+    return simulation_macro_name_;
+  }
   CodegenOptions& set_simulation_macro_name(std::string macro_name) {
     simulation_macro_name_ = std::move(macro_name);
+    return *this;
+  }
+
+  absl::Span<std::string const> assertion_macro_names() const {
+    return assertion_macro_names_;
+  }
+  CodegenOptions& set_assertion_macro_names(
+      std::vector<std::string>&& macro_names) {
+    assertion_macro_names_ = std::move(macro_names);
     return *this;
   }
 
@@ -377,6 +388,7 @@ class CodegenOptions {
   std::vector<std::string> includes_;
   bool emit_sv_types_ = true;
   std::string simulation_macro_name_ = "SIMULATION";
+  std::vector<std::string> assertion_macro_names_ = {"ASSERT_ON"};
   Version codegen_version_ = Version::kDefault;
   bool materialize_internal_fifos_ = false;
   std::vector<int32_t> randomize_order_seed_;

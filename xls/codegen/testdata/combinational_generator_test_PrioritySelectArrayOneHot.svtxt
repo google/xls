@@ -31,6 +31,8 @@ module main(
   assign one_hot_sel_23[2] = x_unflattened[2] & {16{one_hot_15[0]}} | y_unflattened[2] & {16{one_hot_15[1]}};
   assign one_hot_sel_23[3] = x_unflattened[3] & {16{one_hot_15[0]}} | y_unflattened[3] & {16{one_hot_15[1]}};
   assign eq_20 = one_hot_15 == one_hot_18[1:0];
-  priority_sel_16_selector_one_hot_A: assert final ($isunknown(eq_20) || eq_20) else $fatal(0, "Selector one_hot.15 was expected to be one-hot, and is not.");
   assign out = {one_hot_sel_23[3], one_hot_sel_23[2], one_hot_sel_23[1], one_hot_sel_23[0]};
+  `ifdef ASSERT_ON
+  priority_sel_16_selector_one_hot_A: assert final ($isunknown(eq_20) || eq_20) else $fatal(0, "Selector one_hot.15 was expected to be one-hot, and is not.");
+  `endif  // ASSERT_ON
 endmodule

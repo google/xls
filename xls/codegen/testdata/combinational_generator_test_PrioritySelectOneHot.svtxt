@@ -11,6 +11,8 @@ module main(
   assign one_hot_15 = {!p, p};
   assign one_hot_18 = {one_hot_15[1:0] == 2'h0, one_hot_15[1] && !one_hot_15[0], one_hot_15[0]};
   assign eq_20 = one_hot_15 == one_hot_18[1:0];
-  priority_sel_16_selector_one_hot_A: assert final ($isunknown(eq_20) || eq_20) else $fatal(0, "Selector one_hot.15 was expected to be one-hot, and is not.");
   assign out = x & {16{one_hot_15[0]}} | y & {16{one_hot_15[1]}};
+  `ifdef ASSERT_ON
+  priority_sel_16_selector_one_hot_A: assert final ($isunknown(eq_20) || eq_20) else $fatal(0, "Selector one_hot.15 was expected to be one-hot, and is not.");
+  `endif  // ASSERT_ON
 endmodule

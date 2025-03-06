@@ -222,6 +222,9 @@ Some names can be set at codegen via the following flags:
     Traces with higher verbosity are stripped from codegen output. 0 by default.
 -   `--simulation_macro_name=...` sets the name of the Verilog macro used to
     guard simulation-only constructs.
+-   `assertion_macro_names=...` sets the names of the Verilog macros used to
+    guard assertions. If prefixed with `!` the polarity of the guard is
+    inverted.
 
 ## Format Strings
 

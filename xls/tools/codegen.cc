@@ -374,6 +374,8 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   }
 
   options.set_simulation_macro_name(p.simulation_macro_name());
+  options.set_assertion_macro_names(std::vector<std::string>(
+      p.assertion_macro_names().begin(), p.assertion_macro_names().end()));
 
   std::vector<std::unique_ptr<verilog::RamConfiguration>> ram_configurations;
   ram_configurations.reserve(p.ram_configurations_size());

@@ -170,6 +170,9 @@ ABSL_FLAG(std::string, simulation_macro_name, "SIMULATION",
           "Verilog macro name to use in an `ifdef guard for "
           "simulation-specific constructs such as $display statements. If "
           "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
+ABSL_FLAG(std::vector<std::string>, assertion_macro_names, {"ASSERT_ON"},
+          "Verilog macro names to use in an `ifdef guard for assertions. If "
+          "prefixed with `!` the polarity of the guard is inverted (`ifndef).");
 ABSL_FLAG(int64_t, codegen_version, 0,
           "Version of codegen to use.  Either 2 (refactored codegen), 1 "
           "(orignal codegen path), or 0 for default");
@@ -256,7 +259,7 @@ absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
 
 }  // namespace
 
-static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
+static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto& proto) {
 #define POPULATE_FLAG(__x)                                   \
   {                                                          \
     any_flags_set |= FLAGS_##__x.IsSpecifiedOnCommandLine(); \
@@ -293,6 +296,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
   POPULATE_FLAG(flop_outputs);
   POPULATE_FLAG(emit_sv_types);
   POPULATE_FLAG(simulation_macro_name);
+  POPULATE_REPEATED_FLAG(assertion_macro_names);
 
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_inputs_kind,

@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_python//python:proto.bzl", "py_proto_library")
+
 # Load proto_library
+load("//xls/build_rules:xls_build_defs.bzl", "xls_ir_verilog")
 # cc_proto_library is used in this file
 
 package(
@@ -2031,4 +2034,43 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "@googletest//:gtest",
     ],
+)
+
+# Test that codegen args work correctly in our rules.
+xls_ir_verilog(
+    name = "assertions_multiple_ifdef_guards",
+    src = "//xls/examples/assertions:assertions_opt_ir",
+    codegen_args = {
+        "module_name": "assertions_top",
+        "generator": "combinational",
+        "delay_model": "unit",
+        "use_system_verilog": "true",
+        "assertion_macro_names": "ASSERT_ON,!SYNTHESIS",
+    },
+    verilog_file = "assertions_comb_multiple_ifdef_guards.sv",
+)
+
+xls_ir_verilog(
+    name = "assertions_no_ifdef_guards",
+    src = "//xls/examples/assertions:assertions_opt_ir",
+    codegen_args = {
+        "module_name": "assertions_top",
+        "generator": "combinational",
+        "delay_model": "unit",
+        "use_system_verilog": "true",
+        "assertion_macro_names": "",
+    },
+    verilog_file = "assertions_comb_no_ifdef_guards.sv",
+)
+
+diff_test(
+    name = "assertions_multiple_ifdef_guards_diff_test",
+    file1 = ":assertions_comb_multiple_ifdef_guards.sv",
+    file2 = "testdata/assertions_comb_multiple_ifdef_guards.svtxt",
+)
+
+diff_test(
+    name = "assertions_no_ifdef_guards_diff_test",
+    file1 = ":assertions_comb_no_ifdef_guards.sv",
+    file2 = "testdata/assertions_comb_no_ifdef_guards.svtxt",
 )

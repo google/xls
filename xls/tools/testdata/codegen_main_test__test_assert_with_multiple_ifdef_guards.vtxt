@@ -4,6 +4,8 @@ module invert_with_assert(
 );
   assign out = ~x;
   `ifdef ASSERT_ON
-  `MY_ASSERT(x, "assert message")
+  `ifndef SYNTHESIS
+  assert final ($isunknown(x) || x) else $fatal(0, "assert message");
+  `endif  // SYNTHESIS
   `endif  // ASSERT_ON
 endmodule

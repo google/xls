@@ -56,7 +56,8 @@ class VerilogSimulator {
     std::string name;
     std::optional<std::string> value;
   };
-  static constexpr char kSimulationMacroName[] = "SIMULATION";
+  static constexpr std::string_view kSimulationMacroName = "SIMULATION";
+  static constexpr std::string_view kAssertOnMacroName = "ASSERT_ON";
 
   // Runs the simulator with the given Verilog text as input and returns the
   // stdout/stderr as a string pair.

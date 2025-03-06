@@ -72,6 +72,7 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
       package_interface_(options.package_interface_),
       emit_sv_types_(options.emit_sv_types_),
       simulation_macro_name_(options.simulation_macro_name_),
+      assertion_macro_names_(options.assertion_macro_names_),
       codegen_version_(options.codegen_version_),
       materialize_internal_fifos_(options.materialize_internal_fifos_),
       randomize_order_seed_(options.randomize_order_seed_) {

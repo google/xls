@@ -365,6 +365,42 @@ class CodeGenMainTest(parameterized.TestCase):
     ]).decode('utf-8')
     self._compare_to_golden(verilog)
 
+  def test_assert_without_ifdef_guards(self):
+    ir_file = self.create_tempfile(content=ASSERT_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        '--top=invert_with_assert',
+        '--assertion_macro_names=',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self._compare_to_golden(verilog)
+
+  def test_assert_with_multiple_ifdef_guards(self):
+    ir_file = self.create_tempfile(content=ASSERT_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        '--top=invert_with_assert',
+        '--assertion_macro_names=ASSERT_ON,!SYNTHESIS',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self._compare_to_golden(verilog)
+
+  def test_no_asserts_dont_create_assertion_ifdef_guards(self):
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--alsologtostderr',
+        '--top=not_add',
+        '--assertion_macro_names=ASSERT_ON,!SYNTHESIS',
+        ir_file.full_path,
+    ]).decode('utf-8')
+    self._compare_to_golden(verilog)
+
   def test_gate_format(self):
     ir_file = self.create_tempfile(content=GATE_IR)
     verilog = subprocess.check_output([

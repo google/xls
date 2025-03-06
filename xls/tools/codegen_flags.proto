@@ -82,6 +82,7 @@ message CodegenFlagsProto {
   optional bool emit_sv_types = 33;
 
   optional string simulation_macro_name = 34;
+  repeated string assertion_macro_names = 39;
 
   optional int64 codegen_version = 36;
 

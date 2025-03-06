@@ -59,3 +59,28 @@ used, a zero-valued literal can be substituted.
 
 Asserts and covers are only represented when producing SystemVerilog, and are
 unrepresented when producing Verilog.
+
+## Assertions
+
+For combinational blocks, assertions are emitted as SystemVerilog deferred
+immediate assertions of the form:
+
+```
+[LABEL:] assert final (DISABLE_IFF || CONDITION) else $fatal(0, message)
+```
+
+For pipelined blocks, assertions are emitted as SystemVerilog concurrent
+assertions of the form:
+
+```
+[LABEL:] assert property (
+    @(CLOCKING_EVENT)
+    [disable iff DISABLE_IFF] CONDITION)
+  else $fatal(0, message);
+```
+
+If reset is present and asynchronous, the `DISABLE_IFF` expression is wrapped in
+a call to `$sampled()`.
+
+Note that the default codegen of assertions can be overridden via the
+`--assert_format` codegen options, even if the output format is Verilog.
