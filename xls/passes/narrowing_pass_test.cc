@@ -98,15 +98,9 @@ TEST_P(NarrowingPassTest, NarrowSub) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ScopedVerifyEquivalence stays_equivalent{f};
-  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
-    // Ternary isn't able to see the leading bits.
-    // TODO(allight): Investigate this. It should be possible to see these.
-    ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
-  } else {
-    ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-    EXPECT_THAT(f->return_value(),
-                m::ZeroExt(AllOf(m::Sub(_, _), m::Type("bits[5]"))));
-  }
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::ZeroExt(AllOf(m::Sub(_, _), m::Type("bits[5]"))));
 }
 
 TEST_P(NarrowingPassTest, NarrowableSubNegative) {
@@ -148,9 +142,6 @@ TEST_P(NarrowingPassTest, NarrowableSubNegativeGeneric) {
 }
 
 TEST_P(NarrowingPassTest, NarrowableSubPositive) {
-  if (analysis() == NarrowingPass::AnalysisType::kTernary) {
-    GTEST_SKIP() << "ternary Unable to determine sign of subtraction";
-  }
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   auto x = fb.Param("x", p->GetBitsType(4));

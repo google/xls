@@ -115,6 +115,28 @@ class AbstractEvaluator {
     return {second_result.sum, Or(first_result.carry, second_result.carry)};
   }
 
+  struct SubtractorResult {
+    Element diff;
+    Element borrow;
+  };
+  SubtractorResult HalfSubtractor(const Element& a, const Element& b) {
+    Element diff = Xor(a, b);
+    return {
+        .diff = diff,
+        .borrow = And(diff, b),
+    };
+  }
+  SubtractorResult FullSubtractor(const Element& a, const Element& b,
+                                  const Element& borrow_in) {
+    Element not_a = Not(a);
+    return {
+        .diff = XorReduce({a, b, borrow_in}).front(),
+        .borrow =
+            OrReduce({And(not_a, borrow_in), And(not_a, b), And(b, borrow_in)})
+                .front(),
+    };
+  }
+
   // Returns the given bits value as a Vector type.
   Vector BitsToVector(const Bits& bits) {
     Vector result(bits.bit_count());
@@ -385,11 +407,22 @@ class AbstractEvaluator {
     return result;
   }
 
+  Vector Sub(Span a, Span b) {
+    Vector result(a.size());
+    Element borrow = Zero();
+    for (int i = 0; i < a.size(); i++) {
+      SubtractorResult r = FullSubtractor(a[i], b[i], borrow);
+      result[i] = r.diff;
+      borrow = r.borrow;
+    }
+    return result;
+  }
+
   Vector Neg(Span x) {
     if (x.empty()) {
       return SpanToVec(x);
     }
-    return Add(BitwiseNot(x), BitsToVector(UBits(1, x.size())));
+    return Sub(Vector(x.size(), Zero()), x);
   }
 
   Vector Abs(Span x) { return IfBits(x.back(), Neg(x), x); }

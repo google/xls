@@ -448,7 +448,7 @@ class AbstractNodeEvaluator : public DfsVisitorWithDefault {
   absl::Status HandleSub(BinOp* sub) override {
     XLS_ASSIGN_OR_RETURN(auto lhs, GetValue(sub->operand(0)));
     XLS_ASSIGN_OR_RETURN(auto rhs, GetValue(sub->operand(1)));
-    return SetValue(sub, evaluator_.Add(lhs, evaluator_.Neg(rhs)));
+    return SetValue(sub, evaluator_.Sub(lhs, rhs));
   }
   absl::Status HandleTuple(Tuple* tuple) override {
     std::vector<LeafTypeTreeView<LeafValueT>> views;

@@ -407,11 +407,10 @@ class TernaryVisitor : public DataflowVisitor<TernaryVector> {
   absl::Status HandleSub(BinOp* sub) override {
     Node* lhs = sub->operand(0);
     Node* rhs = sub->operand(1);
-    return SetValue(sub,
-                    TernaryTree::CreateSingleElementTree(
-                        sub->GetType(),
-                        evaluator_.Add(GetValue(lhs).Get({}),
-                                       evaluator_.Neg(GetValue(rhs).Get({})))));
+    return SetValue(
+        sub, TernaryTree::CreateSingleElementTree(
+                 sub->GetType(),
+                 evaluator_.Sub(GetValue(lhs).Get({}), GetValue(rhs).Get({}))));
   }
   absl::Status HandleUDiv(BinOp* div) override {
     Node* lhs = div->operand(0);

@@ -104,6 +104,41 @@ TEST(AbstractEvaluatorTest, Add) {
   EXPECT_EQ(c.ToInt64().value(), -1);
 }
 
+TEST(AbstractEvaluatorTest, Sub) {
+  TestAbstractEvaluator eval;
+  {
+    Bits a = UBits(2, 32);
+    Bits b = UBits(4, 32);
+    Bits c = FromBoxedVector(eval.Sub(ToBoxedVector(a), ToBoxedVector(b)));
+    EXPECT_EQ(c.ToInt64().value(), -2);
+  }
+  {
+    Bits a = UBits(4, 32);
+    Bits b = UBits(2, 32);
+    Bits c = FromBoxedVector(eval.Sub(ToBoxedVector(a), ToBoxedVector(b)));
+    EXPECT_EQ(c.ToUint64().value(), 2);
+  }
+  {
+    Bits a = SBits(12, 32);
+    Bits b = SBits(-128, 32);
+    Bits c = FromBoxedVector(eval.Sub(ToBoxedVector(a), ToBoxedVector(b)));
+    EXPECT_EQ(c.ToUint64().value(), 140);
+  }
+}
+
+void SubFuzz(uint8_t lhs, uint8_t rhs) {
+  TestAbstractEvaluator eval;
+  Bits a = UBits(lhs, 8);
+  Bits b = UBits(rhs, 8);
+  uint64_t l_big = lhs;
+  uint64_t r_big = rhs;
+  auto c = eval.Sub(ToBoxedVector(a), ToBoxedVector(b));
+  uint64_t c_big = l_big - r_big;
+  EXPECT_EQ(FromBoxedVector(c), SBits(c_big, 64).Slice(0, 8));
+}
+FUZZ_TEST(AbstractEvaluatorFuzzTest, SubFuzz)
+    .WithDomains(fuzztest::Arbitrary<int8_t>(), fuzztest::Arbitrary<int8_t>());
+
 TEST(AbstractEvaluatorTest, Neg) {
   TestAbstractEvaluator eval;
   Bits a = SBits(4, 32);
