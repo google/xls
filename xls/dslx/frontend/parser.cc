@@ -818,8 +818,8 @@ absl::StatusOr<Number*> Parser::TokenToNumber(const Token& tok) {
                                /*type=*/nullptr);
 }
 
-absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
-                                              const Token& tok) {
+absl::StatusOr<TypeRefOrAnnotation> Parser::ParseTypeRef(Bindings& bindings,
+                                                         const Token& tok) {
   if (tok.kind() != TokenKind::kIdentifier) {
     return ParseErrorStatus(tok.span(), absl::StrFormat("Expected type; got %s",
                                                         tok.ToErrorString()));
@@ -834,6 +834,16 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings& bindings,
   XLS_ASSIGN_OR_RETURN(
       BoundNode type_def,
       bindings.ResolveNodeOrError(*tok.GetValue(), tok.span(), file_table()));
+  if (std::holds_alternative<NameDef*>(type_def)) {
+    NameDef* name_def = std::get<NameDef*>(type_def);
+    if (auto gta = dynamic_cast<GenericTypeAnnotation*>(name_def->definer())) {
+      VLOG(5) << "ParseTypeRef ResolveNode to GenericTypeAnnotation: "
+              << name_def->definer()->ToString();
+
+      return module_->Make<TypeVariableTypeAnnotation>(
+          module_->Make<NameRef>(tok.span(), name_def->identifier(), name_def));
+    }
+  }
   if (!IsOneOf<TypeAlias, EnumDef, StructDef, ProcDef, UseTreeEntry>(
           ToAstNode(type_def))) {
     return ParseErrorStatus(
@@ -945,12 +955,13 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 
   // If the leader is not builtin and not a tuple, it's some form of type
   // reference.
-  XLS_ASSIGN_OR_RETURN(TypeRef * type_ref, ParseTypeRef(bindings, tok));
+  XLS_ASSIGN_OR_RETURN(TypeRefOrAnnotation type_ref,
+                       ParseTypeRef(bindings, tok));
   return ParseTypeRefParametricsAndDims(bindings, tok.span(), type_ref);
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeRefParametricsAndDims(
-    Bindings& bindings, const Span& span, TypeRef* type_ref) {
+    Bindings& bindings, const Span& span, TypeRefOrAnnotation type_ref) {
   VLOG(5) << "ParseTypeRefParametricsAndDims @ " << GetPos();
   std::vector<ExprOrType> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
@@ -3254,10 +3265,15 @@ absl::StatusOr<TypeAnnotation*> Parser::MakeBuiltinTypeAnnotation(
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::MakeTypeRefTypeAnnotation(
-    const Span& span, TypeRef* type_ref, absl::Span<Expr* const> dims,
-    std::vector<ExprOrType> parametrics) {
-  TypeAnnotation* elem_type = module_->Make<TypeRefTypeAnnotation>(
-      span, type_ref, std::move(parametrics));
+    const Span& span, TypeRefOrAnnotation type_ref,
+    absl::Span<Expr* const> dims, std::vector<ExprOrType> parametrics) {
+  TypeAnnotation* elem_type;
+  if (std::holds_alternative<TypeAnnotation*>(type_ref)) {
+    elem_type = std::get<TypeAnnotation*>(type_ref);
+  } else {
+    elem_type = module_->Make<TypeRefTypeAnnotation>(
+        span, std::get<TypeRef*>(type_ref), std::move(parametrics));
+  }
   for (Expr* dim : dims) {
     elem_type = module_->Make<ArrayTypeAnnotation>(span, elem_type, dim);
   }
@@ -3550,7 +3566,13 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                          "Expect type annotation on parametric"));
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
-                         ParseTypeAnnotation(bindings, std::nullopt, true));
+                         ParseTypeAnnotation(bindings,
+                                             /*first=*/std::nullopt,
+                                             /*allow_generic_type=*/true));
+    if (GenericTypeAnnotation* gta =
+            dynamic_cast<GenericTypeAnnotation*>(type)) {
+      name_def->set_definer(gta);
+    }
     XLS_ASSIGN_OR_RETURN(bool dropped_equals, TryDropToken(TokenKind::kEquals));
     Expr* expr = nullptr;
     if (dropped_equals) {

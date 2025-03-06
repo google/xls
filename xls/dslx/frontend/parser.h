@@ -106,6 +106,8 @@ class ABSL_MUST_USE_RESULT ExpressionDepthGuard final {
   Parser* parser_;
 };
 
+using TypeRefOrAnnotation = std::variant<TypeRef*, TypeAnnotation*>;
+
 class Parser : public TokenParser {
  public:
   Parser(std::string module_name, Scanner* scanner, bool parse_fn_stubs = false)
@@ -281,7 +283,8 @@ class Parser : public TokenParser {
                                            const Token& start_tok);
 
   // Parses an AST construct that refers to a type; e.g. a name or a colon-ref.
-  absl::StatusOr<TypeRef*> ParseTypeRef(Bindings& bindings, const Token& tok);
+  absl::StatusOr<TypeRefOrAnnotation> ParseTypeRef(Bindings& bindings,
+                                                   const Token& tok);
 
   // allow_generic_type indicates `T: type` is allowed.
   absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(
@@ -291,7 +294,7 @@ class Parser : public TokenParser {
   // Parses the parametrics and dims after a `TypeRef` that the caller has
   // already parsed, producing a `TypeAnnotation` for the whole thing.
   absl::StatusOr<TypeAnnotation*> ParseTypeRefParametricsAndDims(
-      Bindings& bindings, const Span& span, TypeRef* type_ref);
+      Bindings& bindings, const Span& span, TypeRefOrAnnotation type_ref);
 
   absl::StatusOr<NameRef*> ParseNameRef(Bindings& bindings,
                                         const Token* tok = nullptr);
@@ -340,8 +343,8 @@ class Parser : public TokenParser {
   absl::StatusOr<TypeAnnotation*> MakeBuiltinTypeAnnotation(
       const Span& span, const Token& tok, absl::Span<Expr* const> dims);
   absl::StatusOr<TypeAnnotation*> MakeTypeRefTypeAnnotation(
-      const Span& span, TypeRef* type_ref, absl::Span<Expr* const> dims,
-      std::vector<ExprOrType> parametrics);
+      const Span& span, TypeRefOrAnnotation type_ref,
+      absl::Span<Expr* const> dims, std::vector<ExprOrType> parametrics);
 
   // Returns a parsed number (literal number) expression.
   absl::StatusOr<Number*> ParseNumber(Bindings& bindings);

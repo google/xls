@@ -1460,9 +1460,8 @@ absl::StatusOr<const Function*> CreateAssertEqFunctionStub(Module& module) {
   // Creates:
   // assert_eq<T: type>(x: T, y: T) -> ()
   Span span = module.span();
-  NameDef* type_name_def = module.Make<NameDef>(span, "T", /*definer=*/nullptr);
-  TypeVariableTypeAnnotation* tvta = module.Make<TypeVariableTypeAnnotation>(
-      module.Make<NameRef>(span, "T", type_name_def));
+  NameDef* type_name_def = module.Make<NameDef>(
+      span, "T", /*definer=*/CreateGenericTypeAnnotation(module, span));
   ParametricBinding* binding = module.Make<ParametricBinding>(
       type_name_def, CreateGenericTypeAnnotation(module, span),
       /*expr=*/nullptr);
@@ -1476,10 +1475,12 @@ absl::StatusOr<const Function*> CreateAssertEqFunctionStub(Module& module) {
       std::vector<Param*>{
           module.Make<Param>(
               module.Make<NameDef>(span, "assert_x", /*definer=*/nullptr),
-              tvta),
+              module.Make<TypeVariableTypeAnnotation>(module.Make<NameRef>(
+                  span, type_name_def->identifier(), type_name_def))),
           module.Make<Param>(
               module.Make<NameDef>(span, "assert_y", /*definer=*/nullptr),
-              tvta)},
+              module.Make<TypeVariableTypeAnnotation>(module.Make<NameRef>(
+                  span, type_name_def->identifier(), type_name_def)))},
       /*return_type=*/nullptr,
       /*(empty) body=*/
       module.Make<StatementBlock>(span, std::vector<Statement*>{},

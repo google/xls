@@ -2341,18 +2341,6 @@ TEST_F(ParserTest, ModuleWithGenericType) {
 })");
 }
 
-TEST_F(ParserTest, DISABLED_ModuleWithGenericTypeParam) {
-  RoundTrip(R"(fn parametric<T: type>(a: T) -> u32 {
-    zero!<T>()
-})");
-}
-
-TEST_F(ParserTest, DISABLED_ModuleWithGenericTypeReturn) {
-  RoundTrip(R"(fn parametric<T: type>(a: T) -> T {
-    a
-})");
-}
-
 TEST_F(ParserTest, ModuleWithInvalidGenericType) {
   constexpr std::string_view text = R"(fn non_parametric(T: type) -> u32 {
     zero!<T>()
@@ -3526,6 +3514,85 @@ TEST_F(ParserTest, StubRejectedWithoutStubOnlyFlag) {
   EXPECT_THAT(parser.ParseModule(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected '{', got ';'")));
+}
+
+TEST_F(ParserTest, GenericTypeReturn) {
+  constexpr std::string_view kProgram = "fn parametric<T: type>(a: u32) -> T;";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser p{"test", &s, true};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(Pos(), /*is_public=*/false, /*bindings=*/bindings));
+
+  const TypeAnnotation* return_type = f->return_type();
+  const TypeVariableTypeAnnotation* tvta =
+      dynamic_cast<const TypeVariableTypeAnnotation*>(return_type);
+  EXPECT_NE(tvta, nullptr);
+  const NameRef* name_ref = tvta->type_variable();
+  EXPECT_EQ(name_ref->identifier(), "T");
+}
+
+TEST_F(ParserTest, GenericTypeParameters) {
+  constexpr std::string_view kProgram =
+      "fn parametric<T: type>(a: T, b: T) -> u32;";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser p{"test", &s, true};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(Pos(), /*is_public=*/false, /*bindings=*/bindings));
+
+  auto params = f->params();
+  EXPECT_EQ(params.size(), 2);
+  TypeAnnotation* first_type = params[0]->type_annotation();
+  EXPECT_NE(dynamic_cast<TypeVariableTypeAnnotation*>(first_type), nullptr);
+  TypeAnnotation* second_type = params[1]->type_annotation();
+  EXPECT_NE(dynamic_cast<TypeVariableTypeAnnotation*>(second_type), nullptr);
+  // They are actually different objects, but have the same name and span, so
+  // it's OK.
+  EXPECT_EQ(first_type->ToString(), second_type->ToString());
+}
+
+TEST_F(ParserTest, GenericTypeParametersDifferentTypes) {
+  constexpr std::string_view kProgram =
+      "fn parametric<T: type, S: type>(a: T, b: S) -> u32;";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser p{"test", &s, true};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(Pos(), /*is_public=*/false, /*bindings=*/bindings));
+
+  auto params = f->params();
+  EXPECT_EQ(params.size(), 2);
+  TypeAnnotation* first_type = params[0]->type_annotation();
+  EXPECT_NE(dynamic_cast<TypeVariableTypeAnnotation*>(first_type), nullptr);
+  TypeAnnotation* second_type = params[1]->type_annotation();
+  EXPECT_NE(dynamic_cast<TypeVariableTypeAnnotation*>(second_type), nullptr);
+  EXPECT_NE(first_type->ToString(), second_type->ToString());
+}
+
+TEST_F(ParserTest, GenericTypeArray) {
+  constexpr std::string_view kProgram =
+      "fn parametric<T: type, N: u32>() -> T[N];";
+  Scanner s{file_table_, Fileno(0), std::string(kProgram)};
+  Parser p{"test", &s, true};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(Pos(), /*is_public=*/false, /*bindings=*/bindings));
+
+  const TypeAnnotation* return_type = f->return_type();
+  const ArrayTypeAnnotation* array_type =
+      dynamic_cast<const ArrayTypeAnnotation*>(return_type);
+  EXPECT_NE(array_type, nullptr);
+  const TypeVariableTypeAnnotation* element_type =
+      dynamic_cast<const TypeVariableTypeAnnotation*>(
+          array_type->element_type());
+  EXPECT_NE(element_type, nullptr);
+  const NameRef* name_ref = element_type->type_variable();
+  EXPECT_EQ(name_ref->identifier(), "T");
 }
 
 TEST_F(ParserTest, ReadStubFile) {
