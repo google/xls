@@ -1568,9 +1568,9 @@ dimension of `x`. Each iteration produces a tuple with the current index `i`
 ranging from 0 to 7 and the value at the index `e = x[i]`.
 
 ```
-fn prefix_scan_eq(x: u32[8]) -> bits[8,3] {
+fn prefix_scan_eq(x: u32[8]) -> u3[8] {
   let (_, _, result) =
-    for ((i, e), (prior, count, result)): ((u32, u32), (u32, u3, bits[8,3]))
+    for ((i, e), (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
         in enumerate(x) {...
 ```
 
